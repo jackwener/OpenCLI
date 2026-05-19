@@ -73,8 +73,8 @@ describe('zhihu question', () => {
         const evaluate = vi.fn()
             .mockResolvedValueOnce({
                 data: [
-                    { id: 'a1', author: { name: 'alice' }, voteup_count: 12, content: '<p>first</p>' },
-                    { id: 'a2', author: { name: 'bob' }, voteup_count: 8, content: '<p>second</p>' },
+                    { id: '101', author: { name: 'alice' }, voteup_count: 12, content: '<p>first</p>' },
+                    { id: '102', author: { name: 'bob' }, voteup_count: 8, content: '<p>second</p>' },
                 ],
                 paging: {
                     is_end: false,
@@ -83,16 +83,16 @@ describe('zhihu question', () => {
             })
             .mockResolvedValueOnce({
                 data: [
-                    { id: 'a2', author: { name: 'bob duplicate' }, voteup_count: 8, content: '<p>duplicate</p>' },
-                    { id: 'a3', author: { name: 'carol' }, voteup_count: 5, content: '<p>third</p>' },
+                    { id: '102', author: { name: 'bob duplicate' }, voteup_count: 8, content: '<p>duplicate</p>' },
+                    { id: '103', author: { name: 'carol' }, voteup_count: 5, content: '<p>third</p>' },
                 ],
                 paging: { is_end: true },
             });
         const page = { goto, evaluate };
         await expect(cmd.func(page, { id: '2021881398772981878', limit: 3 })).resolves.toEqual([
-            { rank: 1, id: 'a1', author: 'alice', votes: 12, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a1', content: 'first' },
-            { rank: 2, id: 'a2', author: 'bob', votes: 8, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a2', content: 'second' },
-            { rank: 3, id: 'a3', author: 'carol', votes: 5, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a3', content: 'third' },
+            { rank: 1, id: '101', author: 'alice', votes: 12, url: 'https://www.zhihu.com/question/2021881398772981878/answer/101', content: 'first' },
+            { rank: 2, id: '102', author: 'bob', votes: 8, url: 'https://www.zhihu.com/question/2021881398772981878/answer/102', content: 'second' },
+            { rank: 3, id: '103', author: 'carol', votes: 5, url: 'https://www.zhihu.com/question/2021881398772981878/answer/103', content: 'third' },
         ]);
         expect(evaluate).toHaveBeenCalledTimes(2);
         expect(evaluate.mock.calls[1][0]).toContain('offset=80');
@@ -105,7 +105,7 @@ describe('zhihu question', () => {
             return {
                 data: [
                     {
-                        id: 'a1',
+                        id: '101',
                         author: { name: 'newest' },
                         voteup_count: 1,
                         content: '<p>created order</p>',
@@ -116,9 +116,36 @@ describe('zhihu question', () => {
         });
         const page = { goto, evaluate };
         await expect(cmd.func(page, { id: '2021881398772981878', limit: 1, sort: 'created' })).resolves.toEqual([
-            { rank: 1, id: 'a1', author: 'newest', votes: 1, url: 'https://www.zhihu.com/question/2021881398772981878/answer/a1', content: 'created order' },
+            { rank: 1, id: '101', author: 'newest', votes: 1, url: 'https://www.zhihu.com/question/2021881398772981878/answer/101', content: 'created order' },
         ]);
         expect(goto).toHaveBeenCalledWith('https://www.zhihu.com/question/2021881398772981878/answers/updated');
+    });
+    it('does not emit a fake answer URL for malformed answer IDs', async () => {
+        const cmd = getRegistry().get('zhihu/question');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                data: [
+                    {
+                        id: 'not-an-id',
+                        author: { name: 'alice' },
+                        voteup_count: 12,
+                        content: '<p>malformed id</p>',
+                    },
+                ],
+                paging: { is_end: true },
+            }),
+        };
+        await expect(cmd.func(page, { id: '2021881398772981878', limit: 1 })).resolves.toEqual([
+            {
+                rank: 1,
+                id: '',
+                author: 'alice',
+                votes: 12,
+                url: '',
+                content: 'malformed id',
+            },
+        ]);
     });
     it('maps auth-like answer failures to AuthRequiredError', async () => {
         const cmd = getRegistry().get('zhihu/question');

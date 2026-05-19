@@ -25,7 +25,11 @@ function answerIdFromUrl(url) {
 }
 
 function answerId(item) {
-    return answerIdFromUrl(item.url) || (item.id == null ? '' : String(item.id));
+    const fromUrl = answerIdFromUrl(item.url);
+    if (fromUrl) return fromUrl;
+    if (typeof item.id === 'string' && /^\d+$/.test(item.id)) return item.id;
+    if (typeof item.id === 'number' && Number.isSafeInteger(item.id) && item.id > 0) return String(item.id);
+    return '';
 }
 
 const MAX_LIMIT = 1000;
