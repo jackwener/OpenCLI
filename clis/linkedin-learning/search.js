@@ -72,6 +72,7 @@ function averageRating(rating) {
 function parseRow(el, rank) {
     const type = el?.entityType || '';
     const slug = el?.slug || '';
+    if (!slug) return null;
     return {
         rank,
         type,
@@ -123,11 +124,23 @@ cli({
         if (!result?.json) {
             throw new CommandExecutionError(`LinkedIn Learning searchV2 failed: ${result?.error ?? 'no payload'}`);
         }
-        const elements = Array.isArray(result.json?.elements) ? result.json.elements : [];
+        const elements = result.json?.elements;
+        if (!Array.isArray(elements)) {
+            throw new CommandExecutionError('LinkedIn Learning searchV2 returned malformed payload: missing elements array');
+        }
         if (elements.length === 0) {
             throw new EmptyResultError(`No LinkedIn Learning results for "${keywords}"`);
         }
-        return elements.slice(0, limit).map((el, i) => parseRow(el, i + 1));
+        const rows = [];
+        for (const el of elements) {
+            if (rows.length >= limit) break;
+            const row = parseRow(el, rows.length + 1);
+            if (row) rows.push(row);
+        }
+        if (rows.length === 0) {
+            throw new CommandExecutionError('LinkedIn Learning searchV2 returned no parseable rows with slug identity');
+        }
+        return rows;
     },
 });
 

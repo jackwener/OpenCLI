@@ -24,6 +24,11 @@ describe('linkedin-learning course', () => {
             .toBe('agentic-ai-build');
     });
 
+    it('rejects non-LinkedIn Learning URLs before navigation', () => {
+        expect(() => parseSlug('https://evil.example/learning/agentic-ai-build')).toThrow(ArgumentError);
+        expect(() => parseSlug('https://www.linkedin.com/feed/update/123')).toThrow(ArgumentError);
+    });
+
     it('rejects empty or invalid slugs with ArgumentError', () => {
         expect(() => parseSlug('')).toThrow(ArgumentError);
         expect(() => parseSlug('   ')).toThrow(ArgumentError);
@@ -58,6 +63,12 @@ describe('linkedin-learning course', () => {
         expect(row.description).toBe('plain string');
     });
 
+    it('preserves the full course description', () => {
+        const text = 'x'.repeat(350);
+        const row = parseCourse({ title: 't', description: { text } }, 'x');
+        expect(row.description).toBe(text);
+    });
+
     it('returns empty fields when upstream omits them', () => {
         const row = parseCourse({}, 'x');
         expect(row.title).toBe('');
@@ -76,6 +87,12 @@ describe('linkedin-learning course', () => {
         const cmd = getRegistry().get('linkedin-learning/course');
         const page = makePage({ evaluateResult: { json: { elements: [] } } });
         await expect(cmd.func(page, { slug: 'agentic-ai-build' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError when the elements array is missing', async () => {
+        const cmd = getRegistry().get('linkedin-learning/course');
+        const page = makePage({ evaluateResult: { json: { data: {} } } });
+        await expect(cmd.func(page, { slug: 'agentic-ai-build' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('throws CommandExecutionError on fetch errors', async () => {

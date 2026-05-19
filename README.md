@@ -272,6 +272,7 @@ To load the source Browser Bridge extension:
 | **nowcoder** | `hot` `trending` `topics` `recommend` `creators` `companies` `jobs` `search` `suggest` `experience` `referral` `salary` `papers` `practice` `notifications` `detail` |
 | **wanfang** | `search` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
+| **linkedin-learning** | `search` `trending` `course` |
 | **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
 | **youdao** | `note` |
 

@@ -47,6 +47,7 @@ function buildFetchScript(url, csrf) {
 
 function parseCard(card, group, rank) {
     const slug = card?.slug || '';
+    if (!slug) return null;
     return {
         rank,
         group: group?.title?.text || group?.annotation || '',
@@ -92,26 +93,37 @@ cli({
         if (!result?.json) {
             throw new CommandExecutionError(`LinkedIn Learning feedRecommendationGroups failed: ${result?.error ?? 'no payload'}`);
         }
-        const groups = Array.isArray(result.json?.elements) ? result.json.elements : [];
+        const groups = result.json?.elements;
+        if (!Array.isArray(groups)) {
+            throw new CommandExecutionError('LinkedIn Learning feedRecommendationGroups returned malformed payload: missing elements array');
+        }
         const rows = [];
         const seen = new Set();
         let rank = 1;
+        let sawCards = false;
         for (const group of groups) {
             const carousels = Array.isArray(group?.carousels) ? group.carousels : [];
             for (const carousel of carousels) {
                 const cards = Array.isArray(carousel?.cards) ? carousel.cards : [];
                 for (const card of cards) {
+                    sawCards = true;
                     if (rows.length >= limit) break;
                     const slug = card?.slug;
                     if (!slug || seen.has(slug)) continue;
                     seen.add(slug);
-                    rows.push(parseCard(card, carousel, rank++));
+                    const row = parseCard(card, carousel, rank);
+                    if (!row) continue;
+                    rows.push(row);
+                    rank += 1;
                 }
                 if (rows.length >= limit) break;
             }
             if (rows.length >= limit) break;
         }
         if (rows.length === 0) {
+            if (sawCards) {
+                throw new CommandExecutionError('LinkedIn Learning feedRecommendationGroups returned no parseable cards with slug identity');
+            }
             throw new EmptyResultError('LinkedIn Learning returned no personalized recommendations');
         }
         return rows;

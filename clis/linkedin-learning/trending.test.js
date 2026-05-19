@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './trending.js';
 
 const { parseLimit, parseCard } = await import('./trending.js').then((m) => m.__test__);
@@ -43,6 +43,10 @@ describe('linkedin-learning trending', () => {
         });
     });
 
+    it('drops cards without slug identity', () => {
+        expect(parseCard({ title: { text: 'No slug' } }, { title: { text: 'G' } }, 1)).toBeNull();
+    });
+
     it('flattens carousels and dedups cards across them', async () => {
         const cmd = getRegistry().get('linkedin-learning/trending');
         const page = makePage({
@@ -54,6 +58,7 @@ describe('linkedin-learning trending', () => {
                                 title: { text: 'Top picks' },
                                 cards: [
                                     { slug: 'a', headline: { title: { text: 'Course A' } } },
+                                    { headline: { title: { text: 'No slug' } } },
                                     { slug: 'b', headline: { title: { text: 'Course B' } } },
                                 ],
                             },
@@ -98,5 +103,21 @@ describe('linkedin-learning trending', () => {
         const cmd = getRegistry().get('linkedin-learning/trending');
         const page = makePage({ evaluateResult: { json: { elements: [{ carousels: [] }] } } });
         await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError when the elements array is missing', async () => {
+        const cmd = getRegistry().get('linkedin-learning/trending');
+        const page = makePage({ evaluateResult: { json: { data: {} } } });
+        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when cards lack slug identity', async () => {
+        const cmd = getRegistry().get('linkedin-learning/trending');
+        const page = makePage({
+            evaluateResult: {
+                json: { elements: [{ carousels: [{ title: { text: 'G' }, cards: [{ headline: { title: { text: 'No slug' } } }] }] }] },
+            },
+        });
+        await expect(cmd.func(page, { limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

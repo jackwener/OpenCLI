@@ -67,7 +67,7 @@ Cards are deduplicated by slug across carousels (first-seen wins).
 |--------|-------|
 | `title` | Course title |
 | `slug` | Stable slug used in URL |
-| `description` | First 300 characters of the course description |
+| `description` | Full course description returned by `/learning-api/courses?q=slug` |
 | `difficulty` | `Beginner` / `Intermediate` / etc (mixed case from detail endpoint) |
 | `duration_sec` | Total length in seconds |
 | `videos_count` | Number of videos in the course |

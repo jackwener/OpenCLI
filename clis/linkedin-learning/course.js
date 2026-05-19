@@ -18,8 +18,25 @@ function unwrapEvaluateResult(payload) {
 function parseSlug(value) {
     const s = normalizeWhitespace(value);
     if (!s) throw new ArgumentError('<slug> is required');
-    const m = s.match(/learning\/([^/?#]+)/);
-    const slug = m ? m[1] : s;
+    let slug = s;
+    if (/^https?:\/\//i.test(s)) {
+        let parsed;
+        try {
+            parsed = new URL(s);
+        } catch {
+            throw new ArgumentError(`Invalid LinkedIn Learning URL: "${s}"`);
+        }
+        const host = parsed.hostname.toLowerCase();
+        if (host !== 'linkedin.com' && host !== 'www.linkedin.com') {
+            throw new ArgumentError(`Invalid LinkedIn Learning host: "${parsed.hostname}"`);
+        }
+        const m = parsed.pathname.match(/^\/learning\/([^/?#]+)/);
+        if (!m) throw new ArgumentError(`Invalid LinkedIn Learning course URL: "${s}"`);
+        slug = m[1];
+    } else {
+        const m = s.match(/^\/?learning\/([^/?#]+)/);
+        slug = m ? m[1] : s;
+    }
     if (!/^[a-zA-Z0-9-_]+$/.test(slug)) {
         throw new ArgumentError(`Invalid LinkedIn Learning slug: "${slug}"`);
     }
@@ -55,7 +72,7 @@ function parseCourse(el, slug) {
     return {
         title: el?.title || '',
         slug,
-        description: description.slice(0, 300),
+        description,
         difficulty: el?.difficultyLevel || '',
         duration_sec: duration,
         videos_count: el?.videosCount ?? '',
@@ -100,7 +117,11 @@ cli({
         if (!result?.json) {
             throw new CommandExecutionError(`LinkedIn Learning courses lookup failed: ${result?.error ?? 'no payload'}`);
         }
-        const el = result.json?.elements?.[0];
+        const elements = result.json?.elements;
+        if (!Array.isArray(elements)) {
+            throw new CommandExecutionError('LinkedIn Learning courses lookup returned malformed payload: missing elements array');
+        }
+        const el = elements[0];
         if (!el) {
             throw new EmptyResultError(`No LinkedIn Learning course found for slug "${slug}"`);
         }

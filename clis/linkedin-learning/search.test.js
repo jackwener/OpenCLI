@@ -70,9 +70,9 @@ describe('linkedin-learning search', () => {
         });
     });
 
-    it('treats missing slug as no URL', () => {
+    it('drops rows without slug identity', () => {
         const row = parseRow({ entityType: 'COURSE', headline: { title: { text: 't' } } }, 2);
-        expect(row.url).toBe('');
+        expect(row).toBeNull();
     });
 
     it('escapes the URL and csrf into the fetch script as literal strings', () => {
@@ -107,6 +107,18 @@ describe('linkedin-learning search', () => {
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
     });
 
+    it('throws CommandExecutionError when the elements array is missing', async () => {
+        const cmd = getRegistry().get('linkedin-learning/search');
+        const page = makePage({ evaluateResult: { json: { data: {} } } });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when elements lack slug identity', async () => {
+        const cmd = getRegistry().get('linkedin-learning/search');
+        const page = makePage({ evaluateResult: { json: { elements: [{ headline: { title: { text: 'No slug' } } }] } } });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('rejects empty keywords with ArgumentError before navigation', async () => {
         const cmd = getRegistry().get('linkedin-learning/search');
         const page = makePage({ evaluateResult: { json: { elements: [] } } });
@@ -118,6 +130,7 @@ describe('linkedin-learning search', () => {
         const cmd = getRegistry().get('linkedin-learning/search');
         const elements = [
             { entityType: 'COURSE', slug: 'a', headline: { title: { text: 'Course A' } }, authors: [{ firstName: 'Inst', lastName: 'A' }], difficultyLevel: 'BEGINNER', length: { 'com.linkedin.common.TimeSpan': { duration: 100, unit: 'SECOND' } } },
+            { entityType: 'COURSE', headline: { title: { text: 'No slug' } } },
             { entityType: 'VIDEO', slug: 'b', headline: { title: { text: 'Video B' } } },
         ];
         const page = makePage({ evaluateResult: { json: { elements } } });
