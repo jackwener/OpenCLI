@@ -24331,6 +24331,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "likes",
       "retweets",
@@ -24731,6 +24732,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "created_at",
       "likes",
@@ -24832,6 +24834,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "likes",
       "retweets",

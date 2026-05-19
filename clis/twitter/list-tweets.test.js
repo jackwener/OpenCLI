@@ -24,6 +24,7 @@ describe('twitter list-tweets parser', () => {
             id: '99',
             author: 'bob',
             name: 'Bob',
+            bio: '',
             text: 'hello list',
             likes: 3,
             retweets: 1,

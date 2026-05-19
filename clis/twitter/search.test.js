@@ -68,6 +68,7 @@ describe('twitter search command', () => {
             {
                 id: '1',
                 author: 'alice',
+                bio: '',
                 text: 'hello world',
                 created_at: 'Thu Mar 26 10:30:00 +0000 2026',
                 likes: 7,
