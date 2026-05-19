@@ -277,16 +277,26 @@ export function buildLocationIdentifier({ query, bbox, polygon }) {
 
 export function propertyToRow(property, rank) {
     const id = property?.id;
-    const path = property?.propertyUrl ? String(property.propertyUrl).trim() : '';
-    if (id === undefined || id === null || id === '' || !path) {
+    const idText = String(id ?? '').trim();
+    const rawUrl = property?.propertyUrl ? String(property.propertyUrl).trim() : '';
+    if (!idText || !rawUrl) {
         throw new CommandExecutionError(`rightmove search result at rank ${rank} did not include a round-trippable id and propertyUrl`);
+    }
+    let url;
+    try {
+        url = new URL(rawUrl, RIGHTMOVE_ORIGIN);
+    } catch {
+        throw new CommandExecutionError(`rightmove search result at rank ${rank} had an invalid propertyUrl`);
+    }
+    const pathId = url.pathname.match(/^\/properties\/([^/?#]+)/)?.[1];
+    if (url.origin !== RIGHTMOVE_ORIGIN || !pathId || pathId !== idText) {
+        throw new CommandExecutionError(`rightmove search result at rank ${rank} had a non-round-trippable propertyUrl`);
     }
     const price = property?.price?.displayPrices?.[0]?.displayPrice
         ?? (property?.price?.amount ? String(property.price.amount) : '');
     const agent = property?.customer?.branchDisplayName
         ?? property?.formattedBranchName
         ?? '';
-    const url = path.startsWith('http') ? path : `${RIGHTMOVE_ORIGIN}${path}`;
     return {
         rank,
         id,
@@ -299,6 +309,6 @@ export function propertyToRow(property, rank) {
         added: property?.addedOrReduced ?? property?.listingUpdate?.listingUpdateReason ?? '',
         latitude: property?.location?.latitude ?? '',
         longitude: property?.location?.longitude ?? '',
-        url,
+        url: url.href,
     };
 }

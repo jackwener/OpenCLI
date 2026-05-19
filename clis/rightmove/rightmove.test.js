@@ -165,6 +165,10 @@ describe('rightmove adapter — URL and row mapping', () => {
             .toThrow(CommandExecutionError);
         expect(() => propertyToRow({ id: 123, displayAddress: 'No URL' }, 1))
             .toThrow(CommandExecutionError);
+        expect(() => propertyToRow({ id: 123, displayAddress: 'Off-domain URL', propertyUrl: 'https://example.com/properties/123' }, 1))
+            .toThrow(CommandExecutionError);
+        expect(() => propertyToRow({ id: 123, displayAddress: 'Mismatched URL', propertyUrl: '/properties/456#/?channel=RES_BUY' }, 1))
+            .toThrow(CommandExecutionError);
     });
 });
 
