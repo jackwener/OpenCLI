@@ -531,13 +531,6 @@
     ]
   },
   {
-    "command": "linkedin/people-search",
-    "file": "clis/linkedin/people-search.js",
-    "missing": [
-      "handle"
-    ]
-  },
-  {
     "command": "linkedin/timeline",
     "file": "clis/linkedin/timeline.js",
     "missing": [

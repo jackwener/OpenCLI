@@ -3,14 +3,26 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './people-search.js';
 
-const { parseLimit, buildSearchUrl, extractionScript } = await import('./people-search.js').then((m) => m.__test__);
+const {
+    parseLimit,
+    buildSearchUrl,
+    looksLinkedInAuthWall,
+    normalizeProfileUrl,
+    normalizePeopleRows,
+    extractionScript,
+} = await import('./people-search.js').then((m) => m.__test__);
 
-function makePage({ evaluateResult, cookies = [{ name: 'JSESSIONID', value: '"ajax:1234567890"' }] } = {}) {
+function makePage({
+    evaluateResult,
+    evaluateReject,
+    gotoReject,
+    cookies = [{ name: 'JSESSIONID', value: '"ajax:1234567890"' }],
+} = {}) {
     return {
-        goto: vi.fn().mockResolvedValue(undefined),
+        goto: vi.fn().mockImplementation(() => gotoReject ? Promise.reject(gotoReject) : Promise.resolve(undefined)),
         wait: vi.fn().mockResolvedValue(undefined),
         getCookies: vi.fn().mockResolvedValue(cookies),
-        evaluate: vi.fn().mockResolvedValue(evaluateResult),
+        evaluate: vi.fn().mockImplementation(() => evaluateReject ? Promise.reject(evaluateReject) : Promise.resolve(evaluateResult)),
     };
 }
 
@@ -52,6 +64,30 @@ describe('linkedin people-search command', () => {
         expect(s).toContain('search\\/results\\/people');
     });
 
+    it('normalizes only stable LinkedIn profile identities', () => {
+        expect(normalizeProfileUrl('https://www.linkedin.com/in/alice-engineer/?mini=true'))
+            .toBe('https://www.linkedin.com/in/alice-engineer/');
+        expect(normalizeProfileUrl('https://linkedin.com/in/bob-builder')).toBe('https://www.linkedin.com/in/bob-builder/');
+        expect(normalizeProfileUrl('https://evil-linkedin.com/in/bob-builder')).toBe('');
+        expect(normalizeProfileUrl('http://www.linkedin.com/in/bob-builder')).toBe('');
+        expect(normalizeProfileUrl('https://www.linkedin.com/company/opencli')).toBe('');
+    });
+
+    it('detects LinkedIn auth-wall URLs separately from CUL redirects', () => {
+        expect(looksLinkedInAuthWall('https://www.linkedin.com/authwall Sign in to continue')).toBe(true);
+        expect(looksLinkedInAuthWall('https://www.linkedin.com/checkpoint/challenge security verification required')).toBe(true);
+        expect(looksLinkedInAuthWall('https://www.linkedin.com/feed/')).toBe(false);
+    });
+
+    it('rejects malformed extraction rows instead of fabricating success rows', () => {
+        expect(() => normalizePeopleRows({})).toThrow(CommandExecutionError);
+        expect(() => normalizePeopleRows([null])).toThrow(CommandExecutionError);
+        expect(() => normalizePeopleRows([{ name: 'No URL', headline: 'h', location: 'l', profile_url: '' }]))
+            .toThrow(CommandExecutionError);
+        expect(() => normalizePeopleRows([{ name: '', headline: 'h', location: 'l', profile_url: 'https://www.linkedin.com/in/no-name/' }]))
+            .toThrow(CommandExecutionError);
+    });
+
     it('returns ranked rows when the page yields people', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
         expect(cmd?.func).toBeTypeOf('function');
@@ -91,9 +127,33 @@ describe('linkedin people-search command', () => {
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
+    it('treats malformed cookie lookup results as CommandExecutionError', async () => {
+        const cmd = getRegistry().get('linkedin/people-search');
+        const page = makePage({ cookies: null, evaluateResult: { rows: [] } });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('treats LinkedIn redirect away from search page as a CUL-flavoured CommandExecutionError', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
         const page = makePage({ evaluateResult: { error: 'not on people search page', url: 'https://www.linkedin.com/' } });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('treats LinkedIn auth-wall redirects as AuthRequiredError', async () => {
+        const cmd = getRegistry().get('linkedin/people-search');
+        const page = makePage({ evaluateResult: { error: 'not on people search page', url: 'https://www.linkedin.com/authwall?trk=people_search' } });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('wraps browser extraction exceptions as CommandExecutionError', async () => {
+        const cmd = getRegistry().get('linkedin/people-search');
+        const page = makePage({ evaluateReject: new SyntaxError('Unexpected token <') });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('wraps browser navigation exceptions as CommandExecutionError', async () => {
+        const cmd = getRegistry().get('linkedin/people-search');
+        const page = makePage({ gotoReject: new Error('navigation failed') });
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
@@ -101,6 +161,12 @@ describe('linkedin people-search command', () => {
         const cmd = getRegistry().get('linkedin/people-search');
         const page = makePage({ evaluateResult: { rows: [] } });
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('treats missing rows array as parser drift, not empty results', async () => {
+        const cmd = getRegistry().get('linkedin/people-search');
+        const page = makePage({ evaluateResult: {} });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('rejects empty keywords with ArgumentError before navigation', async () => {

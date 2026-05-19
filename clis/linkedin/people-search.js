@@ -38,6 +38,52 @@ function buildSearchUrl(keywords) {
     return SEARCH_URL_BASE + '?keywords=' + encodeURIComponent(keywords);
 }
 
+function looksLinkedInAuthWall(value) {
+    const text = normalizeWhitespace(value).toLowerCase();
+    if (!text) return false;
+    return /linkedin\.com\/(?:login|checkpoint|authwall|uas)/i.test(text)
+        || /\b(sign in|log in|join linkedin|captcha|verification required)\b/i.test(text)
+        || /(请登录|登录领英|安全验证)/.test(text);
+}
+
+function normalizeProfileUrl(value) {
+    const raw = normalizeWhitespace(value);
+    if (!raw) return '';
+    try {
+        const parsed = new URL(raw);
+        const host = parsed.hostname.toLowerCase();
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) return '';
+        if (host !== 'linkedin.com' && host !== 'www.linkedin.com') return '';
+        const match = parsed.pathname.match(/^\/in\/([^/?#]+)\/?$/);
+        if (!match || !match[1]) return '';
+        return `https://www.linkedin.com/in/${match[1]}/`;
+    } catch {
+        return '';
+    }
+}
+
+function normalizePeopleRows(rows) {
+    if (!Array.isArray(rows)) {
+        throw new CommandExecutionError('LinkedIn people search returned malformed extraction payload: missing rows array');
+    }
+    return rows.map((row, index) => {
+        if (!row || typeof row !== 'object') {
+            throw new CommandExecutionError(`LinkedIn people search returned malformed row at index ${index}`);
+        }
+        const name = normalizeWhitespace(row.name);
+        const profileUrl = normalizeProfileUrl(row.profile_url);
+        if (!name || !profileUrl) {
+            throw new CommandExecutionError(`LinkedIn people search returned row without stable profile identity at index ${index}`);
+        }
+        return {
+            name,
+            headline: normalizeWhitespace(row.headline),
+            location: normalizeWhitespace(row.location),
+            profile_url: profileUrl,
+        };
+    });
+}
+
 function extractionScript() {
     // Class-based selectors are dead (LinkedIn rotates hashed class
     // names on every deploy) and display:contents flattens the DOM
@@ -65,16 +111,16 @@ function extractionScript() {
     for (const a of anchors) {
       const m = (a.getAttribute('href') || '').match(/\/in\/([^/?#]+)/);
       if (!m || !m[1]) continue;
-      const handle = m[1];
-      if (seenHandles.has(handle)) continue;
+      const profileHandle = m[1];
+      if (seenHandles.has(profileHandle)) continue;
       const aria = a.querySelector('span[aria-hidden="true"]');
       let name = normalize(aria ? aria.textContent : a.textContent);
       name = name.replace(/^Status is (online|offline)\.?\s*/i, '')
                  .replace(/'?s profile$/i, '')
                  .replace(/\s*[•·].*$/, '').trim();
       if (!name) continue;
-      seenHandles.add(handle);
-      personEntries.push({ handle, name });
+      seenHandles.add(profileHandle);
+      personEntries.push({ profileHandle, displayName: name });
     }
 
     const lines = (main.innerText || '').split(/\n+/).map(normalize).filter(Boolean);
@@ -83,38 +129,38 @@ function extractionScript() {
     // appear as mutual-connection links inside another card's row
     // never resolve a name index and get filtered out below.
     const nameToIndex = new Map();
-    for (const { name } of personEntries) {
-      if (nameToIndex.has(name)) continue;
+    for (const { displayName } of personEntries) {
+      if (nameToIndex.has(displayName)) continue;
       const match = lines.findIndex((l) =>
         !skip(l) && (
-          l === name
-          || l.startsWith(name + ' ')
-          || l.startsWith(name + ',')
-          || l.startsWith(name + "'")
+          l === displayName
+          || l.startsWith(displayName + ' ')
+          || l.startsWith(displayName + ',')
+          || l.startsWith(displayName + "'")
         )
       );
-      if (match >= 0) nameToIndex.set(name, match);
+      if (match >= 0) nameToIndex.set(displayName, match);
     }
 
-    const resolved = personEntries.filter((p) => nameToIndex.has(p.name));
+    const resolved = personEntries.filter((p) => nameToIndex.has(p.displayName));
     const rows = [];
     for (let i = 0; i < resolved.length; i++) {
-      const { handle, name } = resolved[i];
-      const startIdx = nameToIndex.get(name);
+      const { profileHandle, displayName } = resolved[i];
+      const startIdx = nameToIndex.get(displayName);
       let stopIdx = lines.length;
       for (let j = i + 1; j < resolved.length; j++) {
-        const otherStart = nameToIndex.get(resolved[j].name);
+        const otherStart = nameToIndex.get(resolved[j].displayName);
         if (otherStart != null && otherStart > startIdx) {
           stopIdx = otherStart;
           break;
         }
       }
-      const slice = lines.slice(startIdx + 1, stopIdx).filter((l) => l !== name && !skip(l));
+      const slice = lines.slice(startIdx + 1, stopIdx).filter((l) => l !== displayName && !skip(l));
       rows.push({
-        name,
+        name: displayName,
         headline: slice[0] || '',
         location: slice[1] || '',
-        profile_url: 'https://www.linkedin.com/in/' + handle + '/',
+        profile_url: 'https://www.linkedin.com/in/' + profileHandle + '/',
       });
     }
     return { rows };
@@ -139,22 +185,45 @@ cli({
         const keywords = requireStringArg(args, 'keywords', '--keywords');
         const limit = parseLimit(args.limit);
 
-        await page.goto(buildSearchUrl(keywords));
-        await page.wait(6);
+        try {
+            await page.goto(buildSearchUrl(keywords));
+            await page.wait(6);
+        } catch (error) {
+            throw new CommandExecutionError(`LinkedIn people search navigation failed: ${error?.message || error}`);
+        }
 
-        const cookies = await page.getCookies({ url: 'https://www.linkedin.com' });
+        let cookies;
+        try {
+            cookies = await page.getCookies({ url: 'https://www.linkedin.com' });
+        } catch (error) {
+            throw new CommandExecutionError(`LinkedIn cookie lookup failed: ${error?.message || error}`);
+        }
+        if (!Array.isArray(cookies)) {
+            throw new CommandExecutionError('LinkedIn cookie lookup returned malformed payload');
+        }
         const jsession = cookies.find((c) => c.name === 'JSESSIONID')?.value;
         if (!jsession) {
             throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn JSESSIONID cookie not found. Please sign in to LinkedIn in the browser.');
         }
 
-        const result = unwrapEvaluateResult(await page.evaluate(extractionScript()));
+        let result;
+        try {
+            result = unwrapEvaluateResult(await page.evaluate(extractionScript()));
+        } catch (error) {
+            throw new CommandExecutionError(`LinkedIn people search extraction failed: ${error?.message || error}`);
+        }
         if (result?.error) {
+            if (looksLinkedInAuthWall(`${result.url || ''} ${result.error || ''}`)) {
+                throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn people search requires an active signed-in browser session.');
+            }
             // If LinkedIn redirected away from the search page that
             // usually means CUL was reached or the account is gated.
             throw new CommandExecutionError(`LinkedIn redirected away from the search page (${result.error}). Likely Commercial Use Limit reached - the limit resets on the 1st of next month.`);
         }
-        const rows = Array.isArray(result?.rows) ? result.rows : [];
+        if (!result || typeof result !== 'object') {
+            throw new CommandExecutionError('LinkedIn people search returned malformed extraction payload');
+        }
+        const rows = normalizePeopleRows(result.rows);
         if (rows.length === 0) {
             throw new EmptyResultError(`No people found on the rendered page for "${keywords}". The search may have returned zero results, or the DOM markup may have changed.`);
         }
@@ -166,5 +235,8 @@ export const __test__ = {
     normalizeWhitespace,
     parseLimit,
     buildSearchUrl,
+    looksLinkedInAuthWall,
+    normalizeProfileUrl,
+    normalizePeopleRows,
     extractionScript,
 };
