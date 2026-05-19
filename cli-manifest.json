@@ -24367,7 +24367,8 @@
       "quoted_tweet",
       "has_media",
       "media_urls",
-      "card"
+      "card",
+      "quoted_tweet"
     ],
     "type": "js",
     "modulePath": "twitter/list-tweets.js",
@@ -24808,6 +24809,7 @@
     "columns": [
       "id",
       "author",
+      "bio",
       "text",
       "likes",
       "retweets",
@@ -30523,8 +30525,10 @@
     ],
     "columns": [
       "rank",
+      "id",
       "author",
       "votes",
+      "url",
       "content"
     ],
     "type": "js",

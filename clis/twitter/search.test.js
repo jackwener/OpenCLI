@@ -44,6 +44,9 @@ describe('twitter search command', () => {
                                                                         core: {
                                                                             screen_name: 'alice',
                                                                         },
+                                                                        legacy: {
+                                                                            description: 'Search author bio',
+                                                                        },
                                                                     },
                                                                 },
                                                             },
@@ -68,7 +71,7 @@ describe('twitter search command', () => {
             {
                 id: '1',
                 author: 'alice',
-                bio: '',
+                bio: 'Search author bio',
                 text: 'hello world',
                 created_at: 'Thu Mar 26 10:30:00 +0000 2026',
                 likes: 7,

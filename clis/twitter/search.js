@@ -212,10 +212,11 @@ function tweetToRow(result, seen) {
     if (!tweet?.rest_id || seen.has(tweet.rest_id)) return null;
     seen.add(tweet.rest_id);
     const tweetUser = tweet.core?.user_results?.result;
+    const bio = tweetUser?.legacy?.description || '';
     return {
         id: tweet.rest_id,
         author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',
-        bio: tweetUser?.legacy?.description || '',
+        bio,
         text: tweet.note_tweet?.note_tweet_results?.result?.text || tweet.legacy?.full_text || '',
         created_at: tweet.legacy?.created_at || '',
         likes: tweet.legacy?.favorite_count || 0,

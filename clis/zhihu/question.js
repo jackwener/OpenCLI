@@ -10,6 +10,34 @@ function stripHtml(html) {
         .trim();
 }
 
+function answerIdFromUrl(url) {
+    if (typeof url !== 'string') return '';
+    try {
+        const parsed = new URL(url);
+        if (parsed.hostname !== 'www.zhihu.com' && parsed.hostname !== 'zhihu.com') return '';
+        return parsed.pathname.match(/^\/question\/\d+\/answer\/(\d+)\/?$/)?.[1]
+            || parsed.pathname.match(/^\/api\/v4\/answers\/(\d+)\/?$/)?.[1]
+            || parsed.pathname.match(/^\/answer\/(\d+)\/?$/)?.[1]
+            || '';
+    } catch {
+        return '';
+    }
+}
+
+function answerId(item) {
+    const fromUrl = answerIdFromUrl(item.url);
+    if (fromUrl) return fromUrl;
+    if (typeof item.id === 'string' && /^\d+$/.test(item.id)) return item.id;
+    if (typeof item.id === 'number' && Number.isSafeInteger(item.id) && item.id > 0) return String(item.id);
+    return '';
+}
+
+function answerDedupeKey(item) {
+    const id = answerId(item);
+    if (id) return `id:${id}`;
+    return `fallback:${item.author?.name || 'anonymous'}:${item.content || ''}`;
+}
+
 const MAX_LIMIT = 1000;
 
 cli({
@@ -24,7 +52,7 @@ cli({
         { name: 'limit', type: 'int', default: 5, help: 'Number of answers (max 1000; use normal-sized requests)' },
         { name: 'sort', default: 'default', choices: ['default', 'created'], help: 'Answer order: default or created' },
     ],
-    columns: ['rank', 'author', 'votes', 'content'],
+    columns: ['rank', 'id', 'author', 'votes', 'url', 'content'],
     func: async (page, kwargs) => {
         const { id, limit = 5 } = kwargs;
         const questionId = String(id);
@@ -48,7 +76,7 @@ cli({
         // costs one over-fetched page worth of bandwidth and never silently
         // clamps the user-requested count.
         const ZHIHU_PAGE_SIZE = 20;
-        let url = `https://www.zhihu.com/api/v4/questions/${questionId}/answers?limit=${ZHIHU_PAGE_SIZE}&offset=0&sort_by=${sort}&include=data[*].content,voteup_count,comment_count,author`;
+        let url = `https://www.zhihu.com/api/v4/questions/${questionId}/answers?limit=${ZHIHU_PAGE_SIZE}&offset=0&sort_by=${sort}&include=data[*].content,url,voteup_count,comment_count,author`;
         const answers = [];
         const seen = new Set();
         const visited = new Set();
@@ -69,7 +97,7 @@ cli({
                 throw new CliError('FETCH_ERROR', status ? `Zhihu question answers request failed (HTTP ${status})` : 'Zhihu question answers request failed', 'Try again later or rerun with -v for more detail');
             }
             for (const item of data.data || []) {
-                const key = item.id == null ? `${item.author?.name || 'anonymous'}:${item.content || ''}` : String(item.id);
+                const key = answerDedupeKey(item);
                 if (seen.has(key)) continue;
                 seen.add(key);
                 answers.push(item);
@@ -78,11 +106,16 @@ cli({
             if (data.paging?.is_end) break;
             url = typeof data.paging?.next === 'string' ? data.paging.next : '';
         }
-        return answers.map((item, i) => ({
-            rank: i + 1,
-            author: item.author?.name || 'anonymous',
-            votes: item.voteup_count || 0,
-            content: stripHtml(item.content || '').substring(0, 200),
-        }));
+        return answers.map((item, i) => {
+            const id = answerId(item);
+            return {
+                rank: i + 1,
+                id,
+                author: item.author?.name || 'anonymous',
+                votes: item.voteup_count || 0,
+                url: id ? `https://www.zhihu.com/question/${questionId}/answer/${id}` : '',
+                content: stripHtml(item.content || '').substring(0, 200),
+            };
+        });
     },
 });
