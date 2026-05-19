@@ -384,32 +384,36 @@ export function extractQuotedTweet(tweet) {
     const q = tweet?.quoted_status_result?.result
         ?? tweet?.legacy?.quoted_status_result?.result;
     // `result` can be a tombstone (`__typename: 'TweetTombstone'`) or
-    // `'TweetUnavailable'` when the quoted tweet was deleted / privacy-restricted —
-    // it has no `legacy`, so the downstream null-check covers both cases.
+    // `'TweetUnavailable'` when the quoted tweet was deleted / privacy-restricted.
     if (!q) return null;
     // Nested `tweet` wrapper appears on TweetWithVisibilityResults — same
     // shim that callers already do at the top level (`tw.tweet || tw`).
     const qTw = q.tweet || q;
-    const qLegacy = qTw.legacy || {};
+    if (!qTw || typeof qTw !== 'object') return null;
+    const qLegacy = qTw.legacy && typeof qTw.legacy === 'object' ? qTw.legacy : {};
     // `rest_id` is required — tombstoned / unavailable wrappers have neither
     // rest_id nor legacy. Don't fall back to outer `legacy.quoted_status_id_str`:
     // the id alone can't substitute for missing content (author/text/media all
     // empty), so emitting a stub object would mislead downstream renderers into
     // drawing an empty "quoted tweet" preview.
-    if (!qTw.rest_id) return null;
+    if (typeof qTw.rest_id !== 'string' || !qTw.rest_id.trim()) return null;
     const qUser = qTw.core?.user_results?.result;
-    const qScreenName = qUser?.legacy?.screen_name || qUser?.core?.screen_name || 'unknown';
+    const qScreenName = qUser?.legacy?.screen_name || qUser?.core?.screen_name || '';
+    if (!qScreenName) return null;
     const qDisplayName = qUser?.legacy?.name || qUser?.core?.name || '';
     const qNoteText = qTw.note_tweet?.note_tweet_results?.result?.text;
-    const qText = qNoteText || qLegacy.full_text || '';
+    const qText = (typeof qNoteText === 'string' && qNoteText.length > 0)
+        ? qNoteText
+        : (typeof qLegacy.full_text === 'string' ? qLegacy.full_text : '');
     const qMedia = extractMedia(qLegacy);
     const qCard = extractCard(qTw);
+    if (!qText && !qMedia.has_media && !qCard) return null;
     const out = {
         id: qTw.rest_id,
         author: qScreenName,
         name: qDisplayName,
         text: qText,
-        created_at: qLegacy.created_at || '',
+        created_at: typeof qLegacy.created_at === 'string' ? qLegacy.created_at : '',
         url: `https://x.com/${qScreenName}/status/${qTw.rest_id}`,
         has_media: qMedia.has_media,
         media_urls: qMedia.media_urls,
