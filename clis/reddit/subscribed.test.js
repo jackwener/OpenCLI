@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, LoginWallError } from '@jackwener/opencli/errors';
 import { parseRedditSubscribedLimit, unwrapEvaluateResult } from './subscribed.js';
 import './subscribed.js';
 
@@ -105,6 +105,26 @@ describe('reddit subscribed adapter', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
         await expect(command.func(makePage({ ok: true }), { limit: 100 }))
             .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('converts a browser-side login-wall sentinel into a typed LoginWallError', async () => {
+        const sentinel = {
+            __loginWall: true,
+            status: 200,
+            url: 'https://www.reddit.com/api/me.json?raw_json=1',
+            contentType: 'text/html; charset=utf-8',
+            bodyPreview: '<!DOCTYPE html><html><head><title>reddit.com: over 18?</title>',
+        };
+        const page = makePage({ kind: 'login-wall', sentinel, where: '/api/me.json' });
+        try {
+            await command.func(page, { limit: 100 });
+            throw new Error('expected LoginWallError, got success');
+        } catch (err) {
+            expect(err).toBeInstanceOf(LoginWallError);
+            expect(err.status).toBe(200);
+            expect(err.url).toBe('/api/me.json');
+            expect(err.bodyPreview).toContain('reddit.com: over 18');
+        }
     });
 
     it('throws EmptyResultError for a valid empty subscriptions list', async () => {

@@ -79,6 +79,7 @@ export function extractTimelineTweet(result, seen) {
         quoted_tweet: extractQuotedTweet(tw),
         ...extractMedia(legacy),
         card: extractCard(tw),
+        quoted_tweet: extractQuotedTweet(tw),
     };
 }
 

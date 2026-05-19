@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { assertReadableUserSnapshot } from './user.js';
 import { buildXhsNoteUrl, extractXhsUserNotes, flattenXhsNoteGroups, normalizeXhsUserId, } from './user-helpers.js';
 describe('normalizeXhsUserId', () => {
     it('extracts the profile id from a full Xiaohongshu URL', () => {
@@ -115,5 +117,44 @@ describe('extractXhsUserNotes', () => {
             ],
         }, 'fallback-user', 'www.rednote.com');
         expect(rows[0]?.url).toBe('https://www.rednote.com/user/profile/user-red/note-red?xsec_token=tok&xsec_source=pc_user');
+    });
+});
+
+describe('assertReadableUserSnapshot', () => {
+    it('accepts an explicit empty notes array from a readable user store', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: true,
+            pageDataPresent: false,
+            noteGroups: [],
+            pageData: {},
+        })).not.toThrow();
+    });
+    it('fails typed when the user store is missing instead of treating parser drift as empty', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: false,
+            notesPresent: false,
+            pageDataPresent: false,
+            noteGroups: [],
+            pageData: {},
+        })).toThrow(CommandExecutionError);
+    });
+    it('fails typed when profile metadata exists but the notes array is missing', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: false,
+            pageDataPresent: true,
+            noteGroups: [],
+            pageData: { user: { nickname: 'Alice' } },
+        })).toThrow(CommandExecutionError);
+    });
+    it('fails typed when notesPresent metadata and cloned noteGroups disagree', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: true,
+            pageDataPresent: false,
+            noteGroups: null,
+            pageData: {},
+        })).toThrow(CommandExecutionError);
     });
 });

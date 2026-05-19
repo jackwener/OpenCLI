@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './transcript.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -251,6 +252,26 @@ describe('youtube transcript caption fetch', () => {
             code: 'COMMAND_EXEC',
             message: expect.stringContaining('Malformed caption info payload'),
         });
+    });
+
+    it('maps explicit no-captions watch metadata to EmptyResultError', async () => {
+        const page = createPageMock('https://www.youtube.com/api/timedtext?v=abc&lang=en');
+        page.evaluate.mockReset();
+        page.evaluate
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({ error: 'No captions available for this video' });
+
+        await expect(command.func(page, { url: 'abc', mode: 'raw' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('keeps malformed watch metadata as CommandExecutionError', async () => {
+        const page = createPageMock('https://www.youtube.com/api/timedtext?v=abc&lang=en');
+        page.evaluate.mockReset();
+        page.evaluate
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({ error: 'ytInitialPlayerResponse not found in watch HTML' });
+
+        await expect(command.func(page, { url: 'abc', mode: 'raw' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('fails typed on malformed captured timedtext json3', async () => {

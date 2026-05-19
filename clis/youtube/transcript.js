@@ -443,7 +443,14 @@ cli({
             throw new CommandExecutionError(`Failed to get caption info: ${typeof captionData === 'string' ? captionData : 'malformed response'}`);
         }
         if (captionData?.error) {
-            throw new CommandExecutionError(`${captionData.error}${captionData.available ? ' (available: ' + captionData.available.join(', ') + ')' : ''}`);
+            const msg = `${captionData.error}${captionData.available ? ' (available: ' + captionData.available.join(', ') + ')' : ''}`;
+            // "No captions available" 是合法 empty 数据条件（作者没开字幕 + YT 没自动生成），
+            // 与 bilibili subtitle 的 EmptyResultError 同模式。下游应按 code EMPTY_RESULT 跳过
+            // 重试和 softFail 计数。其它 error（HTTP / parse / 短暂空响应）仍按 fetch 失败抛。
+            if (captionData.error === 'No captions available for this video') {
+                throw new EmptyResultError('youtube transcript', '该视频没有字幕（作者未开启 + 无自动字幕）。');
+            }
+            throw new CommandExecutionError(msg);
         }
         if (!segments && typeof captionData?.captionUrl !== 'string') {
             throw new CommandExecutionError('Malformed caption info payload');

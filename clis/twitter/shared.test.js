@@ -541,6 +541,68 @@ describe('twitter extractQuotedTweet', () => {
         expect(extractQuotedTweet(tweet)).toBeNull();
     });
 
+    it('returns null when the quoted tweet lacks author identity', () => {
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+            quoted_status_result: {
+                result: {
+                    rest_id: '99',
+                    legacy: { full_text: 'real quoted text' },
+                    core: { user_results: { result: { legacy: {} } } },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)).toBeNull();
+    });
+
+    it('returns null when the quoted tweet author identity has the wrong shape', () => {
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+            quoted_status_result: {
+                result: {
+                    rest_id: '99',
+                    legacy: { full_text: 'real quoted text' },
+                    core: {
+                        user_results: {
+                            result: {
+                                legacy: { screen_name: { value: 'alice' }, name: { value: 'Alice' } },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)).toBeNull();
+    });
+
+    it('returns null when the quoted tweet author handle is not a valid screen name', () => {
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+            quoted_status_result: {
+                result: {
+                    rest_id: '99',
+                    legacy: { full_text: 'real quoted text' },
+                    core: { user_results: { result: { legacy: { screen_name: 'not/a/user' } } } },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)).toBeNull();
+    });
+
+    it('returns null when the quoted tweet lacks renderable content', () => {
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+            quoted_status_result: {
+                result: {
+                    rest_id: '99',
+                    legacy: {},
+                    core: { user_results: { result: { legacy: { screen_name: 'alice' } } } },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)).toBeNull();
+    });
+
     it('extracts a minimal quoted tweet shape with author, text, url', () => {
         const tweet = {
             legacy: { is_quote_status: true, quoted_status_id_str: '2040254679301718161' },
@@ -604,13 +666,19 @@ describe('twitter extractQuotedTweet', () => {
             quoted_status_result: {
                 result: {
                     rest_id: '100',
-                    legacy: { full_text: '', entities: { urls: [{ expanded_url: 'https://github.com/x/y' }] } },
+                    legacy: {
+                        full_text: '',
+                        entities: {
+                            urls: [{ url: 'https://t.co/abc', expanded_url: 'https://github.com/x/y' }],
+                        },
+                    },
                     core: { user_results: { result: { legacy: { screen_name: 'bob' } } } },
                     card: {
                         legacy: {
                             name: 'summary_large_image',
                             binding_values: [
                                 { key: 'title', value: { type: 'STRING', string_value: 'x/y' } },
+                                { key: 'card_url', value: { type: 'STRING', string_value: 'https://t.co/abc' } },
                             ],
                         },
                     },
