@@ -293,7 +293,7 @@ export function extractMedia(legacy) {
  * Extract the link-preview card from a tweet's GraphQL response.
  *
  * Reads `tweet.card.legacy.{name, binding_values}` plus the expanded URL from
- * `tweet.legacy.entities.urls[0].expanded_url` (which is already t.co-resolved).
+ * the `tweet.legacy.entities.urls` entry matching the card's t.co URL.
  * `binding_values` is an array of `{ key, value: { type, string_value, image_value: { url } } }`.
  *
  * Returns `null` when:
@@ -326,9 +326,15 @@ export function extractCard(tweet) {
     const domainBinding = str('domain');
     const cardUrlBinding = str('card_url');
     const image_url = img('thumbnail_image_large') || img('photo_image_full_size_large') || img('summary_photo_image_large');
-    const expandedUrl = tweet?.legacy?.entities?.urls?.[0]?.expanded_url;
-    const url = (typeof expandedUrl === 'string' && expandedUrl.length > 0)
-        ? expandedUrl
+    const urlEntities = Array.isArray(tweet?.legacy?.entities?.urls)
+        ? tweet.legacy.entities.urls
+        : [];
+    const matchingEntity = cardUrlBinding
+        ? urlEntities.find((entity) => entity?.url === cardUrlBinding || entity?.expanded_url === cardUrlBinding)
+        : undefined;
+    const matchedExpandedUrl = matchingEntity?.expanded_url;
+    const url = (typeof matchedExpandedUrl === 'string' && matchedExpandedUrl.length > 0)
+        ? matchedExpandedUrl
         : cardUrlBinding;
     let domain = domainBinding;
     if (!domain && url) {
