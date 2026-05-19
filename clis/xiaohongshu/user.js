@@ -35,8 +35,11 @@ export function assertReadableUserSnapshot(snapshot) {
     if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
         throw new CommandExecutionError('Malformed Xiaohongshu user snapshot');
     }
-    if (snapshot.storePresent === false || (!snapshot.notesPresent && !snapshot.pageDataPresent)) {
+    if (snapshot.storePresent !== true) {
         throw new CommandExecutionError('Malformed Xiaohongshu user snapshot: user store was not found');
+    }
+    if (snapshot.notesPresent !== true || !Array.isArray(snapshot.noteGroups)) {
+        throw new CommandExecutionError('Malformed Xiaohongshu user snapshot: notes array was not found');
     }
 }
 export const command = cli({

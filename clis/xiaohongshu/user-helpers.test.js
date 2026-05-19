@@ -139,4 +139,22 @@ describe('assertReadableUserSnapshot', () => {
             pageData: {},
         })).toThrow(CommandExecutionError);
     });
+    it('fails typed when profile metadata exists but the notes array is missing', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: false,
+            pageDataPresent: true,
+            noteGroups: [],
+            pageData: { user: { nickname: 'Alice' } },
+        })).toThrow(CommandExecutionError);
+    });
+    it('fails typed when notesPresent metadata and cloned noteGroups disagree', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: true,
+            pageDataPresent: false,
+            noteGroups: null,
+            pageData: {},
+        })).toThrow(CommandExecutionError);
+    });
 });
