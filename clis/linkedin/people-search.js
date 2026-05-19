@@ -84,6 +84,14 @@ function normalizePeopleRows(rows) {
     });
 }
 
+function parseNonNegativeCount(value, label) {
+    const count = Number(value);
+    if (!Number.isInteger(count) || count < 0) {
+        throw new CommandExecutionError(`LinkedIn people search returned malformed extraction payload: invalid ${label}`);
+    }
+    return count;
+}
+
 function extractionScript() {
     // Class-based selectors are dead (LinkedIn rotates hashed class
     // names on every deploy) and display:contents flattens the DOM
@@ -163,7 +171,12 @@ function extractionScript() {
         profile_url: 'https://www.linkedin.com/in/' + profileHandle + '/',
       });
     }
-    return { rows };
+    return {
+      rows,
+      candidate_count: personEntries.length,
+      person_entries_count: personEntries.length,
+      resolved_count: resolved.length,
+    };
   })()`;
 }
 
@@ -223,7 +236,13 @@ cli({
         if (!result || typeof result !== 'object') {
             throw new CommandExecutionError('LinkedIn people search returned malformed extraction payload');
         }
+        const candidateCount = parseNonNegativeCount(result.candidate_count, 'candidate_count');
+        parseNonNegativeCount(result.person_entries_count, 'person_entries_count');
+        const resolvedCount = parseNonNegativeCount(result.resolved_count, 'resolved_count');
         const rows = normalizePeopleRows(result.rows);
+        if (rows.length === 0 && (candidateCount > 0 || resolvedCount > 0)) {
+            throw new CommandExecutionError('LinkedIn people search found profile candidates but could not parse stable result rows');
+        }
         if (rows.length === 0) {
             throw new EmptyResultError(`No people found on the rendered page for "${keywords}". The search may have returned zero results, or the DOM markup may have changed.`);
         }
@@ -238,5 +257,6 @@ export const __test__ = {
     looksLinkedInAuthWall,
     normalizeProfileUrl,
     normalizePeopleRows,
+    parseNonNegativeCount,
     extractionScript,
 };

@@ -9,8 +9,18 @@ const {
     looksLinkedInAuthWall,
     normalizeProfileUrl,
     normalizePeopleRows,
+    parseNonNegativeCount,
     extractionScript,
 } = await import('./people-search.js').then((m) => m.__test__);
+
+function extractionResult(rows, counts = {}) {
+    return {
+        rows,
+        candidate_count: counts.candidate_count ?? rows.length,
+        person_entries_count: counts.person_entries_count ?? counts.candidate_count ?? rows.length,
+        resolved_count: counts.resolved_count ?? rows.length,
+    };
+}
 
 function makePage({
     evaluateResult,
@@ -62,6 +72,8 @@ describe('linkedin people-search command', () => {
         expect(s).toContain('span[aria-hidden="true"]');
         // Only operates on the people-search page.
         expect(s).toContain('search\\/results\\/people');
+        expect(s).toContain('candidate_count');
+        expect(s).toContain('resolved_count');
     });
 
     it('normalizes only stable LinkedIn profile identities', () => {
@@ -88,16 +100,22 @@ describe('linkedin people-search command', () => {
             .toThrow(CommandExecutionError);
     });
 
+    it('validates extraction evidence counters', () => {
+        expect(parseNonNegativeCount(0, 'candidate_count')).toBe(0);
+        expect(parseNonNegativeCount(2, 'candidate_count')).toBe(2);
+        expect(() => parseNonNegativeCount(undefined, 'candidate_count')).toThrow(CommandExecutionError);
+        expect(() => parseNonNegativeCount(-1, 'candidate_count')).toThrow(CommandExecutionError);
+        expect(() => parseNonNegativeCount(1.2, 'candidate_count')).toThrow(CommandExecutionError);
+    });
+
     it('returns ranked rows when the page yields people', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = makePage({
-            evaluateResult: {
-                rows: [
-                    { name: 'Alice Engineer', headline: 'Staff SWE at Acme', location: 'Berlin', profile_url: 'https://www.linkedin.com/in/alice-engineer/' },
-                    { name: 'Bob Builder', headline: 'CTO at Globex', location: 'Remote', profile_url: 'https://www.linkedin.com/in/bob-builder/' },
-                ],
-            },
+            evaluateResult: extractionResult([
+                { name: 'Alice Engineer', headline: 'Staff SWE at Acme', location: 'Berlin', profile_url: 'https://www.linkedin.com/in/alice-engineer/' },
+                { name: 'Bob Builder', headline: 'CTO at Globex', location: 'Remote', profile_url: 'https://www.linkedin.com/in/bob-builder/' },
+            ]),
         });
         const result = await cmd.func(page, { keywords: 'reinforcement learning', limit: 5 });
         expect(page.goto).toHaveBeenCalledWith('https://www.linkedin.com/search/results/people/?keywords=reinforcement%20learning');
@@ -110,11 +128,9 @@ describe('linkedin people-search command', () => {
     it('slices to --limit when more rows are extracted than requested', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
         const page = makePage({
-            evaluateResult: {
-                rows: Array.from({ length: 8 }, (_, i) => ({
-                    name: `Person ${i}`, headline: 'h', location: 'l', profile_url: `https://www.linkedin.com/in/p${i}/`,
-                })),
-            },
+            evaluateResult: extractionResult(Array.from({ length: 8 }, (_, i) => ({
+                name: `Person ${i}`, headline: 'h', location: 'l', profile_url: `https://www.linkedin.com/in/p${i}/`,
+            }))),
         });
         const result = await cmd.func(page, { keywords: 'x', limit: 3 });
         expect(result).toHaveLength(3);
@@ -123,13 +139,13 @@ describe('linkedin people-search command', () => {
 
     it('throws AuthRequiredError when JSESSIONID cookie is missing', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
-        const page = makePage({ cookies: [], evaluateResult: { rows: [] } });
+        const page = makePage({ cookies: [], evaluateResult: extractionResult([]) });
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
     it('treats malformed cookie lookup results as CommandExecutionError', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
-        const page = makePage({ cookies: null, evaluateResult: { rows: [] } });
+        const page = makePage({ cookies: null, evaluateResult: extractionResult([]) });
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
@@ -159,8 +175,20 @@ describe('linkedin people-search command', () => {
 
     it('throws EmptyResultError when the page rendered zero rows', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
-        const page = makePage({ evaluateResult: { rows: [] } });
+        const page = makePage({ evaluateResult: extractionResult([]) });
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('treats profile candidates without stable parsed rows as parser drift', async () => {
+        const cmd = getRegistry().get('linkedin/people-search');
+        const page = makePage({
+            evaluateResult: extractionResult([], {
+                candidate_count: 1,
+                person_entries_count: 1,
+                resolved_count: 0,
+            }),
+        });
+        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('treats missing rows array as parser drift, not empty results', async () => {
@@ -171,7 +199,7 @@ describe('linkedin people-search command', () => {
 
     it('rejects empty keywords with ArgumentError before navigation', async () => {
         const cmd = getRegistry().get('linkedin/people-search');
-        const page = makePage({ evaluateResult: { rows: [] } });
+        const page = makePage({ evaluateResult: extractionResult([]) });
         await expect(cmd.func(page, { keywords: '   ', limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
     });
