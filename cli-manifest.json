@@ -23939,6 +23939,46 @@
   },
   {
     "site": "twitter",
+    "name": "device-follow",
+    "description": "Read the /i/timeline device-follow notification stream (tweets aggregated under a bell-icon \"new posts from @userA and N others\" notification)",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum number of tweets to return (1-200, default 20)"
+      },
+      {
+        "name": "top-by-engagement",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "When set to N>0, re-rank by weighted engagement and return the top N. Default 0 keeps upstream ordering."
+      }
+    ],
+    "columns": [
+      "id",
+      "author",
+      "text",
+      "likes",
+      "retweets",
+      "replies",
+      "views",
+      "created_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/device-follow.js",
+    "sourceFile": "twitter/device-follow.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
     "name": "download",
     "description": "Download Twitter/X media (images and videos). Provide either <username> to fetch every media item from their profile via the GraphQL UserMedia endpoint with cursor pagination, or --tweet-url to download a single tweet.",
     "access": "read",

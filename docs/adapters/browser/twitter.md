@@ -15,6 +15,7 @@
 | `opencli twitter following` | |
 | `opencli twitter followers` | |
 | `opencli twitter notifications` | |
+| `opencli twitter device-follow` | Read the /i/timeline device-follow notification stream (tweets aggregated under a bell-icon "new posts from @userA and N others" notification) |
 | `opencli twitter post` | |
 | `opencli twitter reply` | |
 | `opencli twitter delete` | |
