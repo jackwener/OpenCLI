@@ -22,6 +22,7 @@
 | `opencli twitter likes` | |
 | `opencli twitter lists` | |
 | `opencli twitter list-tweets` | |
+| `opencli twitter list-create` | Create a Twitter/X list via GraphQL and return the created list id |
 | `opencli twitter list-add` | |
 | `opencli twitter list-remove` | |
 | `opencli twitter article` | |
@@ -61,6 +62,11 @@ opencli twitter download @elonmusk --limit 50 --output ./twitter-media
 
 # Download media from a single tweet
 opencli twitter download --tweet-url https://x.com/jack/status/20 --output ./twitter-media
+
+# Create a list and then manage members (requires login)
+opencli twitter list-create "AI research" --description "Papers and labs" --mode private
+opencli twitter list-add 123456789 alice
+opencli twitter list-remove 123456789 alice
 
 # Write actions (require login). Idempotent — calling twice is safe.
 opencli twitter like https://x.com/jack/status/20
