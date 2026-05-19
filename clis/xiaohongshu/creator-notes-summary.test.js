@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { summarizeCreatorNote } from './creator-notes-summary.js';
 import { getRegistry } from '@jackwener/opencli/registry';
 import * as creatorNotesModule from './creator-notes.js';
@@ -83,5 +84,11 @@ describe('xiaohongshu creator-notes-summary', () => {
         await cmd.func(page, { limit: 2 });
         expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
         expect(page.wait.mock.calls).toHaveLength(1);
+    });
+    it('throws EmptyResultError when there are no notes to summarize', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-notes-summary');
+        vi.spyOn(creatorNotesModule, 'fetchCreatorNotes').mockResolvedValue([]);
+
+        await expect(cmd.func({ wait: vi.fn() }, { limit: 2 })).rejects.toBeInstanceOf(EmptyResultError);
     });
 });

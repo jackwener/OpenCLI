@@ -5,6 +5,7 @@
  * returns one summary row per note, suitable for quick review or downstream JSON use.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { fetchCreatorNotes } from './creator-notes.js';
 import { fetchCreatorNoteDetailRows } from './creator-note-detail.js';
 function findDetailValue(rows, metric) {
@@ -61,7 +62,7 @@ cli({
         const limit = kwargs.limit || 3;
         const notes = await fetchCreatorNotes(page, limit);
         if (!notes.length) {
-            throw new Error('No notes found. Are you logged into creator.xiaohongshu.com?');
+            throw new EmptyResultError('xiaohongshu creator-notes-summary', 'No notes found. Ensure you are logged into creator.xiaohongshu.com and the account has published notes.');
         }
         const results = [];
         for (const [index, note] of notes.entries()) {

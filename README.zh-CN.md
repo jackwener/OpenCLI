@@ -219,101 +219,21 @@ npm link
 
 运行 `opencli list` 查看完整注册表。
 
-| 站点 | 命令 | 模式 |
-|------|------|------|
-| **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `profile` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `likes` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` | 浏览器 |
-| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` | 浏览器 |
-| **tieba** | `hot` `posts` `search` `read` | 浏览器 |
-| **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` | 浏览器 |
-| **cursor** | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` | 桌面端 |
-| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `summary` `video` `comments` `dynamic` `ranking` `following` `user-videos` `download` | 浏览器 |
-| **codex** | `status` `send` `read` `new` `dump` `extract-diff` `model` `ask` `screenshot` `projects` `history` `export` | 桌面端 |
-| **chatwise** | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot` | 桌面端 |
-| **doubao** | `status` `new` `send` `read` `ask` `history` `detail` `meeting-summary` `meeting-transcript` | 浏览器 |
-| **doubao-app** | `status` `new` `send` `read` `ask` `screenshot` `dump` | 桌面端 |
-| **discord-app** | `status` `send` `read` `channels` `servers` `search` `members` | 桌面端 |
-| **v2ex** | `hot` `latest` `topic` `node` `user` `member` `replies` `nodes` `daily` `me` `notifications` | 公开 / 浏览器 |
-| **xueqiu** | `feed` `hot-stock` `hot` `search` `stock` `comments` `watchlist` `earnings-date` `fund-holdings` `fund-snapshot` | 浏览器 |
-| **antigravity** | `status` `send` `read` `new` `dump` `extract-code` `model` `watch` `serve` | 桌面端 |
-| **chatgpt-app** | `status` `new` `send` `read` `ask` `model` | 桌面端 |
-| **xiaohongshu** | `search` `note` `comments` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` | 浏览器 |
-| **rednote** | `search` `note` `comments` `user` `download` `feed` `notifications` | 浏览器 |
-| **xiaoe** | `courses` `detail` `catalog` `play-url` `content` | 浏览器 |
-| **quark** | `ls` `mkdir` `mv` `rename` `rm` `save` `share-tree` | 浏览器 |
-| **uiverse** | `code` `preview` | 浏览器 |
-| **apple-podcasts** | `search` `episodes` `top` | 公开 |
-| **baidu-scholar** | `search` | 公开 |
-| **google-scholar** | `search` `cite` `profile` | 公开 |
-| **gov-law** | `search` `recent` | 公开 |
-| **gov-policy** | `search` `recent` | 公开 |
-| **nowcoder** | `hot` `trending` `topics` `recommend` `creators` `companies` `jobs` `search` `suggest` `experience` `referral` `salary` `papers` `practice` `notifications` `detail` | 公开 / 浏览器 |
-| **wanfang** | `search` | 公开 |
-| **xiaoyuzhou** | `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` `auth` | 本地凭证 |
-| **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` | 浏览器 |
-| **weixin** | `download` | 浏览器 |
-| **youtube** | `search` `video` `transcript` `comments` `channel` `playlist` `feed` `history` `watch-later` `subscriptions` `like` `unlike` `subscribe` `unsubscribe` | 浏览器 |
-| **youdao** | `note` | 公开 |
-| **boss** | `search` `detail` `recommend` `joblist` `greet` `batchgreet` `send` `chatlist` `chatmsg` `invite` `mark` `exchange` `resume` `stats` | 浏览器 |
-| **coupang** | `search` `add-to-cart` | 浏览器 |
-| **bbc** | `news` | 公共 API |
-| **bloomberg** | `main` `markets` `economics` `industries` `tech` `politics` `businessweek` `opinions` `feeds` `news` | 公共 API / 浏览器 |
-| **ctrip** | `search` | 浏览器 |
-| **devto** | `top` `tag` `user` | 公开 |
-| **dictionary** | `search` `synonyms` `examples` | 公开 |
-| **arxiv** | `search` `paper` | 公开 |
-| **pubmed** | `search` `article` `author` `citations` `related` | 公开 |
-| **openreview** | `search` `venue` `paper` `reviews` | 公开 |
-| **paperreview** | `submit` `review` `feedback` | 公开 |
-| **wikipedia** | `search` `summary` `random` `trending` | 公开 |
-| **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` | 公共 API |
-| **jd** | `item` | 浏览器 |
-| **linkedin** | `search` `timeline` | 浏览器 |
-| **linkedin-learning** | `search` `trending` `course` | 浏览器 |
-| **reuters** | `search` | 浏览器 |
-| **smzdm** | `search` | 浏览器 |
-| **web** | `read` | 浏览器 |
-| **weibo** | `hot` `search` `feed` `user` `user-posts` `me` `post` `favorites` `publish` `delete` `comments` | 浏览器 |
-| **yahoo-finance** | `quote` | 浏览器 |
-| **sinafinance** | `news` | 🌐 公开 |
-| **barchart** | `quote` `options` `greeks` `flow` | 浏览器 |
-| **chaoxing** | `assignments` `exams` | 浏览器 |
-| **grok** | `ask` `image` | 浏览器 |
-| **hf** | `top` | 公开 |
-| **jike** | `feed` `search` `create` `like` `comment` `repost` `notifications` `post` `topic` `user` | 浏览器 |
-| **jimeng** | `generate` `history` | 浏览器 |
-| **yollomi** | `generate` `video` `edit` `upload` `models` `remove-bg` `upscale` `face-swap` `restore` `try-on` `background` `object-remover` | 浏览器 |
-| **linux-do** | `feed` `search` `categories` `tags` `topic` `topic-content` `user-posts` `user-topics` | 浏览器 |
-| **stackoverflow** | `hot` `search` `bounties` `unanswered` | 公开 |
-| **steam** | `top-sellers` | 公开 |
-| **weread** | `shelf` `search` `book` `highlights` `notes` `notebooks` `ranking` | 浏览器 |
-| **douban** | `search` `top250` `subject` `photos` `download` `marks` `reviews` `movie-hot` `book-hot` | 浏览器 |
-| **facebook** | `feed` `profile` `search` `friends` `groups` `events` `notifications` `memories` `add-friend` `join-group` | 浏览器 |
-| **google** | `news` `search` `suggest` `trends` | 公开 |
-| **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` | 浏览器 |
-| **1688** | `search` `item` `assets` `download` `store` | 浏览器 |
-| **gitee** | `trending` `search` `user` | 公开 / 浏览器 |
-| **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` | 浏览器 |
-| **claude** | `ask` `send` `new` `status` `read` `history` `detail` | 浏览器 |
-| **spotify** | `auth` `status` `play` `pause` `next` `prev` `volume` `search` `queue` `shuffle` `repeat` | OAuth API |
-| **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` | 浏览器 |
-| **36kr** | `news` `hot` `search` `article` | 公开 / 浏览器 |
-| **imdb** | `search` `title` `top` `trending` `person` `reviews` | 公开 |
-| **producthunt** | `posts` `today` `hot` `browse` | 公开 / 浏览器 |
-| **instagram** | `explore` `profile` `search` `user` `followers` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `saved` | 浏览器 |
-| **lobsters** | `hot` `newest` `active` `tag` `read` | 公开 |
-| **medium** | `feed` `search` `user` | 浏览器 |
-| **sinablog** | `hot` `search` `article` `user` | 浏览器 |
-| **substack** | `feed` `search` `publication` | 浏览器 |
-| **pixiv** | `ranking` `search` `user` `illusts` `detail` `download` | 浏览器 |
-| **tiktok** | `explore` `search` `profile` `user` `following` `follow` `unfollow` `like` `unlike` `comment` `save` `unsave` `live` `notifications` `friends` | 浏览器 |
-| **bluesky** | `search` `trending` `user` `profile` `thread` `feeds` `followers` `following` `starter-packs` | 公开 |
-| **xianyu** | `search` `item` `inbox` `messages` `chat` `reply` `publish` | 浏览器 |
-| **douyin** | `videos` `publish` `drafts` `draft` `delete` `stats` `profile` `update` `hashtag` `location` `activities` `collections` | 浏览器 |
-| **yuanbao** | `new` `ask` | 浏览器 |
+| 站点 | 命令 |
+|------|------|
+| **xiaohongshu** | `search` `note` `comments` `notifications` `feed` `user` `download` `publish` `creator-notes` `creator-note-detail` `creator-notes-summary` `creator-profile` `creator-stats` |
+| **bilibili** | `hot` `search` `me` `favorite` `history` `feed` `subtitle` `summary` `video` `comments` `dynamic` `ranking` `following` `user-videos` `download` |
+| **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
+| **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
+| **linkedin** | `connect` `inbox` `safe-send` `search` `sent-invitations` `thread-snapshot` `timeline` `salesnav-search` `salesnav-inbox` `salesnav-message` `salesnav-thread` |
+| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `save` `comment` `subscribe` `saved` `upvoted` |
+| **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `profile` `thread` `following` `followers` `notifications` `post` `reply` `delete` `like` `likes` `article` `follow` `unfollow` `bookmark` `unbookmark` `download` `accept` `reply-dm` `block` `unblock` `hide-reply` |
+| **claude** | `ask` `send` `new` `status` `read` `history` `detail` |
+| **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
+| **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
+| **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
 
-100+ 站点能力 — **[→ 查看完整命令列表](./docs/adapters/index.md)**
-
-`*` `opencli xiaoyuzhou podcast`、`podcast-episodes`、`episode`、`download`、`transcript` 需要本地小宇宙凭证：`~/.opencli/xiaoyuzhou.json`。
+精选清单 — **[→ 查看全部 100+ 站点和命令](./docs/adapters/index.md)**（小红书 / B站 / 知乎 / Twitter / Reddit / 抖音 / 微博 / 微信读书 / 小宇宙 / 1688 / 夸克 / Spotify / 牛客 / arxiv / Bilibili / 等）。
 
 ### 外部 CLI 枢纽
 
@@ -333,6 +253,7 @@ OpenCLI 也可以作为你现有命令行工具的统一入口，负责发现、
 | **discord(discord-cli)** | Discord CLI — 基于 SQLite 的本地优先同步、搜索、导出，面向 AI Agent | `opencli discord recent --channel general` |
 | **wx(wx-cli)** | 微信本地数据 CLI — 会话、聊天记录、搜索、联系人、导出 | `opencli wx search "OpenCLI"` |
 | **vercel** | Vercel — 部署项目、管理域名、环境变量、日志 | `opencli vercel deploy --prod` |
+| **wrangler** | Cloudflare Wrangler — 部署 Workers、管理 R2/D1/KV、发布 Pages | `opencli wrangler deploy` |
 
 **零配置透传**：OpenCLI 会把你的输入原样转发给底层二进制，保留原生 stdout / stderr 行为。
 

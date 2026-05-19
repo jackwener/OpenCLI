@@ -9,6 +9,7 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 const NOTE_DETAIL_DATETIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const NOTE_DETAIL_METRICS = [
     { label: '曝光数', section: '基础数据' },
@@ -337,7 +338,7 @@ cli({
         const rows = await fetchCreatorNoteDetailRows(page, noteId);
         const hasCoreMetric = rows.some((row) => row.section !== '笔记信息' && row.value);
         if (!hasCoreMetric) {
-            throw new Error('No note detail data found. Check note_id and login status for creator.xiaohongshu.com.');
+            throw new EmptyResultError('xiaohongshu creator-note-detail', 'No note detail data found. Check note_id and login status for creator.xiaohongshu.com.');
         }
         return rows;
     },
