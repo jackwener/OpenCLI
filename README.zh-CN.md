@@ -1,8 +1,8 @@
 # OpenCLI
 
-> **把任意网站变成 CLI & 让 AI Agent 操控你的登录态浏览器。**
+> **把任意网站变成 CLI & 在你的登录态浏览器上跑 Browser Use。**
 > 把网站、浏览器会话、Electron 应用和本地工具，统一变成适合人类与 AI Agent 使用的确定性接口。
-> 或者直接操控你的登录态浏览器做任何事 —— 导航、填表单、点击、抓取、自动化。
+> 或者在任意页面上跑 Browser Use —— 导航、填表单、点击、抓取、自动化。
 
 [![English](https://img.shields.io/badge/docs-English-1D4ED8?style=flat-square)](./README.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
@@ -16,14 +16,6 @@ OpenCLI 可以用同一套 CLI 做三类事情：
 - **把新网站写成 CLI**：用 `opencli browser` 原语 + `opencli-adapter-author` skill，从站点侦察、API 发现、字段解码到 `opencli browser verify` 一条龙。
 
 除了网站能力，OpenCLI 还是一个 **CLI 枢纽**：你可以把 `gh`、`docker`、`longbridge`、`tg`、`discord`、`wx`、`ntn`（Notion）等本地工具统一注册到 `opencli` 下，也可以通过桌面端适配器控制 Cursor、Codex、Antigravity、ChatGPT 等 Electron 应用。
-
-## 亮点
-
-- **登录态浏览器自动化** — 让 AI Agent 驱动你的已登录 Chrome：导航、填表单、点击、提取。凭证永远不离开浏览器。
-- **桌面应用控制** — 通过 CDP 直接驱动 Electron 应用（Cursor、Codex、ChatGPT）。
-- **多 Profile 浏览器桥接** — 通过 `--profile` 或 `OPENCLI_PROFILE` 把命令路由到指定 Chrome profile。
-- **100+ 适配器 + CLI 枢纽** — 内置站点命令（B站 / 小红书 / Twitter / HackerNews / ...）加外部 CLI 透传（`gh`、`docker`、`ntn`、`longbridge`）。
-- **零 LLM 运行成本** — 确定性输出，运行时不消耗 token。
 
 ## 快速开始
 
@@ -107,15 +99,15 @@ npx skills add jackwener/opencli --skill smart-search
 
 | Skill | 适用场景 | 你对 AI Agent 说的话 |
 |-------|---------|-------------------|
-| **opencli-adapter-author** | 实时操作任意网站，或为新站点写可复用适配器 | "帮我看看小红书的通知" / "帮我做一个抖音热门的适配器" / "帮我做一个抓取这个页面热帖的命令" |
+| **opencli-adapter-author** | 为新站点写可复用适配器，或给已有站点添加命令 | "帮我做一个抖音热门的适配器" / "帮我做一个抓取这个页面热帖的命令" |
 | **opencli-autofix** | 内置命令失败时修复已有适配器 | "`opencli zhihu hot` 返回空了，修一下" |
-| **opencli-browser** | 浏览器自动化参考文档 | "帮我填一下这个表单" / "用浏览器命令抓取这个页面" |
+| **opencli-browser** | 实时驱动 Chrome 页面——导航、填表单、点击、抓取 | "帮我看看小红书的通知" / "帮我填一下这个表单" / "用浏览器命令抓取这个页面" |
 | **opencli-usage** | 所有命令和站点的快速参考 | "OpenCLI 有哪些 Twitter 相关的命令？" |
 | **smart-search** | 在现有 OpenCLI 能力里搜索 | "帮我找个 B 站热门相关的适配器" |
 
 ### 工作原理
 
-安装 `opencli-adapter-author` skill 后，你的 AI Agent 可以：
+安装 `opencli-browser` skill 后，你的 AI Agent 可以：
 
 1. **导航**到任意 URL，使用你的已登录浏览器
 2. **读取**页面内容——通过结构化 DOM 快照（不是截图）
@@ -126,9 +118,9 @@ npx skills add jackwener/opencli --skill smart-search
 Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自然语言描述想做的事。
 
 **Skill 参考文档：**
-- [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — 浏览器操作 + 适配器编写，全流程
+- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — 实时驱动 Chrome（导航、填表单、点击、抓取）
+- [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — 给新站点写适配器，全流程
 - [`skills/opencli-autofix/SKILL.md`](./skills/opencli-autofix/SKILL.md) — 修复已有适配器
-- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — 浏览器自动化参考
 - [`skills/opencli-usage/SKILL.md`](./skills/opencli-usage/SKILL.md) — 命令和站点参考
 - [`skills/smart-search/SKILL.md`](./skills/smart-search/SKILL.md) — 能力搜索
 

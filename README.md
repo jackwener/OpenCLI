@@ -1,8 +1,8 @@
 # OpenCLI
 
-> **Convert any website into a CLI & Drive your logged-in browser from AI agents.**
+> **Convert any website into a CLI & run Browser Use on your logged-in Chrome.**
 > Turn websites, browser sessions, Electron apps, and local tools into deterministic interfaces for humans and AI agents.
-> Or drive your logged-in browser to do anything — navigate, fill forms, click, extract, automate.
+> Or run Browser Use against any page — navigate, fill forms, click, extract, automate.
 
 [![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-0F766E?style=flat-square)](./README.zh-CN.md)
 [![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
@@ -16,16 +16,6 @@ OpenCLI gives you one surface for three different kinds of automation:
 - **Write new adapters** end-to-end with `opencli browser` + the `opencli-adapter-author` skill, which guides from first recon through field decoding, code, and `opencli browser verify`.
 
 It also works as a **CLI hub** for local tools such as `gh`, `docker`, `longbridge`, `tg`, `discord`, `wx`, `ntn` (Notion), and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, and ChatGPT.
-
-## Highlights
-
-- **Live Browser Automation** — Drive your logged-in Chrome from AI agents: navigate, fill forms, click, extract. Credentials stay in the browser.
-- **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT) directly via CDP.
-- **Multi-profile Browser Bridge** — Route commands to specific Chrome profiles via `--profile` or `OPENCLI_PROFILE`.
-- **100+ adapters + CLI Hub** — Built-in site commands (bilibili / xiaohongshu / twitter / hackernews / ...) plus external CLI passthrough (`gh`, `docker`, `ntn`, `longbridge`).
-- **Zero LLM cost at runtime** — Deterministic output, no tokens consumed.
-
----
 
 ## Quick Start
 
@@ -122,15 +112,15 @@ npx skills add jackwener/opencli --skill smart-search
 
 | Skill | When to use | Example prompt to your AI agent |
 |-------|------------|-------------------------------|
-| **opencli-adapter-author** | Operate a site in real time, or write a reusable adapter for a new site | "Help me check my Xiaohongshu notifications" / "Write an adapter for douyin trending" / "Make a command that grabs the top posts from this page" |
+| **opencli-adapter-author** | Write a reusable adapter for a new site or add a command to an existing site | "Write an adapter for douyin trending" / "Make a command that grabs the top posts from this page" |
 | **opencli-autofix** | Repair a broken adapter when a built-in command fails | "`opencli zhihu hot` is returning empty — fix it" |
-| **opencli-browser** | Browser automation reference for AI agents | "Help me fill out this form" / "Use browser commands to scrape this page" |
+| **opencli-browser** | Drive a real Chrome page ad-hoc — navigate, fill forms, click, extract | "Help me check my Xiaohongshu notifications" / "Help me fill out this form" / "Use browser commands to scrape this page" |
 | **opencli-usage** | Quick reference for all OpenCLI commands and sites | "What commands does OpenCLI have for Twitter?" |
 | **smart-search** | Search across existing OpenCLI capabilities | "Find me a Bilibili trending adapter" |
 
 ### How it works
 
-Once `opencli-adapter-author` is installed, your AI agent can:
+Once `opencli-browser` is installed, your AI agent can:
 
 1. **Navigate** to any URL using your logged-in browser
 2. **Read** page content via structured DOM snapshots (not screenshots)
@@ -141,9 +131,9 @@ Once `opencli-adapter-author` is installed, your AI agent can:
 The agent handles all the `opencli browser` commands internally — you just describe what you want done in natural language.
 
 **Skill references:**
-- [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — browser operation + adapter authoring, end-to-end
+- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — drive Chrome ad-hoc (navigate, fill forms, click, extract)
+- [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — write a new adapter end-to-end
 - [`skills/opencli-autofix/SKILL.md`](./skills/opencli-autofix/SKILL.md) — repair broken adapters
-- [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — browser automation reference
 - [`skills/opencli-usage/SKILL.md`](./skills/opencli-usage/SKILL.md) — command and site reference
 - [`skills/smart-search/SKILL.md`](./skills/smart-search/SKILL.md) — capability search
 
