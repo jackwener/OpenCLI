@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { parseCreatorNoteIdsFromHtml, parseCreatorNotesText } from './creator-notes.js';
 import './creator-notes.js';
@@ -188,5 +189,16 @@ describe('xiaohongshu creator-notes', () => {
             'aaaaaaaaaaaaaaaaaaaaaaaa',
             'dddddddddddddddddddddddd',
         ]);
+    });
+    it('throws EmptyResultError when the creator account has no notes', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-notes');
+        const page = createPageMock(undefined);
+        page.evaluate = vi.fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce({ text: '', html: '' });
+
+        await expect(cmd.func(page, { limit: 1 })).rejects.toBeInstanceOf(EmptyResultError);
     });
 });
