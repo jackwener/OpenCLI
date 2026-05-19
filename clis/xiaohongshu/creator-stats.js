@@ -8,6 +8,7 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 cli({
     site: 'xiaohongshu',
     name: 'creator-stats',
@@ -52,7 +53,7 @@ cli({
         }
         const stats = data.data[period];
         if (!stats) {
-            throw new Error(`No data for period "${period}". Available: ${Object.keys(data.data).join(', ')}`);
+            throw new EmptyResultError('xiaohongshu creator-stats', `No data for period "${period}". Available: ${Object.keys(data.data).join(', ')}`);
         }
         // Format daily trend as sparkline-like summary
         const formatTrend = (list) => {

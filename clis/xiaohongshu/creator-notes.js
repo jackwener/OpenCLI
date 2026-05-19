@@ -8,6 +8,7 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 const DATE_LINE_RE = /^发布于 (\d{4}年\d{2}月\d{2}日 \d{2}:\d{2})$/;
 const METRIC_LINE_RE = /^\d+$/;
 const VISIBILITY_LINE_RE = /可见$/;
@@ -210,7 +211,7 @@ cli({
         const limit = kwargs.limit || 20;
         const notes = await fetchCreatorNotes(page, limit);
         if (!Array.isArray(notes) || notes.length === 0) {
-            throw new Error('No notes found. Are you logged into creator.xiaohongshu.com?');
+            throw new EmptyResultError('xiaohongshu creator-notes', 'No notes found. Ensure you are logged into creator.xiaohongshu.com and the account has published notes.');
         }
         return notes
             .slice(0, limit)

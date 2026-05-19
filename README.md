@@ -236,39 +236,18 @@ To load the source Browser Bridge extension:
 | Site | Commands |
 |------|----------|
 | **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
-| **rednote** | `search` `note` `comments` `user` `download` `feed` `notifications` |
 | **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `summary` `video` `user-videos` |
-| **tieba** | `hot` `posts` `search` `read` |
-| **hupu** | `hot` `search` `detail` `mentions` `reply` `like` `unlike` |
-| **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
-| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `upvoted` `save` `saved` `comment` `subscribe` |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
-| **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
-| **1688** | `search` `item` `assets` `download` `store` |
-| **gitee** | `trending` `search` `user` |
-| **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
-| **claude** | `ask` `send` `new` `status` `read` `history` `detail` |
-| **yuanbao** | `new` `ask` |
-| **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
-| **spotify** | `auth` `status` `play` `pause` `next` `prev` `volume` `search` `queue` `shuffle` `repeat` |
-| **xianyu** | `search` `item` `inbox` `messages` `chat` `reply` `publish` |
-| **xiaoe** | `courses` `detail` `catalog` `play-url` `content` |
-| **quark** | `ls` `mkdir` `mv` `rename` `rm` `save` `share-tree` |
-| **uiverse** | `code` `preview` |
-| **baidu-scholar** | `search` |
-| **google-scholar** | `search` `cite` `profile` |
-| **gov-law** | `search` `recent` |
-| **gov-policy** | `search` `recent` |
-| **nowcoder** | `hot` `trending` `topics` `recommend` `creators` `companies` `jobs` `search` `suggest` `experience` `referral` `salary` `papers` `practice` `notifications` `detail` |
-| **wanfang** | `search` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
-| **linkedin-learning** | `search` `trending` `course` |
-| **xiaoyuzhou** | `auth*` `podcast*` `podcast-episodes*` `episode*` `download*` `transcript*` |
-| **youdao** | `note` |
+| **linkedin** | `connect` `inbox` `safe-send` `search` `sent-invitations` `thread-snapshot` `timeline` `salesnav-search` `salesnav-inbox` `salesnav-message` `salesnav-thread` |
+| **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `upvoted` `save` `saved` `comment` `subscribe` |
+| **twitter** | `trending` `search` `timeline` `tweets` `lists` `list-tweets` `list-add` `list-remove` `bookmarks` `post` `download` `profile` `article` `like` `likes` `notifications` `reply` `reply-dm` `thread` `follow` `unfollow` `followers` `following` `block` `unblock` `bookmark` `unbookmark` `delete` `hide-reply` `accept` |
+| **claude** | `ask` `send` `new` `status` `read` `history` `detail` |
+| **gemini** | `new` `ask` `image` `deep-research` `deep-research-result` |
+| **notebooklm** | `status` `list` `open` `current` `get` `history` `summary` `note-list` `notes-get` `source-list` `source-get` `source-fulltext` `source-guide` |
+| **amazon** | `bestsellers` `search` `product` `offer` `discussion` `movers-shakers` `new-releases` `rankings` |
 
-100+ site surfaces in total — **[→ see all supported sites & commands](./docs/adapters/index.md)**
-
-`*` `opencli xiaoyuzhou podcast`, `podcast-episodes`, `episode`, `download`, and `transcript` require local Xiaoyuzhou credentials in `~/.opencli/xiaoyuzhou.json`.
+Curated highlights — **[→ see all 100+ supported sites & commands](./docs/adapters/index.md)** (douyin / weibo / spotify / 1688 / quark / nowcoder / google-scholar / hupu / xianyu / weread / weread-official / xiaoyuzhou / and more).
 
 ## CLI Hub
 
@@ -288,6 +267,7 @@ OpenCLI acts as a universal hub for your existing command-line tools — unified
 | **discord(discord-cli)** | Discord — local-first sync, search, and export via SQLite for AI agents | `opencli discord recent --channel general` |
 | **wx(wx-cli)** | WeChat — query local WeChat data: sessions, messages, search, contacts, export | `opencli wx search "OpenCLI"` |
 | **vercel** | Vercel — deploy projects, manage domains, env vars, logs | `opencli vercel deploy --prod` |
+| **wrangler** | Cloudflare Wrangler — deploy Workers, manage R2/D1/KV, publish Pages | `opencli wrangler deploy` |
 
 **Register your own** — add any local CLI so AI agents can discover it via `opencli list`:
 
