@@ -57,9 +57,89 @@ describe('bilibili subtitle', () => {
         await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
     });
 
+    it('wraps view API fetch/json exceptions as CommandExecutionError', async () => {
+        mockApiGet.mockRejectedValueOnce(new SyntaxError('Unexpected token <'));
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
+    });
+
     it('throws CommandExecutionError when view API succeeds but lacks cid', async () => {
         mockApiGet.mockResolvedValueOnce({ code: 0, data: { bvid: 'BV1GbXPBeEZm' /* no cid */ } });
         await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(/cid/);
+    });
+
+    it('throws CommandExecutionError when player subtitle payload is malformed', async () => {
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                need_login_subtitle: false,
+                subtitle: { subtitles: { lan: 'zh-CN' } },
+            },
+        });
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws AuthRequiredError only for explicit empty subtitle_url entries', async () => {
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                need_login_subtitle: false,
+                subtitle: { subtitles: [{ lan: 'zh-CN', subtitle_url: '' }] },
+            },
+        });
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(AuthRequiredError);
+    });
+
+    it('throws CommandExecutionError when subtitle entry lacks subtitle_url field', async () => {
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                need_login_subtitle: false,
+                subtitle: { subtitles: [{ lan: 'zh-CN' }] },
+            },
+        });
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('wraps subtitle file fetch exceptions as CommandExecutionError', async () => {
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                need_login_subtitle: false,
+                subtitle: { subtitles: [{ lan: 'zh-CN', subtitle_url: '//example.com/sub.json' }] },
+            },
+        });
+        page.evaluate.mockRejectedValueOnce(new Error('Failed to fetch'));
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws EmptyResultError when subtitle file has no cue rows', async () => {
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                need_login_subtitle: false,
+                subtitle: { subtitles: [{ lan: 'zh-CN', subtitle_url: '//example.com/sub.json' }] },
+            },
+        });
+        page.evaluate.mockResolvedValueOnce({ success: true, data: [] });
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError when subtitle cue rows have malformed time ranges', async () => {
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                need_login_subtitle: false,
+                subtitle: { subtitles: [{ lan: 'zh-CN', subtitle_url: '//example.com/sub.json' }] },
+            },
+        });
+        page.evaluate.mockResolvedValueOnce({ success: true, data: [{ from: 'bad', to: 1.5, content: 'hello' }] });
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
     });
 
     it('works for bangumi-bound bvid (PGC content) — same code path, view API returns cid + redirect_url', async () => {
