@@ -92,7 +92,7 @@ If you want to add your own commands, start with the [Extending OpenCLI guide](.
 
 OpenCLI's browser commands are designed to be used by AI Agents — not run manually. Install skills into your AI agent (Claude Code, Cursor, etc.), and the agent operates websites on your behalf using your logged-in Chrome session.
 
-### Install skills
+### Install skills (also refreshes existing installs)
 
 ```bash
 npx skills add jackwener/opencli
@@ -105,7 +105,6 @@ npx skills add jackwener/opencli --skill opencli-adapter-author
 npx skills add jackwener/opencli --skill opencli-autofix
 npx skills add jackwener/opencli --skill opencli-browser
 npx skills add jackwener/opencli --skill opencli-usage
-npx skills add jackwener/opencli --skill smart-search
 ```
 
 ### Which skill to use
@@ -116,7 +115,6 @@ npx skills add jackwener/opencli --skill smart-search
 | **opencli-autofix** | Repair a broken adapter when a built-in command fails | "`opencli zhihu hot` is returning empty — fix it" |
 | **opencli-browser** | Drive a real Chrome page ad-hoc — navigate, fill forms, click, extract | "Help me check my Xiaohongshu notifications" / "Help me fill out this form" / "Use browser commands to scrape this page" |
 | **opencli-usage** | Quick reference for all OpenCLI commands and sites | "What commands does OpenCLI have for Twitter?" |
-| **smart-search** | Search across existing OpenCLI capabilities | "Find me a Bilibili trending adapter" |
 
 ### How it works
 
@@ -135,41 +133,21 @@ The agent handles all the `opencli browser` commands internally — you just des
 - [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — write a new adapter end-to-end
 - [`skills/opencli-autofix/SKILL.md`](./skills/opencli-autofix/SKILL.md) — repair broken adapters
 - [`skills/opencli-usage/SKILL.md`](./skills/opencli-usage/SKILL.md) — command and site reference
-- [`skills/smart-search/SKILL.md`](./skills/smart-search/SKILL.md) — capability search
 
 Available browser commands include `open`, `state`, `click`, `type`, `fill`, `select`, `keys`, `wait`, `get`, `find`, `extract`, `frames`, `screenshot`, `scroll`, `back`, `eval`, `network`, `tab list`, `tab new`, `tab select`, `tab close`, `init`, `verify`, and `close`.
 
 `opencli browser` commands require a `<session>` positional immediately after `browser`. `opencli browser work open <url>` and `opencli browser work tab new [url]` both return a target ID. Use `opencli browser work tab list` to inspect target IDs, then pass `--tab <targetId>` to route a command to a specific tab. `tab new` creates a new tab without changing the default browser target; only `tab select <targetId>` promotes that tab to the default target for later untargeted commands in the same session.
 
-## Core Concepts
+## Writing a new adapter
 
-### `browser`: AI Agent browser control
+When the site you need is not yet covered, use the `opencli-adapter-author` skill end-to-end:
 
-`opencli browser` commands are the low-level primitives that AI Agents use to operate websites. You don't run these manually — instead, install the `opencli-browser` skill into your AI agent, describe what you want in natural language, and the agent handles the browser operations.
-
-For example, tell your agent: *"Help me check my Xiaohongshu notifications"* — the agent will use `opencli browser <session> open`, `state`, `click`, etc. under the hood.
-
-### Built-in adapters: stable commands
-
-Use site-specific commands such as `opencli hackernews top` or `opencli reddit hot` when the capability already exists. These are deterministic and work without browser — ideal for both humans and AI agents.
-
-### Writing a new adapter
-
-When the site you need is not yet covered, use the `opencli-adapter-author` skill. It takes the agent end-to-end:
-
-1. Recon the site and classify its pattern (SPA / SSR / JSONP / Token / Streaming).
-2. Discover the right endpoint — network inspection, initial state, bundle search, token trace, or interceptor fallback.
-3. Decide the auth strategy — `PUBLIC` / `COOKIE` / `INTERCEPT` / `UI` / `LOCAL`.
-4. Decode response fields and design output columns.
-5. `opencli browser recon analyze <url>` for one-shot recon, then `opencli browser recon init <site>/<name>` → write adapter → `opencli browser recon verify <site>/<name>`.
-6. Persist site knowledge to `~/.opencli/sites/<site>/` so the next adapter for the same site is faster.
-
-### CLI Hub and desktop adapters
-
-OpenCLI is not only for websites. It can also:
-
-- expose local binaries like `gh`, `docker`, `obsidian`, `tg`, `discord`, `wx`, or custom tools through `opencli <tool> ...`
-- control Electron desktop apps through dedicated adapters and CDP-backed integrations
+1. **Recon** the site and pick a pattern (SPA / SSR / JSONP / Token / Streaming).
+2. **Discover** the right endpoint — network inspection, initial state, bundle search, token trace, or interceptor fallback.
+3. **Pick auth** — `PUBLIC` / `COOKIE` / `INTERCEPT` / `UI` / `LOCAL`.
+4. **Decode** response fields and design output columns.
+5. `opencli browser recon analyze <url>` → `opencli browser recon init <site>/<name>` → write adapter → `opencli browser recon verify <site>/<name>`.
+6. Site knowledge persists to `~/.opencli/sites/<site>/` so the next adapter for the same site starts from context.
 
 ## Prerequisites
 
@@ -195,42 +173,6 @@ OpenCLI is not only for websites. It can also:
 
 `opencli browser *` requires an explicit `<session>` positional, uses a foreground browser window by default, and keeps that session's tab lease until `opencli browser <session> close` or idle cleanup. Browser-backed adapters use a background adapter window and release one-shot tab leases by default. Interactive adapters can declare `siteSession: 'persistent'` to keep a stable site tab for continuity; pass `--site-session ephemeral` for a one-shot tab.
 
-## Update
-
-```bash
-npm install -g @jackwener/opencli@latest
-
-# If you use the packaged OpenCLI skills, refresh them too
-npx skills add jackwener/opencli
-```
-
-Or refresh only the skills you actually use:
-
-```bash
-npx skills add jackwener/opencli --skill opencli-adapter-author
-npx skills add jackwener/opencli --skill opencli-autofix
-npx skills add jackwener/opencli --skill opencli-browser
-npx skills add jackwener/opencli --skill opencli-usage
-npx skills add jackwener/opencli --skill smart-search
-```
-
-## For Developers
-
-Install from source:
-
-```bash
-git clone git@github.com:jackwener/opencli.git
-cd opencli
-npm install
-npm run build
-npm link
-```
-
-To load the source Browser Bridge extension:
-
-1. Open `chrome://extensions` and enable **Developer mode**.
-2. Click **Load unpacked** and select this repository's `extension/` directory.
-
 ## Built-in Commands
 
 | Site | Commands |
@@ -251,47 +193,13 @@ Curated highlights — **[→ see all 100+ supported sites & commands](./docs/ad
 
 ## CLI Hub
 
-OpenCLI acts as a universal hub for your existing command-line tools — unified discovery, pure passthrough execution, and auto-install when a safe package-manager command is configured.
+Unified passthrough for your existing command-line tools. Run `opencli <tool> ...` for any of:
 
-| External CLI | Description | Example |
-|--------------|-------------|---------|
-| **gh** | GitHub CLI | `opencli gh pr list --limit 5` |
-| **obsidian** | Obsidian vault management | `opencli obsidian search query="AI"` |
-| **docker** | Docker | `opencli docker ps` |
-| **longbridge** | Longbridge CLI — market data, account management, and trading via Longbridge OpenAPI | `opencli longbridge quote TSLA.US --format json` |
-| **ntn** | Notion CLI — official Notion API CLI for pages, databases, blocks, search, comments | `opencli ntn pages list` |
-| **lark-cli** | Lark/Feishu — messages, docs, calendar, tasks, 200+ commands | `opencli lark-cli calendar +agenda` |
-| **dws** | DingTalk — cross-platform CLI for DingTalk's full suite, designed for humans and AI agents | `opencli dws msg send --to user "hello"` |
-| **wecom-cli** | WeCom/企业微信 — CLI for WeCom open platform, for humans and AI agents | `opencli wecom-cli msg send --to user "hello"` |
-| **tg(tg-cli)** | Telegram — local-first sync, search, and export via MTProto for AI agents | `opencli tg search "AI news" -f json` |
-| **discord(discord-cli)** | Discord — local-first sync, search, and export via SQLite for AI agents | `opencli discord recent --channel general` |
-| **wx(wx-cli)** | WeChat — query local WeChat data: sessions, messages, search, contacts, export | `opencli wx search "OpenCLI"` |
-| **vercel** | Vercel — deploy projects, manage domains, env vars, logs | `opencli vercel deploy --prod` |
-| **wrangler** | Cloudflare Wrangler — deploy Workers, manage R2/D1/KV, publish Pages | `opencli wrangler deploy` |
+`gh` · `docker` · `vercel` · `wrangler` · `obsidian` · `longbridge` · `lark-cli` · `ntn(notion)` · `dws(DingTalk Workspace)` · `wecom-cli(企业微信)` · `tg(tg-cli)` · `discord(discord-cli)` · `wx(wx-cli)`
 
-**Register your own** — add any local CLI so AI agents can discover it via `opencli list`:
+Register your own with `opencli external register <name>`; list everything with `opencli external list`.
 
-```bash
-opencli external register mycli
-```
-
-**Manual install** — some external CLIs use official shell-script installers rather than shell-free package-manager commands. For `ntn`, install from <https://ntn.dev> first, then run `opencli ntn ...`.
-
-### Desktop App Adapters
-
-Control Electron desktop apps directly from the terminal. Each adapter has its own detailed documentation:
-
-| App | Description | Doc |
-|-----|-------------|-----|
-| **Cursor** | Control Cursor IDE — Composer, chat, code extraction | [Doc](./docs/adapters/desktop/cursor.md) |
-| **Codex** | Drive OpenAI Codex CLI agent headlessly | [Doc](./docs/adapters/desktop/codex.md) |
-| **Antigravity** | Control Antigravity Ultra from terminal | [Doc](./docs/adapters/desktop/antigravity.md) |
-| **ChatGPT App** | Automate ChatGPT macOS desktop app | [Doc](./docs/adapters/desktop/chatgpt-app.md) |
-| **ChatWise** | Multi-LLM client (GPT-4, Claude, Gemini) | [Doc](./docs/adapters/desktop/chatwise.md) |
-| **Discord** | Discord Desktop — messages, channels, servers | [Doc](./docs/adapters/desktop/discord.md) |
-| **Doubao** | Control Doubao AI desktop app via CDP | [Doc](./docs/adapters/desktop/doubao-app.md) |
-
-To add a new Electron app, start with [docs/guide/electron-app-cli.md](./docs/guide/electron-app-cli.md).
+**Desktop app adapters** (Electron, via CDP): Cursor / Codex / Antigravity / ChatGPT App / ChatWise / Discord / Doubao — see [`docs/adapters/desktop/`](./docs/adapters/desktop/).
 
 ## Download Support
 
@@ -337,25 +245,7 @@ opencli bilibili hot -v         # Verbose: show pipeline debug steps
 
 ## Exit Codes
 
-opencli follows Unix `sysexits.h` conventions so it integrates naturally with shell pipelines and CI scripts:
-
-| Code | Meaning | When |
-|------|---------|------|
-| `0` | Success | Command completed normally |
-| `1` | Generic error | Unexpected / unclassified failure |
-| `2` | Usage error | Bad arguments or unknown command |
-| `66` | Empty result | No data returned (`EX_NOINPUT`) |
-| `69` | Service unavailable | Browser Bridge not connected (`EX_UNAVAILABLE`) |
-| `75` | Temporary failure | Command timed out — retry (`EX_TEMPFAIL`) |
-| `77` | Auth required | Not logged in to target site (`EX_NOPERM`) |
-| `78` | Config error | Missing credentials or bad config (`EX_CONFIG`) |
-| `130` | Interrupted | Ctrl-C / SIGINT |
-
-```bash
-opencli spotify status || echo "exit $?"   # 69 if browser not running
-opencli gh issue list 2>/dev/null
-[ $? -eq 77 ] && opencli gh auth login      # auto-auth if not logged in
-```
+opencli follows Unix `sysexits.h` so CI / scripts can branch on failure mode: `0` success, `66` empty result, `69` Browser Bridge down, `75` timeout, `77` auth required, `78` config error, `130` Ctrl-C. Full reference: [docs/guide/exit-codes.md](./docs/guide/exit-codes.md).
 
 ## Plugins
 
@@ -376,18 +266,6 @@ opencli plugin uninstall my-tool
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) wall, feed, and search |
 
 See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
-
-## For AI Agents (Developer Guide)
-
-Before writing any adapter code, read the [`opencli-adapter-author` skill](./skills/opencli-adapter-author/SKILL.md). It takes you end-to-end:
-
-- Recon the site and pick a pattern (SPA / SSR / JSONP / Token / Streaming).
-- Discover the right endpoint via `opencli browser <session> network`, `eval`, or the interceptor fallback.
-- Decide auth strategy (`PUBLIC` / `COOKIE` / `INTERCEPT` / `UI` / `LOCAL`).
-- Run `opencli browser recon analyze <url>` for one-shot recon, decode response fields, design columns, scaffold with `opencli browser recon init`.
-- Verify with `opencli browser recon verify <site>/<name>` before shipping.
-
-For long-lived personal commands that should live in your own Git repo, use a local plugin instead; see [Extending OpenCLI](./docs/guide/extending-opencli.md). Quick private adapters can still live at `~/.opencli/clis/<site>/<name>.js`. Site knowledge (endpoints, field maps, fixtures) accumulates in `~/.opencli/sites/<site>/` so the next adapter for the same site starts from context instead of zero.
 
 ## Testing
 
