@@ -2,7 +2,7 @@
  * PowerChina search — browser DOM extraction with multi-entry URL probing.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
   cleanText,
   normalizeDate,
@@ -215,7 +215,7 @@ cli({
     );
 
     if (rows.length === 0 && extractedRows.length > 0) {
-      throw new Error('[taxonomy=empty_result] site=powerchina command=search extracted only navigation/portal rows');
+      throw new EmptyResultError('powerchina search', 'extracted only navigation/portal rows, no bid entries matched');
     }
 
     if (rows.length === 0) {
@@ -227,7 +227,7 @@ cli({
         );
       }
       if (apiFailure) {
-        throw new Error(`[taxonomy=empty_result] site=powerchina command=search api/dom yielded no result: ${apiFailure}`);
+        throw new EmptyResultError('powerchina search', `api/dom yielded no result: ${apiFailure}`);
       }
     }
 
