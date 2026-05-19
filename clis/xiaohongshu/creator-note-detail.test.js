@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { appendAudienceRows, appendTrendRows, parseCreatorNoteDetailDomData, parseCreatorNoteDetailText } from './creator-note-detail.js';
 import './creator-note-detail.js';
@@ -287,5 +288,15 @@ describe('xiaohongshu creator-note-detail', () => {
         await cmd.func(page, { 'note-id': 'demo-note-id' });
         expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
         expect(page.wait.mock.calls.length).toBeGreaterThanOrEqual(4);
+    });
+    it('throws EmptyResultError when the detail page exposes no metrics', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
+        const page = createPageMock(undefined);
+        page.evaluate = vi.fn()
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce('笔记数据详情\n暂无数据')
+            .mockResolvedValue(null);
+
+        await expect(cmd.func(page, { 'note-id': 'demo-note-id' })).rejects.toBeInstanceOf(EmptyResultError);
     });
 });
