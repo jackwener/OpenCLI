@@ -84,7 +84,7 @@
     "js-yaml": "^4.1.0",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
-    "undici": "^6.25.0",
+    "undici": "^8.3.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
