@@ -96,6 +96,10 @@ cli({
         }
 
         const job = payload.job;
+        const returnedCiphertext = String(job?.ciphertext ?? '').trim();
+        if (returnedCiphertext && returnedCiphertext !== id) {
+            throw new CommandExecutionError(`Upwork job-detail store returned ciphertext "${returnedCiphertext}" while reading "${id}".`);
+        }
         const buyer = payload.buyer || {};
         const stats = buyer?.stats || {};
         const location = buyer?.location || {};

@@ -367,13 +367,13 @@ describe('upwork search — func behavior', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('fails closed when no search result has a round-trippable job id', async () => {
+    it('fails closed when any search result lacks a round-trippable job id', async () => {
         const page = createPageMock({
             ready: true,
             onLogin: false,
             challenge: false,
             jobsPresent: true,
-            jobs: [{ ciphertext: '', title: 'A' }, { ciphertext: '12345', title: 'B' }],
+            jobs: [{ ciphertext: '~022054964136512093518', title: 'A' }, { ciphertext: '12345', title: 'B' }],
         });
         await expect(cmd().func(page, { query: 'python' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
@@ -434,6 +434,17 @@ describe('upwork feed — func behavior', () => {
 
         await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, jobsPresent: true, jobs: null }), { tab: 'best-matches' }))
             .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('fails closed when any feed result lacks a round-trippable job id', async () => {
+        const page = createPageMock({
+            ready: true,
+            onLogin: false,
+            challenge: false,
+            jobsPresent: true,
+            jobs: [{ ciphertext: '~022054964136512093518', title: 'A' }, { ciphertext: '', title: 'B' }],
+        });
+        await expect(cmd().func(page, { tab: 'best-matches' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
 
@@ -532,6 +543,18 @@ describe('upwork detail — func behavior', () => {
         expect(rows[0].id).toBe('~022054964136512093518');
 
         await expect(cmd().func(createPageMock({ ready: true, onLogin: false, challenge: false, job: [] }), { id: '~022054964136512093518' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('fails closed when the detail store belongs to a different ciphertext', async () => {
+        const page = createPageMock({
+            ready: true,
+            onLogin: false,
+            challenge: false,
+            job: { ciphertext: '~022055605504980235850', title: 'Wrong job' },
+            buyer: {},
+        });
+        await expect(cmd().func(page, { id: '~022054964136512093518' }))
             .rejects.toBeInstanceOf(CommandExecutionError);
     });
 

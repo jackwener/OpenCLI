@@ -14,7 +14,10 @@
  * so they stay unit-testable without a browser.
  */
 
-import { ArgumentError } from '@jackwener/opencli/errors';
+import {
+    ArgumentError,
+    CommandExecutionError,
+} from '@jackwener/opencli/errors';
 
 export const UPWORK_ORIGIN = 'https://www.upwork.com';
 
@@ -294,11 +297,14 @@ export function jobToListRow(job, rank) {
 
 export function jobsToListRows(jobs, { offset = 0, limit } = {}) {
     const rows = [];
-    for (const job of jobs) {
-        const row = jobToListRow(job, offset + rows.length + 1);
-        if (!row) continue;
+    const source = limit ? jobs.slice(0, limit) : jobs;
+    for (const [index, job] of source.entries()) {
+        const rank = offset + index + 1;
+        const row = jobToListRow(job, rank);
+        if (!row) {
+            throw new CommandExecutionError(`Upwork result at rank ${rank} did not include a valid ciphertext id; cannot produce round-trippable detail rows.`);
+        }
         rows.push(row);
-        if (limit && rows.length >= limit) break;
     }
     return rows;
 }
