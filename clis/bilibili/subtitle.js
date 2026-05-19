@@ -46,6 +46,9 @@ cli({
         catch (err) {
             throw new CommandExecutionError(`获取视频播放信息失败: ${err?.message || err}`);
         }
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            throw new CommandExecutionError('获取到的视频播放信息对象不符合预期格式');
+        }
         if (payload.code !== 0) {
             throw new CommandExecutionError(`获取视频播放信息失败: ${payload.message} (${payload.code})`);
         }

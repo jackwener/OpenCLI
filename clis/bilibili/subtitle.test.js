@@ -79,6 +79,17 @@ describe('bilibili subtitle', () => {
         await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
     });
 
+    it('throws CommandExecutionError when player API returns a non-object payload', async () => {
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce(null);
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
+
+        mockApiGet.mockReset();
+        mockViewOk();
+        mockApiGet.mockResolvedValueOnce([]);
+        await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
+    });
+
     it('throws AuthRequiredError only for explicit empty subtitle_url entries', async () => {
         mockViewOk();
         mockApiGet.mockResolvedValueOnce({
