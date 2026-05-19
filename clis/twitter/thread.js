@@ -46,9 +46,11 @@ function extractTweet(r, seen) {
     const u = tw.core?.user_results?.result;
     const noteText = tw.note_tweet?.note_tweet_results?.result?.text;
     const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown';
+    const bio = u?.legacy?.description || '';
     return {
         id: tw.rest_id,
         author: screenName,
+        bio,
         text: noteText || l.full_text || '',
         likes: l.favorite_count || 0,
         retweets: l.retweet_count || 0,
@@ -93,6 +95,10 @@ function parseTweetDetail(data, seen) {
     }
     return { tweets, nextCursor };
 }
+
+export const __test__ = {
+    parseTweetDetail,
+};
 // ── CLI definition ────────────────────────────────────────────────────
 cli({
     site: 'twitter',
@@ -107,7 +113,7 @@ cli({
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the thread by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the conversation\'s structural ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'card', 'quoted_tweet'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'card', 'quoted_tweet'],
     func: async (page, kwargs) => {
         let tweetId = kwargs['tweet-id'];
         const urlMatch = tweetId.match(/\/status\/(\d+)/);
