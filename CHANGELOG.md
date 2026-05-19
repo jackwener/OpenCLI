@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### ⚠ BREAKING CHANGES
+
+* **skills** — remove the `smart-search` skill. Use `opencli-usage` for command/site reference, `opencli-browser` for ad-hoc browser operation, and `opencli-adapter-author` for writing new adapters.
+
 ### Features
 
 * **weread-official** — integrate WeRead's official Agent Gateway as the `weread-official` CLI namespace. Pure HTTP, Bearer auth via `WEREAD_API_KEY` (no browser, no cookies). 8 commands cover the official skill bundle: `search`, `shelf`, `book` (info + chapters + progress 3-in-1), `notes` (notebook overview or per-book highlights/thoughts), `review`, `readdata` (weekly/monthly/annually/overall), `discover` (recommend or similar-book), `list-apis`. Adapter surfaces typed errors for all documented failure modes — `AuthRequiredError` on missing/rejected key (errcodes -2010/-2012), `CommandExecutionError` on HTTP/`upgrade_info`/non-zero errcode, `EmptyResultError` on empty payloads. Coexists with the existing cookie-based `weread` adapter.
