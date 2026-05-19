@@ -551,6 +551,40 @@ describe('twitter extractQuotedTweet', () => {
         expect(extractQuotedTweet(tweet)).toBeNull();
     });
 
+    it('returns null when the quoted tweet author identity has the wrong shape', () => {
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+            quoted_status_result: {
+                result: {
+                    rest_id: '99',
+                    legacy: { full_text: 'real quoted text' },
+                    core: {
+                        user_results: {
+                            result: {
+                                legacy: { screen_name: { value: 'alice' }, name: { value: 'Alice' } },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)).toBeNull();
+    });
+
+    it('returns null when the quoted tweet author handle is not a valid screen name', () => {
+        const tweet = {
+            legacy: { is_quote_status: true, quoted_status_id_str: '99' },
+            quoted_status_result: {
+                result: {
+                    rest_id: '99',
+                    legacy: { full_text: 'real quoted text' },
+                    core: { user_results: { result: { legacy: { screen_name: 'not/a/user' } } } },
+                },
+            },
+        };
+        expect(extractQuotedTweet(tweet)).toBeNull();
+    });
+
     it('returns null when the quoted tweet lacks renderable content', () => {
         const tweet = {
             legacy: { is_quote_status: true, quoted_status_id_str: '99' },

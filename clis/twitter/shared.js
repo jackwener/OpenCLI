@@ -398,9 +398,17 @@ export function extractQuotedTweet(tweet) {
     // drawing an empty "quoted tweet" preview.
     if (typeof qTw.rest_id !== 'string' || !qTw.rest_id.trim()) return null;
     const qUser = qTw.core?.user_results?.result;
-    const qScreenName = qUser?.legacy?.screen_name || qUser?.core?.screen_name || '';
-    if (!qScreenName) return null;
-    const qDisplayName = qUser?.legacy?.name || qUser?.core?.name || '';
+    const qLegacyScreenName = qUser?.legacy?.screen_name;
+    const qCoreScreenName = qUser?.core?.screen_name;
+    const qScreenName = typeof qLegacyScreenName === 'string' && qLegacyScreenName.trim()
+        ? qLegacyScreenName.trim()
+        : (typeof qCoreScreenName === 'string' && qCoreScreenName.trim() ? qCoreScreenName.trim() : '');
+    if (!SCREEN_NAME_PATTERN.test(qScreenName)) return null;
+    const qLegacyDisplayName = qUser?.legacy?.name;
+    const qCoreDisplayName = qUser?.core?.name;
+    const qDisplayName = typeof qLegacyDisplayName === 'string'
+        ? qLegacyDisplayName
+        : (typeof qCoreDisplayName === 'string' ? qCoreDisplayName : '');
     const qNoteText = qTw.note_tweet?.note_tweet_results?.result?.text;
     const qText = (typeof qNoteText === 'string' && qNoteText.length > 0)
         ? qNoteText
