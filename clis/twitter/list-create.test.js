@@ -135,6 +135,15 @@ describe('twitter list-create registration', () => {
         }
     });
 
+    it('fails typed when returned list name does not match the requested name', () => {
+        expect(() => buildListCreateRow({
+            result: createPayload({ name: 'Other List' }),
+            name: 'My List',
+            description: '',
+            mode: 'private',
+        })).toThrow(/expected "My List"/);
+    });
+
     it('fails typed when returned list mode does not match requested mode', () => {
         expect(() => buildListCreateRow({
             result: createPayload({ mode: 'Public' }),

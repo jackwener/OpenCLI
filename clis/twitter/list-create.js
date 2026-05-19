@@ -37,7 +37,7 @@ export function parseListCreateArgs(kwargs) {
     return { listName: name, listDescription: description, listMode: modeRaw, privateFlag: modeRaw === 'private' };
 }
 
-function requireCreateListResult(result, expectedMode) {
+function requireCreateListResult(result, expectedName, expectedMode) {
     if (!result || typeof result !== 'object') {
         throw new CommandExecutionError(`Unexpected result from twitter list-create: ${JSON.stringify(result)}`);
     }
@@ -66,6 +66,9 @@ function requireCreateListResult(result, expectedMode) {
     if (typeof list.name !== 'string' || !list.name.trim()) {
         throw new CommandExecutionError('CreateList returned a list payload without a list name.');
     }
+    if (list.name.trim() !== expectedName) {
+        throw new CommandExecutionError(`CreateList returned name ${JSON.stringify(list.name)}, expected ${JSON.stringify(expectedName)}.`);
+    }
     const modeValue = typeof list.mode === 'string' ? list.mode : '';
     if (!modeValue) {
         throw new CommandExecutionError('CreateList returned a list payload without list mode.');
@@ -78,7 +81,7 @@ function requireCreateListResult(result, expectedMode) {
 }
 
 export function buildListCreateRow({ result, name, description, mode }) {
-    const { createdList, listId, listMode } = requireCreateListResult(result, mode);
+    const { createdList, listId, listMode } = requireCreateListResult(result, name, mode);
     return {
         id: listId,
         name: createdList.name,
