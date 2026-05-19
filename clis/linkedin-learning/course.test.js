@@ -70,11 +70,16 @@ describe('linkedin-learning course', () => {
     });
 
     it('returns empty fields when upstream omits them', () => {
-        const row = parseCourse({}, 'x');
-        expect(row.title).toBe('');
+        const row = parseCourse({ title: 't' }, 'x');
+        expect(row.title).toBe('t');
         expect(row.duration_sec).toBe('');
         expect(row.rating).toBe('');
         expect(row.released).toBe('');
+    });
+
+    it('returns null when upstream omits the core title evidence', () => {
+        expect(parseCourse({}, 'x')).toBeNull();
+        expect(parseCourse({ title: '   ' }, 'x')).toBeNull();
     });
 
     it('throws AuthRequiredError when JSESSIONID is missing', async () => {
@@ -92,6 +97,12 @@ describe('linkedin-learning course', () => {
     it('throws CommandExecutionError when the elements array is missing', async () => {
         const cmd = getRegistry().get('linkedin-learning/course');
         const page = makePage({ evaluateResult: { json: { data: {} } } });
+        await expect(cmd.func(page, { slug: 'agentic-ai-build' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when the first detail element is malformed', async () => {
+        const cmd = getRegistry().get('linkedin-learning/course');
+        const page = makePage({ evaluateResult: { json: { elements: [{}] } } });
         await expect(cmd.func(page, { slug: 'agentic-ai-build' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 

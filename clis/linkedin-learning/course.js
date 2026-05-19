@@ -64,13 +64,15 @@ function buildFetchScript(url, csrf) {
 }
 
 function parseCourse(el, slug) {
+    const title = normalizeWhitespace(el?.title);
+    if (!title) return null;
     const description = typeof el?.description === 'string'
         ? el.description
         : (el?.description?.text || '');
     const duration = el?.duration?.unit === 'SECOND' ? String(el.duration.duration ?? '') : '';
     const released = el?.activatedAt ? new Date(el.activatedAt).toISOString().slice(0, 10) : '';
     return {
-        title: el?.title || '',
+        title,
         slug,
         description,
         difficulty: el?.difficultyLevel || '',
@@ -125,7 +127,11 @@ cli({
         if (!el) {
             throw new EmptyResultError(`No LinkedIn Learning course found for slug "${slug}"`);
         }
-        return [parseCourse(el, slug)];
+        const row = parseCourse(el, slug);
+        if (!row) {
+            throw new CommandExecutionError('LinkedIn Learning courses lookup returned malformed course detail: missing title');
+        }
+        return [row];
     },
 });
 
