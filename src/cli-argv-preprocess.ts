@@ -130,3 +130,56 @@ export class BrowserSessionArgvError extends Error {
     this.name = 'BrowserSessionArgvError';
   }
 }
+
+/**
+ * Minimal manifest shape consumed by escapeLeadingDashPositional. Imported
+ * lazily by main.ts so this module stays dependency-free.
+ */
+export interface DashPositionalManifestEntry {
+  site: string;
+  name: string;
+  args?: Array<{ name: string; positional?: boolean; required?: boolean }>;
+}
+
+const SHORT_FLAGS_NO_VALUE: ReadonlySet<string> = new Set(['-v', '-h']);
+const SHORT_FLAGS_VALUE: ReadonlySet<string> = new Set(['-f']);
+
+/**
+ * `opencli boss detail -abc123def` fails because commander parses
+ * `-abc123def` as an unknown option rather than the required
+ * `<security-id>` positional. BOSS 直聘 securityId tokens are opaque
+ * strings that can legitimately start with `-` (issue #1160), and the
+ * same shape can show up in any adapter that takes an opaque-id
+ * positional. Insert a `--` separator so commander treats the next
+ * token as the positional value.
+ */
+export function escapeLeadingDashPositional(
+  argv: readonly string[],
+  manifest: readonly DashPositionalManifestEntry[],
+): string[] {
+  const result = [...argv];
+  const needs = new Set<string>();
+  for (const cmd of manifest) {
+    const first = cmd.args?.find((a) => a.positional);
+    if (first?.required) needs.add(cmd.site + '/' + cmd.name);
+  }
+  let i = 0;
+  while (i < result.length) {
+    const tok = result[i];
+    if (!tok.startsWith('-')) break;
+    if (tok.includes('=')) { i += 1; continue; }
+    if (ROOT_VALUE_FLAGS.has(tok) && i + 1 < result.length) { i += 2; }
+    else { i += 1; }
+  }
+  const site = result[i];
+  const cmd = result[i + 1];
+  const positionalIdx = i + 2;
+  if (!site || !cmd || positionalIdx >= result.length) return result;
+  if (!needs.has(site + '/' + cmd)) return result;
+  const next = result[positionalIdx];
+  if (!next.startsWith('-')) return result;
+  if (next === '--' || next.startsWith('--')) return result;
+  if (SHORT_FLAGS_NO_VALUE.has(next) || SHORT_FLAGS_VALUE.has(next)) return result;
+  result.splice(positionalIdx, 0, '--');
+  return result;
+}
