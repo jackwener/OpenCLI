@@ -40,7 +40,7 @@ cli({
     }
     return { post_hint, url_overridden_by_dest, preview_image_url, gallery_urls };
   }
-  const res = await fetch('/r/all.json?limit=\${{ args.limit }}', { credentials: 'include' });
+  const res = await fetch('/r/all.json?limit=\${{ args.limit }}&raw_json=1', { credentials: 'include' });
   const j = await res.json();
   return (j?.data?.children || []).map(c => ({
     title: c.data.title,

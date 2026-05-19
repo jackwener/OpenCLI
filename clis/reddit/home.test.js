@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { parseRedditHomeLimit } from './home.js';
+import { extractRedditMedia, parseRedditHomeLimit } from './home.js';
 import './home.js';
 
 function makePage(result) {
@@ -33,7 +33,10 @@ describe('reddit home command', () => {
         expect(command).toBeDefined();
         expect(command.access).toBe('read');
         expect(command.browser).toBe(true);
-        expect(command.columns).toEqual(['rank', 'title', 'subreddit', 'score', 'comments', 'postId', 'author', 'url']);
+        expect(command.columns).toEqual([
+            'rank', 'title', 'subreddit', 'score', 'comments', 'postId', 'author', 'url',
+            'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls',
+        ]);
     });
 
     it('parseRedditHomeLimit accepts [1,100] and rejects out-of-range / non-integer without silent clamp', () => {
@@ -81,18 +84,58 @@ describe('reddit home command', () => {
             {
                 rank: 1, title: 'Title for a1', subreddit: 'r/dummy', score: 100, comments: 10,
                 postId: 'a1', author: 'someone', url: 'https://www.reddit.com/r/dummy/comments/a1/title/',
+                post_hint: '', url_overridden_by_dest: '', preview_image_url: '', gallery_urls: [],
             },
             {
                 rank: 2, title: 'Title for b2', subreddit: 'r/dummy', score: 250, comments: 42,
                 postId: 'b2', author: 'someone', url: 'https://www.reddit.com/r/dummy/comments/b2/title/',
+                post_hint: '', url_overridden_by_dest: '', preview_image_url: '', gallery_urls: [],
             },
         ]);
         // Row shape must match declared columns exactly.
         for (const row of rows) {
             expect(Object.keys(row).sort()).toEqual(
-                ['author', 'comments', 'postId', 'rank', 'score', 'subreddit', 'title', 'url'],
+                [
+                    'author', 'comments', 'gallery_urls', 'postId', 'post_hint', 'preview_image_url',
+                    'rank', 'score', 'subreddit', 'title', 'url', 'url_overridden_by_dest',
+                ],
             );
         }
+    });
+
+    it('surfaces media route fields from the personalized home feed', async () => {
+        const entries = [makeEntry('a1', {
+            post_hint: 'image',
+            url_overridden_by_dest: 'https://i.redd.it/a.jpg',
+            preview: {
+                images: [{ source: { url: 'https://preview.redd.it/a.jpg?x=1&amp;y=2' } }],
+            },
+            gallery_data: { items: [{ media_id: 'm2' }, { media_id: 'm1' }] },
+            media_metadata: {
+                m1: { s: { u: 'https://preview.redd.it/m1.jpg?x=1&amp;y=1' } },
+                m2: { s: { u: 'https://preview.redd.it/m2.jpg?x=1&amp;y=2' } },
+            },
+        })];
+        const rows = await command.func(makePage({ kind: 'ok', entries }), { limit: 25 });
+
+        expect(rows[0]).toMatchObject({
+            post_hint: 'image',
+            url_overridden_by_dest: 'https://i.redd.it/a.jpg',
+            preview_image_url: 'https://preview.redd.it/a.jpg?x=1&y=2',
+            gallery_urls: [
+                'https://preview.redd.it/m2.jpg?x=1&y=2',
+                'https://preview.redd.it/m1.jpg?x=1&y=1',
+            ],
+        });
+    });
+
+    it('extractRedditMedia tolerates missing media without throwing', () => {
+        expect(extractRedditMedia({ is_self: true })).toEqual({
+            post_hint: '',
+            url_overridden_by_dest: '',
+            preview_image_url: '',
+            gallery_urls: [],
+        });
     });
 
     it('applies the post-fetch limit slice (defence in depth vs Reddit overshoot)', async () => {

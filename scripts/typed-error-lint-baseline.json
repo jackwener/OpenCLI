@@ -651,7 +651,7 @@
     "rule": "silent-clamp",
     "command": "twitter/list-tweets",
     "file": "clis/twitter/list-tweets.js",
-    "line": 174,
+    "line": 176,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -659,7 +659,7 @@
     "rule": "silent-clamp",
     "command": "twitter/timeline",
     "file": "clis/twitter/timeline.js",
-    "line": 181,
+    "line": 183,
     "text": "const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering",
     "occurrence": 0
   },
@@ -667,7 +667,7 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 286,
+    "line": 287,
     "text": "const fetchCount = Math.min(100, limit - all.length + 10);",
     "occurrence": 0
   },
@@ -675,7 +675,7 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 231,
+    "line": 232,
     "text": "const limit = Math.max(1, Math.min(200, kwargs.limit || 20));",
     "occurrence": 0
   },

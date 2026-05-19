@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { __test__, prepareChatGPTImagePaths, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
+import { __test__, getChatGPTImageAssets, getChatGPTVisibleImageUrls, prepareChatGPTImagePaths, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -88,6 +89,25 @@ describe('chatgpt conversation id parsing', () => {
 });
 
 describe('chatgpt send selectors', () => {
+    it('inlines the composer locator without returning before caller code runs', () => {
+        const dom = new JSDOM('<!doctype html><div id="prompt-textarea" contenteditable="true"></div>', {
+            url: 'https://chatgpt.com/',
+            runScripts: 'outside-only',
+        });
+        const composer = dom.window.document.querySelector('#prompt-textarea');
+        composer.getBoundingClientRect = () => ({ width: 320, height: 48 });
+
+        const result = dom.window.eval(`
+            (() => {
+                ${__test__.buildComposerLocatorScript()}
+                const composer = findComposer();
+                return !!composer && composer.getAttribute(markerAttr) === '1';
+            })()
+        `);
+
+        expect(result).toBe(true);
+    });
+
     it('keeps locale-independent send-button selector before aria-label fallbacks', async () => {
         const page = {
             wait: vi.fn().mockResolvedValue(undefined),
@@ -140,6 +160,73 @@ describe('chatgpt send selectors', () => {
         expect(__test__.SEND_BUTTON_FALLBACK_SELECTORS).toContain('#composer-submit-button:not([disabled])');
         expect(__test__.SEND_BUTTON_LABELS).toEqual(expect.arrayContaining(['Send prompt', 'Send message', 'Send', '发送提示']));
         expect(__test__.CLOSE_SIDEBAR_LABELS).toEqual(expect.arrayContaining(['Close sidebar', '关闭边栏']));
+    });
+});
+
+describe('chatgpt generated image detection', () => {
+    function createDomPage(html, setup = () => {}) {
+        const dom = new JSDOM(html, {
+            url: 'https://chatgpt.com/c/demo',
+            runScripts: 'outside-only',
+        });
+        setup(dom.window);
+        return {
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
+        };
+    }
+
+    it('detects visible CSS background images when ChatGPT does not render a plain img', async () => {
+        const page = createDomPage(`
+            <!doctype html>
+            <main>
+              <div class="avatar" style="background-image: url('https://chatgpt.com/avatar.png')"></div>
+              <button data-testid="generated-image" style="background-image: url('/backend-api/generated/foo.webp')"></button>
+            </main>
+        `, (window) => {
+            for (const el of window.document.querySelectorAll('div, button')) {
+                el.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            }
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'https://chatgpt.com/backend-api/generated/foo.webp',
+        ]);
+    });
+
+    it('detects visible generated canvases as data URLs', async () => {
+        const page = createDomPage('<!doctype html><canvas width="512" height="512"></canvas>', (window) => {
+            const canvas = window.document.querySelector('canvas');
+            canvas.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            canvas.toDataURL = () => 'data:image/png;base64,ZmFrZQ==';
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'data:image/png;base64,ZmFrZQ==',
+        ]);
+    });
+
+    it('exports assets for generated CSS background images', async () => {
+        const imageUrl = 'https://chatgpt.com/backend-api/generated/foo.webp';
+        const page = createDomPage(`
+            <!doctype html>
+            <button style="background-image: url('/backend-api/generated/foo.webp')"></button>
+        `, (window) => {
+            const button = window.document.querySelector('button');
+            button.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            window.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                blob: async () => new window.Blob(['fake-image'], { type: 'image/webp' }),
+            });
+        });
+
+        await expect(getChatGPTImageAssets(page, [imageUrl])).resolves.toEqual([
+            expect.objectContaining({
+                url: imageUrl,
+                mimeType: 'image/webp',
+                width: 512,
+                height: 512,
+            }),
+        ]);
     });
 });
 
