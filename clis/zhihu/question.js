@@ -32,6 +32,12 @@ function answerId(item) {
     return '';
 }
 
+function answerDedupeKey(item) {
+    const id = answerId(item);
+    if (id) return `id:${id}`;
+    return `fallback:${item.author?.name || 'anonymous'}:${item.content || ''}`;
+}
+
 const MAX_LIMIT = 1000;
 
 cli({
@@ -91,7 +97,7 @@ cli({
                 throw new CliError('FETCH_ERROR', status ? `Zhihu question answers request failed (HTTP ${status})` : 'Zhihu question answers request failed', 'Try again later or rerun with -v for more detail');
             }
             for (const item of data.data || []) {
-                const key = item.id == null ? `${item.author?.name || 'anonymous'}:${item.content || ''}` : String(item.id);
+                const key = answerDedupeKey(item);
                 if (seen.has(key)) continue;
                 seen.add(key);
                 answers.push(item);
