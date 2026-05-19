@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { extractXhsUserNotes, normalizeXhsUserId } from './user-helpers.js';
 /**
  * Host-agnostic IIFE that snapshots the user profile's Pinia store. Exported
@@ -15,15 +15,29 @@ export const USER_SNAPSHOT_JS = `
         }
       };
 
-      const userStore = window.__INITIAL_STATE__?.user || {};
+      const userStore = window.__INITIAL_STATE__?.user;
+      const hasUserStore = Boolean(userStore && typeof userStore === 'object');
+      const rawNotes = hasUserStore ? (userStore.notes?._value || userStore.notes) : undefined;
+      const rawPageData = hasUserStore ? (userStore.userPageData?._value || userStore.userPageData) : undefined;
       return {
-        noteGroups: safeClone(userStore.notes?._value || userStore.notes || []),
-        pageData: safeClone(userStore.userPageData?._value || userStore.userPageData || {}),
+        noteGroups: safeClone(rawNotes || []),
+        pageData: safeClone(rawPageData || {}),
+        storePresent: hasUserStore,
+        notesPresent: Array.isArray(rawNotes),
+        pageDataPresent: Boolean(rawPageData && typeof rawPageData === 'object' && Object.keys(rawPageData).length > 0),
       };
     })()
   `;
 async function readUserSnapshot(page) {
     return await page.evaluate(USER_SNAPSHOT_JS);
+}
+export function assertReadableUserSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+        throw new CommandExecutionError('Malformed Xiaohongshu user snapshot');
+    }
+    if (snapshot.storePresent === false || (!snapshot.notesPresent && !snapshot.pageDataPresent)) {
+        throw new CommandExecutionError('Malformed Xiaohongshu user snapshot: user store was not found');
+    }
 }
 export const command = cli({
     site: 'xiaohongshu',
@@ -44,12 +58,14 @@ export const command = cli({
         const limit = Math.max(1, Number(kwargs.limit ?? 15));
         await page.goto(`https://www.xiaohongshu.com/user/profile/${userId}`);
         let snapshot = await readUserSnapshot(page);
+        assertReadableUserSnapshot(snapshot);
         let results = extractXhsUserNotes(snapshot ?? {}, userId);
         let previousCount = results.length;
         for (let i = 0; results.length < limit && i < 4; i += 1) {
             await page.autoScroll({ times: 1, delayMs: 1500 });
             await page.wait(1);
             snapshot = await readUserSnapshot(page);
+            assertReadableUserSnapshot(snapshot);
             const nextResults = extractXhsUserNotes(snapshot ?? {}, userId);
             if (nextResults.length <= previousCount)
                 break;
