@@ -64,6 +64,13 @@ export function buildDownloadExtractJs(noteId) {
           src = src.replace(/\\/imageView\\d+\\/\\d+\\/w\\/\\d+/, '');
           return src;
         };
+        const orderedImageUrls = [];
+        const seenImageUrls = new Set();
+        const pushImage = (url) => {
+          if (!url || seenImageUrls.has(url)) return;
+          seenImageUrls.add(url);
+          orderedImageUrls.push(url);
+        };
 
         const getStructuredNotes = () => {
           const state = window.__INITIAL_STATE__;
@@ -101,7 +108,7 @@ export function buildDownloadExtractJs(noteId) {
                 || '';
               const src = normalizeImageUrl(candidate);
               if (src && (src.includes('xhscdn') || src.includes('xiaohongshu') || src.includes('rednote'))) {
-                pushMedia('image', src);
+                pushImage(src);
                 imageInitialStateUsed = true;
               }
             }
@@ -126,7 +133,7 @@ export function buildDownloadExtractJs(noteId) {
               const raw = img.src || img.getAttribute('data-src') || '';
               const src = normalizeImageUrl(raw);
               if (src && (src.includes('xhscdn') || src.includes('xiaohongshu') || src.includes('rednote'))) {
-                pushMedia('image', src);
+                pushImage(src);
               }
             });
           }
@@ -186,6 +193,10 @@ export function buildDownloadExtractJs(noteId) {
             });
           }
         }
+
+        // Preserve the pre-existing media type order (videos first, then images)
+        // while keeping image carousel order stable within the image batch.
+        orderedImageUrls.forEach(url => pushMedia('image', url));
 
         return result;
       })()

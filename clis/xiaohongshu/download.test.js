@@ -311,5 +311,6 @@ describe('xiaohongshu download buildDownloadExtractJs carousel ordering (JSDOM)'
         const videos = result.media.filter((m) => m.type === 'video').map((m) => m.url);
         expect(images).toEqual(['https://sns-img-bd.xhscdn.com/cover.jpg']);
         expect(videos).toEqual(['https://sns-video-bd.xhscdn.com/test.mp4']);
+        expect(result.media.map((m) => m.type)).toEqual(['video', 'image']);
     });
 });
