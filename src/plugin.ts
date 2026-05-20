@@ -76,6 +76,8 @@ interface ParsedSource {
   localPath?: string;
 }
 
+const SUBPLUGIN_SELECTOR_RE = /^[\w.-]+$/;
+
 function parseStoredPluginSource(source?: string): PluginSourceRecord | undefined {
   if (!source) return undefined;
   if (source.startsWith(LOCAL_PLUGIN_SOURCE_PREFIX)) {
@@ -279,6 +281,24 @@ function resolveRepoContainedPath(repoRoot: string, subPath: string): string {
 
 function withOptionalSubPlugin(parsed: ParsedSource, subPlugin?: string): ParsedSource {
   return subPlugin ? { ...parsed, subPlugin } : parsed;
+}
+
+function splitSourceFragment(source: string): { source: string; subPlugin?: string } | null {
+  const hashIndex = source.lastIndexOf('#');
+  if (hashIndex < 0) return { source };
+
+  const rawFragment = source.slice(hashIndex + 1);
+  if (!rawFragment) return null;
+
+  let subPlugin: string;
+  try {
+    subPlugin = decodeURIComponent(rawFragment);
+  } catch {
+    return null;
+  }
+
+  if (!SUBPLUGIN_SELECTOR_RE.test(subPlugin)) return null;
+  return { source: source.slice(0, hashIndex), subPlugin };
 }
 
 function removePathSync(p: string): void {
@@ -1294,12 +1314,13 @@ function getPluginSource(dir: string): string | undefined {
 function parseSource(
   source: string,
 ): ParsedSource | null {
-  const sourceWithoutFragment = source.replace(/#([^#]*)$/, '');
-  const fragment = sourceWithoutFragment.length === source.length ? undefined : source.slice(sourceWithoutFragment.length + 1);
-  const fragmentSubPlugin = fragment ? decodeURIComponent(fragment) : undefined;
-  source = sourceWithoutFragment;
+  const split = splitSourceFragment(source);
+  if (!split) return null;
+  const fragmentSubPlugin = split.subPlugin;
+  source = split.source;
 
   if (source.startsWith('file://')) {
+    if (fragmentSubPlugin) return null;
     try {
       const localPath = path.resolve(fileURLToPath(source));
       return {
@@ -1313,6 +1334,7 @@ function parseSource(
   }
 
   if (path.isAbsolute(source)) {
+    if (fragmentSubPlugin) return null;
     const localPath = path.resolve(source);
     return {
       type: 'local',
@@ -1326,6 +1348,7 @@ function parseSource(
     /^github:([\w.-]+)\/([\w.-]+)\/([\w.-]+)$/,
   );
   if (githubSubMatch) {
+    if (fragmentSubPlugin) return null;
     const [, user, repo, sub] = githubSubMatch;
     const name = repo.replace(/^opencli-plugin-/, '');
     return {

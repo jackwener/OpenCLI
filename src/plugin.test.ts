@@ -171,6 +171,38 @@ describe('parseSource', () => {
     });
   });
 
+  it('parses fragment sub-plugin selectors on SSH and GitHub HTTPS sources', () => {
+    expect(_parseSource('ssh://git@gitlab.com/team/opencli-plugins.git#alpha')).toMatchObject({
+      type: 'git',
+      cloneUrl: 'ssh://git@gitlab.com/team/opencli-plugins.git',
+      name: 'opencli-plugins',
+      subPlugin: 'alpha',
+    });
+    expect(_parseSource('https://github.com/user/opencli-plugins#beta')).toMatchObject({
+      type: 'git',
+      cloneUrl: 'https://github.com/user/opencli-plugins.git',
+      name: 'opencli-plugins',
+      subPlugin: 'beta',
+    });
+  });
+
+  it('rejects malformed fragment sub-plugin selectors', () => {
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#')).toBeNull();
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#../alpha')).toBeNull();
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#alpha%2Fbeta')).toBeNull();
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#%E0%A4%A')).toBeNull();
+  });
+
+  it('rejects duplicate sub-plugin selectors instead of ignoring one', () => {
+    expect(_parseSource('github:user/opencli-plugins/polymarket#analytics')).toBeNull();
+  });
+
+  it('does not allow fragment sub-plugin selectors on local sources', () => {
+    const localDir = path.join(os.tmpdir(), 'opencli-plugin-test');
+    expect(_parseSource(`${pathToFileURL(localDir).href}#analytics`)).toBeNull();
+    expect(_parseSource(`${localDir}#analytics`)).toBeNull();
+  });
+
   it('still prefers GitHub shorthand over generic HTTPS for github.com', () => {
     const result = _parseSource('https://github.com/user/repo');
     // Should be handled by the GitHub-specific matcher (normalizes URL)
