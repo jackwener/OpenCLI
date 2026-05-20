@@ -37,7 +37,7 @@ describe('zhihu collection', () => {
               question: { id: 789012, title: 'Test Question' },
               author: { name: 'test_author' },
               voteup_count: 42,
-              content: '<p>Test answer content</p>',
+              content: '<p>&#34;Test&#34; &#x26; answer content</p>',
               url: 'https://www.zhihu.com/question/789012/answer/123456',
             },
           },
@@ -57,6 +57,7 @@ describe('zhihu collection', () => {
       title: 'Test Question',
       author: 'test_author',
       votes: 42,
+      excerpt: '"Test" & answer content',
       url: 'https://www.zhihu.com/question/789012/answer/123456',
     });
 

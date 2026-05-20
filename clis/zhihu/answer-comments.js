@@ -1,28 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-
-function decodeEntity(codePoint) {
-    return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10FFFF
-        ? String.fromCodePoint(codePoint)
-        : null;
-}
+import { stripHtml as stripHtmlText } from './text.js';
 
 function stripHtml(html) {
-    if (!html) return '';
-    return html
-        .replace(/<br\s*\/?\s*>/gi, '\n')
-        .replace(/<\/(?:p|div|h[1-6]|li|blockquote)>/gi, '\n\n')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&#(\d+);/g, (entity, value) => decodeEntity(Number(value)) ?? entity)
-        .replace(/&#x([0-9a-f]+);/gi, (entity, value) => decodeEntity(Number.parseInt(value, 16)) ?? entity)
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
+    return stripHtmlText(html, { preserveBlocks: true });
 }
 
 const ANSWER_ID_RE = /^\d+$/;

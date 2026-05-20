@@ -1,38 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { stripHtml as stripHtmlText } from './text.js';
 
-// Light-weight HTML → text, preserving paragraph / heading / list-item
-// line breaks. Zhihu answer `content` is HTML, so we map block-level
-// closing tags + `<br>` to newlines before stripping the rest.
 function stripHtml(html) {
-    if (!html) return '';
-    return html
-        .replace(/<br\s*\/?\s*>/gi, '\n')
-        // Block-level closing tags become paragraph breaks (double
-        // newline) so the stripped text stays readable. The trailing
-        // `\n{3,}` collapse pass below normalizes accidental triples.
-        .replace(/<\/(?:p|div|h[1-6]|li|blockquote)>/gi, '\n\n')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&#(\d+);/g, (_, value) => {
-            const codePoint = Number(value);
-            return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10FFFF
-                ? String.fromCodePoint(codePoint)
-                : _;
-        })
-        .replace(/&#x([0-9a-f]+);/gi, (_, value) => {
-            const codePoint = Number.parseInt(value, 16);
-            return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10FFFF
-                ? String.fromCodePoint(codePoint)
-                : _;
-        })
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
+    return stripHtmlText(html, { preserveBlocks: true });
 }
 
 const ANSWER_ID_RE = /^\d+$/;

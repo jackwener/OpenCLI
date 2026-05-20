@@ -36,7 +36,7 @@ describe('zhihu search', () => {
                             type: 'answer',
                             author: { name: 'alice' },
                             voteup_count: 12,
-                            question: { id: 'q1', name: '<em>Codex</em> question' },
+                            question: { id: 'q1', name: '<em>Codex</em> &#34;question&#34;' },
                         },
                     },
                     {
@@ -57,7 +57,7 @@ describe('zhihu search', () => {
         await expect(cmd.func(page, { query: 'codex', limit: 2 })).resolves.toEqual([
             {
                 rank: 1,
-                title: 'Codex question',
+                title: 'Codex "question"',
                 type: 'answer',
                 author: 'alice',
                 votes: 12,
