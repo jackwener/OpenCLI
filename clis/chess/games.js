@@ -30,7 +30,7 @@ cli({
         { name: 'username', type: 'string', required: true, positional: true, help: 'Chess.com username' },
         { name: 'limit', type: 'int', default: 10, help: `Number of recent games (1-${MAX_LIMIT})` },
     ],
-    columns: ['date', 'time_class', 'rated', 'my_color', 'my_rating', 'my_result', 'opponent', 'opponent_rating', 'eco', 'url'],
+    columns: ['date', 'time_class', 'rated', 'my_color', 'my_rating', 'my_result', 'opponent', 'opponent_rating', 'accuracy_white', 'accuracy_black', 'eco', 'opening_name', 'url'],
     func: async (kwargs) => {
         const username = validateUsername(kwargs.username);
         const limit = parseLimit(kwargs.limit);

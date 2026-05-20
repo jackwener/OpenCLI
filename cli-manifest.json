@@ -5335,7 +5335,10 @@
       "my_result",
       "opponent",
       "opponent_rating",
+      "accuracy_white",
+      "accuracy_black",
       "eco",
+      "opening_name",
       "url"
     ],
     "type": "js",

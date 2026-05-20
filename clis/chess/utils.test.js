@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { __test__ } from './utils.js';
 
-const { validateUsername, summarizeStats, formatDate, mapGameRow } = __test__;
+const { validateUsername, summarizeStats, formatDate, mapGameRow, openingName } = __test__;
 
 describe('chess utils', () => {
     it('validateUsername lowercases and accepts 3-25 char usernames', () => {
@@ -67,6 +67,7 @@ describe('chess utils', () => {
             time_class: 'blitz',
             rated: true,
             eco: 'C50',
+            accuracies: { white: 87.73, black: 80.23 },
             white: { username: 'Hikaru', rating: 3286, result: 'win' },
             black: { username: 'Magnus', rating: 2900, result: 'resigned' },
         };
@@ -79,9 +80,47 @@ describe('chess utils', () => {
             my_result: 'win',
             opponent: 'Magnus',
             opponent_rating: 2900,
+            accuracy_white: 87.73,
+            accuracy_black: 80.23,
             eco: 'C50',
+            opening_name: '',
             url: 'https://www.chess.com/game/live/123',
         });
+    });
+
+    it('mapGameRow leaves accuracy fields empty when chess.com did not compute them', () => {
+        const game = {
+            white: { username: 'A', rating: 1, result: 'win' },
+            black: { username: 'B', rating: 1, result: 'resigned' },
+        };
+        const row = mapGameRow(game, 'A');
+        expect(row.accuracy_white).toBe('');
+        expect(row.accuracy_black).toBe('');
+    });
+
+    it('mapGameRow parses opening_name from the chess.com eco URL', () => {
+        const game = {
+            eco: 'https://www.chess.com/openings/Reti-Opening-Nimzo-Larsen-Variation-2...g6-3.Bb2-Bg7-4.d4',
+            white: { username: 'A', rating: 1, result: 'win' },
+            black: { username: 'B', rating: 1, result: 'resigned' },
+        };
+        const row = mapGameRow(game, 'A');
+        expect(row.opening_name).toBe('Reti Opening Nimzo Larsen Variation');
+    });
+
+    it('openingName helper returns clean human-readable name from URL form', () => {
+        expect(openingName('https://www.chess.com/openings/Sicilian-Defense')).toBe('Sicilian Defense');
+        expect(openingName('https://www.chess.com/openings/Kings-Indian-Defense-Semi-Classical-Variation...7.O-O'))
+            .toBe('Kings Indian Defense Semi Classical Variation');
+        expect(openingName('https://www.chess.com/openings/French-Defense-Advance-Variation-3...c5-4.c3'))
+            .toBe('French Defense Advance Variation');
+    });
+
+    it('openingName returns empty for short-code eco or missing input', () => {
+        expect(openingName('A01')).toBe('');
+        expect(openingName('')).toBe('');
+        expect(openingName(undefined)).toBe('');
+        expect(openingName(null)).toBe('');
     });
 
     it('mapGameRow flips perspective when viewer is black', () => {

@@ -48,6 +48,20 @@ export function formatDate(epochSeconds) {
 }
 
 /**
+ * Pull "Reti Opening: Nimzo-Larsen Variation" out of the Chess.com eco URL
+ * (`https://www.chess.com/openings/Reti-Opening-Nimzo-Larsen-Variation-2...g6-...`).
+ * Returns '' for short-code eco values (`A01`) where no name is encoded.
+ */
+export function openingName(eco) {
+    if (typeof eco !== 'string' || !eco.startsWith('http')) return '';
+    const tail = eco.replace(/\/+$/, '').split('/').pop() || '';
+    if (!tail) return '';
+    const namePart = tail.match(/^([^.]+?)(?:-\d|\.\.\.|$)/);
+    const cleaned = (namePart ? namePart[1] : tail).replace(/-/g, ' ').trim();
+    return cleaned;
+}
+
+/**
  * Map a Chess.com game record (from the monthly archive) to a flat row.
  * The viewer perspective controls win/loss orientation.
  */
@@ -58,6 +72,7 @@ export function mapGameRow(game, viewerUsername) {
     const viewerIsWhite = String(white.username || '').toLowerCase() === viewerLower;
     const me = viewerIsWhite ? white : black;
     const opp = viewerIsWhite ? black : white;
+    const eco = game?.eco || '';
     return {
         date: formatDate(game?.end_time),
         time_class: game?.time_class || '',
@@ -67,7 +82,10 @@ export function mapGameRow(game, viewerUsername) {
         my_result: me?.result || '',
         opponent: opp?.username || '',
         opponent_rating: opp?.rating ?? '',
-        eco: game?.eco || '',
+        accuracy_white: typeof game?.accuracies?.white === 'number' ? game.accuracies.white : '',
+        accuracy_black: typeof game?.accuracies?.black === 'number' ? game.accuracies.black : '',
+        eco,
+        opening_name: openingName(eco),
         url: game?.url || '',
     };
 }
@@ -77,4 +95,5 @@ export const __test__ = {
     summarizeStats,
     formatDate,
     mapGameRow,
+    openingName,
 };

@@ -104,7 +104,8 @@ describe('chess games command', () => {
         const cmd = getRegistry().get('chess/games');
         expect(cmd?.columns).toEqual([
             'date', 'time_class', 'rated', 'my_color', 'my_rating', 'my_result',
-            'opponent', 'opponent_rating', 'eco', 'url',
+            'opponent', 'opponent_rating', 'accuracy_white', 'accuracy_black',
+            'eco', 'opening_name', 'url',
         ]);
     });
 });

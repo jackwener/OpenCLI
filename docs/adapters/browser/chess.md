@@ -55,7 +55,9 @@ opencli chess analyze https://www.chess.com/game/live/168842570216
 | `my_result` | `win` / `resigned` / `timeout` / `checkmated` / `agreed` / `repetition` / etc |
 | `opponent` | Opponent's Chess.com username |
 | `opponent_rating` | Opponent's rating at game time |
-| `eco` | ECO opening tag or full opening URL Chess.com tags into the row |
+| `accuracy_white` / `accuracy_black` | Chess.com move-accuracy percentage (0-100) when computed by Game Review; empty when the game wasn't analyzed (unrated / very short / abandoned) |
+| `eco` | Raw ECO opening tag or full opening URL chess.com encodes on the row |
+| `opening_name` | Human-readable opening name parsed from the eco URL (e.g. `Reti Opening Nimzo Larsen Variation`); empty when `eco` is the short-code form (`A01`) which carries no name |
 | `url` | Game URL on chess.com |
 
 ## Username Validation
