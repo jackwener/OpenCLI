@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ensureApplet, ggbEval, ggbGetProperty, ggbListObjects, ggbWaitForObjectCount } from './utils.js';
 import './add-circle.js';
@@ -153,5 +153,23 @@ describe('geogebra command typed boundaries', () => {
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce({ error: 'getObjectType failed', name: 'A' });
     await expect(command.func(page, {})).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('does not turn malformed info existence probes into not-found results', async () => {
+    const command = getRegistry().get('geogebra/info');
+    const page = createPageMock('https://www.geogebra.org/geometry');
+    page.evaluate
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ nope: true });
+    await expect(command.func(page, { name: 'A' })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('maps explicit false info existence probes to EmptyResultError', async () => {
+    const command = getRegistry().get('geogebra/info');
+    const page = createPageMock('https://www.geogebra.org/geometry');
+    page.evaluate
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ ok: true, exists: false });
+    await expect(command.func(page, { name: 'A' })).rejects.toThrow(EmptyResultError);
   });
 });

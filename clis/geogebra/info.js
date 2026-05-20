@@ -23,13 +23,31 @@ cli({
     let exists;
     try {
       exists = unwrapBridgeEnvelope(await page.evaluate(`
-        (name => typeof ggbApplet !== 'undefined' && ggbApplet.getObjectType(name) !== '')
+        (name => {
+          try {
+            if (typeof ggbApplet === 'undefined' || typeof ggbApplet.getObjectType !== 'function') {
+              return { error: 'ggbApplet is not ready' };
+            }
+            return { ok: true, exists: ggbApplet.getObjectType(name) !== '' };
+          } catch (err) {
+            return { error: err?.message || String(err) };
+          }
+        })
         (${JSON.stringify(objName)})
       `));
     } catch (err) {
       throw new CommandExecutionError(`Failed to inspect GeoGebra object: ${err?.message || err}`);
     }
-    if (exists !== true) {
+    if (!exists || typeof exists !== 'object' || Array.isArray(exists)) {
+      throw new CommandExecutionError('GeoGebra object existence probe returned malformed result');
+    }
+    if (exists.error) {
+      throw new CommandExecutionError(`Failed to inspect GeoGebra object: ${exists.error}`);
+    }
+    if (exists.ok !== true || typeof exists.exists !== 'boolean') {
+      throw new CommandExecutionError('GeoGebra object existence probe returned malformed result');
+    }
+    if (exists.exists === false) {
       throw new EmptyResultError(`geogebra info ${objName}`, `Object "${objName}" not found on the canvas.`);
     }
 
