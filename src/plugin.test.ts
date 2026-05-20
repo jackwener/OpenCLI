@@ -1136,6 +1136,29 @@ describe('installPlugin transactional staging', () => {
     expect(_readLockFile()[standaloneName]).toBeUndefined();
   });
 
+  it('fails instead of installing root plugin when a sub-plugin selector targets a single-plugin repo', () => {
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[args.length - 1]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'hello.js'), 'cli({ site: "test", name: "hello", access: "read" })');
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          name: standaloneName,
+        }));
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => installPlugin(`${standaloneSource}#analytics`)).toThrow('not an OpenCLI plugin monorepo');
+    expect(() => installPlugin(`${standaloneSource}/analytics`)).toThrow('not an OpenCLI plugin monorepo');
+    expect(fs.existsSync(standaloneDir)).toBe(false);
+    expect(_readLockFile()[standaloneName]).toBeUndefined();
+  });
+
   it('does not expose monorepo links or repo dir when lifecycle fails in staging', () => {
     mockExecFileSync.mockImplementation((cmd, args) => {
       if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {

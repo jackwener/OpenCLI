@@ -747,6 +747,13 @@ export function installPlugin(source: string): string | string[] {
       return installMonorepo(tmpCloneDir, parsed.cloneUrl!, repoName, manifest, subPlugin);
     }
 
+    if (subPlugin) {
+      throw new PluginError(
+        `Sub-plugin "${subPlugin}" requested, but ${repoName} is not an OpenCLI plugin monorepo.`,
+        'Remove the sub-plugin selector or install from a repository with a root opencli-plugin.json monorepo manifest.',
+      );
+    }
+
     // Single plugin mode
     return installSinglePlugin(tmpCloneDir, parsed.cloneUrl!, repoName, manifest);
   });
