@@ -2322,7 +2322,7 @@
         "name": "parent",
         "type": "int",
         "required": false,
-        "help": "rpid of an existing comment to reply under (omit for a top-level comment)"
+        "help": "top-level/root rpid to reply under (omit for a top-level comment)"
       },
       {
         "name": "execute",
@@ -2375,6 +2375,7 @@
     ],
     "columns": [
       "rank",
+      "rpid",
       "author",
       "text",
       "likes",

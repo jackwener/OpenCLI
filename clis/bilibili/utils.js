@@ -12,7 +12,22 @@ export function resolveBvid(input) {
     if (/^BV[A-Za-z0-9]+$/i.test(trimmed)) {
         return Promise.resolve(trimmed);
     }
+    try {
+        const parsed = new URL(trimmed);
+        if (/(\.|^)bilibili\.com$/i.test(parsed.hostname)) {
+            const match = parsed.pathname.match(/\/(?:video|bangumi\/play)\/(BV[A-Za-z0-9]+)/i);
+            if (match) {
+                return Promise.resolve(match[1]);
+            }
+        }
+    }
+    catch {
+        // Non-URL inputs fall through to b23.tv short-code resolution.
+    }
     const shortCode = trimmed.replace(/^https?:\/\//, '').replace(/^(www\.)?b23\.tv\//, '');
+    if (!/^[A-Za-z0-9]+$/.test(shortCode)) {
+        return Promise.reject(new Error(`Cannot resolve BV ID from invalid b23.tv short code: ${trimmed}`));
+    }
     const url = 'https://b23.tv/' + shortCode;
     return new Promise((resolve, reject) => {
         const req = https.get(url, (res) => {
@@ -29,7 +44,7 @@ export function resolveBvid(input) {
             reject(new Error(`Cannot resolve BV ID from short URL: ${trimmed}`));
         });
         req.on('error', reject);
-        req.setTimeout(5000, () => { req.destroy(); reject(new Error(`Timeout resolving short URL: ${trimmed}`)); });
+        req.setTimeout(4000, () => { req.destroy(); reject(new Error(`Timeout resolving short URL: ${trimmed}`)); });
     });
 }
 const MIXIN_KEY_ENC_TAB = [

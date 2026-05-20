@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 const { mockApiGet, mockApiPost, mockResolveUid } = vi.hoisted(() => ({
     mockApiGet: vi.fn(),
@@ -40,7 +41,7 @@ describe('bilibili comment', () => {
     });
 
     it('posts a top-level comment, resolving @mentions to at_name_to_mid', async () => {
-        mockApiGet.mockResolvedValueOnce({ data: { aid: 12345 } });
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 12345 } });
         mockResolveUid.mockResolvedValueOnce('1141159409'); // @AI视频小助理 → mid
         mockApiPost.mockResolvedValueOnce({ code: 0, data: { rpid: 99887766 } });
 
@@ -69,8 +70,8 @@ describe('bilibili comment', () => {
     });
 
     it('still posts when an @mention cannot be resolved, leaving it as plain text', async () => {
-        mockApiGet.mockResolvedValueOnce({ data: { aid: 7 } });
-        mockResolveUid.mockRejectedValueOnce(new Error('user not found'));
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 7 } });
+        mockResolveUid.mockRejectedValueOnce(new EmptyResultError('bilibili user search'));
         mockApiPost.mockResolvedValueOnce({ code: 0, data: { rpid: 5 } });
 
         await command.func({}, { bvid: 'BV1xxx', message: '@幽灵用户zzz hi', execute: true });
@@ -80,8 +81,18 @@ describe('bilibili comment', () => {
         });
     });
 
+    it('fails closed when mention resolution has parser or transport errors', async () => {
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 7 } });
+        mockResolveUid.mockRejectedValueOnce(new CommandExecutionError('search API drift'));
+
+        await expect(
+            command.func({}, { bvid: 'BV1xxx', message: '@用户 hi', execute: true }),
+        ).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(mockApiPost).not.toHaveBeenCalled();
+    });
+
     it('posts a reply under an existing comment when --parent is given', async () => {
-        mockApiGet.mockResolvedValueOnce({ data: { aid: 1 } });
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 1 } });
         mockApiPost.mockResolvedValueOnce({ code: 0, data: { rpid: 2 } });
 
         await command.func({}, { bvid: 'BV1xxx', message: 'thanks', parent: 555, execute: true });
@@ -92,17 +103,41 @@ describe('bilibili comment', () => {
     });
 
     it('throws when the bvid cannot be resolved to an aid', async () => {
-        mockApiGet.mockResolvedValueOnce({ data: {} });
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: {} });
         await expect(
             command.func({}, { bvid: 'BVbroken', message: 'hi', execute: true }),
-        ).rejects.toThrow('Cannot resolve aid for bvid: BVbroken');
+        ).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('throws with the API code and message when Bilibili rejects the comment', async () => {
-        mockApiGet.mockResolvedValueOnce({ data: { aid: 9 } });
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 9 } });
         mockApiPost.mockResolvedValueOnce({ code: 12025, message: '评论字数过多' });
         await expect(
             command.func({}, { bvid: 'BV1xxx', message: 'x', execute: true }),
-        ).rejects.toThrow(/12025.*评论字数过多/);
+        ).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('maps login/csrf failures from the write API to AuthRequiredError', async () => {
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 9 } });
+        mockApiPost.mockResolvedValueOnce({ code: -111, message: 'csrf 校验失败' });
+        await expect(
+            command.func({}, { bvid: 'BV1xxx', message: 'x', execute: true }),
+        ).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('rejects invalid parent ids before posting', async () => {
+        await expect(
+            command.func({}, { bvid: 'BV1xxx', message: 'x', parent: 0, execute: true }),
+        ).rejects.toBeInstanceOf(ArgumentError);
+        expect(mockApiGet).not.toHaveBeenCalled();
+        expect(mockApiPost).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the write API omits rpid', async () => {
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 9 } });
+        mockApiPost.mockResolvedValueOnce({ code: 0, data: {} });
+        await expect(
+            command.func({}, { bvid: 'BV1xxx', message: 'x', execute: true }),
+        ).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
