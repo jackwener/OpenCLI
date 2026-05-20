@@ -1,6 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
 import { htmlToMarkdown as coreHtmlToMarkdown } from '@jackwener/opencli/utils';
-import { gfm } from 'turndown-plugin-gfm';
 import {
     ArgumentError,
     CliError,
@@ -284,7 +283,7 @@ export function htmlEscape(value) {
 }
 
 export function htmlToMarkdown(html) {
-    return coreHtmlToMarkdown(String(html ?? ''), (td) => td.use(gfm));
+    return coreHtmlToMarkdown(String(html ?? ''));
 }
 
 function applyAdfMarks(text, marks = []) {

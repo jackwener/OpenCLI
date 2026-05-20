@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { atlassianRequest, requireExecute, requireString } from '../atlassian/shared.js';
+import { atlassianRequest, requireExecute, requireString } from '../_atlassian/shared.js';
 import { confluenceConfig, getPage, normalizeConfluencePage, readPageBodyFile, updatePagePayload } from './shared.js';
 
 cli({

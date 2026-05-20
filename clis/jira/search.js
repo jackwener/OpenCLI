@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { jiraConfig, issueSummaryRow, parseJiraLimit } from './shared.js';
-import { atlassianRequest, requireString } from '../atlassian/shared.js';
+import { atlassianRequest, requireString } from '../_atlassian/shared.js';
 
 function searchPath(config) {
     return config.deployment === 'cloud' ? '/rest/api/3/search/jql' : '/rest/api/2/search';

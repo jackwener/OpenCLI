@@ -1,4 +1,4 @@
-import { adfToMarkdown, atlassianRequest, getJiraConfig, htmlToMarkdown, parseLimit, queryString, requireString } from '../atlassian/shared.js';
+import { adfToMarkdown, atlassianRequest, getJiraConfig, htmlToMarkdown, parseLimit, queryString, requireString } from '../_atlassian/shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
 const DEFAULT_ISSUE_FIELDS = [

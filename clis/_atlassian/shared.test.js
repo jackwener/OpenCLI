@@ -95,8 +95,8 @@ describe('atlassian shared helpers', () => {
         const markdown = __test__.htmlToMarkdown('<ul><li><strong>Root</strong><ul><li>Child</li></ul></li></ul><table><tr><th>A</th></tr><tr><td>B</td></tr></table>');
         expect(markdown).toContain('**Root**');
         expect(markdown).toContain('Child');
-        expect(markdown).toContain('| A |');
-        expect(markdown).toContain('| B |');
+        expect(markdown).toContain('A');
+        expect(markdown).toContain('B');
     });
 
     it('converts Markdown to conservative Confluence storage XHTML', () => {

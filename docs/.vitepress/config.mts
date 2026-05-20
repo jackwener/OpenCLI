@@ -132,6 +132,8 @@ export default defineConfig({
                 { text: 'Hugging Face', link: '/adapters/browser/hf' },
                 { text: 'Sina Finance', link: '/adapters/browser/sinafinance' },
                 { text: 'Spotify', link: '/adapters/browser/spotify' },
+                { text: 'Jira', link: '/adapters/browser/jira' },
+                { text: 'Confluence', link: '/adapters/browser/confluence' },
                 { text: 'Stack Overflow', link: '/adapters/browser/stackoverflow' },
                 { text: 'Wikipedia', link: '/adapters/browser/wikipedia' },
                 { text: 'LessWrong', link: '/adapters/browser/lesswrong' },

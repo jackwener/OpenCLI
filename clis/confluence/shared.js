@@ -5,7 +5,7 @@ import {
     markdownToConfluenceStorage,
     queryString,
     readUtf8File,
-} from '../atlassian/shared.js';
+} from '../_atlassian/shared.js';
 
 export function confluenceConfig() {
     return getConfluenceConfig();
