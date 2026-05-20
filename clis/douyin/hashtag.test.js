@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 const { browserFetchMock } = vi.hoisted(() => ({
     browserFetchMock: vi.fn(),
 }));
@@ -87,6 +87,48 @@ describe('douyin hashtag', () => {
         const url = browserFetchMock.mock.calls[0][2];
         expect(url).toContain('hashtag/rec');
         expect(url).toContain('cover_uri=' + encodeURIComponent('tos-cn-i-cover/abc'));
+    });
+
+    it('search throws CommandExecutionError when API returns a non-object payload', async () => {
+        const registry = getRegistry();
+        const cmd = [...registry.values()].find((c) => c.site === 'douyin' && c.name === 'hashtag');
+        browserFetchMock.mockResolvedValueOnce(null);
+        await expect(cmd.func({}, { action: 'search', keyword: '美食', cover: '', limit: 10 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('search throws CommandExecutionError when challenge_list has wrong shape', async () => {
+        const registry = getRegistry();
+        const cmd = [...registry.values()].find((c) => c.site === 'douyin' && c.name === 'hashtag');
+        browserFetchMock.mockResolvedValueOnce({ challenge_list: 'not-an-array' });
+        await expect(cmd.func({}, { action: 'search', keyword: '美食', cover: '', limit: 10 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('search throws CommandExecutionError when challenges return but none parse', async () => {
+        const registry = getRegistry();
+        const cmd = [...registry.values()].find((c) => c.site === 'douyin' && c.name === 'hashtag');
+        browserFetchMock.mockResolvedValueOnce({
+            challenge_list: [{ challenge_info: null }, { other_field: 1 }],
+        });
+        await expect(cmd.func({}, { action: 'search', keyword: '美食', cover: '', limit: 10 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('suggest throws CommandExecutionError when hashtag_list has wrong shape', async () => {
+        const registry = getRegistry();
+        const cmd = [...registry.values()].find((c) => c.site === 'douyin' && c.name === 'hashtag');
+        browserFetchMock.mockResolvedValueOnce({ hashtag_list: 'oops' });
+        await expect(cmd.func({}, { action: 'suggest', keyword: '', cover: 'tos-cn-i-cover/x', limit: 10 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('hot throws CommandExecutionError when hotspot_list has wrong shape', async () => {
+        const registry = getRegistry();
+        const cmd = [...registry.values()].find((c) => c.site === 'douyin' && c.name === 'hashtag');
+        browserFetchMock.mockResolvedValueOnce({ hotspot_list: { malformed: true } });
+        await expect(cmd.func({}, { action: 'hot', keyword: '', cover: '', limit: 5 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('parses the current hotspot recommendation shape', async () => {

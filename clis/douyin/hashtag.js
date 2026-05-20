@@ -1,6 +1,23 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { browserFetch } from './_shared/browser-fetch.js';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+
+function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function requireListField(res, field, action) {
+    if (!isPlainObject(res)) {
+        throw new CommandExecutionError(`douyin hashtag ${action}: API returned malformed payload`);
+    }
+    const list = res[field];
+    if (list === undefined || list === null) return [];
+    if (!Array.isArray(list)) {
+        throw new CommandExecutionError(`douyin hashtag ${action}: API returned malformed "${field}"`);
+    }
+    return list;
+}
+
 cli({
     site: 'douyin',
     name: 'hashtag',
@@ -24,11 +41,20 @@ cli({
             }
             const url = `https://creator.douyin.com/aweme/v1/challenge/search/?keyword=${encodeURIComponent(keyword)}&count=${kwargs.limit}&aid=1128`;
             const res = await browserFetch(page, 'GET', url);
-            return (res.challenge_list ?? []).map(c => ({
-                name: c.challenge_info.cha_name,
-                id: c.challenge_info.cid,
-                view_count: c.challenge_info.view_count,
-            }));
+            const list = requireListField(res, 'challenge_list', 'search');
+            const rows = list.flatMap(c => {
+                const info = c?.challenge_info;
+                if (!isPlainObject(info)) return [];
+                return [{
+                    name: info.cha_name,
+                    id: info.cid,
+                    view_count: info.view_count,
+                }];
+            });
+            if (list.length > 0 && rows.length === 0) {
+                throw new CommandExecutionError('douyin hashtag search: API returned challenges but none had stable challenge_info shape');
+            }
+            return rows;
         }
         if (action === 'suggest') {
             const cover = String(kwargs.cover ?? '').trim();
@@ -37,23 +63,37 @@ cli({
             }
             const url = `https://creator.douyin.com/web/api/media/hashtag/rec/?cover_uri=${encodeURIComponent(cover)}&aid=1128`;
             const res = await browserFetch(page, 'GET', url);
-            return (res.hashtag_list ?? []).map(h => ({ name: h.name, id: h.id, view_count: h.view_count }));
+            const list = requireListField(res, 'hashtag_list', 'suggest');
+            return list.map(h => ({ name: h?.name ?? '', id: h?.id ?? '', view_count: h?.view_count ?? 0 }));
         }
         if (action === 'hot') {
             const kw = String(kwargs.keyword ?? '').trim();
             const url = `https://creator.douyin.com/aweme/v1/hotspot/recommend/?${kw ? `keyword=${encodeURIComponent(kw)}&` : ''}aid=1128`;
             const res = await browserFetch(page, 'GET', url);
-            const items = res.hotspot_list
-                ?? res.all_sentences?.map(h => ({
-                    sentence: h.word ?? '',
-                    hot_value: h.hot_value,
-                    sentence_id: h.sentence_id ?? '',
-                }))
-                ?? [];
+            if (!isPlainObject(res)) {
+                throw new CommandExecutionError('douyin hashtag hot: API returned malformed payload');
+            }
+            const hotspotList = res.hotspot_list;
+            const allSentences = res.all_sentences;
+            if (hotspotList !== undefined && hotspotList !== null && !Array.isArray(hotspotList)) {
+                throw new CommandExecutionError('douyin hashtag hot: API returned malformed "hotspot_list"');
+            }
+            if (allSentences !== undefined && allSentences !== null && !Array.isArray(allSentences)) {
+                throw new CommandExecutionError('douyin hashtag hot: API returned malformed "all_sentences"');
+            }
+            const items = Array.isArray(hotspotList)
+                ? hotspotList
+                : Array.isArray(allSentences)
+                    ? allSentences.map(h => ({
+                        sentence: h?.word ?? '',
+                        hot_value: h?.hot_value,
+                        sentence_id: h?.sentence_id ?? '',
+                    }))
+                    : [];
             return items.slice(0, kwargs.limit).map(h => ({
-                name: h.sentence,
-                id: 'sentence_id' in h ? h.sentence_id : '',
-                view_count: h.hot_value,
+                name: h?.sentence ?? '',
+                id: h && 'sentence_id' in h ? h.sentence_id : '',
+                view_count: h?.hot_value ?? 0,
             }));
         }
         throw new ArgumentError(`未知的 action: ${action}`);
