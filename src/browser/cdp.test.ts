@@ -47,7 +47,7 @@ describe('CDPBridge cookies', () => {
     vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
 
     const bridge = new CDPBridge();
-    vi.spyOn(bridge, 'send').mockResolvedValue({
+    const send = vi.spyOn(bridge, 'send').mockResolvedValue({
       cookies: [
         { name: 'good', value: '1', domain: '.example.com' },
         { name: 'exact', value: '2', domain: 'example.com' },
@@ -62,6 +62,25 @@ describe('CDPBridge cookies', () => {
       { name: 'good', value: '1', domain: '.example.com' },
       { name: 'exact', value: '2', domain: 'example.com' },
     ]);
+    expect(send).toHaveBeenCalledWith('Storage.getCookies', {});
+    expect(send).not.toHaveBeenCalledWith('Network.getCookies', {});
+  });
+
+  it('keeps URL-scoped cookies on Network.getCookies with urls', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    const send = vi.spyOn(bridge, 'send').mockResolvedValue({
+      cookies: [
+        { name: 'session', value: '1', domain: '.example.com' },
+      ],
+    });
+
+    const page = await bridge.connect();
+    const cookies = await page.getCookies({ url: 'https://example.com/path' });
+
+    expect(cookies).toEqual([{ name: 'session', value: '1', domain: '.example.com' }]);
+    expect(send).toHaveBeenCalledWith('Network.getCookies', { urls: ['https://example.com/path'] });
   });
 
   it('normalizes CDP cookie fields and renames `expires` to `expirationDate`', async () => {

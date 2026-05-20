@@ -237,14 +237,16 @@ class CDPPage extends BasePage {
   }
 
   async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
-    const result = await this.bridge.send('Network.getCookies', opts.url ? { urls: [opts.url] } : {});
+    const domainOnly = opts.domain && !opts.url;
+    const method = domainOnly ? 'Storage.getCookies' : 'Network.getCookies';
+    const result = await this.bridge.send(method, opts.url ? { urls: [opts.url] } : {});
     if (!isRecord(result) || !Array.isArray(result.cookies)) {
-      throw new Error('CDP Network.getCookies returned malformed result: expected { cookies: [] }');
+      throw new Error(`CDP ${method} returned malformed result: expected { cookies: [] }`);
     }
     const cookies = result.cookies;
     const malformedIndex = cookies.findIndex((cookie) => !isCookie(cookie));
     if (malformedIndex !== -1) {
-      throw new Error(`CDP Network.getCookies returned malformed cookie at index ${malformedIndex}`);
+      throw new Error(`CDP ${method} returned malformed cookie at index ${malformedIndex}`);
     }
     const normalized = cookies
       .map(normalizeCDPCookie);
