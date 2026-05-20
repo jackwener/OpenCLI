@@ -1,4 +1,4 @@
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
 import { callNotebooklmRpc, getNotebooklmPageAuth, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';
@@ -13,9 +13,19 @@ function unwrapNotebooklmSingletonResult(result) {
     }
     return current;
 }
+export function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 export function parseNotebooklmIdFromUrl(url) {
     const match = url.match(/\/notebook\/([^/?#]+)/);
     return match?.[1] ?? '';
+}
+const NOTEBOOK_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function ensureNotebookUuid(candidate) {
+    if (!NOTEBOOK_UUID_RE.test(candidate)) {
+        throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', `NotebookLM notebook id "${candidate}" is not a valid UUID`, 'Pass a notebook id from `opencli notebooklm list` or a full notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+    }
+    return candidate;
 }
 export function parseNotebooklmNotebookTarget(value) {
     const normalized = value.trim();
@@ -24,14 +34,15 @@ export function parseNotebooklmNotebookTarget(value) {
     }
     if (/^https?:\/\//i.test(normalized)) {
         const notebookId = parseNotebooklmIdFromUrl(normalized);
-        if (notebookId)
-            return notebookId;
-        throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<id>.');
+        if (!notebookId) {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+        }
+        return ensureNotebookUuid(notebookId);
     }
     const pathMatch = normalized.match(/(?:^|\/)notebook\/([^/?#]+)/);
     if (pathMatch?.[1])
-        return pathMatch[1];
-    return normalized;
+        return ensureNotebookUuid(pathMatch[1]);
+    return ensureNotebookUuid(normalized);
 }
 export function getNotebooklmAuthuser() {
     const v = process.env.OPENCLI_NOTEBOOKLM_AUTHUSER;
@@ -408,6 +419,42 @@ export async function getNotebooklmDetailViaRpc(page) {
     const rpc = await callNotebooklmRpc(page, NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID, [state.notebookId, null, [2], null, 0]);
     return parseNotebooklmNotebookDetailResult(rpc.result);
 }
+export async function getNotebooklmNotebookDetailById(page, notebookId) {
+    const rpc = await callNotebooklmRpc(page, NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID, [notebookId, null, [2], null, 0]);
+    return { detail: parseNotebooklmNotebookDetailResult(rpc.result), sources: parseNotebooklmSourceListResult(rpc.result) };
+}
+export async function verifyNotebooklmNotebookExists(page, notebookId, action) {
+    try {
+        const { detail } = await getNotebooklmNotebookDetailById(page, notebookId);
+        if (!detail || detail.id !== notebookId) {
+            throw new CommandExecutionError(`NotebookLM ${action} succeeded but the notebook ${notebookId} was not found in the post-write verification`);
+        }
+        return detail;
+    }
+    catch (error) {
+        if (error instanceof AuthRequiredError || error instanceof CommandExecutionError)
+            throw error;
+        throw new CommandExecutionError(`NotebookLM ${action} post-write verification failed: ${error?.message || error}`);
+    }
+}
+export async function verifyNotebooklmSourceAdded(page, notebookId, sourceId, action) {
+    try {
+        const { detail, sources } = await getNotebooklmNotebookDetailById(page, notebookId);
+        if (!detail || detail.id !== notebookId) {
+            throw new CommandExecutionError(`NotebookLM ${action} succeeded but the notebook ${notebookId} was not found in the post-write verification`);
+        }
+        const matched = sources.find((s) => s.id === sourceId);
+        if (!matched) {
+            throw new CommandExecutionError(`NotebookLM ${action} succeeded but source ${sourceId} did not appear in the notebook's source list`);
+        }
+        return matched;
+    }
+    catch (error) {
+        if (error instanceof AuthRequiredError || error instanceof CommandExecutionError)
+            throw error;
+        throw new CommandExecutionError(`NotebookLM ${action} post-write verification failed: ${error?.message || error}`);
+    }
+}
 export async function listNotebooklmSourcesViaRpc(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
@@ -535,8 +582,13 @@ export async function ensureNotebooklmHome(page) {
         return;
     const authuser = getNotebooklmAuthuser();
     const target = authuser ? `${NOTEBOOKLM_HOME_URL}?authuser=${encodeURIComponent(authuser)}` : NOTEBOOKLM_HOME_URL;
-    await page.goto(target);
-    await page.wait(2);
+    try {
+        await page.goto(target);
+        await page.wait(2);
+    }
+    catch (error) {
+        throw new CommandExecutionError(`Failed to open NotebookLM home: ${error?.message || error}`);
+    }
 }
 export async function getNotebooklmPageState(page) {
     const raw = await page.evaluate(`(() => {

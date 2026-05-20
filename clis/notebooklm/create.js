@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { callNotebooklmRpc } from './rpc.js';
-import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, requireNotebooklmSession } from './utils.js';
+import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, requireNotebooklmSession, verifyNotebooklmNotebookExists } from './utils.js';
 
 const NOTEBOOKLM_CREATE_PROJECT_RPC_ID = 'CCqFvf';
 const DEFAULT_EMOJI = '📒';
@@ -60,6 +60,7 @@ cli({
         if (!notebookId) {
             throw new CommandExecutionError('NotebookLM CreateProject RPC returned no notebook id');
         }
+        await verifyNotebooklmNotebookExists(page, notebookId, 'create');
         return [{
             id: notebookId,
             title,

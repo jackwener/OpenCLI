@@ -53,8 +53,13 @@ cli({
     columns: ['notebook_id', 'audio_id', 'source_count', 'status', 'notebook_url'],
     func: async (page, kwargs) => {
         const notebookId = parseNotebooklmNotebookTarget(String(kwargs.notebook ?? ''));
-        await page.goto(buildNotebooklmNotebookUrl(notebookId));
-        await page.wait(2);
+        try {
+            await page.goto(buildNotebooklmNotebookUrl(notebookId));
+            await page.wait(2);
+        }
+        catch (error) {
+            throw new CommandExecutionError(`Failed to open NotebookLM notebook ${notebookId}: ${error?.message || error}`);
+        }
         await requireNotebooklmSession(page);
         const sources = await listNotebooklmSourcesViaRpc(page);
         const sourceIds = sources.map((s) => s.id).filter((id) => typeof id === 'string' && id);

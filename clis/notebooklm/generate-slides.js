@@ -59,8 +59,13 @@ cli({
         const notebookId = parseNotebooklmNotebookTarget(String(kwargs.notebook ?? ''));
         const length = kwargs.length === undefined || kwargs.length === '' ? 3 : Number(kwargs.length);
         const language = String(kwargs.language ?? 'en').trim() || 'en';
-        await page.goto(buildNotebooklmNotebookUrl(notebookId));
-        await page.wait(2);
+        try {
+            await page.goto(buildNotebooklmNotebookUrl(notebookId));
+            await page.wait(2);
+        }
+        catch (error) {
+            throw new CommandExecutionError(`Failed to open NotebookLM notebook ${notebookId}: ${error?.message || error}`);
+        }
         await requireNotebooklmSession(page);
         const sources = await listNotebooklmSourcesViaRpc(page);
         const sourceIds = sources.map((s) => s.id).filter((id) => typeof id === 'string' && id);

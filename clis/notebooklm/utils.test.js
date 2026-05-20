@@ -1,6 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { buildNotebooklmRpcBody, classifyNotebooklmPage, extractNotebooklmHistoryPreview, extractNotebooklmRpcResult, getNotebooklmPageState, normalizeNotebooklmTitle, parseNotebooklmHistoryThreadIdsResult, parseNotebooklmIdFromUrl, parseNotebooklmListResult, parseNotebooklmNoteListRawRows, parseNotebooklmNotebookDetailResult, parseNotebooklmSourceFulltextResult, parseNotebooklmSourceGuideResult, parseNotebooklmSourceListResult, } from './utils.js';
+import { buildNotebooklmRpcBody, classifyNotebooklmPage, extractNotebooklmHistoryPreview, extractNotebooklmRpcResult, getNotebooklmPageState, isPlainObject, normalizeNotebooklmTitle, parseNotebooklmHistoryThreadIdsResult, parseNotebooklmIdFromUrl, parseNotebooklmListResult, parseNotebooklmNoteListRawRows, parseNotebooklmNotebookDetailResult, parseNotebooklmNotebookTarget, parseNotebooklmSourceFulltextResult, parseNotebooklmSourceGuideResult, parseNotebooklmSourceListResult, } from './utils.js';
+import { CliError } from '@jackwener/opencli/errors';
 describe('notebooklm utils', () => {
+    it('isPlainObject distinguishes objects from arrays / null / primitives', () => {
+        expect(isPlainObject({})).toBe(true);
+        expect(isPlainObject({ a: 1 })).toBe(true);
+        expect(isPlainObject([])).toBe(false);
+        expect(isPlainObject(null)).toBe(false);
+        expect(isPlainObject('x')).toBe(false);
+        expect(isPlainObject(0)).toBe(false);
+    });
+    it('parseNotebooklmNotebookTarget accepts canonical uuid input', () => {
+        const id = '17e2b882-aaaa-bbbb-cccc-abcdef012345';
+        expect(parseNotebooklmNotebookTarget(id)).toBe(id);
+    });
+    it('parseNotebooklmNotebookTarget accepts a notebook url with uuid', () => {
+        const id = '17e2b882-aaaa-bbbb-cccc-abcdef012345';
+        expect(parseNotebooklmNotebookTarget(`https://notebooklm.google.com/notebook/${id}?pli=1`)).toBe(id);
+    });
+    it('parseNotebooklmNotebookTarget rejects non-uuid bare ids', () => {
+        expect(() => parseNotebooklmNotebookTarget('nb-demo')).toThrow(CliError);
+    });
+    it('parseNotebooklmNotebookTarget rejects malformed notebook urls', () => {
+        expect(() => parseNotebooklmNotebookTarget('https://notebooklm.google.com/notebook/not-a-uuid')).toThrow(CliError);
+    });
+    it('parseNotebooklmNotebookTarget rejects empty input', () => {
+        expect(() => parseNotebooklmNotebookTarget('')).toThrow(CliError);
+        expect(() => parseNotebooklmNotebookTarget('   ')).toThrow(CliError);
+    });
     it('parses notebook id from a notebook url', () => {
         expect(parseNotebooklmIdFromUrl('https://notebooklm.google.com/notebook/abc-123')).toBe('abc-123');
     });

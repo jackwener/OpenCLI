@@ -4,7 +4,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { callNotebooklmRpc } from './rpc.js';
-import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, getNotebooklmAuthuser, parseNotebooklmNotebookTarget, requireNotebooklmSession } from './utils.js';
+import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, getNotebooklmAuthuser, parseNotebooklmNotebookTarget, requireNotebooklmSession, verifyNotebooklmSourceAdded } from './utils.js';
 
 const NOTEBOOKLM_ADD_SOURCES_RPC_ID = 'izAoDd';
 const NOTEBOOKLM_ADD_FILE_SOURCE_RPC_ID = 'o4cbdc';
@@ -215,6 +215,7 @@ cli({
                 throw new CommandExecutionError('NotebookLM AddFileSource (o4cbdc) RPC returned no source id; cannot start file upload.');
             }
             await uploadFileViaDriveResumable(page, notebookId, sourceId, file.filename, file.base64, file.size);
+            await verifyNotebooklmSourceAdded(page, notebookId, sourceId, 'add-source --file');
             return [{
                 notebook_id: notebookId,
                 source_id: sourceId,
@@ -231,6 +232,7 @@ cli({
         if (!sourceId) {
             throw new CommandExecutionError('NotebookLM AddSources RPC returned no source id; verify the input reaches the NotebookLM backend.');
         }
+        await verifyNotebooklmSourceAdded(page, notebookId, sourceId, `add-source --${url ? 'url' : 'content'}`);
         return [{
             notebook_id: notebookId,
             source_id: sourceId,
