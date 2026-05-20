@@ -1051,17 +1051,30 @@ Examples:
   // and one-off CLI flows can drop their dependency on `playwright-cli
   // cookie-list` or hand-rolled CDP plumbing.
   //
-  // Envelope: `{ cookies: BrowserCookie[], count: number }`. CDP `expires`
-  // is normalized to `expirationDate` to match the chrome.cookies API shape,
-  // so consumers don't need to branch on transport.
+  // Default scope is the active tab's current HTTP(S) URL. This keeps the
+  // extension transport's "no unscoped cookie dump" invariant while preserving
+  // the user-facing "current tab cookies" behavior.
+  //
+  // Envelope: `{ cookies: BrowserCookie[], count: number }`. CDP `expires` is
+  // normalized to `expirationDate` to match the chrome.cookies API shape, so
+  // consumers don't need to branch on transport.
   addBrowserTabOption(browser.command('cookies')
     .description('List cookies for the active tab (includes HttpOnly) — JSON envelope {cookies, count}')
     .option('--domain <domain>', 'Filter to cookies whose domain equals or is a parent of <domain>')
     .option('--url <url>', 'Restrict to cookies that would be sent on requests to <url> (CDP-side filter)'))
     .action(browserAction(async (page, opts) => {
       const filter: { domain?: string; url?: string } = {};
-      if (typeof opts.domain === 'string' && opts.domain.length > 0) filter.domain = opts.domain;
-      if (typeof opts.url === 'string' && opts.url.length > 0) filter.url = opts.url;
+      const domain = typeof opts.domain === 'string' ? opts.domain.trim() : '';
+      const url = typeof opts.url === 'string' ? opts.url.trim() : '';
+      if (domain.length > 0) filter.domain = domain;
+      if (url.length > 0) filter.url = url;
+      if (!filter.domain && !filter.url) {
+        const currentUrl = await page.getCurrentUrl?.();
+        if (!currentUrl || !/^https?:\/\//i.test(currentUrl)) {
+          throw new Error('browser cookies requires --url or --domain when the active tab URL is unavailable or not HTTP(S)');
+        }
+        filter.url = currentUrl;
+      }
       const cookies = await page.getCookies(filter);
       console.log(JSON.stringify({ cookies, count: cookies.length }, null, 2));
     }));

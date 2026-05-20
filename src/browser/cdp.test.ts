@@ -130,6 +130,33 @@ describe('CDPBridge cookies', () => {
     expect(cookies[0].session).toBe(true);
   });
 
+  it('rejects malformed CDP cookie envelopes instead of silently returning empty', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    vi.spyOn(bridge, 'send').mockResolvedValue({ cookiez: [] });
+
+    const page = await bridge.connect();
+
+    await expect(page.getCookies()).rejects.toThrow('expected { cookies: [] }');
+  });
+
+  it('rejects malformed CDP cookie records instead of dropping them', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    vi.spyOn(bridge, 'send').mockResolvedValue({
+      cookies: [
+        { name: 'session', value: 'abc', domain: '.example.com' },
+        { name: 'broken', value: 'abc' },
+      ],
+    });
+
+    const page = await bridge.connect();
+
+    await expect(page.getCookies()).rejects.toThrow('malformed cookie at index 1');
+  });
+
   it('exposes native input helpers on direct CDP pages', async () => {
     vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
 

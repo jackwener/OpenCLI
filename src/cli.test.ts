@@ -1230,7 +1230,8 @@ describe('browser tab targeting commands', () => {
     const program = createProgram('', '');
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies']);
 
-    expect(browserState.page?.getCookies).toHaveBeenCalledWith({});
+    expect(browserState.page?.getCurrentUrl).toHaveBeenCalledTimes(1);
+    expect(browserState.page?.getCookies).toHaveBeenCalledWith({ url: 'https://one.example' });
     const out = consoleLogSpy.mock.calls.flat().join('\n');
     expect(out).toContain('"count": 2');
     expect(out).toContain('"name": "session"');
@@ -1258,16 +1259,26 @@ describe('browser tab targeting commands', () => {
     expect(out).toContain('"count": 0');
   });
 
-  it('browser cookies omits empty filter values from the page.getCookies call', async () => {
+  it('browser cookies uses the current tab URL when filter values are empty', async () => {
     (browserState.page!.getCookies as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     const program = createProgram('', '');
     // Commander materializes unset string options as undefined; explicit empty
-    // values should not be forwarded as filters either, since CDP treats them
-    // as literal matches and would silently return zero cookies.
-    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies', '--domain', '']);
+    // values should not be forwarded as literal filters; fall back to the
+    // active tab URL so the extension transport remains explicitly scoped.
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies', '--domain', ' ']);
 
-    expect(browserState.page?.getCookies).toHaveBeenCalledWith({});
+    expect(browserState.page?.getCookies).toHaveBeenCalledWith({ url: 'https://one.example' });
+  });
+
+  it('browser cookies fails when no scope is provided and the active tab URL is unavailable', async () => {
+    (browserState.page!.getCurrentUrl as ReturnType<typeof vi.fn>).mockResolvedValueOnce('chrome://extensions/');
+
+    const program = createProgram('', '');
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies']);
+
+    expect(browserState.page?.getCookies).not.toHaveBeenCalled();
+    expect(stderrSpy.mock.calls.flat().join('\n')).toContain('browser cookies requires --url or --domain');
   });
 
   it('routes browser eval --frame through frame-targeted evaluation', async () => {
