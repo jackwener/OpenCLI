@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { atlassianRequest, parseLimit, queryString, requireString } from '../_atlassian/shared.js';
-import { confluenceConfig, normalizeSearchResult, withSpaceCql } from './shared.js';
+import { atlassianRequest, parseLimit, queryString, requireNonEmptyRows, requireString } from '../_atlassian/shared.js';
+import { confluenceConfig, confluenceResults, normalizeSearchResult, withSpaceCql } from './shared.js';
 
 cli({
     site: 'confluence',
@@ -24,7 +24,11 @@ cli({
         // page CRUD uses v2 where available.
         const path = `/rest/api/search${queryString({ cql, limit })}`;
         const data = await atlassianRequest(config, path, { label: 'confluence search' });
-        const results = Array.isArray(data?.results) ? data.results : [];
-        return results.map((result) => normalizeSearchResult(result, config));
+        const results = confluenceResults(data, 'confluence search');
+        return requireNonEmptyRows(
+            results.map((result) => normalizeSearchResult(result, config)),
+            'confluence search',
+            `No Confluence content matched "${cql}".`,
+        );
     },
 });

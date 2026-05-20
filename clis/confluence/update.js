@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { atlassianRequest, requireExecute, requireString } from '../_atlassian/shared.js';
+import { atlassianRequest, requireExecute, requirePayloadObject, requireString } from '../_atlassian/shared.js';
 import { confluenceConfig, getPage, normalizeConfluencePage, readPageBodyFile, updatePagePayload } from './shared.js';
 
 cli({
@@ -27,11 +27,11 @@ cli({
         const storage = await readPageBodyFile(args);
         const payload = updatePagePayload(config, current, args, storage);
         const path = config.deployment === 'cloud' ? `/api/v2/pages/${encodeURIComponent(id)}` : `/rest/api/content/${encodeURIComponent(id)}`;
-        const page = await atlassianRequest(config, path, {
+        const page = requirePayloadObject(await atlassianRequest(config, path, {
             method: 'PUT',
             body: payload,
             label: `confluence update ${id}`,
-        });
+        }), `confluence update ${id}`);
         const normalized = normalizeConfluencePage(page, config);
         return [{ ...normalized, pageStatus: normalized.status, status: 'updated' }];
     },

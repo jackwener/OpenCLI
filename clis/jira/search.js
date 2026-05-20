@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { jiraConfig, issueSummaryRow, parseJiraLimit } from './shared.js';
-import { atlassianRequest, requireString } from '../_atlassian/shared.js';
+import { jiraConfig, issueSummaryRow, jiraRowsOrEmpty, parseJiraLimit } from './shared.js';
+import { atlassianRequest, requirePayloadArray, requirePayloadObject, requireString } from '../_atlassian/shared.js';
 
 function searchPath(config) {
     return config.deployment === 'cloud' ? '/rest/api/3/search/jql' : '/rest/api/2/search';
@@ -34,8 +34,13 @@ cli({
             body: searchPayload(config, jql, limit),
             label: 'jira search',
         });
-        const issues = Array.isArray(data?.issues) ? data.issues : [];
-        return issues.map((issue) => issueSummaryRow(issue, config));
+        const payload = requirePayloadObject(data, 'jira search');
+        const issues = requirePayloadArray(payload.issues, 'jira search issues');
+        return jiraRowsOrEmpty(
+            issues.map((issue) => issueSummaryRow(issue, config)),
+            'jira search',
+            `No Jira issues matched "${jql}".`,
+        );
     },
 });
 

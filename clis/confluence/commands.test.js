@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it, afterEach, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './page.js';
 import './search.js';
 import './create.js';
@@ -126,6 +127,26 @@ describe('confluence commands', () => {
         });
     });
 
+    it('does not update a Confluence page when the current version is malformed', async () => {
+        setCloudEnv();
+        await withTempMarkdown('Updated body', async (file) => {
+            const fetchMock = vi.fn(async (url, init) => {
+                expect(init.method).toBe('GET');
+                return jsonResponse({
+                    id: '555',
+                    title: 'Existing',
+                    status: 'current',
+                    body: { storage: { value: '<p>Old</p>' } },
+                });
+            });
+            vi.stubGlobal('fetch', fetchMock);
+            const cmd = getRegistry().get('confluence/update');
+            await expect(cmd.func({ id: '555', file, representation: 'markdown', execute: true }))
+                .rejects.toBeInstanceOf(CommandExecutionError);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it('searches with CQL scoped to a Data Center space', async () => {
         clearEnv();
         process.env.ATLASSIAN_CONFLUENCE_BASE_URL = 'https://conf.example.com/confluence';
@@ -153,5 +174,22 @@ describe('confluence commands', () => {
         const rows = await cmd.func({ cql: 'type = page', space: 'ENG', limit: 10 });
         expect(rows[0]).toMatchObject({ id: '123', title: 'Runbook', spaceKey: 'ENG' });
         expect(rows[0].url).toBe('https://conf.example.com/confluence/display/ENG/Runbook');
+    });
+
+    it('separates Confluence search empty results from malformed search payloads', async () => {
+        setCloudEnv();
+        const cmd = getRegistry().get('confluence/search');
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ results: [] })));
+        await expect(cmd.func({ cql: 'type = page', limit: 10 })).rejects.toBeInstanceOf(EmptyResultError);
+
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ items: [] })));
+        await expect(cmd.func({ cql: 'type = page', limit: 10 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('fails typed when Confluence page payload lacks stable page identity', async () => {
+        setCloudEnv();
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ title: 'Missing id', version: { number: 1 } })));
+        const cmd = getRegistry().get('confluence/page');
+        await expect(cmd.func({ id: '555' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

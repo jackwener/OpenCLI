@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { fetchComments, jiraConfig, normalizeComment, parseJiraLimit, requireIssueKey } from './shared.js';
+import { fetchComments, jiraConfig, jiraRowsOrEmpty, normalizeComment, parseJiraLimit, requireIssueKey } from './shared.js';
 
 cli({
     site: 'jira',
@@ -19,6 +19,10 @@ cli({
         const config = jiraConfig();
         const limit = parseJiraLimit(args.limit, 50, 100);
         const comments = await fetchComments(config, key, limit);
-        return comments.map(normalizeComment);
+        return jiraRowsOrEmpty(
+            comments.map(normalizeComment),
+            `jira comments ${key}`,
+            `Jira issue ${key} has no comments.`,
+        );
     },
 });

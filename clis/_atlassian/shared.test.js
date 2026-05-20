@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach, vi } from 'vitest';
 import { __test__ } from './shared.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 const ENV_KEYS = [
     'ATLASSIAN_CONFLUENCE_BASE_URL',
@@ -155,5 +156,15 @@ describe('atlassian shared helpers', () => {
             deployment: 'datacenter',
             authHeaders: { Authorization: 'Bearer token' },
         }, '/rest/api/2/myself', { label: 'jira myself' })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+
+    it('fails typed when a successful Atlassian REST response is not JSON', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>login</html>', { status: 200, headers: { 'content-type': 'text/html' } })));
+        await expect(__test__.atlassianRequest({
+            product: 'jira',
+            baseUrl: 'https://jira.example.com',
+            deployment: 'datacenter',
+            authHeaders: { Authorization: 'Bearer token' },
+        }, '/rest/api/2/myself', { label: 'jira myself' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

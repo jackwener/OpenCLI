@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { fetchIssue, jiraConfig, normalizeAttachment, requireIssueKey } from './shared.js';
+import { fetchIssue, jiraConfig, jiraRowsOrEmpty, normalizeAttachment, requireIssueKey } from './shared.js';
+import { requirePayloadArray } from '../_atlassian/shared.js';
 
 cli({
     site: 'jira',
@@ -17,7 +18,11 @@ cli({
         const key = requireIssueKey(args.key);
         const config = jiraConfig();
         const issue = await fetchIssue(config, key, ['attachment']);
-        const attachments = Array.isArray(issue?.fields?.attachment) ? issue.fields.attachment : [];
-        return attachments.map(normalizeAttachment);
+        const attachments = requirePayloadArray(issue.fields?.attachment, `jira attachments ${key}`);
+        return jiraRowsOrEmpty(
+            attachments.map(normalizeAttachment),
+            `jira attachments ${key}`,
+            `Jira issue ${key} has no attachments.`,
+        );
     },
 });

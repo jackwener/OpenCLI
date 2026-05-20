@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { requireExecute } from '../_atlassian/shared.js';
+import { requireExecute, requirePayloadObject, requireString } from '../_atlassian/shared.js';
 import { confluenceConfig, createPagePayload, normalizeConfluencePage, readPageBodyFile } from './shared.js';
 import { atlassianRequest } from '../_atlassian/shared.js';
 
@@ -22,15 +22,17 @@ cli({
     columns: ['status', 'id', 'title', 'spaceId', 'spaceKey', 'version', 'url'],
     func: async (args) => {
         requireExecute(args, 'confluence create');
-        const config = confluenceConfig();
+        requireString(args.space, 'Confluence space');
+        requireString(args.title, 'Confluence page title');
         const storage = await readPageBodyFile(args);
+        const config = confluenceConfig();
         const payload = createPagePayload(config, args, storage);
         const path = config.deployment === 'cloud' ? '/api/v2/pages' : '/rest/api/content';
-        const page = await atlassianRequest(config, path, {
+        const page = requirePayloadObject(await atlassianRequest(config, path, {
             method: 'POST',
             body: payload,
             label: 'confluence create',
-        });
+        }), 'confluence create');
         const normalized = normalizeConfluencePage(page, config);
         return [{ ...normalized, pageStatus: normalized.status, status: 'created' }];
     },

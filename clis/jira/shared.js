@@ -1,4 +1,16 @@
-import { adfToMarkdown, atlassianRequest, getJiraConfig, htmlToMarkdown, parseLimit, queryString, requireString } from '../_atlassian/shared.js';
+import {
+    adfToMarkdown,
+    atlassianRequest,
+    getJiraConfig,
+    htmlToMarkdown,
+    parseLimit,
+    queryString,
+    requireNonEmptyRows,
+    requirePayloadArray,
+    requirePayloadObject,
+    requirePayloadString,
+    requireString,
+} from '../_atlassian/shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
 const DEFAULT_ISSUE_FIELDS = [
@@ -82,32 +94,36 @@ export function jiraBodyToMarkdown(raw, rendered) {
 }
 
 export function normalizeComment(comment) {
+    const row = requirePayloadObject(comment, 'jira comment');
     return {
-        id: String(comment?.id ?? ''),
-        author: displayUser(comment?.author),
-        created: String(comment?.created ?? ''),
-        updated: comment?.updated ? String(comment.updated) : undefined,
-        markdown: jiraBodyToMarkdown(comment?.body, comment?.renderedBody),
+        id: requirePayloadString(row.id, 'comment id', 'jira comment'),
+        author: displayUser(row.author),
+        created: row.created ? String(row.created) : '',
+        updated: row.updated ? String(row.updated) : undefined,
+        markdown: jiraBodyToMarkdown(row.body, row.renderedBody),
     };
 }
 
 export function normalizeAttachment(attachment) {
+    const row = requirePayloadObject(attachment, 'jira attachment');
     return {
-        id: String(attachment?.id ?? ''),
-        filename: String(attachment?.filename ?? ''),
-        mimeType: attachment?.mimeType ? String(attachment.mimeType) : undefined,
-        size: attachment?.size != null ? Number(attachment.size) : undefined,
-        url: String(attachment?.content ?? attachment?.self ?? ''),
+        id: requirePayloadString(row.id, 'attachment id', 'jira attachment'),
+        filename: requirePayloadString(row.filename, 'filename', 'jira attachment'),
+        mimeType: row.mimeType ? String(row.mimeType) : undefined,
+        size: row.size != null ? Number(row.size) : undefined,
+        url: requirePayloadString(row.content ?? row.self, 'attachment url', 'jira attachment'),
     };
 }
 
 export function normalizeIssueLink(link) {
-    const outward = link?.outwardIssue;
-    const inward = link?.inwardIssue;
+    const row = requirePayloadObject(link, 'jira issue link');
+    const outward = row.outwardIssue;
+    const inward = row.inwardIssue;
     const issue = outward ?? inward ?? {};
+    const key = requirePayloadString(issue.key, 'linked issue key', 'jira issue link');
     return {
-        key: String(issue.key ?? ''),
-        type: String(link?.type?.name ?? (outward ? link?.type?.outward : link?.type?.inward) ?? ''),
+        key,
+        type: String(row.type?.name ?? (outward ? row.type?.outward : row.type?.inward) ?? ''),
         direction: outward ? 'outward' : 'inward',
     };
 }
@@ -121,14 +137,18 @@ function customValueToMarkdown(value) {
 }
 
 export function normalizeJiraIssue(issue, config, options = {}) {
-    const fields = issue?.fields ?? {};
-    const rendered = issue?.renderedFields ?? {};
+    const row = requirePayloadObject(issue, 'jira issue');
+    const key = requirePayloadString(row.key, 'issue key', 'jira issue');
+    const fields = requirePayloadObject(row.fields, `jira issue ${key} fields`);
+    const rendered = row.renderedFields && typeof row.renderedFields === 'object' && !Array.isArray(row.renderedFields)
+        ? row.renderedFields
+        : {};
     const custom = configuredFieldNames();
     const comments = options.comments ?? fields.comment?.comments ?? [];
     const normalized = {
-        key: String(issue?.key ?? ''),
-        id: String(issue?.id ?? ''),
-        url: issue?.key ? `${config.baseUrl}/browse/${issue.key}` : '',
+        key,
+        id: row.id != null ? String(row.id) : '',
+        url: `${config.baseUrl}/browse/${key}`,
         summary: String(fields.summary ?? ''),
         issueType: valueName(fields.issuetype) || undefined,
         status: valueName(fields.status) || undefined,
@@ -143,7 +163,7 @@ export function normalizeJiraIssue(issue, config, options = {}) {
         },
         comments: Array.isArray(comments) ? comments.map(normalizeComment) : [],
         attachments: Array.isArray(fields.attachment) ? fields.attachment.map(normalizeAttachment) : [],
-        linkedIssues: Array.isArray(fields.issuelinks) ? fields.issuelinks.map(normalizeIssueLink).filter((link) => link.key) : [],
+        linkedIssues: Array.isArray(fields.issuelinks) ? fields.issuelinks.map(normalizeIssueLink) : [],
         fixVersions: valueNames(fields.fixVersions),
         affectedVersions: valueNames(fields.versions),
         components: valueNames(fields.components),
@@ -180,13 +200,14 @@ export function issueSummaryRow(issue, config) {
 }
 
 export async function fetchIssue(config, key, extraFields = []) {
-    return jiraRequest(config, `/issue/${encodeURIComponent(key)}`, {
+    const issue = await jiraRequest(config, `/issue/${encodeURIComponent(key)}`, {
         params: {
             fields: issueFields(extraFields),
             expand: 'renderedFields',
         },
         label: `jira issue ${key}`,
     });
+    return requirePayloadObject(issue, `jira issue ${key}`);
 }
 
 export async function fetchComments(config, key, limit = 100) {
@@ -195,7 +216,12 @@ export async function fetchComments(config, key, limit = 100) {
         params: { startAt: 0, maxResults, expand: 'renderedBody' },
         label: `jira comments ${key}`,
     });
-    return Array.isArray(data?.comments) ? data.comments : [];
+    const payload = requirePayloadObject(data, `jira comments ${key}`);
+    return requirePayloadArray(payload.comments, `jira comments ${key}`);
+}
+
+export function jiraRowsOrEmpty(rows, label, hint) {
+    return requireNonEmptyRows(rows, label, hint);
 }
 
 export function jiraConfig() {

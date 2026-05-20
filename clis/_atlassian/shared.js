@@ -2,11 +2,10 @@ import { readFile, stat } from 'node:fs/promises';
 import { htmlToMarkdown as coreHtmlToMarkdown } from '@jackwener/opencli/utils';
 import {
     ArgumentError,
-    CliError,
+    AuthRequiredError,
     CommandExecutionError,
     ConfigError,
     EmptyResultError,
-    EXIT_CODES,
 } from '@jackwener/opencli/errors';
 
 const USER_AGENT = 'opencli-atlassian-adapter (+https://github.com/jackwener/opencli)';
@@ -141,8 +140,16 @@ function summarizeApiError(parsed, fallback) {
     return fallback;
 }
 
-async function parseResponseBody(resp) {
-    const text = await resp.text();
+async function parseResponseBody(resp, label) {
+    let text;
+    try {
+        text = await resp.text();
+    } catch (err) {
+        throw new CommandExecutionError(
+            `${label} response body could not be read: ${err?.message ?? err}`,
+            'Check whether the Atlassian instance, proxy, or network interrupted the response.',
+        );
+    }
     if (!text) return null;
     try {
         return JSON.parse(text);
@@ -177,21 +184,19 @@ export async function atlassianRequest(config, apiPath, options = {}) {
         );
     }
 
-    const parsed = await parseResponseBody(resp);
+    const parsed = await parseResponseBody(resp, label);
     if (resp.status === 401) {
-        throw new CliError(
-            'AUTH_REQUIRED',
+        throw new AuthRequiredError(
+            config.baseUrl,
             `${label} returned HTTP 401`,
             'Check Atlassian credentials and whether this instance accepts the configured auth method.',
-            EXIT_CODES.NOPERM,
         );
     }
     if (resp.status === 403) {
-        throw new CliError(
-            'AUTH_REQUIRED',
+        throw new AuthRequiredError(
+            config.baseUrl,
             `${label} returned HTTP 403: ${summarizeApiError(parsed, 'forbidden')}`,
             'The authenticated user lacks permission for this Jira issue, Confluence page, or space.',
-            EXIT_CODES.NOPERM,
         );
     }
     if (resp.status === 404) {
@@ -208,6 +213,12 @@ export async function atlassianRequest(config, apiPath, options = {}) {
     }
     if (!resp.ok) {
         throw new CommandExecutionError(`${label} returned HTTP ${resp.status}: ${summarizeApiError(parsed, resp.statusText)}`);
+    }
+    if (typeof parsed === 'string') {
+        throw new CommandExecutionError(
+            `${label} returned a non-JSON response`,
+            'Expected Atlassian REST API JSON. Check the base URL and whether an HTML login, SSO, or proxy page was returned.',
+        );
     }
     return parsed;
 }
@@ -230,6 +241,34 @@ export function requireString(value, label) {
     const s = String(value ?? '').trim();
     if (!s) throw new ArgumentError(`${label} is required`);
     return s;
+}
+
+export function requirePayloadObject(value, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CommandExecutionError(`${label} returned an unexpected payload shape; expected an object.`);
+    }
+    return value;
+}
+
+export function requirePayloadArray(value, label) {
+    if (!Array.isArray(value)) {
+        throw new CommandExecutionError(`${label} returned an unexpected payload shape; expected an array.`);
+    }
+    return value;
+}
+
+export function requirePayloadString(value, field, label) {
+    if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new CommandExecutionError(`${label} did not include a stable ${field}.`);
+    }
+    const s = String(value).trim();
+    if (!s) throw new CommandExecutionError(`${label} did not include a stable ${field}.`);
+    return s;
+}
+
+export function requireNonEmptyRows(rows, label, hint) {
+    if (!rows.length) throw new EmptyResultError(label, hint);
+    return rows;
 }
 
 export function parseLimit(value, defaultValue = 20, maxValue = 100, label = 'limit') {

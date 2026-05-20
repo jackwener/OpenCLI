@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { __test__ as jiraSharedTest } from './shared.js';
 import './issue.js';
 import './search.js';
@@ -98,6 +99,13 @@ describe('jira commands', () => {
         expect(rows[0].linkedIssues[0]).toEqual({ key: 'PROJ-2', type: 'Blocks', direction: 'outward' });
     });
 
+    it('fails typed when Jira issue payload is missing stable issue identity', async () => {
+        setCloudEnv();
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ fields: { summary: 'No key' } })));
+        const cmd = getRegistry().get('jira/issue');
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('rejects invalid Jira issue keys before remote requests', async () => {
         expect(() => jiraSharedTest.requireIssueKey('notakey')).toThrow(/Invalid Jira issue key/);
         const fetchMock = vi.fn();
@@ -173,6 +181,16 @@ describe('jira commands', () => {
         ]);
     });
 
+    it('separates Jira search empty results from malformed search payloads', async () => {
+        setCloudEnv();
+        const cmd = getRegistry().get('jira/search');
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ issues: [] })));
+        await expect(cmd.func({ jql: 'project = NONE' })).rejects.toBeInstanceOf(EmptyResultError);
+
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ values: [] })));
+        await expect(cmd.func({ jql: 'project = PROJ' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('maps rendered comments to Markdown', async () => {
         setCloudEnv();
         vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
@@ -188,5 +206,24 @@ describe('jira commands', () => {
         expect(rows[0]).toMatchObject({ id: 'c1', author: 'Bob' });
         expect(rows[0].markdown).toContain('Fixed');
         expect(rows[0].markdown).toContain('Ready for QA');
+    });
+
+    it('fails typed when Jira comment rows lack stable comment ids', async () => {
+        setCloudEnv();
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+            comments: [{ author: { displayName: 'Bob' }, created: '2026-05-01', body: 'body' }],
+        })));
+        const cmd = getRegistry().get('jira/comments');
+        await expect(cmd.func({ key: 'PROJ-1', limit: 1 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('separates no Jira attachments from malformed attachment payloads', async () => {
+        setCloudEnv();
+        const cmd = getRegistry().get('jira/attachments');
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ id: '1', key: 'PROJ-1', fields: { attachment: [] } })));
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(EmptyResultError);
+
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ id: '1', key: 'PROJ-1', fields: {} })));
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
