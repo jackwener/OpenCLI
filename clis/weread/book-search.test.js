@@ -169,6 +169,53 @@ describe('weread/book-search', () => {
         });
     });
 
+    it('fails closed when the book search payload is malformed', async () => {
+        expect(command?.func).toBeTypeOf('function');
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ result: [] })));
+
+        await expect(command.func({ book: '史记', query: '舜' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: 'WeRead book search returned malformed books',
+        });
+    });
+
+    it('rejects off-domain reader URLs instead of fetching arbitrary pages', async () => {
+        expect(command?.func).toBeTypeOf('function');
+
+        await expect(command.func({ book: 'https://example.com/web/reader/reader-1', query: '舜' })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+            message: 'book URL must be a https://weread.qq.com/web/reader/<id> URL',
+        });
+    });
+
+    it('fails closed when in-book search results are malformed', async () => {
+        expect(command?.func).toBeTypeOf('function');
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ result: [{ searchIdx: 1 }], hasMore: 0 })));
+
+        await expect(command.func({ book: '123', query: '舜', raw: true })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: 'WeRead in-book search returned malformed match',
+        });
+    });
+
+    it('fails closed when in-book pagination does not advance', async () => {
+        expect(command?.func).toBeTypeOf('function');
+        vi.stubGlobal('fetch', vi.fn()
+            .mockResolvedValueOnce(jsonResponse({
+            result: [{ chapterUid: 1, abstract: 'first', searchIdx: 1 }],
+            hasMore: 1,
+        }))
+            .mockResolvedValueOnce(jsonResponse({
+            result: [{ chapterUid: 1, abstract: 'second', searchIdx: 1 }],
+            hasMore: 1,
+        })));
+
+        await expect(command.func({ book: '123', query: '舜', limit: 2, raw: true })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: 'WeRead in-book search returned non-advancing searchIdx',
+        });
+    });
+
     it('validates numeric arguments instead of silently clamping', async () => {
         expect(command?.func).toBeTypeOf('function');
         await expect(command.func({ book: '史记', query: '舜', limit: 101 })).rejects.toMatchObject({

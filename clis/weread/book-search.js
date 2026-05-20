@@ -33,12 +33,37 @@ function normalizePositiveInteger(value, defaultValue, label, maxValue) {
     return n;
 }
 
+function parseOptionalFiniteNumber(value) {
+    if (value == null || value === '')
+        return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
 function normalizeRequiredString(value, label) {
     const text = normalizeSearchText(value);
     if (!text) {
         throw new ArgumentError(`${label} is required`);
     }
     return text;
+}
+
+function parseWereadReaderUrl(value) {
+    let url;
+    try {
+        url = new URL(String(value || ''), WEREAD_WEB_ORIGIN);
+    }
+    catch {
+        return '';
+    }
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    if (url.protocol !== 'https:' || url.hostname !== 'weread.qq.com' || pathParts[0] !== 'web' || pathParts[1] !== 'reader' || !pathParts[2]) {
+        return '';
+    }
+    if (pathParts.length !== 3) {
+        return '';
+    }
+    return url.toString();
 }
 
 async function fetchJson(url, label) {
@@ -155,7 +180,7 @@ function parseSearchHtmlEntries(html) {
         const entry = {};
         entry.title = decodeHtmlText(titleMatch?.[1] || '');
         entry.author = decodeHtmlText(authorMatch?.[1] || '');
-        entry.readerUrl = href ? new URL(href, WEREAD_WEB_ORIGIN).toString() : '';
+        entry.readerUrl = href ? parseWereadReaderUrl(href) : '';
         return entry;
     }).filter((entry) => entry.title && entry.readerUrl);
 }
@@ -184,7 +209,10 @@ async function searchBookByQuery(bookQuery, bookRank) {
     const url = new URL('/web/search/global', `${WEREAD_WEB_ORIGIN}/web`);
     url.searchParams.set('keyword', bookQuery);
     const data = await fetchJson(url, 'WeRead book search');
-    const books = Array.isArray(data?.books) ? data.books : [];
+    if (!Array.isArray(data?.books)) {
+        throw new CommandExecutionError('WeRead book search returned malformed books');
+    }
+    const books = data.books;
     if (books.length === 0) {
         throw new EmptyResultError('weread book-search', `No WeRead books found for "${bookQuery}"`);
     }
@@ -200,7 +228,7 @@ async function searchBookByQuery(bookQuery, bookRank) {
         chapters: [],
     };
     if (!selected.bookId) {
-        throw new EmptyResultError('weread book-search', `The selected book for "${bookQuery}" has no bookId`);
+        throw new CommandExecutionError(`WeRead book search result ${bookRank} is missing bookId`);
     }
     const htmlEntries = await loadSearchHtmlEntries(bookQuery);
     selected.readerUrl = resolveReaderUrlForBook(selected, htmlEntries);
@@ -213,9 +241,13 @@ async function searchBookByQuery(bookQuery, bookRank) {
 
 async function resolveBookTarget(target, bookRank) {
     if (/^https?:\/\//i.test(target)) {
-        const metadata = await loadReaderMetadata(target);
+        const readerUrl = parseWereadReaderUrl(target);
+        if (!readerUrl) {
+            throw new ArgumentError('book URL must be a https://weread.qq.com/web/reader/<id> URL');
+        }
+        const metadata = await loadReaderMetadata(readerUrl);
         if (!metadata?.bookId) {
-            throw new EmptyResultError('weread book-search', 'Could not parse a bookId from the reader URL');
+            throw new CommandExecutionError('Could not parse a bookId from the reader URL');
         }
         return metadata;
     }
@@ -245,13 +277,32 @@ async function searchWithinBook(bookId, query, limit, fragmentSize) {
         url.searchParams.set('fragmentSize', String(fragmentSize));
         url.searchParams.set('onlyCount', '0');
         const data = await fetchJson(url, 'WeRead in-book search');
-        const result = Array.isArray(data?.result) ? data.result : [];
+        if (!Array.isArray(data?.result)) {
+            throw new CommandExecutionError('WeRead in-book search returned malformed result');
+        }
+        const result = data.result.map((item) => {
+            if (!item || typeof item !== 'object') {
+                throw new CommandExecutionError('WeRead in-book search returned malformed match');
+            }
+            const snippet = normalizeSearchText(item.abstract);
+            const searchIdx = parseOptionalFiniteNumber(item.searchIdx);
+            if (!snippet || searchIdx == null || searchIdx <= 0) {
+                throw new CommandExecutionError('WeRead in-book search returned malformed match');
+            }
+            return {
+                ...item,
+                abstract: snippet,
+                chapterIdx: parseOptionalFiniteNumber(item.chapterIdx),
+                chapterUid: parseOptionalFiniteNumber(item.chapterUid),
+                searchIdx,
+            };
+        });
         if (result.length === 0)
             break;
         rows.push(...result);
-        const lastSearchIdx = Number(result[result.length - 1]?.searchIdx);
-        if (!Number.isFinite(lastSearchIdx) || lastSearchIdx <= maxIdx)
-            break;
+        const lastSearchIdx = result[result.length - 1].searchIdx;
+        if (lastSearchIdx <= maxIdx)
+            throw new CommandExecutionError('WeRead in-book search returned non-advancing searchIdx');
         maxIdx = lastSearchIdx;
         if (Number(data?.hasMore) !== 1)
             break;
@@ -265,11 +316,11 @@ async function searchWithinBook(bookId, query, limit, fragmentSize) {
 function buildChapterMap(chapters) {
     const map = new Map();
     for (const chapter of chapters) {
-        const chapterUid = Number(chapter?.chapterUid);
-        if (!Number.isFinite(chapterUid))
+        const chapterUid = parseOptionalFiniteNumber(chapter?.chapterUid);
+        if (chapterUid == null)
             continue;
         map.set(chapterUid, {
-            chapterIdx: Number.isFinite(Number(chapter?.chapterIdx)) ? Number(chapter.chapterIdx) : null,
+            chapterIdx: parseOptionalFiniteNumber(chapter?.chapterIdx),
             chapterTitle: normalizeSearchText(chapter?.title),
         });
     }
@@ -279,10 +330,9 @@ function buildChapterMap(chapters) {
 function buildRows(book, matches) {
     const chapterMap = buildChapterMap(book.chapters ?? []);
     return matches.map((item, index) => {
-        const chapterUid = Number(item?.chapterUid);
+        const chapterUid = parseOptionalFiniteNumber(item?.chapterUid);
         const chapter = chapterMap.get(chapterUid) ?? {};
-        const resultChapterIdx = Number(item?.chapterIdx);
-        const chapterIdx = chapter.chapterIdx ?? (Number.isFinite(resultChapterIdx) ? resultChapterIdx : null);
+        const chapterIdx = chapter.chapterIdx ?? parseOptionalFiniteNumber(item?.chapterIdx);
         return {
             rank: index + 1,
             book_title: book.title || null,
@@ -290,8 +340,8 @@ function buildRows(book, matches) {
             chapter_idx: chapterIdx,
             chapter_title: chapter.chapterTitle || null,
             snippet: normalizeSearchText(item?.abstract),
-            search_idx: Number(item?.searchIdx) || index + 1,
-            chapter_uid: Number.isFinite(chapterUid) ? chapterUid : null,
+            search_idx: item.searchIdx,
+            chapter_uid: chapterUid,
             book_id: book.bookId,
             url: book.readerUrl || null,
         };
