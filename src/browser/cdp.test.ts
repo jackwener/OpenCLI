@@ -51,6 +51,8 @@ describe('CDPBridge cookies', () => {
       cookies: [
         { name: 'good', value: '1', domain: '.example.com' },
         { name: 'exact', value: '2', domain: 'example.com' },
+        { name: 'sub', value: '3', domain: 'api.example.com' },
+        { name: 'dot-sub', value: '4', domain: '.api.example.com' },
         { name: 'bad', value: '3', domain: 'notexample.com' },
       ],
     });
@@ -61,6 +63,8 @@ describe('CDPBridge cookies', () => {
     expect(cookies).toEqual([
       { name: 'good', value: '1', domain: '.example.com' },
       { name: 'exact', value: '2', domain: 'example.com' },
+      { name: 'sub', value: '3', domain: 'api.example.com' },
+      { name: 'dot-sub', value: '4', domain: '.api.example.com' },
     ]);
     expect(send).toHaveBeenCalledWith('Storage.getCookies', {});
     expect(send).not.toHaveBeenCalledWith('Network.getCookies', {});

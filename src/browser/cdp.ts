@@ -523,8 +523,8 @@ function normalizeCDPCookie(raw: Record<string, unknown> & { name: string; value
 function matchesCookieDomain(cookieDomain: string, targetDomain: string): boolean {
   const normalizedCookieDomain = cookieDomain.replace(/^\./, '').toLowerCase();
   const normalizedTargetDomain = targetDomain.replace(/^\./, '').toLowerCase();
-  return normalizedTargetDomain === normalizedCookieDomain
-    || normalizedTargetDomain.endsWith(`.${normalizedCookieDomain}`);
+  return normalizedCookieDomain === normalizedTargetDomain
+    || normalizedCookieDomain.endsWith(`.${normalizedTargetDomain}`);
 }
 
 function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
