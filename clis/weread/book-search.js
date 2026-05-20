@@ -40,6 +40,14 @@ function parseOptionalFiniteNumber(value) {
     return Number.isFinite(n) ? n : null;
 }
 
+function parseHasMore(value) {
+    if (value === true || value === 1 || value === '1')
+        return true;
+    if (value === false || value === 0 || value === '0')
+        return false;
+    return null;
+}
+
 function normalizeRequiredString(value, label) {
     const text = normalizeSearchText(value);
     if (!text) {
@@ -304,7 +312,15 @@ async function searchWithinBook(bookId, query, limit, fragmentSize) {
         if (lastSearchIdx <= maxIdx)
             throw new CommandExecutionError('WeRead in-book search returned non-advancing searchIdx');
         maxIdx = lastSearchIdx;
-        if (Number(data?.hasMore) !== 1)
+        if (rows.length >= limit)
+            break;
+        const hasMore = parseHasMore(data?.hasMore);
+        if (hasMore == null) {
+            if (result.length < pageSize)
+                break;
+            throw new CommandExecutionError('WeRead in-book search returned malformed pagination state');
+        }
+        if (!hasMore)
             break;
     }
     if (rows.length === 0) {

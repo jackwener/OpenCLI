@@ -216,6 +216,22 @@ describe('weread/book-search', () => {
         });
     });
 
+    it('fails closed when a full in-book search page has no pagination state', async () => {
+        expect(command?.func).toBeTypeOf('function');
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+            result: Array.from({ length: 50 }, (_, index) => ({
+                chapterUid: 1,
+                abstract: `match ${index + 1}`,
+                searchIdx: index + 1,
+            })),
+        })));
+
+        await expect(command.func({ book: '123', query: '舜', limit: 51, raw: true })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: 'WeRead in-book search returned malformed pagination state',
+        });
+    });
+
     it('validates numeric arguments instead of silently clamping', async () => {
         expect(command?.func).toBeTypeOf('function');
         await expect(command.func({ book: '史记', query: '舜', limit: 101 })).rejects.toMatchObject({
