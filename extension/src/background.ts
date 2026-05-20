@@ -612,12 +612,15 @@ async function ensureOwnedContainerTabGroup(role: OwnedWindowRole, windowId: num
   if (ids.length === 0) return;
 
   const container = ownedContainers[role];
-  if (container.groupPromise) {
-    await container.groupPromise;
-  }
-  container.groupPromise = ensureOwnedContainerTabGroupUnlocked(role, windowId, ids)
-    .finally(() => { container.groupPromise = null; });
-  return container.groupPromise;
+  const previousGroupPromise = container.groupPromise ?? Promise.resolve();
+  const nextGroupPromise = previousGroupPromise
+    .catch(() => undefined)
+    .then(() => ensureOwnedContainerTabGroupUnlocked(role, windowId, ids));
+  const trackedGroupPromise = nextGroupPromise.finally(() => {
+    if (container.groupPromise === trackedGroupPromise) container.groupPromise = null;
+  });
+  container.groupPromise = trackedGroupPromise;
+  return trackedGroupPromise;
 }
 
 async function ensureOwnedContainerTabGroupUnlocked(role: OwnedWindowRole, windowId: number, ids: number[]): Promise<void> {

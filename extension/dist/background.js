@@ -1092,13 +1092,13 @@ async function ensureOwnedContainerTabGroup(role, windowId, tabIds) {
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   if (ids.length === 0) return;
   const container = ownedContainers[role];
-  if (container.groupPromise) {
-    await container.groupPromise;
-  }
-  container.groupPromise = ensureOwnedContainerTabGroupUnlocked(role, windowId, ids).finally(() => {
-    container.groupPromise = null;
+  const previousGroupPromise = container.groupPromise ?? Promise.resolve();
+  const nextGroupPromise = previousGroupPromise.catch(() => void 0).then(() => ensureOwnedContainerTabGroupUnlocked(role, windowId, ids));
+  const trackedGroupPromise = nextGroupPromise.finally(() => {
+    if (container.groupPromise === trackedGroupPromise) container.groupPromise = null;
   });
-  return container.groupPromise;
+  container.groupPromise = trackedGroupPromise;
+  return trackedGroupPromise;
 }
 async function ensureOwnedContainerTabGroupUnlocked(role, windowId, ids) {
   try {
