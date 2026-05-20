@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
-import { ArgumentError, TimeoutError, toEnvelope } from './errors.js';
+import { ArgumentError, CommandExecutionError, TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 import * as runtime from './runtime.js';
@@ -230,6 +230,60 @@ describe('executeCommand — non-browser timeout', () => {
       expect(factories[0]).toBe(BrowserBridge);
       expect(sessionOpts[0]?.cdpEndpoint).toBeUndefined();
       expect(closeWindow).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('rejects malformed OPENCLI_CDP_ENDPOINT before opening a non-Electron browser session', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'not-a-url');
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    const browserSessionSpy = vi.spyOn(runtime, 'browserSession');
+
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-cdp-env-invalid', access: 'read',
+        description: 'test invalid non-Electron CDP env override',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await expect(executeCommand(cmd, {})).rejects.toMatchObject({
+        constructor: CommandExecutionError,
+        code: 'COMMAND_EXEC',
+        message: 'Invalid OPENCLI_CDP_ENDPOINT: not-a-url',
+      });
+      expect(browserSessionSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('requires a port in manual OPENCLI_CDP_ENDPOINT for Electron browser sessions', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'http://127.0.0.1');
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    const browserSessionSpy = vi.spyOn(runtime, 'browserSession');
+
+    try {
+      const cmd = cli({
+        site: 'codex',
+        name: 'browser-cdp-env-no-port', access: 'read',
+        description: 'test invalid Electron CDP env override',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await expect(executeCommand(cmd, {})).rejects.toMatchObject({
+        constructor: CommandExecutionError,
+        code: 'COMMAND_EXEC',
+        message: 'Invalid OPENCLI_CDP_ENDPOINT: http://127.0.0.1',
+      });
+      expect(browserSessionSpy).not.toHaveBeenCalled();
     } finally {
       vi.restoreAllMocks();
       vi.unstubAllEnvs();

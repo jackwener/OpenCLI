@@ -186,6 +186,34 @@ function isDomainRootPreNav(preNavUrl: string, domain: string | undefined): bool
   }
 }
 
+function resolveManualCdpEndpoint(): string | undefined {
+  const endpoint = normalizeCdpEndpoint(process.env.OPENCLI_CDP_ENDPOINT);
+  if (!endpoint) return undefined;
+  try {
+    const parsed = new URL(endpoint);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:' && parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+      throw new Error(`unsupported protocol ${parsed.protocol}`);
+    }
+  } catch {
+    throw new CommandExecutionError(
+      `Invalid OPENCLI_CDP_ENDPOINT: ${endpoint}`,
+      'Set OPENCLI_CDP_ENDPOINT to a valid http(s) or ws(s) URL, e.g. http://127.0.0.1:9222.',
+    );
+  }
+  return endpoint;
+}
+
+function readCdpEndpointPort(endpoint: string): number {
+  const port = Number(new URL(endpoint).port);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new CommandExecutionError(
+      `Invalid OPENCLI_CDP_ENDPOINT: ${endpoint}`,
+      'Include the remote debugging port in the endpoint, e.g. http://127.0.0.1:9222.',
+    );
+  }
+  return port;
+}
+
 async function shouldRunPreNav(cmd: CliCommand, page: IPage, siteSession: SiteSessionMode, preNavUrl: string): Promise<boolean> {
   if (siteSession !== 'persistent' || !cmd.domain) return true;
   if (!isDomainRootPreNav(preNavUrl, cmd.domain)) return true;
@@ -233,9 +261,9 @@ export async function executeCommand(
 
       if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
-        const manualEndpoint = normalizeCdpEndpoint(process.env.OPENCLI_CDP_ENDPOINT);
+        const manualEndpoint = resolveManualCdpEndpoint();
         if (manualEndpoint) {
-          const port = Number(new URL(manualEndpoint).port);
+          const port = readCdpEndpointPort(manualEndpoint);
           if (!await probeCDP(port)) {
             throw new CommandExecutionError(
               `CDP not reachable at ${manualEndpoint}`,
@@ -248,7 +276,7 @@ export async function executeCommand(
         }
       } else {
         // Non-Electron browser commands: honor manual CDP endpoint when set
-        cdpEndpoint = normalizeCdpEndpoint(process.env.OPENCLI_CDP_ENDPOINT);
+        cdpEndpoint = resolveManualCdpEndpoint();
       }
 
       const BrowserFactory = getBrowserFactory(cmd.site, cdpEndpoint);
