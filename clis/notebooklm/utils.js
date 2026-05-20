@@ -33,8 +33,15 @@ export function parseNotebooklmNotebookTarget(value) {
         return pathMatch[1];
     return normalized;
 }
+export function getNotebooklmAuthuser() {
+    const v = process.env.OPENCLI_NOTEBOOKLM_AUTHUSER;
+    return typeof v === 'string' && /^\d+$/.test(v) ? v : '';
+}
 export function buildNotebooklmNotebookUrl(notebookId) {
-    return new URL(`/notebook/${encodeURIComponent(notebookId)}`, NOTEBOOKLM_HOME_URL).toString();
+    const u = new URL(`/notebook/${encodeURIComponent(notebookId)}`, NOTEBOOKLM_HOME_URL);
+    const authuser = getNotebooklmAuthuser();
+    if (authuser) u.searchParams.set('authuser', authuser);
+    return u.toString();
 }
 export function classifyNotebooklmPage(url) {
     try {
@@ -526,7 +533,9 @@ export async function ensureNotebooklmHome(page) {
     const currentKind = currentUrl ? classifyNotebooklmPage(currentUrl) : 'unknown';
     if (currentKind === 'home')
         return;
-    await page.goto(NOTEBOOKLM_HOME_URL);
+    const authuser = getNotebooklmAuthuser();
+    const target = authuser ? `${NOTEBOOKLM_HOME_URL}?authuser=${encodeURIComponent(authuser)}` : NOTEBOOKLM_HOME_URL;
+    await page.goto(target);
     await page.wait(2);
 }
 export async function getNotebooklmPageState(page) {

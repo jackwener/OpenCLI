@@ -8,18 +8,21 @@ export function extractNotebooklmPageAuthFromHtml(html, sourcePath = '/', prefer
     if (!csrfToken || !sessionId) {
         throw new CliError('NOTEBOOKLM_TOKENS', 'NotebookLM page tokens were not found in the current page HTML', 'Open the NotebookLM notebook page in Chrome, wait for it to finish loading, then retry with --verbose if it still fails.');
     }
-    return { csrfToken, sessionId, sourcePath: sourcePath || '/' };
+    return { csrfToken, sessionId, sourcePath: sourcePath || '/', authuser: preferredTokens?.authuser ?? '' };
 }
 async function probeNotebooklmPageAuth(page) {
     const raw = await page.evaluate(`(() => {
     const wiz = window.WIZ_global_data || {};
     const html = document.documentElement.innerHTML;
+    const authMatch = (location.search || '').match(/[?&]authuser=(\\d+)/);
+    const pathMatch = (location.pathname || '').match(/^\\/u\\/(\\d+)\\//);
     return {
       html,
       sourcePath: location.pathname || '/',
       readyState: document.readyState || '',
       csrfToken: typeof wiz.SNlM0e === 'string' ? wiz.SNlM0e : '',
       sessionId: typeof wiz.FdrFJe === 'string' ? wiz.FdrFJe : '',
+      authuser: authMatch ? authMatch[1] : (pathMatch ? pathMatch[1] : ''),
     };
   })()`);
     return {
@@ -28,6 +31,7 @@ async function probeNotebooklmPageAuth(page) {
         readyState: String(raw?.readyState ?? ''),
         csrfToken: String(raw?.csrfToken ?? ''),
         sessionId: String(raw?.sessionId ?? ''),
+        authuser: String(raw?.authuser ?? ''),
     };
 }
 export async function getNotebooklmPageAuth(page) {
@@ -35,7 +39,7 @@ export async function getNotebooklmPageAuth(page) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
         const probe = await probeNotebooklmPageAuth(page);
         try {
-            return extractNotebooklmPageAuthFromHtml(probe.html, probe.sourcePath, { csrfToken: probe.csrfToken, sessionId: probe.sessionId });
+            return extractNotebooklmPageAuthFromHtml(probe.html, probe.sourcePath, { csrfToken: probe.csrfToken, sessionId: probe.sessionId, authuser: probe.authuser });
         }
         catch (error) {
             lastError = error;
@@ -162,8 +166,10 @@ export async function fetchNotebooklmInPage(page, url, options = {}) {
 export async function callNotebooklmRpc(page, rpcId, params, options = {}) {
     const auth = await getNotebooklmPageAuth(page);
     const requestBody = buildNotebooklmRpcBody(rpcId, params, auth.csrfToken);
+    const authuser = auth.authuser || '';
     const url = `https://${NOTEBOOKLM_DOMAIN}/_/LabsTailwindUi/data/batchexecute` +
         `?rpcids=${rpcId}&source-path=${encodeURIComponent(auth.sourcePath)}` +
+        (authuser ? `&authuser=${encodeURIComponent(authuser)}` : '') +
         `&hl=${encodeURIComponent(options.hl ?? 'en')}` +
         `&f.sid=${encodeURIComponent(auth.sessionId)}&rt=c`;
     const response = await fetchNotebooklmInPage(page, url, {

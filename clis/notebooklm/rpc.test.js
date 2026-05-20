@@ -16,6 +16,7 @@ describe('notebooklm rpc transport', () => {
             csrfToken: 'csrf-123',
             sessionId: 'sess-456',
             sourcePath: '/',
+            authuser: '',
         });
         expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
@@ -33,6 +34,7 @@ describe('notebooklm rpc transport', () => {
             csrfToken: 'csrf-wiz',
             sessionId: 'sess-wiz',
             sourcePath: '/notebook/nb-demo',
+            authuser: '',
         });
     });
     it('retries token extraction once when the first probe returns no tokens', async () => {
@@ -58,6 +60,7 @@ describe('notebooklm rpc transport', () => {
             csrfToken: 'csrf-123',
             sessionId: 'sess-456',
             sourcePath: '/notebook/nb-demo',
+            authuser: '',
         });
         expect(page.evaluate).toHaveBeenCalledTimes(2);
     });

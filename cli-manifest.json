@@ -17174,6 +17174,99 @@
   },
   {
     "site": "notebooklm",
+    "name": "add-source",
+    "description": "Add a URL, text, or local file source to an existing NotebookLM notebook",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Source URL to add (http/https). Pass exactly one of --url, --content, --file."
+      },
+      {
+        "name": "content",
+        "type": "str",
+        "required": false,
+        "help": "Raw text content to add as a Text source (max 10 MB)."
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Local file path to upload as a source (max 52428800 bytes; pdf / txt / md / html / docx / etc.). Uses Google Drive's 3-step resumable upload protocol."
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "Title for the text source (default \"Text Source\"). Ignored for --url and --file."
+      },
+      {
+        "name": "mime-type",
+        "type": "str",
+        "required": false,
+        "help": "Override the auto-detected MIME type when --file is given."
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "source_id",
+      "kind",
+      "identifier",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/add-source.js",
+    "sourceFile": "notebooklm/add-source.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "create",
+    "description": "Create a new NotebookLM notebook with the given title",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook title (1-200 chars)"
+      },
+      {
+        "name": "emoji",
+        "type": "str",
+        "required": false,
+        "help": "Notebook emoji icon (default 📒)"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "emoji",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/create.js",
+    "sourceFile": "notebooklm/create.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
     "name": "current",
     "description": "Show metadata for the currently opened NotebookLM notebook tab",
     "access": "read",
@@ -17190,6 +17283,76 @@
     "type": "js",
     "modulePath": "notebooklm/current.js",
     "sourceFile": "notebooklm/current.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "generate-audio",
+    "description": "Trigger an Audio Overview (Deep Dive podcast) generation for a NotebookLM notebook, using all of its sources",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "audio_id",
+      "source_count",
+      "status",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/generate-audio.js",
+    "sourceFile": "notebooklm/generate-audio.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "generate-slides",
+    "description": "Trigger a Slide Deck (AI presentation) generation for a NotebookLM notebook, using all of its sources",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "length",
+        "type": "str",
+        "required": false,
+        "help": "Slide deck length: 1=Short, 3=Default (default 3)"
+      },
+      {
+        "name": "language",
+        "type": "str",
+        "required": false,
+        "help": "Language code (default en)"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "slides_id",
+      "source_count",
+      "status",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/generate-slides.js",
+    "sourceFile": "notebooklm/generate-slides.js",
     "navigateBefore": false
   },
   {
@@ -17501,6 +17664,46 @@
     "type": "js",
     "modulePath": "notebooklm/summary.js",
     "sourceFile": "notebooklm/summary.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "write-note",
+    "description": "Create a Studio note in an existing NotebookLM notebook with the given title and Markdown content",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "Note title (1-200 chars)"
+      },
+      {
+        "name": "content",
+        "type": "str",
+        "required": true,
+        "help": "Note body as Markdown"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "note_id",
+      "title",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/write-note.js",
+    "sourceFile": "notebooklm/write-note.js",
     "navigateBefore": false
   },
   {
