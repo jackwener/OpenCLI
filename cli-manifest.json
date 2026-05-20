@@ -9201,7 +9201,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "search=关键词搜索 suggest=AI推荐 hot=热点词",
+        "help": "search=关键词搜索 (--keyword 必填), suggest=AI推荐 (--cover 必填), hot=热点词 (--keyword 可选)",
         "choices": [
           "search",
           "suggest",
@@ -9213,14 +9213,14 @@
         "type": "str",
         "default": "",
         "required": false,
-        "help": "搜索关键词（search/hot 使用）"
+        "help": "搜索关键词. search 必填; hot 可选; suggest 不使用 (传 --cover)"
       },
       {
         "name": "cover",
         "type": "str",
         "default": "",
         "required": false,
-        "help": "封面 URI（suggest 使用）"
+        "help": "封面 URI (cover_uri). suggest 必填; 其它 action 不使用"
       },
       {
         "name": "limit",
