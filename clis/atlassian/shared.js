@@ -1,0 +1,516 @@
+import { readFile, stat } from 'node:fs/promises';
+import {
+    ArgumentError,
+    CliError,
+    CommandExecutionError,
+    ConfigError,
+    EmptyResultError,
+    EXIT_CODES,
+} from '@jackwener/opencli/errors';
+
+const USER_AGENT = 'opencli-atlassian-adapter (+https://github.com/jackwener/opencli)';
+const DEPLOYMENTS = new Set(['cloud', 'datacenter', 'auto']);
+
+function firstEnv(names) {
+    for (const name of names) {
+        const value = process.env[name]?.trim();
+        if (value) return value;
+    }
+    return '';
+}
+
+function normalizeBaseUrl(value, label) {
+    const raw = String(value ?? '').trim();
+    if (!raw) {
+        throw new ConfigError(`Missing ${label}`, `Set ${label}, for example https://example.atlassian.net`);
+    }
+    let parsed;
+    try {
+        parsed = new URL(raw);
+    } catch {
+        throw new ConfigError(`Invalid ${label}: ${raw}`, 'Use an absolute http(s) URL.');
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new ConfigError(`Invalid ${label}: ${raw}`, 'Use an http(s) URL.');
+    }
+    parsed.hash = '';
+    parsed.search = '';
+    return parsed.toString().replace(/\/+$/, '');
+}
+
+function parseDeployment(raw, baseUrl) {
+    const value = String(raw || 'auto').trim().toLowerCase();
+    if (!DEPLOYMENTS.has(value)) {
+        throw new ConfigError('Invalid ATLASSIAN_DEPLOYMENT', 'Expected one of: cloud, datacenter, auto.');
+    }
+    if (value !== 'auto') return value;
+    const host = new URL(baseUrl).hostname;
+    return host === 'atlassian.net' || host.endsWith('.atlassian.net') ? 'cloud' : 'datacenter';
+}
+
+function appendPath(baseUrl, suffix) {
+    const base = new URL(baseUrl);
+    const path = base.pathname.replace(/\/+$/, '');
+    base.pathname = `${path}${suffix}`;
+    return base.toString().replace(/\/+$/, '');
+}
+
+function normalizeConfluenceBaseUrl(baseUrl, deployment) {
+    if (deployment !== 'cloud') return baseUrl;
+    const parsed = new URL(baseUrl);
+    const normalized = parsed.pathname.replace(/\/+$/, '');
+    if (normalized === '/wiki' || normalized.endsWith('/wiki')) return baseUrl;
+    return appendPath(baseUrl, '/wiki');
+}
+
+function basicAuth(user, token) {
+    return `Basic ${Buffer.from(`${user}:${token}`, 'utf8').toString('base64')}`;
+}
+
+function resolveAuthHeaders(deployment, productLabel) {
+    const bearer = firstEnv(['ATLASSIAN_BEARER_TOKEN', 'ATLASSIAN_OAUTH_TOKEN']);
+    if (bearer) return { Authorization: `Bearer ${bearer}` };
+
+    const pat = firstEnv(['ATLASSIAN_PAT', `${productLabel.toUpperCase()}_PAT`]);
+    if (deployment === 'datacenter' && pat) return { Authorization: `Bearer ${pat}` };
+
+    const prefix = productLabel.toUpperCase();
+    const email = firstEnv(['ATLASSIAN_EMAIL', 'ATLASSIAN_USERNAME', `${prefix}_EMAIL`, `${prefix}_USERNAME`]);
+    const token = firstEnv(['ATLASSIAN_API_TOKEN', 'ATLASSIAN_PASSWORD', `${prefix}_API_TOKEN`, `${prefix}_PASSWORD`]);
+    if (email && token) return { Authorization: basicAuth(email, token) };
+
+    if (deployment === 'cloud') {
+        throw new ConfigError(
+            'Missing Atlassian Cloud credentials',
+            'Set ATLASSIAN_EMAIL and ATLASSIAN_API_TOKEN, or set ATLASSIAN_BEARER_TOKEN for OAuth.',
+        );
+    }
+    throw new ConfigError(
+        'Missing Atlassian Data Center credentials',
+        'Set ATLASSIAN_PAT, ATLASSIAN_BEARER_TOKEN, or ATLASSIAN_USERNAME plus ATLASSIAN_PASSWORD.',
+    );
+}
+
+export function getJiraConfig() {
+    const baseUrl = normalizeBaseUrl(firstEnv(['ATLASSIAN_JIRA_BASE_URL', 'JIRA_BASE_URL']), 'ATLASSIAN_JIRA_BASE_URL');
+    const deployment = parseDeployment(process.env.ATLASSIAN_DEPLOYMENT, baseUrl);
+    return {
+        product: 'jira',
+        baseUrl,
+        deployment,
+        authHeaders: resolveAuthHeaders(deployment, 'jira'),
+    };
+}
+
+export function getConfluenceConfig() {
+    const initialBaseUrl = normalizeBaseUrl(
+        firstEnv(['ATLASSIAN_CONFLUENCE_BASE_URL', 'CONFLUENCE_BASE_URL']),
+        'ATLASSIAN_CONFLUENCE_BASE_URL',
+    );
+    const deployment = parseDeployment(process.env.ATLASSIAN_DEPLOYMENT, initialBaseUrl);
+    return {
+        product: 'confluence',
+        baseUrl: normalizeConfluenceBaseUrl(initialBaseUrl, deployment),
+        deployment,
+        authHeaders: resolveAuthHeaders(deployment, 'confluence'),
+    };
+}
+
+function joinUrl(baseUrl, apiPath) {
+    if (/^https?:\/\//i.test(apiPath)) return apiPath;
+    const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+    return `${baseUrl}${path}`;
+}
+
+function summarizeApiError(parsed, fallback) {
+    if (parsed && typeof parsed === 'object') {
+        const messages = [];
+        if (Array.isArray(parsed.errorMessages)) messages.push(...parsed.errorMessages.filter(Boolean));
+        if (typeof parsed.message === 'string') messages.push(parsed.message);
+        if (typeof parsed.error === 'string') messages.push(parsed.error);
+        if (typeof parsed.reason === 'string') messages.push(parsed.reason);
+        if (parsed.errors && typeof parsed.errors === 'object') {
+            for (const [key, value] of Object.entries(parsed.errors)) {
+                messages.push(`${key}: ${String(value)}`);
+            }
+        }
+        if (messages.length) return messages.join(' · ');
+    }
+    if (typeof parsed === 'string' && parsed.trim()) return parsed.trim().slice(0, 300);
+    return fallback;
+}
+
+async function parseResponseBody(resp) {
+    const text = await resp.text();
+    if (!text) return null;
+    try {
+        return JSON.parse(text);
+    } catch {
+        return text;
+    }
+}
+
+export async function atlassianRequest(config, apiPath, options = {}) {
+    const method = (options.method ?? 'GET').toUpperCase();
+    const label = options.label ?? `${config.product} ${method} ${apiPath}`;
+    const headers = {
+        'user-agent': USER_AGENT,
+        accept: 'application/json',
+        ...config.authHeaders,
+        ...(options.headers ?? {}),
+    };
+    let body;
+    if (options.body !== undefined) {
+        headers['content-type'] = headers['content-type'] ?? 'application/json';
+        body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+    }
+
+    let resp;
+    const url = joinUrl(config.baseUrl, apiPath);
+    try {
+        resp = await fetch(url, { method, headers, body });
+    } catch (err) {
+        throw new CommandExecutionError(
+            `${label} request failed: ${err?.message ?? err}`,
+            'Check the Atlassian base URL, VPN/network access, and proxy settings.',
+        );
+    }
+
+    const parsed = await parseResponseBody(resp);
+    if (resp.status === 401) {
+        throw new CliError(
+            'AUTH_REQUIRED',
+            `${label} returned HTTP 401`,
+            'Check Atlassian credentials and whether this instance accepts the configured auth method.',
+            EXIT_CODES.NOPERM,
+        );
+    }
+    if (resp.status === 403) {
+        throw new CliError(
+            'AUTH_REQUIRED',
+            `${label} returned HTTP 403: ${summarizeApiError(parsed, 'forbidden')}`,
+            'The authenticated user lacks permission for this Jira issue, Confluence page, or space.',
+            EXIT_CODES.NOPERM,
+        );
+    }
+    if (resp.status === 404) {
+        throw new EmptyResultError(label, `Atlassian returned 404 for ${url}.`);
+    }
+    if (resp.status === 409) {
+        throw new CommandExecutionError(
+            `${label} returned HTTP 409: ${summarizeApiError(parsed, 'version conflict')}`,
+            'Reload the current Confluence page version and retry the update.',
+        );
+    }
+    if (resp.status === 429) {
+        throw new CommandExecutionError(`${label} returned HTTP 429 (rate limited)`, 'Wait and retry with a smaller limit.');
+    }
+    if (!resp.ok) {
+        throw new CommandExecutionError(`${label} returned HTTP ${resp.status}: ${summarizeApiError(parsed, resp.statusText)}`);
+    }
+    return parsed;
+}
+
+export function queryString(params) {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null || value === '') continue;
+        if (Array.isArray(value)) {
+            for (const item of value) qs.append(key, String(item));
+        } else {
+            qs.set(key, String(value));
+        }
+    }
+    const s = qs.toString();
+    return s ? `?${s}` : '';
+}
+
+export function requireString(value, label) {
+    const s = String(value ?? '').trim();
+    if (!s) throw new ArgumentError(`${label} is required`);
+    return s;
+}
+
+export function parseLimit(value, defaultValue = 20, maxValue = 100, label = 'limit') {
+    const raw = value ?? defaultValue;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isInteger(n) || n <= 0) {
+        throw new ArgumentError(`${label} must be a positive integer`);
+    }
+    if (n > maxValue) {
+        throw new ArgumentError(`${label} must be <= ${maxValue}`);
+    }
+    return n;
+}
+
+export function requireExecute(args, commandName) {
+    if (args.execute !== true) {
+        throw new ArgumentError(`${commandName} requires --execute to perform a remote write`);
+    }
+}
+
+export async function readUtf8File(filePath) {
+    const path = requireString(filePath, '--file');
+    let fileStat;
+    try {
+        fileStat = await stat(path);
+    } catch {
+        throw new ArgumentError(`File not found: ${path}`);
+    }
+    if (!fileStat.isFile()) {
+        throw new ArgumentError(`File must be a readable text file: ${path}`);
+    }
+    let raw;
+    try {
+        raw = await readFile(path);
+    } catch {
+        throw new ArgumentError(`File could not be read: ${path}`);
+    }
+    try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(raw);
+    } catch {
+        throw new ArgumentError(`File could not be decoded as UTF-8 text: ${path}`);
+    }
+}
+
+export function htmlEscape(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function decodeHtmlEntities(value) {
+    return String(value ?? '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'");
+}
+
+export function htmlToMarkdown(html) {
+    if (!html) return '';
+    return decodeHtmlEntities(String(html)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+        .replace(/<li[^>]*>/gi, '- ')
+        .replace(/<h([1-6])[^>]*>/gi, (_m, n) => `${'#'.repeat(Number(n))} `)
+        .replace(/<[^>]+>/g, '')
+        .replace(/\n{3,}/g, '\n\n'))
+        .trim();
+}
+
+function applyAdfMarks(text, marks = []) {
+    let out = text;
+    for (const mark of marks) {
+        const type = mark?.type;
+        if (type === 'link' && mark.attrs?.href) out = `[${out}](${mark.attrs.href})`;
+        else if (type === 'strong') out = `**${out}**`;
+        else if (type === 'em') out = `_${out}_`;
+        else if (type === 'code') out = `\`${out}\``;
+        else if (type === 'strike') out = `~~${out}~~`;
+    }
+    return out;
+}
+
+function renderAdfNode(node, depth = 0) {
+    if (!node || typeof node !== 'object') return '';
+    const content = Array.isArray(node.content) ? node.content : [];
+    const renderChildren = (sep = '') => content.map((child) => renderAdfNode(child, depth)).filter(Boolean).join(sep);
+    switch (node.type) {
+        case 'doc':
+            return content.map((child) => renderAdfNode(child, depth)).filter(Boolean).join('\n\n').trim();
+        case 'paragraph':
+            return renderChildren('');
+        case 'text':
+            return applyAdfMarks(String(node.text ?? ''), Array.isArray(node.marks) ? node.marks : []);
+        case 'hardBreak':
+            return '\n';
+        case 'heading':
+            return `${'#'.repeat(Math.max(1, Math.min(6, Number(node.attrs?.level ?? 2))))} ${renderChildren('')}`;
+        case 'bulletList':
+            return content.map((child) => renderAdfListItem(child, depth, '-')).join('\n');
+        case 'orderedList':
+            return content.map((child, i) => renderAdfListItem(child, depth, `${i + 1}.`)).join('\n');
+        case 'listItem':
+            return renderChildren('\n');
+        case 'codeBlock':
+            return `\`\`\`\n${renderChildren('')}\n\`\`\``;
+        case 'blockquote':
+            return renderChildren('\n').split('\n').map((line) => `> ${line}`).join('\n');
+        case 'rule':
+            return '---';
+        case 'table':
+            return renderAdfTable(content);
+        case 'tableRow':
+            return content.map((cell) => renderAdfNode(cell, depth)).join(' | ');
+        case 'tableHeader':
+        case 'tableCell':
+            return renderChildren(' ').replace(/\s+/g, ' ').trim();
+        case 'mention':
+            return node.attrs?.text ? String(node.attrs.text) : '';
+        case 'emoji':
+            return String(node.attrs?.shortName ?? node.attrs?.text ?? '');
+        case 'inlineCard':
+            return node.attrs?.url ? String(node.attrs.url) : '';
+        default:
+            return renderChildren('');
+    }
+}
+
+function renderAdfListItem(node, depth, marker) {
+    const indent = '  '.repeat(depth);
+    const body = renderAdfNode(node, depth + 1).trim();
+    const lines = body.split('\n');
+    const [first, ...rest] = lines;
+    return `${indent}${marker} ${first ?? ''}${rest.length ? `\n${rest.map((line) => `${indent}  ${line}`).join('\n')}` : ''}`;
+}
+
+function renderAdfTable(rows) {
+    const renderedRows = rows.map((row) => renderAdfNode(row)).filter(Boolean);
+    if (!renderedRows.length) return '';
+    const colCount = Math.max(...renderedRows.map((row) => row.split('|').length));
+    return [
+        renderedRows[0],
+        Array.from({ length: colCount }, () => '---').join(' | '),
+        ...renderedRows.slice(1),
+    ].join('\n');
+}
+
+export function adfToMarkdown(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.trim();
+    return renderAdfNode(value).trim();
+}
+
+function renderInlineMarkdown(value) {
+    const src = String(value ?? '');
+    const linkRe = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+    let out = '';
+    let last = 0;
+    for (const match of src.matchAll(linkRe)) {
+        out += htmlEscape(src.slice(last, match.index));
+        out += `<a href="${htmlEscape(match[2])}">${htmlEscape(match[1])}</a>`;
+        last = match.index + match[0].length;
+    }
+    out += htmlEscape(src.slice(last));
+    return out
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function isMarkdownTable(lines, index) {
+    return lines[index]?.includes('|') && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1] ?? '');
+}
+
+function parseTableRow(line) {
+    return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+}
+
+function renderMarkdownTable(lines, start) {
+    const rows = [];
+    let index = start;
+    rows.push(parseTableRow(lines[index]));
+    index += 2;
+    while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        rows.push(parseTableRow(lines[index]));
+        index += 1;
+    }
+    const htmlRows = rows.map((row, rowIndex) => {
+        const tag = rowIndex === 0 ? 'th' : 'td';
+        return `<tr>${row.map((cell) => `<${tag}>${renderInlineMarkdown(cell)}</${tag}>`).join('')}</tr>`;
+    }).join('');
+    return { html: `<table><tbody>${htmlRows}</tbody></table>`, next: index };
+}
+
+export function markdownToConfluenceStorage(markdown) {
+    const lines = String(markdown ?? '').replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    let i = 0;
+    let inCode = false;
+    let codeLines = [];
+    let listType = null;
+
+    const closeList = () => {
+        if (!listType) return;
+        out.push(`</${listType}>`);
+        listType = null;
+    };
+
+    while (i < lines.length) {
+        const line = lines[i];
+        const fence = line.match(/^```/);
+        if (fence) {
+            if (inCode) {
+                out.push(`<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[${codeLines.join('\n')}]]></ac:plain-text-body></ac:structured-macro>`);
+                codeLines = [];
+                inCode = false;
+            } else {
+                closeList();
+                inCode = true;
+            }
+            i += 1;
+            continue;
+        }
+        if (inCode) {
+            codeLines.push(line);
+            i += 1;
+            continue;
+        }
+        if (!line.trim()) {
+            closeList();
+            i += 1;
+            continue;
+        }
+        if (isMarkdownTable(lines, i)) {
+            closeList();
+            const table = renderMarkdownTable(lines, i);
+            out.push(table.html);
+            i = table.next;
+            continue;
+        }
+        const heading = line.match(/^(#{1,6})\s+(.+)$/);
+        if (heading) {
+            closeList();
+            out.push(`<h${heading[1].length}>${renderInlineMarkdown(heading[2])}</h${heading[1].length}>`);
+            i += 1;
+            continue;
+        }
+        const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+        const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+        if (unordered || ordered) {
+            const desired = unordered ? 'ul' : 'ol';
+            if (listType !== desired) {
+                closeList();
+                listType = desired;
+                out.push(`<${listType}>`);
+            }
+            out.push(`<li>${renderInlineMarkdown((unordered || ordered)[1])}</li>`);
+            i += 1;
+            continue;
+        }
+        closeList();
+        out.push(`<p>${renderInlineMarkdown(line)}</p>`);
+        i += 1;
+    }
+
+    closeList();
+    if (inCode) {
+        out.push(`<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[${codeLines.join('\n')}]]></ac:plain-text-body></ac:structured-macro>`);
+    }
+    return out.join('\n');
+}
+
+export const __test__ = {
+    adfToMarkdown,
+    atlassianRequest,
+    getConfluenceConfig,
+    getJiraConfig,
+    htmlToMarkdown,
+    markdownToConfluenceStorage,
+    parseLimit,
+    queryString,
+};

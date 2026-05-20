@@ -1,0 +1,214 @@
+import { adfToMarkdown, atlassianRequest, getJiraConfig, htmlToMarkdown, parseLimit, queryString, requireString } from '../atlassian/shared.js';
+
+const DEFAULT_ISSUE_FIELDS = [
+    'summary',
+    'issuetype',
+    'status',
+    'priority',
+    'labels',
+    'description',
+    'comment',
+    'attachment',
+    'issuelinks',
+    'fixVersions',
+    'versions',
+    'components',
+    'project',
+    'reporter',
+    'assignee',
+    'created',
+    'updated',
+];
+
+function jiraApiPrefix(config) {
+    return `/rest/api/${config.deployment === 'cloud' ? '3' : '2'}`;
+}
+
+export function jiraApiPath(config, resource, params) {
+    return `${jiraApiPrefix(config)}${resource.startsWith('/') ? resource : `/${resource}`}${params ? queryString(params) : ''}`;
+}
+
+export async function jiraRequest(config, resource, options = {}) {
+    return atlassianRequest(config, jiraApiPath(config, resource, options.params), options);
+}
+
+function configuredFieldNames() {
+    return {
+        acceptanceCriteria: process.env.ATLASSIAN_JIRA_ACCEPTANCE_FIELD?.trim() || '',
+        sprint: process.env.ATLASSIAN_JIRA_SPRINT_FIELD?.trim() || '',
+        storyPoints: process.env.ATLASSIAN_JIRA_STORY_POINTS_FIELD?.trim() || '',
+    };
+}
+
+function issueFields(extraFields = []) {
+    const configured = Object.values(configuredFieldNames()).filter(Boolean);
+    return [...new Set([...DEFAULT_ISSUE_FIELDS, ...configured, ...extraFields.filter(Boolean)])].join(',');
+}
+
+export function parseJiraLimit(value, fallback = 20, max = 100) {
+    return parseLimit(value, fallback, max, 'jira limit');
+}
+
+export function requireIssueKey(value) {
+    const key = requireString(value, 'Jira issue key');
+    if (!/^[A-Za-z][A-Za-z0-9_]+-\d+$/.test(key)) {
+        return key;
+    }
+    return key.toUpperCase();
+}
+
+function displayUser(user) {
+    if (!user || typeof user !== 'object') return '';
+    return String(user.displayName ?? user.name ?? user.emailAddress ?? user.accountId ?? '');
+}
+
+function valueName(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') return String(value.name ?? value.value ?? value.key ?? value.id ?? '');
+    return String(value);
+}
+
+function valueNames(values) {
+    return Array.isArray(values) ? values.map(valueName).filter(Boolean) : [];
+}
+
+export function jiraBodyToMarkdown(raw, rendered) {
+    if (rendered) return htmlToMarkdown(rendered);
+    if (raw && typeof raw === 'object') return adfToMarkdown(raw);
+    if (typeof raw === 'string') return raw.trim();
+    return '';
+}
+
+export function normalizeComment(comment) {
+    return {
+        id: String(comment?.id ?? ''),
+        author: displayUser(comment?.author),
+        created: String(comment?.created ?? ''),
+        updated: comment?.updated ? String(comment.updated) : undefined,
+        markdown: jiraBodyToMarkdown(comment?.body, comment?.renderedBody),
+    };
+}
+
+export function normalizeAttachment(attachment) {
+    return {
+        id: String(attachment?.id ?? ''),
+        filename: String(attachment?.filename ?? ''),
+        mimeType: attachment?.mimeType ? String(attachment.mimeType) : undefined,
+        size: attachment?.size != null ? Number(attachment.size) : undefined,
+        url: String(attachment?.content ?? attachment?.self ?? ''),
+    };
+}
+
+export function normalizeIssueLink(link) {
+    const outward = link?.outwardIssue;
+    const inward = link?.inwardIssue;
+    const issue = outward ?? inward ?? {};
+    return {
+        key: String(issue.key ?? ''),
+        type: String(link?.type?.name ?? (outward ? link?.type?.outward : link?.type?.inward) ?? ''),
+        direction: outward ? 'outward' : 'inward',
+    };
+}
+
+function customValueToMarkdown(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.trim();
+    if (value && typeof value === 'object' && value.type === 'doc') return adfToMarkdown(value);
+    if (Array.isArray(value)) return value.map(valueName).filter(Boolean).join(', ');
+    return valueName(value);
+}
+
+export function normalizeJiraIssue(issue, config, options = {}) {
+    const fields = issue?.fields ?? {};
+    const rendered = issue?.renderedFields ?? {};
+    const custom = configuredFieldNames();
+    const comments = options.comments ?? fields.comment?.comments ?? [];
+    const normalized = {
+        key: String(issue?.key ?? ''),
+        id: String(issue?.id ?? ''),
+        url: issue?.key ? `${config.baseUrl}/browse/${issue.key}` : '',
+        summary: String(fields.summary ?? ''),
+        issueType: valueName(fields.issuetype) || undefined,
+        status: valueName(fields.status) || undefined,
+        priority: valueName(fields.priority) || undefined,
+        project: valueName(fields.project) || undefined,
+        reporter: displayUser(fields.reporter) || undefined,
+        assignee: displayUser(fields.assignee) || undefined,
+        labels: Array.isArray(fields.labels) ? fields.labels.map(String) : [],
+        description: {
+            raw: fields.description ?? null,
+            markdown: jiraBodyToMarkdown(fields.description, rendered.description),
+        },
+        comments: Array.isArray(comments) ? comments.map(normalizeComment) : [],
+        attachments: Array.isArray(fields.attachment) ? fields.attachment.map(normalizeAttachment) : [],
+        linkedIssues: Array.isArray(fields.issuelinks) ? fields.issuelinks.map(normalizeIssueLink).filter((link) => link.key) : [],
+        fixVersions: valueNames(fields.fixVersions),
+        affectedVersions: valueNames(fields.versions),
+        components: valueNames(fields.components),
+        created: fields.created ? String(fields.created) : undefined,
+        updated: fields.updated ? String(fields.updated) : undefined,
+    };
+    if (custom.acceptanceCriteria && fields[custom.acceptanceCriteria] !== undefined) {
+        normalized.acceptanceCriteria = {
+            raw: fields[custom.acceptanceCriteria],
+            markdown: customValueToMarkdown(fields[custom.acceptanceCriteria]),
+        };
+    }
+    if (custom.sprint && fields[custom.sprint] !== undefined) {
+        normalized.sprint = customValueToMarkdown(fields[custom.sprint]);
+    }
+    if (custom.storyPoints && fields[custom.storyPoints] !== undefined) {
+        normalized.storyPoints = Number(fields[custom.storyPoints]);
+    }
+    return normalized;
+}
+
+export function issueSummaryRow(issue, config) {
+    const normalized = normalizeJiraIssue(issue, config, { comments: [] });
+    return {
+        key: normalized.key,
+        summary: normalized.summary,
+        issueType: normalized.issueType,
+        status: normalized.status,
+        priority: normalized.priority,
+        assignee: normalized.assignee,
+        updated: normalized.updated,
+        url: normalized.url,
+    };
+}
+
+export async function fetchIssue(config, key, extraFields = []) {
+    return jiraRequest(config, `/issue/${encodeURIComponent(key)}`, {
+        params: {
+            fields: issueFields(extraFields),
+            expand: 'renderedFields',
+        },
+        label: `jira issue ${key}`,
+    });
+}
+
+export async function fetchComments(config, key, limit = 100) {
+    const maxResults = parseJiraLimit(limit, 100, 100);
+    const data = await jiraRequest(config, `/issue/${encodeURIComponent(key)}/comment`, {
+        params: { startAt: 0, maxResults, expand: 'renderedBody' },
+        label: `jira comments ${key}`,
+    });
+    return Array.isArray(data?.comments) ? data.comments : [];
+}
+
+export function jiraConfig() {
+    return getJiraConfig();
+}
+
+export const __test__ = {
+    configuredFieldNames,
+    fetchIssue,
+    issueSummaryRow,
+    jiraApiPath,
+    jiraBodyToMarkdown,
+    normalizeAttachment,
+    normalizeComment,
+    normalizeIssueLink,
+    normalizeJiraIssue,
+};
