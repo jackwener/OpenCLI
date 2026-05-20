@@ -2,7 +2,7 @@
  * Bilibili shared helpers: WBI signing, authenticated fetch, nav data, UID resolution.
  */
 import https from 'node:https';
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 /**
  * Resolve Bilibili short URL / short code to BV ID.
  * Supports: BV1MV9NBtENN, XYzsqGa, b23.tv/XYzsqGa, https://b23.tv/XYzsqGa
@@ -166,8 +166,19 @@ export async function resolveUid(page, input) {
         params: { search_type: 'bili_user', keyword: input },
         signed: true,
     });
-    const results = payload?.data?.result ?? [];
-    if (results.length > 0)
-        return String(results[0].mid);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data) || !Object.hasOwn(payload.data, 'result')) {
+        throw new CommandExecutionError(`Bilibili user search returned malformed result for ${input}`);
+    }
+    const results = payload.data.result;
+    if (!Array.isArray(results)) {
+        throw new CommandExecutionError(`Bilibili user search returned malformed result for ${input}`);
+    }
+    if (results.length > 0) {
+        const mid = String(results[0]?.mid ?? '').trim();
+        if (!mid) {
+            throw new CommandExecutionError(`Bilibili user search returned malformed mid for ${input}`);
+        }
+        return mid;
+    }
     throw new EmptyResultError(`bilibili user search: ${input}`, 'User may not exist or username may have changed.');
 }

@@ -91,6 +91,16 @@ describe('bilibili comment', () => {
         expect(mockApiPost).not.toHaveBeenCalled();
     });
 
+    it('fails closed when mention resolution returns a malformed mid', async () => {
+        mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 7 } });
+        mockResolveUid.mockResolvedValueOnce('not-a-mid');
+
+        await expect(
+            command.func({}, { bvid: 'BV1xxx', message: '@用户 hi', execute: true }),
+        ).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(mockApiPost).not.toHaveBeenCalled();
+    });
+
     it('posts a reply under an existing comment when --parent is given', async () => {
         mockApiGet.mockResolvedValueOnce({ code: 0, data: { aid: 1 } });
         mockApiPost.mockResolvedValueOnce({ code: 0, data: { rpid: 2 } });

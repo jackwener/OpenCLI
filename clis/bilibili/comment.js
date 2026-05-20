@@ -81,7 +81,11 @@ cli({
             if (name in atNameToMid)
                 continue;
             try {
-                atNameToMid[name] = Number(await resolveUid(page, name));
+                const mid = Number(await resolveUid(page, name));
+                if (!Number.isInteger(mid) || mid <= 0) {
+                    throw new CommandExecutionError(`Bilibili user search returned malformed mid for @${name}`);
+                }
+                atNameToMid[name] = mid;
             }
             catch (error) {
                 if (!(error instanceof EmptyResultError)) {
