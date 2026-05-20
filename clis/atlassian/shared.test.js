@@ -63,6 +63,42 @@ describe('atlassian shared helpers', () => {
         expect(markdown).toContain('- retry payment');
     });
 
+    it('escapes pipe characters inside ADF table cells', () => {
+        const markdown = __test__.adfToMarkdown({
+            type: 'doc',
+            content: [{
+                type: 'table',
+                content: [
+                    {
+                        type: 'tableRow',
+                        content: [
+                            { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Service' }] }] },
+                            { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Notes' }] }] },
+                        ],
+                    },
+                    {
+                        type: 'tableRow',
+                        content: [
+                            { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'payments' }] }] },
+                            { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a | b' }] }] },
+                        ],
+                    },
+                ],
+            }],
+        });
+        expect(markdown).toContain('Service | Notes');
+        expect(markdown).toContain('--- | ---');
+        expect(markdown).toContain('payments | a \\| b');
+    });
+
+    it('converts nested HTML to Markdown through the shared Turndown converter', () => {
+        const markdown = __test__.htmlToMarkdown('<ul><li><strong>Root</strong><ul><li>Child</li></ul></li></ul><table><tr><th>A</th></tr><tr><td>B</td></tr></table>');
+        expect(markdown).toContain('**Root**');
+        expect(markdown).toContain('Child');
+        expect(markdown).toContain('| A |');
+        expect(markdown).toContain('| B |');
+    });
+
     it('converts Markdown to conservative Confluence storage XHTML', () => {
         const storage = __test__.markdownToConfluenceStorage([
             '# RCA',
@@ -79,6 +115,16 @@ describe('atlassian shared helpers', () => {
         expect(storage).toContain('<td>fixed</td>');
     });
 
+    it('preserves nested Markdown lists in Confluence storage XHTML', () => {
+        const storage = __test__.markdownToConfluenceStorage([
+            '- Parent',
+            '  - Child',
+            '- Next',
+        ].join('\n'));
+        const compact = storage.replace(/\s*\n\s*/g, '');
+        expect(compact).toContain('<ul><li>Parent<ul><li>Child</li></ul></li><li>Next</li></ul>');
+    });
+
     it('sends JSON requests with configured auth headers', async () => {
         const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
         vi.stubGlobal('fetch', fetchMock);
@@ -91,5 +137,23 @@ describe('atlassian shared helpers', () => {
         expect(data).toEqual({ ok: true });
         expect(fetchMock.mock.calls[0][0]).toBe('https://jira.example.com/rest/api/2/myself');
         expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer token');
+    });
+
+    it('maps auth and rate-limit responses to typed errors', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: 'bad token' }), { status: 401 })));
+        await expect(__test__.atlassianRequest({
+            product: 'jira',
+            baseUrl: 'https://jira.example.com',
+            deployment: 'datacenter',
+            authHeaders: { Authorization: 'Bearer token' },
+        }, '/rest/api/2/myself', { label: 'jira myself' })).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
+
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: 'slow down' }), { status: 429 })));
+        await expect(__test__.atlassianRequest({
+            product: 'jira',
+            baseUrl: 'https://jira.example.com',
+            deployment: 'datacenter',
+            authHeaders: { Authorization: 'Bearer token' },
+        }, '/rest/api/2/myself', { label: 'jira myself' })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
     });
 });

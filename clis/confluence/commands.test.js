@@ -73,7 +73,7 @@ describe('confluence commands', () => {
                 const payload = JSON.parse(init.body);
                 expect(payload).toMatchObject({ spaceId: '987', title: 'PROJ-1 RCA' });
                 expect(payload.body.value).toContain('<h1>RCA</h1>');
-                expect(payload.body.value).toContain('<li>Payment failed</li>');
+                expect(payload.body.value.replace(/\s*\n\s*/g, '')).toContain('<li>Payment failed</li>');
                 return jsonResponse({
                     id: '555',
                     title: 'PROJ-1 RCA',

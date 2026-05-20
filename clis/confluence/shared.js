@@ -19,7 +19,6 @@ function confluenceUrl(config, link) {
 
 function pageStorageBody(page) {
     return page?.body?.storage?.value
-        ?? page?.body?.storage?.value
         ?? page?.body?.view?.value
         ?? '';
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { __test__ as jiraSharedTest } from './shared.js';
 import './issue.js';
 import './search.js';
 import './comments.js';
@@ -95,6 +96,47 @@ describe('jira commands', () => {
         expect(rows[0].comments[0].markdown).toBe('Needs RCA');
         expect(rows[0].attachments[0].filename).toBe('log.txt');
         expect(rows[0].linkedIssues[0]).toEqual({ key: 'PROJ-2', type: 'Blocks', direction: 'outward' });
+    });
+
+    it('rejects invalid Jira issue keys before remote requests', async () => {
+        expect(() => jiraSharedTest.requireIssueKey('notakey')).toThrow(/Invalid Jira issue key/);
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        const cmd = getRegistry().get('jira/issue');
+        await expect(cmd.func({ key: 'notakey' })).rejects.toMatchObject({ code: 'ARGUMENT' });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('fetches full comments when issue inline comments are truncated', async () => {
+        setCloudEnv();
+        const fetchMock = vi.fn(async (url) => {
+            const href = String(url);
+            if (href.includes('/comment?')) {
+                return jsonResponse({
+                    comments: [
+                        { id: 'c1', author: { displayName: 'Alice' }, created: '2026-05-01', body: 'one' },
+                        { id: 'c2', author: { displayName: 'Bob' }, created: '2026-05-02', body: 'two' },
+                    ],
+                });
+            }
+            return jsonResponse({
+                id: '10001',
+                key: 'PROJ-1',
+                fields: {
+                    summary: 'Checkout fails',
+                    labels: [],
+                    comment: {
+                        total: 2,
+                        comments: [{ id: 'c1', author: { displayName: 'Alice' }, created: '2026-05-01', body: 'one' }],
+                    },
+                },
+            });
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const cmd = getRegistry().get('jira/issue');
+        const rows = await cmd.func({ key: 'PROJ-1', 'comments-limit': 10 });
+        expect(rows[0].comments.map((comment) => comment.id)).toEqual(['c1', 'c2']);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it('uses Data Center search endpoint and payload', async () => {

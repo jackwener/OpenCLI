@@ -14,8 +14,8 @@ cli({
     ],
     columns: ['id', 'filename', 'mimeType', 'size', 'url'],
     func: async (args) => {
-        const config = jiraConfig();
         const key = requireIssueKey(args.key);
+        const config = jiraConfig();
         const issue = await fetchIssue(config, key, ['attachment']);
         const attachments = Array.isArray(issue?.fields?.attachment) ? issue.fields.attachment : [];
         return attachments.map(normalizeAttachment);

@@ -15,8 +15,8 @@ cli({
     ],
     columns: ['key', 'summary', 'issueType', 'status', 'priority', 'assignee', 'updated', 'url'],
     func: async (args) => {
-        const config = jiraConfig();
         const key = requireIssueKey(args.key);
+        const config = jiraConfig();
         const issue = await fetchIssue(config, key);
         const inlineComments = issue?.fields?.comment?.comments;
         const total = Number(issue?.fields?.comment?.total ?? inlineComments?.length ?? 0);

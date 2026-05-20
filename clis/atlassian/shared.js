@@ -1,4 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
+import { htmlToMarkdown as coreHtmlToMarkdown } from '@jackwener/opencli/utils';
+import { gfm } from 'turndown-plugin-gfm';
 import {
     ArgumentError,
     CliError,
@@ -281,26 +283,8 @@ export function htmlEscape(value) {
         .replace(/"/g, '&quot;');
 }
 
-function decodeHtmlEntities(value) {
-    return String(value ?? '')
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/&amp;/gi, '&')
-        .replace(/&lt;/gi, '<')
-        .replace(/&gt;/gi, '>')
-        .replace(/&quot;/gi, '"')
-        .replace(/&#39;/gi, "'");
-}
-
 export function htmlToMarkdown(html) {
-    if (!html) return '';
-    return decodeHtmlEntities(String(html)
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
-        .replace(/<li[^>]*>/gi, '- ')
-        .replace(/<h([1-6])[^>]*>/gi, (_m, n) => `${'#'.repeat(Number(n))} `)
-        .replace(/<[^>]+>/g, '')
-        .replace(/\n{3,}/g, '\n\n'))
-        .trim();
+    return coreHtmlToMarkdown(String(html ?? ''), (td) => td.use(gfm));
 }
 
 function applyAdfMarks(text, marks = []) {
@@ -346,7 +330,7 @@ function renderAdfNode(node, depth = 0) {
         case 'table':
             return renderAdfTable(content);
         case 'tableRow':
-            return content.map((cell) => renderAdfNode(cell, depth)).join(' | ');
+            return content.map((cell) => escapeMarkdownTableCell(renderAdfNode(cell, depth))).join(' | ');
         case 'tableHeader':
         case 'tableCell':
             return renderChildren(' ').replace(/\s+/g, ' ').trim();
@@ -369,14 +353,24 @@ function renderAdfListItem(node, depth, marker) {
     return `${indent}${marker} ${first ?? ''}${rest.length ? `\n${rest.map((line) => `${indent}  ${line}`).join('\n')}` : ''}`;
 }
 
+function escapeMarkdownTableCell(value) {
+    return String(value ?? '').replace(/\|/g, '\\|').replace(/\n+/g, '<br>').trim();
+}
+
 function renderAdfTable(rows) {
-    const renderedRows = rows.map((row) => renderAdfNode(row)).filter(Boolean);
-    if (!renderedRows.length) return '';
-    const colCount = Math.max(...renderedRows.map((row) => row.split('|').length));
+    const matrix = rows
+        .map((row) => {
+            const cells = Array.isArray(row?.content) ? row.content : [];
+            return cells.map((cell) => escapeMarkdownTableCell(renderAdfNode(cell)));
+        })
+        .filter((row) => row.length > 0);
+    if (!matrix.length) return '';
+    const colCount = Math.max(...matrix.map((row) => row.length));
+    const normalize = (row) => Array.from({ length: colCount }, (_value, index) => row[index] ?? '').join(' | ');
     return [
-        renderedRows[0],
+        normalize(matrix[0]),
         Array.from({ length: colCount }, () => '---').join(' | '),
-        ...renderedRows.slice(1),
+        ...matrix.slice(1).map(normalize),
     ].join('\n');
 }
 
@@ -432,12 +426,45 @@ export function markdownToConfluenceStorage(markdown) {
     let i = 0;
     let inCode = false;
     let codeLines = [];
-    let listType = null;
+    const listStack = [];
 
-    const closeList = () => {
-        if (!listType) return;
-        out.push(`</${listType}>`);
-        listType = null;
+    const closeOneList = () => {
+        const current = listStack.pop();
+        if (!current) return;
+        if (current.liOpen) out.push('</li>');
+        out.push(`</${current.tag}>`);
+    };
+
+    const closeListsTo = (indent) => {
+        while (listStack.length && listStack[listStack.length - 1].indent > indent) closeOneList();
+    };
+
+    const closeAllLists = () => {
+        while (listStack.length) closeOneList();
+    };
+
+    const openList = (tag, indent) => {
+        out.push(`<${tag}>`);
+        listStack.push({ tag, indent, liOpen: false });
+    };
+
+    const renderListItem = (tag, indent, text) => {
+        closeListsTo(indent);
+        let current = listStack[listStack.length - 1];
+        if (current && current.indent === indent && current.tag !== tag) {
+            closeOneList();
+            current = listStack[listStack.length - 1];
+        }
+        if (!current || current.indent < indent) {
+            openList(tag, indent);
+            current = listStack[listStack.length - 1];
+        }
+        if (current.indent === indent && current.liOpen) {
+            out.push('</li>');
+            current.liOpen = false;
+        }
+        out.push(`<li>${renderInlineMarkdown(text)}`);
+        current.liOpen = true;
     };
 
     while (i < lines.length) {
@@ -449,7 +476,7 @@ export function markdownToConfluenceStorage(markdown) {
                 codeLines = [];
                 inCode = false;
             } else {
-                closeList();
+                closeAllLists();
                 inCode = true;
             }
             i += 1;
@@ -461,12 +488,12 @@ export function markdownToConfluenceStorage(markdown) {
             continue;
         }
         if (!line.trim()) {
-            closeList();
+            closeAllLists();
             i += 1;
             continue;
         }
         if (isMarkdownTable(lines, i)) {
-            closeList();
+            closeAllLists();
             const table = renderMarkdownTable(lines, i);
             out.push(table.html);
             i = table.next;
@@ -474,30 +501,26 @@ export function markdownToConfluenceStorage(markdown) {
         }
         const heading = line.match(/^(#{1,6})\s+(.+)$/);
         if (heading) {
-            closeList();
+            closeAllLists();
             out.push(`<h${heading[1].length}>${renderInlineMarkdown(heading[2])}</h${heading[1].length}>`);
             i += 1;
             continue;
         }
-        const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-        const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+        const unordered = line.match(/^(\s*)[-*]\s+(.+)$/);
+        const ordered = line.match(/^(\s*)\d+\.\s+(.+)$/);
         if (unordered || ordered) {
-            const desired = unordered ? 'ul' : 'ol';
-            if (listType !== desired) {
-                closeList();
-                listType = desired;
-                out.push(`<${listType}>`);
-            }
-            out.push(`<li>${renderInlineMarkdown((unordered || ordered)[1])}</li>`);
+            const match = unordered || ordered;
+            const indent = match[1].replace(/\t/g, '  ').length;
+            renderListItem(unordered ? 'ul' : 'ol', indent, match[2]);
             i += 1;
             continue;
         }
-        closeList();
+        closeAllLists();
         out.push(`<p>${renderInlineMarkdown(line)}</p>`);
         i += 1;
     }
 
-    closeList();
+    closeAllLists();
     if (inCode) {
         out.push(`<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[${codeLines.join('\n')}]]></ac:plain-text-body></ac:structured-macro>`);
     }

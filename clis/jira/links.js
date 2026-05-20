@@ -14,8 +14,8 @@ cli({
     ],
     columns: ['key', 'type', 'direction'],
     func: async (args) => {
-        const config = jiraConfig();
         const key = requireIssueKey(args.key);
+        const config = jiraConfig();
         const issue = await fetchIssue(config, key, ['issuelinks']);
         const links = Array.isArray(issue?.fields?.issuelinks) ? issue.fields.issuelinks : [];
         return links.map(normalizeIssueLink).filter((link) => link.key);

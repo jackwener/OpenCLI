@@ -1,4 +1,5 @@
 import { adfToMarkdown, atlassianRequest, getJiraConfig, htmlToMarkdown, parseLimit, queryString, requireString } from '../atlassian/shared.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
 
 const DEFAULT_ISSUE_FIELDS = [
     'summary',
@@ -52,7 +53,7 @@ export function parseJiraLimit(value, fallback = 20, max = 100) {
 export function requireIssueKey(value) {
     const key = requireString(value, 'Jira issue key');
     if (!/^[A-Za-z][A-Za-z0-9_]+-\d+$/.test(key)) {
-        return key;
+        throw new ArgumentError(`Invalid Jira issue key: ${key}`, 'Expected a key like PROJECT-123.');
     }
     return key.toUpperCase();
 }
@@ -211,4 +212,5 @@ export const __test__ = {
     normalizeComment,
     normalizeIssueLink,
     normalizeJiraIssue,
+    requireIssueKey,
 };

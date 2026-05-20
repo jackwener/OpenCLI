@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { atlassianRequest, parseLimit, requireString } from '../atlassian/shared.js';
+import { atlassianRequest, parseLimit, queryString, requireString } from '../atlassian/shared.js';
 import { confluenceConfig, normalizeSearchResult, withSpaceCql } from './shared.js';
 
 cli({
@@ -20,7 +20,9 @@ cli({
         const config = confluenceConfig();
         const cql = withSpaceCql(requireString(args.cql, 'CQL'), args.space);
         const limit = parseLimit(args.limit, 20, 100, 'confluence limit');
-        const path = `/rest/api/search?${new URLSearchParams({ cql, limit: String(limit) }).toString()}`;
+        // CQL search is still exposed through Confluence REST v1 for Cloud;
+        // page CRUD uses v2 where available.
+        const path = `/rest/api/search${queryString({ cql, limit })}`;
         const data = await atlassianRequest(config, path, { label: 'confluence search' });
         const results = Array.isArray(data?.results) ? data.results : [];
         return results.map((result) => normalizeSearchResult(result, config));

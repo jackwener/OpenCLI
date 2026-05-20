@@ -15,8 +15,8 @@ cli({
     ],
     columns: ['id', 'author', 'created', 'updated', 'markdown'],
     func: async (args) => {
-        const config = jiraConfig();
         const key = requireIssueKey(args.key);
+        const config = jiraConfig();
         const limit = parseJiraLimit(args.limit, 50, 100);
         const comments = await fetchComments(config, key, limit);
         return comments.map(normalizeComment);
