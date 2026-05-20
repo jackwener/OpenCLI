@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './stats.js';
 
 afterEach(() => {
@@ -58,6 +58,12 @@ describe('chess stats command', () => {
         vi.stubGlobal('fetch', mockFetch({}));
         const cmd = getRegistry().get('chess/stats');
         await expect(cmd.func({ username: 'someuser' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError when a populated stats kind is malformed', async () => {
+        vi.stubGlobal('fetch', mockFetch({ chess_rapid: 'bad' }));
+        const cmd = getRegistry().get('chess/stats');
+        await expect(cmd.func({ username: 'someuser' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('throws EmptyResultError on HTTP 404', async () => {

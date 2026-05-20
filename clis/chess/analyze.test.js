@@ -39,6 +39,14 @@ describe('chess analyze command', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('throws CommandExecutionError when browser navigation fails', async () => {
+        const cmd = getRegistry().get('chess/analyze');
+        const page = makePage();
+        page.goto.mockRejectedValue(new Error('navigation failed'));
+        await expect(cmd.func(page, { 'game-url': 'https://www.chess.com/game/live/42' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('registers with the expected columns + browser flag', () => {
         const cmd = getRegistry().get('chess/analyze');
         expect(cmd?.columns).toEqual(['kind', 'game_id', 'analysis_url']);

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { __test__ } from './utils.js';
 
-const { validateUsername, summarizeStats, formatDate, mapGameRow, openingName } = __test__;
+const { validateUsername, chessApi, summarizeStats, formatDate, mapGameRow, openingName } = __test__;
 
 describe('chess utils', () => {
     it('validateUsername lowercases and accepts 3-25 char usernames', () => {
@@ -39,6 +39,11 @@ describe('chess utils', () => {
     it('summarizeStats returns null for missing kind', () => {
         expect(summarizeStats({}, 'chess_rapid')).toBeNull();
         expect(summarizeStats({ chess_blitz: {} }, 'chess_rapid')).toBeNull();
+    });
+
+    it('summarizeStats typed-fails malformed populated kind objects', () => {
+        expect(() => summarizeStats({ chess_rapid: 'bad' }, 'chess_rapid')).toThrow(CommandExecutionError);
+        expect(() => summarizeStats({ chess_rapid: { record: [] } }, 'chess_rapid')).toThrow(CommandExecutionError);
     });
 
     it('summarizeStats coerces missing numeric fields to empty string', () => {
@@ -90,6 +95,7 @@ describe('chess utils', () => {
 
     it('mapGameRow leaves accuracy fields empty when chess.com did not compute them', () => {
         const game = {
+            url: 'https://www.chess.com/game/live/123',
             white: { username: 'A', rating: 1, result: 'win' },
             black: { username: 'B', rating: 1, result: 'resigned' },
         };
@@ -100,6 +106,7 @@ describe('chess utils', () => {
 
     it('mapGameRow parses opening_name from the chess.com eco URL', () => {
         const game = {
+            url: 'https://www.chess.com/game/live/123',
             eco: 'https://www.chess.com/openings/Reti-Opening-Nimzo-Larsen-Variation-2...g6-3.Bb2-Bg7-4.d4',
             white: { username: 'A', rating: 1, result: 'win' },
             black: { username: 'B', rating: 1, result: 'resigned' },
@@ -125,6 +132,7 @@ describe('chess utils', () => {
 
     it('mapGameRow flips perspective when viewer is black', () => {
         const game = {
+            url: 'https://www.chess.com/game/live/123',
             white: { username: 'Hikaru', rating: 3286, result: 'win' },
             black: { username: 'Magnus', rating: 2900, result: 'resigned' },
         };
@@ -136,6 +144,7 @@ describe('chess utils', () => {
 
     it('mapGameRow matches viewer case-insensitively', () => {
         const game = {
+            url: 'https://www.chess.com/game/live/123',
             white: { username: 'Hikaru', rating: 3286, result: 'win' },
             black: { username: 'Magnus', rating: 2900, result: 'resigned' },
         };
@@ -143,20 +152,57 @@ describe('chess utils', () => {
         expect(mapGameRow(game, 'MAGNUS').my_color).toBe('black');
     });
 
-    it('mapGameRow falls back to black when viewer is neither player (defensive)', () => {
+    it('mapGameRow typed-fails when viewer is neither player', () => {
         const game = {
+            url: 'https://www.chess.com/game/live/123',
             white: { username: 'A', rating: 1000, result: 'win' },
             black: { username: 'B', rating: 1100, result: 'resigned' },
         };
-        const row = mapGameRow(game, 'C');
-        expect(row.my_color).toBe('black');
-        expect(row.opponent).toBe('A');
+        expect(() => mapGameRow(game, 'C')).toThrow(CommandExecutionError);
     });
 
     it('mapGameRow handles missing optional fields without throwing', () => {
-        const row = mapGameRow({}, 'x');
+        const row = mapGameRow({
+            url: 'https://www.chess.com/game/live/123',
+            white: { username: 'x' },
+            black: { username: 'y' },
+        }, 'x');
         expect(row.date).toBe('');
-        expect(row.url).toBe('');
+        expect(row.url).toBe('https://www.chess.com/game/live/123');
         expect(row.eco).toBe('');
+    });
+
+    it('mapGameRow typed-fails missing stable URL or player identity', () => {
+        expect(() => mapGameRow({
+            white: { username: 'x' },
+            black: { username: 'y' },
+        }, 'x')).toThrow(CommandExecutionError);
+        expect(() => mapGameRow({
+            url: 'https://www.chess.com/game/live/123',
+            white: { username: 'x' },
+            black: {},
+        }, 'x')).toThrow(CommandExecutionError);
+    });
+
+    it('chessApi maps network, malformed JSON, and wrong-shape payloads to typed errors', async () => {
+        await expect(chessApi('/x', async () => { throw new TypeError('network down'); }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(chessApi('/x', async () => ({
+            ok: true,
+            status: 200,
+            json: async () => { throw new SyntaxError('bad json'); },
+        }))).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(chessApi('/x', async () => ({
+            ok: true,
+            status: 200,
+            json: async () => [],
+        }))).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('chessApi preserves 404 as empty and non-2xx as command execution errors', async () => {
+        await expect(chessApi('/x', async () => ({ ok: false, status: 404 })))
+            .rejects.toBeInstanceOf(EmptyResultError);
+        await expect(chessApi('/x', async () => ({ ok: false, status: 500 })))
+            .rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

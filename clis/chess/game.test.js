@@ -112,6 +112,32 @@ describe('chess game command', () => {
         expect(() => summarizeGame({ kind: 'live', id: '1', payload: null })).toThrow(CommandExecutionError);
     });
 
+    it('summarizeGame throws CommandExecutionError on malformed nested payloads', () => {
+        expect(() => summarizeGame({
+            kind: 'live',
+            id: '1',
+            payload: { game: { pgnHeaders: [] } },
+        })).toThrow(CommandExecutionError);
+        expect(() => summarizeGame({
+            kind: 'live',
+            id: '1',
+            payload: { game: { pgnHeaders: { White: 'A', Black: 'B' } }, players: [] },
+        })).toThrow(CommandExecutionError);
+    });
+
+    it('summarizeGame requires stable players and result evidence', () => {
+        expect(() => summarizeGame({
+            kind: 'live',
+            id: '1',
+            payload: { game: { pgnHeaders: { White: 'A', Black: 'B' } }, players: {} },
+        })).toThrow(CommandExecutionError);
+        expect(() => summarizeGame({
+            kind: 'live',
+            id: '1',
+            payload: { game: { pgnHeaders: { White: 'A', Result: '1-0' } }, players: {} },
+        })).toThrow(CommandExecutionError);
+    });
+
     it('command fetches the callback URL and returns a single row', async () => {
         const fetchMock = mockFetch({
             game: { pgnHeaders: { White: 'A', Black: 'B', Result: '1-0', WhiteElo: 100, BlackElo: 90 } },
@@ -137,6 +163,28 @@ describe('chess game command', () => {
 
     it('command surfaces non-2xx as CommandExecutionError', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+        const cmd = getRegistry().get('chess/game');
+        await expect(cmd.func({ 'game-url': 'https://www.chess.com/game/live/1' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('command maps fetch and JSON failures to CommandExecutionError', async () => {
+        const cmd = getRegistry().get('chess/game');
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
+        await expect(cmd.func({ 'game-url': 'https://www.chess.com/game/live/1' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: () => Promise.reject(new SyntaxError('bad json')),
+        }));
+        await expect(cmd.func({ 'game-url': 'https://www.chess.com/game/live/1' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('command maps wrong-shape callback JSON to CommandExecutionError', async () => {
+        vi.stubGlobal('fetch', mockFetch([]));
         const cmd = getRegistry().get('chess/game');
         await expect(cmd.func({ 'game-url': 'https://www.chess.com/game/live/1' }))
             .rejects.toBeInstanceOf(CommandExecutionError);

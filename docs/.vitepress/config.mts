@@ -135,6 +135,7 @@ export default defineConfig({
                 { text: 'Spotify', link: '/adapters/browser/spotify' },
                 { text: 'Jira', link: '/adapters/browser/jira' },
                 { text: 'Confluence', link: '/adapters/browser/confluence' },
+                { text: 'Chess.com', link: '/adapters/browser/chess' },
                 { text: 'Stack Overflow', link: '/adapters/browser/stackoverflow' },
                 { text: 'Wikipedia', link: '/adapters/browser/wikipedia' },
                 { text: 'LessWrong', link: '/adapters/browser/lesswrong' },

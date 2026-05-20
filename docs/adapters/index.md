@@ -136,6 +136,7 @@ Run `opencli list` for the live registry.
 | **[tvmaze](./browser/tvmaze.md)**                 | `search` `show`                                                                                                                                | 🌐 Public    |
 | **[rfc](./browser/rfc.md)**                       | `rfc`                                                                                                                                          | 🌐 Public    |
 | **[wikidata](./browser/wikidata.md)**             | `search` `entity`                                                                                                                              | 🌐 Public    |
+| **[chess](./browser/chess.md)**                   | `stats` `games` `game` `analyze`                                                                                                               | 🌐 Public / Browser |
 | **[lichess](./browser/lichess.md)**               | `user` `top`                                                                                                                                   | 🌐 Public    |
 | **[rest-countries](./browser/rest-countries.md)** | `country` `region`                                                                                                                             | 🌐 Public    |
 | **[nuget](./browser/nuget.md)**                   | `search` `package`                                                                                                                             | 🌐 Public    |

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './games.js';
 
 const { parseLimit } = await import('./games.js').then((m) => m.__test__);
@@ -90,6 +90,59 @@ describe('chess games command', () => {
         vi.stubGlobal('fetch', fetchFor(map));
         const cmd = getRegistry().get('chess/games');
         await expect(cmd.func({ username: 'someuser', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError when archives payload is wrong-shape', async () => {
+        const map = new Map([
+            ['https://api.chess.com/pub/player/someuser/games/archives', { archives: {} }],
+        ]);
+        vi.stubGlobal('fetch', fetchFor(map));
+        const cmd = getRegistry().get('chess/games');
+        await expect(cmd.func({ username: 'someuser', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when monthly archive games payload is wrong-shape', async () => {
+        const map = new Map([
+            ['https://api.chess.com/pub/player/hikaru/games/archives', {
+                archives: ['https://api.chess.com/pub/player/hikaru/games/2026/05'],
+            }],
+            ['https://api.chess.com/pub/player/hikaru/games/2026/05', { games: null }],
+        ]);
+        vi.stubGlobal('fetch', fetchFor(map));
+        const cmd = getRegistry().get('chess/games');
+        await expect(cmd.func({ username: 'Hikaru', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when a game row lacks stable identity', async () => {
+        const map = new Map([
+            ['https://api.chess.com/pub/player/hikaru/games/archives', {
+                archives: ['https://api.chess.com/pub/player/hikaru/games/2026/05'],
+            }],
+            ['https://api.chess.com/pub/player/hikaru/games/2026/05', {
+                games: [{
+                    end_time: 1777737000,
+                    white: { username: 'Hikaru', rating: 3286, result: 'win' },
+                    black: { username: 'A', rating: 2900, result: 'resigned' },
+                }],
+            }],
+        ]);
+        vi.stubGlobal('fetch', fetchFor(map));
+        const cmd = getRegistry().get('chess/games');
+        await expect(cmd.func({ username: 'Hikaru', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when a game row does not include the requested player', async () => {
+        const map = new Map([
+            ['https://api.chess.com/pub/player/hikaru/games/archives', {
+                archives: ['https://api.chess.com/pub/player/hikaru/games/2026/05'],
+            }],
+            ['https://api.chess.com/pub/player/hikaru/games/2026/05', {
+                games: [game('A', 2900, 'B', 2800, 1777737000)],
+            }],
+        ]);
+        vi.stubGlobal('fetch', fetchFor(map));
+        const cmd = getRegistry().get('chess/games');
+        await expect(cmd.func({ username: 'Hikaru', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('throws ArgumentError on invalid username before any fetch', async () => {

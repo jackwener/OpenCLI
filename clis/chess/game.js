@@ -5,10 +5,18 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { UA, formatDate } from './utils.js';
+import { UA, formatDate, isPlainObject } from './utils.js';
 
 const CALLBACK_BASE = 'https://www.chess.com/callback';
 const URL_RE = /^https:\/\/www\.chess\.com\/game\/(live|daily)\/(\d+)/i;
+
+function stringOrEmpty(value) {
+    return typeof value === 'string' ? value : '';
+}
+
+function scalarOrEmpty(value) {
+    return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : '';
+}
 
 export function parseGameUrl(value) {
     const s = String(value ?? '').trim();
@@ -24,32 +32,48 @@ export function parseGameUrl(value) {
 }
 
 export function summarizeGame({ kind, id, payload }) {
-    if (!payload?.game) {
+    if (!isPlainObject(payload) || !isPlainObject(payload.game)) {
         throw new CommandExecutionError('Chess.com callback returned no game payload');
     }
     const g = payload.game;
+    if (g.pgnHeaders !== undefined && !isPlainObject(g.pgnHeaders)) {
+        throw new CommandExecutionError('Chess.com callback returned malformed PGN headers');
+    }
+    if (payload.players !== undefined && !isPlainObject(payload.players)) {
+        throw new CommandExecutionError('Chess.com callback returned malformed player metadata');
+    }
     const players = payload.players || {};
     const byColor = {};
     for (const slot of ['top', 'bottom']) {
         const p = players[slot];
+        if (p !== undefined && !isPlainObject(p)) {
+            throw new CommandExecutionError('Chess.com callback returned malformed player metadata');
+        }
         if (p?.color) byColor[p.color] = p;
     }
     const white = byColor.white || {};
     const black = byColor.black || {};
     const headers = g.pgnHeaders || {};
+    const whiteName = stringOrEmpty(white.username) || stringOrEmpty(headers.White);
+    const blackName = stringOrEmpty(black.username) || stringOrEmpty(headers.Black);
+    const result = stringOrEmpty(headers.Result);
+    if (!whiteName || !blackName || !result) {
+        throw new CommandExecutionError('Chess.com callback payload is missing stable game summary fields');
+    }
+    const headerDate = stringOrEmpty(headers.Date);
     return {
         kind,
         game_id: id,
-        date: headers.Date ? headers.Date.replace(/\./g, '-') : formatDate(g.endTime),
-        white: white.username || headers.White || '',
-        white_rating: white.rating || headers.WhiteElo || '',
-        black: black.username || headers.Black || '',
-        black_rating: black.rating || headers.BlackElo || '',
-        result: headers.Result || '',
-        winner_color: g.colorOfWinner || '',
-        termination: headers.Termination || g.resultMessage || '',
-        eco: headers.ECO || '',
-        time_control: headers.TimeControl || (g.daysPerTurn ? `${g.daysPerTurn}d/turn` : ''),
+        date: headerDate ? headerDate.replace(/\./g, '-') : formatDate(g.endTime),
+        white: whiteName,
+        white_rating: scalarOrEmpty(white.rating) || scalarOrEmpty(headers.WhiteElo),
+        black: blackName,
+        black_rating: scalarOrEmpty(black.rating) || scalarOrEmpty(headers.BlackElo),
+        result,
+        winner_color: stringOrEmpty(g.colorOfWinner),
+        termination: stringOrEmpty(headers.Termination) || stringOrEmpty(g.resultMessage),
+        eco: stringOrEmpty(headers.ECO),
+        time_control: stringOrEmpty(headers.TimeControl) || (typeof g.daysPerTurn === 'number' ? `${g.daysPerTurn}d/turn` : ''),
         rated: g.isRated === true,
         ply_count: g.plyCount ?? '',
         url: `https://www.chess.com/game/${kind}/${id}`,
@@ -76,14 +100,27 @@ cli({
     func: async (kwargs) => {
         const { kind, id } = parseGameUrl(kwargs['game-url']);
         const url = `${CALLBACK_BASE}/${kind}/game/${id}`;
-        const resp = await fetch(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
+        let resp;
+        try {
+            resp = await fetch(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
+        } catch (error) {
+            throw new CommandExecutionError(`Failed to fetch Chess.com callback ${url}: ${error?.message || error}`);
+        }
+        if (!resp || typeof resp !== 'object') {
+            throw new CommandExecutionError(`Chess.com callback returned an invalid response object for ${url}`);
+        }
         if (resp.status === 404) {
             throw new EmptyResultError(`Chess.com has no ${kind} game with id ${id}`);
         }
         if (!resp.ok) {
             throw new CommandExecutionError(`Chess.com callback returned HTTP ${resp.status} for ${url}`);
         }
-        const payload = await resp.json();
+        let payload;
+        try {
+            payload = await resp.json();
+        } catch (error) {
+            throw new CommandExecutionError(`Chess.com callback returned malformed JSON for ${url}: ${error?.message || error}`);
+        }
         return [summarizeGame({ kind, id, payload })];
     },
 });

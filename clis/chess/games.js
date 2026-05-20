@@ -3,7 +3,7 @@
  * list newest-first and fetches as few months as needed to fill --limit.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { chessApi, validateUsername, mapGameRow } from './utils.js';
 
 const MAX_LIMIT = 100;
@@ -35,14 +35,23 @@ cli({
         const username = validateUsername(kwargs.username);
         const limit = parseLimit(kwargs.limit);
         const archivesList = await chessApi(`/player/${encodeURIComponent(username)}/games/archives`);
-        const archives = Array.isArray(archivesList?.archives) ? archivesList.archives.slice().reverse() : [];
+        if (!Array.isArray(archivesList.archives)) {
+            throw new CommandExecutionError('Chess.com archives payload is missing archives array');
+        }
+        const archives = archivesList.archives.slice().reverse();
         if (archives.length === 0) {
             throw new EmptyResultError(`Chess.com has no game archives for ${username}`);
         }
         const rows = [];
         for (let i = 0; i < archives.length && i < MAX_ARCHIVE_FETCHES && rows.length < limit; i++) {
+            if (typeof archives[i] !== 'string' || !archives[i].startsWith('https://api.chess.com/pub/player/')) {
+                throw new CommandExecutionError('Chess.com archives payload contains an unexpected archive URL');
+            }
             const monthly = await chessApi(archives[i]);
-            const games = Array.isArray(monthly?.games) ? monthly.games.slice().reverse() : [];
+            if (!Array.isArray(monthly.games)) {
+                throw new CommandExecutionError('Chess.com monthly archive payload is missing games array');
+            }
+            const games = monthly.games.slice().reverse();
             for (const g of games) {
                 rows.push(mapGameRow(g, username));
                 if (rows.length >= limit) break;

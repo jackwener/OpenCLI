@@ -23,8 +23,12 @@ cli({
         if (!page) throw new CommandExecutionError('Browser session required for chess analyze');
         const { kind, id } = parseGameUrl(kwargs['game-url']);
         const analysisUrl = `https://www.chess.com/analysis/game/${kind}/${id}`;
-        await page.goto(analysisUrl);
-        await page.wait(2);
+        try {
+            await page.goto(analysisUrl);
+            await page.wait(2);
+        } catch (error) {
+            throw new CommandExecutionError(`Failed to open Chess.com analysis board: ${error?.message || error}`);
+        }
         return [{ kind, game_id: id, analysis_url: analysisUrl }];
     },
 });

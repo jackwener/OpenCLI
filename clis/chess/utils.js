@@ -9,6 +9,14 @@ export const UA = 'Mozilla/5.0 (compatible; opencli/1.0)';
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,25}$/;
 
+export function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isOptionalPlainObject(value) {
+    return value === undefined || value === null || isPlainObject(value);
+}
+
 export function validateUsername(value) {
     const s = String(value ?? '').trim().toLowerCase();
     if (!s) throw new ArgumentError('<username> is required');
@@ -20,17 +28,46 @@ export function validateUsername(value) {
 
 export async function chessApi(path, fetchImpl = fetch) {
     const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
-    const resp = await fetchImpl(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
+    let resp;
+    try {
+        resp = await fetchImpl(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
+    } catch (error) {
+        throw new CommandExecutionError(`Failed to fetch Chess.com API ${url}: ${error?.message || error}`);
+    }
+    if (!resp || typeof resp !== 'object') {
+        throw new CommandExecutionError(`Chess.com API returned an invalid response object for ${url}`);
+    }
     if (resp.status === 404) throw new EmptyResultError(`Chess.com returned 404 for ${url}`);
     if (!resp.ok) throw new CommandExecutionError(`Chess.com API returned HTTP ${resp.status} for ${url}`);
-    return resp.json();
+    let payload;
+    try {
+        payload = await resp.json();
+    } catch (error) {
+        throw new CommandExecutionError(`Chess.com API returned malformed JSON for ${url}: ${error?.message || error}`);
+    }
+    if (!isPlainObject(payload)) {
+        throw new CommandExecutionError(`Chess.com API returned an unexpected payload shape for ${url}`);
+    }
+    return payload;
 }
 
 /** Pull rating + record fields out of a stats sub-object (`chess_rapid` etc). */
 export function summarizeStats(stats, kind) {
     const k = stats?.[kind];
     if (!k) return null;
-    const record = k.record || {};
+    if (!isPlainObject(k)) {
+        throw new CommandExecutionError(`Chess.com stats payload for ${kind} is not an object`);
+    }
+    if (!isOptionalPlainObject(k.last)) {
+        throw new CommandExecutionError(`Chess.com stats payload for ${kind}.last is not an object`);
+    }
+    if (!isOptionalPlainObject(k.best)) {
+        throw new CommandExecutionError(`Chess.com stats payload for ${kind}.best is not an object`);
+    }
+    if (!isOptionalPlainObject(k.record)) {
+        throw new CommandExecutionError(`Chess.com stats payload for ${kind}.record is not an object`);
+    }
+    const record = isPlainObject(k.record) ? k.record : {};
     return {
         kind: kind.replace(/^chess_/, ''),
         rating_current: k.last?.rating ?? '',
@@ -66,10 +103,26 @@ export function openingName(eco) {
  * The viewer perspective controls win/loss orientation.
  */
 export function mapGameRow(game, viewerUsername) {
+    if (!isPlainObject(game)) {
+        throw new CommandExecutionError('Chess.com game archive entry is not an object');
+    }
+    if (typeof game.url !== 'string' || !/^https:\/\/www\.chess\.com\/game\/(?:live|daily)\/\d+(?:$|[/?#])/i.test(game.url)) {
+        throw new CommandExecutionError('Chess.com game archive entry is missing a stable game URL');
+    }
     const white = game?.white || {};
     const black = game?.black || {};
+    if (!isPlainObject(white) || !isPlainObject(black)) {
+        throw new CommandExecutionError('Chess.com game archive entry has malformed player objects');
+    }
+    if (typeof white.username !== 'string' || !white.username.trim() || typeof black.username !== 'string' || !black.username.trim()) {
+        throw new CommandExecutionError('Chess.com game archive entry is missing stable player identities');
+    }
     const viewerLower = String(viewerUsername || '').toLowerCase();
     const viewerIsWhite = String(white.username || '').toLowerCase() === viewerLower;
+    const viewerIsBlack = String(black.username || '').toLowerCase() === viewerLower;
+    if (!viewerIsWhite && !viewerIsBlack) {
+        throw new CommandExecutionError('Chess.com game archive entry does not include the requested player');
+    }
     const me = viewerIsWhite ? white : black;
     const opp = viewerIsWhite ? black : white;
     const eco = game?.eco || '';
@@ -92,6 +145,9 @@ export function mapGameRow(game, viewerUsername) {
 
 export const __test__ = {
     validateUsername,
+    isPlainObject,
+    isOptionalPlainObject,
+    chessApi,
     summarizeStats,
     formatDate,
     mapGameRow,
