@@ -106,6 +106,62 @@ describe('jira commands', () => {
         await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('fails typed when Jira issue nested collections have malformed shapes', async () => {
+        setCloudEnv();
+        const cmd = getRegistry().get('jira/issue');
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+            id: '10001',
+            key: 'PROJ-1',
+            fields: {
+                summary: 'Checkout fails',
+                labels: [],
+                comment: { total: 1, comments: { id: 'c1' } },
+                attachment: [],
+                issuelinks: [],
+            },
+        })));
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(CommandExecutionError);
+
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+            id: '10001',
+            key: 'PROJ-1',
+            fields: {
+                summary: 'Checkout fails',
+                labels: [],
+                comment: { total: 0, comments: [] },
+                attachment: { id: 'a1' },
+                issuelinks: [],
+            },
+        })));
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(CommandExecutionError);
+
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+            id: '10001',
+            key: 'PROJ-1',
+            fields: {
+                summary: 'Checkout fails',
+                labels: [],
+                comment: null,
+                attachment: [],
+                issuelinks: [],
+            },
+        })));
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(CommandExecutionError);
+
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+            id: '10001',
+            key: 'PROJ-1',
+            fields: {
+                summary: 'Checkout fails',
+                labels: [],
+                comment: { total: 0, comments: [] },
+                attachment: null,
+                issuelinks: [],
+            },
+        })));
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('rejects invalid Jira issue keys before remote requests', async () => {
         expect(() => jiraSharedTest.requireIssueKey('notakey')).toThrow(/Invalid Jira issue key/);
         const fetchMock = vi.fn();
@@ -137,6 +193,8 @@ describe('jira commands', () => {
                         total: 2,
                         comments: [{ id: 'c1', author: { displayName: 'Alice' }, created: '2026-05-01', body: 'one' }],
                     },
+                    attachment: [],
+                    issuelinks: [],
                 },
             });
         });

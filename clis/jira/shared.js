@@ -136,6 +136,13 @@ function customValueToMarkdown(value) {
     return valueName(value);
 }
 
+function inlineComments(fields, key, options) {
+    if (options.comments !== undefined) return requirePayloadArray(options.comments, `jira issue ${key} comments`);
+    if (options.requireNestedCollections === false) return [];
+    const commentBlock = requirePayloadObject(fields.comment, `jira issue ${key} comment field`);
+    return requirePayloadArray(commentBlock.comments, `jira issue ${key} comment field comments`);
+}
+
 export function normalizeJiraIssue(issue, config, options = {}) {
     const row = requirePayloadObject(issue, 'jira issue');
     const key = requirePayloadString(row.key, 'issue key', 'jira issue');
@@ -144,7 +151,14 @@ export function normalizeJiraIssue(issue, config, options = {}) {
         ? row.renderedFields
         : {};
     const custom = configuredFieldNames();
-    const comments = options.comments ?? fields.comment?.comments ?? [];
+    const comments = inlineComments(fields, key, options);
+    const requireNestedCollections = options.requireNestedCollections !== false;
+    const attachments = requireNestedCollections
+        ? requirePayloadArray(fields.attachment, `jira issue ${key} attachment field`)
+        : [];
+    const issueLinks = requireNestedCollections
+        ? requirePayloadArray(fields.issuelinks, `jira issue ${key} issuelinks field`)
+        : [];
     const normalized = {
         key,
         id: row.id != null ? String(row.id) : '',
@@ -161,9 +175,9 @@ export function normalizeJiraIssue(issue, config, options = {}) {
             raw: fields.description ?? null,
             markdown: jiraBodyToMarkdown(fields.description, rendered.description),
         },
-        comments: Array.isArray(comments) ? comments.map(normalizeComment) : [],
-        attachments: Array.isArray(fields.attachment) ? fields.attachment.map(normalizeAttachment) : [],
-        linkedIssues: Array.isArray(fields.issuelinks) ? fields.issuelinks.map(normalizeIssueLink) : [],
+        comments: comments.map(normalizeComment),
+        attachments: attachments.map(normalizeAttachment),
+        linkedIssues: issueLinks.map(normalizeIssueLink),
         fixVersions: valueNames(fields.fixVersions),
         affectedVersions: valueNames(fields.versions),
         components: valueNames(fields.components),
@@ -186,7 +200,7 @@ export function normalizeJiraIssue(issue, config, options = {}) {
 }
 
 export function issueSummaryRow(issue, config) {
-    const normalized = normalizeJiraIssue(issue, config, { comments: [] });
+    const normalized = normalizeJiraIssue(issue, config, { comments: [], requireNestedCollections: false });
     return {
         key: normalized.key,
         summary: normalized.summary,
