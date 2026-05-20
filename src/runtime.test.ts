@@ -18,6 +18,11 @@ describe('getBrowserFactory', () => {
     expect(Factory).toBe(CDPBridge);
   });
 
+  it('ignores empty/whitespace-only cdpEndpoint argument', () => {
+    const Factory = getBrowserFactory('youtube', '   ');
+    expect(Factory).toBe(BrowserBridge);
+  });
+
   it('returns CDPBridge when OPENCLI_CDP_ENDPOINT env var is set', () => {
     vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'http://127.0.0.1:9222');
     const Factory = getBrowserFactory('youtube');

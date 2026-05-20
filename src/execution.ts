@@ -28,7 +28,7 @@ import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
+import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, normalizeCdpEndpoint, type BrowserWindowMode } from './runtime.js';
 import { resolveProfileContextId } from './browser/profile.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
@@ -233,7 +233,7 @@ export async function executeCommand(
 
       if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
-        const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
+        const manualEndpoint = normalizeCdpEndpoint(process.env.OPENCLI_CDP_ENDPOINT);
         if (manualEndpoint) {
           const port = Number(new URL(manualEndpoint).port);
           if (!await probeCDP(port)) {
@@ -246,9 +246,9 @@ export async function executeCommand(
         } else {
           cdpEndpoint = await resolveElectronEndpoint(cmd.site);
         }
-      } else if (process.env.OPENCLI_CDP_ENDPOINT) {
+      } else {
         // Non-Electron browser commands: honor manual CDP endpoint when set
-        cdpEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
+        cdpEndpoint = normalizeCdpEndpoint(process.env.OPENCLI_CDP_ENDPOINT);
       }
 
       const BrowserFactory = getBrowserFactory(cmd.site, cdpEndpoint);
