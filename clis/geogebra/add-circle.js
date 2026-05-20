@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ensureApplet, ggbEval } from './utils.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { ensureApplet, ggbEval, normalizeLabel, normalizeNumber, requireGgbSuccess } from './utils.js';
 
 cli({
   site: 'geogebra',
@@ -18,28 +19,28 @@ cli({
   ],
   columns: ['label', 'center', 'radius'],
   func: async (page, kwargs) => {
-    await ensureApplet(page);
-    const center = kwargs.center;
-    const pointOnCircle = kwargs.point;
+    const center = normalizeLabel(kwargs.center, 'center');
+    if (kwargs.point && kwargs.radius !== undefined) {
+      throw new ArgumentError('Use either --point or --radius, not both');
+    }
+    const pointOnCircle = kwargs.point ? normalizeLabel(kwargs.point, 'point') : '';
     const radiusValue = kwargs.radius;
 
     let cmd;
     if (pointOnCircle) {
       cmd = `Circle(${center},${pointOnCircle})`;
     } else if (radiusValue !== undefined) {
-      const num = Number(radiusValue);
-      if (Number.isNaN(num)) {
-        // Might be a point name
-        cmd = `Circle(${center},${radiusValue})`;
-      } else {
-        cmd = `Circle(${center},${num})`;
-      }
+      const raw = String(radiusValue).trim();
+      const num = Number(raw);
+      cmd = Number.isFinite(num)
+        ? `Circle(${center},${normalizeNumber(raw, 'radius', { positive: true })})`
+        : `Circle(${center},${normalizeLabel(raw, 'radius point')})`;
     } else {
-      throw new Error('Provide --radius (number or point label) or --point (point on circle)');
+      throw new ArgumentError('Provide --radius (number or point label) or --point (point on circle)');
     }
 
-    const result = await ggbEval(page, cmd);
-    if (!result.ok) throw new Error(`Failed to create circle: ${cmd}`);
+    await ensureApplet(page);
+    const result = requireGgbSuccess(await ggbEval(page, cmd), `Failed to create circle: ${cmd}`);
     return [{ label: result.label, center, radius: pointOnCircle || radiusValue }];
   },
 });

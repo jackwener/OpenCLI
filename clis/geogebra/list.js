@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 import { ensureApplet, ggbListObjects } from './utils.js';
 
 cli({
@@ -16,8 +16,13 @@ cli({
   ],
   columns: ['name', 'type', 'value', 'visible'],
   func: async (page, kwargs) => {
+    const filterType = kwargs.type == null || kwargs.type === ''
+      ? ''
+      : String(kwargs.type).trim().toLowerCase();
+    if (filterType && !/^[a-z-]+$/.test(filterType)) {
+      throw new ArgumentError('type must be a GeoGebra object type like point, line, or circle');
+    }
     await ensureApplet(page);
-    const filterType = kwargs.type?.toLowerCase();
     const objects = await ggbListObjects(page, filterType);
     if (!Array.isArray(objects) || objects.length === 0) {
       throw new EmptyResultError(

@@ -65,6 +65,8 @@ This bound-tab workflow is the safest option when:
 - On the GeoGebra Geometry page, `RegularPolygon(...)` is not reliable here and may show an "unknown command" error.
 - Prefer explicit constructions built from `Circle`, `Intersect`, `Segment`, and `Polygon`.
 - `ggbApplet.evalCommandGetLabels(...)` can return multiple labels for commands like `Polygon(...)`; that is expected.
+- The source of truth is the page's `ggbApplet` API. Adapter commands treat applet load failures, malformed Browser Bridge/evaluate results, invalid object labels, invalid numeric arguments, and failed GeoGebra command execution as typed command failures instead of returning success rows.
+- Object names accepted by helper commands are intentionally conservative ASCII labels (`A`, `B1`, `poly_1`). Use `geogebra eval` for advanced GeoGebra syntax that needs broader command text.
 
 ## Agent Notes
 

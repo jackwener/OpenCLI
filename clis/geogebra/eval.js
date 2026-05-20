@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ensureApplet, ggbEval } from './utils.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { ensureApplet, ggbEval, requireGgbSuccess } from './utils.js';
 
 cli({
   site: 'geogebra',
@@ -16,16 +17,17 @@ cli({
   ],
   columns: ['command', 'result'],
   func: async (page, kwargs) => {
-    await ensureApplet(page);
     const commands = String(kwargs.command).split(';').map(s => s.trim()).filter(Boolean);
+    if (commands.length === 0) {
+      throw new ArgumentError('command must contain at least one GeoGebra command');
+    }
+    await ensureApplet(page);
     const results = [];
     for (const command of commands) {
-      const result = await ggbEval(page, command);
+      const result = requireGgbSuccess(await ggbEval(page, command), `Failed to execute GeoGebra command: ${command}`);
       results.push({
         command,
-        result: result.ok
-          ? `ok (${result.label || 'no label'})`
-          : `failed${result.error ? ` (${result.error})` : ''}`,
+        result: `ok (${result.label || 'no label'})`,
       });
     }
     return results;

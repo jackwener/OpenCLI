@@ -70,6 +70,7 @@ export default defineConfig({
                 { text: 'PowerChina', link: '/adapters/browser/powerchina' },
                 { text: 'Ctrip', link: '/adapters/browser/ctrip' },
                 { text: 'Booking.com', link: '/adapters/browser/booking' },
+                { text: 'GeoGebra', link: '/adapters/browser/geogebra' },
                 { text: 'Reuters', link: '/adapters/browser/reuters' },
                 { text: 'SMZDM', link: '/adapters/browser/smzdm' },
                 { text: 'Jike', link: '/adapters/browser/jike' },

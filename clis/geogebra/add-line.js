@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ensureApplet, ggbEval } from './utils.js';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { ensureApplet, ggbEval, normalizeLabelList, requireGgbSuccess } from './utils.js';
 
 cli({
   site: 'geogebra',
@@ -17,21 +18,18 @@ cli({
   ],
   columns: ['label', 'type', 'points'],
   func: async (page, kwargs) => {
-    await ensureApplet(page);
-    const parts = String(kwargs.points).split(',').map(s => s.trim());
-    if (parts.length !== 2) throw new Error('points must be two labels separated by comma (e.g. "A,B")');
-    const [a, b] = parts;
+    const [a, b] = normalizeLabelList(kwargs.points, 'points', 2, 2);
     const type = kwargs.type || 'line';
-
     const geogebraCmd = {
       line: `Line(${a},${b})`,
       segment: `Segment(${a},${b})`,
       ray: `Ray(${a},${b})`,
     }[type];
-    if (!geogebraCmd) throw new Error(`Unknown line type: ${type}`);
-
-    const result = await ggbEval(page, geogebraCmd);
-    if (!result.ok) throw new Error(`Failed to create ${type}: ${geogebraCmd}`);
+    if (!geogebraCmd) {
+      throw new ArgumentError('type must be one of: line, segment, ray');
+    }
+    await ensureApplet(page);
+    const result = requireGgbSuccess(await ggbEval(page, geogebraCmd), `Failed to create ${type}: ${geogebraCmd}`);
     return [{ label: result.label, type, points: `${a},${b}` }];
   },
 });

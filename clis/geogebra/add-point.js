@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ensureApplet, ggbEval } from './utils.js';
+import { ensureApplet, ggbEval, normalizeCoords, normalizeLabel, requireGgbSuccess } from './utils.js';
 
 cli({
   site: 'geogebra',
@@ -17,14 +17,11 @@ cli({
   ],
   columns: ['name', 'x', 'y'],
   func: async (page, kwargs) => {
-    await ensureApplet(page);
-    const { name, coords } = kwargs;
-    const parts = String(coords).split(',').map(s => s.trim());
-    if (parts.length !== 2) throw new Error('coords must be in "x,y" format (e.g. "1,2")');
-    const [x, y] = parts;
+    const name = normalizeLabel(kwargs.name, 'name');
+    const [x, y] = normalizeCoords(kwargs.coords);
     const cmd = `${name}=(${x},${y})`;
-    const result = await ggbEval(page, cmd);
-    if (!result.ok) throw new Error(`Failed to create point: ${cmd}`);
+    await ensureApplet(page);
+    const result = requireGgbSuccess(await ggbEval(page, cmd), `Failed to create point: ${cmd}`);
     return [{ name, x, y }];
   },
 });

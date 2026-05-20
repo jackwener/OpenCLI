@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ensureApplet, ggbGetProperty } from './utils.js';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ensureApplet, ggbGetProperty, normalizeLabel, unwrapBridgeEnvelope } from './utils.js';
 
 cli({
   site: 'geogebra',
@@ -16,14 +17,21 @@ cli({
   ],
   columns: ['property', 'value'],
   func: async (page, kwargs) => {
+    const objName = normalizeLabel(kwargs.name, 'name');
     await ensureApplet(page);
-    const objName = kwargs.name;
 
-    const exists = await page.evaluate(`
-      (name => typeof ggbApplet !== 'undefined' && ggbApplet.getObjectType(name) !== '')
-      (${JSON.stringify(objName)})
-    `);
-    if (!exists) throw new Error(`Object "${objName}" not found on the canvas`);
+    let exists;
+    try {
+      exists = unwrapBridgeEnvelope(await page.evaluate(`
+        (name => typeof ggbApplet !== 'undefined' && ggbApplet.getObjectType(name) !== '')
+        (${JSON.stringify(objName)})
+      `));
+    } catch (err) {
+      throw new CommandExecutionError(`Failed to inspect GeoGebra object: ${err?.message || err}`);
+    }
+    if (exists !== true) {
+      throw new EmptyResultError(`geogebra info ${objName}`, `Object "${objName}" not found on the canvas.`);
+    }
 
     const properties = ['type', 'value', 'definition', 'command', 'caption', 'visible', 'color'];
     const rows = [];
