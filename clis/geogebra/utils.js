@@ -178,7 +178,7 @@ export async function ggbListObjects(page, filterType) {
         for (const name of names) {
           try {
             const type = api.getObjectType(name);
-            if (!type) continue;
+            if (!type) return { error: 'Object has no type', name };
             if (filterType && type.toLowerCase() !== filterType) continue;
             result.push({
               name,
@@ -186,7 +186,9 @@ export async function ggbListObjects(page, filterType) {
               value: api.getValueString(name) || '',
               visible: api.getVisible(name),
             });
-          } catch {}
+          } catch (err) {
+            return { error: err?.message || String(err), name };
+          }
         }
         return result;
       })(${JSON.stringify(normalizedFilter)})
@@ -195,7 +197,8 @@ export async function ggbListObjects(page, filterType) {
     throw new CommandExecutionError(`Failed to list GeoGebra objects: ${err?.message || err}`);
   }
   if (objects && typeof objects === 'object' && !Array.isArray(objects) && objects.error) {
-    throw new CommandExecutionError(`Failed to list GeoGebra objects: ${objects.error}`);
+    const nameSuffix = objects.name ? ` for ${objects.name}` : '';
+    throw new CommandExecutionError(`Failed to list GeoGebra objects${nameSuffix}: ${objects.error}`);
   }
   if (!Array.isArray(objects)) {
     throw new CommandExecutionError('GeoGebra object list returned malformed result');

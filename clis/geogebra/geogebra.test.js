@@ -94,6 +94,12 @@ describe('ggbListObjects', () => {
     const result = await ggbListObjects(page);
     expect(result).toEqual([{ name: 'A', type: 'point', value: '(0, 0)', visible: true }]);
   });
+
+  it('throws typed error when object names exist but property extraction fails', async () => {
+    const page = createPageMock();
+    page.evaluate.mockResolvedValue({ error: 'getObjectType failed', name: 'A' });
+    await expect(ggbListObjects(page)).rejects.toThrow(CommandExecutionError);
+  });
 });
 
 describe('ggbWaitForObjectCount', () => {
@@ -138,5 +144,14 @@ describe('geogebra command typed boundaries', () => {
     await expect(command.func(page, { points: 'A,B', type: 'segment' })).resolves.toEqual([
       { label: 'f', type: 'segment', points: 'A,B' },
     ]);
+  });
+
+  it('does not turn object property extraction failures into empty list results', async () => {
+    const command = getRegistry().get('geogebra/list');
+    const page = createPageMock('https://www.geogebra.org/geometry');
+    page.evaluate
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ error: 'getObjectType failed', name: 'A' });
+    await expect(command.func(page, {})).rejects.toThrow(CommandExecutionError);
   });
 });
