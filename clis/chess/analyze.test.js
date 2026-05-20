@@ -1,7 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import './analyze.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const manifestPath = resolve(__dirname, '../../cli-manifest.json');
+
+function loadManifestCommand(name) {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    return manifest.find(cmd => cmd.site === 'chess' && cmd.name === name);
+}
 
 function makePage() {
     return {
@@ -51,5 +62,18 @@ describe('chess analyze command', () => {
         const cmd = getRegistry().get('chess/analyze');
         expect(cmd?.columns).toEqual(['kind', 'game_id', 'analysis_url']);
         expect(cmd?.browser).toBe(true);
+        expect(cmd?.navigateBefore).toBe(false);
+    });
+
+    it('build manifest keeps analyze pre-navigation disabled and game source attribution stable', () => {
+        expect(loadManifestCommand('analyze')).toMatchObject({
+            navigateBefore: false,
+            modulePath: 'chess/analyze.js',
+            sourceFile: 'chess/analyze.js',
+        });
+        expect(loadManifestCommand('game')).toMatchObject({
+            modulePath: 'chess/game.js',
+            sourceFile: 'chess/game.js',
+        });
     });
 });

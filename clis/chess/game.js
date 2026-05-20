@@ -4,11 +4,10 @@
  * PGN headers + move data plus per-player metadata.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { UA, formatDate, isPlainObject } from './utils.js';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { UA, formatDate, isPlainObject, parseGameUrl } from './utils.js';
 
 const CALLBACK_BASE = 'https://www.chess.com/callback';
-const URL_RE = /^https:\/\/www\.chess\.com\/game\/(live|daily)\/(\d+)/i;
 
 function stringOrEmpty(value) {
     return typeof value === 'string' ? value : '';
@@ -16,19 +15,6 @@ function stringOrEmpty(value) {
 
 function scalarOrEmpty(value) {
     return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : '';
-}
-
-export function parseGameUrl(value) {
-    const s = String(value ?? '').trim();
-    if (!s) throw new ArgumentError('<game-url> is required');
-    const m = s.match(URL_RE);
-    if (!m) {
-        throw new ArgumentError(
-            `Invalid Chess.com game URL: "${value}"`,
-            'Expected https://www.chess.com/game/live/<id> or https://www.chess.com/game/daily/<id>.',
-        );
-    }
-    return { kind: m[1].toLowerCase(), id: m[2] };
 }
 
 export function summarizeGame({ kind, id, payload }) {

@@ -8,6 +8,7 @@ export const API_BASE = 'https://api.chess.com/pub';
 export const UA = 'Mozilla/5.0 (compatible; opencli/1.0)';
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,25}$/;
+const GAME_URL_RE = /^https:\/\/www\.chess\.com\/game\/(live|daily)\/(\d+)/i;
 
 export function isPlainObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -24,6 +25,19 @@ export function validateUsername(value) {
         throw new ArgumentError(`Invalid Chess.com username "${value}"`, 'Usernames are 3-25 chars: a-z, 0-9, hyphen, underscore.');
     }
     return s;
+}
+
+export function parseGameUrl(value) {
+    const s = String(value ?? '').trim();
+    if (!s) throw new ArgumentError('<game-url> is required');
+    const m = s.match(GAME_URL_RE);
+    if (!m) {
+        throw new ArgumentError(
+            `Invalid Chess.com game URL: "${value}"`,
+            'Expected https://www.chess.com/game/live/<id> or https://www.chess.com/game/daily/<id>.',
+        );
+    }
+    return { kind: m[1].toLowerCase(), id: m[2] };
 }
 
 export async function chessApi(path, fetchImpl = fetch) {
@@ -145,6 +159,7 @@ export function mapGameRow(game, viewerUsername) {
 
 export const __test__ = {
     validateUsername,
+    parseGameUrl,
     isPlainObject,
     isOptionalPlainObject,
     chessApi,

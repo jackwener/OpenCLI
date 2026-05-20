@@ -5262,7 +5262,7 @@
     "type": "js",
     "modulePath": "chess/analyze.js",
     "sourceFile": "chess/analyze.js",
-    "navigateBefore": true
+    "navigateBefore": false
   },
   {
     "site": "chess",
@@ -5299,8 +5299,8 @@
       "url"
     ],
     "type": "js",
-    "modulePath": "chess/analyze.js",
-    "sourceFile": "chess/analyze.js"
+    "modulePath": "chess/game.js",
+    "sourceFile": "chess/game.js"
   },
   {
     "site": "chess",

@@ -3,7 +3,7 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './game.js';
 
-const { parseGameUrl, summarizeGame } = await import('./game.js').then((m) => m.__test__);
+const { summarizeGame } = await import('./game.js').then((m) => m.__test__);
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -18,28 +18,6 @@ function mockFetch(payload, status = 200) {
 }
 
 describe('chess game command', () => {
-    it('parses both live and daily game URL forms', () => {
-        expect(parseGameUrl('https://www.chess.com/game/live/168842570216'))
-            .toEqual({ kind: 'live', id: '168842570216' });
-        expect(parseGameUrl('https://www.chess.com/game/daily/947761777'))
-            .toEqual({ kind: 'daily', id: '947761777' });
-        expect(parseGameUrl('https://www.chess.com/game/LIVE/1'))
-            .toEqual({ kind: 'live', id: '1' });
-    });
-
-    it('strips trailing path / query off the URL', () => {
-        expect(parseGameUrl('https://www.chess.com/game/live/123/something?ref=share'))
-            .toEqual({ kind: 'live', id: '123' });
-    });
-
-    it('rejects empty / non-URL / unsupported-kind inputs', () => {
-        expect(() => parseGameUrl('')).toThrow(ArgumentError);
-        expect(() => parseGameUrl('   ')).toThrow(ArgumentError);
-        expect(() => parseGameUrl('123')).toThrow(ArgumentError);
-        expect(() => parseGameUrl('https://www.chess.com/club/123')).toThrow(ArgumentError);
-        expect(() => parseGameUrl('https://lichess.org/abc')).toThrow(ArgumentError);
-    });
-
     it('summarizeGame maps the callback payload to the canonical row shape', () => {
         const row = summarizeGame({
             kind: 'live',

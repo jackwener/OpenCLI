@@ -5,7 +5,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { parseGameUrl } from './game.js';
+import { parseGameUrl } from './utils.js';
 
 cli({
     site: 'chess',
@@ -15,6 +15,7 @@ cli({
     domain: 'www.chess.com',
     strategy: Strategy.UI,
     browser: true,
+    navigateBefore: false,
     args: [
         { name: 'game-url', type: 'string', required: true, positional: true, help: 'Full game URL, e.g. https://www.chess.com/game/live/168842570216' },
     ],

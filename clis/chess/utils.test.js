@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { __test__ } from './utils.js';
 
-const { validateUsername, chessApi, summarizeStats, formatDate, mapGameRow, openingName } = __test__;
+const { validateUsername, parseGameUrl, chessApi, summarizeStats, formatDate, mapGameRow, openingName } = __test__;
 
 describe('chess utils', () => {
     it('validateUsername lowercases and accepts 3-25 char usernames', () => {
@@ -16,6 +16,28 @@ describe('chess utils', () => {
         expect(() => validateUsername('ab')).toThrow(ArgumentError);
         expect(() => validateUsername('user name')).toThrow(ArgumentError);
         expect(() => validateUsername('a'.repeat(30))).toThrow(ArgumentError);
+    });
+
+    it('parseGameUrl parses both live and daily game URL forms', () => {
+        expect(parseGameUrl('https://www.chess.com/game/live/168842570216'))
+            .toEqual({ kind: 'live', id: '168842570216' });
+        expect(parseGameUrl('https://www.chess.com/game/daily/947761777'))
+            .toEqual({ kind: 'daily', id: '947761777' });
+        expect(parseGameUrl('https://www.chess.com/game/LIVE/1'))
+            .toEqual({ kind: 'live', id: '1' });
+    });
+
+    it('parseGameUrl strips trailing path / query off the URL', () => {
+        expect(parseGameUrl('https://www.chess.com/game/live/123/something?ref=share'))
+            .toEqual({ kind: 'live', id: '123' });
+    });
+
+    it('parseGameUrl rejects empty / non-URL / unsupported-kind inputs', () => {
+        expect(() => parseGameUrl('')).toThrow(ArgumentError);
+        expect(() => parseGameUrl('   ')).toThrow(ArgumentError);
+        expect(() => parseGameUrl('123')).toThrow(ArgumentError);
+        expect(() => parseGameUrl('https://www.chess.com/club/123')).toThrow(ArgumentError);
+        expect(() => parseGameUrl('https://lichess.org/abc')).toThrow(ArgumentError);
     });
 
     it('summarizeStats projects rating + record fields', () => {
