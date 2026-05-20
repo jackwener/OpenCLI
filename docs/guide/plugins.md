@@ -38,6 +38,7 @@ opencli plugin install https://github.com/user/repo
 
 # Any git-cloneable URL
 opencli plugin install https://gitlab.example.com/team/repo.git
+opencli plugin install https://gitlab.example.com/team/repo.git#subplugin   # install specific sub-plugin from monorepo
 opencli plugin install ssh://git@gitlab.example.com/team/repo.git
 opencli plugin install git@gitlab.example.com:team/repo.git
 
@@ -108,7 +109,11 @@ opencli plugin install github:user/opencli-plugins
 
 # Install a SPECIFIC sub-plugin
 opencli plugin install github:user/opencli-plugins/polymarket
+opencli plugin install https://gitlab.example.com/team/opencli-plugins.git#polymarket
 ```
+
+For generic git URLs, the `#subplugin` selector matches a key in the repo root
+`opencli-plugin.json`; the manifest entry supplies the actual plugin path.
 
 ### How It Works
 

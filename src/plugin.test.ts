@@ -161,6 +161,16 @@ describe('parseSource', () => {
     });
   });
 
+  it('parses generic git URLs with fragment sub-plugin selectors', () => {
+    const result = _parseSource('https://gitlab.example.com/org/opencli-plugins.git#analytics');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'https://gitlab.example.com/org/opencli-plugins.git',
+      name: 'opencli-plugins',
+      subPlugin: 'analytics',
+    });
+  });
+
   it('still prefers GitHub shorthand over generic HTTPS for github.com', () => {
     const result = _parseSource('https://github.com/user/repo');
     // Should be handled by the GitHub-specific matcher (normalizes URL)

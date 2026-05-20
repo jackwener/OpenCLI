@@ -4,6 +4,7 @@
  * Plugins live in ~/.opencli/plugins/<name>/.
  * Monorepo clones live in ~/.opencli/monorepos/<repo-name>/.
  * Install source format: "github:user/repo", "github:user/repo/subplugin",
+ * "https://gitlab.example.com/team/repo.git#subplugin",
  * "https://github.com/user/repo", "file:///local/plugin", or a local directory path.
  */
 
@@ -274,6 +275,10 @@ function resolveRepoContainedPath(repoRoot: string, subPath: string): string {
     throw new PluginError(`Plugin path "${subPath}" escapes repo root.`);
   }
   return resolved;
+}
+
+function withOptionalSubPlugin(parsed: ParsedSource, subPlugin?: string): ParsedSource {
+  return subPlugin ? { ...parsed, subPlugin } : parsed;
 }
 
 function removePathSync(p: string): void {
@@ -694,6 +699,7 @@ export function installPlugin(source: string): string | string[] {
       `  github:user/repo/subplugin\n` +
       `  https://github.com/user/repo\n` +
       `  https://<host>/<path>/repo.git\n` +
+      `  https://<host>/<path>/repo.git#subplugin\n` +
       `  ssh://git@<host>/<path>/repo.git\n` +
       `  git@<host>:user/repo.git\n` +
       `  file:///absolute/path\n` +
@@ -1288,6 +1294,11 @@ function getPluginSource(dir: string): string | undefined {
 function parseSource(
   source: string,
 ): ParsedSource | null {
+  const sourceWithoutFragment = source.replace(/#([^#]*)$/, '');
+  const fragment = sourceWithoutFragment.length === source.length ? undefined : source.slice(sourceWithoutFragment.length + 1);
+  const fragmentSubPlugin = fragment ? decodeURIComponent(fragment) : undefined;
+  source = sourceWithoutFragment;
+
   if (source.startsWith('file://')) {
     try {
       const localPath = path.resolve(fileURLToPath(source));
@@ -1330,11 +1341,11 @@ function parseSource(
   if (githubMatch) {
     const [, user, repo] = githubMatch;
     const name = repo.replace(/^opencli-plugin-/, '');
-    return {
+    return withOptionalSubPlugin({
       type: 'git',
       cloneUrl: `https://github.com/${user}/${repo}.git`,
       name,
-    };
+    }, fragmentSubPlugin);
   }
 
   // https://github.com/user/repo (or .git)
@@ -1344,11 +1355,11 @@ function parseSource(
   if (urlMatch) {
     const [, user, repo] = urlMatch;
     const name = repo.replace(/^opencli-plugin-/, '');
-    return {
+    return withOptionalSubPlugin({
       type: 'git',
       cloneUrl: `https://github.com/${user}/${repo}.git`,
       name,
-    };
+    }, fragmentSubPlugin);
   }
 
   // ── Generic git URL support ─────────────────────────────────────────────
@@ -1360,7 +1371,7 @@ function parseSource(
     const segments = pathPart.split('/');
     const repoSegment = segments.pop()!;
     const name = repoSegment.replace(/^opencli-plugin-/, '');
-    return { type: 'git', cloneUrl: source, name };
+    return withOptionalSubPlugin({ type: 'git', cloneUrl: source, name }, fragmentSubPlugin);
   }
 
   // git@host:user/repo.git (SCP-style)
@@ -1370,7 +1381,7 @@ function parseSource(
     const segments = pathPart.split('/');
     const repoSegment = segments.pop()!;
     const name = repoSegment.replace(/^opencli-plugin-/, '');
-    return { type: 'git', cloneUrl: source, name };
+    return withOptionalSubPlugin({ type: 'git', cloneUrl: source, name }, fragmentSubPlugin);
   }
 
   // Generic https/http git URL (non-GitHub hosts)
@@ -1384,7 +1395,7 @@ function parseSource(
     const name = repoSegment.replace(/^opencli-plugin-/, '');
     // Ensure clone URL ends with .git
     const cloneUrl = source.endsWith('.git') ? source : `${source}.git`;
-    return { type: 'git', cloneUrl, name };
+    return withOptionalSubPlugin({ type: 'git', cloneUrl, name }, fragmentSubPlugin);
   }
 
   return null;
