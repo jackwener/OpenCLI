@@ -2,7 +2,7 @@
  * Bilibili shared helpers: WBI signing, authenticated fetch, nav data, UID resolution.
  */
 import https from 'node:https';
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 /**
  * Resolve Bilibili short URL / short code to BV ID.
  * Supports: BV1MV9NBtENN, XYzsqGa, b23.tv/XYzsqGa, https://b23.tv/XYzsqGa
@@ -12,7 +12,22 @@ export function resolveBvid(input) {
     if (/^BV[A-Za-z0-9]+$/i.test(trimmed)) {
         return Promise.resolve(trimmed);
     }
+    try {
+        const parsed = new URL(trimmed);
+        if (/(\.|^)bilibili\.com$/i.test(parsed.hostname)) {
+            const match = parsed.pathname.match(/\/(?:video|bangumi\/play)\/(BV[A-Za-z0-9]+)/i);
+            if (match) {
+                return Promise.resolve(match[1]);
+            }
+        }
+    }
+    catch {
+        // Non-URL inputs fall through to b23.tv short-code resolution.
+    }
     const shortCode = trimmed.replace(/^https?:\/\//, '').replace(/^(www\.)?b23\.tv\//, '');
+    if (!/^[A-Za-z0-9]+$/.test(shortCode)) {
+        return Promise.reject(new Error(`Cannot resolve BV ID from invalid b23.tv short code: ${trimmed}`));
+    }
     const url = 'https://b23.tv/' + shortCode;
     return new Promise((resolve, reject) => {
         const req = https.get(url, (res) => {
@@ -29,7 +44,7 @@ export function resolveBvid(input) {
             reject(new Error(`Cannot resolve BV ID from short URL: ${trimmed}`));
         });
         req.on('error', reject);
-        req.setTimeout(5000, () => { req.destroy(); reject(new Error(`Timeout resolving short URL: ${trimmed}`)); });
+        req.setTimeout(4000, () => { req.destroy(); reject(new Error(`Timeout resolving short URL: ${trimmed}`)); });
     });
 }
 const MIXIN_KEY_ENC_TAB = [
@@ -104,6 +119,38 @@ export async function fetchJson(page, url) {
     }
   `);
 }
+/**
+ * POST form-encoded params to a Bilibili API endpoint.
+ * Runs inside the logged-in browser context and auto-attaches the bili_jct CSRF token,
+ * which Bilibili requires on every authenticated write request.
+ */
+export async function apiPost(page, path, opts = {}) {
+    const params = opts.params ?? {};
+    const stringified = Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]));
+    const paramsJs = JSON.stringify(stringified);
+    const urlJs = JSON.stringify(`https://api.bilibili.com${path}`);
+    return page.evaluate(`
+    async () => {
+      const csrf = (document.cookie.match(/bili_jct=([^;]+)/) || [])[1] || "";
+      const body = new URLSearchParams(${paramsJs});
+      body.set("csrf", csrf);
+      const res = await fetch(${urlJs}, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+      // Bilibili write endpoints can return an HTML risk-control page (e.g. HTTP 412)
+      // instead of JSON. Surface that as a structured error rather than a parse crash.
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { code: -1, message: "Non-JSON response (HTTP " + res.status + "): " + text.slice(0, 200) };
+      }
+    }
+  `);
+}
 export async function getSelfUid(page) {
     const nav = await getNavData(page);
     const mid = nav?.data?.mid;
@@ -119,8 +166,19 @@ export async function resolveUid(page, input) {
         params: { search_type: 'bili_user', keyword: input },
         signed: true,
     });
-    const results = payload?.data?.result ?? [];
-    if (results.length > 0)
-        return String(results[0].mid);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data) || !Object.hasOwn(payload.data, 'result')) {
+        throw new CommandExecutionError(`Bilibili user search returned malformed result for ${input}`);
+    }
+    const results = payload.data.result;
+    if (!Array.isArray(results)) {
+        throw new CommandExecutionError(`Bilibili user search returned malformed result for ${input}`);
+    }
+    if (results.length > 0) {
+        const mid = String(results[0]?.mid ?? '').trim();
+        if (!mid) {
+            throw new CommandExecutionError(`Bilibili user search returned malformed mid for ${input}`);
+        }
+        return mid;
+    }
     throw new EmptyResultError(`bilibili user search: ${input}`, 'User may not exist or username may have changed.');
 }

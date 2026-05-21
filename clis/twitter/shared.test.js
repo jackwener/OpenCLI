@@ -13,6 +13,7 @@ const {
     normalizeTwitterGraphqlPayload,
     normalizeTwitterScreenName,
     sanitizeTwitterOperationMetadata,
+    looksLikePrivateTwitterTimeline,
 } = __test__;
 
 function makeCardTweet({ name, bindings, expandedUrl, urls }) {
@@ -758,5 +759,41 @@ describe('twitter extractQuotedTweet', () => {
         expect(q?.id).toBe('200');
         expect(q?.text).toBe('level-1 quote text');
         expect(q).not.toHaveProperty('quoted_tweet');
+    });
+});
+
+describe('looksLikePrivateTwitterTimeline', () => {
+    it('returns true when result.timeline is an empty object', () => {
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { __typename: 'User', timeline: {} } } },
+        })).toBe(true);
+    });
+    it('returns false when timeline.timeline.instructions is present', () => {
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline: { timeline: { instructions: [] } } } } },
+        })).toBe(false);
+    });
+    it('returns false when timeline_v2.timeline.instructions is present', () => {
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline_v2: { timeline: { instructions: [] } } } } },
+        })).toBe(false);
+    });
+    it('returns false when result is missing entirely', () => {
+        expect(looksLikePrivateTwitterTimeline({})).toBe(false);
+        expect(looksLikePrivateTwitterTimeline(null)).toBe(false);
+        expect(looksLikePrivateTwitterTimeline({ data: { user: {} } })).toBe(false);
+    });
+    it('returns false for non-empty malformed timeline objects', () => {
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline: { unexpected: true } } } },
+        })).toBe(false);
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline: { timeline: {} } } } },
+        })).toBe(false);
+    });
+    it('returns true when timeline_v2.timeline is an empty object', () => {
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline_v2: { timeline: {} } } } },
+        })).toBe(true);
     });
 });

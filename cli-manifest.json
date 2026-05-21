@@ -2297,8 +2297,56 @@
   },
   {
     "site": "bilibili",
+    "name": "comment",
+    "description": "在 B站视频下发表评论或回复（官方 API，需登录；消息里的 @用户 会被解析为真实提及）",
+    "access": "write",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "bvid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Video BV ID / URL / b23.tv short link"
+      },
+      {
+        "name": "message",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment text. Any @username in it is resolved to a real mention"
+      },
+      {
+        "name": "parent",
+        "type": "int",
+        "required": false,
+        "help": "top-level/root rpid to reply under (omit for a top-level comment)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually post the comment. Without it the command refuses to write."
+      }
+    ],
+    "columns": [
+      "rpid",
+      "bvid",
+      "oid",
+      "message",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/comment.js",
+    "sourceFile": "bilibili/comment.js",
+    "navigateBefore": "https://www.bilibili.com"
+  },
+  {
+    "site": "bilibili",
     "name": "comments",
-    "description": "获取 B站视频评论（使用官方 API + WBI 签名）",
+    "description": "获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复）",
     "access": "read",
     "domain": "www.bilibili.com",
     "strategy": "cookie",
@@ -2312,6 +2360,12 @@
         "help": "Video BV ID (e.g. BV1WtAGzYEBm)"
       },
       {
+        "name": "parent",
+        "type": "int",
+        "required": false,
+        "help": "rpid of a comment — fetch the replies under it instead of top-level comments"
+      },
+      {
         "name": "limit",
         "type": "int",
         "default": 20,
@@ -2321,6 +2375,7 @@
     ],
     "columns": [
       "rank",
+      "rpid",
       "author",
       "text",
       "likes",
@@ -5238,6 +5293,143 @@
     "navigateBefore": true
   },
   {
+    "site": "chess",
+    "name": "analyze",
+    "description": "Open a Chess.com game in the browser analysis board",
+    "access": "read",
+    "domain": "www.chess.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "game-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Full game URL, e.g. https://www.chess.com/game/live/168842570216"
+      }
+    ],
+    "columns": [
+      "kind",
+      "game_id",
+      "analysis_url"
+    ],
+    "type": "js",
+    "modulePath": "chess/analyze.js",
+    "sourceFile": "chess/analyze.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "chess",
+    "name": "game",
+    "description": "Chess.com single-game detail (white, black, result, ECO, time control) by full game URL",
+    "access": "read",
+    "domain": "www.chess.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "game-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Full game URL, e.g. https://www.chess.com/game/live/168842570216"
+      }
+    ],
+    "columns": [
+      "kind",
+      "game_id",
+      "date",
+      "white",
+      "white_rating",
+      "black",
+      "black_rating",
+      "result",
+      "winner_color",
+      "termination",
+      "eco",
+      "time_control",
+      "rated",
+      "ply_count",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "chess/game.js",
+    "sourceFile": "chess/game.js"
+  },
+  {
+    "site": "chess",
+    "name": "games",
+    "description": "Chess.com recent games for a player, newest first",
+    "access": "read",
+    "domain": "api.chess.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Chess.com username"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of recent games (1-100)"
+      }
+    ],
+    "columns": [
+      "date",
+      "time_class",
+      "rated",
+      "my_color",
+      "my_rating",
+      "my_result",
+      "opponent",
+      "opponent_rating",
+      "accuracy_white",
+      "accuracy_black",
+      "eco",
+      "opening_name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "chess/games.js",
+    "sourceFile": "chess/games.js"
+  },
+  {
+    "site": "chess",
+    "name": "stats",
+    "description": "Chess.com player ratings + win/loss record across game kinds",
+    "access": "read",
+    "domain": "api.chess.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Chess.com username (case-insensitive)"
+      }
+    ],
+    "columns": [
+      "kind",
+      "rating_current",
+      "rating_best",
+      "wins",
+      "losses",
+      "draws"
+    ],
+    "type": "js",
+    "modulePath": "chess/stats.js",
+    "sourceFile": "chess/stats.js"
+  },
+  {
     "site": "claude",
     "name": "ask",
     "description": "Send a prompt to Claude and get the response",
@@ -6118,6 +6310,208 @@
     "type": "js",
     "modulePath": "coingecko/trending.js",
     "sourceFile": "coingecko/trending.js"
+  },
+  {
+    "site": "confluence",
+    "name": "create",
+    "description": "Create a Confluence page from Markdown or storage XHTML",
+    "access": "write",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "space",
+        "type": "string",
+        "required": true,
+        "help": "Cloud space id, or Data Center space key"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "help": "Page title"
+      },
+      {
+        "name": "file",
+        "type": "string",
+        "required": true,
+        "help": "Markdown file path"
+      },
+      {
+        "name": "parent",
+        "type": "string",
+        "required": false,
+        "help": "Optional parent page id"
+      },
+      {
+        "name": "representation",
+        "type": "string",
+        "default": "markdown",
+        "required": false,
+        "help": "Input file format",
+        "choices": [
+          "markdown",
+          "storage"
+        ]
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually create the remote page"
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "title",
+      "spaceId",
+      "spaceKey",
+      "version",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "confluence/create.js",
+    "sourceFile": "confluence/create.js"
+  },
+  {
+    "site": "confluence",
+    "name": "page",
+    "description": "Confluence page by id with storage and Markdown body",
+    "access": "read",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Confluence page id"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "status",
+      "spaceId",
+      "spaceKey",
+      "version",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "confluence/page.js",
+    "sourceFile": "confluence/page.js"
+  },
+  {
+    "site": "confluence",
+    "name": "search",
+    "description": "Search Confluence content with CQL",
+    "access": "read",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "cql",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "CQL query, e.g. \"type = page and title ~ \\\"RCA\\\"\""
+      },
+      {
+        "name": "space",
+        "type": "string",
+        "required": false,
+        "help": "Limit search to a Confluence space key"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results to return (1-100)"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "spaceKey",
+      "status",
+      "lastModified",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "confluence/search.js",
+    "sourceFile": "confluence/search.js"
+  },
+  {
+    "site": "confluence",
+    "name": "update",
+    "description": "Update a Confluence page body from Markdown or storage XHTML",
+    "access": "write",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Confluence page id"
+      },
+      {
+        "name": "file",
+        "type": "string",
+        "required": true,
+        "help": "Markdown file path"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "help": "Optional replacement title; defaults to current title"
+      },
+      {
+        "name": "version-message",
+        "type": "string",
+        "required": false,
+        "help": "Confluence version message"
+      },
+      {
+        "name": "representation",
+        "type": "string",
+        "default": "markdown",
+        "required": false,
+        "help": "Input file format",
+        "choices": [
+          "markdown",
+          "storage"
+        ]
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually update the remote page"
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "title",
+      "spaceId",
+      "spaceKey",
+      "version",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "confluence/update.js",
+    "sourceFile": "confluence/update.js"
   },
   {
     "site": "coupang",
@@ -8807,7 +9201,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "search=关键词搜索 suggest=AI推荐 hot=热点词",
+        "help": "search=关键词搜索 (--keyword 必填), suggest=AI推荐 (--cover 必填), hot=热点词 (--keyword 可选)",
         "choices": [
           "search",
           "suggest",
@@ -8819,14 +9213,14 @@
         "type": "str",
         "default": "",
         "required": false,
-        "help": "搜索关键词（search/hot 使用）"
+        "help": "搜索关键词. search 必填; hot 可选; suggest 不使用 (传 --cover)"
       },
       {
         "name": "cover",
         "type": "str",
         "default": "",
         "required": false,
-        "help": "封面 URI（suggest 使用）"
+        "help": "封面 URI (cover_uri). suggest 必填; 其它 action 不使用"
       },
       {
         "name": "limit",
@@ -14034,6 +14428,171 @@
     "navigateBefore": "https://jimeng.jianying.com"
   },
   {
+    "site": "jira",
+    "name": "attachments",
+    "description": "Jira issue attachment metadata",
+    "access": "read",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Jira issue key, e.g. PROJ-123"
+      }
+    ],
+    "columns": [
+      "id",
+      "filename",
+      "mimeType",
+      "size",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jira/attachments.js",
+    "sourceFile": "jira/attachments.js"
+  },
+  {
+    "site": "jira",
+    "name": "comments",
+    "description": "Jira issue comments as Markdown",
+    "access": "read",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Jira issue key, e.g. PROJ-123"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max comments to return (1-100)"
+      }
+    ],
+    "columns": [
+      "id",
+      "author",
+      "created",
+      "updated",
+      "markdown"
+    ],
+    "type": "js",
+    "modulePath": "jira/comments.js",
+    "sourceFile": "jira/comments.js"
+  },
+  {
+    "site": "jira",
+    "name": "issue",
+    "description": "Jira issue detail normalized for agents (description, comments, attachments, links)",
+    "access": "read",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Jira issue key, e.g. PROJ-123"
+      },
+      {
+        "name": "comments-limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max comments to include (1-100)"
+      }
+    ],
+    "columns": [
+      "key",
+      "summary",
+      "issueType",
+      "status",
+      "priority",
+      "assignee",
+      "updated",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jira/issue.js",
+    "sourceFile": "jira/issue.js"
+  },
+  {
+    "site": "jira",
+    "name": "links",
+    "description": "Jira issue links",
+    "access": "read",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Jira issue key, e.g. PROJ-123"
+      }
+    ],
+    "columns": [
+      "key",
+      "type",
+      "direction"
+    ],
+    "type": "js",
+    "modulePath": "jira/links.js",
+    "sourceFile": "jira/links.js"
+  },
+  {
+    "site": "jira",
+    "name": "search",
+    "description": "Search Jira issues with JQL",
+    "access": "read",
+    "domain": "atlassian.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "jql",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "JQL query, e.g. \"project = PROJ order by updated desc\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max issues to return (1-100)"
+      }
+    ],
+    "columns": [
+      "key",
+      "summary",
+      "issueType",
+      "status",
+      "priority",
+      "assignee",
+      "updated",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jira/search.js",
+    "sourceFile": "jira/search.js"
+  },
+  {
     "site": "ke",
     "name": "chengjiao",
     "description": "贝壳找房成交记录",
@@ -16615,6 +17174,111 @@
   },
   {
     "site": "notebooklm",
+    "name": "add-source",
+    "description": "Add a URL, text, or local file source to an existing NotebookLM notebook",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Source URL to add (http/https). Pass exactly one of --url, --content, --file."
+      },
+      {
+        "name": "content",
+        "type": "str",
+        "required": false,
+        "help": "Raw text content to add as a Text source (max 10 MB)."
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Local file path to upload as a source (max 52428800 bytes; pdf / txt / md / html / docx / etc.). Uses Google Drive's 3-step resumable upload protocol."
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "Title for the text source (default \"Text Source\"). Ignored for --url and --file."
+      },
+      {
+        "name": "mime-type",
+        "type": "str",
+        "required": false,
+        "help": "Override the auto-detected MIME type when --file is given."
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually add the remote source to the NotebookLM notebook"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "source_id",
+      "kind",
+      "identifier",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/add-source.js",
+    "sourceFile": "notebooklm/add-source.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "create",
+    "description": "Create a new NotebookLM notebook with the given title",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook title (1-200 chars)"
+      },
+      {
+        "name": "emoji",
+        "type": "str",
+        "required": false,
+        "help": "Notebook emoji icon (default 📒)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually create the remote NotebookLM notebook"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "emoji",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/create.js",
+    "sourceFile": "notebooklm/create.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
     "name": "current",
     "description": "Show metadata for the currently opened NotebookLM notebook tab",
     "access": "read",
@@ -16631,6 +17295,88 @@
     "type": "js",
     "modulePath": "notebooklm/current.js",
     "sourceFile": "notebooklm/current.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "generate-audio",
+    "description": "Trigger an Audio Overview (Deep Dive podcast) generation for a NotebookLM notebook, using all of its sources",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually trigger remote NotebookLM audio generation"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "audio_id",
+      "source_count",
+      "status",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/generate-audio.js",
+    "sourceFile": "notebooklm/generate-audio.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "generate-slides",
+    "description": "Trigger a Slide Deck (AI presentation) generation for a NotebookLM notebook, using all of its sources",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "length",
+        "type": "str",
+        "required": false,
+        "help": "Slide deck length: 1=Short, 3=Default (default 3)"
+      },
+      {
+        "name": "language",
+        "type": "str",
+        "required": false,
+        "help": "Language code (default en)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually trigger remote NotebookLM slide deck generation"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "slides_id",
+      "source_count",
+      "status",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/generate-slides.js",
+    "sourceFile": "notebooklm/generate-slides.js",
     "navigateBefore": false
   },
   {
@@ -16942,6 +17688,52 @@
     "type": "js",
     "modulePath": "notebooklm/summary.js",
     "sourceFile": "notebooklm/summary.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "write-note",
+    "description": "Create a Studio note in an existing NotebookLM notebook with the given title and Markdown content",
+    "access": "write",
+    "domain": "notebooklm.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "notebook",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "Note title (1-200 chars)"
+      },
+      {
+        "name": "content",
+        "type": "str",
+        "required": true,
+        "help": "Note body as Markdown"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually create the remote NotebookLM note"
+      }
+    ],
+    "columns": [
+      "notebook_id",
+      "note_id",
+      "title",
+      "notebook_url"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/write-note.js",
+    "sourceFile": "notebooklm/write-note.js",
     "navigateBefore": false
   },
   {

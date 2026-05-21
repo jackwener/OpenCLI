@@ -102,6 +102,19 @@ describe('cli() registration', () => {
     expect(getRegistry().get('test-registry/plain-default')?.defaultFormat).toBe('plain');
   });
 
+  it('preserves validateArgs on the registered command', () => {
+    const validateArgs = () => undefined;
+    const cmd = cli({
+      site: 'test-registry',
+      name: 'validated', access: 'read',
+      description: 'validates args before execution',
+      validateArgs,
+    });
+
+    expect(cmd.validateArgs).toBe(validateArgs);
+    expect(getRegistry().get('test-registry/validated')?.validateArgs).toBe(validateArgs);
+  });
+
   it('rejects commands without explicit access metadata', () => {
     expect(() => cli({
       site: 'test-registry',

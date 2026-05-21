@@ -791,8 +791,8 @@ const LEGACY_AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
 const AUTOMATION_TAB_GROUP_COLOR = "orange";
 let leaseMutationQueue = Promise.resolve();
 const ownedContainers = {
-  interactive: { windowId: null, groupId: null, promise: null },
-  automation: { windowId: null, groupId: null, promise: null }
+  interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
+  automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
 };
 class CommandFailure extends Error {
   constructor(code, message, hint) {
@@ -1091,6 +1091,16 @@ async function discoverOwnedContainerFromTabGroup(role) {
 async function ensureOwnedContainerTabGroup(role, windowId, tabIds) {
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   if (ids.length === 0) return;
+  const container = ownedContainers[role];
+  const previousGroupPromise = container.groupPromise ?? Promise.resolve();
+  const nextGroupPromise = previousGroupPromise.catch(() => void 0).then(() => ensureOwnedContainerTabGroupUnlocked(role, windowId, ids));
+  const trackedGroupPromise = nextGroupPromise.finally(() => {
+    if (container.groupPromise === trackedGroupPromise) container.groupPromise = null;
+  });
+  container.groupPromise = trackedGroupPromise;
+  return trackedGroupPromise;
+}
+async function ensureOwnedContainerTabGroupUnlocked(role, windowId, ids) {
   try {
     const existingGroupId = await getOwnedContainerGroupId(role, windowId);
     if (existingGroupId !== null) {
