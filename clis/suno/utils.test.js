@@ -190,6 +190,33 @@ describe('suno utils — ensureSunoSession typed failures', () => {
             error: 'Malformed billing/info JSON: Unexpected token <',
         }))).rejects.toThrowError(CommandExecutionError);
     });
+
+    it('resolves a free-tier session without throwing when subscription_type is false (#1704)', async () => {
+        const session = await ensureSunoSession(createSessionPage({
+            ok: true,
+            planId: '4497580c-f4eb-4f86-9f0e-960eb7c48d7d',
+            planKey: 'free',
+            planName: 'Free Plan',
+            totalCreditsAvailable: 40,
+            breakdown: { pack: 0, purchasedPacks: 0, monthlyRemaining: 40, monthlyLimit: 50, monthlyUsed: 10 },
+        }));
+        expect(session.planKey).toBe('free');
+        expect(session.planId).toBe('4497580c-f4eb-4f86-9f0e-960eb7c48d7d');
+        expect(session.totalCreditsAvailable).toBe(40);
+    });
+
+    it('still resolves when planId is null so read commands work even on unparseable plan shapes', async () => {
+        const session = await ensureSunoSession(createSessionPage({
+            ok: true,
+            planId: null,
+            planKey: 'free',
+            planName: null,
+            totalCreditsAvailable: 0,
+            breakdown: { pack: 0, purchasedPacks: 0, monthlyRemaining: 0, monthlyLimit: 0, monthlyUsed: 0 },
+        }));
+        expect(session.planId).toBeNull();
+        expect(session.planKey).toBe('free');
+    });
 });
 
 describe('suno utils — model + format exports', () => {

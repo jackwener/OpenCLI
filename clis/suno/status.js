@@ -49,8 +49,9 @@ export const statusCommand = cli({
             captcha = { required: true };
         }
         const b = session.breakdown;
-        // ensureSunoSession guarantees planId; planKey is fetched from the same
-        // billing/info response and is always populated for an active account.
+        // ensureSunoSession surfaces planKey derived from billing/info's
+        // subscription_type vs plans[] lookup; planId may be null for accounts
+        // whose plan cannot be resolved against plans[] (e.g., new schema fields).
         return [{
             Status: 'Connected',
             Plan: session.planKey,

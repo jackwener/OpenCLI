@@ -168,13 +168,27 @@ export async function ensureSunoSession(page) {
             //   - monthly subscription  : (monthly_limit - monthly_usage)
             //   - data.credit_packs[]   : purchased packs not yet exhausted
             // The web UI's "credits remaining" pill is the sum of all three.
-            const packCredits = (data?.credit_packs || []).reduce((s, p) => s + (p?.credits ?? 0), 0);
+            const packCredits = (data?.credit_packs || []).reduce((s, p) => s + (p?.amount ?? p?.credits ?? 0), 0);
             const monthlyRemaining = Math.max(0, (data?.monthly_limit ?? 0) - (data?.monthly_usage ?? 0));
-            const totalCreditsAvailable = (data?.credits ?? 0) + packCredits + monthlyRemaining;
+            const totalCreditsAvailable = typeof data?.total_credits_left === 'number'
+                ? data.total_credits_left
+                : (data?.credits ?? 0) + packCredits + monthlyRemaining;
+            // billing/info no longer returns a top-level plan object. Current
+            // plan is derived by matching subscription_type against plans[].
+            // For free-tier accounts subscription_type is false (or null), so
+            // fall back to the plans[] entry whose plan_key equals "free".
+            const plans = Array.isArray(data?.plans) ? data.plans : [];
+            const subscriptionKey = typeof data?.subscription_type === 'string' && data.subscription_type
+                ? data.subscription_type
+                : null;
+            const currentPlan = subscriptionKey
+                ? plans.find((p) => p?.plan_key === subscriptionKey)
+                : plans.find((p) => p?.plan_key === 'free');
             return {
                 ok: true,
-                planId: data?.plan?.id || null,
-                planKey: data?.plan?.plan_key || null,
+                planId: currentPlan?.id || data?.plan?.id || null,
+                planKey: currentPlan?.plan_key || data?.plan?.plan_key || (subscriptionKey ?? 'free'),
+                planName: currentPlan?.name || null,
                 totalCreditsAvailable,
                 breakdown: {
                     pack: data?.credits ?? 0,
@@ -195,9 +209,6 @@ export async function ensureSunoSession(page) {
             throw new AuthRequiredError(SUNO_DOMAIN, `Suno session check failed (${detail}). Open https://suno.com in Chrome and sign in, then retry.`);
         }
         throw new CommandExecutionError(`Suno session check failed (${detail}).`);
-    }
-    if (!result.planId) {
-        throw new CommandExecutionError('Suno billing/info returned no plan id — cannot construct user_tier for generation request.');
     }
     return { ...result, deviceId };
 }

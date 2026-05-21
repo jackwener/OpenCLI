@@ -120,6 +120,11 @@ export const generateCommand = cli({
         const title = titleSource.replace(/\s+/g, ' ').trim().slice(0, 60) || 'Untitled';
 
         const session = await ensureSunoSession(page);
+        if (!session.planId) {
+            throw new CommandExecutionError(
+                `Suno generation needs a resolved plan id for the user_tier field, but billing/info did not surface one for this account (subscription_type=${session.planKey}). Verify the account is active at ${SUNO_URL}/account, then retry.`,
+            );
+        }
         const deviceId = session.deviceId;
         const captcha = await checkSunoCaptcha(page, deviceId);
         if (!captcha?.ok) {
