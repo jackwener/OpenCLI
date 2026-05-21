@@ -136,6 +136,44 @@ function sunoHeadersJs(deviceId, extra = {}) {
 // Session bootstrap.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Pure parser for the studio-api-prod.suno.com /api/billing/info/ response.
+ *
+ * Inlined into the in-page IIFE via toString() so the same code path is
+ * exercised in Node tests and in the browser. billing/info changed shape
+ * mid-2026: there is no longer a top-level plan object; the current plan
+ * is derived by matching subscription_type against the plans[] array.
+ * Free-tier accounts have subscription_type === false (or null), in which
+ * case the plans[] entry with plan_key === "free" is the current plan.
+ */
+export function parseSunoBillingInfo(data) {
+    const packCredits = (data?.credit_packs || []).reduce((s, p) => s + (p?.amount ?? p?.credits ?? 0), 0);
+    const monthlyRemaining = Math.max(0, (data?.monthly_limit ?? 0) - (data?.monthly_usage ?? 0));
+    const totalCreditsAvailable = typeof data?.total_credits_left === 'number'
+        ? data.total_credits_left
+        : (data?.credits ?? 0) + packCredits + monthlyRemaining;
+    const plans = Array.isArray(data?.plans) ? data.plans : [];
+    const subscriptionKey = typeof data?.subscription_type === 'string' && data.subscription_type
+        ? data.subscription_type
+        : null;
+    const currentPlan = subscriptionKey
+        ? plans.find((p) => p?.plan_key === subscriptionKey)
+        : plans.find((p) => p?.plan_key === 'free');
+    return {
+        planId: currentPlan?.id || data?.plan?.id || null,
+        planKey: currentPlan?.plan_key || data?.plan?.plan_key || (subscriptionKey ?? 'free'),
+        planName: currentPlan?.name || null,
+        totalCreditsAvailable,
+        breakdown: {
+            pack: data?.credits ?? 0,
+            purchasedPacks: packCredits,
+            monthlyRemaining,
+            monthlyLimit: data?.monthly_limit ?? 0,
+            monthlyUsed: data?.monthly_usage ?? 0,
+        },
+    };
+}
+
 export async function ensureSunoSession(page) {
     await page.goto(`${SUNO_URL}/me`, { settleMs: 2000 });
     // OneTrust consent banner can block the page; dismiss it if present.
@@ -163,41 +201,8 @@ export async function ensureSunoSession(page) {
             } catch (e) {
                 return { ok: false, error: 'Malformed billing/info JSON: ' + String(e).slice(0, 200) };
             }
-            // Suno tracks credits across three buckets:
-            //   - data.credits          : leftover one-time pack credits (often 0)
-            //   - monthly subscription  : (monthly_limit - monthly_usage)
-            //   - data.credit_packs[]   : purchased packs not yet exhausted
-            // The web UI's "credits remaining" pill is the sum of all three.
-            const packCredits = (data?.credit_packs || []).reduce((s, p) => s + (p?.amount ?? p?.credits ?? 0), 0);
-            const monthlyRemaining = Math.max(0, (data?.monthly_limit ?? 0) - (data?.monthly_usage ?? 0));
-            const totalCreditsAvailable = typeof data?.total_credits_left === 'number'
-                ? data.total_credits_left
-                : (data?.credits ?? 0) + packCredits + monthlyRemaining;
-            // billing/info no longer returns a top-level plan object. Current
-            // plan is derived by matching subscription_type against plans[].
-            // For free-tier accounts subscription_type is false (or null), so
-            // fall back to the plans[] entry whose plan_key equals "free".
-            const plans = Array.isArray(data?.plans) ? data.plans : [];
-            const subscriptionKey = typeof data?.subscription_type === 'string' && data.subscription_type
-                ? data.subscription_type
-                : null;
-            const currentPlan = subscriptionKey
-                ? plans.find((p) => p?.plan_key === subscriptionKey)
-                : plans.find((p) => p?.plan_key === 'free');
-            return {
-                ok: true,
-                planId: currentPlan?.id || data?.plan?.id || null,
-                planKey: currentPlan?.plan_key || data?.plan?.plan_key || (subscriptionKey ?? 'free'),
-                planName: currentPlan?.name || null,
-                totalCreditsAvailable,
-                breakdown: {
-                    pack: data?.credits ?? 0,
-                    purchasedPacks: packCredits,
-                    monthlyRemaining,
-                    monthlyLimit: data?.monthly_limit ?? 0,
-                    monthlyUsed: data?.monthly_usage ?? 0,
-                },
-            };
+            const parse = ${parseSunoBillingInfo.toString()};
+            return { ok: true, ...parse(data) };
         } catch (e) {
             return { ok: false, error: String(e).slice(0, 200) };
         }
