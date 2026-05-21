@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './generate-audio.js';
 
 const { AUDIO_OVERVIEW_CONFIG_BLOCK, buildCreateAudioArgs, parseAudioIdFromResult } = __test__;
@@ -41,5 +43,14 @@ describe('notebooklm generate-audio', () => {
         expect(parseAudioIdFromResult({})).toBe('');
         expect(parseAudioIdFromResult([])).toBe('');
         expect(parseAudioIdFromResult(null)).toBe('');
+    });
+
+    it('refuses to trigger remote audio generation without --execute', async () => {
+        const command = getRegistry().get('notebooklm/generate-audio');
+        const page = { goto: vi.fn() };
+        await expect(command.func(page, {
+            notebook: '17e2b882-6a01-4c6c-9262-0738dfa2abee',
+        })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
 });

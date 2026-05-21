@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './generate-slides.js';
 
-const { SLIDE_DECK_CONFIG_BLOCK, buildCreateSlidesArgs, parseSlidesIdFromResult } = __test__;
+const { SLIDE_DECK_CONFIG_BLOCK, buildCreateSlidesArgs, parseSlideDeckLength, parseSlidesIdFromResult } = __test__;
 
 describe('notebooklm generate-slides', () => {
     it('SLIDE_DECK_CONFIG_BLOCK reuses the same R7cb6c config envelope as audio', () => {
@@ -34,6 +36,14 @@ describe('notebooklm generate-slides', () => {
         expect(args[2][16]).toEqual([[null, 'zh', 1, 1]]);
     });
 
+    it('parseSlideDeckLength defaults empty values and rejects invalid input', () => {
+        expect(parseSlideDeckLength(undefined)).toBe(3);
+        expect(parseSlideDeckLength('')).toBe(3);
+        expect(parseSlideDeckLength('1')).toBe(1);
+        expect(() => parseSlideDeckLength('many')).toThrow(ArgumentError);
+        expect(() => parseSlideDeckLength(0)).toThrow(ArgumentError);
+    });
+
     it('parseSlidesIdFromResult finds a UUID-shaped slides id anywhere in the tree', () => {
         const id = '1f8ada7d-cb33-49a4-8498-c5b81c1a899d';
         expect(parseSlidesIdFromResult([[id, 'opencli-slides-test']])).toBe(id);
@@ -45,5 +55,14 @@ describe('notebooklm generate-slides', () => {
         expect(parseSlidesIdFromResult({})).toBe('');
         expect(parseSlidesIdFromResult([])).toBe('');
         expect(parseSlidesIdFromResult(null)).toBe('');
+    });
+
+    it('refuses to trigger remote slide generation without --execute', async () => {
+        const command = getRegistry().get('notebooklm/generate-slides');
+        const page = { goto: vi.fn() };
+        await expect(command.func(page, {
+            notebook: '17e2b882-6a01-4c6c-9262-0738dfa2abee',
+        })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
 });

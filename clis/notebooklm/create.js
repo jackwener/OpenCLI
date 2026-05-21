@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { callNotebooklmRpc } from './rpc.js';
-import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, requireNotebooklmSession, verifyNotebooklmNotebookExists } from './utils.js';
+import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, requireNotebooklmExecute, requireNotebooklmSession, verifyNotebooklmNotebookExists } from './utils.js';
 
 const NOTEBOOKLM_CREATE_PROJECT_RPC_ID = 'CCqFvf';
 const DEFAULT_EMOJI = '📒';
@@ -48,11 +48,13 @@ cli({
     args: [
         { name: 'title', positional: true, required: true, help: 'Notebook title (1-200 chars)' },
         { name: 'emoji', help: `Notebook emoji icon (default ${DEFAULT_EMOJI})` },
+        { name: 'execute', type: 'boolean', help: 'Actually create the remote NotebookLM notebook' },
     ],
     columns: ['id', 'title', 'emoji', 'url'],
     func: async (page, kwargs) => {
         const title = parseCreateTitle(kwargs.title);
         const emoji = parseCreateEmoji(kwargs.emoji);
+        requireNotebooklmExecute(kwargs.execute, 'create a NotebookLM notebook');
         await ensureNotebooklmHome(page);
         await requireNotebooklmSession(page);
         const rpc = await callNotebooklmRpc(page, NOTEBOOKLM_CREATE_PROJECT_RPC_ID, [title, emoji]);

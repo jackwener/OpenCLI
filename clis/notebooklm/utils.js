@@ -1,4 +1,4 @@
-import { AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
 import { callNotebooklmRpc, getNotebooklmPageAuth, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';
@@ -47,6 +47,11 @@ export function parseNotebooklmNotebookTarget(value) {
 export function getNotebooklmAuthuser() {
     const v = process.env.OPENCLI_NOTEBOOKLM_AUTHUSER;
     return typeof v === 'string' && /^\d+$/.test(v) ? v : '';
+}
+export function requireNotebooklmExecute(value, action) {
+    if (value !== true) {
+        throw new ArgumentError(`Refusing to ${action}: pass --execute to perform this NotebookLM write`);
+    }
 }
 export function buildNotebooklmNotebookUrl(notebookId) {
     const u = new URL(`/notebook/${encodeURIComponent(notebookId)}`, NOTEBOOKLM_HOME_URL);

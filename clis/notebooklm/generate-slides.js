@@ -1,8 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { callNotebooklmRpc } from './rpc.js';
-import { buildNotebooklmNotebookUrl, listNotebooklmSourcesViaRpc, parseNotebooklmNotebookTarget, requireNotebooklmSession } from './utils.js';
+import { buildNotebooklmNotebookUrl, listNotebooklmSourcesViaRpc, parseNotebooklmNotebookTarget, requireNotebooklmExecute, requireNotebooklmSession } from './utils.js';
 
 const NOTEBOOKLM_CREATE_ARTIFACT_RPC_ID = 'R7cb6c';
 const SLIDE_DECK_CONFIG_BLOCK = [2, null, null, [1, null, null, null, null, null, null, null, null, null, [1]], [[1, 4, 2, 3, 6]]];
@@ -40,6 +40,15 @@ export function parseSlidesIdFromResult(result) {
     return '';
 }
 
+export function parseSlideDeckLength(value) {
+    if (value === undefined || value === '') return 3;
+    const length = Number(value);
+    if (!Number.isInteger(length) || length <= 0) {
+        throw new ArgumentError('--length must be a positive integer');
+    }
+    return length;
+}
+
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'generate-slides',
@@ -53,12 +62,14 @@ cli({
         { name: 'notebook', positional: true, required: true, help: 'Notebook id from `notebooklm list` or full notebook URL' },
         { name: 'length', help: 'Slide deck length: 1=Short, 3=Default (default 3)' },
         { name: 'language', help: 'Language code (default en)' },
+        { name: 'execute', type: 'boolean', help: 'Actually trigger remote NotebookLM slide deck generation' },
     ],
     columns: ['notebook_id', 'slides_id', 'source_count', 'status', 'notebook_url'],
     func: async (page, kwargs) => {
         const notebookId = parseNotebooklmNotebookTarget(String(kwargs.notebook ?? ''));
-        const length = kwargs.length === undefined || kwargs.length === '' ? 3 : Number(kwargs.length);
+        const length = parseSlideDeckLength(kwargs.length);
         const language = String(kwargs.language ?? 'en').trim() || 'en';
+        requireNotebooklmExecute(kwargs.execute, 'generate NotebookLM slides');
         try {
             await page.goto(buildNotebooklmNotebookUrl(notebookId));
             await page.wait(2);
@@ -87,4 +98,4 @@ cli({
     },
 });
 
-export const __test__ = { SLIDE_DECK_CONFIG_BLOCK, buildCreateSlidesArgs, parseSlidesIdFromResult };
+export const __test__ = { SLIDE_DECK_CONFIG_BLOCK, buildCreateSlidesArgs, parseSlideDeckLength, parseSlidesIdFromResult };

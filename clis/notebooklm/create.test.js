@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './create.js';
 
 const { parseCreateTitle, parseCreateEmoji, parseCreateProjectResult } = __test__;
@@ -44,5 +45,12 @@ describe('notebooklm create', () => {
         expect(parseCreateProjectResult({})).toBe('');
         expect(parseCreateProjectResult([])).toBe('');
         expect(parseCreateProjectResult([null, null, null])).toBe('');
+    });
+
+    it('refuses to create a remote notebook without --execute', async () => {
+        const command = getRegistry().get('notebooklm/create');
+        const page = { goto: vi.fn() };
+        await expect(command.func(page, { title: 'Draft Notebook' })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
 });

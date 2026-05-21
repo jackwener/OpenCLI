@@ -17217,6 +17217,12 @@
         "type": "str",
         "required": false,
         "help": "Override the auto-detected MIME type when --file is given."
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually add the remote source to the NotebookLM notebook"
       }
     ],
     "columns": [
@@ -17252,6 +17258,12 @@
         "type": "str",
         "required": false,
         "help": "Notebook emoji icon (default 📒)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually create the remote NotebookLM notebook"
       }
     ],
     "columns": [
@@ -17300,6 +17312,12 @@
         "required": true,
         "positional": true,
         "help": "Notebook id from `notebooklm list` or full notebook URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually trigger remote NotebookLM audio generation"
       }
     ],
     "columns": [
@@ -17341,6 +17359,12 @@
         "type": "str",
         "required": false,
         "help": "Language code (default en)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually trigger remote NotebookLM slide deck generation"
       }
     ],
     "columns": [
@@ -17693,6 +17717,12 @@
         "type": "str",
         "required": true,
         "help": "Note body as Markdown"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually create the remote NotebookLM note"
       }
     ],
     "columns": [

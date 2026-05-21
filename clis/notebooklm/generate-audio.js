@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { callNotebooklmRpc } from './rpc.js';
-import { buildNotebooklmNotebookUrl, listNotebooklmSourcesViaRpc, parseNotebooklmNotebookTarget, requireNotebooklmSession } from './utils.js';
+import { buildNotebooklmNotebookUrl, listNotebooklmSourcesViaRpc, parseNotebooklmNotebookTarget, requireNotebooklmExecute, requireNotebooklmSession } from './utils.js';
 
 const NOTEBOOKLM_CREATE_AUDIO_RPC_ID = 'R7cb6c';
 const AUDIO_OVERVIEW_CONFIG_BLOCK = [2, null, null, [1, null, null, null, null, null, null, null, null, null, [1]], [[1, 4, 2, 3, 6]]];
@@ -49,10 +49,12 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'notebook', positional: true, required: true, help: 'Notebook id from `notebooklm list` or full notebook URL' },
+        { name: 'execute', type: 'boolean', help: 'Actually trigger remote NotebookLM audio generation' },
     ],
     columns: ['notebook_id', 'audio_id', 'source_count', 'status', 'notebook_url'],
     func: async (page, kwargs) => {
         const notebookId = parseNotebooklmNotebookTarget(String(kwargs.notebook ?? ''));
+        requireNotebooklmExecute(kwargs.execute, 'generate NotebookLM audio');
         try {
             await page.goto(buildNotebooklmNotebookUrl(notebookId));
             await page.wait(2);

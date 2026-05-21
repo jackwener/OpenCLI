@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './add-source.js';
 
 const {
@@ -24,6 +25,7 @@ describe('notebooklm add-source', () => {
         expect(parseSourceUrl('   ')).toBe('');
         expect(() => parseSourceUrl('ftp://example.com')).toThrow(ArgumentError);
         expect(() => parseSourceUrl('javascript:alert(1)')).toThrow(ArgumentError);
+        expect(() => parseSourceUrl('https://')).toThrow(ArgumentError);
     });
 
     it('parseSourceText returns the content for non-empty, null for unset', () => {
@@ -75,5 +77,15 @@ describe('notebooklm add-source', () => {
         expect(parseAddSourceResult({})).toBe('');
         expect(parseAddSourceResult([])).toBe('');
         expect(parseAddSourceResult([[]])).toBe('');
+    });
+
+    it('refuses to add a remote source without --execute', async () => {
+        const command = getRegistry().get('notebooklm/add-source');
+        const page = { goto: vi.fn() };
+        await expect(command.func(page, {
+            notebook: '17e2b882-6a01-4c6c-9262-0738dfa2abee',
+            content: 'source body',
+        })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
 });

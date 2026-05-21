@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { callNotebooklmRpc } from './rpc.js';
-import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, parseNotebooklmNotebookTarget, requireNotebooklmSession } from './utils.js';
+import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, parseNotebooklmNotebookTarget, requireNotebooklmExecute, requireNotebooklmSession } from './utils.js';
 
 const NOTEBOOKLM_CREATE_NOTE_RPC_ID = 'CYK0Xb';
 const NOTEBOOKLM_MUTATE_NOTE_RPC_ID = 'cYAfTb';
@@ -64,12 +64,14 @@ cli({
         { name: 'notebook', positional: true, required: true, help: 'Notebook id from `notebooklm list` or full notebook URL' },
         { name: 'title', required: true, help: 'Note title (1-200 chars)' },
         { name: 'content', required: true, help: 'Note body as Markdown' },
+        { name: 'execute', type: 'boolean', help: 'Actually create the remote NotebookLM note' },
     ],
     columns: ['notebook_id', 'note_id', 'title', 'notebook_url'],
     func: async (page, kwargs) => {
         const notebookId = parseNotebooklmNotebookTarget(String(kwargs.notebook ?? ''));
         const title = parseNoteTitle(kwargs.title);
         const content = parseNoteContent(kwargs.content);
+        requireNotebooklmExecute(kwargs.execute, 'create a NotebookLM note');
         await ensureNotebooklmHome(page);
         await requireNotebooklmSession(page);
         const shellRpc = await callNotebooklmRpc(page, NOTEBOOKLM_CREATE_NOTE_RPC_ID, buildCreateNoteShellArgs(notebookId));

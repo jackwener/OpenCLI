@@ -4,7 +4,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { callNotebooklmRpc } from './rpc.js';
-import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, getNotebooklmAuthuser, parseNotebooklmNotebookTarget, requireNotebooklmSession, verifyNotebooklmSourceAdded } from './utils.js';
+import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, getNotebooklmAuthuser, parseNotebooklmNotebookTarget, requireNotebooklmExecute, requireNotebooklmSession, verifyNotebooklmSourceAdded } from './utils.js';
 
 const NOTEBOOKLM_ADD_SOURCES_RPC_ID = 'izAoDd';
 const NOTEBOOKLM_ADD_FILE_SOURCE_RPC_ID = 'o4cbdc';
@@ -66,10 +66,16 @@ export function buildRegisterFileSourceArgs(projectId, filename) {
 export function parseSourceUrl(value) {
     const url = String(value ?? '').trim();
     if (!url) return '';
-    if (!/^https?:\/\//i.test(url)) {
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch {
+        throw new ArgumentError(`Invalid source URL: "${url}"`, 'URL must be a valid http:// or https:// URL.');
+    }
+    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) {
         throw new ArgumentError(`Invalid source URL: "${url}"`, 'URL must start with http:// or https://.');
     }
-    return url;
+    return parsed.toString();
 }
 
 export function parseSourceText(value) {
@@ -189,6 +195,7 @@ cli({
         { name: 'file', help: `Local file path to upload as a source (max ${MAX_FILE_SOURCE_BYTES} bytes; pdf / txt / md / html / docx / etc.). Uses Google Drive's 3-step resumable upload protocol.` },
         { name: 'title', help: 'Title for the text source (default "Text Source"). Ignored for --url and --file.' },
         { name: 'mime-type', help: 'Override the auto-detected MIME type when --file is given.' },
+        { name: 'execute', type: 'boolean', help: 'Actually add the remote source to the NotebookLM notebook' },
     ],
     columns: ['notebook_id', 'source_id', 'kind', 'identifier', 'notebook_url'],
     func: async (page, kwargs) => {
@@ -203,6 +210,7 @@ cli({
         if (modes.length > 1) {
             throw new ArgumentError('Pass exactly one of --url, --content, --file (got: ' + modes.join(' + ') + ')');
         }
+        requireNotebooklmExecute(kwargs.execute, 'add a NotebookLM source');
         const title = parseSourceTitle(kwargs.title, 'Text Source');
         await ensureNotebooklmHome(page);
         await requireNotebooklmSession(page);

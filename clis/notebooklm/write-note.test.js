@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './write-note.js';
 
 const { parseNoteTitle, parseNoteContent, buildCreateNoteShellArgs, buildMutateNoteArgs, parseNoteIdFromResult } = __test__;
@@ -48,5 +49,16 @@ describe('notebooklm write-note', () => {
         expect(parseNoteIdFromResult([ 'project-id', 'not-a-uuid' ])).toBe('');
         expect(parseNoteIdFromResult(null)).toBe('');
         expect(parseNoteIdFromResult([])).toBe('');
+    });
+
+    it('refuses to create a remote note without --execute', async () => {
+        const command = getRegistry().get('notebooklm/write-note');
+        const page = { goto: vi.fn() };
+        await expect(command.func(page, {
+            notebook: '17e2b882-6a01-4c6c-9262-0738dfa2abee',
+            title: 'Draft note',
+            content: 'body',
+        })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
 });
