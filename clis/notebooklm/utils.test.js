@@ -414,4 +414,29 @@ describe('notebooklm utils', () => {
             notebookCount: 0,
         });
     });
+    it('reads page state through Browser Bridge evaluate envelopes', async () => {
+        const page = {
+            evaluate: async () => ({
+                session: 'site:notebooklm:abc',
+                data: {
+                    url: 'https://notebooklm.google.com/notebook/nb-demo',
+                    title: 'Demo Notebook - NotebookLM',
+                    hostname: 'notebooklm.google.com',
+                    kind: 'notebook',
+                    notebookId: 'nb-demo',
+                    loginRequired: false,
+                    notebookCount: 0,
+                },
+            }),
+        };
+        await expect(getNotebooklmPageState(page)).resolves.toEqual({
+            url: 'https://notebooklm.google.com/notebook/nb-demo',
+            title: 'Demo Notebook - NotebookLM',
+            hostname: 'notebooklm.google.com',
+            kind: 'notebook',
+            notebookId: 'nb-demo',
+            loginRequired: false,
+            notebookCount: 0,
+        });
+    });
 });

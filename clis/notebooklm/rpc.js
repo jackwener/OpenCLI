@@ -1,5 +1,13 @@
 import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN } from './shared.js';
+
+export function unwrapNotebooklmEvaluateResult(payload) {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload) && 'session' in payload && 'data' in payload) {
+        return payload.data;
+    }
+    return payload;
+}
+
 export function extractNotebooklmPageAuthFromHtml(html, sourcePath = '/', preferredTokens) {
     const csrfMatch = html.match(/"SNlM0e":"([^"]+)"/);
     const sessionMatch = html.match(/"FdrFJe":"([^"]+)"/);
@@ -11,7 +19,7 @@ export function extractNotebooklmPageAuthFromHtml(html, sourcePath = '/', prefer
     return { csrfToken, sessionId, sourcePath: sourcePath || '/', authuser: preferredTokens?.authuser ?? '' };
 }
 async function probeNotebooklmPageAuth(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const wiz = window.WIZ_global_data || {};
     const html = document.documentElement.innerHTML;
     const authMatch = (location.search || '').match(/[?&]authuser=(\\d+)/);
@@ -24,7 +32,7 @@ async function probeNotebooklmPageAuth(page) {
       sessionId: typeof wiz.FdrFJe === 'string' ? wiz.FdrFJe : '',
       authuser: authMatch ? authMatch[1] : (pathMatch ? pathMatch[1] : ''),
     };
-  })()`);
+  })()`));
     return {
         html: String(raw?.html ?? ''),
         sourcePath: String(raw?.sourcePath ?? '/'),
@@ -134,7 +142,7 @@ export async function fetchNotebooklmInPage(page, url, options = {}) {
     const method = options.method ?? 'GET';
     const headers = options.headers ?? {};
     const body = options.body ?? '';
-    const raw = await page.evaluate(`(async () => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(async () => {
     const request = {
       url: ${JSON.stringify(url)},
       method: ${JSON.stringify(method)},
@@ -155,7 +163,7 @@ export async function fetchNotebooklmInPage(page, url, options = {}) {
       body: await response.text(),
       finalUrl: response.url,
     };
-  })()`);
+  })()`));
     return {
         ok: Boolean(raw?.ok),
         status: Number(raw?.status ?? 0),

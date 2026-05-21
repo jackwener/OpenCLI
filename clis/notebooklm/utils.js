@@ -1,6 +1,6 @@
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
-import { callNotebooklmRpc, getNotebooklmPageAuth, } from './rpc.js';
+import { callNotebooklmRpc, getNotebooklmPageAuth, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';
 const NOTEBOOKLM_LIST_RPC_ID = 'wXbhsf';
 const NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID = 'rLM1Ne';
@@ -493,7 +493,7 @@ export async function listNotebooklmNotesFromPage(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
         return [];
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     return Array.from(document.querySelectorAll('artifact-library-note')).map((node) => {
       const titleNode = node.querySelector('.artifact-title');
       return {
@@ -501,7 +501,7 @@ export async function listNotebooklmNotesFromPage(page) {
         text: (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim(),
       };
     });
-  })()`);
+  })()`));
     if (!Array.isArray(raw) || raw.length === 0)
         return [];
     return parseNotebooklmNoteListRawRows(raw, state.notebookId, state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`);
@@ -510,13 +510,13 @@ export async function readNotebooklmSummaryFromPage(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
         return null;
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
     const title = normalize(document.querySelector('.notebook-title, h1, [data-testid="notebook-title"]')?.textContent || document.title || '');
     const summaryNode = document.querySelector('.notebook-summary, .summary-content, [class*="summary"]');
     const summary = normalize(summaryNode?.textContent || '');
     return { title, summary };
-  })()`);
+  })()`));
     return parseNotebooklmSummaryRawRow(raw, state.notebookId, state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`);
 }
 export async function getNotebooklmSummaryViaRpc(page) {
@@ -558,7 +558,7 @@ export async function readNotebooklmVisibleNoteFromPage(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
         return null;
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const normalizeText = (value) => (value || '').replace(/\\u00a0/g, ' ').replace(/\\r\\n/g, '\\n').trim();
     const titleNode = document.querySelector('.note-header__editable-title');
     const title = titleNode instanceof HTMLInputElement || titleNode instanceof HTMLTextAreaElement
@@ -575,7 +575,7 @@ export async function readNotebooklmVisibleNoteFromPage(page) {
       title: normalizeText(title),
       content: normalizeText(content),
     };
-  })()`);
+  })()`));
     return parseNotebooklmVisibleNoteRawRow(raw, state.notebookId, state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`);
 }
 export async function ensureNotebooklmHome(page) {
@@ -596,7 +596,7 @@ export async function ensureNotebooklmHome(page) {
     }
 }
 export async function getNotebooklmPageState(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const url = window.location.href;
     const title = document.title || '';
     const hostname = window.location.hostname || '';
@@ -623,7 +623,7 @@ export async function getNotebooklmPageState(page) {
       .reduce((count, href, index, list) => list.indexOf(href) === index ? count + 1 : count, 0);
 
     return { url, title, hostname, kind, notebookId, loginRequired, notebookCount, path };
-  })()`);
+  })()`));
     const state = {
         url: String(raw?.url ?? ''),
         title: normalizeNotebooklmTitle(raw?.title, 'NotebookLM'),
@@ -648,7 +648,7 @@ export async function getNotebooklmPageState(page) {
     return state;
 }
 export async function readCurrentNotebooklm(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const url = window.location.href;
     const match = url.match(/\\/notebook\\/([^/?#]+)/);
     if (!match) return null;
@@ -661,7 +661,7 @@ export async function readCurrentNotebooklm(page) {
       url,
       source: 'current-page',
     };
-  })()`);
+  })()`));
     if (!raw)
         return null;
     return {
@@ -674,7 +674,7 @@ export async function readCurrentNotebooklm(page) {
     };
 }
 export async function listNotebooklmLinks(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const rows = [];
     const seen = new Set();
 
@@ -722,7 +722,7 @@ export async function listNotebooklmLinks(page) {
     }
 
     return rows;
-  })()`);
+  })()`));
     if (!Array.isArray(raw))
         return [];
     return raw
@@ -737,7 +737,7 @@ export async function listNotebooklmLinks(page) {
         .filter((row) => row.id && row.url);
 }
 export async function listNotebooklmSourcesFromPage(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const notebookMatch = window.location.href.match(/\\/notebook\\/([^/?#]+)/);
     const notebookId = notebookMatch ? notebookMatch[1] : '';
     if (!notebookId) return [];
@@ -787,7 +787,7 @@ export async function listNotebooklmSourcesFromPage(page) {
       });
     }
     return rows;
-  })()`);
+  })()`));
     if (!Array.isArray(raw))
         return [];
     return raw.filter((row) => row.id && row.title);

@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError } from '@jackwener/opencli/errors';
-import { buildNotebooklmRpcBody, extractNotebooklmRpcResult, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, } from './rpc.js';
+import { buildNotebooklmRpcBody, extractNotebooklmRpcResult, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 describe('notebooklm rpc transport', () => {
+    it('unwraps Browser Bridge evaluate envelopes', () => {
+        const data = { ok: true };
+        expect(unwrapNotebooklmEvaluateResult({ session: 'site:notebooklm:abc', data })).toBe(data);
+        expect(unwrapNotebooklmEvaluateResult(data)).toBe(data);
+    });
+
     it('extracts auth tokens from the page html via page evaluation', async () => {
         const page = {
             evaluate: vi.fn(async (script) => {
@@ -19,6 +25,23 @@ describe('notebooklm rpc transport', () => {
             authuser: '',
         });
         expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+    it('extracts auth tokens when page evaluation is wrapped in a Browser Bridge envelope', async () => {
+        const page = {
+            evaluate: vi.fn(async () => ({
+                session: 'site:notebooklm:abc',
+                data: {
+                    html: '<html>"SNlM0e":"csrf-123","FdrFJe":"sess-456"</html>',
+                    sourcePath: '/notebook/nb-demo',
+                },
+            })),
+        };
+        await expect(getNotebooklmPageAuth(page)).resolves.toEqual({
+            csrfToken: 'csrf-123',
+            sessionId: 'sess-456',
+            sourcePath: '/notebook/nb-demo',
+            authuser: '',
+        });
     });
     it('falls back to WIZ_global_data tokens when html regex data is missing', async () => {
         const page = {
