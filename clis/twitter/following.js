@@ -98,6 +98,13 @@ function extractUser(result) {
     };
 }
 
+function looksLikePrivateFollowingResponse(data) {
+    const result = data?.data?.user?.result;
+    if (!result || typeof result !== 'object') return false;
+    if (!result.timeline || typeof result.timeline !== 'object') return false;
+    return !result.timeline.timeline?.instructions
+        && !result.timeline_v2?.timeline?.instructions;
+}
 function parseFollowing(data) {
     const users = [];
     let nextCursor = null;
@@ -221,6 +228,7 @@ cli({
         const allUsers = [];
         const seen = new Set();
         let cursor = null;
+        let lastRawResponse = null;
 
         // Runaway guard only; --limit and cursor exhaustion control normal pagination.
         for (let i = 0; i < MAX_PAGINATION_PAGES && allUsers.length < limit; i++) {
@@ -235,6 +243,7 @@ cli({
                     throw new AuthRequiredError('x.com', `Twitter following request failed (HTTP ${data.error})`);
                 throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch following list. queryId may have expired.`);
             }
+            lastRawResponse = data;
             const { users, nextCursor } = parseFollowing(data);
             for (const u of users) {
                 if (!seen.has(u.screen_name)) {
@@ -248,7 +257,10 @@ cli({
         }
 
         if (allUsers.length === 0) {
-            throw new EmptyResultError('twitter following', `No following accounts found for @${targetUser}`);
+            if (looksLikePrivateFollowingResponse(lastRawResponse)) {
+                throw new EmptyResultError('twitter following', `No following data returned for @${targetUser}. The target account may have set their following list to private, or the account has no follows.`);
+            }
+            throw new EmptyResultError('twitter following', `No following accounts found for @${targetUser}.`);
         }
 
         return allUsers.slice(0, limit);
@@ -260,6 +272,7 @@ export const __test__ = {
     buildFollowingUrl,
     buildUserByScreenNameUrl,
     extractUser,
+    looksLikePrivateFollowingResponse,
     normalizeScreenName,
     parseFollowing,
 };

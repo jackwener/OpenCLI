@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import { __test__ } from './likes.js';
 
 function likesPayload() {
@@ -126,6 +126,54 @@ describe('twitter likes helpers', () => {
             created_at: 'now',
             url: 'https://x.com/alice/status/1',
         });
+    });
+});
+
+describe('looksLikePrivateLikesResponse', () => {
+    it('returns true when result.timeline is an empty object', () => {
+        expect(__test__.looksLikePrivateLikesResponse({
+            data: { user: { result: { __typename: 'User', timeline: {} } } },
+        })).toBe(true);
+    });
+    it('returns false when timeline.timeline.instructions is present', () => {
+        expect(__test__.looksLikePrivateLikesResponse({
+            data: { user: { result: { timeline: { timeline: { instructions: [] } } } } },
+        })).toBe(false);
+    });
+    it('returns false when timeline_v2.timeline.instructions is present', () => {
+        expect(__test__.looksLikePrivateLikesResponse({
+            data: { user: { result: { timeline_v2: { timeline: { instructions: [] } } } } },
+        })).toBe(false);
+    });
+    it('returns false when result is missing entirely', () => {
+        expect(__test__.looksLikePrivateLikesResponse({})).toBe(false);
+        expect(__test__.looksLikePrivateLikesResponse(null)).toBe(false);
+        expect(__test__.looksLikePrivateLikesResponse({ data: { user: {} } })).toBe(false);
+    });
+});
+
+describe('twitter likes command', () => {
+    it('throws EmptyResultError with privacy message when API returns empty-timeline shape', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('AppTabBar_Profile_Link')) return { session: 'site:twitter', data: '/viewer' };
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) return { session: 'site:twitter', data: '42' };
+                if (text.includes('/Likes')) {
+                    return { session: 'site:twitter', data: { data: { user: { result: { __typename: 'User', timeline: {} } } } } };
+                }
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+        await expect(command.func(page, { username: 'simonw', limit: 5 }))
+            .rejects.toMatchObject({ hint: expect.stringContaining('X made Likes private') });
+        await expect(command.func(page, { username: 'simonw', limit: 5 }))
+            .rejects.toBeInstanceOf(EmptyResultError);
     });
 });
 
