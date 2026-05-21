@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { fetchWebApiWithCookies } from './utils.js';
+import { fetchPrivateApi } from './utils.js';
 cli({
     site: 'weread',
     name: 'notebooks',
@@ -9,7 +9,7 @@ cli({
     strategy: Strategy.COOKIE,
     columns: ['title', 'author', 'noteCount', 'bookId'],
     func: async (page, _args) => {
-        const data = await fetchWebApiWithCookies(page, '/user/notebooks');
+        const data = await fetchPrivateApi(page, '/user/notebooks');
         const books = data?.books ?? [];
         return books.map((item) => ({
             title: item.book?.title ?? '',
