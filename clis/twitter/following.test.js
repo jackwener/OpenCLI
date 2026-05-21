@@ -336,4 +336,3 @@ describe('twitter following command', () => {
             .rejects.toMatchObject({ hint: expect.stringContaining('following list to private') });
     });
 });
-

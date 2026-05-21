@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, selectorError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, selectorError, EmptyResultError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeTwitterScreenName, unwrapBrowserResult } from './shared.js';
 
@@ -162,7 +162,10 @@ cli({
         let sameCount = 0;
         while (allFollowers.length < limit && sameCount < 3) {
             const rawFollowers = await extractFollowersFromDOM(page);
-            const followers = Array.isArray(rawFollowers) ? rawFollowers : [];
+            if (!Array.isArray(rawFollowers)) {
+                throw new CommandExecutionError('Twitter followers extraction returned malformed rows');
+            }
+            const followers = rawFollowers;
             const newFollowers = followers.filter(f => !seen.has(f.screen_name));
             for (const f of newFollowers) {
                 seen.add(f.screen_name);

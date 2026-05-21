@@ -778,4 +778,17 @@ describe('looksLikePrivateTwitterTimeline', () => {
         expect(looksLikePrivateTwitterTimeline(null)).toBe(false);
         expect(looksLikePrivateTwitterTimeline({ data: { user: {} } })).toBe(false);
     });
+    it('returns false for non-empty malformed timeline objects', () => {
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline: { unexpected: true } } } },
+        })).toBe(false);
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline: { timeline: {} } } } },
+        })).toBe(false);
+    });
+    it('returns true when timeline_v2.timeline is an empty object', () => {
+        expect(looksLikePrivateTwitterTimeline({
+            data: { user: { result: { timeline_v2: { timeline: {} } } } },
+        })).toBe(true);
+    });
 });

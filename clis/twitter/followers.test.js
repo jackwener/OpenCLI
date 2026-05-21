@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { __test__ } from './followers.js';
 
 describe('twitter followers command', () => {
@@ -42,7 +42,7 @@ describe('twitter followers command', () => {
         expect(page.goto).not.toHaveBeenCalledWith('https://x.com/home/followers');
     });
 
-    it('does not throw "filter is not a function" when extractFollowersFromDOM returns a non-array', async () => {
+    it('typed-fails instead of throwing "filter is not a function" when extractFollowersFromDOM returns a non-array', async () => {
         const command = getRegistry().get('twitter/followers');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
@@ -57,6 +57,6 @@ describe('twitter followers command', () => {
             }),
         };
 
-        await expect(command.func(page, { user: 'someone', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(command.func(page, { user: 'someone', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
