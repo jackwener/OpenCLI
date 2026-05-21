@@ -32,6 +32,19 @@ describe('douyin hashtag', () => {
         const cmd = [...registry.values()].find(c => c.site === 'douyin' && c.name === 'hashtag');
         expect(cmd?.strategy).toBe('cookie');
     });
+    it('registers action-specific validation so missing args fail before browser pre-navigation', () => {
+        const registry = getRegistry();
+        const cmd = [...registry.values()].find((c) => c.site === 'douyin' && c.name === 'hashtag');
+        expect(cmd?.validateArgs).toBeTypeOf('function');
+        expect(() => cmd.validateArgs({ action: 'search', keyword: '', cover: '', limit: 10 }))
+            .toThrow(ArgumentError);
+        expect(() => cmd.validateArgs({ action: 'suggest', keyword: '速效救心丸', cover: '', limit: 10 }))
+            .toThrow(ArgumentError);
+        expect(() => cmd.validateArgs({ action: 'hot', keyword: '', cover: '', limit: 10 }))
+            .not.toThrow();
+        expect(browserFetchMock).not.toHaveBeenCalled();
+    });
+
     it('search throws ArgumentError when --keyword is missing or blank (#1689)', async () => {
         const registry = getRegistry();
         const cmd = [...registry.values()].find((c) => c.site === 'douyin' && c.name === 'hashtag');

@@ -18,6 +18,23 @@ function requireListField(res, field, action) {
     return list;
 }
 
+function validateHashtagArgs(kwargs) {
+    const action = kwargs.action;
+    if (action === 'search') {
+        const keyword = String(kwargs.keyword ?? '').trim();
+        if (!keyword) {
+            throw new ArgumentError('douyin hashtag search 需要 --keyword <关键词>', '示例: opencli douyin hashtag search --keyword 美食');
+        }
+        return;
+    }
+    if (action === 'suggest') {
+        const cover = String(kwargs.cover ?? '').trim();
+        if (!cover) {
+            throw new ArgumentError('douyin hashtag suggest 需要 --cover <cover_uri>', 'suggest 基于已上传的视频封面做 AI 推荐, 不是关键词搜索. 关键词搜索请用 `douyin hashtag search --keyword <词>`.');
+        }
+    }
+}
+
 cli({
     site: 'douyin',
     name: 'hashtag',
@@ -32,13 +49,12 @@ cli({
         { name: 'limit', type: 'int', default: 10 },
     ],
     columns: ['name', 'id', 'view_count'],
+    validateArgs: validateHashtagArgs,
     func: async (page, kwargs) => {
+        validateHashtagArgs(kwargs);
         const action = kwargs.action;
         if (action === 'search') {
             const keyword = String(kwargs.keyword ?? '').trim();
-            if (!keyword) {
-                throw new ArgumentError('douyin hashtag search 需要 --keyword <关键词>', '示例: opencli douyin hashtag search --keyword 美食');
-            }
             const url = `https://creator.douyin.com/aweme/v1/challenge/search/?keyword=${encodeURIComponent(keyword)}&count=${kwargs.limit}&aid=1128`;
             const res = await browserFetch(page, 'GET', url);
             const list = requireListField(res, 'challenge_list', 'search');
@@ -58,9 +74,6 @@ cli({
         }
         if (action === 'suggest') {
             const cover = String(kwargs.cover ?? '').trim();
-            if (!cover) {
-                throw new ArgumentError('douyin hashtag suggest 需要 --cover <cover_uri>', 'suggest 基于已上传的视频封面做 AI 推荐, 不是关键词搜索. 关键词搜索请用 `douyin hashtag search --keyword <词>`.');
-            }
             const url = `https://creator.douyin.com/web/api/media/hashtag/rec/?cover_uri=${encodeURIComponent(cover)}&aid=1128`;
             const res = await browserFetch(page, 'GET', url);
             const list = requireListField(res, 'hashtag_list', 'suggest');
