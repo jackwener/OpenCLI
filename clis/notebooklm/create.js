@@ -7,6 +7,7 @@ import { buildNotebooklmNotebookUrl, ensureNotebooklmHome, requireNotebooklmExec
 const NOTEBOOKLM_CREATE_PROJECT_RPC_ID = 'CCqFvf';
 const DEFAULT_EMOJI = '📒';
 const MAX_TITLE_LEN = 200;
+const NOTEBOOK_UUID_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 export function parseCreateTitle(value) {
     const title = String(value ?? '').trim();
@@ -33,7 +34,7 @@ export function parseCreateProjectResult(result) {
             || (typeof current[0] === 'string' && current[0])
             || ''
         : '';
-    return typeof id === 'string' ? id : '';
+    return typeof id === 'string' && NOTEBOOK_UUID_RE.test(id) ? id : '';
 }
 
 cli({

@@ -68,6 +68,12 @@ describe('notebooklm add-source', () => {
         expect(parseAddSourceResult([[[ [a], [b] ]]])).toBe(a);
     });
 
+    it('parseAddSourceResult skips known input ids before selecting the new source id', () => {
+        const notebookId = '17e2b882-6a01-4c6c-9262-0738dfa2abee';
+        const sourceId = 'af732fa4-01c2-4de4-9d0a-933f2c29ee1e';
+        expect(parseAddSourceResult([notebookId, [[sourceId, 'title']]], [notebookId])).toBe(sourceId);
+    });
+
     it('parseAddSourceResult ignores non-UUID strings', () => {
         expect(parseAddSourceResult([ 'project-id', 'not-a-uuid', 'still-not' ])).toBe('');
     });

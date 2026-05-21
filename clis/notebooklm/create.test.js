@@ -35,16 +35,18 @@ describe('notebooklm create', () => {
         expect(parseCreateProjectResult(result)).toBe('ec806f5b-fe74-4588-8f77-f073b91e9b1e');
     });
 
-    it('parseCreateProjectResult falls back to index 0 when index 2 is missing', () => {
-        const result = ['some-id', null];
-        expect(parseCreateProjectResult(result)).toBe('some-id');
+    it('parseCreateProjectResult falls back to a UUID-shaped index 0 when index 2 is missing', () => {
+        const id = 'd0b14aa7-fc0f-44bc-a749-928e27e5fa3b';
+        const result = [id, null];
+        expect(parseCreateProjectResult(result)).toBe(id);
     });
 
-    it('parseCreateProjectResult returns empty string on unparseable shapes', () => {
+    it('parseCreateProjectResult returns empty string on malformed or unparseable shapes', () => {
         expect(parseCreateProjectResult(null)).toBe('');
         expect(parseCreateProjectResult({})).toBe('');
         expect(parseCreateProjectResult([])).toBe('');
         expect(parseCreateProjectResult([null, null, null])).toBe('');
+        expect(parseCreateProjectResult(['some-id', null])).toBe('');
     });
 
     it('refuses to create a remote notebook without --execute', async () => {

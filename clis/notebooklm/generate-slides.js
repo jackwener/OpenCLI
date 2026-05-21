@@ -8,6 +8,10 @@ const NOTEBOOKLM_CREATE_ARTIFACT_RPC_ID = 'R7cb6c';
 const SLIDE_DECK_CONFIG_BLOCK = [2, null, null, [1, null, null, null, null, null, null, null, null, null, [1]], [[1, 4, 2, 3, 6]]];
 const ARTIFACT_UUID_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
+function toExcludedUuidSet(excludedIds) {
+    return new Set(excludedIds.map((id) => String(id ?? '').toLowerCase()).filter(Boolean));
+}
+
 export function buildCreateSlidesArgs(projectId, sourceIds, options = {}) {
     const sourceTuples = sourceIds.map((id) => [[id]]);
     const language = options.language || 'en';
@@ -28,12 +32,13 @@ export function buildCreateSlidesArgs(projectId, sourceIds, options = {}) {
     ];
 }
 
-export function parseSlidesIdFromResult(result) {
-    if (typeof result === 'string' && ARTIFACT_UUID_RE.test(result)) return result;
+export function parseSlidesIdFromResult(result, excludedIds = []) {
+    const excluded = toExcludedUuidSet(excludedIds);
+    if (typeof result === 'string' && ARTIFACT_UUID_RE.test(result) && !excluded.has(result.toLowerCase())) return result;
     const stack = [result];
     while (stack.length) {
         const node = stack.shift();
-        if (typeof node === 'string' && ARTIFACT_UUID_RE.test(node)) return node;
+        if (typeof node === 'string' && ARTIFACT_UUID_RE.test(node) && !excluded.has(node.toLowerCase())) return node;
         if (Array.isArray(node)) for (const child of node) stack.push(child);
         else if (node && typeof node === 'object') for (const v of Object.values(node)) stack.push(v);
     }
@@ -84,7 +89,7 @@ cli({
             throw new EmptyResultError('notebooklm generate-slides', 'The notebook has no sources; add a source before generating a slide deck.');
         }
         const rpc = await callNotebooklmRpc(page, NOTEBOOKLM_CREATE_ARTIFACT_RPC_ID, buildCreateSlidesArgs(notebookId, sourceIds, { length, language }));
-        const slidesId = parseSlidesIdFromResult(rpc.result);
+        const slidesId = parseSlidesIdFromResult(rpc.result, [notebookId, ...sourceIds]);
         if (!slidesId) {
             throw new CommandExecutionError('NotebookLM CreateArtifact (slides) RPC returned no slide-deck id; the server may have rejected the request.');
         }

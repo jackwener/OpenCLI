@@ -57,6 +57,13 @@ describe('notebooklm generate-slides', () => {
         expect(parseSlidesIdFromResult(null)).toBe('');
     });
 
+    it('parseSlidesIdFromResult skips notebook/source ids before selecting the generated deck id', () => {
+        const notebookId = '17e2b882-6a01-4c6c-9262-0738dfa2abee';
+        const sourceId = '493b9ddd-453b-4523-b638-bb560b37723c';
+        const slidesId = '1f8ada7d-cb33-49a4-8498-c5b81c1a899d';
+        expect(parseSlidesIdFromResult([notebookId, [[sourceId]], [slidesId]], [notebookId, sourceId])).toBe(slidesId);
+    });
+
     it('refuses to trigger remote slide generation without --execute', async () => {
         const command = getRegistry().get('notebooklm/generate-slides');
         const page = { goto: vi.fn() };

@@ -36,13 +36,18 @@ export function buildMutateNoteArgs(projectId, noteId, content, title) {
     return [projectId, noteId, [[[content, title, [], 0]]], [2]];
 }
 
-export function parseNoteIdFromResult(result) {
-    if (typeof result === 'string') return NOTE_UUID_RE.test(result) ? result : '';
+function toExcludedUuidSet(excludedIds) {
+    return new Set(excludedIds.map((id) => String(id ?? '').toLowerCase()).filter(Boolean));
+}
+
+export function parseNoteIdFromResult(result, excludedIds = []) {
+    const excluded = toExcludedUuidSet(excludedIds);
+    if (typeof result === 'string') return NOTE_UUID_RE.test(result) && !excluded.has(result.toLowerCase()) ? result : '';
     const stack = [result];
     while (stack.length) {
         const node = stack.shift();
         if (typeof node === 'string') {
-            if (NOTE_UUID_RE.test(node)) return node;
+            if (NOTE_UUID_RE.test(node) && !excluded.has(node.toLowerCase())) return node;
             continue;
         }
         if (Array.isArray(node)) for (const child of node) stack.push(child);
@@ -75,7 +80,7 @@ cli({
         await ensureNotebooklmHome(page);
         await requireNotebooklmSession(page);
         const shellRpc = await callNotebooklmRpc(page, NOTEBOOKLM_CREATE_NOTE_RPC_ID, buildCreateNoteShellArgs(notebookId));
-        const noteId = parseNoteIdFromResult(shellRpc.result);
+        const noteId = parseNoteIdFromResult(shellRpc.result, [notebookId]);
         if (!noteId) {
             throw new CommandExecutionError('NotebookLM CreateNote RPC returned no note id');
         }

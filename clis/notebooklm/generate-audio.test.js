@@ -45,6 +45,13 @@ describe('notebooklm generate-audio', () => {
         expect(parseAudioIdFromResult(null)).toBe('');
     });
 
+    it('parseAudioIdFromResult skips notebook/source ids before selecting the generated audio id', () => {
+        const notebookId = '17e2b882-6a01-4c6c-9262-0738dfa2abee';
+        const sourceId = '7c7666bd-59e1-42ab-879d-bacfe33325eb';
+        const audioId = '38da0e55-2360-4d3e-8573-61b5a6c0c219';
+        expect(parseAudioIdFromResult([notebookId, [[sourceId]], [audioId]], [notebookId, sourceId])).toBe(audioId);
+    });
+
     it('refuses to trigger remote audio generation without --execute', async () => {
         const command = getRegistry().get('notebooklm/generate-audio');
         const page = { goto: vi.fn() };

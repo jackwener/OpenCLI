@@ -51,6 +51,12 @@ describe('notebooklm write-note', () => {
         expect(parseNoteIdFromResult([])).toBe('');
     });
 
+    it('parseNoteIdFromResult skips the input notebook id before selecting the created note id', () => {
+        const notebookId = '17e2b882-6a01-4c6c-9262-0738dfa2abee';
+        const noteId = '0312fc89-075e-4b3a-810d-141fc8d5af6d';
+        expect(parseNoteIdFromResult([notebookId, [[noteId]]], [notebookId])).toBe(noteId);
+    });
+
     it('refuses to create a remote note without --execute', async () => {
         const command = getRegistry().get('notebooklm/write-note');
         const page = { goto: vi.fn() };

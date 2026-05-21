@@ -101,14 +101,19 @@ export function buildAddSourceFromTextArgs(projectId, title, content) {
     return [[[null, [title, content], null, 2]], projectId];
 }
 
-export function parseAddSourceResult(result) {
-    if (typeof result === 'string') return SOURCE_UUID_RE.test(result) ? result : '';
+function toExcludedUuidSet(excludedIds) {
+    return new Set(excludedIds.map((id) => String(id ?? '').toLowerCase()).filter(Boolean));
+}
+
+export function parseAddSourceResult(result, excludedIds = []) {
+    const excluded = toExcludedUuidSet(excludedIds);
+    if (typeof result === 'string') return SOURCE_UUID_RE.test(result) && !excluded.has(result.toLowerCase()) ? result : '';
     if (!Array.isArray(result) && (typeof result !== 'object' || result === null)) return '';
     const stack = [result];
     while (stack.length) {
         const node = stack.shift();
         if (typeof node === 'string') {
-            if (SOURCE_UUID_RE.test(node)) return node;
+            if (SOURCE_UUID_RE.test(node) && !excluded.has(node.toLowerCase())) return node;
             continue;
         }
         if (Array.isArray(node)) {
@@ -218,7 +223,7 @@ cli({
             const file = readFileForUpload(filePath);
             const mime = inferMimeType(file.filename, kwargs['mime-type']);
             const registerRpc = await callNotebooklmRpc(page, NOTEBOOKLM_ADD_FILE_SOURCE_RPC_ID, buildRegisterFileSourceArgs(notebookId, file.filename));
-            const sourceId = parseAddSourceResult(registerRpc.result);
+            const sourceId = parseAddSourceResult(registerRpc.result, [notebookId]);
             if (!sourceId) {
                 throw new CommandExecutionError('NotebookLM AddFileSource (o4cbdc) RPC returned no source id; cannot start file upload.');
             }
@@ -236,7 +241,7 @@ cli({
             ? buildAddSourceFromUrlArgs(notebookId, url)
             : buildAddSourceFromTextArgs(notebookId, title, content);
         const rpc = await callNotebooklmRpc(page, NOTEBOOKLM_ADD_SOURCES_RPC_ID, args);
-        const sourceId = parseAddSourceResult(rpc.result);
+        const sourceId = parseAddSourceResult(rpc.result, [notebookId]);
         if (!sourceId) {
             throw new CommandExecutionError('NotebookLM AddSources RPC returned no source id; verify the input reaches the NotebookLM backend.');
         }
