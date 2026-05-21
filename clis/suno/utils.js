@@ -137,14 +137,8 @@ function sunoHeadersJs(deviceId, extra = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Pure parser for the studio-api-prod.suno.com /api/billing/info/ response.
- *
- * Inlined into the in-page IIFE via toString() so the same code path is
- * exercised in Node tests and in the browser. billing/info changed shape
- * mid-2026: there is no longer a top-level plan object; the current plan
- * is derived by matching subscription_type against the plans[] array.
- * Free-tier accounts have subscription_type === false (or null), in which
- * case the plans[] entry with plan_key === "free" is the current plan.
+ * Parse studio-api-prod billing/info. Inlined into the page IIFE via
+ * toString() so the same parser runs in Node tests and the browser.
  */
 export function parseSunoBillingInfo(data) {
     const packCredits = (data?.credit_packs || []).reduce((s, p) => s + (p?.amount ?? p?.credits ?? 0), 0);
@@ -162,7 +156,6 @@ export function parseSunoBillingInfo(data) {
     return {
         planId: currentPlan?.id || data?.plan?.id || null,
         planKey: currentPlan?.plan_key || data?.plan?.plan_key || (subscriptionKey ?? 'free'),
-        planName: currentPlan?.name || null,
         totalCreditsAvailable,
         breakdown: {
             pack: data?.credits ?? 0,

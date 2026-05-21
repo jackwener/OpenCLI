@@ -177,7 +177,6 @@ describe('suno utils — parseSunoBillingInfo', () => {
         });
         expect(parsed.planId).toBe('4497580c-f4eb-4f86-9f0e-960eb7c48d7d');
         expect(parsed.planKey).toBe('free');
-        expect(parsed.planName).toBe('Free Plan');
         expect(parsed.totalCreditsAvailable).toBe(40);
         expect(parsed.breakdown.monthlyRemaining).toBe(40);
         expect(parsed.breakdown.monthlyLimit).toBe(50);
