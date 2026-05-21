@@ -33,6 +33,16 @@ export function parseNotebooklmNotebookTarget(value) {
         throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook id is required', 'Pass a notebook id from `opencli notebooklm list` or a full notebook URL.');
     }
     if (/^https?:\/\//i.test(normalized)) {
+        let parsed;
+        try {
+            parsed = new URL(normalized);
+        }
+        catch {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+        }
+        if (parsed.protocol !== 'https:' || parsed.hostname !== NOTEBOOKLM_DOMAIN || parsed.username || parsed.password || parsed.port) {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL must be a canonical https://notebooklm.google.com URL', 'Pass a notebook id from `opencli notebooklm list` or a full NotebookLM notebook URL.');
+        }
         const notebookId = parseNotebooklmIdFromUrl(normalized);
         if (!notebookId) {
             throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');

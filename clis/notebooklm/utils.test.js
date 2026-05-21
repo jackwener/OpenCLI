@@ -24,6 +24,13 @@ describe('notebooklm utils', () => {
     it('parseNotebooklmNotebookTarget rejects malformed notebook urls', () => {
         expect(() => parseNotebooklmNotebookTarget('https://notebooklm.google.com/notebook/not-a-uuid')).toThrow(CliError);
     });
+    it('parseNotebooklmNotebookTarget rejects off-domain or non-canonical notebook urls', () => {
+        const id = '17e2b882-aaaa-bbbb-cccc-abcdef012345';
+        expect(() => parseNotebooklmNotebookTarget(`https://evil.test/notebook/${id}`)).toThrow(CliError);
+        expect(() => parseNotebooklmNotebookTarget(`http://notebooklm.google.com/notebook/${id}`)).toThrow(CliError);
+        expect(() => parseNotebooklmNotebookTarget(`https://notebooklm.google.com:444/notebook/${id}`)).toThrow(CliError);
+        expect(() => parseNotebooklmNotebookTarget(`https://user:notsecret@notebooklm.google.com/notebook/${id}`)).toThrow(CliError);
+    });
     it('parseNotebooklmNotebookTarget rejects empty input', () => {
         expect(() => parseNotebooklmNotebookTarget('')).toThrow(CliError);
         expect(() => parseNotebooklmNotebookTarget('   ')).toThrow(CliError);
