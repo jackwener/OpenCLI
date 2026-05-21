@@ -31,6 +31,7 @@ export function render(data: unknown, opts: RenderOptions = {}): void {
   // Non-TTY auto-downgrade only when format was NOT explicitly passed by user.
   if (!opts.fmtExplicit) {
     if (fmt === 'table' && !process.stdout.isTTY) fmt = 'yaml';
+    if (fmt === 'table' && process.stdout.isTTY && shouldDowngradeDefaultTable(data, opts)) fmt = 'yaml';
   }
   if (data === null || data === undefined) {
     console.log(data);
@@ -44,6 +45,19 @@ export function render(data: unknown, opts: RenderOptions = {}): void {
     case 'yaml': case 'yml': renderYaml(data); break;
     default: renderTable(data, opts); break;
   }
+}
+
+function shouldDowngradeDefaultTable(data: unknown, opts: RenderOptions): boolean {
+  if (data === null || data === undefined) return false;
+  const rows = normalizeRows(data);
+  if (!rows.length) return false;
+  const columns = resolveColumns(rows, opts);
+  return rows.some(row => columns.some(column => {
+    const value = row[column];
+    if (value === null || value === undefined) return false;
+    const text = String(value);
+    return text.length > 1000 || text.split('\n').length > 8;
+  }));
 }
 
 function renderTable(data: unknown, opts: RenderOptions): void {

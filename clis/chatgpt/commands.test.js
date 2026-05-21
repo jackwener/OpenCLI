@@ -42,4 +42,13 @@ describe('chatgpt browser command registration', () => {
             expect.objectContaining({ name: 'new', type: 'boolean', default: false }),
         ]));
     });
+
+    it('keeps read timeout-enforced while preserving full-output defaults', () => {
+        const read = getRegistry().get('chatgpt/read');
+        expect(read.args).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'limit', type: 'int', default: 0 }),
+            expect.objectContaining({ name: 'max-chars', type: 'int', default: 0 }),
+            expect.objectContaining({ name: 'timeout', type: 'int', default: 15 }),
+        ]));
+    });
 });

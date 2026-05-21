@@ -243,4 +243,14 @@ describe('daemon-client', () => {
     } satisfies Partial<BrowserCommandError>);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('does not retry close-window cleanup failures', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const abort = new Error('aborted');
+    abort.name = 'AbortError';
+    fetchMock.mockRejectedValue(abort);
+
+    await expect(sendCommand('close-window', { session: 'test', surface: 'adapter' })).rejects.toThrow('aborted');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

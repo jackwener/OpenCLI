@@ -4855,6 +4855,27 @@
         "default": false,
         "required": false,
         "help": "Emit assistant replies as markdown"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max latest visible messages to return; default 0 returns all"
+      },
+      {
+        "name": "max-chars",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max characters per message; default 0 returns full text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Max seconds for the read command before runtime padding"
       }
     ],
     "columns": [

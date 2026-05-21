@@ -52,4 +52,22 @@ describe('output TTY detection', () => {
     expect(out).not.toContain('name: alice');
     expect(out).toContain('alice');
   });
+
+  it('auto-downgrades default TTY table for long multi-line cells', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+    const text = Array.from({ length: 12 }, (_, i) => `第 ${i} 行 ` + '長文字'.repeat(120)).join('\n');
+    render([{ Role: 'Assistant', Text: text }], { fmt: 'table', columns: ['Role', 'Text'] });
+    const out = logSpy.mock.calls.map((c: unknown[]) => c[0]).join('\n');
+    expect(out).toContain('Role: Assistant');
+    expect(out).toContain('Text:');
+  });
+
+  it('keeps explicit TTY table for long cells', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+    const text = '長文字'.repeat(260);
+    render([{ Role: 'Assistant', Text: text }], { fmt: 'table', fmtExplicit: true, columns: ['Role', 'Text'] });
+    const out = logSpy.mock.calls.map((c: unknown[]) => c[0]).join('\n');
+    expect(out).not.toContain('Role: Assistant');
+    expect(out).toContain('Assistant');
+  });
 });
