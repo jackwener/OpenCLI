@@ -225,9 +225,9 @@ cli({
         }
         if (allTweets.length === 0) {
             if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
-                throw new EmptyResultError('twitter likes', `No likes returned for @${username}. X made Likes private by default in mid-2024; only the account owner can view their own liked tweets.`);
+                throw new EmptyResultError('twitter likes', `No likes returned for @${username} (Likes are private by default on X; only the account owner can view their own likes)`);
             }
-            throw new EmptyResultError('twitter likes', `No likes found for @${username}.`);
+            throw new EmptyResultError('twitter likes', `No likes found for @${username}`);
         }
         const trimmed = allTweets.slice(0, limit);
         return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);

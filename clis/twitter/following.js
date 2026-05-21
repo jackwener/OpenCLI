@@ -251,9 +251,9 @@ cli({
 
         if (allUsers.length === 0) {
             if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
-                throw new EmptyResultError('twitter following', `No following data returned for @${targetUser}. The target account may have set their following list to private, or the account has no follows.`);
+                throw new EmptyResultError('twitter following', `No following data returned for @${targetUser} (the target account may have set their following list to private)`);
             }
-            throw new EmptyResultError('twitter following', `No following accounts found for @${targetUser}.`);
+            throw new EmptyResultError('twitter following', `No following accounts found for @${targetUser}`);
         }
 
         return allUsers.slice(0, limit);

@@ -148,7 +148,7 @@ describe('twitter likes command', () => {
             }),
         };
         await expect(command.func(page, { username: 'simonw', limit: 5 }))
-            .rejects.toMatchObject({ hint: expect.stringContaining('X made Likes private') });
+            .rejects.toMatchObject({ hint: expect.stringContaining('Likes are private by default on X') });
         await expect(command.func(page, { username: 'simonw', limit: 5 }))
             .rejects.toBeInstanceOf(EmptyResultError);
     });
