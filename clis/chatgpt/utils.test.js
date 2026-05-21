@@ -88,6 +88,26 @@ describe('chatgpt conversation id parsing', () => {
     });
 });
 
+describe('chatgpt read empty-result hints', () => {
+    it('distinguishes the ChatGPT home page from an empty conversation', () => {
+        expect(__test__.isChatGPTConversationUrl('https://chatgpt.com/')).toBe(false);
+        expect(__test__.isChatGPTConversationUrl('https://chatgpt.com/c/abc_123-def?model=gpt-5')).toBe(true);
+
+        const hint = __test__.buildChatGPTReadEmptyHint('https://chatgpt.com/');
+        expect(hint).toContain('Current OpenCLI ChatGPT session is at https://chatgpt.com/.');
+        expect(hint).toContain('not on a ChatGPT conversation page');
+        expect(hint).toContain('opencli chatgpt history --limit 5');
+        expect(hint).toContain('opencli chatgpt-app read');
+    });
+
+    it('keeps selector/loading guidance for conversation pages with no extracted messages', () => {
+        const hint = __test__.buildChatGPTReadEmptyHint('https://chatgpt.com/c/abc_123-def');
+        expect(hint).toContain('No visible ChatGPT messages were found in this conversation');
+        expect(hint).toContain('DOM may have changed');
+        expect(hint).not.toContain('not on a ChatGPT conversation page');
+    });
+});
+
 describe('chatgpt send selectors', () => {
     it('inlines the composer locator without returning before caller code runs', () => {
         const dom = new JSDOM('<!doctype html><div id="prompt-textarea" contenteditable="true"></div>', {

@@ -41,6 +41,26 @@ function isSameChatGPTConversation(currentUrl, expectedUrl) {
         || currentUrl.startsWith(`${expectedUrl}#`);
 }
 
+export function isChatGPTConversationUrl(value) {
+    if (!value) return false;
+    try {
+        const url = new URL(String(value));
+        const host = url.hostname;
+        if (host !== CHATGPT_DOMAIN && !host.endsWith(`.${CHATGPT_DOMAIN}`)) return false;
+        return /^\/c\/[^/?#]+/.test(url.pathname);
+    } catch {
+        return false;
+    }
+}
+
+export function buildChatGPTReadEmptyHint(currentUrl) {
+    const location = currentUrl ? `Current OpenCLI ChatGPT session is at ${currentUrl}. ` : '';
+    if (!isChatGPTConversationUrl(currentUrl)) {
+        return `${location}OpenCLI is not on a ChatGPT conversation page, so there are no visible messages to read. Run "opencli chatgpt history --limit 5" then "opencli chatgpt detail <id>", or use "opencli chatgpt-app read" for the ChatGPT Desktop foreground window.`;
+    }
+    return `${location}No visible ChatGPT messages were found in this conversation. The conversation may be empty, still loading, inaccessible, or the ChatGPT DOM may have changed.`;
+}
+
 function buildComposerLocatorScript() {
     const markerAttr = 'data-opencli-chatgpt-composer';
     return `
@@ -853,6 +873,8 @@ export const __test__ = {
     SEND_BUTTON_LABELS,
     CLOSE_SIDEBAR_LABELS,
     buildComposerLocatorScript,
+    buildChatGPTReadEmptyHint,
+    isChatGPTConversationUrl,
     isSameChatGPTConversation,
     parseChatGPTConversationId,
     imageMimeFromPath,

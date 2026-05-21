@@ -12,6 +12,8 @@ import { resolveProfileContextId } from './profile.js';
 const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
+const DEFAULT_COMMAND_REQUEST_TIMEOUT_MS = 30_000;
+const CLOSE_WINDOW_REQUEST_TIMEOUT_MS = 1_500;
 
 let _idCounter = 0;
 
@@ -176,7 +178,10 @@ async function sendCommandRaw(
   action: DaemonCommand['action'],
   params: Omit<DaemonCommand, 'id' | 'action'>,
 ): Promise<DaemonResult> {
-  const maxRetries = 4;
+  const maxRetries = action === 'close-window' ? 1 : 4;
+  const requestTimeout = action === 'close-window'
+    ? CLOSE_WINDOW_REQUEST_TIMEOUT_MS
+    : DEFAULT_COMMAND_REQUEST_TIMEOUT_MS;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const id = generateId();
@@ -192,7 +197,7 @@ async function sendCommandRaw(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
-        timeout: 30000,
+        timeout: requestTimeout,
       });
 
       const result = (await res.json()) as DaemonResult;
