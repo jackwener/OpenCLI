@@ -10,12 +10,17 @@ import { getDaemonHealth } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
-import type { BrowserProfileStatus } from './browser/daemon-client.js';
+import type { BrowserProfileStatus, DaemonHealth } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
+// After connectivity finishes, the daemon may have only just come up while
+// the extension's last keepalive probe (every ~24 s) predates it. Poll briefly
+// so a transient `no-extension` state can resolve before we report it.
+const DOCTOR_EXTENSION_POLL_TIMEOUT_SECONDS = 30;
+const DOCTOR_EXTENSION_POLL_INTERVAL_MS = 1000;
 const DOCTOR_SESSION = '__doctor__';
 
 /** Parse a semver string into [major, minor, patch]. Returns null on invalid input. */
@@ -49,6 +54,8 @@ function satisfiesRange(version: string, range: string): boolean {
 export type DoctorOptions = {
   yes?: boolean;
   cliVersion?: string;
+  /** Override the post-connectivity extension reconnect poll (mainly for tests). */
+  extensionPoll?: { timeoutMs?: number; intervalMs?: number };
 };
 
 export type ConnectivityResult = {
@@ -99,13 +106,43 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
   }
 }
 
+/**
+ * If the initial status read shows the daemon up but the extension not yet
+ * connected, give the extension's keepalive alarm time to fire one more probe.
+ * Returns the latest health observed; transitions out of `no-extension` resolve
+ * immediately, otherwise polls until the timeout elapses.
+ */
+async function pollForExtensionReady(
+  initial: DaemonHealth,
+  opts?: { timeoutMs?: number; intervalMs?: number },
+): Promise<DaemonHealth> {
+  if (initial.state !== 'no-extension') return initial;
+  const timeoutMs = opts?.timeoutMs ?? DOCTOR_EXTENSION_POLL_TIMEOUT_SECONDS * 1000;
+  const intervalMs = opts?.intervalMs ?? DOCTOR_EXTENSION_POLL_INTERVAL_MS;
+  if (timeoutMs <= 0) return initial;
+  const deadline = Date.now() + timeoutMs;
+  let latest: DaemonHealth = initial;
+  while (Date.now() < deadline) {
+    await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+    latest = await getDaemonHealth();
+    if (latest.state !== 'no-extension') return latest;
+  }
+  return latest;
+}
+
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
   // Live connectivity check is the core of doctor — it doubles as auto-start
   // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
   const connectivity = await checkConnectivity();
 
   // Single status read *after* connectivity side-effects settle.
-  const health = await getDaemonHealth();
+  // If the daemon was just auto-spawned by `bridge.connect`, the extension's
+  // last keepalive probe predates the daemon and the status snapshot will
+  // briefly say `no-extension` even though a clean reconnect is moments away.
+  // Poll long enough for one more keepalive cycle (~24 s) so the report
+  // reflects the steady state, not the snapshot at t = 0.
+  const initialHealth = await getDaemonHealth();
+  const health = await pollForExtensionReady(initialHealth, opts.extensionPoll);
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;

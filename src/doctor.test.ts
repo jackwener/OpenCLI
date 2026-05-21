@@ -177,16 +177,40 @@ describe('doctor report rendering', () => {
     ]));
   });
 
-  it('reports flapping when live check succeeds but final status shows extension disconnected', async () => {
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+  it('reports flapping when live check succeeds but the extension stays disconnected through the reconnect poll', async () => {
+    // Resolve every call (initial + poll iterations) to `no-extension` so the
+    // poll exhausts its budget and the final state still reports disconnected.
+    mockGetDaemonHealth.mockResolvedValue({ state: 'no-extension', status: { extensionConnected: false } });
 
-    const report = await runBrowserDoctor();
+    const report = await runBrowserDoctor({ extensionPoll: { timeoutMs: 30, intervalMs: 5 } });
 
     expect(report.daemonRunning).toBe(true);
     expect(report.extensionConnected).toBe(false);
     expect(report.extensionFlaky).toBe(true);
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Extension connection is unstable'),
+    ]));
+  });
+
+  it('reports the extension as connected when it reconnects during the post-check poll', async () => {
+    // First read sees the daemon up but no extension yet (status snapshot
+    // races the keepalive alarm). On the next poll iteration the extension
+    // reconnects and the report should reflect the steady state, not the snapshot.
+    mockGetDaemonHealth
+      .mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } })
+      .mockResolvedValue({
+        state: 'ready',
+        status: { extensionConnected: true, extensionVersion: '1.0.15' },
+      });
+
+    const report = await runBrowserDoctor({ extensionPoll: { timeoutMs: 200, intervalMs: 5 } });
+
+    expect(report.daemonRunning).toBe(true);
+    expect(report.extensionConnected).toBe(true);
+    expect(report.extensionVersion).toBe('1.0.15');
+    expect(report.extensionFlaky).toBeFalsy();
+    expect(report.issues).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('not connected'),
     ]));
   });
 
