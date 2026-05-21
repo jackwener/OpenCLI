@@ -242,9 +242,10 @@ const ownedContainers: Record<OwnedWindowRole, {
   windowId: number | null;
   groupId: number | null;
   promise: Promise<{ windowId: number; initialTabId?: number }> | null;
+  groupPromise: Promise<void> | null;
 }> = {
-  interactive: { windowId: null, groupId: null, promise: null },
-  automation: { windowId: null, groupId: null, promise: null },
+  interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
+  automation: { windowId: null, groupId: null, promise: null, groupPromise: null },
 };
 
 type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
@@ -610,6 +611,19 @@ async function ensureOwnedContainerTabGroup(role: OwnedWindowRole, windowId: num
   const ids = [...new Set(tabIds.filter((id): id is number => id !== undefined))];
   if (ids.length === 0) return;
 
+  const container = ownedContainers[role];
+  const previousGroupPromise = container.groupPromise ?? Promise.resolve();
+  const nextGroupPromise = previousGroupPromise
+    .catch(() => undefined)
+    .then(() => ensureOwnedContainerTabGroupUnlocked(role, windowId, ids));
+  const trackedGroupPromise = nextGroupPromise.finally(() => {
+    if (container.groupPromise === trackedGroupPromise) container.groupPromise = null;
+  });
+  container.groupPromise = trackedGroupPromise;
+  return trackedGroupPromise;
+}
+
+async function ensureOwnedContainerTabGroupUnlocked(role: OwnedWindowRole, windowId: number, ids: number[]): Promise<void> {
   try {
     const existingGroupId = await getOwnedContainerGroupId(role, windowId);
     if (existingGroupId !== null) {

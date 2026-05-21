@@ -1,5 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createProgressBar } from './progress.js';
+import { createProgressBar, formatBytes } from './progress.js';
+
+describe('formatBytes', () => {
+  it('returns a stable zero-byte label for invalid or sub-byte values', () => {
+    expect(formatBytes(-1)).toBe('0 B');
+    expect(formatBytes(0.5)).toBe('0 B');
+    expect(formatBytes(Number.NaN)).toBe('0 B');
+    expect(formatBytes(Number.POSITIVE_INFINITY)).toBe('0 B');
+  });
+
+  it('caps very large values at the largest supported unit', () => {
+    expect(formatBytes(1024 ** 5)).toBe('1024.0 TB');
+  });
+});
 
 describe('download progress display', () => {
   afterEach(() => {

@@ -1150,6 +1150,94 @@ describe('background tab isolation', () => {
     expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [10] });
   });
 
+  it('serializes concurrent owned tab grouping so duplicate adapter groups are not created', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    const releaseFirstGroupCreate = deferred<void>();
+    const originalGroup = chrome.tabs.group;
+    let createGroupCalls = 0;
+    chrome.tabs.group = vi.fn(async (options: { tabIds?: number | number[]; groupId?: number; createProperties?: { windowId?: number } }) => {
+      if (options.groupId === undefined) {
+        createGroupCalls += 1;
+        if (createGroupCalls === 1) await releaseFirstGroupCreate.promise;
+      }
+      return originalGroup(options);
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('first'), { windowId: 1, owned: true, preferredTabId: 1 });
+    mod.__test__.setSession(adapterKey('second'), { windowId: 1, owned: true, preferredTabId: null });
+
+    const first = mod.__test__.handleTabs({ id: 'new-first', action: 'tabs', op: 'new', session: adapterKey('first'), url: 'https://first.example' }, adapterKey('first'));
+    const second = mod.__test__.handleTabs({ id: 'new-second', action: 'tabs', op: 'new', session: adapterKey('second'), url: 'https://second.example' }, adapterKey('second'));
+
+    await vi.waitFor(() => {
+      expect(chrome.tabs.group).toHaveBeenCalledWith({ tabIds: [10], createProperties: { windowId: 1 } });
+    });
+    releaseFirstGroupCreate.resolve();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({ ok: true }),
+      expect.objectContaining({ ok: true }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(tabs.find((tab) => tab.id === 10)?.groupId).toBe(100);
+    expect(tabs.find((tab) => tab.id === 11)?.groupId).toBe(100);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [11] });
+  });
+
+  it('keeps queued owned tab grouping serialized after a transient group creation failure', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    const releaseFirstFailure = deferred<void>();
+    const releaseSecondGroupCreate = deferred<void>();
+    const originalGroup = chrome.tabs.group;
+    let createGroupCalls = 0;
+    chrome.tabs.group = vi.fn(async (options: { tabIds?: number | number[]; groupId?: number; createProperties?: { windowId?: number } }) => {
+      if (options.groupId === undefined) {
+        createGroupCalls += 1;
+        if (createGroupCalls === 1) {
+          await releaseFirstFailure.promise;
+          throw new Error('transient group creation failure');
+        }
+        if (createGroupCalls === 2) await releaseSecondGroupCreate.promise;
+      }
+      return originalGroup(options);
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('first'), { windowId: 1, owned: true, preferredTabId: 1 });
+    mod.__test__.setSession(adapterKey('second'), { windowId: 1, owned: true, preferredTabId: null });
+    mod.__test__.setSession(adapterKey('third'), { windowId: 1, owned: true, preferredTabId: null });
+
+    const first = mod.__test__.handleTabs({ id: 'new-first', action: 'tabs', op: 'new', session: adapterKey('first'), url: 'https://first.example' }, adapterKey('first'));
+    const second = mod.__test__.handleTabs({ id: 'new-second', action: 'tabs', op: 'new', session: adapterKey('second'), url: 'https://second.example' }, adapterKey('second'));
+    const third = mod.__test__.handleTabs({ id: 'new-third', action: 'tabs', op: 'new', session: adapterKey('third'), url: 'https://third.example' }, adapterKey('third'));
+
+    await vi.waitFor(() => {
+      expect(createGroupCalls).toBe(1);
+    });
+    releaseFirstFailure.resolve();
+    await vi.waitFor(() => {
+      expect(createGroupCalls).toBe(2);
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(createGroupCalls).toBe(2);
+    releaseSecondGroupCreate.resolve();
+
+    await expect(Promise.all([first, second, third])).resolves.toEqual([
+      expect.objectContaining({ ok: true }),
+      expect.objectContaining({ ok: true }),
+      expect.objectContaining({ ok: true }),
+    ]);
+    expect(createGroupCalls).toBe(2);
+    expect(groups).toHaveLength(1);
+    expect(tabs.find((tab) => tab.id === 11)?.groupId).toBe(100);
+    expect(tabs.find((tab) => tab.id === 12)?.groupId).toBe(100);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [12] });
+  });
+
   it('discovers and reuses an existing OpenCLI Adapter group after service worker restart', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     groups.push({

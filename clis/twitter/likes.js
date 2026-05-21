@@ -1,9 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult } from './shared.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
-const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
-const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const LIKES_QUERY_ID = 'CDWHmpZeSdIJ3HGeRbNm0w';
+const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const MAX_PAGINATION_PAGES = 100;
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -202,6 +202,7 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
+        let lastRawResponse = null;
         // Runaway guard only; --limit and cursor exhaustion control normal pagination.
         for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
@@ -215,11 +216,18 @@ cli({
                     throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch likes. queryId may have expired.`);
                 break;
             }
+            lastRawResponse = data;
             const { tweets, nextCursor } = parseLikes(data, seen);
             allTweets.push(...tweets);
             if (!nextCursor || nextCursor === cursor)
                 break;
             cursor = nextCursor;
+        }
+        if (allTweets.length === 0) {
+            if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
+                throw new EmptyResultError('twitter likes', `No likes returned for @${username} (Likes are private by default on X; only the account owner can view their own likes)`);
+            }
+            throw new EmptyResultError('twitter likes', `No likes found for @${username}`);
         }
         const trimmed = allTweets.slice(0, limit);
         return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);

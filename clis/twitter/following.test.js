@@ -327,4 +327,12 @@ describe('twitter following command', () => {
 
         await expect(command.func(page, { user: 'elonmusk', limit: 10 })).rejects.toBeInstanceOf(EmptyResultError);
     });
+
+    it('surfaces the private-following privacy hint when result.timeline is empty', async () => {
+        const command = getRegistry().get('twitter/following');
+        const page = createFollowingPage([{ data: { user: { result: { __typename: 'User', timeline: {} } } } }]);
+
+        await expect(command.func(page, { user: 'simonw', limit: 10 }))
+            .rejects.toMatchObject({ hint: expect.stringContaining('following list to private') });
+    });
 });

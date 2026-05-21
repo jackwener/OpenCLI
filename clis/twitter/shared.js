@@ -155,6 +155,16 @@ export function unwrapBrowserResult(value) {
     return value;
 }
 
+function isEmptyObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0;
+}
+
+export function looksLikePrivateTwitterTimeline(data) {
+    const result = data?.data?.user?.result;
+    if (!result || typeof result !== 'object') return false;
+    return Boolean(isEmptyObject(result.timeline) || isEmptyObject(result.timeline_v2?.timeline));
+}
+
 export function normalizeTwitterGraphqlPayload(value) {
     const unwrapped = unwrapBrowserResult(value);
     if (unwrapped?.data && typeof unwrapped.data === 'object') return unwrapped;
@@ -442,4 +452,5 @@ export const __test__ = {
     extractQuotedTweet,
     parseTweetUrl,
     buildTwitterArticleScopeSource,
+    looksLikePrivateTwitterTimeline,
 };

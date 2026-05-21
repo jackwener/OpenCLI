@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { __test__ } from './followers.js';
 
 describe('twitter followers command', () => {
@@ -40,5 +40,23 @@ describe('twitter followers command', () => {
         await expect(command.func(page, { limit: 10 })).rejects.toBeInstanceOf(AuthRequiredError);
         expect(page.goto).toHaveBeenCalledWith('https://x.com/home');
         expect(page.goto).not.toHaveBeenCalledWith('https://x.com/home/followers');
+    });
+
+    it('typed-fails instead of throwing "filter is not a function" when extractFollowersFromDOM returns a non-array', async () => {
+        const command = getRegistry().get('twitter/followers');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            autoScroll: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('AppTabBar_Profile_Link')) return '/viewer';
+                if (text.includes('/followers') && text.includes('click')) return true;
+                if (text.includes('UserCell')) return undefined;
+                return undefined;
+            }),
+        };
+
+        await expect(command.func(page, { user: 'someone', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

@@ -23,18 +23,18 @@ describe('notebooklm open', () => {
         mockRequireNotebooklmSession.mockReset();
         mockRequireNotebooklmSession.mockResolvedValue(undefined);
         mockGetNotebooklmPageState.mockResolvedValue({
-            url: 'https://notebooklm.google.com/notebook/nb-demo',
+            url: 'https://notebooklm.google.com/notebook/17e2b882-1234-1234-1234-abcdef012345',
             title: 'Browser Automation',
             hostname: 'notebooklm.google.com',
             kind: 'notebook',
-            notebookId: 'nb-demo',
+            notebookId: '17e2b882-1234-1234-1234-abcdef012345',
             loginRequired: false,
             notebookCount: 1,
         });
         mockReadCurrentNotebooklm.mockResolvedValue({
-            id: 'nb-demo',
+            id: '17e2b882-1234-1234-1234-abcdef012345',
             title: 'Browser Automation',
-            url: 'https://notebooklm.google.com/notebook/nb-demo',
+            url: 'https://notebooklm.google.com/notebook/17e2b882-1234-1234-1234-abcdef012345',
             source: 'current-page',
         });
     });
@@ -43,12 +43,12 @@ describe('notebooklm open', () => {
             goto: vi.fn(async () => { }),
             wait: vi.fn(async () => { }),
         };
-        const result = await command.func(page, { notebook: 'nb-demo' });
-        expect(page.goto).toHaveBeenCalledWith('https://notebooklm.google.com/notebook/nb-demo');
+        const result = await command.func(page, { notebook: '17e2b882-1234-1234-1234-abcdef012345' });
+        expect(page.goto).toHaveBeenCalledWith('https://notebooklm.google.com/notebook/17e2b882-1234-1234-1234-abcdef012345');
         expect(result).toEqual([{
-                id: 'nb-demo',
+                id: '17e2b882-1234-1234-1234-abcdef012345',
                 title: 'Browser Automation',
-                url: 'https://notebooklm.google.com/notebook/nb-demo',
+                url: 'https://notebooklm.google.com/notebook/17e2b882-1234-1234-1234-abcdef012345',
                 source: 'current-page',
             }]);
     });
@@ -57,7 +57,7 @@ describe('notebooklm open', () => {
             goto: vi.fn(async () => { }),
             wait: vi.fn(async () => { }),
         };
-        await command.func(page, { notebook: 'https://notebooklm.google.com/notebook/nb-demo?pli=1' });
-        expect(page.goto).toHaveBeenCalledWith('https://notebooklm.google.com/notebook/nb-demo');
+        await command.func(page, { notebook: 'https://notebooklm.google.com/notebook/17e2b882-1234-1234-1234-abcdef012345?pli=1' });
+        expect(page.goto).toHaveBeenCalledWith('https://notebooklm.google.com/notebook/17e2b882-1234-1234-1234-abcdef012345');
     });
 });

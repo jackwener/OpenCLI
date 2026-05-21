@@ -110,6 +110,8 @@ Run `opencli list` for the live registry.
 | **[hf](./browser/hf.md)**                         | `top` `paper` `models` `datasets` `spaces`                                                                                                     | 🌐 Public    |
 | **[sinafinance](./browser/sinafinance.md)**       | `news` `rolling-news` `stock` `stock-rank`                                                                                                     | 🌐 / 🔐      |
 | **[spotify](./browser/spotify.md)**               | `auth` `status` `play` `pause` `next` `prev` `volume` `search` `queue` `shuffle` `repeat`                                                      | 🔑 OAuth API |
+| **[jira](./browser/jira.md)**                     | `issue` `search` `comments` `attachments` `links`                                                                                              | 🔑 Atlassian REST API |
+| **[confluence](./browser/confluence.md)**         | `page` `search` `create` `update`                                                                                                               | 🔑 Atlassian REST API |
 | **[stackoverflow](./browser/stackoverflow.md)**   | `hot` `search` `bounties` `unanswered` `tag` `user` `read` `related`                                                                           | 🌐 Public    |
 | **[wikipedia](./browser/wikipedia.md)**           | `search` `summary` `random` `trending`                                                                                                         | 🌐 Public    |
 | **[lesswrong](./browser/lesswrong.md)**           | `curated` `frontpage` `new` `top` `top-week` `top-month` `top-year` `read` `comments` `user` `user-posts` `tag` `tags` `sequences` `shortform` | 🌐 Public    |
@@ -134,6 +136,7 @@ Run `opencli list` for the live registry.
 | **[tvmaze](./browser/tvmaze.md)**                 | `search` `show`                                                                                                                                | 🌐 Public    |
 | **[rfc](./browser/rfc.md)**                       | `rfc`                                                                                                                                          | 🌐 Public    |
 | **[wikidata](./browser/wikidata.md)**             | `search` `entity`                                                                                                                              | 🌐 Public    |
+| **[chess](./browser/chess.md)**                   | `stats` `games` `game` `analyze`                                                                                                               | 🌐 Public / Browser |
 | **[lichess](./browser/lichess.md)**               | `user` `top`                                                                                                                                   | 🌐 Public    |
 | **[rest-countries](./browser/rest-countries.md)** | `country` `region`                                                                                                                             | 🌐 Public    |
 | **[nuget](./browser/nuget.md)**                   | `search` `package`                                                                                                                             | 🌐 Public    |

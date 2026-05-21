@@ -1,6 +1,6 @@
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
-import { callNotebooklmRpc, getNotebooklmPageAuth, } from './rpc.js';
+import { callNotebooklmRpc, getNotebooklmPageAuth, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';
 const NOTEBOOKLM_LIST_RPC_ID = 'wXbhsf';
 const NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID = 'rLM1Ne';
@@ -13,9 +13,19 @@ function unwrapNotebooklmSingletonResult(result) {
     }
     return current;
 }
+export function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 export function parseNotebooklmIdFromUrl(url) {
     const match = url.match(/\/notebook\/([^/?#]+)/);
     return match?.[1] ?? '';
+}
+const NOTEBOOK_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function ensureNotebookUuid(candidate) {
+    if (!NOTEBOOK_UUID_RE.test(candidate)) {
+        throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', `NotebookLM notebook id "${candidate}" is not a valid UUID`, 'Pass a notebook id from `opencli notebooklm list` or a full notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+    }
+    return candidate;
 }
 export function parseNotebooklmNotebookTarget(value) {
     const normalized = value.trim();
@@ -23,18 +33,41 @@ export function parseNotebooklmNotebookTarget(value) {
         throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook id is required', 'Pass a notebook id from `opencli notebooklm list` or a full notebook URL.');
     }
     if (/^https?:\/\//i.test(normalized)) {
+        let parsed;
+        try {
+            parsed = new URL(normalized);
+        }
+        catch {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+        }
+        if (parsed.protocol !== 'https:' || parsed.hostname !== NOTEBOOKLM_DOMAIN || parsed.username || parsed.password || parsed.port) {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL must be a canonical https://notebooklm.google.com URL', 'Pass a notebook id from `opencli notebooklm list` or a full NotebookLM notebook URL.');
+        }
         const notebookId = parseNotebooklmIdFromUrl(normalized);
-        if (notebookId)
-            return notebookId;
-        throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<id>.');
+        if (!notebookId) {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+        }
+        return ensureNotebookUuid(notebookId);
     }
     const pathMatch = normalized.match(/(?:^|\/)notebook\/([^/?#]+)/);
     if (pathMatch?.[1])
-        return pathMatch[1];
-    return normalized;
+        return ensureNotebookUuid(pathMatch[1]);
+    return ensureNotebookUuid(normalized);
+}
+export function getNotebooklmAuthuser() {
+    const v = process.env.OPENCLI_NOTEBOOKLM_AUTHUSER;
+    return typeof v === 'string' && /^\d+$/.test(v) ? v : '';
+}
+export function requireNotebooklmExecute(value, action) {
+    if (value !== true) {
+        throw new ArgumentError(`Refusing to ${action}: pass --execute to perform this NotebookLM write`);
+    }
 }
 export function buildNotebooklmNotebookUrl(notebookId) {
-    return new URL(`/notebook/${encodeURIComponent(notebookId)}`, NOTEBOOKLM_HOME_URL).toString();
+    const u = new URL(`/notebook/${encodeURIComponent(notebookId)}`, NOTEBOOKLM_HOME_URL);
+    const authuser = getNotebooklmAuthuser();
+    if (authuser) u.searchParams.set('authuser', authuser);
+    return u.toString();
 }
 export function classifyNotebooklmPage(url) {
     try {
@@ -401,6 +434,42 @@ export async function getNotebooklmDetailViaRpc(page) {
     const rpc = await callNotebooklmRpc(page, NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID, [state.notebookId, null, [2], null, 0]);
     return parseNotebooklmNotebookDetailResult(rpc.result);
 }
+export async function getNotebooklmNotebookDetailById(page, notebookId) {
+    const rpc = await callNotebooklmRpc(page, NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID, [notebookId, null, [2], null, 0]);
+    return { detail: parseNotebooklmNotebookDetailResult(rpc.result), sources: parseNotebooklmSourceListResult(rpc.result) };
+}
+export async function verifyNotebooklmNotebookExists(page, notebookId, action) {
+    try {
+        const { detail } = await getNotebooklmNotebookDetailById(page, notebookId);
+        if (!detail || detail.id !== notebookId) {
+            throw new CommandExecutionError(`NotebookLM ${action} succeeded but the notebook ${notebookId} was not found in the post-write verification`);
+        }
+        return detail;
+    }
+    catch (error) {
+        if (error instanceof AuthRequiredError || error instanceof CommandExecutionError)
+            throw error;
+        throw new CommandExecutionError(`NotebookLM ${action} post-write verification failed: ${error?.message || error}`);
+    }
+}
+export async function verifyNotebooklmSourceAdded(page, notebookId, sourceId, action) {
+    try {
+        const { detail, sources } = await getNotebooklmNotebookDetailById(page, notebookId);
+        if (!detail || detail.id !== notebookId) {
+            throw new CommandExecutionError(`NotebookLM ${action} succeeded but the notebook ${notebookId} was not found in the post-write verification`);
+        }
+        const matched = sources.find((s) => s.id === sourceId);
+        if (!matched) {
+            throw new CommandExecutionError(`NotebookLM ${action} succeeded but source ${sourceId} did not appear in the notebook's source list`);
+        }
+        return matched;
+    }
+    catch (error) {
+        if (error instanceof AuthRequiredError || error instanceof CommandExecutionError)
+            throw error;
+        throw new CommandExecutionError(`NotebookLM ${action} post-write verification failed: ${error?.message || error}`);
+    }
+}
 export async function listNotebooklmSourcesViaRpc(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
@@ -434,7 +503,7 @@ export async function listNotebooklmNotesFromPage(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
         return [];
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     return Array.from(document.querySelectorAll('artifact-library-note')).map((node) => {
       const titleNode = node.querySelector('.artifact-title');
       return {
@@ -442,7 +511,7 @@ export async function listNotebooklmNotesFromPage(page) {
         text: (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim(),
       };
     });
-  })()`);
+  })()`));
     if (!Array.isArray(raw) || raw.length === 0)
         return [];
     return parseNotebooklmNoteListRawRows(raw, state.notebookId, state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`);
@@ -451,13 +520,13 @@ export async function readNotebooklmSummaryFromPage(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
         return null;
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
     const title = normalize(document.querySelector('.notebook-title, h1, [data-testid="notebook-title"]')?.textContent || document.title || '');
     const summaryNode = document.querySelector('.notebook-summary, .summary-content, [class*="summary"]');
     const summary = normalize(summaryNode?.textContent || '');
     return { title, summary };
-  })()`);
+  })()`));
     return parseNotebooklmSummaryRawRow(raw, state.notebookId, state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`);
 }
 export async function getNotebooklmSummaryViaRpc(page) {
@@ -499,7 +568,7 @@ export async function readNotebooklmVisibleNoteFromPage(page) {
     const state = await getNotebooklmPageState(page);
     if (state.kind !== 'notebook' || !state.notebookId)
         return null;
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const normalizeText = (value) => (value || '').replace(/\\u00a0/g, ' ').replace(/\\r\\n/g, '\\n').trim();
     const titleNode = document.querySelector('.note-header__editable-title');
     const title = titleNode instanceof HTMLInputElement || titleNode instanceof HTMLTextAreaElement
@@ -516,7 +585,7 @@ export async function readNotebooklmVisibleNoteFromPage(page) {
       title: normalizeText(title),
       content: normalizeText(content),
     };
-  })()`);
+  })()`));
     return parseNotebooklmVisibleNoteRawRow(raw, state.notebookId, state.url || `https://${NOTEBOOKLM_DOMAIN}/notebook/${state.notebookId}`);
 }
 export async function ensureNotebooklmHome(page) {
@@ -526,11 +595,18 @@ export async function ensureNotebooklmHome(page) {
     const currentKind = currentUrl ? classifyNotebooklmPage(currentUrl) : 'unknown';
     if (currentKind === 'home')
         return;
-    await page.goto(NOTEBOOKLM_HOME_URL);
-    await page.wait(2);
+    const authuser = getNotebooklmAuthuser();
+    const target = authuser ? `${NOTEBOOKLM_HOME_URL}?authuser=${encodeURIComponent(authuser)}` : NOTEBOOKLM_HOME_URL;
+    try {
+        await page.goto(target);
+        await page.wait(2);
+    }
+    catch (error) {
+        throw new CommandExecutionError(`Failed to open NotebookLM home: ${error?.message || error}`);
+    }
 }
 export async function getNotebooklmPageState(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const url = window.location.href;
     const title = document.title || '';
     const hostname = window.location.hostname || '';
@@ -557,7 +633,7 @@ export async function getNotebooklmPageState(page) {
       .reduce((count, href, index, list) => list.indexOf(href) === index ? count + 1 : count, 0);
 
     return { url, title, hostname, kind, notebookId, loginRequired, notebookCount, path };
-  })()`);
+  })()`));
     const state = {
         url: String(raw?.url ?? ''),
         title: normalizeNotebooklmTitle(raw?.title, 'NotebookLM'),
@@ -582,7 +658,7 @@ export async function getNotebooklmPageState(page) {
     return state;
 }
 export async function readCurrentNotebooklm(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const url = window.location.href;
     const match = url.match(/\\/notebook\\/([^/?#]+)/);
     if (!match) return null;
@@ -595,7 +671,7 @@ export async function readCurrentNotebooklm(page) {
       url,
       source: 'current-page',
     };
-  })()`);
+  })()`));
     if (!raw)
         return null;
     return {
@@ -608,7 +684,7 @@ export async function readCurrentNotebooklm(page) {
     };
 }
 export async function listNotebooklmLinks(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const rows = [];
     const seen = new Set();
 
@@ -656,7 +732,7 @@ export async function listNotebooklmLinks(page) {
     }
 
     return rows;
-  })()`);
+  })()`));
     if (!Array.isArray(raw))
         return [];
     return raw
@@ -671,7 +747,7 @@ export async function listNotebooklmLinks(page) {
         .filter((row) => row.id && row.url);
 }
 export async function listNotebooklmSourcesFromPage(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const notebookMatch = window.location.href.match(/\\/notebook\\/([^/?#]+)/);
     const notebookId = notebookMatch ? notebookMatch[1] : '';
     if (!notebookId) return [];
@@ -721,7 +797,7 @@ export async function listNotebooklmSourcesFromPage(page) {
       });
     }
     return rows;
-  })()`);
+  })()`));
     if (!Array.isArray(raw))
         return [];
     return raw.filter((row) => row.id && row.title);
