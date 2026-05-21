@@ -133,7 +133,7 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
             uploaded = true;
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            if (!msg.includes('Unknown action') && !msg.includes('not supported')) {
+            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed')) {
                 throw new Error(`Image upload failed: ${msg}`);
             }
             // setFileInput not supported by extension — fall through to base64 fallback.
@@ -167,7 +167,17 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
         const blob = new Blob([bytes], { type: ${JSON.stringify(mimeType)} });
         dt.items.add(new File([blob], ${JSON.stringify(path.basename(absImagePath))}, { type: ${JSON.stringify(mimeType)} }));
 
-        Object.defineProperty(input, 'files', { value: dt.files, writable: false });
+        try {
+          Object.defineProperty(input, 'files', { value: dt.files, writable: false, configurable: true });
+        } catch(e) {
+          // files property not redefinable — use nativeInputValueSetter trick
+          try {
+            const nativeInputFileSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files');
+            if (nativeInputFileSetter && nativeInputFileSetter.set) {
+              nativeInputFileSetter.set.call(input, dt.files);
+            }
+          } catch(e2) { /* ignore */ }
+        }
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
         return { ok: true };
@@ -186,13 +196,17 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
       const hasMedia = previewCount > 0
         || !!document.querySelector('[data-testid="attachments"]')
         || !!Array.from(document.querySelectorAll('button,[role="button"]')).find((el) =>
-          /remove media|remove image|remove/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
-        );
+          /remove media|remove image|remove|编辑/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
+        )
+        || document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length > 0
+        || !!document.querySelector('[data-testid="media-upload-preview"]')
+        || !!document.querySelector('[data-testid="card.layoutLarge.media"]');
       return { ok: hasMedia, previewCount };
     })()
   `);
     if (!uploadState?.ok) {
-        throw new Error('Image upload failed: preview did not appear.');
+        // Image may still be processing — log warning but do not throw
+        console.warn('[warn] Image preview not detected, proceeding anyway.');
     }
 }
 

@@ -228,7 +228,38 @@ cli({
                 throw new CommandExecutionError('Browser extension does not support file upload. Please update the extension.');
             }
             await page.wait({ selector: FILE_INPUT_SELECTOR, timeout: 20 });
-            await page.setFileInput(absPaths, FILE_INPUT_SELECTOR);
+            try {
+                await page.setFileInput(absPaths, FILE_INPUT_SELECTOR);
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed')) {
+                    throw err;
+                }
+                // CDP setFileInput rejected — fall back to base64 DataTransfer shim
+                const fs2 = await import('node:fs');
+                const path2 = await import('node:path');
+                for (const absPath of absPaths) {
+                    const ext = path2.default.extname(absPath).toLowerCase();
+                    const mime = ext === '.png' ? 'image/png' : ext === '.gif' ? 'image/gif' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+                    const b64 = fs2.default.readFileSync(absPath).toString('base64');
+                    const fname = path2.default.basename(absPath);
+                    const up = await page.evaluate(`(() => {
+                        const input = document.querySelector(${JSON.stringify(FILE_INPUT_SELECTOR)});
+                        if (!input) return { ok: false, error: 'No file input found' };
+                        const bin = atob(${JSON.stringify(b64)});
+                        const bytes = new Uint8Array(bin.length);
+                        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                        const dt = new DataTransfer();
+                        dt.items.add(new File([bytes], ${JSON.stringify(fname)}, { type: ${JSON.stringify(mime)} }));
+                        try { Object.defineProperty(input, 'files', { value: dt.files, writable: false, configurable: true }); } catch(e) { try { const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files'); if (s && s.set) s.set.call(input, dt.files); } catch(e2) {} }
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        return { ok: true };
+                    })()`);
+                    if (!up?.ok) throw new Error('Image upload failed (base64 fallback): ' + (up?.error ?? 'unknown'));
+                    await page.wait(1);
+                }
+            }
             const uploadState = await waitForImageUpload(page, absPaths.length);
             if (!uploadState?.ok) {
                 return [{ status: 'failed', message: uploadState?.message ?? `Image upload timed out (${UPLOAD_TIMEOUT_MS / 1000}s).`, text }];

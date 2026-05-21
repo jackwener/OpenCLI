@@ -222,6 +222,17 @@ cli({
             if (localImagePath) {
                 await page.wait({ selector: COMPOSER_FILE_INPUT_SELECTOR, timeout: 20 });
                 await attachComposerImage(page, localImagePath);
+                // Wait for X to finish uploading the image to its servers
+                // (button stays disabled while upload is in progress)
+                await page.evaluate(`(async () => {
+                    const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+                    for (let i = 0; i < 60; i++) {
+                        await new Promise(r => setTimeout(r, 1000));
+                        const btns = Array.from(document.querySelectorAll('[data-testid="tweetButton"],[data-testid="tweetButtonInline"]'));
+                        const ready = btns.find(el => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
+                        if (ready) return;
+                    }
+                })()`);
             }
             const result = await submitReply(page, kwargs.text);
             return [{
