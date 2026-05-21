@@ -122,6 +122,43 @@ describe('BasePage.fetchJson', () => {
   });
 });
 
+describe('BasePage.evaluateWithArgs', () => {
+  class RealEvalPage extends BasePage {
+    scripts: string[] = [];
+    async goto(): Promise<void> {}
+    async evaluate<T = unknown>(_js: string): Promise<T>;
+    async evaluate<Args extends unknown[], T>(_fn: BrowserEvaluateFunction<Args, T>, ..._args: Args): Promise<Awaited<T>>;
+    async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>): Promise<unknown> {
+      this.scripts.push(typeof input === 'string' ? input : input.toString());
+      return null;
+    }
+    async getCookies(): Promise<[]> { return []; }
+    async screenshot(): Promise<string> { return ''; }
+    async tabs(): Promise<unknown[]> { return []; }
+    async selectTab(): Promise<void> {}
+  }
+
+  it('wraps declarations and body in an IIFE so const bindings are block-scoped', async () => {
+    const page = new RealEvalPage();
+    await page.evaluateWithArgs('(() => ({ ok: true }))()', { markerAttr: 'data-x', markerValue: 'v1' });
+    expect(page.scripts).toHaveLength(1);
+    const script = page.scripts[0];
+    // Declarations must live inside an IIFE so a second call into the same
+    // Runtime.evaluate context does not throw "Identifier 'markerAttr' has
+    // already been declared".
+    expect(script.startsWith('(() => {')).toBe(true);
+    expect(script.endsWith('})()')).toBe(true);
+    expect(script).toContain('const markerAttr = "data-x";');
+    expect(script).toContain('const markerValue = "v1";');
+    expect(script).toContain('return ((() => ({ ok: true }))());');
+  });
+
+  it('rejects keys that are not valid JS identifiers', async () => {
+    const page = new RealEvalPage();
+    await expect(page.evaluateWithArgs('(() => 1)()', { 'bad-key': 1 })).rejects.toThrow(/invalid key/);
+  });
+});
+
 describe('BasePage annotatedScreenshot', () => {
   it('refreshes DOM refs, captures with a temporary visual overlay, and cleans up', async () => {
     const page = new ActionPage();

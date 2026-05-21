@@ -154,6 +154,12 @@ export abstract class BasePage implements IPage {
    * Each key in `args` becomes a `const` declaration with JSON-serialized value,
    * prepended to the JS code. Prevents injection by design.
    *
+   * The declarations and the caller-provided expression are wrapped in an IIFE
+   * so the `const` bindings are block-scoped. Without the wrapper, the bindings
+   * land in the script's top-level realm and the second call into the same
+   * Runtime.evaluate context throws `SyntaxError: Identifier '<key>' has already
+   * been declared` (the `markerAttr` regression hit by `browser upload`).
+   *
    * Usage:
    *   page.evaluateWithArgs(`(async () => { return sym; })()`, { sym: userInput })
    */
@@ -166,7 +172,7 @@ export abstract class BasePage implements IPage {
         return `const ${key} = ${JSON.stringify(value)};`;
       })
       .join('\n');
-    return this.evaluate(`${declarations}\n${js}`);
+    return this.evaluate(`(() => { ${declarations}\nreturn (${js}); })()`);
   }
 
   async fetchJson(url: string, opts: FetchJsonOptions = {}): Promise<unknown> {
