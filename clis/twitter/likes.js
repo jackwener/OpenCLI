@@ -1,9 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult } from './shared.js';
+import { looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
-const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
-const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const LIKES_QUERY_ID = 'CDWHmpZeSdIJ3HGeRbNm0w';
+const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const MAX_PAGINATION_PAGES = 100;
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -102,13 +102,6 @@ function extractLikedTweet(result, seen) {
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
         ...extractMedia(legacy),
     };
-}
-function looksLikePrivateLikesResponse(data) {
-    const result = data?.data?.user?.result;
-    if (!result || typeof result !== 'object') return false;
-    if (!result.timeline || typeof result.timeline !== 'object') return false;
-    return !result.timeline.timeline?.instructions
-        && !result.timeline_v2?.timeline?.instructions;
 }
 function parseLikes(data, seen) {
     const tweets = [];
@@ -231,7 +224,7 @@ cli({
             cursor = nextCursor;
         }
         if (allTweets.length === 0) {
-            if (looksLikePrivateLikesResponse(lastRawResponse)) {
+            if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
                 throw new EmptyResultError('twitter likes', `No likes returned for @${username}. X made Likes private by default in mid-2024; only the account owner can view their own liked tweets.`);
             }
             throw new EmptyResultError('twitter likes', `No likes found for @${username}.`);
@@ -245,5 +238,4 @@ export const __test__ = {
     buildLikesUrl,
     buildUserByScreenNameUrl,
     parseLikes,
-    looksLikePrivateLikesResponse,
 };

@@ -337,25 +337,3 @@ describe('twitter following command', () => {
     });
 });
 
-describe('looksLikePrivateFollowingResponse', () => {
-    it('returns true when result.timeline is an empty object', () => {
-        expect(__test__.looksLikePrivateFollowingResponse({
-            data: { user: { result: { __typename: 'User', timeline: {} } } },
-        })).toBe(true);
-    });
-    it('returns false when timeline.timeline.instructions is present', () => {
-        expect(__test__.looksLikePrivateFollowingResponse({
-            data: { user: { result: { timeline: { timeline: { instructions: [] } } } } },
-        })).toBe(false);
-    });
-    it('returns false when timeline_v2.timeline.instructions is present', () => {
-        expect(__test__.looksLikePrivateFollowingResponse({
-            data: { user: { result: { timeline_v2: { timeline: { instructions: [] } } } } },
-        })).toBe(false);
-    });
-    it('returns false when result is missing entirely', () => {
-        expect(__test__.looksLikePrivateFollowingResponse({})).toBe(false);
-        expect(__test__.looksLikePrivateFollowingResponse(null)).toBe(false);
-        expect(__test__.looksLikePrivateFollowingResponse({ data: { user: {} } })).toBe(false);
-    });
-});

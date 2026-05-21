@@ -129,29 +129,6 @@ describe('twitter likes helpers', () => {
     });
 });
 
-describe('looksLikePrivateLikesResponse', () => {
-    it('returns true when result.timeline is an empty object', () => {
-        expect(__test__.looksLikePrivateLikesResponse({
-            data: { user: { result: { __typename: 'User', timeline: {} } } },
-        })).toBe(true);
-    });
-    it('returns false when timeline.timeline.instructions is present', () => {
-        expect(__test__.looksLikePrivateLikesResponse({
-            data: { user: { result: { timeline: { timeline: { instructions: [] } } } } },
-        })).toBe(false);
-    });
-    it('returns false when timeline_v2.timeline.instructions is present', () => {
-        expect(__test__.looksLikePrivateLikesResponse({
-            data: { user: { result: { timeline_v2: { timeline: { instructions: [] } } } } },
-        })).toBe(false);
-    });
-    it('returns false when result is missing entirely', () => {
-        expect(__test__.looksLikePrivateLikesResponse({})).toBe(false);
-        expect(__test__.looksLikePrivateLikesResponse(null)).toBe(false);
-        expect(__test__.looksLikePrivateLikesResponse({ data: { user: {} } })).toBe(false);
-    });
-});
-
 describe('twitter likes command', () => {
     it('throws EmptyResultError with privacy message when API returns empty-timeline shape', async () => {
         const command = getRegistry().get('twitter/likes');

@@ -1,10 +1,10 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, unwrapBrowserResult } from './shared.js';
+import { looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
-const FOLLOWING_QUERY_ID = 'zx6e-TLzRkeDO_a7p4b3JQ';  // Following fallback
-const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const FOLLOWING_QUERY_ID = 'F42cDX8PDFxkbjjq6JrM2w';
+const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const MAX_PAGINATION_PAGES = 100;
 
 const FEATURES = {
@@ -98,13 +98,6 @@ function extractUser(result) {
     };
 }
 
-function looksLikePrivateFollowingResponse(data) {
-    const result = data?.data?.user?.result;
-    if (!result || typeof result !== 'object') return false;
-    if (!result.timeline || typeof result.timeline !== 'object') return false;
-    return !result.timeline.timeline?.instructions
-        && !result.timeline_v2?.timeline?.instructions;
-}
 function parseFollowing(data) {
     const users = [];
     let nextCursor = null;
@@ -257,7 +250,7 @@ cli({
         }
 
         if (allUsers.length === 0) {
-            if (looksLikePrivateFollowingResponse(lastRawResponse)) {
+            if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
                 throw new EmptyResultError('twitter following', `No following data returned for @${targetUser}. The target account may have set their following list to private, or the account has no follows.`);
             }
             throw new EmptyResultError('twitter following', `No following accounts found for @${targetUser}.`);
@@ -272,7 +265,6 @@ export const __test__ = {
     buildFollowingUrl,
     buildUserByScreenNameUrl,
     extractUser,
-    looksLikePrivateFollowingResponse,
     normalizeScreenName,
     parseFollowing,
 };

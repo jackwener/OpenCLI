@@ -4,7 +4,7 @@ import { resolveTwitterQueryId } from './shared.js';
 import { parseListsManagement } from './lists.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
-const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const LISTS_MANAGEMENT_QUERY_ID = '78UbkyXwXBD98IgUWXOy9g';
 // 2026-05 fallback — X rotates queryIds; resolveTwitterQueryId() does live lookup,
 // this constant is just the default if live lookup fails.
