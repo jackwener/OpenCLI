@@ -90,19 +90,22 @@ async function insertReplyText(page, text) {
 }
 
 async function clickReplyButton(page) {
-    return page.evaluate(`(() => {
+    const iterations = Math.ceil(SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS);
+    return page.evaluate(`(async () => {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-          const buttons = Array.from(
-              document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
-          );
-          const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
-          if (!btn) {
-              return { ok: false, message: 'Reply button is disabled or not found.' };
+          for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
+              const buttons = Array.from(
+                  document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
+              );
+              const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
+              if (btn) {
+                  btn.click();
+                  return { ok: true };
+              }
+              await new Promise(r => setTimeout(r, ${JSON.stringify(SUBMIT_POLL_MS)}));
           }
-
-          btn.click();
-          return { ok: true };
+          return { ok: false, message: 'Reply button is disabled or not found.' };
       } catch (e) {
           return { ok: false, message: e.toString() };
       }
@@ -222,17 +225,6 @@ cli({
             if (localImagePath) {
                 await page.wait({ selector: COMPOSER_FILE_INPUT_SELECTOR, timeout: 20 });
                 await attachComposerImage(page, localImagePath);
-                // Wait for X to finish uploading the image to its servers
-                // (button stays disabled while upload is in progress)
-                await page.evaluate(`(async () => {
-                    const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-                    for (let i = 0; i < 60; i++) {
-                        await new Promise(r => setTimeout(r, 1000));
-                        const btns = Array.from(document.querySelectorAll('[data-testid="tweetButton"],[data-testid="tweetButtonInline"]'));
-                        const ready = btns.find(el => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
-                        if (ready) return;
-                    }
-                })()`);
             }
             const result = await submitReply(page, kwargs.text);
             return [{

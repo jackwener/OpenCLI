@@ -11,6 +11,7 @@ vi.mock('node:fs', async (importOriginal) => {
                 return undefined;
             return { isFile: () => true };
         }),
+        readFileSync: vi.fn(() => Buffer.from([0x89, 0x50, 0x4e, 0x47])),
     };
 });
 
@@ -123,10 +124,41 @@ describe('twitter post command', () => {
         await expect(command.func(page, { text: 'hi', images: 'photo.bmp' })).rejects.toThrow('Unsupported image format');
     });
 
-    it('throws when page.setFileInput is not available', async () => {
+    it('falls back to DataTransfer upload when page.setFileInput is not available', async () => {
         const command = getCommand();
-        const page = makePage([], { setFileInput: undefined });
-        await expect(command.func(page, { text: 'hi', images: 'a.png' })).rejects.toThrow('Browser extension does not support file upload');
+        const page = makePage([
+            { ok: true }, // DataTransfer fallback
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput: undefined });
+
+        const result = await command.func(page, { text: 'hi', images: 'a.png' });
+
+        expect(result).toEqual([{ status: 'success', message: 'Tweet posted successfully.', text: 'hi' }]);
+        expect(page.evaluate.mock.calls[0][0]).toContain('new DataTransfer()');
+        expect(page.evaluate.mock.calls[0][0]).toContain('Could not assign files to input');
+    });
+
+    it('falls back to DataTransfer upload when CDP rejects file input as not allowed', async () => {
+        const command = getCommand();
+        const setFileInput = vi.fn().mockRejectedValue(new Error('NotAllowedError: Not allowed'));
+        const page = makePage([
+            { ok: true }, // DataTransfer fallback
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput });
+
+        const result = await command.func(page, { text: 'with fallback', images: 'a.png' });
+
+        expect(result).toEqual([{ status: 'success', message: 'Tweet posted successfully.', text: 'with fallback' }]);
+        expect(setFileInput).toHaveBeenCalledWith(['/abs/a.png'], 'input[type="file"][data-testid="fileInput"]');
+        expect(page.evaluate.mock.calls[0][0]).toContain('new DataTransfer()');
     });
 
     it('uploads images before inserting text so media re-renders cannot erase the tweet text', async () => {

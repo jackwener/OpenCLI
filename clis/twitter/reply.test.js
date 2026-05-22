@@ -193,4 +193,22 @@ describe('twitter image helpers (utils.js)', () => {
         expect(utilsTest.resolveImageExtension('https://example.com/no-ext', 'image/webp')).toBe('.webp');
         expect(utilsTest.resolveImageExtension('https://example.com/a.jpeg?x=1', null)).toBe('.jpeg');
     });
+
+    it('classifies CDP NotAllowed file-input failures as recoverable', () => {
+        expect(utilsTest.isRecoverableFileInputError(new Error('NotAllowedError: Not allowed'))).toBe(true);
+        expect(utilsTest.isRecoverableFileInputError(new Error('ProtocolError: not-allowed'))).toBe(true);
+        expect(utilsTest.isRecoverableFileInputError(new Error('Permission denied'))).toBe(false);
+    });
+
+    it('fails closed when a composer image preview never appears', async () => {
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-twitter-helper-'));
+        const imagePath = path.join(tempDir, 'missing-preview.png');
+        fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        const page = createPageMock([{ ok: false, message: 'Image upload timed out (30s).' }], {
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await expect(utilsTest.attachComposerImage(page, imagePath)).rejects.toThrow('Image upload timed out');
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
 });
