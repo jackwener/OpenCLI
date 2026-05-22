@@ -3,7 +3,19 @@ import { JSDOM } from 'jsdom';
 import { __test__ } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
-const { extractMedia, extractCard, extractQuotedTweet, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata, looksLikePrivateTwitterTimeline, parseOperationFromBundleText } = __test__;
+const {
+    extractMedia,
+    extractCard,
+    extractQuotedTweet,
+    parseTweetUrl,
+    buildTwitterArticleScopeSource,
+    unwrapBrowserResult,
+    normalizeTwitterGraphqlPayload,
+    normalizeTwitterScreenName,
+    sanitizeTwitterOperationMetadata,
+    looksLikePrivateTwitterTimeline,
+    parseOperationFromBundleText,
+} = __test__;
 
 function makeCardTweet({ name, bindings, expandedUrl, urls }) {
     const tweet = {
@@ -48,12 +60,6 @@ describe('twitter browser result helpers', () => {
     });
 
     it('falls back to baked features / fieldToggles when the bundle parser returns empty maps', () => {
-        // Regression guard: resolveTwitterOperationMetadata's bundle parser can
-        // find a queryId but miss `featureSwitches:[...]` (e.g. minification
-        // change, or the 2500-char snippet window truncating before the array).
-        // In that case keysToFlags(undefined) returns {}; if sanitize kept the
-        // empty map, Twitter would receive a request with no features and reply
-        // 400, surfacing a misleading "queryId expired" error.
         const result = sanitizeTwitterOperationMetadata({
             queryId: 'newQueryId',
             features: {},

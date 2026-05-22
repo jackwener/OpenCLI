@@ -721,6 +721,18 @@ async function ensureOwnedContainerWindowUnlocked(
   container.windowId = win.id!;
   console.log(`[opencli] Created owned ${role} window ${container.windowId} (start=${startUrl})`);
 
+  // macOS 15.x (and intermittently 26.x) ignore `focused: false` on windows.create()
+  // and pull the new window to the foreground anyway. See jackwener/opencli#739.
+  // Counteract by minimizing right after creation. `state: 'minimized'` is rejected
+  // when combined with width/height on create(), but is accepted on update().
+  if (mode === 'background') {
+    try {
+      await chrome.windows.update(container.windowId, { state: 'minimized', focused: false });
+    } catch (e) {
+      console.warn('[opencli] minimize automation window failed:', e);
+    }
+  }
+
   // Wait for the initial tab to finish loading instead of a fixed 200ms sleep.
   const tabs = await chrome.tabs.query({ windowId: win.id! });
   const initialTabId = tabs[0]?.id;
@@ -788,7 +800,7 @@ async function createOwnedTabLeaseUnlocked(leaseKey: string, initialUrl?: string
       tab = await chrome.tabs.get(initialTabId);
     }
   } else {
-    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
+    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: getWindowMode(leaseKey) === 'foreground' });
   }
   if (!tab.id) throw new Error('Failed to create tab lease in automation container');
   await ensureOwnedContainerTabGroup(role, windowId, [tab.id]);
@@ -1233,7 +1245,7 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
   }
 
   // Fallback: create a new tab
-  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
+  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: getWindowMode(leaseKey) === 'foreground' });
   if (!newTab.id) throw new Error('Failed to create tab in automation container');
   return { tabId: newTab.id, tab: newTab };
 }
@@ -1437,7 +1449,7 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
       const windowId = await getAutomationWindow(leaseKey);
-      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
+      const tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: getWindowMode(leaseKey) === 'foreground' });
       if (!tab.id) return { id: cmd.id, ok: false, error: 'Failed to create tab' };
       await ensureOwnedContainerTabGroup(getOwnedWindowRole(leaseKey), windowId, [tab.id]);
       setLeaseSession(leaseKey, {

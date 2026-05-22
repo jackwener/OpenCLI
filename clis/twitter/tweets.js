@@ -1,7 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, extractQuotedTweet, normalizeTwitterGraphqlPayload, unwrapBrowserResult } from './shared.js';
-import { normalizeTwitterScreenName } from './shared.js';
+import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, extractQuotedTweet, normalizeTwitterGraphqlPayload, unwrapBrowserResult, normalizeTwitterScreenName } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
 const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';

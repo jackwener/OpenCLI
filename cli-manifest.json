@@ -21467,7 +21467,11 @@
       "type",
       "author",
       "score",
-      "text"
+      "text",
+      "post_hint",
+      "url_overridden_by_dest",
+      "preview_image_url",
+      "gallery_urls"
     ],
     "type": "js",
     "modulePath": "reddit/read.js",
@@ -21765,7 +21769,7 @@
         "type": "int",
         "default": 100,
         "required": false,
-        "help": "Max subreddits to return (1-1000, auto-paginates)"
+        "help": "Max subreddits to return (auto-paginates; hard cap 1000)"
       }
     ],
     "columns": [
@@ -25597,6 +25601,8 @@
       "replies",
       "created_at",
       "url",
+      "card",
+      "quoted_tweet",
       "has_media",
       "media_urls",
       "card",

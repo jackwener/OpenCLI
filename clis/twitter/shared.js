@@ -437,7 +437,8 @@ export function extractQuotedTweet(tweet) {
     const q = tweet?.quoted_status_result?.result
         ?? tweet?.legacy?.quoted_status_result?.result;
     // `result` can be a tombstone (`__typename: 'TweetTombstone'`) or
-    // `'TweetUnavailable'` when the quoted tweet was deleted / privacy-restricted.
+    // `'TweetUnavailable'` when the quoted tweet was deleted / privacy-restricted —
+    // it has no `legacy`, so the downstream null-check covers both cases.
     if (!q) return null;
     // Nested `tweet` wrapper appears on TweetWithVisibilityResults — same
     // shim that callers already do at the top level (`tw.tweet || tw`).

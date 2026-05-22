@@ -297,9 +297,9 @@ describe('Page active target tracking', () => {
     }));
   });
 
-  // Regression: a Page instance can keep re-sending a cached targetId after the tab
-  // has been closed externally, so the extension throws
-  // "Page not found: <id> — stale page identity" on follow-up navigation.
+  // Regression: chrome-backed adapter calls in the same process were re-sending a
+  // cached targetId after the tab had been closed externally, so the extension threw
+  // "Page not found: <id> — stale page identity" on every follow-up pre-navigation.
   // goto() now drops the stale identity and retries once without it so the extension's
   // session lease can resolve through to a live tab.
   it('drops a stale page identity and retries navigate once', async () => {
