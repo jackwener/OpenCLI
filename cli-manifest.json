@@ -3573,6 +3573,13 @@
           "boss",
           "geek"
         ]
+      },
+      {
+        "name": "raw",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Return full message body including JD card payload (no 120-char truncation); extra fields appear in --fmt json/yaml"
       }
     ],
     "columns": [

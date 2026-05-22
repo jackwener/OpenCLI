@@ -209,6 +209,75 @@ describe('boss chatmsg', () => {
         ).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    describe('--raw mode (JD card exposure)', () => {
+        // Long content (>200 chars) sits inside body.jobDesc, not body.content,
+        // so the compact-mode short-circuit (m.body?.content) does not catch it
+        // and the JSON.stringify(...).slice(0, 120) truncation branch is exercised.
+        const JD_CARD_URL = 'https://www.zhipin.com/job_detail/abc-xyz-jobid-123.html?lid=test';
+        const JD_CARD_CONTENT = '岗位职责：负责后端架构设计与核心服务开发，包括但不限于高并发、分布式系统、数据库优化、消息队列、缓存方案、监控告警、容灾备份等关键基础设施建设。任职要求：5年以上后端开发经验，精通 Java/Go，有大型互联网公司经验者优先，熟悉云原生技术栈（K8s/Docker/Service Mesh），具备良好的沟通协作能力，能承担技术攻坚任务，并在团队中起到技术引领作用。';
+        const JD_CARD_FIXTURE = {
+            type: 99,
+            received: true,
+            time: 1704067200000,
+            securityId: 'jd-sec-id-xyz',
+            from: { uid: 67890, name: 'Boss张' },
+            body: {
+                jobDesc: {
+                    title: '高级后端工程师',
+                    company: '某互联网公司',
+                    salary: '40-60K·15薪',
+                    city: '北京',
+                    content: JD_CARD_CONTENT,
+                    jobId: 'abc-xyz-jobid-123',
+                    url: JD_CARD_URL,
+                },
+            },
+        };
+
+        function buildJdPageMock(msg) {
+            return createPageMock(async (script) => {
+                if (script.includes('document.cookie')) return 'test-enc-sys-id';
+                if (script.includes('geekFilterByLabel')) {
+                    return { code: 0, zpData: { friendList: [GEEK_FRIEND_LABEL] } };
+                }
+                if (script.includes('getGeekFriendList.json')) {
+                    return { code: 0, zpData: { result: [GEEK_FRIEND_ENRICHED] } };
+                }
+                if (script.includes('geek/historyMsg')) {
+                    return { code: 0, zpData: { messages: [msg] } };
+                }
+                return {};
+            });
+        }
+
+        it('--raw exposes full JD card url (no truncation)', async () => {
+            const page = buildJdPageMock(JD_CARD_FIXTURE);
+            const rows = await command.func(page, { uid: 'enc-geek-uid', page: 1, side: 'geek', raw: true });
+            expect(rows).toHaveLength(1);
+            expect(rows[0].body).toBeDefined();
+            expect(rows[0].body.jobDesc.url).toBe(JD_CARD_URL);
+            expect(rows[0].security_id).toBe('jd-sec-id-xyz');
+        });
+
+        it('--raw preserves long JD content (>120 chars)', async () => {
+            const page = buildJdPageMock(JD_CARD_FIXTURE);
+            const rows = await command.func(page, { uid: 'enc-geek-uid', page: 1, side: 'geek', raw: true });
+            expect(rows[0].body.jobDesc.content).toBe(JD_CARD_CONTENT);
+            expect(rows[0].body.jobDesc.content.length).toBeGreaterThan(120);
+        });
+
+        it('compact mode (no --raw) still truncates JD card body to <=120 chars and omits body/security_id', async () => {
+            const page = buildJdPageMock(JD_CARD_FIXTURE);
+            const rows = await command.func(page, { uid: 'enc-geek-uid', page: 1, side: 'geek' });
+            expect(rows).toHaveLength(1);
+            expect(rows[0].text.length).toBeLessThanOrEqual(120);
+            expect(rows[0]).not.toHaveProperty('body');
+            expect(rows[0]).not.toHaveProperty('security_id');
+            // And the full URL is NOT present in the truncated text — this is the regression #13 documents.
+            expect(rows[0].text).not.toContain(JD_CARD_URL);
+        });
+    });
+
     it('--side geek reports an empty history as EmptyResultError', async () => {
         const page = createPageMock(async (script) => {
             if (script.includes('document.cookie')) return 'test-enc-sys-id';

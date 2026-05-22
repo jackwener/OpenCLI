@@ -13,27 +13,37 @@ const TYPE_MAP = {
     6: '名片', 7: '语音', 8: '视频', 9: '表情',
 };
 
-function mapBossMsg(m, friend) {
+function mapBossMsg(m, friend, { raw = false } = {}) {
     const fromObj = m.from || {};
     const isSelf = typeof fromObj === 'object' ? fromObj.uid !== friend.uid : false;
-    return {
+    const row = {
         from: isSelf ? '我' : (typeof fromObj === 'object' ? fromObj.name : friend.name),
         type: TYPE_MAP[m.type] || `其他(${m.type})`,
         text: m.text || m.body?.text || '',
         time: m.time ? new Date(m.time).toLocaleString('zh-CN') : '',
     };
+    if (raw) {
+        row.security_id = m.securityId || null;
+        row.body = m.body || null;
+    }
+    return row;
 }
 
-function mapGeekMsg(m, friend) {
+function mapGeekMsg(m, friend, { raw = false } = {}) {
     const fromUid = m.from && m.from.uid;
     const isFromBoss = fromUid != null && String(fromUid) === String(friend.uid);
-    return {
+    const row = {
         from: isFromBoss ? '对方' : '我',
         type: TYPE_MAP[m.type] || `其他(${m.type})`,
         text: m.text || m.body?.text || m.body?.content || m.body?.showText ||
             JSON.stringify(m.body || {}).slice(0, 120),
         time: m.time ? new Date(m.time).toLocaleString('zh-CN') : '',
     };
+    if (raw) {
+        row.security_id = m.securityId || null;
+        row.body = m.body || null;
+    }
+    return row;
 }
 
 async function bossChatMsg(page, kwargs, existingFriend) {
@@ -51,7 +61,7 @@ async function bossChatMsg(page, kwargs, existingFriend) {
     if (messages.length === 0) {
         throw new EmptyResultError('boss chatmsg', 'Boss returned no messages for this chat.');
     }
-    return messages.map((m) => mapBossMsg(m, friend));
+    return messages.map((m) => mapBossMsg(m, friend, { raw: !!kwargs.raw }));
 }
 
 async function geekChatMsg(page, kwargs, encryptSystemId) {
@@ -59,7 +69,7 @@ async function geekChatMsg(page, kwargs, encryptSystemId) {
     if (!friend) throw new EmptyResultError('boss chatmsg', '未找到该聊天（geek 侧）');
     if (!friend.securityId) throw new CommandExecutionError('该聊天缺少 securityId，无法获取历史消息');
     const messages = await fetchGeekHistoryMsg(page, friend, { page: kwargs.page });
-    return messages.map((m) => mapGeekMsg(m, friend));
+    return messages.map((m) => mapGeekMsg(m, friend, { raw: !!kwargs.raw }));
 }
 
 cli({
@@ -75,13 +85,15 @@ cli({
         { name: 'uid', required: true, positional: true, help: 'Encrypted UID (from chatlist)' },
         { name: 'page', type: 'int', default: 1, help: 'Page number' },
         { name: 'side', default: 'auto', choices: ['auto', 'boss', 'geek'], help: 'Identity side: auto (default), boss (recruiter), or geek (job-seeker)' },
+        { name: 'raw', type: 'boolean', default: false, help: 'Return full message body including JD card payload (no 120-char truncation); extra fields appear in --fmt json/yaml' },
     ],
     columns: ['from', 'type', 'text', 'time'],
     func: async (page, kwargs) => {
         requirePage(page);
         const uid = readRequiredString(kwargs.uid, 'chatmsg uid');
         const pageNum = readPositiveInteger(kwargs.page, 'chatmsg --page', 1);
-        const normalizedKwargs = { ...kwargs, uid, page: pageNum };
+        const raw = !!kwargs.raw;
+        const normalizedKwargs = { ...kwargs, uid, page: pageNum, raw };
         const side = kwargs.side || 'auto';
 
         if (side === 'boss') {
@@ -112,6 +124,6 @@ cli({
         if (!geekFriend) throw new EmptyResultError('boss chatmsg', 'uid 在招聘端与求职端聊天列表中均未找到');
         if (!geekFriend.securityId) throw new CommandExecutionError('该聊天缺少 securityId，无法获取历史消息');
         const messages = await fetchGeekHistoryMsg(page, geekFriend, { page: pageNum });
-        return messages.map((m) => mapGeekMsg(m, geekFriend));
+        return messages.map((m) => mapGeekMsg(m, geekFriend, { raw }));
     },
 });
