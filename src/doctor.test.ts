@@ -214,6 +214,25 @@ describe('doctor report rendering', () => {
     ]));
   });
 
+  it('re-runs connectivity when the extension reconnects after the initial live check failed', async () => {
+    mockConnect.mockRejectedValueOnce(new Error('Browser Bridge extension not connected'));
+    mockGetDaemonHealth
+      .mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } })
+      .mockResolvedValue({
+        state: 'ready',
+        status: { extensionConnected: true, extensionVersion: '1.0.15' },
+      });
+
+    const report = await runBrowserDoctor({ extensionPoll: { timeoutMs: 200, intervalMs: 5 } });
+
+    expect(mockConnect).toHaveBeenCalledTimes(2);
+    expect(report.extensionConnected).toBe(true);
+    expect(report.connectivity?.ok).toBe(true);
+    expect(report.issues).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('Browser connectivity test failed'),
+    ]));
+  });
+
   it('reports daemon flapping when live check succeeds but daemon disappears afterward', async () => {
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 

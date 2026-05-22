@@ -133,7 +133,7 @@ async function pollForExtensionReady(
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
   // Live connectivity check is the core of doctor — it doubles as auto-start
   // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
-  const connectivity = await checkConnectivity();
+  let connectivity = await checkConnectivity();
 
   // Single status read *after* connectivity side-effects settle.
   // If the daemon was just auto-spawned by `bridge.connect`, the extension's
@@ -143,6 +143,12 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   // reflects the steady state, not the snapshot at t = 0.
   const initialHealth = await getDaemonHealth();
   const health = await pollForExtensionReady(initialHealth, opts.extensionPoll);
+  if (!connectivity.ok && initialHealth.state === 'no-extension' && health.state === 'ready') {
+    // The original live probe can time out before the extension's next
+    // keepalive. Once the poll observes a ready extension, re-run the probe so
+    // doctor reports the settled connectivity state instead of the stale race.
+    connectivity = await checkConnectivity();
+  }
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;
