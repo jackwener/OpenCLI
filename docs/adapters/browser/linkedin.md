@@ -14,6 +14,7 @@
 | `opencli linkedin profile-analytics` | Read visible profile dashboard counters such as profile views, post impressions, and search appearances |
 | `opencli linkedin profile-read` | Read visible profile sections including headline, About, experience, education, services, and featured text |
 | `opencli linkedin posts` | Export visible posts from a LinkedIn profile activity page with engagement metrics |
+| `opencli linkedin post-analytics` | Summarize raw visible LinkedIn post counters without custom scoring or classification |
 | `opencli linkedin safe-send` | Verify exact recipient/thread context before optionally sending a message |
 | `opencli linkedin salesnav-inbox` | List Sales Navigator message conversations with API pagination |
 | `opencli linkedin salesnav-message` | Validate or send a Sales Navigator InMail to an exact lead |
@@ -51,6 +52,9 @@ opencli linkedin services-read -f json
 
 # Export visible profile activity posts
 opencli linkedin posts --limit 5 -f json
+
+# Summarize raw visible post counters
+opencli linkedin post-analytics --limit 5 -f json
 
 # List recent inbox conversations, including unread status
 opencli linkedin inbox --limit 20 -f json
@@ -126,6 +130,14 @@ Exports visible rows from a LinkedIn profile activity page. It opens `/in/me/rec
 Returns `rank`, `author`, `posted_at`, `body`, `reactions`, `comments`, `reposts`, `impressions`, `media`, `media_urls`, `url`, and `raw_text`. `media_urls` only includes non-decorative media or external link URLs that LinkedIn exposes in the rendered card; profile photos and reaction sprites are filtered out.
 
 `--limit` must be between 1 and 100. LinkedIn login/auth walls abort with `AuthRequiredError`.
+
+### `post-analytics`
+
+Summarizes raw counters from visible LinkedIn profile activity posts. It opens `/in/me/recent-activity/all/` by default, or accepts `--profile-url https://www.linkedin.com/in/<handle>/`.
+
+Returns `posts_analyzed`, `total_reactions`, `total_comments`, `total_reposts`, `total_impressions`, `posts_with_media`, `posts_with_urls`, `latest_posted_at`, `latest_reactions`, `latest_comments`, `latest_reposts`, `latest_impressions`, and `latest_url`.
+
+This command does not compute custom engagement scores, topic labels, format labels, or recommendations. `--limit` must be between 1 and 100.
 
 ### Messaging commands
 
