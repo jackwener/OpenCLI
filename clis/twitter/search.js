@@ -44,7 +44,7 @@ const PRODUCT_TO_GRAPHQL_PRODUCT = Object.freeze({
 const MAX_PAGINATION_PAGES = 100;
 
 const SEARCH_TIMELINE_OPERATION = {
-    queryId: 'VhUd6vHVmLBcw0uX-6jMLA',
+    queryId: 'Yw6L66Pw54NHKuq4Dp7b4Q',
     features: {
     rweb_video_screen_enabled: true,
     rweb_cashtags_enabled: true,

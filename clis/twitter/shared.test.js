@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import { __test__ } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
-const { extractMedia, extractCard, extractQuotedTweet, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata, looksLikePrivateTwitterTimeline } = __test__;
+const { extractMedia, extractCard, extractQuotedTweet, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata, looksLikePrivateTwitterTimeline, parseOperationFromBundleText } = __test__;
 
 function makeCardTweet({ name, bindings, expandedUrl, urls }) {
     const tweet = {
@@ -92,6 +92,76 @@ describe('twitter browser result helpers', () => {
             data: { search_by_raw_query: { search_timeline: {} } },
         });
         expect(normalizeTwitterGraphqlPayload({ data: { user: {} } })).toEqual({ data: { user: {} } });
+    });
+});
+
+describe('parseOperationFromBundleText (bundle queryId resolver)', () => {
+    it('extracts queryId + featureSwitches + fieldToggles when queryId precedes operationName', () => {
+        const bundle = 'something={queryId:"FRESH_ID_AAA",operationName:"SearchTimeline",metadata:{featureSwitches:["feat_one","feat_two"],fieldToggles:["ft_one"]}};other';
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result).toEqual({
+            queryId: 'FRESH_ID_AAA',
+            features: { feat_one: true, feat_two: true },
+            fieldToggles: { ft_one: true },
+        });
+    });
+
+    it('extracts queryId when operationName precedes queryId (reverse order)', () => {
+        const bundle = 'mod={operationName:"SearchTimeline",queryId:"REVERSED_ID_BBB",metadata:{featureSwitches:["x"],fieldToggles:[]}};tail';
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result?.queryId).toBe('REVERSED_ID_BBB');
+        expect(result?.features).toEqual({ x: true });
+    });
+
+    it("does not return another operation's queryId from a neighboring module (cross-module pollution)", () => {
+        // Regression guard: the previous resolver cut a snippet via lastIndexOf('e.exports=')
+        // / indexOf('}}}') around the operationName marker, then ran /queryId:"..."/
+        // unanchored. That returned the first queryId in the snippet — often
+        // belonging to a different operation in the same chunk. Twitter then
+        // rejected the request as a stale queryId, surfacing as "queryId expired".
+        const bundle = [
+            'e.exports={queryId:"OTHER_QID_AAA",operationName:"UserTweets",metadata:{}};',
+            'e.exports={queryId:"SEARCH_QID_BBB",operationName:"SearchTimeline",metadata:{featureSwitches:["f1"],fieldToggles:[]}};',
+        ].join('');
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result?.queryId).toBe('SEARCH_QID_BBB');
+        expect(result?.queryId).not.toBe('OTHER_QID_AAA');
+    });
+
+    it('returns null when operationName is absent from the bundle', () => {
+        const bundle = 'no operation here, just queryId:"STRAY_QID" floating around';
+        expect(parseOperationFromBundleText(bundle, 'SearchTimeline')).toBeNull();
+    });
+
+    it('returns null when queryId is too far from operationName (cross-object)', () => {
+        // The [^}]{0,400} separator prevents matches that cross object boundaries
+        // (a `}` between queryId and operationName means they belong to different
+        // objects/modules).
+        const bundle = 'e.exports={queryId:"WRONG_QID"};lots_of_other_code={};e.exports={operationName:"SearchTimeline",noQueryIdHere:true};';
+        expect(parseOperationFromBundleText(bundle, 'SearchTimeline')).toBeNull();
+    });
+
+    it('falls back to empty features when featureSwitches array is not in the window', () => {
+        // sanitizeTwitterOperationMetadata then uses the baked fallback features.
+        const bundle = 'e.exports={queryId:"BARE_QID",operationName:"SearchTimeline"};';
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result?.queryId).toBe('BARE_QID');
+        expect(result?.features).toEqual({});
+        expect(result?.fieldToggles).toEqual({});
+    });
+
+    it('escapes regex metacharacters in operationName', () => {
+        // Defensive — operationName values are controlled by callers but escaping
+        // protects against future operation names with special chars.
+        const bundle = 'queryId:"ESCAPED_QID"___operationName:"Foo.Bar"___';
+        const result = parseOperationFromBundleText(bundle, 'Foo.Bar');
+        expect(result?.queryId).toBe('ESCAPED_QID');
+    });
+
+    it('returns null for empty / invalid input', () => {
+        expect(parseOperationFromBundleText('', 'SearchTimeline')).toBeNull();
+        expect(parseOperationFromBundleText('text', '')).toBeNull();
+        expect(parseOperationFromBundleText(null, 'SearchTimeline')).toBeNull();
     });
 });
 
