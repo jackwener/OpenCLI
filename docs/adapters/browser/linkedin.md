@@ -8,6 +8,8 @@
 |---------|-------------|
 | `opencli linkedin connect` | Send a fail-closed connection request after verifying the exact profile |
 | `opencli linkedin inbox` | List LinkedIn messaging inbox conversations and unread status |
+| `opencli linkedin job-detail` | Read one LinkedIn job page with description, apply URL, workplace type, applicants, and company metadata |
+| `opencli linkedin jobs-preferences` | Read visible LinkedIn Jobs preferences and alert settings without changing them |
 | `opencli linkedin people-search` | Search standard LinkedIn for people by keyword (SSR DOM scrape). Each query counts toward LinkedIn's monthly Commercial Use Limit |
 | `opencli linkedin profile-analytics` | Read visible profile dashboard counters such as profile views, post impressions, and search appearances |
 | `opencli linkedin profile-read` | Read visible profile sections including headline, About, experience, education, services, and featured text |
@@ -33,6 +35,10 @@ opencli linkedin search "site reliability engineer" --location "San Francisco Ba
 
 # Enrich with full description and apply URL (slower; 1 page navigation per row)
 opencli linkedin search "data scientist" --limit 3 --details
+
+# Read Jobs preferences and a single job page
+opencli linkedin jobs-preferences -f json
+opencli linkedin job-detail https://www.linkedin.com/jobs/view/4412279099 -f json
 
 # Read your home timeline
 opencli linkedin timeline --limit 5
@@ -88,6 +94,12 @@ When `--details` is set, each row additionally has:
 Previously the adapter returned `description: '', apply_url: ''` for both the missing-url path and the silent-catch path — callers couldn't tell upstream gaps apart from fetch failures. The current shape preserves backward compatibility on success and surfaces failures with `null` + a typed reason on `detail_error`. Per-row failures still don't abort the batch.
 
 `--limit` must be between 1 and 100, and `--start` must be a non-negative integer. LinkedIn login/auth walls abort with `AuthRequiredError` instead of being folded into `detail_error`.
+
+### Job preference commands
+
+`jobs-preferences` opens the LinkedIn Jobs page and returns `open_to_work`, `job_titles`, `locations`, `job_alerts`, `preferences_url`, `alerts_url`, and `raw_preferences`. It reads visible settings only and does not change preferences or alerts.
+
+`job-detail` accepts a `https://www.linkedin.com/jobs/view/<id>` URL and returns `title`, `company`, `location`, `workplace_type`, `job_type`, `applicants`, `listed`, `apply_url`, `company_url`, `url`, and `description`. It normalizes the URL to LinkedIn's logged-in job detail surface and combines inline metadata with the rendered description.
 
 ### `people-search`
 

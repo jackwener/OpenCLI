@@ -15692,6 +15692,64 @@
   },
   {
     "site": "linkedin",
+    "name": "job-detail",
+    "description": "Read one LinkedIn job page with description, apply URL, workplace type, applicants, and company metadata",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "job-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Exact LinkedIn job URL, e.g. https://www.linkedin.com/jobs/view/123/"
+      }
+    ],
+    "columns": [
+      "title",
+      "company",
+      "location",
+      "workplace_type",
+      "job_type",
+      "applicants",
+      "listed",
+      "apply_url",
+      "company_url",
+      "url",
+      "description"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/job-detail.js",
+    "sourceFile": "linkedin/job-detail.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "jobs-preferences",
+    "description": "Read visible LinkedIn Jobs preferences and alert settings without changing them",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "open_to_work",
+      "job_titles",
+      "locations",
+      "job_alerts",
+      "preferences_url",
+      "alerts_url",
+      "raw_preferences"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/jobs-preferences.js",
+    "sourceFile": "linkedin/jobs-preferences.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "people-search",
     "description": "Search standard LinkedIn (not Sales Navigator) for people by keyword. Each invocation consumes against LinkedIn's monthly Commercial Use Limit on people search; throttle accordingly.",
     "access": "read",
