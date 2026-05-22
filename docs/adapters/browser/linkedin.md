@@ -15,6 +15,7 @@
 | `opencli linkedin profile-read` | Read visible profile sections including headline, About, experience, education, services, and featured text |
 | `opencli linkedin posts` | Export visible posts from a LinkedIn profile activity page with engagement metrics |
 | `opencli linkedin post-analytics` | Summarize raw visible LinkedIn post counters without custom scoring or classification |
+| `opencli linkedin profile-projects` | Read visible LinkedIn profile projects with descriptions, dates, skills, media, and URLs |
 | `opencli linkedin safe-send` | Verify exact recipient/thread context before optionally sending a message |
 | `opencli linkedin salesnav-inbox` | List Sales Navigator message conversations with API pagination |
 | `opencli linkedin salesnav-message` | Validate or send a Sales Navigator InMail to an exact lead |
@@ -55,6 +56,9 @@ opencli linkedin posts --limit 5 -f json
 
 # Summarize raw visible post counters
 opencli linkedin post-analytics --limit 5 -f json
+
+# Read visible profile projects
+opencli linkedin profile-projects -f json
 
 # List recent inbox conversations, including unread status
 opencli linkedin inbox --limit 20 -f json
@@ -138,6 +142,12 @@ Summarizes raw counters from visible LinkedIn profile activity posts. It opens `
 Returns `posts_analyzed`, `total_reactions`, `total_comments`, `total_reposts`, `total_impressions`, `posts_with_media`, `posts_with_urls`, `latest_posted_at`, `latest_reactions`, `latest_comments`, `latest_reposts`, `latest_impressions`, and `latest_url`.
 
 This command does not compute custom engagement scores, topic labels, format labels, or recommendations. `--limit` must be between 1 and 100.
+
+### `profile-projects`
+
+Opens a profile URL, or `/in/me/` by default, resolves it to the profile's Projects detail page, and returns visible project rows.
+
+Returns `rank`, `title`, `date_range`, `associated_with`, `description`, `skills`, `media`, `urls`, `profile_url`, and `raw_text`. If the authenticated profile has no visible Projects section, the command returns `EmptyResultError` instead of emitting placeholder rows.
 
 ### Messaging commands
 
