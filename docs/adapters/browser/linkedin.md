@@ -13,6 +13,7 @@
 | `opencli linkedin people-search` | Search standard LinkedIn for people by keyword (SSR DOM scrape). Each query counts toward LinkedIn's monthly Commercial Use Limit |
 | `opencli linkedin profile-analytics` | Read visible profile dashboard counters such as profile views, post impressions, and search appearances |
 | `opencli linkedin profile-read` | Read visible profile sections including headline, About, experience, education, services, and featured text |
+| `opencli linkedin posts` | Export visible posts from a LinkedIn profile activity page with engagement metrics |
 | `opencli linkedin safe-send` | Verify exact recipient/thread context before optionally sending a message |
 | `opencli linkedin salesnav-inbox` | List Sales Navigator message conversations with API pagination |
 | `opencli linkedin salesnav-message` | Validate or send a Sales Navigator InMail to an exact lead |
@@ -47,6 +48,9 @@ opencli linkedin timeline --limit 5
 opencli linkedin profile-read -f json
 opencli linkedin profile-analytics -f json
 opencli linkedin services-read -f json
+
+# Export visible profile activity posts
+opencli linkedin posts --limit 5 -f json
 
 # List recent inbox conversations, including unread status
 opencli linkedin inbox --limit 20 -f json
@@ -114,6 +118,14 @@ Returns `rank`, `name`, `headline`, `location`, and `profile_url` from the rende
 `profile-analytics` opens a profile URL, or `/in/me/` by default, and returns visible dashboard counters: `profile_views`, `post_impressions`, `search_appearances`, `followers`, `connections`, plus `raw_analytics`.
 
 `services-read` accepts either `--services-url` or a profile URL that links to a Services page. It returns `service_url`, `page_title`, `overview`, `availability`, `work_locations`, `pricing`, `services_provided`, `services_count`, `media_count`, `media`, `messages`, `reviews_visibility`, and `raw_text`.
+
+### `posts`
+
+Exports visible rows from a LinkedIn profile activity page. It opens `/in/me/recent-activity/all/` by default, or accepts `--profile-url https://www.linkedin.com/in/<handle>/`.
+
+Returns `rank`, `author`, `posted_at`, `body`, `reactions`, `comments`, `reposts`, `impressions`, `media`, `media_urls`, `url`, and `raw_text`. `media_urls` only includes non-decorative media or external link URLs that LinkedIn exposes in the rendered card; profile photos and reaction sprites are filtered out.
+
+`--limit` must be between 1 and 100. LinkedIn login/auth walls abort with `AuthRequiredError`.
 
 ### Messaging commands
 
