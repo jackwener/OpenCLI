@@ -15728,6 +15728,70 @@
   },
   {
     "site": "linkedin",
+    "name": "profile-analytics",
+    "description": "Read visible LinkedIn profile dashboard metrics such as profile views, post impressions, and search appearances",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "profile_url",
+      "profile_views",
+      "post_impressions",
+      "search_appearances",
+      "followers",
+      "connections",
+      "raw_analytics"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-analytics.js",
+    "sourceFile": "linkedin/profile-analytics.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "profile-read",
+    "description": "Read visible LinkedIn profile sections: headline, About, experience, education, services, and featured sections",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "profile_url",
+      "name",
+      "headline",
+      "location",
+      "about",
+      "about_character_count",
+      "about_skills",
+      "experience",
+      "education",
+      "services",
+      "featured"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-read.js",
+    "sourceFile": "linkedin/profile-read.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "safe-send",
     "description": "Fail-closed LinkedIn message sender that verifies exact thread, recipient, and latest message before filling/sending",
     "access": "write",
@@ -16104,6 +16168,47 @@
     "modulePath": "linkedin/sent-invitations.js",
     "sourceFile": "linkedin/sent-invitations.js",
     "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "services-read",
+    "description": "Read LinkedIn Services page details including services, overview, availability, pricing, and media titles/descriptions",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      },
+      {
+        "name": "services-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /services/page/<id>/ URL. If omitted, it is discovered from the profile."
+      }
+    ],
+    "columns": [
+      "service_url",
+      "page_title",
+      "overview",
+      "availability",
+      "work_locations",
+      "pricing",
+      "services_provided",
+      "services_count",
+      "media",
+      "media_count",
+      "messages",
+      "reviews_visibility"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/services-read.js",
+    "sourceFile": "linkedin/services-read.js",
+    "navigateBefore": "https://www.linkedin.com"
   },
   {
     "site": "linkedin",

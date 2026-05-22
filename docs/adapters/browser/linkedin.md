@@ -9,6 +9,8 @@
 | `opencli linkedin connect` | Send a fail-closed connection request after verifying the exact profile |
 | `opencli linkedin inbox` | List LinkedIn messaging inbox conversations and unread status |
 | `opencli linkedin people-search` | Search standard LinkedIn for people by keyword (SSR DOM scrape). Each query counts toward LinkedIn's monthly Commercial Use Limit |
+| `opencli linkedin profile-analytics` | Read visible profile dashboard counters such as profile views, post impressions, and search appearances |
+| `opencli linkedin profile-read` | Read visible profile sections including headline, About, experience, education, services, and featured text |
 | `opencli linkedin safe-send` | Verify exact recipient/thread context before optionally sending a message |
 | `opencli linkedin salesnav-inbox` | List Sales Navigator message conversations with API pagination |
 | `opencli linkedin salesnav-message` | Validate or send a Sales Navigator InMail to an exact lead |
@@ -16,6 +18,7 @@
 | `opencli linkedin salesnav-thread` | Return Sales Navigator message history for a thread or lead |
 | `opencli linkedin search` | Search LinkedIn jobs (Voyager API), with optional `--details` enrichment |
 | `opencli linkedin sent-invitations` | List pending sent LinkedIn invitations |
+| `opencli linkedin services-read` | Read a LinkedIn Services page, including overview, services, availability, pricing, and media metadata |
 | `opencli linkedin thread-snapshot` | Load a LinkedIn messaging thread and return available context |
 | `opencli linkedin timeline` | Read posts from your LinkedIn home feed |
 
@@ -33,6 +36,11 @@ opencli linkedin search "data scientist" --limit 3 --details
 
 # Read your home timeline
 opencli linkedin timeline --limit 5
+
+# Read profile and services data
+opencli linkedin profile-read -f json
+opencli linkedin profile-analytics -f json
+opencli linkedin services-read -f json
 
 # List recent inbox conversations, including unread status
 opencli linkedin inbox --limit 20 -f json
@@ -86,6 +94,14 @@ Previously the adapter returned `description: '', apply_url: ''` for both the mi
 Returns `rank`, `name`, `headline`, `location`, and `profile_url` from the rendered LinkedIn people-search page. `profile_url` is the row identity and must be a stable `/in/<handle>/` LinkedIn profile URL; malformed extraction payloads fail typed instead of being reported as empty results.
 
 `--limit` must be between 1 and 10. LinkedIn login/auth walls abort with `AuthRequiredError`; Commercial Use Limit redirects abort with `CommandExecutionError` because the page no longer contains a trustworthy result list.
+
+### Profile and services commands
+
+`profile-read` opens a profile URL, or `/in/me/` by default, and returns `profile_url`, `name`, `headline`, `location`, `about`, `about_character_count`, `about_skills`, `experience`, `education`, `services`, and `featured`. It reads visible profile sections and fails typed if LinkedIn returns an auth wall.
+
+`profile-analytics` opens a profile URL, or `/in/me/` by default, and returns visible dashboard counters: `profile_views`, `post_impressions`, `search_appearances`, `followers`, `connections`, plus `raw_analytics`.
+
+`services-read` accepts either `--services-url` or a profile URL that links to a Services page. It returns `service_url`, `page_title`, `overview`, `availability`, `work_locations`, `pricing`, `services_provided`, `services_count`, `media_count`, `media`, `messages`, `reviews_visibility`, and `raw_text`.
 
 ### Messaging commands
 
