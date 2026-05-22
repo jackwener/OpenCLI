@@ -90,19 +90,22 @@ async function insertReplyText(page, text) {
 }
 
 async function clickReplyButton(page) {
-    return page.evaluate(`(() => {
+    const iterations = Math.ceil(SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS);
+    return page.evaluate(`(async () => {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-          const buttons = Array.from(
-              document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
-          );
-          const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
-          if (!btn) {
-              return { ok: false, message: 'Reply button is disabled or not found.' };
+          for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
+              const buttons = Array.from(
+                  document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
+              );
+              const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
+              if (btn) {
+                  btn.click();
+                  return { ok: true };
+              }
+              await new Promise(r => setTimeout(r, ${JSON.stringify(SUBMIT_POLL_MS)}));
           }
-
-          btn.click();
-          return { ok: true };
+          return { ok: false, message: 'Reply button is disabled or not found.' };
       } catch (e) {
           return { ok: false, message: e.toString() };
       }

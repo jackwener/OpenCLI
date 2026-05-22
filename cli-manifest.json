@@ -10962,6 +10962,277 @@
     "siteSession": "persistent"
   },
   {
+    "site": "geogebra",
+    "name": "add-circle",
+    "description": "Create a circle by center+radius or center+point",
+    "access": "write",
+    "example": "opencli geogebra add-circle --center A --radius 3",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "center",
+        "type": "str",
+        "required": true,
+        "help": "Center point label (e.g. A)"
+      },
+      {
+        "name": "radius",
+        "type": "str",
+        "required": false,
+        "help": "Radius value (number) or a point label on the circle"
+      },
+      {
+        "name": "point",
+        "type": "str",
+        "required": false,
+        "help": "Alternative: a point label on the circle (use instead of --radius for Circle(center,point))"
+      }
+    ],
+    "columns": [
+      "label",
+      "center",
+      "radius"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/add-circle.js",
+    "sourceFile": "geogebra/add-circle.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "add-line",
+    "description": "Create a line through two points or a segment between two points",
+    "access": "write",
+    "example": "opencli geogebra add-line --points A,B --type segment",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "points",
+        "type": "str",
+        "required": true,
+        "help": "Two point labels separated by comma (e.g. \"A,B\")"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "line",
+        "required": false,
+        "help": "Type: line, segment, or ray (default: line)",
+        "choices": [
+          "line",
+          "segment",
+          "ray"
+        ]
+      }
+    ],
+    "columns": [
+      "label",
+      "type",
+      "points"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/add-line.js",
+    "sourceFile": "geogebra/add-line.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "add-point",
+    "description": "Create a point with given label and coordinates",
+    "access": "write",
+    "example": "opencli geogebra add-point --name A --coords 1,2",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "help": "Point label (e.g. A, B, P1)"
+      },
+      {
+        "name": "coords",
+        "type": "str",
+        "required": true,
+        "help": "Coordinates as x,y (e.g. \"1,2\")"
+      }
+    ],
+    "columns": [
+      "name",
+      "x",
+      "y"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/add-point.js",
+    "sourceFile": "geogebra/add-point.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "add-polygon",
+    "description": "Create a polygon from a list of point labels",
+    "access": "write",
+    "example": "opencli geogebra add-polygon --points A,B,C",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "points",
+        "type": "str",
+        "required": true,
+        "help": "Comma-separated point labels (e.g. \"A,B,C\" or \"A,B,C,D\")"
+      }
+    ],
+    "columns": [
+      "label",
+      "vertices"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/add-polygon.js",
+    "sourceFile": "geogebra/add-polygon.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "eval",
+    "description": "Execute one or more GeoGebra command strings (semicolon-separated)",
+    "access": "write",
+    "example": "opencli geogebra eval \"A=(0,0);B=(4,0);c=Circle(A,B);d=Circle(B,A);C=Intersect(c,d,1);Polygon(A,B,C)\"",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "command",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "GeoGebra command string (use ; to chain multiple commands)"
+      }
+    ],
+    "columns": [
+      "command",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/eval.js",
+    "sourceFile": "geogebra/eval.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "hexagon",
+    "description": "Draw a regular hexagon centered at the origin",
+    "access": "write",
+    "example": "opencli geogebra hexagon --size 3",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "size",
+        "type": "str",
+        "default": "2",
+        "required": false,
+        "help": "Radius of the hexagon (default: 2)"
+      }
+    ],
+    "columns": [
+      "step",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/hexagon.js",
+    "sourceFile": "geogebra/hexagon.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "info",
+    "description": "Get detailed properties of a GeoGebra object",
+    "access": "read",
+    "example": "opencli geogebra info --name A",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "help": "Object label (e.g. A, c1, poly1)"
+      }
+    ],
+    "columns": [
+      "property",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/info.js",
+    "sourceFile": "geogebra/info.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "list",
+    "description": "List all geometric objects on the GeoGebra canvas",
+    "access": "read",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "required": false,
+        "help": "Filter by object type (e.g. \"point\", \"line\", \"circle\")"
+      }
+    ],
+    "columns": [
+      "name",
+      "type",
+      "value",
+      "visible"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/list.js",
+    "sourceFile": "geogebra/list.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "geogebra",
+    "name": "triangle",
+    "description": "Draw an equilateral triangle from a horizontal base segment",
+    "access": "write",
+    "example": "opencli geogebra triangle --size 4",
+    "domain": "www.geogebra.org",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "size",
+        "type": "str",
+        "default": "2",
+        "required": false,
+        "help": "Side length of the triangle (default: 2)"
+      }
+    ],
+    "columns": [
+      "step",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "geogebra/triangle.js",
+    "sourceFile": "geogebra/triangle.js",
+    "navigateBefore": false
+  },
+  {
     "site": "gitee",
     "name": "search",
     "description": "Search repositories on Gitee",
@@ -26166,6 +26437,168 @@
     "navigateBefore": "https://uiverse.io"
   },
   {
+    "site": "upwork",
+    "name": "detail",
+    "aliases": [
+      "job",
+      "view"
+    ],
+    "description": "Read the full Upwork job posting by ciphertext id (e.g. ~022054964136512093518)",
+    "access": "read",
+    "domain": "www.upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Job ciphertext id (~01… / ~02…) or full /jobs/~02… URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "type",
+      "budget",
+      "experienceLevel",
+      "workload",
+      "category",
+      "skills",
+      "description",
+      "clientCountry",
+      "clientSpent",
+      "clientHires",
+      "clientRating",
+      "proposalsCount",
+      "publishedOn",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "upwork/detail.js",
+    "sourceFile": "upwork/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "upwork",
+    "name": "feed",
+    "aliases": [
+      "best-matches"
+    ],
+    "description": "Upwork personalized jobs feed (best-matches | most-recent) — requires login",
+    "access": "read",
+    "domain": "www.upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "tab",
+        "type": "str",
+        "default": "best-matches",
+        "required": false,
+        "positional": true,
+        "help": "Feed tab: best-matches | most-recent"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (1-50, capped at one page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "type",
+      "budget",
+      "experienceLevel",
+      "proposalsTier",
+      "skills",
+      "clientCountry",
+      "clientRating",
+      "publishedOn",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "upwork/feed.js",
+    "sourceFile": "upwork/feed.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "upwork",
+    "name": "search",
+    "description": "Upwork keyword job search (logged-in browser session, US site)",
+    "access": "read",
+    "domain": "www.upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Job keyword (skill / title / company)"
+      },
+      {
+        "name": "location",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Country/city filter (e.g. \"United States\", \"Remote\")"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Category uid filter (advanced; from job detail `category` slug)"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "recency",
+        "required": false,
+        "help": "Sort: recency | relevance | client_total_charge | client_total_reviews"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number (1-based)"
+      },
+      {
+        "name": "per_page",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Rows per page (10-50, capped at one page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "type",
+      "budget",
+      "experienceLevel",
+      "proposalsTier",
+      "skills",
+      "clientCountry",
+      "clientRating",
+      "publishedOn",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "upwork/search.js",
+    "sourceFile": "upwork/search.js",
+    "navigateBefore": false
+  },
+  {
     "site": "v2ex",
     "name": "daily",
     "description": "V2EX 每日签到并领取铜币",
@@ -27243,6 +27676,63 @@
     "modulePath": "weread/book.js",
     "sourceFile": "weread/book.js",
     "navigateBefore": "https://weread.qq.com"
+  },
+  {
+    "site": "weread",
+    "name": "book-search",
+    "description": "Search within a WeRead book after resolving it by title",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "book",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Book title keyword, numeric bookId, or reader URL"
+      },
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Keyword to search inside the selected book"
+      },
+      {
+        "name": "book-rank",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Which book search result to use when book is a title keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max in-book matches to return (1-100)"
+      },
+      {
+        "name": "fragment-size",
+        "type": "int",
+        "default": 150,
+        "required": false,
+        "help": "Snippet length around each match (1-500)"
+      },
+      {
+        "name": "raw",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Output structured rows instead of markdown text"
+      }
+    ],
+    "defaultFormat": "md",
+    "type": "js",
+    "modulePath": "weread/book-search.js",
+    "sourceFile": "weread/book-search.js"
   },
   {
     "site": "weread",

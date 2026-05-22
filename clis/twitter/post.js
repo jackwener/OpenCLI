@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { isRecoverableFileInputError } from './utils.js';
 
 const MAX_IMAGES = 4;
 const UPLOAD_POLL_MS = 500;
@@ -142,6 +143,55 @@ async function waitForImageUpload(page, expectedCount) {
     })()`);
 }
 
+async function attachImagesViaDataTransfer(page, absPaths) {
+    const files = absPaths.map((absPath) => {
+        const ext = path.extname(absPath).toLowerCase();
+        const mime = ext === '.png'
+            ? 'image/png'
+            : ext === '.gif'
+                ? 'image/gif'
+                : ext === '.webp'
+                    ? 'image/webp'
+                    : 'image/jpeg';
+        return {
+            name: path.basename(absPath),
+            mime,
+            base64: fs.readFileSync(absPath).toString('base64'),
+        };
+    });
+    const upload = await page.evaluate(`(() => {
+        const input = document.querySelector(${JSON.stringify(FILE_INPUT_SELECTOR)});
+        if (!input) return { ok: false, error: 'No file input found' };
+        const dt = new DataTransfer();
+        for (const file of ${JSON.stringify(files)}) {
+            const bin = atob(file.base64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            dt.items.add(new File([bytes], file.name, { type: file.mime }));
+        }
+        let assigned = false;
+        try {
+            Object.defineProperty(input, 'files', { value: dt.files, writable: false, configurable: true });
+            assigned = input.files && input.files.length >= ${JSON.stringify(absPaths.length)};
+        } catch(e) {
+            try {
+                const nativeInputFileSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files');
+                if (nativeInputFileSetter && nativeInputFileSetter.set) {
+                    nativeInputFileSetter.set.call(input, dt.files);
+                    assigned = input.files && input.files.length >= ${JSON.stringify(absPaths.length)};
+                }
+            } catch(e2) { /* ignore */ }
+        }
+        if (!assigned) return { ok: false, error: 'Could not assign files to input' };
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return { ok: true };
+    })()`);
+    if (!upload?.ok) {
+        throw new CommandExecutionError(`Image upload failed (base64 fallback): ${upload?.error ?? 'unknown error'}`);
+    }
+}
+
 async function submitTweet(page, text) {
     const clickResult = await page.evaluate(`(async () => {
         try {
@@ -224,11 +274,19 @@ cli({
         // Attach media before inserting text. Uploading media after Draft.js has
         // text can re-render/reset the editor, causing image-only posts.
         if (absPaths.length > 0) {
-            if (!page.setFileInput) {
-                throw new CommandExecutionError('Browser extension does not support file upload. Please update the extension.');
-            }
             await page.wait({ selector: FILE_INPUT_SELECTOR, timeout: 20 });
-            await page.setFileInput(absPaths, FILE_INPUT_SELECTOR);
+            if (page.setFileInput) {
+                try {
+                    await page.setFileInput(absPaths, FILE_INPUT_SELECTOR);
+                } catch (err) {
+                    if (!isRecoverableFileInputError(err)) {
+                        throw err;
+                    }
+                    await attachImagesViaDataTransfer(page, absPaths);
+                }
+            } else {
+                await attachImagesViaDataTransfer(page, absPaths);
+            }
             const uploadState = await waitForImageUpload(page, absPaths.length);
             if (!uploadState?.ok) {
                 return [{ status: 'failed', message: uploadState?.message ?? `Image upload timed out (${UPLOAD_TIMEOUT_MS / 1000}s).`, text }];

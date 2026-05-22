@@ -62,10 +62,15 @@ async function submitQuote(page, text, tweetId) {
                 return { ok: false, message: 'Quote target did not render in the composer. The source tweet may be deleted or restricted.' };
             }
 
-            const buttons = Array.from(
-                document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
-            );
-            const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
+            let btn = null;
+            for (let i = 0; i < 30; i++) {
+                const buttons = Array.from(
+                    document.querySelectorAll('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]')
+                );
+                btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
+                if (btn) break;
+                await new Promise(r => setTimeout(r, 500));
+            }
             if (!btn) {
                 return { ok: false, message: 'Tweet button is disabled or not found.' };
             }

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
@@ -192,5 +193,45 @@ describe('twitter image helpers (utils.js)', () => {
     it('prefers content-type when resolving remote image extensions', () => {
         expect(utilsTest.resolveImageExtension('https://example.com/no-ext', 'image/webp')).toBe('.webp');
         expect(utilsTest.resolveImageExtension('https://example.com/a.jpeg?x=1', null)).toBe('.jpeg');
+    });
+
+    it('classifies CDP NotAllowed file-input failures as recoverable', () => {
+        expect(utilsTest.isRecoverableFileInputError(new Error('NotAllowedError: Not allowed'))).toBe(true);
+        expect(utilsTest.isRecoverableFileInputError(new Error('ProtocolError: not-allowed'))).toBe(true);
+        expect(utilsTest.isRecoverableFileInputError(new Error('Permission denied'))).toBe(false);
+    });
+
+    it('fails closed when a composer image preview never appears', async () => {
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-twitter-helper-'));
+        const imagePath = path.join(tempDir, 'missing-preview.png');
+        fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        const page = createPageMock([{ ok: false, message: 'Image upload timed out (30s).' }], {
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await expect(utilsTest.attachComposerImage(page, imagePath)).rejects.toThrow('Image upload timed out');
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('does not treat an empty attachments container as uploaded media', async () => {
+        const runMediaReadyProbe = async (html) => {
+            const dom = new JSDOM(`<!doctype html><body>${html}</body>`, {
+                url: 'https://x.com/compose/post',
+                runScripts: 'outside-only',
+            });
+            dom.window.setTimeout = (callback) => {
+                callback();
+                return 0;
+            };
+            const page = {
+                evaluate: vi.fn(async (script) => dom.window.eval(script)),
+            };
+            return utilsTest.waitForComposerMediaReady(page, 1);
+        };
+
+        await expect(runMediaReadyProbe('<div data-testid="attachments"></div>'))
+            .resolves.toMatchObject({ ok: false });
+        await expect(runMediaReadyProbe('<div data-testid="attachments"><img src="blob:https://x.com/1"></div>'))
+            .resolves.toMatchObject({ ok: true, previewCount: 1 });
     });
 });

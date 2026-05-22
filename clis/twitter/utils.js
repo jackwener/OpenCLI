@@ -19,6 +19,8 @@ export const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gi
 
 /** 20 MB hard cap. Twitter allows ~5MB images / 15MB GIFs; 20MB is a safety net. */
 export const MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
+const MEDIA_UPLOAD_POLL_MS = 500;
+const MEDIA_UPLOAD_TIMEOUT_MS = 30_000;
 
 const CONTENT_TYPE_TO_EXTENSION = {
     'image/jpeg': '.jpg',
@@ -133,7 +135,7 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
             uploaded = true;
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            if (!msg.includes('Unknown action') && !msg.includes('not supported')) {
+            if (!isRecoverableFileInputError(msg)) {
                 throw new Error(`Image upload failed: ${msg}`);
             }
             // setFileInput not supported by extension — fall through to base64 fallback.
@@ -167,7 +169,21 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
         const blob = new Blob([bytes], { type: ${JSON.stringify(mimeType)} });
         dt.items.add(new File([blob], ${JSON.stringify(path.basename(absImagePath))}, { type: ${JSON.stringify(mimeType)} }));
 
-        Object.defineProperty(input, 'files', { value: dt.files, writable: false });
+        let assigned = false;
+        try {
+          Object.defineProperty(input, 'files', { value: dt.files, writable: false, configurable: true });
+          assigned = input.files && input.files.length > 0;
+        } catch(e) {
+          // files property not redefinable — use nativeInputValueSetter trick
+          try {
+            const nativeInputFileSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files');
+            if (nativeInputFileSetter && nativeInputFileSetter.set) {
+              nativeInputFileSetter.set.call(input, dt.files);
+              assigned = input.files && input.files.length > 0;
+            }
+          } catch(e2) { /* ignore */ }
+        }
+        if (!assigned) return { ok: false, error: 'Could not assign files to input' };
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
         return { ok: true };
@@ -177,23 +193,42 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
             throw new Error(`Image upload failed: ${upload?.error ?? 'unknown error'}`);
         }
     }
-    await page.wait(2);
-    const uploadState = await page.evaluate(`
-    (() => {
-      const previewCount = document.querySelectorAll(
-        '[data-testid="attachments"] img, [data-testid="attachments"] video, [data-testid="tweetPhoto"]'
-      ).length;
-      const hasMedia = previewCount > 0
-        || !!document.querySelector('[data-testid="attachments"]')
-        || !!Array.from(document.querySelectorAll('button,[role="button"]')).find((el) =>
-          /remove media|remove image|remove/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
+    const uploadState = await waitForComposerMediaReady(page, 1);
+    if (!uploadState?.ok) {
+        throw new Error(uploadState?.message ?? 'Image upload failed: preview did not appear.');
+    }
+}
+
+export function isRecoverableFileInputError(error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return /unknown action|not supported|not[-\s]?allowed|notallowederror/i.test(msg);
+}
+
+export async function waitForComposerMediaReady(page, expectedCount = 1) {
+    const iterations = Math.ceil(MEDIA_UPLOAD_TIMEOUT_MS / MEDIA_UPLOAD_POLL_MS);
+    return page.evaluate(`
+    (async () => {
+      const expected = ${JSON.stringify(expectedCount)};
+      for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
+        await new Promise(r => setTimeout(r, ${JSON.stringify(MEDIA_UPLOAD_POLL_MS)}));
+        const previewCount = document.querySelectorAll(
+          '[data-testid="attachments"] img, [data-testid="attachments"] video, [data-testid="attachments"] [role="group"], [data-testid="tweetPhoto"]'
+        ).length;
+        const blobCount = document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length;
+        const removeButtonCount = Array.from(document.querySelectorAll('button,[role="button"]')).filter((el) =>
+          /remove media|remove image|remove|编辑/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
+        ).length;
+        const explicitPreviewCount = Math.max(
+          previewCount,
+          blobCount,
+          removeButtonCount,
+          document.querySelectorAll('[data-testid="media-upload-preview"], [data-testid="card.layoutLarge.media"]').length
         );
-      return { ok: hasMedia, previewCount };
+        if (explicitPreviewCount >= expected) return { ok: true, previewCount: explicitPreviewCount };
+      }
+      return { ok: false, message: 'Image upload timed out (${MEDIA_UPLOAD_TIMEOUT_MS / 1000}s).' };
     })()
   `);
-    if (!uploadState?.ok) {
-        throw new Error('Image upload failed: preview did not appear.');
-    }
 }
 
 // ── Engagement scoring (P3) ────────────────────────────────────────────
@@ -280,6 +315,8 @@ export const __test__ = {
     resolveImageExtension,
     downloadRemoteImage,
     attachComposerImage,
+    isRecoverableFileInputError,
+    waitForComposerMediaReady,
     computeEngagementScore,
     applyTopByEngagement,
     ENGAGEMENT_WEIGHTS,
