@@ -212,19 +212,19 @@ export async function waitForComposerMediaReady(page, expectedCount = 1) {
       for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
         await new Promise(r => setTimeout(r, ${JSON.stringify(MEDIA_UPLOAD_POLL_MS)}));
         const previewCount = document.querySelectorAll(
-          '[data-testid="attachments"] img, [data-testid="attachments"] video, [data-testid="tweetPhoto"]'
+          '[data-testid="attachments"] img, [data-testid="attachments"] video, [data-testid="attachments"] [role="group"], [data-testid="tweetPhoto"]'
         ).length;
         const blobCount = document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length;
         const removeButtonCount = Array.from(document.querySelectorAll('button,[role="button"]')).filter((el) =>
           /remove media|remove image|remove|编辑/i.test((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
         ).length;
-        const hasMedia = previewCount >= expected
-          || !!document.querySelector('[data-testid="attachments"]')
-          || removeButtonCount >= expected
-          || blobCount >= expected
-          || !!document.querySelector('[data-testid="media-upload-preview"]')
-          || !!document.querySelector('[data-testid="card.layoutLarge.media"]');
-        if (hasMedia) return { ok: true, previewCount: Math.max(previewCount, blobCount, removeButtonCount) };
+        const explicitPreviewCount = Math.max(
+          previewCount,
+          blobCount,
+          removeButtonCount,
+          document.querySelectorAll('[data-testid="media-upload-preview"], [data-testid="card.layoutLarge.media"]').length
+        );
+        if (explicitPreviewCount >= expected) return { ok: true, previewCount: explicitPreviewCount };
       }
       return { ok: false, message: 'Image upload timed out (${MEDIA_UPLOAD_TIMEOUT_MS / 1000}s).' };
     })()

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
@@ -210,5 +211,27 @@ describe('twitter image helpers (utils.js)', () => {
 
         await expect(utilsTest.attachComposerImage(page, imagePath)).rejects.toThrow('Image upload timed out');
         fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('does not treat an empty attachments container as uploaded media', async () => {
+        const runMediaReadyProbe = async (html) => {
+            const dom = new JSDOM(`<!doctype html><body>${html}</body>`, {
+                url: 'https://x.com/compose/post',
+                runScripts: 'outside-only',
+            });
+            dom.window.setTimeout = (callback) => {
+                callback();
+                return 0;
+            };
+            const page = {
+                evaluate: vi.fn(async (script) => dom.window.eval(script)),
+            };
+            return utilsTest.waitForComposerMediaReady(page, 1);
+        };
+
+        await expect(runMediaReadyProbe('<div data-testid="attachments"></div>'))
+            .resolves.toMatchObject({ ok: false });
+        await expect(runMediaReadyProbe('<div data-testid="attachments"><img src="blob:https://x.com/1"></div>'))
+            .resolves.toMatchObject({ ok: true, previewCount: 1 });
     });
 });
