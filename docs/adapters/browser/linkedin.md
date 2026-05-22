@@ -9,6 +9,7 @@
 | `opencli linkedin connect` | Send a fail-closed connection request after verifying the exact profile |
 | `opencli linkedin inbox` | List LinkedIn messaging inbox conversations and unread status |
 | `opencli linkedin people-search` | Search standard LinkedIn for people by keyword (SSR DOM scrape). Each query counts toward LinkedIn's monthly Commercial Use Limit |
+| `opencli linkedin posts` | Export visible posts from a LinkedIn profile activity page with engagement metrics |
 | `opencli linkedin safe-send` | Verify exact recipient/thread context before optionally sending a message |
 | `opencli linkedin salesnav-inbox` | List Sales Navigator message conversations with API pagination |
 | `opencli linkedin salesnav-message` | Validate or send a Sales Navigator InMail to an exact lead |
@@ -33,6 +34,9 @@ opencli linkedin search "data scientist" --limit 3 --details
 
 # Read your home timeline
 opencli linkedin timeline --limit 5
+
+# Export visible profile activity posts
+opencli linkedin posts --limit 5 -f json
 
 # List recent inbox conversations, including unread status
 opencli linkedin inbox --limit 20 -f json
@@ -86,6 +90,14 @@ Previously the adapter returned `description: '', apply_url: ''` for both the mi
 Returns `rank`, `name`, `headline`, `location`, and `profile_url` from the rendered LinkedIn people-search page. `profile_url` is the row identity and must be a stable `/in/<handle>/` LinkedIn profile URL; malformed extraction payloads fail typed instead of being reported as empty results.
 
 `--limit` must be between 1 and 10. LinkedIn login/auth walls abort with `AuthRequiredError`; Commercial Use Limit redirects abort with `CommandExecutionError` because the page no longer contains a trustworthy result list.
+
+### `posts`
+
+Exports visible rows from a LinkedIn profile activity page. It opens `/in/me/recent-activity/all/` by default, or accepts `--profile-url https://www.linkedin.com/in/<handle>/`.
+
+Returns `rank`, `author`, `posted_at`, `body`, `reactions`, `comments`, `reposts`, `impressions`, `media`, `media_urls`, `url`, and `raw_text`. `media_urls` only includes non-decorative media or external link URLs that LinkedIn exposes in the rendered card; profile photos and reaction sprites are filtered out.
+
+`--limit` must be between 1 and 100. LinkedIn login/auth walls abort with `AuthRequiredError`.
 
 ### Messaging commands
 

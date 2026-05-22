@@ -15728,6 +15728,48 @@
   },
   {
     "site": "linkedin",
+    "name": "posts",
+    "description": "Export visible posts from a LinkedIn profile activity page with engagement metrics",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum posts to return (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "posted_at",
+      "body",
+      "reactions",
+      "comments",
+      "reposts",
+      "impressions",
+      "media",
+      "media_urls",
+      "url",
+      "raw_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/posts.js",
+    "sourceFile": "linkedin/posts.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "safe-send",
     "description": "Fail-closed LinkedIn message sender that verifies exact thread, recipient, and latest message before filling/sending",
     "access": "write",
