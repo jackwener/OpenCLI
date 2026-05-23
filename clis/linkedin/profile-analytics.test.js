@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './profile-analytics.js';
 
 const {
@@ -58,5 +58,10 @@ describe('linkedin profile-analytics adapter', () => {
       post_impressions: '31',
       search_appearances: '23',
     });
+  });
+
+  it('does not emit an all-empty analytics row', () => {
+    expect(() => normalizeAnalytics({ profile_url: 'https://www.linkedin.com/in/me/', raw_analytics: '' }))
+      .toThrow(EmptyResultError);
   });
 });

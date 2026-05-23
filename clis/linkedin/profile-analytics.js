@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
   assertLinkedInAuthenticated,
   assertSafeLinkedinUrl,
@@ -64,6 +64,9 @@ function normalizeAnalytics(row) {
     throw new CommandExecutionError('LinkedIn profile-analytics returned malformed extraction payload');
   }
   const metrics = parseDashboardMetrics(row.raw_analytics);
+  if (!Object.values(metrics).some(Boolean)) {
+    throw new EmptyResultError('linkedin profile-analytics', 'No visible LinkedIn profile analytics counters were found.');
+  }
   return {
     profile_url: normalizeWhitespace(row.profile_url),
     ...metrics,

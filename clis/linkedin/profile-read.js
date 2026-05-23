@@ -121,18 +121,23 @@ cli({
   func: async (page, args) => {
     if (!page) throw new CommandExecutionError('Browser session required for linkedin profile-read');
     const profileUrl = normalizeProfileReadUrl(args['profile-url']);
+    const shouldReadEditor = !normalizeWhitespace(args['profile-url']);
     await page.goto(profileUrl);
     await page.wait(5);
     await assertLinkedInAuthenticated(page, 'LinkedIn profile-read');
     await page.autoScroll({ times: 4, delayMs: 700 });
     await page.wait(1);
     const row = unwrapEvaluateResult(await page.evaluate(buildProfileExtractionScript()));
-    const profilePath = new URL(profileUrl).pathname.replace(/\/?$/, '/');
-    const aboutEditUrl = new URL(`${profilePath}edit/forms/summary/new/`, 'https://www.linkedin.com').toString();
-    await page.goto(aboutEditUrl);
-    await page.wait(4);
-    await assertLinkedInAuthenticated(page, 'LinkedIn profile-read about editor');
-    const aboutEdit = unwrapEvaluateResult(await page.evaluate(buildAboutEditExtractionScript()));
+    let aboutEdit = {};
+    if (shouldReadEditor) {
+      const currentProfileUrl = normalizeWhitespace(row?.profile_url) || profileUrl;
+      const profilePath = new URL(currentProfileUrl).pathname.replace(/\/?$/, '/');
+      const aboutEditUrl = new URL(`${profilePath}edit/forms/summary/new/`, 'https://www.linkedin.com').toString();
+      await page.goto(aboutEditUrl);
+      await page.wait(4);
+      await assertLinkedInAuthenticated(page, 'LinkedIn profile-read about editor');
+      aboutEdit = unwrapEvaluateResult(await page.evaluate(buildAboutEditExtractionScript()));
+    }
     return [normalizeProfile({ ...row, ...aboutEdit })];
   },
 });

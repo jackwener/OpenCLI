@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import './services-read.js';
@@ -75,5 +75,31 @@ describe('linkedin services-read adapter', () => {
       messages: 'on',
       reviews_visibility: 'off',
     });
+  });
+
+  it('fails closed when a services page payload has no stable content', () => {
+    expect(() => normalizeServices({ service_url: 'https://www.linkedin.com/services/page/abc/' }))
+      .toThrow(CommandExecutionError);
+    expect(() => normalizeServices({ page_title: 'Alice Services' }))
+      .toThrow(CommandExecutionError);
+  });
+
+  it('does not require edit access when reading an explicit services URL', async () => {
+    const page = {
+      goto: vi.fn(async () => {}),
+      wait: vi.fn(async () => {}),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce({
+          service_url: 'https://www.linkedin.com/services/page/abc/',
+          page_title: 'Alice Services',
+          overview: 'Builds AI',
+          services_provided: ['AI Consulting'],
+        }),
+    };
+
+    await expect(command.func(page, { 'services-url': 'https://www.linkedin.com/services/page/abc/' }))
+      .resolves.toMatchObject([{ page_title: 'Alice Services', services_count: '1' }]);
+    expect(page.goto.mock.calls.map(([url]) => String(url))).toEqual(['https://www.linkedin.com/services/page/abc/']);
   });
 });

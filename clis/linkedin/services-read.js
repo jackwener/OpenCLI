@@ -114,11 +114,18 @@ function normalizeServices(row) {
   const services = Array.isArray(row.services_provided) ? row.services_provided.map(normalizeWhitespace).filter(Boolean) : [];
   const mediaItems = pairsToMedia(row.media_lines);
   const publicMedia = [];
+  const serviceUrl = normalizeWhitespace(row.service_url);
+  const pageTitle = normalizeWhitespace(row.page_title);
+  const overview = normalizeWhitespace(row.overview);
+  const availability = normalizeWhitespace(row.availability);
+  if (!serviceUrl || (!pageTitle && !overview && services.length === 0)) {
+    throw new CommandExecutionError('LinkedIn services-read could not find stable Services page content');
+  }
   return {
-    service_url: normalizeWhitespace(row.service_url),
-    page_title: normalizeWhitespace(row.page_title),
-    overview: normalizeWhitespace(row.overview),
-    availability: normalizeWhitespace(row.availability),
+    service_url: serviceUrl,
+    page_title: pageTitle,
+    overview,
+    availability,
     work_locations: Array.isArray(row.work_locations) ? row.work_locations.map((item) => {
       const text = normalizeWhitespace(item);
       const words = text.split(' ');
@@ -139,6 +146,15 @@ function normalizeServices(row) {
   };
 }
 
+async function readOwnerOnlyServicesEdit(page, servicesUrl) {
+  const editUrl = new URL(servicesUrl);
+  editUrl.pathname = editUrl.pathname.replace(/\/?$/, '/edit/');
+  await page.goto(editUrl.toString());
+  await page.wait(4);
+  await assertLinkedInAuthenticated(page, 'LinkedIn services-read edit');
+  return unwrapEvaluateResult(await page.evaluate(buildServicesEditScript()));
+}
+
 cli({
   site: 'linkedin',
   name: 'services-read',
@@ -155,6 +171,7 @@ cli({
   func: async (page, args) => {
     if (!page) throw new CommandExecutionError('Browser session required for linkedin services-read');
     let servicesUrl = normalizeWhitespace(args['services-url']);
+    const shouldReadOwnerEdit = !servicesUrl && !normalizeWhitespace(args['profile-url']);
     if (servicesUrl) {
       servicesUrl = normalizeServicesUrl(servicesUrl);
     } else {
@@ -172,19 +189,17 @@ cli({
     await assertLinkedInAuthenticated(page, 'LinkedIn services-read');
     const services = unwrapEvaluateResult(await page.evaluate(buildServicesPageScript()));
 
-    const editUrl = new URL(servicesUrl);
-    editUrl.pathname = editUrl.pathname.replace(/\/?$/, '/edit/');
-    await page.goto(editUrl.toString());
-    await page.wait(4);
-    await assertLinkedInAuthenticated(page, 'LinkedIn services-read edit');
-    const edit = unwrapEvaluateResult(await page.evaluate(buildServicesEditScript()));
+    const edit = shouldReadOwnerEdit ? await readOwnerOnlyServicesEdit(page, servicesUrl) : {};
 
-    const mediaUrl = new URL(servicesUrl);
-    mediaUrl.pathname = mediaUrl.pathname.replace(/\/?$/, '/media/');
-    await page.goto(mediaUrl.toString());
-    await page.wait(4);
-    await assertLinkedInAuthenticated(page, 'LinkedIn services-read media');
-    const media = unwrapEvaluateResult(await page.evaluate(buildMediaPageScript()));
+    let media = {};
+    if (shouldReadOwnerEdit) {
+      const mediaUrl = new URL(servicesUrl);
+      mediaUrl.pathname = mediaUrl.pathname.replace(/\/?$/, '/media/');
+      await page.goto(mediaUrl.toString());
+      await page.wait(4);
+      await assertLinkedInAuthenticated(page, 'LinkedIn services-read media');
+      media = unwrapEvaluateResult(await page.evaluate(buildMediaPageScript()));
+    }
 
     return [normalizeServices({ ...services, ...edit, ...media })];
   },

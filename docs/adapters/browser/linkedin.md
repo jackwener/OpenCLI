@@ -121,11 +121,11 @@ Returns `rank`, `name`, `headline`, `location`, and `profile_url` from the rende
 
 ### Profile and services commands
 
-`profile-read` opens a profile URL, or `/in/me/` by default, and returns `profile_url`, `name`, `headline`, `location`, `about`, `about_character_count`, `about_skills`, `experience`, `education`, `services`, and `featured`. It reads visible profile sections and fails typed if LinkedIn returns an auth wall.
+`profile-read` opens a profile URL, or `/in/me/` by default, and returns `profile_url`, `name`, `headline`, `location`, `about`, `about_character_count`, `about_skills`, `experience`, `education`, `services`, and `featured`. It reads visible profile sections and fails typed if LinkedIn returns an auth wall. Editor-only fields such as `about_character_count` and `about_skills` are only populated for the default self-profile flow.
 
 `profile-analytics` opens a profile URL, or `/in/me/` by default, and returns visible dashboard counters: `profile_views`, `post_impressions`, `search_appearances`, `followers`, `connections`, plus `raw_analytics`.
 
-`services-read` accepts either `--services-url` or a profile URL that links to a Services page. It returns `service_url`, `page_title`, `overview`, `availability`, `work_locations`, `pricing`, `services_provided`, `services_count`, `media_count`, `media`, `messages`, `reviews_visibility`, and `raw_text`.
+`services-read` accepts either `--services-url` or a profile URL that links to a Services page. It returns `service_url`, `page_title`, `overview`, `availability`, `work_locations`, `pricing`, `services_provided`, `services_count`, `media_count`, `media`, `messages`, and `reviews_visibility`. Owner-only edit/media fields are only populated for the default self-profile flow.
 
 ### `posts`
 
