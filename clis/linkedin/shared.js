@@ -11,6 +11,19 @@ export function normalizeWhitespace(value) {
   return String(value ?? '').replace(/[\u00a0\u202f]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+export function normalizeHttpUrl(value, base) {
+  const raw = normalizeWhitespace(value);
+  if (!raw) return '';
+  try {
+    const parsed = base ? new URL(raw, base) : new URL(raw);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    if (parsed.username || parsed.password) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
 export function compactRepeatedText(value) {
   const text = normalizeWhitespace(value);
   if (!text) return '';

@@ -69,6 +69,9 @@ function normalizePreferences(preferences, alerts) {
   }
   const preferenceText = normalizeWhitespace(preferences.raw_preferences);
   const alertText = normalizeWhitespace(alerts.raw_preferences);
+  if (!preferenceText && !alertText) {
+    throw new CommandExecutionError('LinkedIn jobs preferences could not find stable preferences content');
+  }
   return {
     open_to_work: inferOpenToWork(`${preferenceText} ${alertText}`),
     job_titles: Array.isArray(preferences.job_titles) ? preferences.job_titles.map(normalizeWhitespace).filter(Boolean).join('; ') : '',

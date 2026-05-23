@@ -3,6 +3,7 @@ import {
   assertLinkedInAuthenticated,
   assertSafeLinkedinUrl,
   compactRepeatedText,
+  normalizeHttpUrl,
   normalizeWhitespace,
   parseLimit,
   unwrapEvaluateResult,
@@ -58,7 +59,11 @@ export function normalizePost(row) {
     reposts: Number(row.reposts) || 0,
     impressions: Number(row.impressions) || 0,
     media: normalizeWhitespace(row.media),
-    media_urls: normalizeWhitespace(row.media_urls),
+    media_urls: normalizeWhitespace(row.media_urls)
+      .split(/\s*\|\s*/)
+      .map((url) => normalizeHttpUrl(url))
+      .filter(Boolean)
+      .join(' | '),
     url,
     raw_text: normalizeWhitespace(row.raw_text),
   };
@@ -126,22 +131,35 @@ export function buildPostsScript() {
       const media = [];
       const mediaUrls = [];
       const isDecorativeImageUrl = (src) => /profile-displayphoto|profile-framedphoto|company-logo|emoji|reaction|ghost-person|100_100/i.test(src || '');
+      const safeHttpUrl = (value) => {
+        try {
+          const parsed = new URL(value, location.origin);
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+          if (parsed.username || parsed.password) return '';
+          return parsed.toString();
+        } catch {
+          return '';
+        }
+      };
       const images = Array.from(root.querySelectorAll('img[alt]'))
         .map((img) => ({ alt: clean(img.getAttribute('alt')), src: img.currentSrc || img.src || '' }))
         .filter((img) => img.alt
           && !/profile|photo of|emoji|reaction|^like$|^love$|^celebrate$|^support$|^funny$|^insightful$|^curious$/i.test(img.alt));
       for (const image of images) {
         media.push('image: ' + image.alt);
-        if (image.src && !isDecorativeImageUrl(image.src)) mediaUrls.push(image.src);
+        const imageUrl = safeHttpUrl(image.src);
+        if (imageUrl && !isDecorativeImageUrl(imageUrl)) mediaUrls.push(imageUrl);
       }
       const videos = Array.from(root.querySelectorAll('video'));
       for (const video of videos) {
         media.push('video');
         const src = video.currentSrc || video.src || video.querySelector('source')?.src || '';
-        if (src) mediaUrls.push(src);
+        const videoUrl = safeHttpUrl(src);
+        if (videoUrl) mediaUrls.push(videoUrl);
       }
       const externalLinks = Array.from(root.querySelectorAll('a[href]'))
         .map((link) => ({ href: link.href, label: clean(link.innerText || link.textContent || '') }))
+        .map((link) => ({ ...link, href: safeHttpUrl(link.href) }))
         .filter((link) => link.href && !/linkedin\.com/.test(link.href))
         .slice(0, 5);
       for (const link of externalLinks) {

@@ -3,6 +3,7 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 import {
   assertLinkedInAuthenticated,
   assertSafeLinkedinUrl,
+  normalizeHttpUrl,
   normalizeWhitespace,
   unwrapEvaluateResult,
 } from './shared.js';
@@ -60,10 +61,10 @@ function decodeLinkedInSafetyUrl(value) {
   try {
     const parsed = new URL(url);
     if (parsed.hostname.endsWith('linkedin.com') && parsed.pathname === '/safety/go/') {
-      return parsed.searchParams.get('url') || url;
+      return normalizeHttpUrl(parsed.searchParams.get('url') || '');
     }
   } catch {}
-  return url;
+  return normalizeHttpUrl(url);
 }
 
 function parseProjectsSectionText(rawText, profileUrl) {
@@ -104,11 +105,19 @@ function buildProjectsExtractionScript() {
       try {
         const parsed = new URL(value, location.origin);
         if (parsed.hostname.endsWith('linkedin.com') && parsed.pathname === '/safety/go/') {
-          return parsed.searchParams.get('url') || parsed.toString();
+          const decoded = parsed.searchParams.get('url') || '';
+          try {
+            const target = new URL(decoded, location.origin);
+            if (target.protocol === 'http:' || target.protocol === 'https:') return target.toString();
+            return '';
+          } catch {
+            return '';
+          }
         }
-        return parsed.toString();
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.toString();
+        return '';
       } catch {
-        return value;
+        return '';
       }
     };
     const splitLines = (text) => String(text || '').split(/\n+/).map(clean).filter(Boolean);
@@ -130,6 +139,7 @@ function buildProjectsExtractionScript() {
         .map((link) => new URL(link.href, location.origin).toString())
         .filter((href) => !/linkedin\.com\/in\//i.test(href) && !/linkedin\.com\/search\//i.test(href))
         .map(decodeLinkedInSafetyUrl)
+        .filter(Boolean)
         .map((href) => /linkedin\.com/i.test(href) ? href.replace(/[?#].*$/, '') : href);
       const media = Array.from(root.querySelectorAll('img[alt], video'))
         .map((node) => node.tagName.toLowerCase() === 'video' ? 'video' : clean(node.getAttribute('alt') || ''))

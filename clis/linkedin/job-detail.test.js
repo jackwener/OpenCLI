@@ -26,6 +26,8 @@ describe('linkedin job-detail adapter', () => {
 
   it('decodes LinkedIn redirect apply urls', () => {
     expect(decodeLinkedinRedirect('https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fexample.com%2Fapply')).toBe('https://example.com/apply');
+    expect(decodeLinkedinRedirect('https://www.linkedin.com/redir/redirect/?url=javascript%3Aalert(1)')).toBe('');
+    expect(decodeLinkedinRedirect('javascript:alert(1)')).toBe('');
   });
 
   it('requires stable title in extracted detail', () => {

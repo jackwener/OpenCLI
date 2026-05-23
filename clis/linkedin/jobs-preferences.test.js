@@ -38,5 +38,6 @@ describe('linkedin jobs-preferences adapter', () => {
   it('rejects malformed payloads', () => {
     expect(() => normalizePreferences(null, {})).toThrow(CommandExecutionError);
     expect(() => normalizePreferences({}, null)).toThrow(CommandExecutionError);
+    expect(() => normalizePreferences({ raw_preferences: '' }, { raw_preferences: '' })).toThrow(CommandExecutionError);
   });
 });

@@ -3,6 +3,7 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import {
   assertLinkedInAuthenticated,
   assertSafeLinkedinUrl,
+  normalizeHttpUrl,
   normalizeWhitespace,
   unwrapEvaluateResult,
 } from './shared.js';
@@ -19,9 +20,9 @@ function decodeLinkedinRedirect(url) {
   if (!url) return '';
   try {
     const parsed = new URL(url);
-    if (parsed.pathname === '/redir/redirect/') return parsed.searchParams.get('url') || url;
+    if (parsed.pathname === '/redir/redirect/') return normalizeHttpUrl(parsed.searchParams.get('url') || '');
   } catch {}
-  return url;
+  return normalizeHttpUrl(url);
 }
 
 function buildExtractionScript() {
@@ -130,8 +131,8 @@ function normalizeDetail(row) {
     applicants: normalizeWhitespace(row.applicants),
     listed: normalizeWhitespace(row.listed),
     apply_url: decodeLinkedinRedirect(normalizeWhitespace(row.apply_url)),
-    company_url: normalizeWhitespace(row.company_url),
-    url: normalizeWhitespace(row.url),
+    company_url: normalizeHttpUrl(row.company_url),
+    url: normalizeHttpUrl(row.url),
     description: normalizeWhitespace(row.description),
   };
 }

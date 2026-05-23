@@ -103,5 +103,7 @@ Who your viewers also viewed`, 'https://www.linkedin.com/in/gauravsaxena1997/');
   it('decodes LinkedIn safety redirect URLs', () => {
     expect(decodeLinkedInSafetyUrl('https://www.linkedin.com/safety/go/?url=https%3A%2F%2Fgithub.com%2Fjackwener%2FOpenCLI&urlhash=x'))
       .toBe('https://github.com/jackwener/OpenCLI');
+    expect(decodeLinkedInSafetyUrl('https://www.linkedin.com/safety/go/?url=javascript%3Aalert(1)&urlhash=x'))
+      .toBe('');
   });
 });
