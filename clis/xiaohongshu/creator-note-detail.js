@@ -249,11 +249,8 @@ const DETAIL_API_ENDPOINTS = [
     { suffix: '/api/galaxy/creator/datacenter/note/audience/source/detail', key: 'audienceSourceDetail' },
     { suffix: '/api/galaxy/creator/datacenter/note/audience/source', key: 'audienceSource' },
 ];
-// Install a fetch + XHR capture hook on window.__xhsCapture so the
-// dashboard's own signed requests (x-s / x-t / x-s-common) land in our
-// observation buffer. A direct fetch() from page.evaluate bypasses the
-// signing interceptor and returns HTTP 406, so prior to this the four
-// datacenter/note/* calls silently surfaced no rows.
+// Capture the dashboard's signed /api/galaxy/* responses on window.__xhsCapture
+// since a direct fetch() from page.evaluate bypasses the x-s signing and gets 406.
 async function installXhsFetchCaptureHook(page) {
     await page.evaluate(`(() => {
     if (window.__xhsCapture) return;
