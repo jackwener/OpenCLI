@@ -208,40 +208,44 @@ describe('xiaohongshu creator-note-detail', () => {
     it('navigates to the note detail page and returns parsed rows', async () => {
         const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
         expect(cmd?.func).toBeTypeOf('function');
-        const page = createPageMock([
-            {
-                title: '示例笔记',
-                infoText: '示例笔记\n2026-03-19 12:00\n切换笔记',
-                sections: [
-                    {
-                        title: '基础数据',
-                        metrics: [
-                            { label: '曝光数', value: '100', extra: '粉丝占比 10%' },
-                            { label: '观看数', value: '50', extra: '粉丝占比 20%' },
-                            { label: '封面点击率', value: '12%', extra: '粉丝 11%' },
-                            { label: '平均观看时长', value: '30秒', extra: '粉丝 31秒' },
-                            { label: '涨粉数', value: '2', extra: '' },
-                        ],
-                    },
-                    {
-                        title: '互动数据',
-                        metrics: [
-                            { label: '点赞数', value: '8', extra: '粉丝占比 25%' },
-                            { label: '评论数', value: '1', extra: '粉丝占比 0%' },
-                            { label: '收藏数', value: '3', extra: '粉丝占比 50%' },
-                            { label: '分享数', value: '0', extra: '粉丝占比 0%' },
-                        ],
-                    },
-                ],
-            },
-            null,
-            null,
-            null,
-            null,
-        ]);
+        const domData = {
+            title: '示例笔记',
+            infoText: '示例笔记\n2026-03-19 12:00\n切换笔记',
+            sections: [
+                {
+                    title: '基础数据',
+                    metrics: [
+                        { label: '曝光数', value: '100', extra: '粉丝占比 10%' },
+                        { label: '观看数', value: '50', extra: '粉丝占比 20%' },
+                        { label: '封面点击率', value: '12%', extra: '粉丝 11%' },
+                        { label: '平均观看时长', value: '30秒', extra: '粉丝 31秒' },
+                        { label: '涨粉数', value: '2', extra: '' },
+                    ],
+                },
+                {
+                    title: '互动数据',
+                    metrics: [
+                        { label: '点赞数', value: '8', extra: '粉丝占比 25%' },
+                        { label: '评论数', value: '1', extra: '粉丝占比 0%' },
+                        { label: '收藏数', value: '3', extra: '粉丝占比 50%' },
+                        { label: '分享数', value: '0', extra: '粉丝占比 0%' },
+                    ],
+                },
+            ],
+        };
+        const page = createPageMock(undefined);
+        page.evaluate = vi.fn(async (script) => {
+            const s = String(script);
+            if (s.includes('window.__xhsCapture =')) return undefined;
+            if (s.includes('history.pushState')) return undefined;
+            if (s.includes('JSON.stringify(window.__xhsCapture')) return JSON.stringify({});
+            if (s.includes("document.querySelector('.note-title')")) return domData;
+            if (s.includes('document.body.innerText')) return '';
+            return undefined;
+        });
         const result = await cmd.func(page, { 'note-id': 'demo-note-id' });
-        expect(page.goto.mock.calls[0][0]).toBe('https://creator.xiaohongshu.com/statistics/note-detail?noteId=demo-note-id');
-        expect(page.evaluate.mock.calls[0][0]).toContain("document.querySelector('.note-title')");
+        expect(page.goto.mock.calls[0][0]).toBe('https://creator.xiaohongshu.com/statistics');
+        expect(page.evaluate.mock.calls[0][0]).toContain('window.__xhsCapture =');
         expect(result).toEqual([
             { section: '笔记信息', metric: 'note_id', value: 'demo-note-id', extra: '' },
             { section: '笔记信息', metric: 'title', value: '示例笔记', extra: '' },
@@ -257,7 +261,7 @@ describe('xiaohongshu creator-note-detail', () => {
             { section: '互动数据', metric: '分享数', value: '0', extra: '粉丝占比 0%' },
         ]);
     });
-    it('waits between creator detail API fetches to avoid burst traffic', async () => {
+    it('polls the capture buffer while the dashboard fires its signed datacenter/note/* requests', async () => {
         const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
         const domData = {
             title: '示例笔记',
@@ -284,10 +288,20 @@ describe('xiaohongshu creator-note-detail', () => {
                 },
             ],
         };
-        const page = createPageMock([domData, null, null, null, null]);
+        const page = createPageMock(undefined);
+        page.evaluate = vi.fn(async (script) => {
+            const s = String(script);
+            if (s.includes('window.__xhsCapture =')) return undefined;
+            if (s.includes('history.pushState')) return undefined;
+            if (s.includes('JSON.stringify(window.__xhsCapture')) return JSON.stringify({});
+            if (s.includes("document.querySelector('.note-title')")) return domData;
+            return undefined;
+        });
         await cmd.func(page, { 'note-id': 'demo-note-id' });
-        expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
+        // Capture loop polls until the deadline expires (no hits with empty mock).
         expect(page.wait.mock.calls.length).toBeGreaterThanOrEqual(4);
+        const captureProbeCalls = page.evaluate.mock.calls.filter(([script]) => String(script).includes('JSON.stringify(window.__xhsCapture'));
+        expect(captureProbeCalls.length).toBeGreaterThanOrEqual(1);
     });
     it('throws EmptyResultError when the detail page exposes no metrics', async () => {
         const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
