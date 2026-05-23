@@ -2,7 +2,7 @@
  * YouTube subscribe — subscribe to a channel via InnerTube subscription API.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { prepareYoutubeApiPage, readYoutubeSapisid, SAPISID_HASH_FN, RESOLVE_CHANNEL_HANDLE_FN } from './utils.js';
+import { prepareYoutubeApiPage, readYoutubeSapisid, SAPISID_HASH_FN, RESOLVE_CHANNEL_HANDLE_FN, unwrapBrowserResult } from './utils.js';
 import { CommandExecutionError, AuthRequiredError } from '@jackwener/opencli/errors';
 
 cli({
@@ -23,7 +23,7 @@ cli({
         const sapisid = await readYoutubeSapisid(page);
         if (!sapisid)
             throw new AuthRequiredError('www.youtube.com', 'Not logged in (SAPISID cookie missing)');
-        const result = await page.evaluate(`
+        const rawResult = await page.evaluate(`
       (async () => {
         ${SAPISID_HASH_FN}
 
@@ -65,6 +65,7 @@ cli({
         return { ok: true, channelId };
       })()
     `);
+        const result = unwrapBrowserResult(rawResult);
         if (result?.error === 'auth') {
             throw new AuthRequiredError('www.youtube.com');
         }

@@ -3,7 +3,7 @@
  * Navigates to /playlist?list=WL and reads ytInitialData directly.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { FETCH_BROWSE_FN, extractPlaylistVideos } from './utils.js';
+import { FETCH_BROWSE_FN, extractPlaylistVideos, unwrapBrowserResult } from './utils.js';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 cli({
@@ -21,7 +21,7 @@ cli({
         const limit = Math.min(kwargs.limit || 50, 200);
         await page.goto('https://www.youtube.com/playlist?list=WL');
         await page.wait(3);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const d = window.ytInitialData;
         if (!d) return { error: 'YouTube data not found — are you logged in?' };
@@ -61,6 +61,7 @@ cli({
         return { title, stats, videos: videos.slice(0, limit) };
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!data || typeof data !== 'object') {
             throw new CommandExecutionError('Failed to fetch Watch Later — make sure you are logged into YouTube');
         }

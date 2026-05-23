@@ -3,6 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapBrowserResult } from './utils.js';
 
 cli({
     site: 'youtube',
@@ -20,7 +21,7 @@ cli({
         await page.goto('https://www.youtube.com/feed/history');
         await page.wait(3);
         await page.autoScroll({ times: Math.min(Math.max(Math.ceil(limit / 20), 1), 8), delayMs: 1200 });
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const limit = ${limit};
 
@@ -107,6 +108,7 @@ cli({
         return videos.length ? videos : { error: 'No watch history items found on youtube.com/feed/history' };
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!Array.isArray(data)) {
             const errMsg = data && typeof data === 'object' ? String(data.error || '') : '';
             throw new CommandExecutionError(errMsg || 'Failed to fetch watch history — make sure you are logged into YouTube');

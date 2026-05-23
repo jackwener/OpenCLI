@@ -3,7 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { extractSubscriptionChannel } from './utils.js';
+import { extractSubscriptionChannel, unwrapBrowserResult } from './utils.js';
 
 cli({
     site: 'youtube',
@@ -20,7 +20,7 @@ cli({
         const limit = Math.min(kwargs.limit || 50, 1000);
         await page.goto('https://www.youtube.com/feed/channels');
         await page.wait(3);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const d = window.ytInitialData;
         if (!d) return { error: 'YouTube data not found — are you logged in?' };
@@ -46,6 +46,7 @@ cli({
         return channels;
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!Array.isArray(data)) {
             const errMsg = data && typeof data === 'object' ? String(data.error || '') : '';
             throw new CommandExecutionError(errMsg || 'Failed to fetch subscriptions — make sure you are logged into YouTube');

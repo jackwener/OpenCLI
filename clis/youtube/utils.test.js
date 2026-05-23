@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { extractJsonAssignmentFromHtml, extractSubscriptionChannel, prepareYoutubeApiPage, readYoutubeSapisid } from './utils.js';
+import { extractJsonAssignmentFromHtml, extractSubscriptionChannel, prepareYoutubeApiPage, readYoutubeSapisid, unwrapBrowserResult } from './utils.js';
 describe('youtube utils', () => {
+    it('unwraps Browser Bridge envelope payloads', () => {
+        expect(unwrapBrowserResult({
+            session: 'browser:default',
+            data: [{ title: 'First Time in China' }],
+        })).toEqual([{ title: 'First Time in China' }]);
+        expect(unwrapBrowserResult({ data: { legitimate: true } })).toEqual({ data: { legitimate: true } });
+    });
+
     it('extractJsonAssignmentFromHtml parses bootstrap objects with nested braces in strings', () => {
         const html = `
       <script>

@@ -3,6 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { unwrapBrowserResult } from './utils.js';
 
 export function extractSelectedRichGridContents(browseData) {
     const tabs = browseData?.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
@@ -35,7 +36,7 @@ cli({
         const limit = Math.min(kwargs.limit || 10, 30);
         await page.goto('https://www.youtube.com');
         await page.wait(2);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const channelId = ${JSON.stringify(channelId)};
         const limit = ${limit};
@@ -182,6 +183,7 @@ cli({
         };
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!data || typeof data !== 'object')
             throw new CommandExecutionError('Failed to fetch channel data');
         if (data.error)

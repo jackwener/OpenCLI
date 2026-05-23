@@ -4,6 +4,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapBrowserResult } from './utils.js';
 
 cli({
     site: 'youtube',
@@ -20,7 +21,7 @@ cli({
         const limit = Math.min(kwargs.limit || 20, 100);
         await page.goto('https://www.youtube.com');
         await page.wait(3);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const d = window.ytInitialData;
         if (!d) return { error: 'YouTube data not found — are you logged in?' };
@@ -109,6 +110,7 @@ cli({
         return videos;
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!Array.isArray(data)) {
             const errMsg = data && typeof data === 'object' ? String(data.error || '') : '';
             throw new CommandExecutionError(errMsg || 'Failed to fetch YouTube feed');

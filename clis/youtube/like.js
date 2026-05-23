@@ -2,7 +2,7 @@
  * YouTube like — like a video via InnerTube like API (requires SAPISIDHASH auth).
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { parseVideoId, prepareYoutubeApiPage, readYoutubeSapisid, SAPISID_HASH_FN } from './utils.js';
+import { parseVideoId, prepareYoutubeApiPage, readYoutubeSapisid, SAPISID_HASH_FN, unwrapBrowserResult } from './utils.js';
 import { CommandExecutionError, AuthRequiredError } from '@jackwener/opencli/errors';
 
 cli({
@@ -23,7 +23,7 @@ cli({
         const sapisid = await readYoutubeSapisid(page);
         if (!sapisid)
             throw new AuthRequiredError('www.youtube.com', 'Not logged in (SAPISID cookie missing)');
-        const result = await page.evaluate(`
+        const rawResult = await page.evaluate(`
       (async () => {
         ${SAPISID_HASH_FN}
 
@@ -56,6 +56,7 @@ cli({
         return { ok: true };
       })()
     `);
+        const result = unwrapBrowserResult(rawResult);
         if (result?.error === 'auth') {
             throw new AuthRequiredError('www.youtube.com');
         }
