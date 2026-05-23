@@ -97,7 +97,9 @@ Who your viewers also viewed`, 'https://www.linkedin.com/in/gauravsaxena1997/');
   it('normalizes rows and requires a title', () => {
     expect(() => normalizeProject({ title: '' })).toThrow(CommandExecutionError);
     expect(normalizeProject({ rank: '2', title: ' Moniqo ', urls: ' https://example.com ' }))
-      .toMatchObject({ rank: 2, title: 'Moniqo', urls: 'https://example.com' });
+      .toMatchObject({ rank: 2, title: 'Moniqo', urls: 'https://example.com/' });
+    expect(normalizeProject({ title: ' Moniqo ', urls: 'javascript:alert(1) | https://example.com/demo' }))
+      .toMatchObject({ urls: 'https://example.com/demo' });
   });
 
   it('decodes LinkedIn safety redirect URLs', () => {

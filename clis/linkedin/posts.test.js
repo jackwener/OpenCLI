@@ -34,5 +34,7 @@ describe('linkedin posts adapter', () => {
       .toMatchObject({ author: 'Alice', body: 'Post body', reactions: 3, impressions: 12, media: 'image: demo', media_urls: 'https://example.com/a.png' });
     expect(normalizePost({ body: 'Post body', media_urls: 'javascript:alert(1) | https://example.com/a.png' }))
       .toMatchObject({ media_urls: 'https://example.com/a.png' });
+    expect(normalizePost({ body: 'Post body', url: 'javascript:alert(1)' }))
+      .toMatchObject({ url: '' });
   });
 });

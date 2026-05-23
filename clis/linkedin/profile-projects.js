@@ -236,7 +236,11 @@ function normalizeProject(row) {
     description: normalizeWhitespace(row.description),
     skills: normalizeWhitespace(row.skills),
     media: normalizeWhitespace(row.media),
-    urls: normalizeWhitespace(row.urls),
+    urls: normalizeWhitespace(row.urls)
+      .split(/\s*\|\s*/)
+      .map((url) => normalizeHttpUrl(url))
+      .filter(Boolean)
+      .join(' | '),
     profile_url: normalizeWhitespace(row.profile_url),
     raw_text: normalizeWhitespace(row.raw_text),
   };

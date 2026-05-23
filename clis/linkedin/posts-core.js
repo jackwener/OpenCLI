@@ -48,7 +48,7 @@ export function normalizePost(row) {
     throw new CommandExecutionError('LinkedIn posts returned malformed row');
   }
   const body = normalizeWhitespace(row.body);
-  const url = normalizeWhitespace(row.url);
+  const url = normalizeHttpUrl(row.url);
   if (!body && !url) throw new CommandExecutionError('LinkedIn posts returned a row without body or URL');
   return {
     author: compactRepeatedText(row.author),
