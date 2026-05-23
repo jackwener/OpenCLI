@@ -18,6 +18,39 @@ export function extractSelectedRichGridContents(browseData) {
     return Array.isArray(fallbackContents) ? fallbackContents : [];
 }
 
+export function parseVideoItem(item) {
+    // New lockupViewModel format
+    const lvm = item.richItemRenderer?.content?.lockupViewModel;
+    if (lvm && lvm.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO') {
+        const meta = lvm.metadata?.lockupMetadataViewModel;
+        const rows = meta?.metadata?.contentMetadataViewModel?.metadataRows || [];
+        const parts = (rows[0]?.metadataParts || []).map(p => p.text?.content).filter(Boolean);
+        let duration = '';
+        for (const ov of (lvm.contentImage?.thumbnailViewModel?.overlays || [])) {
+            for (const b of (ov.thumbnailBottomOverlayViewModel?.badges || [])) {
+                if (b.thumbnailBadgeViewModel?.text) duration = b.thumbnailBadgeViewModel.text;
+            }
+        }
+        return {
+            title: meta?.title?.content || '',
+            duration,
+            views: parts.join(' | '),
+            url: 'https://www.youtube.com/watch?v=' + lvm.contentId,
+        };
+    }
+    // Legacy videoRenderer format
+    const v = item.richItemRenderer?.content?.videoRenderer;
+    if (v) {
+        return {
+            title: v.title?.runs?.[0]?.text || v.title?.simpleText || '',
+            duration: v.lengthText?.simpleText || '',
+            views: (v.shortViewCountText?.simpleText || '') + (v.publishedTimeText?.simpleText ? ' | ' + v.publishedTimeText.simpleText : ''),
+            url: 'https://www.youtube.com/watch?v=' + v.videoId,
+        };
+    }
+    return null;
+}
+
 cli({
     site: 'youtube',
     name: 'channel',
@@ -44,6 +77,7 @@ cli({
         const context = cfg.INNERTUBE_CONTEXT;
         if (!apiKey || !context) return {error: 'YouTube config not found'};
         const extractSelectedRichGridContents = ${extractSelectedRichGridContents.toString()};
+        const parseVideoItem = ${parseVideoItem.toString()};
 
         // Resolve handle to browseId if needed
         let browseId = channelId;
@@ -156,14 +190,9 @@ cli({
               const richGrid = extractSelectedRichGridContents(videosData);
               for (const item of richGrid) {
                 if (recentVideos.length >= limit) break;
-                const v = item.richItemRenderer?.content?.videoRenderer;
-                if (v) {
-                  recentVideos.push({
-                    title: v.title?.runs?.[0]?.text || '',
-                    duration: v.lengthText?.simpleText || '',
-                    views: (v.shortViewCountText?.simpleText || '') + (v.publishedTimeText?.simpleText ? ' | ' + v.publishedTimeText.simpleText : ''),
-                    url: 'https://www.youtube.com/watch?v=' + v.videoId,
-                  });
+                const parsed = parseVideoItem(item);
+                if (parsed) {
+                  recentVideos.push(parsed);
                 }
               }
             }
@@ -206,4 +235,5 @@ cli({
 
 export const __test__ = {
     extractSelectedRichGridContents,
+    parseVideoItem,
 };
