@@ -484,6 +484,43 @@ export function extractQuotedTweet(tweet) {
     return out;
 }
 
+/**
+ * Translate a non-200 Twitter API response into a message that distinguishes
+ * the actual HTTP failure mode, so callers (scripts / scrapers / pipelines)
+ * can choose retry / cooldown / re-auth / drop without misreading "queryId
+ * expired" as the universal cause.
+ *
+ * @param {string} operation - GraphQL operationName or REST endpoint label
+ *                             (e.g. 'SearchTimeline', 'TweetDetail',
+ *                             'device_follow'); used in the error prefix.
+ * @param {number|string} status - HTTP status code from page.evaluate fetch
+ *                                 (e.g. r.status); coerced to Number.
+ * @param {string} [extraHint] - Optional adapter-specific hint appended after
+ *                               the generic explanation (e.g. "list may be
+ *                               private", "folder may not exist").
+ * @returns {string} Message intended for `new CommandExecutionError(...)`.
+ */
+export function describeTwitterApiError(operation, status, extraHint) {
+    const code = Number(status);
+    const prefix = `HTTP ${status}: ${operation} fetch failed`;
+    let suffix;
+    if (code === 429) {
+        suffix = 'rate-limited by Twitter (session quota); retry after cooldown (typically 15-30 min)';
+    } else if (code === 401) {
+        suffix = 'auth failed (cookie expired or invalidated); re-login required';
+    } else if (code === 403) {
+        suffix = 'forbidden (cookie lacks scope, or resource is private)';
+    } else if (code === 404) {
+        suffix = 'resource not found (deleted, suspended, or private)';
+    } else if (code >= 500 && code < 600) {
+        suffix = 'Twitter server error; retry later';
+    } else {
+        suffix = 'possibly queryId expired, schema change, or transient';
+    }
+    if (extraHint) suffix = `${suffix} (${extraHint})`;
+    return `${prefix} — ${suffix}`;
+}
+
 export const __test__ = {
     sanitizeQueryId,
     sanitizeTwitterOperationMetadata,
@@ -497,4 +534,5 @@ export const __test__ = {
     buildTwitterArticleScopeSource,
     looksLikePrivateTwitterTimeline,
     parseOperationFromBundleText,
+    describeTwitterApiError,
 };

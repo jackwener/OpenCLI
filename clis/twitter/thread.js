@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
-import { extractMedia, extractCard, extractQuotedTweet } from './shared.js';
+import { extractMedia, extractCard, extractQuotedTweet, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 const TWEET_DETAIL_QUERY_ID = 'nBS-WpgA6ZG0CyNHD517JQ';
@@ -148,7 +148,7 @@ cli({
       }`), { url: apiUrl });
             if (data?.error) {
                 if (allTweets.length === 0)
-                    throw new CommandExecutionError(`HTTP ${data.error}: Tweet not found or queryId expired`);
+                    throw new CommandExecutionError(describeTwitterApiError('TweetDetail', data.error));
                 break;
             }
             // TypeScript-side: type-safe parsing + cursor extraction

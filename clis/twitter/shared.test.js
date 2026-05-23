@@ -15,6 +15,7 @@ const {
     sanitizeTwitterOperationMetadata,
     looksLikePrivateTwitterTimeline,
     parseOperationFromBundleText,
+    describeTwitterApiError,
 } = __test__;
 
 function makeCardTweet({ name, bindings, expandedUrl, urls }) {
@@ -866,5 +867,82 @@ describe('looksLikePrivateTwitterTimeline', () => {
         expect(looksLikePrivateTwitterTimeline({
             data: { user: { result: { timeline_v2: { timeline: {} } } } },
         })).toBe(true);
+    });
+});
+
+describe('describeTwitterApiError', () => {
+    it('429 -> rate-limited language so callers cool down instead of treating as queryId expiry', () => {
+        const msg = describeTwitterApiError('SearchTimeline', 429);
+        expect(msg).toContain('HTTP 429');
+        expect(msg).toContain('SearchTimeline');
+        expect(msg).toContain('rate-limited');
+        expect(msg).toContain('cooldown');
+        expect(msg).not.toContain('queryId');
+    });
+
+    it('401 -> auth-failed language so callers trigger re-login instead of retrying', () => {
+        const msg = describeTwitterApiError('TweetDetail', 401);
+        expect(msg).toContain('HTTP 401');
+        expect(msg).toContain('auth failed');
+        expect(msg).toContain('re-login');
+    });
+
+    it('403 -> forbidden language with cookie-scope hint', () => {
+        const msg = describeTwitterApiError('Likes', 403);
+        expect(msg).toContain('HTTP 403');
+        expect(msg).toContain('forbidden');
+    });
+
+    it('404 -> not-found language so callers map to empty/missing', () => {
+        const msg = describeTwitterApiError('UserByScreenName', 404);
+        expect(msg).toContain('HTTP 404');
+        expect(msg).toContain('not found');
+    });
+
+    it('5xx (500) -> server-error language so callers retry later', () => {
+        const msg = describeTwitterApiError('Bookmarks', 500);
+        expect(msg).toContain('HTTP 500');
+        expect(msg).toContain('server error');
+    });
+
+    it('5xx (503) -> server-error language', () => {
+        const msg = describeTwitterApiError('UserTweets', 503);
+        expect(msg).toContain('HTTP 503');
+        expect(msg).toContain('server error');
+    });
+
+    it('unknown code -> falls back to queryId/schema-change hint (the original guess, now scoped)', () => {
+        const msg = describeTwitterApiError('SearchTimeline', 999);
+        expect(msg).toContain('HTTP 999');
+        expect(msg).toContain('queryId');
+        expect(msg).toContain('schema change');
+    });
+
+    it('numeric-string status (e.g. "429" from JSON) still routes to rate-limited branch', () => {
+        const msg = describeTwitterApiError('SearchTimeline', '429');
+        expect(msg).toContain('rate-limited');
+    });
+
+    it('appends adapter-specific extraHint in parentheses after the generic suffix', () => {
+        const msg = describeTwitterApiError('ListLatestTweetsTimeline', 404, 'list may be private');
+        expect(msg).toContain('not found');
+        expect(msg).toContain('(list may be private)');
+    });
+
+    it('runtime-interpolated extraHint (e.g. folder id) is preserved verbatim', () => {
+        const msg = describeTwitterApiError('BookmarkFolderTimeline', 404, 'folder=abc123');
+        expect(msg).toContain('(folder=abc123)');
+    });
+
+    it('preserves "HTTP <status>:" prefix for backward-compat string matching by downstream pipelines', () => {
+        // Downstream callers (ml-scout, ad-hoc scripts) may regex-match
+        // /HTTP (\d+):/ to extract status code. The refactor must keep
+        // that prefix verbatim so existing log parsers don't break.
+        const cases = [400, 401, 403, 404, 429, 500, 503, 999];
+        for (const code of cases) {
+            const msg = describeTwitterApiError('SearchTimeline', code);
+            expect(msg).toMatch(/^HTTP \d+: /);
+            expect(msg).toContain(`HTTP ${code}:`);
+        }
     });
 });
