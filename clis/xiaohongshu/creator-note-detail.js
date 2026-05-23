@@ -10,6 +10,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
+import { parseNoteId } from './note-helpers.js';
 const NOTE_DETAIL_DATETIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const NOTE_DETAIL_METRICS = [
     { label: '曝光数', section: '基础数据' },
@@ -334,7 +335,8 @@ cli({
     ],
     columns: ['section', 'metric', 'value', 'extra'],
     func: async (page, kwargs) => {
-        const noteId = kwargs['note-id'];
+        const raw = String(kwargs['note-id'] || '');
+        const noteId = parseNoteId(raw);
         const rows = await fetchCreatorNoteDetailRows(page, noteId);
         const hasCoreMetric = rows.some((row) => row.section !== '笔记信息' && row.value);
         if (!hasCoreMetric) {

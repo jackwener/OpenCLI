@@ -4,6 +4,16 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 /** Extract a bare note ID from a full URL or raw ID string. */
 export function parseNoteId(input) {
     const trimmed = input.trim();
+    // 支持 creator.xiaohongshu.com URL 格式: ?noteId=xxx
+    if (trimmed.includes('creator.xiaohongshu.com')) {
+        try {
+            const url = new URL(trimmed);
+            const noteId = url.searchParams.get('noteId');
+            if (noteId) return noteId;
+        } catch {
+            // 如果 URL 解析失败，回退到正则匹配
+        }
+    }
     const match = trimmed.match(/\/(?:explore|note|search_result|discovery\/item)\/([a-f0-9]+)|\/user\/profile\/[^/?#]+\/([a-f0-9]+)/i);
     return match ? (match[1] || match[2]) : trimmed;
 }

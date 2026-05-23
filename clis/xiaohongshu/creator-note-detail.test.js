@@ -289,6 +289,60 @@ describe('xiaohongshu creator-note-detail', () => {
         expect(page.wait).toHaveBeenCalledWith(expect.objectContaining({ time: expect.any(Number) }));
         expect(page.wait.mock.calls.length).toBeGreaterThanOrEqual(4);
     });
+
+    it('extracts bare note ID from creator center URL', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
+        const page = createPageMock([
+            {
+                title: 'URL测试笔记',
+                infoText: 'URL测试笔记\n2026-05-20 10:00\n切换笔记',
+                sections: [
+                    {
+                        title: '基础数据',
+                        metrics: [
+                            { label: '曝光数', value: '1000', extra: '粉丝占比 5%' },
+                            { label: '观看数', value: '500', extra: '粉丝占比 10%' },
+                            { label: '封面点击率', value: '15%', extra: '粉丝 12%' },
+                            { label: '平均观看时长', value: '45秒', extra: '粉丝 40秒' },
+                            { label: '涨粉数', value: '5', extra: '' },
+                        ],
+                    },
+                    {
+                        title: '互动数据',
+                        metrics: [
+                            { label: '点赞数', value: '20', extra: '粉丝占比 30%' },
+                            { label: '评论数', value: '5', extra: '粉丝占比 20%' },
+                            { label: '收藏数', value: '8', extra: '粉丝占比 25%' },
+                            { label: '分享数', value: '2', extra: '粉丝占比 0%' },
+                        ],
+                    },
+                ],
+            },
+            null,
+            null,
+            null,
+            null,
+        ]);
+        // 使用 creator center URL 格式
+        const creatorUrl = 'https://creator.xiaohongshu.com/statistics/note-detail?noteId=abc123def456';
+        const result = await cmd.func(page, { 'note-id': creatorUrl });
+        // 验证 page.goto 被调用时使用了提取后的 bare note ID
+        expect(page.goto.mock.calls[0][0]).toBe('https://creator.xiaohongshu.com/statistics/note-detail?noteId=abc123def456');
+        expect(result).toEqual([
+            { section: '笔记信息', metric: 'note_id', value: 'abc123def456', extra: '' },
+            { section: '笔记信息', metric: 'title', value: 'URL测试笔记', extra: '' },
+            { section: '笔记信息', metric: 'published_at', value: '2026-05-20 10:00', extra: '' },
+            { section: '基础数据', metric: '曝光数', value: '1000', extra: '粉丝占比 5%' },
+            { section: '基础数据', metric: '观看数', value: '500', extra: '粉丝占比 10%' },
+            { section: '基础数据', metric: '封面点击率', value: '15%', extra: '粉丝 12%' },
+            { section: '基础数据', metric: '平均观看时长', value: '45秒', extra: '粉丝 40秒' },
+            { section: '基础数据', metric: '涨粉数', value: '5', extra: '' },
+            { section: '互动数据', metric: '点赞数', value: '20', extra: '粉丝占比 30%' },
+            { section: '互动数据', metric: '评论数', value: '5', extra: '粉丝占比 20%' },
+            { section: '互动数据', metric: '收藏数', value: '8', extra: '粉丝占比 25%' },
+            { section: '互动数据', metric: '分享数', value: '2', extra: '粉丝占比 0%' },
+        ]);
+    });
     it('throws EmptyResultError when the detail page exposes no metrics', async () => {
         const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
         const page = createPageMock(undefined);
