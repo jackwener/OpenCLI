@@ -1,6 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { normalizeTwitterScreenName, resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
+import { normalizeTwitterScreenName, resolveTwitterQueryId, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 cli({
@@ -83,7 +83,7 @@ cli({
           + '&features=' + encodeURIComponent(features);
 
         const resp = await fetch(url, {headers, credentials: 'include'});
-        if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'User may not exist or queryId expired'};
+        if (!resp.ok) return {httpStatus: resp.status};
         const d = await resp.json();
 
         const result = d.data?.user?.result;
@@ -107,6 +107,9 @@ cli({
         }];
       }
     `);
+        if (result?.httpStatus) {
+            throw new CommandExecutionError(describeTwitterApiError('UserByScreenName', result.httpStatus));
+        }
         if (result?.error) {
             throw new CommandExecutionError(result.error + (result.hint ? ` (${result.hint})` : ''));
         }

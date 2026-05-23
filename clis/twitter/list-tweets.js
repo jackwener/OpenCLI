@@ -2,7 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
-import { extractCard, extractQuotedTweet, extractMedia } from './shared.js';
+import { extractCard, extractQuotedTweet, extractMedia, describeTwitterApiError } from './shared.js';
 
 const LIST_TWEETS_QUERY_ID = 'RlZzktZY_9wJynoepm8ZsA';
 const OPERATION_NAME = 'ListLatestTweetsTimeline';
@@ -186,7 +186,7 @@ cli({
             }`), { url: apiUrl });
             if (data?.error) {
                 if (allTweets.length === 0)
-                    throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch list timeline. queryId may have expired or list may be private.`);
+                    throw new CommandExecutionError(describeTwitterApiError('ListLatestTweetsTimeline', data.error, 'list may be private'));
                 break;
             }
             const { tweets, nextCursor } = parseListTimeline(data, seen);
