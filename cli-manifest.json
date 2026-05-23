@@ -15786,6 +15786,91 @@
   },
   {
     "site": "linkedin",
+    "name": "post-analytics",
+    "description": "Summarize raw visible LinkedIn post counters without custom scoring or classification",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Maximum posts to summarize (1-100)"
+      }
+    ],
+    "columns": [
+      "posts_analyzed",
+      "total_reactions",
+      "total_comments",
+      "total_reposts",
+      "total_impressions",
+      "posts_with_media",
+      "posts_with_urls",
+      "latest_posted_at",
+      "latest_reactions",
+      "latest_comments",
+      "latest_reposts",
+      "latest_impressions",
+      "latest_url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/post-analytics.js",
+    "sourceFile": "linkedin/post-analytics.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "posts",
+    "description": "Export visible posts from a LinkedIn profile activity page with engagement metrics",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum posts to return (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "posted_at",
+      "body",
+      "reactions",
+      "comments",
+      "reposts",
+      "impressions",
+      "media",
+      "media_urls",
+      "url",
+      "raw_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/posts.js",
+    "sourceFile": "linkedin/posts.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "profile-analytics",
     "description": "Read visible LinkedIn profile dashboard metrics such as profile views, post impressions, and search appearances",
     "access": "read",
@@ -15812,6 +15897,39 @@
     "type": "js",
     "modulePath": "linkedin/profile-analytics.js",
     "sourceFile": "linkedin/profile-analytics.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "profile-projects",
+    "description": "Read visible LinkedIn profile projects with descriptions, dates, skills, media, and URLs",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "date_range",
+      "associated_with",
+      "description",
+      "skills",
+      "media",
+      "urls",
+      "profile_url",
+      "raw_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-projects.js",
+    "sourceFile": "linkedin/profile-projects.js",
     "navigateBefore": "https://www.linkedin.com"
   },
   {
