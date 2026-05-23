@@ -249,6 +249,8 @@ const DETAIL_API_ENDPOINTS = [
     { suffix: '/api/galaxy/creator/datacenter/note/audience/source/detail', key: 'audienceSourceDetail' },
     { suffix: '/api/galaxy/creator/datacenter/note/audience/source', key: 'audienceSource' },
 ];
+const CAPTURE_POLL_ATTEMPTS = 20;
+const CAPTURE_POLL_INTERVAL_S = 0.5;
 // Capture the dashboard's signed /api/galaxy/* responses on window.__xhsCapture
 // since a direct fetch() from page.evaluate bypasses the x-s signing and gets 406.
 async function installXhsFetchCaptureHook(page) {
@@ -301,11 +303,9 @@ async function captureNoteDetailPayload(page, noteId) {
     window.dispatchEvent(new PopStateEvent('popstate'));
   })()`);
     const wantedSuffixes = DETAIL_API_ENDPOINTS.map((endpoint) => endpoint.suffix);
-    // 20 iterations × 0.5s wait = 10s upper bound; the iteration cap also
-    // keeps the loop terminating quickly under a no-op page.wait mock.
     let captureMap = {};
-    for (let i = 0; i < 20; i++) {
-        await page.wait(0.5);
+    for (let i = 0; i < CAPTURE_POLL_ATTEMPTS; i++) {
+        await page.wait(CAPTURE_POLL_INTERVAL_S);
         const raw = await page.evaluate('JSON.stringify(window.__xhsCapture || {})');
         captureMap = typeof raw === 'string' ? JSON.parse(raw) : {};
         const captured = wantedSuffixes.filter((suffix) => Object.keys(captureMap).some((url) => url.includes(suffix)));
