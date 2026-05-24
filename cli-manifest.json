@@ -25835,6 +25835,56 @@
   },
   {
     "site": "twitter",
+    "name": "list-add-batch",
+    "description": "Add multiple users to a Twitter/X list you own from a comma-separated username list",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
+      },
+      {
+        "name": "usernames",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated Twitter/X handles to add (with or without @)"
+      },
+      {
+        "name": "interval",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Seconds to wait between account additions (default: 5)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall batch command (default: 600)"
+      }
+    ],
+    "columns": [
+      "listId",
+      "username",
+      "userId",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-add-batch.js",
+    "sourceFile": "twitter/list-add-batch.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "list-create",
     "description": "Create a new Twitter/X list (returns the new list id)",
     "access": "write",
@@ -25878,6 +25928,49 @@
   },
   {
     "site": "twitter",
+    "name": "list-delete",
+    "description": "Delete a Twitter/X list you own after explicit confirmation",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
+      },
+      {
+        "name": "confirm",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Required. Set --confirm true to delete the list."
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the overall delete command (default: 300)"
+      }
+    ],
+    "columns": [
+      "listId",
+      "name",
+      "members",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-delete.js",
+    "sourceFile": "twitter/list-delete.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "list-remove",
     "description": "Remove a user from a Twitter/X list you own (toggles via UI; no-op if not currently a member)",
     "access": "write",
@@ -25910,6 +26003,56 @@
     "type": "js",
     "modulePath": "twitter/list-remove.js",
     "sourceFile": "twitter/list-remove.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "list-remove-batch",
+    "description": "Remove multiple users from a Twitter/X list you own from a comma-separated username list",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
+      },
+      {
+        "name": "usernames",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated Twitter/X handles to remove (with or without @)"
+      },
+      {
+        "name": "interval",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Seconds to wait between account removals (default: 5)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall batch command (default: 600)"
+      }
+    ],
+    "columns": [
+      "listId",
+      "username",
+      "userId",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-remove-batch.js",
+    "sourceFile": "twitter/list-remove-batch.js",
     "navigateBefore": true
   },
   {
