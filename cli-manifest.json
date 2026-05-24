@@ -15901,6 +15901,47 @@
   },
   {
     "site": "linkedin",
+    "name": "profile-experience",
+    "description": "Read visible LinkedIn profile experience entries with titles, dates, locations, skills, media, and URLs",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "rank",
+      "total_count",
+      "title",
+      "employment_type",
+      "company",
+      "date_range",
+      "start_date",
+      "end_date",
+      "location",
+      "location_type",
+      "description",
+      "skills",
+      "media",
+      "urls",
+      "skill_url",
+      "media_url",
+      "profile_url",
+      "raw_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-experience.js",
+    "sourceFile": "linkedin/profile-experience.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "profile-projects",
     "description": "Read visible LinkedIn profile projects with descriptions, dates, skills, media, and URLs",
     "access": "read",
