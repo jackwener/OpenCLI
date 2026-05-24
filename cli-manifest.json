@@ -4695,6 +4695,8 @@
       }
     ],
     "columns": [
+      "conversationId",
+      "conversationUrl",
       "response"
     ],
     "type": "js",

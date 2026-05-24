@@ -3,12 +3,14 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     CHATGPT_DOMAIN,
     CHATGPT_URL,
+    currentChatGPTUrl,
     ensureChatGPTComposer,
     ensureOnChatGPT,
     getBubbleCount,
     normalizeBooleanFlag,
     requireNonEmptyPrompt,
     requirePositiveInt,
+    parseChatGPTConversationId,
     sendChatGPTMessage,
     startNewChat,
     waitForChatGPTResponse,
@@ -29,7 +31,7 @@ export const askCommand = cli({
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for response' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
     ],
-    columns: ['response'],
+    columns: ['conversationId', 'conversationUrl', 'response'],
     func: async (page, kwargs) => {
         const prompt = requireNonEmptyPrompt(kwargs.prompt, 'chatgpt ask');
         const timeout = requirePositiveInt(
@@ -53,6 +55,9 @@ export const askCommand = cli({
             throw new CommandExecutionError('Failed to send message to ChatGPT', `Open ${CHATGPT_URL} and verify the composer is ready.`);
         }
 
-        return [{ response: await waitForChatGPTResponse(page, baseline, prompt, timeout) }];
+        const response = await waitForChatGPTResponse(page, baseline, prompt, timeout);
+        const conversationUrl = await currentChatGPTUrl(page);
+        const conversationId = parseChatGPTConversationId(conversationUrl);
+        return [{ conversationId, conversationUrl, response }];
     },
 });

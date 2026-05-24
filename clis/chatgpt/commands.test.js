@@ -43,6 +43,7 @@ describe('chatgpt browser command registration', () => {
             expect.objectContaining({ name: 'timeout', type: 'int', default: 120 }),
             expect.objectContaining({ name: 'new', type: 'boolean', default: false }),
         ]));
+        expect(ask.columns).toEqual(['conversationId', 'conversationUrl', 'response']);
     });
 
     it('registers chatgpt model with web model choices', () => {
