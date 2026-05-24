@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTImageAssets, getChatGPTVisibleImageUrls, prepareChatGPTImagePaths, selectChatGPTModel, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
+import { __test__, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, prepareChatGPTImagePaths, selectChatGPTModel, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -35,6 +35,19 @@ function createPageMock({ location = '', generating = [], imageUrls = [] } = {})
             }
             return Promise.resolve(undefined);
         }),
+    };
+}
+
+function createDomEvaluatePage(html) {
+    const dom = new JSDOM(html, {
+        url: 'https://chatgpt.com/',
+        runScripts: 'outside-only',
+    });
+    for (const node of dom.window.document.querySelectorAll('button')) {
+        node.getBoundingClientRect = () => ({ width: 120, height: 36 });
+    }
+    return {
+        evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(script))),
     };
 }
 
@@ -102,6 +115,28 @@ describe('chatgpt model selection validation', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
         await expect(selectChatGPTModel({}, 'pro'))
             .rejects.toThrow('ChatGPT model selection requires native browser click support.');
+    });
+});
+
+describe('chatgpt current model detection', () => {
+    it.each([
+        ['Instant', { model: 'instant', label: 'Instant' }],
+        ['Thinking', { model: 'thinking', label: 'Thinking' }],
+        ['Pro', { model: 'pro', label: 'Pro' }],
+        ['进阶专业', { model: 'pro', label: 'Pro' }],
+    ])('detects the visible %s model label', async (label, expected) => {
+        const page = createDomEvaluatePage(`<form><button>${label}</button></form>`);
+
+        await expect(getCurrentChatGPTModel(page)).resolves.toEqual(expected);
+    });
+
+    it('returns null fields when the model selector is missing', async () => {
+        const page = createDomEvaluatePage('<form><button>Send</button></form>');
+
+        await expect(getCurrentChatGPTModel(page)).resolves.toEqual({
+            model: null,
+            label: null,
+        });
     });
 });
 
