@@ -25596,6 +25596,40 @@
   },
   {
     "site": "twitter",
+    "name": "follow-batch",
+    "description": "Follow multiple Twitter/X users from a comma-separated username list",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "usernames",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated Twitter/X screen names, with or without @"
+      },
+      {
+        "name": "delay-ms",
+        "type": "int",
+        "default": 3000,
+        "required": false,
+        "help": "Delay between follow attempts in milliseconds"
+      }
+    ],
+    "columns": [
+      "username",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/follow-batch.js",
+    "sourceFile": "twitter/follow-batch.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "followers",
     "description": "Get accounts following a Twitter/X user (defaults to the logged-in user when no user is given)",
     "access": "read",
