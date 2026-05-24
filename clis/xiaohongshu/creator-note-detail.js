@@ -255,8 +255,11 @@ const CAPTURE_POLL_INTERVAL_S = 0.5;
 // since a direct fetch() from page.evaluate bypasses the x-s signing and gets 406.
 async function installXhsFetchCaptureHook(page) {
     await page.evaluate(`(() => {
-    if (window.__xhsCapture) return;
+    // Reset the buffer every call so stale captures from a previous run on
+    // the same tab cannot leak into the current navigation's harvest.
     window.__xhsCapture = {};
+    if (window.__xhsCaptureInstalled) return;
+    window.__xhsCaptureInstalled = true;
     const origFetch = window.fetch;
     window.fetch = async function(...args) {
       const resp = await origFetch.apply(this, args);
@@ -289,6 +292,11 @@ async function installXhsFetchCaptureHook(page) {
       return xhr;
     }
     HookedXHR.prototype = OrigXHR.prototype;
+    // Preserve readyState constants (UNSENT / OPENED / HEADERS_RECEIVED / LOADING / DONE)
+    // since dashboard code may read XMLHttpRequest.DONE etc against the constructor.
+    for (const key of ['UNSENT', 'OPENED', 'HEADERS_RECEIVED', 'LOADING', 'DONE']) {
+      if (key in OrigXHR) HookedXHR[key] = OrigXHR[key];
+    }
     window.XMLHttpRequest = HookedXHR;
   })()`);
 }
