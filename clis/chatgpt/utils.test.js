@@ -3,7 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { __test__, getChatGPTImageAssets, getChatGPTVisibleImageUrls, prepareChatGPTImagePaths, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { __test__, getChatGPTImageAssets, getChatGPTVisibleImageUrls, prepareChatGPTImagePaths, selectChatGPTModel, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -85,6 +86,22 @@ describe('chatgpt conversation id parsing', () => {
     it('rejects invalid detail ids', () => {
         expect(() => __test__.parseChatGPTConversationId('')).toThrow(/conversation id/);
         expect(() => __test__.parseChatGPTConversationId('https://chatgpt.com/')).toThrow(/conversation id/);
+    });
+});
+
+describe('chatgpt model selection validation', () => {
+    it('rejects unknown model names', async () => {
+        await expect(selectChatGPTModel({ nativeClick: vi.fn() }, 'unknown'))
+            .rejects.toBeInstanceOf(ArgumentError);
+        await expect(selectChatGPTModel({ nativeClick: vi.fn() }, 'unknown'))
+            .rejects.toThrow('Unknown ChatGPT model "unknown"');
+    });
+
+    it('requires native browser click support', async () => {
+        await expect(selectChatGPTModel({}, 'pro'))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(selectChatGPTModel({}, 'pro'))
+            .rejects.toThrow('ChatGPT model selection requires native browser click support.');
     });
 });
 

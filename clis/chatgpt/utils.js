@@ -8,13 +8,13 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError }
 
 export const CHATGPT_DOMAIN = 'chatgpt.com';
 export const CHATGPT_URL = 'https://chatgpt.com';
-export const CHATGPT_MODEL_CHOICES = ['instant', 'thinking', 'pro'];
 
 const CHATGPT_MODEL_OPTIONS = {
     instant: { label: 'Instant', labels: ['Instant', '即时'], testId: 'model-switcher-gpt-5-5' },
     thinking: { label: 'Thinking', labels: ['Thinking', '思考'], testId: 'model-switcher-gpt-5-5-thinking' },
     pro: { label: 'Pro', labels: ['Pro', '进阶专业'], testId: 'model-switcher-gpt-5-5-pro' },
 };
+export const CHATGPT_MODEL_CHOICES = Object.keys(CHATGPT_MODEL_OPTIONS);
 
 // Selectors
 const COMPOSER_SELECTORS = [
