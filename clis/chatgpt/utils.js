@@ -8,6 +8,13 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError }
 
 export const CHATGPT_DOMAIN = 'chatgpt.com';
 export const CHATGPT_URL = 'https://chatgpt.com';
+export const CHATGPT_MODEL_CHOICES = ['instant', 'thinking', 'pro'];
+
+const CHATGPT_MODEL_OPTIONS = {
+    instant: { label: 'Instant', labels: ['Instant', '即时'], testId: 'model-switcher-gpt-5-5' },
+    thinking: { label: 'Thinking', labels: ['Thinking', '思考'], testId: 'model-switcher-gpt-5-5-thinking' },
+    pro: { label: 'Pro', labels: ['Pro', '进阶专业'], testId: 'model-switcher-gpt-5-5-pro' },
+};
 
 // Selectors
 const COMPOSER_SELECTORS = [
@@ -247,6 +254,120 @@ export async function ensureChatGPTComposer(page, message = 'ChatGPT composer is
         throw new CommandExecutionError(message);
     }
     return state;
+}
+
+function requireKnownChatGPTModel(model) {
+    const key = String(model ?? '').trim().toLowerCase();
+    const option = CHATGPT_MODEL_OPTIONS[key];
+    if (!option) {
+        throw new ArgumentError(
+            `Unknown ChatGPT model "${model}"`,
+            `Choose one of: ${CHATGPT_MODEL_CHOICES.join(', ')}`,
+        );
+    }
+    return { key, ...option };
+}
+
+export async function getCurrentChatGPTModel(page) {
+    return requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const labels = ${JSON.stringify(CHATGPT_MODEL_OPTIONS)};
+        const button = Array.from(document.querySelectorAll('form button')).find((node) => {
+            if (!isVisible(node)) return false;
+            const text = normalize(node.textContent);
+            return Object.values(labels).some((entry) => entry.labels.includes(text));
+        });
+        const label = normalize(button?.textContent || '');
+        const entry = Object.entries(labels).find(([, value]) => value.labels.includes(label));
+        return {
+            model: entry?.[0] ?? null,
+            label: entry?.[1]?.label ?? null,
+        };
+    })()`)), 'chatgpt current model');
+}
+
+export async function selectChatGPTModel(page, model) {
+    const target = requireKnownChatGPTModel(model);
+    if (typeof page.nativeClick !== 'function') {
+        throw new CommandExecutionError('ChatGPT model selection requires native browser click support.');
+    }
+    await ensureOnChatGPT(page);
+    await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
+
+    const before = await getCurrentChatGPTModel(page);
+    if (before.model === target.key) {
+        return { Status: 'Already selected', Model: target.label };
+    }
+
+    const menuButton = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const labels = ${JSON.stringify(Object.values(CHATGPT_MODEL_OPTIONS).flatMap((entry) => entry.labels))};
+        const button = Array.from(document.querySelectorAll('form button')).find((node) =>
+            isVisible(node) && labels.includes(normalize(node.textContent))
+        );
+        if (!button) return { found: false };
+        button.scrollIntoView({ block: 'center', inline: 'center' });
+        const rect = button.getBoundingClientRect();
+        return {
+            found: true,
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+        };
+    })()`)), 'chatgpt model menu button');
+    if (!menuButton.found) {
+        throw new CommandExecutionError('Could not find the ChatGPT model selector in the composer.');
+    }
+    await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
+    await page.wait(0.5);
+
+    let optionCenter = null;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        optionCenter = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+            const isVisible = (el) => {
+                if (!(el instanceof HTMLElement)) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            };
+            const option = document.querySelector(${JSON.stringify(`[data-testid="${target.testId}"]`)});
+            if (!(option instanceof HTMLElement) || !isVisible(option)) return { found: false };
+            option.scrollIntoView({ block: 'center', inline: 'center' });
+            const rect = option.getBoundingClientRect();
+            return {
+                found: true,
+                x: Math.round(rect.left + rect.width / 2),
+                y: Math.round(rect.top + rect.height / 2),
+            };
+        })()`)), 'chatgpt model option click');
+        if (optionCenter.found) break;
+        await page.wait(0.5);
+    }
+    if (!optionCenter?.found) {
+        throw new CommandExecutionError(`Could not click the ChatGPT ${target.label} model option.`);
+    }
+    await page.nativeClick(Number(optionCenter.x), Number(optionCenter.y));
+
+    await page.wait(0.5);
+    const after = await getCurrentChatGPTModel(page);
+    if (after.model !== target.key) {
+        throw new CommandExecutionError(`ChatGPT model did not switch to ${target.label}.`);
+    }
+    return { Status: 'Success', Model: target.label };
 }
 
 export async function clearChatGPTDraft(page) {

@@ -8,6 +8,7 @@ import './detail.js';
 import './new.js';
 import './status.js';
 import './image.js';
+import './model.js';
 
 describe('chatgpt browser command registration', () => {
     it('registers the baseline web chat commands with persistent site sessions', () => {
@@ -20,6 +21,7 @@ describe('chatgpt browser command registration', () => {
             new: 'read',
             status: 'read',
             image: 'write',
+            model: 'read',
         };
 
         for (const [name, access] of Object.entries(expectedAccess)) {
@@ -41,5 +43,18 @@ describe('chatgpt browser command registration', () => {
             expect.objectContaining({ name: 'timeout', type: 'int', default: 120 }),
             expect.objectContaining({ name: 'new', type: 'boolean', default: false }),
         ]));
+    });
+
+    it('registers chatgpt model with web model choices', () => {
+        const model = getRegistry().get('chatgpt/model');
+        expect(model.args).toEqual([
+            expect.objectContaining({
+                name: 'model',
+                positional: true,
+                required: true,
+                choices: ['instant', 'thinking', 'pro'],
+            }),
+        ]);
+        expect(model.columns).toEqual(['Status', 'Model']);
     });
 });
