@@ -90,20 +90,23 @@ cli({
         if (!result) return {error: 'User @' + screenName + ' not found'};
 
         const legacy = result.legacy || {};
+        // X moved name/screen_name/created_at into result.core and location into
+        // result.location.location; fall back to legacy for older response shapes.
+        const core = result.core || {};
         const expandedUrl = legacy.entities?.url?.urls?.[0]?.expanded_url || '';
 
         return [{
-          screen_name: legacy.screen_name || screenName,
-          name: legacy.name || '',
+          screen_name: core.screen_name || legacy.screen_name || screenName,
+          name: core.name || legacy.name || '',
           bio: legacy.description || '',
-          location: legacy.location || '',
+          location: result.location?.location || legacy.location || '',
           url: expandedUrl,
           followers: legacy.followers_count || 0,
           following: legacy.friends_count || 0,
           tweets: legacy.statuses_count || 0,
           likes: legacy.favourites_count || 0,
           verified: result.is_blue_verified || legacy.verified || false,
-          created_at: legacy.created_at || '',
+          created_at: core.created_at || legacy.created_at || '',
         }];
       }
     `);
