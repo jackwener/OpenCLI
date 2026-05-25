@@ -94,7 +94,7 @@ function mapCollectionItem(item, rank) {
   return {
     rank,
     type,
-    title: title.substring(0, 100),
+    title: stripHtml(title).substring(0, 100),
     author,
     votes,
     excerpt,
