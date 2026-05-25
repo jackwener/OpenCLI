@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, prepareChatGPTImagePaths, selectChatGPTModel, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTImages } from './utils.js';
+import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -118,6 +118,80 @@ describe('chatgpt model selection validation', () => {
     });
 });
 
+describe('chatgpt tool selection validation', () => {
+    it('rejects unknown tool names', async () => {
+        await expect(selectChatGPTTool({ nativeClick: vi.fn() }, 'unknown'))
+            .rejects.toBeInstanceOf(ArgumentError);
+        await expect(selectChatGPTTool({ nativeClick: vi.fn() }, 'unknown'))
+            .rejects.toThrow('Unknown ChatGPT tool "unknown"');
+    });
+
+    it('requires native browser click support', async () => {
+        await expect(selectChatGPTTool({}, 'deep-research'))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(selectChatGPTTool({}, 'deep-research'))
+            .rejects.toThrow('ChatGPT tool selection requires native browser click support.');
+    });
+});
+
+describe('chatgpt detail completion state', () => {
+    function createDetailPageMock({ generating = false, messages = [] } = {}) {
+        return {
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                if (script.includes('Stop generating') || script.includes('Thinking')) {
+                    return Promise.resolve(generating);
+                }
+                if (script.includes('data-message-author-role')) {
+                    return Promise.resolve(messages.map((message) => ({
+                        role: message.Role,
+                        text: message.Text,
+                        html: message.Html ?? message.Text,
+                    })));
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+    }
+
+    it('adds generation state to detail rows', async () => {
+        const page = createDetailPageMock({
+            generating: true,
+            messages: [
+                { Role: 'User', Text: 'question' },
+                { Role: 'Assistant', Text: 'working' },
+            ],
+        });
+
+        await expect(getChatGPTDetailRows(page)).resolves.toMatchObject({
+            generating: true,
+            rows: [
+                { Index: 1, Role: 'User', Text: 'question', Generating: true, StableSeconds: 0 },
+                { Index: 2, Role: 'Assistant', Text: 'working', Generating: true, StableSeconds: 0 },
+            ],
+        });
+    });
+
+    it('waits until assistant output is stable', async () => {
+        const page = createDetailPageMock({
+            generating: false,
+            messages: [
+                { Role: 'User', Text: 'question' },
+                { Role: 'Assistant', Text: 'done' },
+            ],
+        });
+
+        const result = await waitForChatGPTDetailRows(page, { timeoutSeconds: 5, stableSeconds: 0 });
+
+        expect(result.rows.at(-1)).toMatchObject({
+            Role: 'Assistant',
+            Text: 'done',
+            Generating: false,
+            StableSeconds: 0,
+        });
+    });
+});
+
 describe('chatgpt current model detection', () => {
     it.each([
         ['Instant', { model: 'instant', label: 'Instant' }],
@@ -135,6 +209,29 @@ describe('chatgpt current model detection', () => {
 
         await expect(getCurrentChatGPTModel(page)).resolves.toEqual({
             model: null,
+            label: null,
+        });
+    });
+});
+
+describe('chatgpt current tool detection', () => {
+    it.each([
+        ['深度研究', { tool: 'deep-research', label: 'Deep Research' }],
+        ['Deep Research', { tool: 'deep-research', label: 'Deep Research' }],
+        ['网页搜索', { tool: 'web-search', label: 'Web Search' }],
+        ['搜索', { tool: 'web-search', label: 'Web Search' }],
+        ['Web Search', { tool: 'web-search', label: 'Web Search' }],
+    ])('detects the visible %s tool label', async (label, expected) => {
+        const page = createDomEvaluatePage(`<form><button>${label}</button></form>`);
+
+        await expect(getCurrentChatGPTTool(page)).resolves.toEqual(expected);
+    });
+
+    it('returns null fields when no supported tool is selected', async () => {
+        const page = createDomEvaluatePage('<form><button>添加文件</button></form>');
+
+        await expect(getCurrentChatGPTTool(page)).resolves.toEqual({
+            tool: null,
             label: null,
         });
     });

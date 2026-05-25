@@ -16,6 +16,12 @@ const CHATGPT_MODEL_OPTIONS = {
 };
 export const CHATGPT_MODEL_CHOICES = Object.keys(CHATGPT_MODEL_OPTIONS);
 
+const CHATGPT_TOOL_OPTIONS = {
+    'deep-research': { label: 'Deep Research', labels: ['深度研究', 'Deep Research'] },
+    'web-search': { label: 'Web Search', labels: ['网页搜索', '搜索', 'Web Search', 'Search'] },
+};
+export const CHATGPT_TOOL_CHOICES = Object.keys(CHATGPT_TOOL_OPTIONS);
+
 // Selectors
 const COMPOSER_SELECTORS = [
     '[aria-label="Chat with ChatGPT"]',
@@ -105,6 +111,13 @@ export function requireNonEmptyPrompt(prompt, commandName) {
 export function requirePositiveInt(value, flagLabel, hint) {
     if (!Number.isInteger(value) || value < 1) {
         throw new ArgumentError(`${flagLabel} must be a positive integer`, hint);
+    }
+    return value;
+}
+
+export function requireNonNegativeInt(value, flagLabel, hint) {
+    if (!Number.isInteger(value) || value < 0) {
+        throw new ArgumentError(`${flagLabel} must be a non-negative integer`, hint);
     }
     return value;
 }
@@ -268,6 +281,18 @@ function requireKnownChatGPTModel(model) {
     return { key, ...option };
 }
 
+function requireKnownChatGPTTool(tool) {
+    const key = String(tool ?? '').trim().toLowerCase();
+    const option = CHATGPT_TOOL_OPTIONS[key];
+    if (!option) {
+        throw new ArgumentError(
+            `Unknown ChatGPT tool "${tool}"`,
+            `Choose one of: ${CHATGPT_TOOL_CHOICES.join(', ')}`,
+        );
+    }
+    return { key, ...option };
+}
+
 export async function getCurrentChatGPTModel(page) {
     return requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const isVisible = (el) => {
@@ -368,6 +393,114 @@ export async function selectChatGPTModel(page, model) {
         throw new CommandExecutionError(`ChatGPT model did not switch to ${target.label}.`);
     }
     return { Status: 'Success', Model: target.label };
+}
+
+export async function getCurrentChatGPTTool(page) {
+    return requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const labels = ${JSON.stringify(CHATGPT_TOOL_OPTIONS)};
+        const form = Array.from(document.querySelectorAll('form')).find((node) => node instanceof HTMLElement && isVisible(node));
+        const root = form || document.body;
+        const nodes = Array.from(root.querySelectorAll('button, [role="button"], [role="menuitemradio"], span, div'));
+        const node = nodes.find((candidate) => {
+            if (!isVisible(candidate)) return false;
+            const text = normalize(candidate.textContent);
+            return Object.values(labels).some((entry) => entry.labels.includes(text));
+        });
+        const label = normalize(node?.textContent || '');
+        const entry = Object.entries(labels).find(([, value]) => value.labels.includes(label));
+        return {
+            tool: entry?.[0] ?? null,
+            label: entry?.[1]?.label ?? null,
+        };
+    })()`)), 'chatgpt current tool');
+}
+
+export async function selectChatGPTTool(page, tool) {
+    const target = requireKnownChatGPTTool(tool);
+    if (typeof page.nativeClick !== 'function') {
+        throw new CommandExecutionError('ChatGPT tool selection requires native browser click support.');
+    }
+    await ensureOnChatGPT(page);
+    await ensureChatGPTComposer(page, 'ChatGPT tool selection requires a logged-in ChatGPT session with a visible composer.');
+
+    const before = await getCurrentChatGPTTool(page);
+    if (before.tool === target.key) {
+        return { Status: 'Already selected', Tool: target.label };
+    }
+
+    const menuButton = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const button = document.querySelector('button[data-testid="composer-plus-btn"]');
+        if (!(button instanceof HTMLElement) || !isVisible(button)) return { found: false };
+        button.scrollIntoView({ block: 'center', inline: 'center' });
+        const rect = button.getBoundingClientRect();
+        return {
+            found: true,
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+        };
+    })()`)), 'chatgpt tools menu button');
+    if (!menuButton.found) {
+        throw new CommandExecutionError('Could not find the ChatGPT tools menu button in the composer.');
+    }
+    await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
+    await page.wait(0.5);
+
+    let optionCenter = null;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        optionCenter = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+            const isVisible = (el) => {
+                if (!(el instanceof HTMLElement)) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            };
+            const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+            const labels = ${JSON.stringify(target.labels)};
+            const options = Array.from(document.querySelectorAll('[role="menuitemradio"]'));
+            const option = options.find((node) => node instanceof HTMLElement && isVisible(node) && labels.includes(normalize(node.textContent)));
+            if (!(option instanceof HTMLElement)) return { found: false };
+            const checked = option.getAttribute('aria-checked') === 'true';
+            option.scrollIntoView({ block: 'center', inline: 'center' });
+            const rect = option.getBoundingClientRect();
+            return {
+                found: true,
+                checked,
+                x: Math.round(rect.left + rect.width / 2),
+                y: Math.round(rect.top + rect.height / 2),
+            };
+        })()`)), 'chatgpt tool option click');
+        if (optionCenter.found) break;
+        await page.wait(0.5);
+    }
+    if (!optionCenter?.found) {
+        throw new CommandExecutionError(`Could not find the ChatGPT ${target.label} tool option.`);
+    }
+    if (!optionCenter.checked) {
+        await page.nativeClick(Number(optionCenter.x), Number(optionCenter.y));
+    }
+
+    await page.wait(0.5);
+    const after = await getCurrentChatGPTTool(page);
+    if (after.tool !== target.key) {
+        throw new CommandExecutionError(`ChatGPT tool did not switch to ${target.label}.`);
+    }
+    return { Status: optionCenter.checked ? 'Already selected' : 'Success', Tool: target.label };
 }
 
 export async function clearChatGPTDraft(page) {
@@ -556,6 +689,70 @@ export async function getVisibleMessages(page) {
         Text: String(item?.text || '').trim(),
         Html: String(item?.html || ''),
     })).filter((item) => item.Text);
+}
+
+function formatChatGPTDetailMessages(messages, { wantMarkdown, generating, stableSeconds }) {
+    return messages.map((message) => ({
+        Index: message.Index,
+        Role: message.Role,
+        Text: wantMarkdown && message.Role === 'Assistant' && message.Html
+            ? (messageHtmlToMarkdown(message.Html) || message.Text)
+            : message.Text,
+        Generating: generating,
+        StableSeconds: stableSeconds,
+    }));
+}
+
+export async function getChatGPTDetailRows(page, { wantMarkdown = false, stableSeconds = 0 } = {}) {
+    const generating = await isGenerating(page);
+    const messages = await getVisibleMessages(page);
+    return {
+        messages,
+        rows: formatChatGPTDetailMessages(messages, { wantMarkdown, generating, stableSeconds }),
+        generating,
+    };
+}
+
+export async function waitForChatGPTDetailRows(page, { wantMarkdown = false, timeoutSeconds = 120, stableSeconds = 6 } = {}) {
+    const startTime = Date.now();
+    let lastKey = '';
+    let stableStartedAt = 0;
+
+    while (Date.now() - startTime < timeoutSeconds * 1000) {
+        const generating = await isGenerating(page);
+        const messages = await getVisibleMessages(page);
+        const key = JSON.stringify(messages.map((message) => [message.Role, message.Text]));
+        if (!generating && messages.length && messages[messages.length - 1]?.Role === 'Assistant') {
+            if (key === lastKey) {
+                if (!stableStartedAt) stableStartedAt = Date.now();
+                const elapsedSeconds = Math.floor((Date.now() - stableStartedAt) / 1000);
+                if (elapsedSeconds >= stableSeconds) {
+                    return {
+                        messages,
+                        rows: formatChatGPTDetailMessages(messages, {
+                            wantMarkdown,
+                            generating: false,
+                            stableSeconds: elapsedSeconds,
+                        }),
+                        generating: false,
+                    };
+                }
+            } else {
+                lastKey = key;
+                stableStartedAt = Date.now();
+            }
+        } else {
+            lastKey = key;
+            stableStartedAt = 0;
+        }
+        await page.wait(3);
+    }
+
+    throw new TimeoutError(
+        'chatgpt detail',
+        timeoutSeconds,
+        'Conversation did not finish or stabilize before timeout. Re-run with a higher --timeout if it is still generating.',
+    );
 }
 
 export function messageHtmlToMarkdown(html) {

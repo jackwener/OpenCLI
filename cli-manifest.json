@@ -4692,11 +4692,33 @@
         "default": false,
         "required": false,
         "help": "Start a new chat before sending"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Wait for the assistant response after sending"
+      },
+      {
+        "name": "deep-research",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable ChatGPT 深度研究 (Deep Research)"
+      },
+      {
+        "name": "web-search",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable ChatGPT 网页搜索 (Web Search)"
       }
     ],
     "columns": [
       "conversationId",
       "conversationUrl",
+      "tool",
       "response"
     ],
     "type": "js",
@@ -4727,12 +4749,35 @@
         "default": false,
         "required": false,
         "help": "Emit assistant replies as markdown"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Wait until the conversation stops generating and stabilizes"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait when --wait is true"
+      },
+      {
+        "name": "stable",
+        "type": "int",
+        "default": 6,
+        "required": false,
+        "help": "Seconds the final messages must remain unchanged when --wait is true"
       }
     ],
     "columns": [
       "Index",
       "Role",
-      "Text"
+      "Text",
+      "Generating",
+      "StableSeconds"
     ],
     "type": "js",
     "modulePath": "chatgpt/detail.js",

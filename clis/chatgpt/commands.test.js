@@ -42,8 +42,21 @@ describe('chatgpt browser command registration', () => {
         expect(ask.args).toEqual(expect.arrayContaining([
             expect.objectContaining({ name: 'timeout', type: 'int', default: 120 }),
             expect.objectContaining({ name: 'new', type: 'boolean', default: false }),
+            expect.objectContaining({ name: 'wait', type: 'boolean', default: true }),
+            expect.objectContaining({ name: 'deep-research', type: 'boolean', default: false }),
+            expect.objectContaining({ name: 'web-search', type: 'boolean', default: false }),
         ]));
-        expect(ask.columns).toEqual(['conversationId', 'conversationUrl', 'response']);
+        expect(ask.columns).toEqual(['conversationId', 'conversationUrl', 'tool', 'response']);
+    });
+
+    it('registers detail wait options and generation state columns', () => {
+        const detail = getRegistry().get('chatgpt/detail');
+        expect(detail.args).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'wait', type: 'boolean', default: false }),
+            expect.objectContaining({ name: 'timeout', type: 'int', default: 120 }),
+            expect.objectContaining({ name: 'stable', type: 'int', default: 6 }),
+        ]));
+        expect(detail.columns).toEqual(['Index', 'Role', 'Text', 'Generating', 'StableSeconds']);
     });
 
     it('registers chatgpt model with web model choices', () => {
