@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { appendAudienceRows, appendTrendRows, parseCreatorNoteDetailDomData, parseCreatorNoteDetailText } from './creator-note-detail.js';
 import './creator-note-detail.js';
@@ -302,6 +302,141 @@ describe('xiaohongshu creator-note-detail', () => {
         expect(page.wait.mock.calls.length).toBeGreaterThanOrEqual(4);
         const captureProbeCalls = page.evaluate.mock.calls.filter(([script]) => String(script).includes('JSON.stringify(window.__xhsCapture'));
         expect(captureProbeCalls.length).toBeGreaterThanOrEqual(1);
+    });
+    it('matches signed API captures by exact pathname so source/detail cannot shadow source', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
+        const domData = {
+            title: '示例笔记',
+            infoText: '示例笔记\n2026-03-19 12:00\n切换笔记',
+            sections: [
+                {
+                    title: '基础数据',
+                    metrics: [
+                        { label: '曝光数', value: '100', extra: '粉丝占比 10%' },
+                    ],
+                },
+            ],
+        };
+        const detailCapture = [
+            'https://creator.xiaohongshu.com/api/galaxy/creator/datacenter/note/audience/source/detail?note_id=demo-note-id',
+            {
+                status: 200,
+                ok: true,
+                body: JSON.stringify({ data: { gender: [{ title: '女性', value: 64 }] } }),
+            },
+        ];
+        const sourceCapture = [
+            'https://creator.xiaohongshu.com/api/galaxy/creator/datacenter/note/audience/source?note_id=demo-note-id',
+            {
+                status: 200,
+                ok: true,
+                body: JSON.stringify({
+                    data: {
+                        source: [
+                            {
+                                title: '首页推荐',
+                                value_with_double: 88.8,
+                                info: { imp_count: 1000, view_count: 400, interaction_count: 20 },
+                            },
+                        ],
+                    },
+                }),
+            },
+        ];
+        const baseCapture = [
+            'https://creator.xiaohongshu.com/api/galaxy/creator/datacenter/note/base?note_id=demo-note-id',
+            {
+                status: 200,
+                ok: true,
+                body: JSON.stringify({ data: { hour: { view_list: [{ date: new Date('2026-03-19T12:00:00+08:00').getTime(), count: 7 }] } } }),
+            },
+        ];
+        const trendCapture = [
+            'https://creator.xiaohongshu.com/api/galaxy/creator/datacenter/note/analyze/audience/trend?note_id=demo-note-id',
+            {
+                status: 200,
+                ok: true,
+                body: JSON.stringify({ data: { no_data: false, no_data_tip_msg: '趋势可用' } }),
+            },
+        ];
+        for (const orderedCaptures of [
+            [detailCapture, sourceCapture, baseCapture, trendCapture],
+            [sourceCapture, detailCapture, baseCapture, trendCapture],
+        ]) {
+            const captureMap = Object.fromEntries(orderedCaptures);
+            const page = createPageMock(undefined);
+            page.evaluate = vi.fn(async (script) => {
+                const s = String(script);
+                if (s.includes('window.__xhsCapture =')) return undefined;
+                if (s.includes('history.pushState')) return undefined;
+                if (s.includes('JSON.stringify(window.__xhsCapture')) return JSON.stringify(captureMap);
+                if (s.includes("document.querySelector('.note-title')")) return domData;
+                return undefined;
+            });
+            const result = await cmd.func(page, { 'note-id': 'demo-note-id' });
+            expect(result).toEqual(expect.arrayContaining([
+                { section: '观看来源', metric: '首页推荐', value: '88.8%', extra: '曝光 1000 · 观看 400 · 互动 20' },
+                { section: '观众画像', metric: '性别/女性', value: '64%', extra: '' },
+                { section: '趋势数据', metric: '按小时/观看数', value: '1 points', extra: '03-19 12:00=7' },
+            ]));
+        }
+    });
+    it('throws a typed error when a captured signed API returns non-2xx', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
+        const captureMap = {
+            'https://creator.xiaohongshu.com/api/galaxy/creator/datacenter/note/base?note_id=demo-note-id': {
+                status: 406,
+                ok: false,
+                body: '{"msg":"not acceptable"}',
+            },
+        };
+        const page = createPageMock(undefined);
+        page.evaluate = vi.fn(async (script) => {
+            const s = String(script);
+            if (s.includes('window.__xhsCapture =')) return undefined;
+            if (s.includes('history.pushState')) return undefined;
+            if (s.includes('JSON.stringify(window.__xhsCapture')) return JSON.stringify(captureMap);
+            return null;
+        });
+        await expect(cmd.func(page, { 'note-id': 'demo-note-id' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+    it('throws a typed error for wrong-shaped signed API payloads instead of falling back to DOM rows', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
+        const domData = {
+            title: '示例笔记',
+            infoText: '示例笔记\n2026-03-19 12:00\n切换笔记',
+            sections: [
+                {
+                    title: '基础数据',
+                    metrics: [
+                        { label: '曝光数', value: '100', extra: '粉丝占比 10%' },
+                    ],
+                },
+            ],
+        };
+        for (const body of [
+            JSON.stringify({ data: null }),
+            JSON.stringify({ data: [] }),
+            JSON.stringify({ data: { source: {} } }),
+        ]) {
+            const captureMap = {
+                'https://creator.xiaohongshu.com/api/galaxy/creator/datacenter/note/audience/source?note_id=demo-note-id': {
+                    status: 200,
+                    ok: true,
+                    body,
+                },
+            };
+            const page = createPageMock(undefined);
+            page.evaluate = vi.fn(async (script) => {
+                const s = String(script);
+                if (s.includes('window.__xhsCapture =')) return undefined;
+                if (s.includes('history.pushState')) return undefined;
+                if (s.includes('JSON.stringify(window.__xhsCapture')) return JSON.stringify(captureMap);
+                if (s.includes("document.querySelector('.note-title')")) return domData;
+                return null;
+            });
+            await expect(cmd.func(page, { 'note-id': 'demo-note-id' })).rejects.toBeInstanceOf(CommandExecutionError);
+        }
     });
     it('throws EmptyResultError when the detail page exposes no metrics', async () => {
         const cmd = getRegistry().get('xiaohongshu/creator-note-detail');
