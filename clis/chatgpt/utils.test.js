@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages } from './utils.js';
+import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, isGenerating, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -206,6 +206,19 @@ describe('chatgpt detail completion state', () => {
     });
 });
 
+describe('chatgpt generation state', () => {
+    it('detects zh-CN thinking status text', async () => {
+        const page = {
+            evaluate: vi.fn((script) => {
+                expect(script).toContain('正在思考');
+                return Promise.resolve(true);
+            }),
+        };
+
+        await expect(isGenerating(page)).resolves.toBe(true);
+    });
+});
+
 describe('chatgpt current model detection', () => {
     it.each([
         ['Instant', { model: 'instant', label: 'Instant' }],
@@ -274,9 +287,10 @@ describe('chatgpt send selectors', () => {
     it('keeps locale-independent send-button selector before aria-label fallbacks', async () => {
         const page = {
             wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
             nativeType: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
-                if (script.includes('findComposer')) return Promise.resolve(true);
+                if (script.includes('findComposer')) return Promise.resolve({ ready: true, x: 12, y: 34 });
                 if (script.includes('sendBtnFound')) {
                     expect(script).toContain('data-testid=\\\"send-button\\\"');
                     return Promise.resolve({ sendBtnFound: true });
@@ -289,6 +303,7 @@ describe('chatgpt send selectors', () => {
         };
 
         await expect(sendChatGPTMessage(page, 'hello')).resolves.toBe(true);
+        expect(page.nativeClick).toHaveBeenCalledWith(12, 34);
     });
 
     it('uses the composer submit fallback consistently for readiness and click', async () => {
@@ -296,7 +311,7 @@ describe('chatgpt send selectors', () => {
             wait: vi.fn().mockResolvedValue(undefined),
             nativeType: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
-                if (script.includes('findComposer')) return Promise.resolve(true);
+                if (script.includes('findComposer')) return Promise.resolve({ ready: true, x: 12, y: 34 });
                 if (script.includes('sendBtnFound')) {
                     expect(script).toContain('#composer-submit-button:not([disabled])');
                     return Promise.resolve({ sendBtnFound: true });
@@ -321,7 +336,7 @@ describe('chatgpt send selectors', () => {
         ]));
         expect(__test__.SEND_BUTTON_SELECTOR).toBe('button[data-testid="send-button"]:not([disabled])');
         expect(__test__.SEND_BUTTON_FALLBACK_SELECTORS).toContain('#composer-submit-button:not([disabled])');
-        expect(__test__.SEND_BUTTON_LABELS).toEqual(expect.arrayContaining(['Send prompt', 'Send message', 'Send', '发送提示']));
+        expect(__test__.SEND_BUTTON_LABELS).toEqual(expect.arrayContaining(['Send prompt', 'Send message', 'Send', '发送', '发送消息', '发送提示']));
         expect(__test__.CLOSE_SIDEBAR_LABELS).toEqual(expect.arrayContaining(['Close sidebar', '关闭边栏']));
     });
 });

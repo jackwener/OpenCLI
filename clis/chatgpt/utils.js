@@ -24,13 +24,14 @@ export const CHATGPT_TOOL_CHOICES = Object.keys(CHATGPT_TOOL_OPTIONS);
 
 // Selectors
 const COMPOSER_SELECTORS = [
+    '[contenteditable="true"][role="textbox"]',
+    '#prompt-textarea[contenteditable="true"]',
     '[aria-label="Chat with ChatGPT"]',
     '[aria-label="与 ChatGPT 聊天"]',
     '[placeholder="Ask anything"]',
     '[placeholder="有问题，尽管问"]',
     '#prompt-textarea',
     '[data-testid="prompt-textarea"]',
-    '[contenteditable="true"][role="textbox"]',
 ];
 const SEND_BUTTON_SELECTOR = 'button[data-testid="send-button"]:not([disabled])';
 const SEND_BUTTON_FALLBACK_SELECTORS = [
@@ -40,6 +41,8 @@ const SEND_BUTTON_LABELS = [
     'Send prompt',
     'Send message',
     'Send',
+    '发送',
+    '发送消息',
     '发送提示',
 ];
 const CLOSE_SIDEBAR_LABELS = [
@@ -73,12 +76,11 @@ function buildComposerLocatorScript() {
       };
 
       const findComposer = () => {
-        const marked = document.querySelector('[' + markerAttr + '="1"]');
-        if (marked instanceof HTMLElement && isVisible(marked)) return marked;
-
         for (const selector of ${JSON.stringify(COMPOSER_SELECTORS)}) {
-          const node = Array.from(document.querySelectorAll(selector)).find(c => c instanceof HTMLElement && isVisible(c));
+          const candidates = Array.from(document.querySelectorAll(selector)).filter(c => c instanceof HTMLElement && isVisible(c));
+          const node = candidates.find(c => c.isContentEditable) || candidates[0];
           if (node instanceof HTMLElement) {
+            clearMarkers(node);
             node.setAttribute(markerAttr, '1');
             return node;
           }
@@ -566,11 +568,11 @@ export async function sendChatGPTMessage(page, text) {
     // findComposer() retries inside a single CDP call, so no fixed sleep is
     // needed before reading the composer.
 
-    const typeResult = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
+    const typeResult = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
         (() => {
             ${buildComposerLocatorScript()}
             const composer = findComposer();
-            if (!composer) return false;
+            if (!composer) return { ready: false };
             composer.focus();
             if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
                 composer.value = '';
@@ -582,15 +584,25 @@ export async function sendChatGPTMessage(page, text) {
             }
             composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
             composer.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
+            composer.scrollIntoView({ block: 'center', inline: 'center' });
+            const rect = composer.getBoundingClientRect();
+            return {
+                ready: true,
+                x: Math.round(rect.left + Math.max(8, Math.min(rect.width / 2, rect.width - 8))),
+                y: Math.round(rect.top + Math.max(8, Math.min(rect.height / 2, rect.height - 8))),
+            };
         })()
     `)), 'chatgpt composer readiness');
 
-    if (!typeResult) return false;
+    if (!typeResult.ready) return false;
     
     // Use page.type() which is Playwright's native method
     try {
         if (page.nativeType) {
+            if (typeof page.nativeClick === 'function') {
+                await page.nativeClick(Number(typeResult.x), Number(typeResult.y));
+                await page.wait(0.2);
+            }
             await page.nativeType(text);
         } else {
             throw new Error('nativeType unavailable');
@@ -614,16 +626,31 @@ export async function sendChatGPTMessage(page, text) {
         await page.wait(0.5);
         sent = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
             (() => {
+                const isVisible = (el) => {
+                    if (!(el instanceof HTMLElement)) return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                };
                 const isUsable = (button) => button
+                    && isVisible(button)
                     && !button.disabled
                     && button.getAttribute('aria-disabled') !== 'true';
-                const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
-                    || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => document.querySelector(selector)).find(Boolean);
-                const btns = Array.from(document.querySelectorAll('button'));
+                const form = Array.from(document.querySelectorAll('form')).find((node) => node instanceof HTMLElement && isVisible(node));
+                const root = form || document.body;
+                const primary = root.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
+                    || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => root.querySelector(selector)).find(Boolean);
+                const btns = Array.from(root.querySelectorAll('button'));
                 const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
+                const looksLikeSend = (button) => {
+                    const label = button.getAttribute('aria-label') || '';
+                    const text = (button.innerText || button.textContent || '').replace(/\\s+/g, ' ').trim();
+                    return labels.includes(label) || labels.includes(text) || /send|发送/i.test(label) || /send|发送/i.test(text);
+                };
                 const sendBtn = isUsable(primary)
                     ? primary
-                    : btns.find(b => labels.includes(b.getAttribute('aria-label') || '') && isUsable(b));
+                    : btns.find(b => looksLikeSend(b) && isUsable(b));
                 return { sendBtnFound: !!sendBtn };
             })()
         `)), 'chatgpt send button readiness');
@@ -636,10 +663,30 @@ export async function sendChatGPTMessage(page, text) {
     
     await page.evaluate(`
         (() => {
-            const primary = document.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
-                || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => document.querySelector(selector)).find(Boolean);
+            const isVisible = (el) => {
+                if (!(el instanceof HTMLElement)) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            };
+            const isUsable = (button) => button
+                && isVisible(button)
+                && !button.disabled
+                && button.getAttribute('aria-disabled') !== 'true';
+            const form = Array.from(document.querySelectorAll('form')).find((node) => node instanceof HTMLElement && isVisible(node));
+            const root = form || document.body;
+            const primary = root.querySelector(${JSON.stringify(SEND_BUTTON_SELECTOR)})
+                || ${JSON.stringify(SEND_BUTTON_FALLBACK_SELECTORS)}.map(selector => root.querySelector(selector)).find(Boolean);
             const labels = ${JSON.stringify(SEND_BUTTON_LABELS)};
-            const sendBtn = primary || Array.from(document.querySelectorAll('button')).find(b => labels.includes(b.getAttribute('aria-label') || '') && !b.disabled);
+            const looksLikeSend = (button) => {
+                const label = button.getAttribute('aria-label') || '';
+                const text = (button.innerText || button.textContent || '').replace(/\\s+/g, ' ').trim();
+                return labels.includes(label) || labels.includes(text) || /send|发送/i.test(label) || /send|发送/i.test(text);
+            };
+            const sendBtn = isUsable(primary)
+                ? primary
+                : Array.from(root.querySelectorAll('button')).find(b => looksLikeSend(b) && isUsable(b));
             if (sendBtn) sendBtn.click();
         })()
     `);
@@ -1027,9 +1074,14 @@ export async function uploadChatGPTImages(page, imagePaths) {
 export async function isGenerating(page) {
     return requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
         (() => {
+            const text = (document.body?.innerText || '').replace(/\\s+/g, ' ');
+            if (/正在思考|停止生成|Thinking/.test(text)) return true;
             return Array.from(document.querySelectorAll('button')).some(b => {
                 const label = b.getAttribute('aria-label') || '';
-                return label === 'Stop generating' || label.includes('Thinking');
+                return label === 'Stop generating'
+                    || label.includes('Thinking')
+                    || label.includes('停止生成')
+                    || label.includes('正在思考');
             });
         })()
     `)), 'chatgpt generation state');

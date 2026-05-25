@@ -14,6 +14,7 @@ import {
     parseChatGPTConversationId,
     sendChatGPTMessage,
     selectChatGPTTool,
+    isGenerating,
     startNewChat,
     waitForChatGPTResponse,
 } from './utils.js';
@@ -87,6 +88,14 @@ export const askCommand = cli({
         // after navigating, so the previous standalone 2 s settle is redundant.
         await ensureChatGPTComposer(page, 'ChatGPT ask requires a logged-in ChatGPT session with a visible composer.');
         const selectedTool = tool ? await selectChatGPTTool(page, tool) : null;
+
+        const settleStart = Date.now();
+        while (await isGenerating(page)) {
+            if (Date.now() - settleStart > timeout * 1000) {
+                throw new CommandExecutionError('ChatGPT conversation is still generating; wait for it to finish before sending another message.');
+            }
+            await page.wait(3);
+        }
 
         const baseline = await getBubbleCount(page);
         const sent = await sendChatGPTMessage(page, prompt);
