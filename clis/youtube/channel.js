@@ -19,10 +19,19 @@ export function extractSelectedRichGridContents(browseData) {
 }
 
 export function parseVideoItem(item) {
+    const content = item?.richItemRenderer?.content || item || {};
+    const normalizeId = (value) => {
+        const id = String(value || '').trim();
+        return /^[A-Za-z0-9_-]+$/.test(id) ? id : '';
+    };
     // New lockupViewModel format
-    const lvm = item.richItemRenderer?.content?.lockupViewModel;
+    const lvm = content.lockupViewModel;
     if (lvm && lvm.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO') {
+        const id = normalizeId(lvm.contentId);
         const meta = lvm.metadata?.lockupMetadataViewModel;
+        const title = meta?.title?.content || '';
+        if (!id || !title)
+            return null;
         const rows = meta?.metadata?.contentMetadataViewModel?.metadataRows || [];
         const parts = (rows[0]?.metadataParts || []).map(p => p.text?.content).filter(Boolean);
         let duration = '';
@@ -32,20 +41,24 @@ export function parseVideoItem(item) {
             }
         }
         return {
-            title: meta?.title?.content || '',
+            title,
             duration,
             views: parts.join(' | '),
-            url: 'https://www.youtube.com/watch?v=' + lvm.contentId,
+            url: 'https://www.youtube.com/watch?v=' + id,
         };
     }
     // Legacy videoRenderer format
-    const v = item.richItemRenderer?.content?.videoRenderer;
+    const v = content.videoRenderer || content.gridVideoRenderer;
     if (v) {
+        const id = normalizeId(v.videoId);
+        const title = v.title?.runs?.[0]?.text || v.title?.simpleText || '';
+        if (!id || !title)
+            return null;
         return {
-            title: v.title?.runs?.[0]?.text || v.title?.simpleText || '',
-            duration: v.lengthText?.simpleText || '',
+            title,
+            duration: v.lengthText?.simpleText || v.thumbnailOverlays?.find(o => o.thumbnailOverlayTimeStatusRenderer)?.thumbnailOverlayTimeStatusRenderer?.text?.simpleText || '',
             views: (v.shortViewCountText?.simpleText || '') + (v.publishedTimeText?.simpleText ? ' | ' + v.publishedTimeText.simpleText : ''),
-            url: 'https://www.youtube.com/watch?v=' + v.videoId,
+            url: 'https://www.youtube.com/watch?v=' + id,
         };
     }
     return null;
@@ -132,34 +145,9 @@ cli({
           for (const section of sections) {
             for (const shelf of (section.itemSectionRenderer?.contents || [])) {
               for (const item of (shelf.shelfRenderer?.content?.horizontalListRenderer?.items || [])) {
-                // New lockupViewModel format
-                const lvm = item.lockupViewModel;
-                if (lvm && lvm.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO' && recentVideos.length < limit) {
-                  const meta = lvm.metadata?.lockupMetadataViewModel;
-                  const rows = meta?.metadata?.contentMetadataViewModel?.metadataRows || [];
-                  const viewsAndTime = (rows[0]?.metadataParts || []).map(p => p.text?.content).filter(Boolean).join(' | ');
-                  let duration = '';
-                  for (const ov of (lvm.contentImage?.thumbnailViewModel?.overlays || [])) {
-                    for (const b of (ov.thumbnailBottomOverlayViewModel?.badges || [])) {
-                      if (b.thumbnailBadgeViewModel?.text) duration = b.thumbnailBadgeViewModel.text;
-                    }
-                  }
-                  recentVideos.push({
-                    title: meta?.title?.content || '',
-                    duration,
-                    views: viewsAndTime,
-                    url: 'https://www.youtube.com/watch?v=' + lvm.contentId,
-                  });
-                }
-                // Legacy gridVideoRenderer format
-                if (item.gridVideoRenderer && recentVideos.length < limit) {
-                  const v = item.gridVideoRenderer;
-                  recentVideos.push({
-                    title: v.title?.runs?.[0]?.text || v.title?.simpleText || '',
-                    duration: v.thumbnailOverlays?.[0]?.thumbnailOverlayTimeStatusRenderer?.text?.simpleText || '',
-                    views: (v.shortViewCountText?.simpleText || '') + (v.publishedTimeText?.simpleText ? ' | ' + v.publishedTimeText.simpleText : ''),
-                    url: 'https://www.youtube.com/watch?v=' + v.videoId,
-                  });
+                if (recentVideos.length < limit) {
+                  const parsed = parseVideoItem(item);
+                  if (parsed) recentVideos.push(parsed);
                 }
               }
             }

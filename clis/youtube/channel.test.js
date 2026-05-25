@@ -124,6 +124,49 @@ describe('parseVideoItem', () => {
     it('returns null for non-video items', () => {
         expect(__test__.parseVideoItem({})).toBeNull();
         expect(__test__.parseVideoItem({ richItemRenderer: { content: {} } })).toBeNull();
+        expect(__test__.parseVideoItem({
+            richItemRenderer: {
+                content: {
+                    lockupViewModel: {
+                        contentType: 'LOCKUP_CONTENT_TYPE_PLAYLIST',
+                        contentId: 'playlist-id',
+                        metadata: { lockupMetadataViewModel: { title: { content: 'Playlist' } } },
+                    },
+                },
+            },
+        })).toBeNull();
+    });
+
+    it('requires stable video identity before emitting a watch URL', () => {
+        expect(__test__.parseVideoItem({
+            richItemRenderer: {
+                content: {
+                    lockupViewModel: {
+                        contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+                        metadata: { lockupMetadataViewModel: { title: { content: 'Missing id' } } },
+                    },
+                },
+            },
+        })).toBeNull();
+        expect(__test__.parseVideoItem({
+            richItemRenderer: {
+                content: {
+                    videoRenderer: {
+                        videoId: 'bad id with spaces',
+                        title: { simpleText: 'Bad id' },
+                    },
+                },
+            },
+        })).toBeNull();
+        expect(__test__.parseVideoItem({
+            richItemRenderer: {
+                content: {
+                    videoRenderer: {
+                        videoId: 'no-title-id',
+                    },
+                },
+            },
+        })).toBeNull();
     });
 
     it('handles lockupViewModel without duration overlay', () => {
@@ -147,6 +190,45 @@ describe('parseVideoItem', () => {
         const result = __test__.parseVideoItem(item);
         expect(result.duration).toBe('');
         expect(result.title).toBe('No Duration');
+    });
+
+    it('parses the Home tab direct lockupViewModel and gridVideoRenderer shapes', () => {
+        expect(__test__.parseVideoItem({
+            lockupViewModel: {
+                contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+                contentId: 'homeLockup',
+                metadata: {
+                    lockupMetadataViewModel: {
+                        title: { content: 'Home Lockup' },
+                        metadata: {
+                            contentMetadataViewModel: {
+                                metadataRows: [
+                                    { metadataParts: [{ text: { content: '7K views' } }, { text: { content: '1 day ago' } }] },
+                                ],
+                            },
+                        },
+                    },
+                },
+                contentImage: { thumbnailViewModel: { overlays: [] } },
+            },
+        })).toMatchObject({
+            title: 'Home Lockup',
+            views: '7K views | 1 day ago',
+            url: 'https://www.youtube.com/watch?v=homeLockup',
+        });
+        expect(__test__.parseVideoItem({
+            gridVideoRenderer: {
+                videoId: 'gridVideo1',
+                title: { simpleText: 'Grid Video' },
+                thumbnailOverlays: [
+                    { thumbnailOverlayTimeStatusRenderer: { text: { simpleText: '9:10' } } },
+                ],
+            },
+        })).toMatchObject({
+            title: 'Grid Video',
+            duration: '9:10',
+            url: 'https://www.youtube.com/watch?v=gridVideo1',
+        });
     });
 
     it('prefers lockupViewModel over videoRenderer', () => {
