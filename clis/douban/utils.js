@@ -4,10 +4,14 @@
 import { ArgumentError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { clamp } from '../_shared/common.js';
 const DOUBAN_PHOTO_PAGE_SIZE = 30;
+const DOUBAN_COMMENT_PAGE_SIZE = 20;
 const MAX_DOUBAN_PHOTOS = 500;
+const MAX_DOUBAN_COMMENTS = 500;
 const clampLimit = (limit) => clamp(limit || 20, 1, 50);
 const clampPhotoLimit = (limit) => clamp(limit || 120, 1, MAX_DOUBAN_PHOTOS);
+const clampCommentLimit = (limit) => clamp(limit || 100, 1, MAX_DOUBAN_COMMENTS);
 const DOUBAN_SEARCH_READY_SELECTOR = '.item-root .title-text, .item-root .title a, .result-list .result-item h3 a';
+const DOUBAN_COMMENT_READY_SELECTOR = '.comment-item, .comment, #comments';
 const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 function firstNonEmpty(values) {
     for (const value of values) {
@@ -121,12 +125,170 @@ function buildDoubanSearchUrl(type, keyword) {
     }
     return url.toString();
 }
+function normalizeDoubanSubjectType(type) {
+    const normalized = String(type || 'movie').trim();
+    if (normalized === 'movie' || normalized === 'book' || normalized === 'music') {
+        return normalized;
+    }
+    throw new ArgumentError(`Invalid Douban subject type: ${type}`, 'Use one of: movie, book, music');
+}
+function doubanSubjectHost(type) {
+    return `${normalizeDoubanSubjectType(type)}.douban.com`;
+}
+function buildDoubanCommentsUrl(subjectId, type, start = 0, sort = 'new_score') {
+    const normalizedId = normalizeDoubanSubjectId(subjectId);
+    const normalizedType = normalizeDoubanSubjectType(type);
+    const url = new URL(`https://${doubanSubjectHost(normalizedType)}/subject/${normalizedId}/comments/`);
+    url.searchParams.set('start', String(Math.max(0, Number(start) || 0)));
+    url.searchParams.set('limit', String(DOUBAN_COMMENT_PAGE_SIZE));
+    url.searchParams.set('status', 'P');
+    if (sort) {
+        url.searchParams.set('sort', String(sort));
+    }
+    return url.toString();
+}
 export function normalizeDoubanSubjectId(subjectId) {
     const normalized = String(subjectId || '').trim();
     if (!/^\d+$/.test(normalized)) {
         throw new ArgumentError(`Invalid Douban subject ID: ${subjectId}`);
     }
     return normalized;
+}
+export function normalizeDoubanComment(raw, fallback = {}) {
+    const content = normalizeText(raw?.content);
+    const userName = normalizeText(raw?.userName);
+    const userUrl = normalizeText(raw?.userUrl);
+    const url = normalizeText(raw?.url);
+    const commentId = normalizeText(raw?.commentId)
+        || url.match(/comment-(\d+)/)?.[1]
+        || normalizeText(raw?.id);
+    return {
+        index: Number(fallback.index) || Number(raw?.index) || 0,
+        id: commentId,
+        subjectId: normalizeDoubanSubjectId(raw?.subjectId || fallback.subjectId),
+        type: normalizeDoubanSubjectType(raw?.type || fallback.type),
+        userName,
+        userUrl,
+        rating: parseDoubanCount(raw?.rating),
+        ratingText: normalizeText(raw?.ratingText),
+        votes: parseDoubanCount(raw?.votes),
+        time: normalizeText(raw?.time),
+        content,
+        url,
+    };
+}
+export async function loadDoubanComments(page, subjectId, options = {}) {
+    const normalizedId = normalizeDoubanSubjectId(subjectId);
+    const type = normalizeDoubanSubjectType(options.type);
+    const sort = String(options.sort || 'new_score').trim() || 'new_score';
+    const safeLimit = clampCommentLimit(Number(options.limit) || 100);
+    const startUrl = buildDoubanCommentsUrl(normalizedId, type, 0, sort);
+    await page.goto(startUrl, { waitUntil: 'load', settleMs: 1500 });
+    await ensureDoubanReady(page);
+    await page.wait({ selector: DOUBAN_COMMENT_READY_SELECTOR, timeout: 8 }).catch(() => { });
+    const data = await page.evaluate(`
+    (async () => {
+      const subjectId = ${JSON.stringify(normalizedId)};
+      const type = ${JSON.stringify(type)};
+      const sort = ${JSON.stringify(sort)};
+      const limit = ${safeLimit};
+      const pageSize = ${DOUBAN_COMMENT_PAGE_SIZE};
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+      const toAbsoluteUrl = (value) => {
+        if (!value) return '';
+        try {
+          return new URL(value, location.href).toString();
+        } catch {
+          return value;
+        }
+      };
+      const buildUrl = (start) => {
+        const url = new URL(location.href);
+        url.searchParams.set('start', String(start));
+        url.searchParams.set('limit', String(pageSize));
+        url.searchParams.set('status', 'P');
+        if (sort) url.searchParams.set('sort', sort);
+        return url.toString();
+      };
+      const extractCommentRows = (doc, pageUrl) => {
+        const rows = [];
+        const primaryNodes = Array.from(doc.querySelectorAll('.comment-item'));
+        const nodes = primaryNodes.length ? primaryNodes : Array.from(doc.querySelectorAll('.comment'));
+        for (const node of nodes) {
+          const contentEl = node.querySelector('.short, .comment-content, p.comment-content, .comment-content span');
+          const content = normalize(contentEl?.textContent);
+          if (!content) continue;
+
+          const info = node.querySelector('.comment-info') || node;
+          const userEl = info.querySelector('a[href*="/people/"]') || node.querySelector('a[href*="/people/"]');
+          const ratingEl = info.querySelector('span[class*="allstar"], span[class*="rating"]');
+          const timeEl = info.querySelector('.comment-time, time') || node.querySelector('.comment-time, time');
+          const voteEl = node.querySelector('.votes, .vote-count');
+          const commentId = normalize(node.getAttribute('data-cid'))
+            || normalize(node.id).replace(/^comment-/, '')
+            || normalize(node.querySelector('[data-cid]')?.getAttribute('data-cid'));
+          const permalink = commentId ? pageUrl + '#comment-' + commentId : pageUrl;
+          const ratingClass = ratingEl?.className || '';
+          const ratingValue = Number(ratingClass.match(/allstar(\\d)0/)?.[1] || ratingClass.match(/rating(\\d)-t/)?.[1] || 0) * 2;
+
+          rows.push({
+            id: commentId,
+            subjectId,
+            type,
+            userName: normalize(userEl?.textContent),
+            userUrl: toAbsoluteUrl(userEl?.getAttribute('href') || ''),
+            rating: ratingValue || 0,
+            ratingText: normalize(ratingEl?.getAttribute('title')),
+            votes: normalize(voteEl?.textContent),
+            time: normalize(timeEl?.getAttribute('title')) || normalize(timeEl?.textContent),
+            content,
+            url: permalink,
+          });
+        }
+        return rows;
+      };
+
+      const seen = new Set();
+      const comments = [];
+      for (let start = 0; comments.length < limit; start += pageSize) {
+        let doc = document;
+        let pageUrl = location.href;
+        if (start > 0) {
+          pageUrl = buildUrl(start);
+          const response = await fetch(pageUrl, { credentials: 'include' });
+          if (!response.ok) break;
+          const html = await response.text();
+          doc = new DOMParser().parseFromString(html, 'text/html');
+        }
+        const rows = extractCommentRows(doc, pageUrl);
+        if (!rows.length) break;
+        let appended = 0;
+        for (const row of rows) {
+          const key = row.id || row.userUrl + '\\n' + row.time + '\\n' + row.content;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          comments.push({
+            index: comments.length + 1,
+            ...row,
+          });
+          appended += 1;
+          if (comments.length >= limit) break;
+        }
+        if (rows.length < pageSize || appended === 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      return comments;
+    })()
+  `);
+    const comments = Array.isArray(data) ? data : [];
+    if (!comments.length) {
+        throw new EmptyResultError('douban comments', `No short comments found for ${type} subject ${normalizedId}.`);
+    }
+    return comments.slice(0, safeLimit).map((comment, index) => normalizeDoubanComment(comment, {
+        index: index + 1,
+        subjectId: normalizedId,
+        type,
+    }));
 }
 export function promoteDoubanPhotoUrl(url, size = 'l') {
     const normalized = String(url || '').trim();

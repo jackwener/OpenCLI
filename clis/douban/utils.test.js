@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     getDoubanPhotoExtension,
     inferDoubanSearchResultType,
+    loadDoubanComments,
     loadDoubanMovieHot,
     loadDoubanSubjectDetail,
     loadDoubanSubjectPhotos,
+    normalizeDoubanComment,
     normalizeDoubanBookSubject,
     normalizeDoubanSubjectId,
     promoteDoubanPhotoUrl,
@@ -125,6 +127,35 @@ describe('douban utils', () => {
         expect(() => normalizeDoubanSubjectId('tt30382501')).toThrow('Invalid Douban subject ID');
     });
 
+    it('normalizes short comment rows', () => {
+        expect(normalizeDoubanComment({
+            id: '123',
+            subjectId: '26266893',
+            type: 'movie',
+            userName: ' 豆友 ',
+            userUrl: 'https://www.douban.com/people/example/',
+            rating: '8',
+            ratingText: '推荐',
+            votes: '12 有用',
+            time: '2026-05-25',
+            content: ' 很好看 ',
+            url: 'https://movie.douban.com/subject/26266893/comments/#comment-123',
+        }, { index: 1 })).toEqual({
+            index: 1,
+            id: '123',
+            subjectId: '26266893',
+            type: 'movie',
+            userName: '豆友',
+            userUrl: 'https://www.douban.com/people/example/',
+            rating: 8,
+            ratingText: '推荐',
+            votes: 12,
+            time: '2026-05-25',
+            content: '很好看',
+            url: 'https://movie.douban.com/subject/26266893/comments/#comment-123',
+        });
+    });
+
     it('promotes thumbnail urls to large photo urls', () => {
         expect(promoteDoubanPhotoUrl('https://img1.doubanio.com/view/photo/m/public/p2913450214.webp')).toBe('https://img1.doubanio.com/view/photo/l/public/p2913450214.webp');
         expect(promoteDoubanPhotoUrl('https://img9.doubanio.com/view/photo/s_ratio_poster/public/p2578474613.jpg')).toBe('https://img9.doubanio.com/view/photo/l/public/p2578474613.jpg');
@@ -183,6 +214,56 @@ describe('douban utils', () => {
     it('keeps image extensions when download urls contain query params', () => {
         expect(getDoubanPhotoExtension('https://img1.doubanio.com/view/photo/l/public/p2913450214.webp?foo=1')).toBe('.webp');
         expect(getDoubanPhotoExtension('https://img1.doubanio.com/view/photo/l/public/p2913450214.jpeg')).toBe('.jpeg');
+    });
+
+    it('loads comments from the matching subject host and preserves a 100 item limit', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '短评', href: 'https://book.douban.com/subject/2567698/comments/' })
+                .mockResolvedValueOnce([
+                {
+                    index: 1,
+                    id: '101',
+                    subjectId: '2567698',
+                    type: 'book',
+                    userName: 'reader',
+                    userUrl: 'https://www.douban.com/people/reader/',
+                    rating: 10,
+                    ratingText: '力荐',
+                    votes: 7,
+                    time: '2026-05-25',
+                    content: '短评正文',
+                    url: 'https://book.douban.com/subject/2567698/comments/#comment-101',
+                },
+            ]),
+        };
+
+        await expect(loadDoubanComments(page, '2567698', {
+            type: 'book',
+            limit: 100,
+            sort: 'time',
+        })).resolves.toMatchObject([
+            {
+                index: 1,
+                id: '101',
+                subjectId: '2567698',
+                type: 'book',
+                rating: 10,
+                content: '短评正文',
+            },
+        ]);
+        expect(page.goto).toHaveBeenCalledWith('https://book.douban.com/subject/2567698/comments/?start=0&limit=20&status=P&sort=time', {
+            waitUntil: 'load',
+            settleMs: 1500,
+        });
+        expect(page.wait).toHaveBeenCalledWith({
+            selector: '.comment-item, .comment, #comments',
+            timeout: 8,
+        });
+        const scanScript = page.evaluate.mock.calls[1]?.[0];
+        expect(scanScript).toContain('const limit = 100;');
     });
 
     it('maps tv series results to tvshow in searchDouban output', async () => {
