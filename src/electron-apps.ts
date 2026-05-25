@@ -53,6 +53,13 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
     bundleId: 'com.trae.solo.app',
     displayName: 'Trae SOLO',
   },
+  'trae-cn':      {
+    port: 39240,
+    processName: 'Trae CN',
+    executableNames: ['Electron'],
+    bundleId: 'cn.trae.app',
+    displayName: 'Trae CN',
+  },
 };
 
 /** Merge builtin + user-defined apps. User entries are additive only. */

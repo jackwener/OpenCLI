@@ -152,6 +152,7 @@ export default defineConfig({
               collapsed: false,
               items: [
                 { text: 'Cursor', link: '/adapters/desktop/cursor' },
+                { text: 'Trae CN', link: '/adapters/desktop/trae-cn' },
                 { text: 'Codex', link: '/adapters/desktop/codex' },
                 { text: 'Antigravity', link: '/adapters/desktop/antigravity' },
                 { text: 'ChatGPT', link: '/adapters/desktop/chatgpt' },

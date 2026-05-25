@@ -168,6 +168,7 @@ Run `opencli list` for the live registry.
 | ---------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **[Cursor](./desktop/cursor.md)**           | Control Cursor IDE            | `status` `send` `read` `new` `dump` `composer` `model` `extract-code` `ask` `screenshot` `history` `export` |
 | **[Codex](./desktop/codex.md)**             | Drive OpenAI Codex CLI agent  | `status` `send` `read` `new` `extract-diff` `model` `ask` `screenshot` `history` `export` `pin` `unpin` `archive` `rename` |
+| **[Trae CN](./desktop/trae-cn.md)**         | Control Trae CN tasks         | `setup` `targets` `status` `new` `send` `read` `ask` `approve` `model` `select-model` `activity` `watch` `dump` `screenshot` `export` |
 | **[Antigravity](./desktop/antigravity.md)** | Control Antigravity Ultra     | `status` `send` `read` `new` `dump` `extract-code` `model` `watch`                                          |
 | **[ChatGPT App](./desktop/chatgpt-app.md)** | Automate ChatGPT macOS app    | `status` `new` `send` `read` `ask` `model`                                                                  |
 | **[ChatWise](./desktop/chatwise.md)**       | Multi-LLM client              | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot`                                  |

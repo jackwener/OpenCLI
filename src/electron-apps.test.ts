@@ -22,6 +22,15 @@ describe('electron-apps registry', () => {
     expect(ports).not.toContain(9222);
   });
 
+  it('returns builtin app entry for Trae CN', () => {
+    const app = getElectronApp('trae-cn');
+    expect(app).toBeDefined();
+    expect(app!.port).toBe(39240);
+    expect(app!.processName).toBe('Trae CN');
+    expect(app!.bundleId).toBe('cn.trae.app');
+    expect(app!.executableNames).toEqual(['Electron']);
+  });
+
   it('returns undefined for non-Electron sites', () => {
     expect(getElectronApp('bilibili')).toBeUndefined();
     expect(getElectronApp('hackernews')).toBeUndefined();
@@ -33,6 +42,7 @@ describe('electron-apps registry', () => {
     expect(isElectronApp('chatwise')).toBe(true);
     expect(isElectronApp('qoder')).toBe(true);
     expect(isElectronApp('trae-solo')).toBe(true);
+    expect(isElectronApp('trae-cn')).toBe(true);
   });
 
   it('registers Qoder on its own CDP port', () => {
