@@ -217,7 +217,8 @@ export function exportCookiesToNetscape(
   }
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, lines.join('\n'));
+  // 0o600: file holds live session cookies, must be owner-only.
+  fs.writeFileSync(filePath, lines.join('\n'), { mode: 0o600 });
 }
 
 export function formatCookieHeader(cookies: BrowserCookie[]): string {
