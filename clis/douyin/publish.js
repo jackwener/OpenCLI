@@ -260,8 +260,8 @@ cli({
         const publishBody = {
             item: {
                 common: {
-                    text: caption,
-                    caption: '',
+                    text: `${title} ${caption}`,
+                    caption: caption,
                     item_title: title,
                     activity: JSON.stringify(kwargs.activity ? [kwargs.activity] : []),
                     text_extra: JSON.stringify(textExtraArr),
