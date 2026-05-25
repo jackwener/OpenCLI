@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages } from './utils.js';
+import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages } from './utils.js';
 
 const tempDirs = [];
 
@@ -99,6 +99,20 @@ describe('chatgpt conversation id parsing', () => {
     it('rejects invalid detail ids', () => {
         expect(() => __test__.parseChatGPTConversationId('')).toThrow(/conversation id/);
         expect(() => __test__.parseChatGPTConversationId('https://chatgpt.com/')).toThrow(/conversation id/);
+    });
+});
+
+describe('chatgpt conversation navigation', () => {
+    it('opens conversation URLs by parsed id', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+        };
+
+        await expect(openChatGPTConversation(page, 'https://chatgpt.com/c/abc_123-def?model=gpt-5'))
+            .resolves.toBe('abc_123-def');
+        expect(page.goto).toHaveBeenCalledWith('https://chatgpt.com/c/abc_123-def', { settleMs: 2000 });
+        expect(page.wait).toHaveBeenCalledWith({ selector: '#prompt-textarea, [data-testid="prompt-textarea"]', timeout: 8 });
     });
 });
 

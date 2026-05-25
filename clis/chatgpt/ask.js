@@ -8,6 +8,7 @@ import {
     ensureOnChatGPT,
     getBubbleCount,
     normalizeBooleanFlag,
+    openChatGPTConversation,
     requireNonEmptyPrompt,
     requirePositiveInt,
     parseChatGPTConversationId,
@@ -45,6 +46,7 @@ export const askCommand = cli({
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for response' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
+        { name: 'conversation', valueRequired: true, help: 'Continue an existing ChatGPT conversation ID or /c/<id> URL' },
         { name: 'wait', type: 'boolean', default: true, help: 'Wait for the assistant response after sending' },
         { name: 'deep-research', type: 'boolean', default: false, help: 'Enable ChatGPT 深度研究 (Deep Research)' },
         { name: 'web-search', type: 'boolean', default: false, help: 'Enable ChatGPT 网页搜索 (Web Search)' },
@@ -66,9 +68,17 @@ export const askCommand = cli({
                 'Choose one ChatGPT composer tool for this message.',
             );
         }
+        if (normalizeBooleanFlag(kwargs.new) && kwargs.conversation) {
+            throw new ArgumentError(
+                'chatgpt ask cannot use --new and --conversation together',
+                'Choose either a new chat or an existing conversation.',
+            );
+        }
         const tool = useDeepResearch ? 'deep-research' : (useWebSearch ? 'web-search' : null);
 
-        if (normalizeBooleanFlag(kwargs.new)) {
+        if (kwargs.conversation) {
+            await openChatGPTConversation(page, kwargs.conversation);
+        } else if (normalizeBooleanFlag(kwargs.new)) {
             await startNewChat(page);
         } else {
             await ensureOnChatGPT(page);

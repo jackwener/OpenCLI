@@ -223,6 +223,17 @@ export async function startNewChat(page) {
     }
 }
 
+export async function openChatGPTConversation(page, value) {
+    const id = parseChatGPTConversationId(value);
+    await page.goto(`${CHATGPT_URL}/c/${id}`, { settleMs: 2000 });
+    try {
+        await page.wait({ selector: COMPOSER_WAIT_SELECTOR, timeout: 8 });
+    } catch {
+        // Composer didn't mount; downstream ensureChatGPTLogin / ensureChatGPTComposer surfaces a typed error.
+    }
+    return id;
+}
+
 export async function getPageState(page) {
     return requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const isVisible = (el) => {

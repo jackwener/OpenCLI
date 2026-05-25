@@ -4694,6 +4694,13 @@
         "help": "Start a new chat before sending"
       },
       {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
+      },
+      {
         "name": "wait",
         "type": "boolean",
         "default": true,
@@ -4969,6 +4976,13 @@
         "default": false,
         "required": false,
         "help": "Start a new chat before sending"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
       }
     ],
     "columns": [
