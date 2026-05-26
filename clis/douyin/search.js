@@ -108,6 +108,17 @@ export function normalizeDouyinVideoUrl(href) {
     return id ? `https://www.douyin.com/video/${id}` : '';
 }
 
+function isSearchCardMetadataText(text) {
+    if (!text) return true;
+    if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(text)) return true;
+    if (/^\d+(?:\.\d+)?[万亿]?$/.test(text)) return true;
+    if (/^(合集|视频|作者)$/.test(text)) return true;
+    if (/^(刚刚|今天|昨天|前天)$/.test(text)) return true;
+    if (/^\d+\s*(秒|分钟|小时|天|周|个月|月|年)前$/.test(text)) return true;
+    if (/^\d{4}[-/.年]\d{1,2}(?:[-/.月]\d{1,2}日?)?$/.test(text)) return true;
+    return false;
+}
+
 /**
  * Project a single rendered card into the canonical row shape. Operates
  * on a serialized card payload (the raw `{href, leafTexts}` we collect
@@ -145,6 +156,7 @@ export function projectCard(card, index) {
             continue;
         }
         if (t === author) continue;
+        if (isSearchCardMetadataText(t)) continue;
         if (t.length > longest.length) longest = t;
     }
     let desc = longest;

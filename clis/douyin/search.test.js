@@ -179,6 +179,21 @@ describe('douyin search', () => {
             code: 'COMMAND_EXEC',
         });
     });
+
+    it('fails closed when a card only has metadata text and no stable desc', async () => {
+        const cmd = getRegistry().get('douyin/search');
+        const page = createPageMock({
+            evaluateResult: {
+                state: 'rendered',
+                cards: [
+                    { url: '/video/123', leafTexts: ['合集', '03:00', '1.2万', '@', '作者名', '5月前'] },
+                ],
+            },
+        });
+        await expect(cmd.func(page, { query: 'x', limit: 1 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+        });
+    });
 });
 
 describe('parseDouyinCount', () => {
@@ -280,5 +295,13 @@ describe('projectCard', () => {
         ], 3);
         expect(result.rows).toHaveLength(1);
         expect(result.invalidCount).toBe(2);
+    });
+
+    it('does not treat metadata-only leaf text as a stable desc', () => {
+        const result = projectSearchCards([
+            { url: '/video/1', leafTexts: ['合集', '03:55', '1.9万', '@', '校长', '5月前'] },
+        ], 1);
+        expect(result.rows).toHaveLength(0);
+        expect(result.invalidCount).toBe(1);
     });
 });
