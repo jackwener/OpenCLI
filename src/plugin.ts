@@ -564,7 +564,9 @@ function installDependencies(dir: string): void {
   if (!fs.existsSync(pkgJsonPath)) return;
 
   try {
-    execFileSync('npm', ['install', '--omit=dev'], {
+    // --ignore-scripts: dir was just cloned from a third-party Git URL, so
+    // running its npm lifecycle hooks would execute arbitrary code as the user.
+    execFileSync('npm', ['install', '--omit=dev', '--ignore-scripts'], {
       cwd: dir,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
