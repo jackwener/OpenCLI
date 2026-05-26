@@ -5,6 +5,7 @@ import { PROFILE_COLUMNS } from './profile-read.js';
 import './profile-read.js';
 
 const { parseResumeSection, parseNaukriProfileText } = await import('./profile-read.js').then((m) => m.__test__);
+const { normalizeSkillList } = await import('./shared.js');
 
 const PROFILE_TEXT = `
 Gaurav Saxena
@@ -137,6 +138,22 @@ describe('naukri profile-read adapter', () => {
     expect(row.career_profile).toContain('Full Stack Developer');
     expect(row.personal_details).toContain('14 Oct 1997');
     expect(row.diversity_inclusion).toContain('Do not have disability');
+  });
+
+  it('uses DOM key-skill chips when available', () => {
+    const row = parseNaukriProfileText({
+      url: 'https://www.naukri.com/mnjuser/profile',
+      title: 'Profile | Mynaukri',
+      text: PROFILE_TEXT.replace('Ionic Framework\nFull Stack Web Development\nSoftware Development\nAWS', 'Ionic FrameworkFull Stack Web DevelopmentSoftware DevelopmentAWS'),
+      keySkills: ['Ionic Framework', 'Full Stack Web Development', 'Software Development', 'AWS'],
+    });
+
+    expect(row.key_skills).toBe('Ionic Framework, Full Stack Web Development, Software Development, AWS');
+  });
+
+  it('normalizes skill lists', () => {
+    expect(normalizeSkillList([' React ', 'react', 'Node.js', ''])).toEqual(['React', 'Node.js']);
+    expect(normalizeSkillList('React, Node.js; TypeScript')).toEqual(['React', 'Node.js', 'TypeScript']);
   });
 
   it('raises auth required on login page text', () => {
