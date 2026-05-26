@@ -12,6 +12,7 @@
 | `opencli linkedin jobs-preferences` | Read visible LinkedIn Jobs preferences and alert settings without changing them |
 | `opencli linkedin people-search` | Search standard LinkedIn for people by keyword (SSR DOM scrape). Each query counts toward LinkedIn's monthly Commercial Use Limit |
 | `opencli linkedin profile-analytics` | Read visible profile dashboard counters such as profile views, post impressions, and search appearances |
+| `opencli linkedin profile-experience` | Read visible LinkedIn profile experience entries with titles, dates, locations, skills, media, and URLs |
 | `opencli linkedin profile-read` | Read visible profile sections including headline, About, experience, education, services, and featured text |
 | `opencli linkedin posts` | Export visible posts from a LinkedIn profile activity page with engagement metrics |
 | `opencli linkedin post-analytics` | Summarize raw visible LinkedIn post counters without custom scoring or classification |
@@ -59,6 +60,9 @@ opencli linkedin post-analytics --limit 5 -f json
 
 # Read visible profile projects
 opencli linkedin profile-projects -f json
+
+# Read visible profile experience entries
+opencli linkedin profile-experience -f json
 
 # List recent inbox conversations, including unread status
 opencli linkedin inbox --limit 20 -f json
@@ -124,6 +128,8 @@ Returns `rank`, `name`, `headline`, `location`, and `profile_url` from the rende
 `profile-read` opens a profile URL, or `/in/me/` by default, and returns `profile_url`, `name`, `headline`, `location`, `about`, `about_character_count`, `about_skills`, `experience`, `education`, `services`, and `featured`. It reads visible profile sections and fails typed if LinkedIn returns an auth wall. Editor-only fields such as `about_character_count` and `about_skills` are only populated for the default self-profile flow.
 
 `profile-analytics` opens a profile URL, or `/in/me/` by default, and returns visible dashboard counters: `profile_views`, `post_impressions`, `search_appearances`, `followers`, `connections`, plus `raw_analytics`.
+
+`profile-experience` opens a profile URL, or `/in/me/` by default, resolves it to the profile's Experience detail page, and returns visible experience rows: `rank`, `total_count`, `title`, `employment_type`, `company`, `date_range`, `start_date`, `end_date`, `location`, `location_type`, `description`, `skills`, `media`, `urls`, `skill_url`, `media_url`, `profile_url`, and `raw_text`. If the authenticated profile has no visible Experience section, the command returns `EmptyResultError` instead of placeholder rows.
 
 `services-read` accepts either `--services-url` or a profile URL that links to a Services page. It returns `service_url`, `page_title`, `overview`, `availability`, `work_locations`, `pricing`, `services_provided`, `services_count`, `media_count`, `media`, `messages`, and `reviews_visibility`. Owner-only edit/media fields are only populated for the default self-profile flow.
 
