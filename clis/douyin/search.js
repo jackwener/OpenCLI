@@ -41,7 +41,7 @@
  * skeleton for anonymous visitors, which we surface as AuthRequiredError.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 export const MAX_SEARCH_LIMIT = 30;
 // Time budget for the SPA's initial DOM commit. Empirically the
@@ -82,24 +82,35 @@ export function parseDouyinCount(text) {
     return Math.round(n);
 }
 
+export function extractDouyinVideoId(href) {
+    if (typeof href !== 'string' || !href) return '';
+    let full = href;
+    if (full.startsWith('//')) full = 'https:' + full;
+    else if (full.startsWith('/')) full = 'https://www.douyin.com' + full;
+    try {
+        const parsed = new URL(full);
+        if (!/(^|\.)douyin\.com$/.test(parsed.hostname)) return '';
+        const match = parsed.pathname.match(/^\/video\/(\d+)$/);
+        return match?.[1] ?? '';
+    }
+    catch {
+        return '';
+    }
+}
+
 /**
  * Resolve scheme-relative or absolute Douyin video links to the canonical
  * https://www.douyin.com/video/<id> shape. Returns '' for unparseable
  * input rather than throwing — callers expect a string column.
  */
 export function normalizeDouyinVideoUrl(href) {
-    if (typeof href !== 'string' || !href) return '';
-    let full = href;
-    if (full.startsWith('//')) full = 'https:' + full;
-    else if (full.startsWith('/')) full = 'https://www.douyin.com' + full;
-    const idMatch = full.match(/\/video\/(\d+)/);
-    if (idMatch) return `https://www.douyin.com/video/${idMatch[1]}`;
-    return full;
+    const id = extractDouyinVideoId(href);
+    return id ? `https://www.douyin.com/video/${id}` : '';
 }
 
 /**
  * Project a single rendered card into the canonical row shape. Operates
- * on a serialized card payload (the raw `{url, leafTexts}` we collect
+ * on a serialized card payload (the raw `{href, leafTexts}` we collect
  * via page.evaluate) so this function is unit-testable without a real
  * browser.
  *
@@ -112,7 +123,7 @@ export function normalizeDouyinVideoUrl(href) {
  *   - desc:     the longest remaining leaf text
  */
 export function projectCard(card, index) {
-    const url = normalizeDouyinVideoUrl(card?.url);
+    const url = normalizeDouyinVideoUrl(card?.url ?? card?.href);
     const texts = Array.isArray(card?.leafTexts) ? card.leafTexts.map((t) => String(t ?? '').trim()).filter(Boolean) : [];
 
     const DURATION_RE = /^\d{1,2}:\d{2}(?::\d{2})?$/;
@@ -153,6 +164,17 @@ export function projectCard(card, index) {
     };
 }
 
+function isProjectedRowUsable(row) {
+    return Boolean(row?.url && row?.desc);
+}
+
+export function projectSearchCards(cards, limit) {
+    const window = Array.isArray(cards) ? cards.slice(0, limit) : [];
+    const rows = window.map((card, index) => projectCard(card, index));
+    const invalidCount = rows.filter((row) => !isProjectedRowUsable(row)).length;
+    return { rows: rows.filter(isProjectedRowUsable), invalidCount };
+}
+
 // JS snippet that waits for the scroll-list to populate, then returns
 // `{state: 'rendered', cards}` or `{state: 'login_wall'}` /
 // `{state: 'timeout'}`. Runs inside page.evaluate so we don't pay a
@@ -171,7 +193,7 @@ const WAIT_AND_EXTRACT_JS = (timeoutMs) => `
           const t = (el.textContent || '').trim();
           if (t) leafTexts.push(t);
         }
-        cards.push({ url: a.getAttribute('href') || '', leafTexts });
+        cards.push({ href: a.getAttribute('href') || '', leafTexts });
       }
       return cards;
     };
@@ -182,7 +204,8 @@ const WAIT_AND_EXTRACT_JS = (timeoutMs) => `
       // overlay on /search/ for visitors without sessionid. Match either
       // the literal Chinese prompt or a visible login modal/mask.
       const text = (document.body && document.body.innerText) || '';
-      if (/登录后查看|请先登录|登录抖音/.test(text)) return { state: 'login_wall' };
+      if (/登录后查看|请先登录|登录抖音|验证码|验证|verify_check|安全校验/.test(text)) return { state: 'login_wall' };
+      if (/暂无相关搜索结果|没有找到相关结果|搜索结果为空|暂无结果/.test(text)) return { state: 'empty' };
       const modal = document.querySelector('[class*="login-mask"], [class*="LoginMask"], [class*="login-modal"], dialog[role="dialog"]');
       if (modal && modal instanceof HTMLElement) {
         const r = modal.getBoundingClientRect();
@@ -249,16 +272,25 @@ cli({
                 'Douyin search results are blocked behind a login wall — log in at https://www.douyin.com in Chrome first.',
             );
         }
-        if (result.state === 'timeout' || !Array.isArray(result.cards) || result.cards.length === 0) {
-            // No cards rendered within the budget AND no explicit login
-            // wall detected. Most common cause is still an unauthenticated
-            // session (the page just hides results silently); surface as
-            // AuthRequiredError with the same actionable message.
-            throw new AuthRequiredError(
-                'www.douyin.com',
-                'Douyin search returned no results. Log in to https://www.douyin.com in Chrome — anonymous sessions get an empty results page without a visible login prompt.',
-            );
+        if (result.state === 'empty') {
+            throw new EmptyResultError('douyin search', `No Douyin videos matched "${keyword}".`);
         }
-        return result.cards.slice(0, limit).map((card, index) => projectCard(card, index));
+        if (result.state === 'timeout') {
+            throw new CommandExecutionError('Douyin search did not render result cards within the timeout. Open the same search in Chrome and verify login/security state before retrying.');
+        }
+        if (!Array.isArray(result.cards)) {
+            throw new CommandExecutionError('Douyin search: evaluator returned malformed cards payload');
+        }
+        if (result.cards.length === 0) {
+            throw new EmptyResultError('douyin search', `No Douyin videos matched "${keyword}".`);
+        }
+        const projected = projectSearchCards(result.cards, limit);
+        if (projected.invalidCount > 0) {
+            throw new CommandExecutionError('Douyin search parser found result cards without stable video url or description');
+        }
+        if (projected.rows.length === 0) {
+            throw new EmptyResultError('douyin search', `No Douyin videos matched "${keyword}".`);
+        }
+        return projected.rows;
     },
 });
