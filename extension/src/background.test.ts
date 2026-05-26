@@ -1290,6 +1290,35 @@ describe('background tab isolation', () => {
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
+  it('skips a residual OpenCLI Adapter group when its window holds user http tabs outside the group', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({
+      id: 77,
+      windowId: 7,
+      url: 'https://example.com/users-real-tab',
+      title: 'users real tab',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push({
+      id: 99,
+      windowId: 7,
+      title: 'OpenCLI Adapter',
+      color: 'orange',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(chrome.windows.create).toHaveBeenCalledTimes(1);
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).not.toBe(7);
+    expect(tabs.find((tab) => tab.id === 77)?.url).toBe('https://example.com/users-real-tab');
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).not.toBe(7);
+  });
+
   it('prefers a focused OpenCLI Adapter group when multiple matching groups exist', async () => {
     const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
     setLastFocusedWindowId(8);

@@ -1045,6 +1045,11 @@ async function focusOwnedWindowIfRequested(windowId, mode) {
 async function toOwnedContainerDiscoveryCandidate(group) {
   try {
     const chromeWindow = await chrome.windows.get(group.windowId);
+    const windowTabs = await chrome.tabs.query({ windowId: group.windowId });
+    const hasUserTabsOutsideGroup = windowTabs.some(
+      (tab) => tab.groupId !== group.id && !!tab.url && isSafeNavigationUrl(tab.url)
+    );
+    if (hasUserTabsOutsideGroup) return null;
     const reusableTabId = await findReusableOwnedContainerTab(group.windowId);
     return {
       windowId: group.windowId,
