@@ -145,4 +145,19 @@ describe('download helpers', { retry: process.platform === 'win32' ? 2 : 0 }, ()
     const mode = fs.statSync(cookiesPath).mode & 0o777;
     expect(mode).toBe(0o600);
   });
+
+  it.skipIf(process.platform === 'win32')('tightens an existing Netscape cookie file before rewriting it', async () => {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
+    tempDirs.push(tempDir);
+    const cookiesPath = path.join(tempDir, 'cookies.txt');
+    fs.writeFileSync(cookiesPath, 'stale-cookie', { mode: 0o644 });
+
+    exportCookiesToNetscape([
+      { name: 'sid', value: 'secret', domain: 'example.com' },
+    ], cookiesPath);
+
+    const mode = fs.statSync(cookiesPath).mode & 0o777;
+    expect(mode).toBe(0o600);
+    expect(fs.readFileSync(cookiesPath, 'utf8')).toContain('sid\tsecret');
+  });
 });
