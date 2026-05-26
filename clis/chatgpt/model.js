@@ -8,7 +8,7 @@ import {
 export const modelCommand = cli({
     site: 'chatgpt',
     name: 'model',
-    access: 'read',
+    access: 'write',
     description: 'Switch ChatGPT web model/mode (instant, thinking, pro)',
     domain: CHATGPT_DOMAIN,
     strategy: Strategy.COOKIE,

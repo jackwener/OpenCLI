@@ -130,6 +130,51 @@ describe('chatgpt model selection validation', () => {
         await expect(selectChatGPTModel({}, 'pro'))
             .rejects.toThrow('ChatGPT model selection requires native browser click support.');
     });
+
+    it('clicks the model selector and verifies the selected postcondition', async () => {
+        let objectCall = 0;
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'instant', label: 'Instant' });
+                if (objectCall === 3) return Promise.resolve({ found: true, x: 10, y: 20 });
+                if (objectCall === 4) return Promise.resolve({ found: true, x: 30, y: 40 });
+                if (objectCall === 5) return Promise.resolve({ model: 'pro', label: 'Pro' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'pro')).resolves.toEqual({ Status: 'Success', Model: 'Pro' });
+        expect(page.nativeClick).toHaveBeenNthCalledWith(1, 10, 20);
+        expect(page.nativeClick).toHaveBeenNthCalledWith(2, 30, 40);
+    });
+
+    it('fails closed when the postcondition does not prove the requested model', async () => {
+        let objectCall = 0;
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'instant', label: 'Instant' });
+                if (objectCall === 3) return Promise.resolve({ found: true, x: 10, y: 20 });
+                if (objectCall === 4) return Promise.resolve({ found: true, x: 30, y: 40 });
+                if (objectCall === 5) return Promise.resolve({ model: 'instant', label: 'Instant' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'pro')).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('did not switch to Pro'),
+        });
+    });
 });
 
 describe('chatgpt tool selection validation', () => {

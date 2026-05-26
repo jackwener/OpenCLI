@@ -21,7 +21,7 @@ describe('chatgpt browser command registration', () => {
             new: 'read',
             status: 'read',
             image: 'write',
-            model: 'read',
+            model: 'write',
         };
 
         for (const [name, access] of Object.entries(expectedAccess)) {

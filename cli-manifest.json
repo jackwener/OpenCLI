@@ -4880,7 +4880,7 @@
     "site": "chatgpt",
     "name": "model",
     "description": "Switch ChatGPT web model/mode (instant, thinking, pro)",
-    "access": "read",
+    "access": "write",
     "domain": "chatgpt.com",
     "strategy": "cookie",
     "browser": true,
