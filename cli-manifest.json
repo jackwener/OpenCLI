@@ -9420,6 +9420,45 @@
   },
   {
     "site": "douyin",
+    "name": "search",
+    "description": "关键词搜索抖音视频",
+    "access": "read",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "结果数量 (1-30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "desc",
+      "author",
+      "url",
+      "plays",
+      "likes",
+      "comments",
+      "shares"
+    ],
+    "type": "js",
+    "modulePath": "douyin/search.js",
+    "sourceFile": "douyin/search.js",
+    "navigateBefore": "https://www.douyin.com"
+  },
+  {
+    "site": "douyin",
     "name": "stats",
     "description": "作品数据分析",
     "access": "read",
