@@ -80,4 +80,19 @@ describe('chatgpt browser command registration', () => {
         ]);
         expect(model.columns).toEqual(['Status', 'Model']);
     });
+
+    it('rejects off-domain conversation URLs before ask/send can navigate', async () => {
+        const ask = getRegistry().get('chatgpt/ask');
+        const send = getRegistry().get('chatgpt/send');
+        const page = {
+            goto: () => {
+                throw new Error('should not navigate');
+            },
+        };
+
+        await expect(ask.func(page, { prompt: 'hello', conversation: 'https://evil.test/c/abc_123-def' }))
+            .rejects.toMatchObject({ code: 'ARGUMENT' });
+        await expect(send.func(page, { prompt: 'hello', conversation: 'https://evil.test/c/abc_123-def' }))
+            .rejects.toMatchObject({ code: 'ARGUMENT' });
+    });
 });
