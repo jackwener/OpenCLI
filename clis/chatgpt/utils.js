@@ -186,7 +186,7 @@ export function parseChatGPTConversationId(value) {
             'Example: opencli chatgpt detail https://chatgpt.com/c/123e4567-e89b-12d3-a456-426614174000',
         );
     }
-    const pathMatch = raw.match(/^\/c\/([A-Za-z0-9_-]{8,})(?:[/?#]|$)/);
+    const pathMatch = raw.match(/^\/c\/([A-Za-z0-9_-]{8,})(?:[?#].*)?$/);
     if (pathMatch) return pathMatch[1];
     if (/^[A-Za-z0-9_-]{8,}$/.test(raw)) return raw;
     throw new ArgumentError(

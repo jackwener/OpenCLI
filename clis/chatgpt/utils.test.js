@@ -106,6 +106,7 @@ describe('chatgpt conversation id parsing', () => {
         expect(() => __test__.parseChatGPTConversationId('https://evil.test/c/abc_123-def')).toThrow(/chatgpt\.com/);
         expect(() => __test__.parseChatGPTConversationId('http://chatgpt.com/c/abc_123-def')).toThrow(/chatgpt\.com/);
         expect(() => __test__.parseChatGPTConversationId('https://chatgpt.com.evil.test/c/abc_123-def')).toThrow(/chatgpt\.com/);
+        expect(() => __test__.parseChatGPTConversationId('/c/abc_123-def/extra')).toThrow(/conversation id/);
         expect(() => __test__.parseChatGPTConversationId('prefix https://chatgpt.com/c/abc_123-def')).toThrow(/conversation id/);
     });
 });
