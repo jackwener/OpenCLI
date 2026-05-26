@@ -4,11 +4,14 @@ import { fetchWebApi, WEREAD_UA, WEREAD_WEB_ORIGIN } from './utils.js';
 function decodeHtmlText(value) {
     return value
         .replace(/<[^>]+>/g, '')
-        .replace(/&#x([0-9a-fA-F]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
-        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+        .replace(/&#x([0-9a-fA-F]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+        .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
         .trim();
 }
 function normalizeSearchTitle(value) {
