@@ -8316,7 +8316,8 @@
       "index",
       "title",
       "status",
-      "size"
+      "size",
+      "path"
     ],
     "type": "js",
     "modulePath": "douban/download.js",

@@ -103,6 +103,7 @@ describe('douban download', () => {
                 detail_url: 'https://movie.douban.com/photos/photo/2913450214/',
                 status: 'success',
                 size: '1200 B',
+                path: path.resolve('/tmp/douban-test/30382501/30382501_001_2913450214_Main_poster.webp'),
             },
             {
                 index: 2,
@@ -112,6 +113,7 @@ describe('douban download', () => {
                 detail_url: 'https://movie.douban.com/photos/photo/2913450215/',
                 status: 'success',
                 size: '980 B',
+                path: path.resolve('/tmp/douban-test/30382501/30382501_002_2913450215_Character_poster.jpg'),
             },
         ]);
     });
@@ -160,6 +162,7 @@ describe('douban download', () => {
                 detail_url: 'https://movie.douban.com/photos/photo/2913450215/',
                 status: 'success',
                 size: '980 B',
+                path: path.resolve('/tmp/douban-test/30382501/30382501_002_2913450215_Character_poster.jpg'),
             },
         ]);
     });

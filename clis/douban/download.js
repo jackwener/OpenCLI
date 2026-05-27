@@ -24,7 +24,7 @@ cli({
         { name: 'photo-id', help: '只下载指定 photo_id 的图片' },
         { name: 'output', default: './douban-downloads', help: '输出目录' },
     ],
-    columns: ['index', 'title', 'status', 'size'],
+    columns: ['index', 'title', 'status', 'size', 'path'],
     func: async (page, kwargs) => {
         const subjectId = normalizeDoubanSubjectId(String(kwargs.id || ''));
         const output = String(kwargs.output || './douban-downloads');
@@ -61,6 +61,7 @@ cli({
                 detail_url: photo.detailUrl,
                 status: result.success ? 'success' : 'failed',
                 size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
+                path: path.resolve(destPath),
             });
         }
         return results;
