@@ -2006,7 +2006,7 @@ describe('background tab isolation', () => {
   });
 });
 
-describe('handleExec noDebugger path', () => {
+describe('handleExecViaScripting path', () => {
   // Keep WebSocket stubbed for the entire describe block so that any pending
   // connectAttempt() Promises left over from the previous describe block can
   // resolve safely (without "WebSocket is not defined") during our tests.
@@ -2031,7 +2031,7 @@ describe('handleExec noDebugger path', () => {
     vi.useRealTimers();
   });
 
-  it('calls evaluateViaScripting instead of evaluateAsync when noDebugger is true', async () => {
+  it('calls evaluateViaScripting and NOT evaluateAsync for exec-via-scripting action', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -2050,13 +2050,12 @@ describe('handleExec noDebugger path', () => {
     const mod = await import('./background');
     mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
 
-    const result = await mod.__test__.handleExec({
+    const result = await mod.__test__.handleExecViaScripting({
       id: 'scripting-exec',
-      action: 'exec',
+      action: 'exec-via-scripting',
       session: 'default',
       surface: 'browser',
       code: 'document.title',
-      noDebugger: true,
     }, browserKey('default'));
 
     expect(result.ok).toBe(true);
@@ -2065,40 +2064,7 @@ describe('handleExec noDebugger path', () => {
     expect(evaluateAsync).not.toHaveBeenCalled();
   });
 
-  it('returns an error when noDebugger is combined with frameIndex', async () => {
-    const { chrome } = createChromeMock();
-    vi.stubGlobal('chrome', chrome);
-
-    const evaluateViaScripting = vi.fn();
-    vi.doMock('./cdp', () => ({
-      registerListeners: vi.fn(),
-      registerFrameTracking: vi.fn(),
-      hasActiveNetworkCapture: vi.fn(() => false),
-      detach: vi.fn(async () => {}),
-      evaluateAsync: vi.fn(),
-      evaluateViaScripting,
-      screenshot: vi.fn(),
-    }));
-
-    const mod = await import('./background');
-    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
-
-    const result = await mod.__test__.handleExec({
-      id: 'scripting-frame',
-      action: 'exec',
-      session: 'default',
-      surface: 'browser',
-      code: 'document.title',
-      noDebugger: true,
-      frameIndex: 0,
-    }, browserKey('default'));
-
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/--no-debugger.*--frame|--frame.*--no-debugger/i);
-    expect(evaluateViaScripting).not.toHaveBeenCalled();
-  });
-
-  it('still uses evaluateAsync (CDP) when noDebugger is absent', async () => {
+  it('exec action still uses evaluateAsync (CDP) and does NOT call evaluateViaScripting', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -2141,23 +2107,57 @@ describe('handleExec noDebugger path', () => {
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
       evaluateAsync: vi.fn(),
-      evaluateViaScripting: vi.fn(async () => { throw new Error('--no-debugger eval failed: Cannot access chrome:// URL'); }),
+      evaluateViaScripting: vi.fn(async () => { throw new Error('--via-extension eval failed: Cannot access chrome:// URL'); }),
       screenshot: vi.fn(),
     }));
 
     const mod = await import('./background');
     mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
 
-    const result = await mod.__test__.handleExec({
+    const result = await mod.__test__.handleExecViaScripting({
       id: 'scripting-error',
-      action: 'exec',
+      action: 'exec-via-scripting',
       session: 'default',
       surface: 'browser',
       code: 'document.title',
-      noDebugger: true,
     }, browserKey('default'));
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain('--no-debugger eval failed');
+    expect(result.error).toContain('--via-extension eval failed');
+  });
+
+  it('handleCommand returns ok:false for unrecognized actions (old extension fails loudly, no silent CDP fallback)', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'cdp-result');
+    const evaluateViaScripting = vi.fn(async () => 'scripting-result');
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateViaScripting,
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+
+    // An old extension that doesn't know exec-via-scripting would hit the default
+    // switch branch and return Unknown action — not silently fall through to CDP.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await mod.__test__.handleCommand({
+      id: 'unrecognized',
+      action: 'exec-unrecognized-future-action' as Parameters<typeof mod.__test__.handleCommand>[0]['action'],
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/Unknown action/i);
+    expect(evaluateAsync).not.toHaveBeenCalled();
+    expect(evaluateViaScripting).not.toHaveBeenCalled();
   });
 });

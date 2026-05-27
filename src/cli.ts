@@ -2205,7 +2205,7 @@ Examples:
     browser.command('eval')
       .argument('<js>', 'JavaScript code')
       .option('--frame <index>', 'Cross-origin iframe index from "browser frames"')
-      .option('--via-extension', 'Run via chrome.scripting instead of CDP — bypasses debugger-detection on sites like zhipin.com; return value must be JSON-serializable, --frame is unsupported')
+      .option('--via-extension', 'Run via chrome.scripting (MAIN world) instead of CDP — bypasses debugger-detection on sites like zhipin.com; return value must be JSON-serializable, --frame is unsupported, and pages with strict CSP (no unsafe-eval) will reject the eval')
       .description('Execute JS in page context, return result'),
   )
     .action(browserAction(async (page, js, opts) => {

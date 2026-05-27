@@ -7,6 +7,7 @@
 
 export type Action =
   | 'exec'
+  | 'exec-via-scripting'
   | 'navigate'
   | 'tabs'
   | 'cookies'
@@ -77,8 +78,6 @@ export interface Command {
   frameIndex?: number;
   /** Browser profile/context selected by the CLI. Used by the daemon for routing. */
   contextId?: string;
-  /** Route eval through chrome.scripting.executeScript instead of chrome.debugger (MAIN world, no attach fingerprint). Set by --via-extension CLI flag. */
-  noDebugger?: boolean;
 }
 
 export interface Result {

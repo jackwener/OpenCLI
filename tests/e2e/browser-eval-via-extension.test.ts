@@ -2,8 +2,8 @@
  * E2E tests for `browser eval --via-extension` flag.
  *
  * Uses a fake daemon to verify:
- *  - The CLI passes noDebugger:true in the exec command when --via-extension is given
- *  - The CLI does NOT pass noDebugger when --via-extension is absent
+ *  - The CLI sends action 'exec-via-scripting' (not 'exec') when --via-extension is given
+ *  - The CLI sends plain 'exec' when --via-extension is absent (no silent fallback)
  *  - --via-extension combined with --frame exits with a usage error
  *  - Results from the daemon are printed correctly
  */
@@ -39,20 +39,20 @@ function json(res: ServerResponse, status: number, payload: unknown): void {
   res.end(JSON.stringify(payload));
 }
 
-type RecordedExec = {
+type RecordedCommand = {
+  action: string;
   code: string;
-  noDebugger?: boolean;
   frameIndex?: number;
 };
 
 type FakeDaemon = {
   port: number;
   close: () => Promise<void>;
-  lastExec: () => RecordedExec | null;
+  lastCommand: () => RecordedCommand | null;
 };
 
 async function startFakeDaemon(evalResult: unknown = 'fake-result'): Promise<FakeDaemon> {
-  let lastExec: RecordedExec | null = null;
+  let lastCommand: RecordedCommand | null = null;
 
   const server = createServer(async (req, res) => {
     const pathname = req.url?.split('?')[0] ?? '/';
@@ -87,7 +87,6 @@ async function startFakeDaemon(evalResult: unknown = 'fake-result'): Promise<Fak
       id: string;
       action: string;
       code?: string;
-      noDebugger?: boolean;
       frameIndex?: number;
       session?: string;
       surface?: string;
@@ -98,10 +97,10 @@ async function startFakeDaemon(evalResult: unknown = 'fake-result'): Promise<Fak
       return;
     }
 
-    if (body.action === 'exec') {
-      lastExec = {
+    if (body.action === 'exec' || body.action === 'exec-via-scripting') {
+      lastCommand = {
+        action: body.action,
         code: body.code ?? '',
-        noDebugger: body.noDebugger,
         frameIndex: body.frameIndex,
       };
       json(res, 200, { id: body.id, ok: true, page: 'page-1', data: evalResult });
@@ -119,7 +118,7 @@ async function startFakeDaemon(evalResult: unknown = 'fake-result'): Promise<Fak
   return {
     port: addr.port,
     close: () => new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve())),
-    lastExec: () => lastExec,
+    lastCommand: () => lastCommand,
   };
 }
 
@@ -130,7 +129,7 @@ describe('browser eval --via-extension e2e', () => {
     while (daemons.length > 0) await daemons.pop()!.close();
   });
 
-  it('sends noDebugger:true to the daemon when --via-extension is passed', async () => {
+  it('sends exec-via-scripting action to the daemon when --via-extension is passed', async () => {
     const daemon = await startFakeDaemon('page-title');
     daemons.push(daemon);
     const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
@@ -139,11 +138,11 @@ describe('browser eval --via-extension e2e', () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout.trim()).toBe('page-title');
-    expect(daemon.lastExec()?.noDebugger).toBe(true);
-    expect(daemon.lastExec()?.code).toContain('document.title');
+    expect(daemon.lastCommand()?.action).toBe('exec-via-scripting');
+    expect(daemon.lastCommand()?.code).toContain('document.title');
   });
 
-  it('does NOT send noDebugger when --via-extension is absent', async () => {
+  it('sends plain exec action (not exec-via-scripting) when --via-extension is absent', async () => {
     const daemon = await startFakeDaemon('plain-result');
     daemons.push(daemon);
     const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
@@ -151,7 +150,7 @@ describe('browser eval --via-extension e2e', () => {
     const result = await runCli(['browser', 'work', 'eval', 'document.title'], { env });
 
     expect(result.code).toBe(0);
-    expect(daemon.lastExec()?.noDebugger).toBeFalsy();
+    expect(daemon.lastCommand()?.action).toBe('exec');
   });
 
   it('prints JSON for non-string results', async () => {
@@ -163,7 +162,7 @@ describe('browser eval --via-extension e2e', () => {
 
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({ count: 5 });
-    expect(daemon.lastExec()?.noDebugger).toBe(true);
+    expect(daemon.lastCommand()?.action).toBe('exec-via-scripting');
   });
 
   it('exits with non-zero code when --via-extension and --frame are combined', async () => {
@@ -175,7 +174,7 @@ describe('browser eval --via-extension e2e', () => {
 
     expect(result.code).not.toBe(0);
     expect(result.stderr + result.stdout).toMatch(/--via-extension.*--frame|--frame.*--via-extension/i);
-    expect(daemon.lastExec()).toBeNull();
+    expect(daemon.lastCommand()).toBeNull();
   });
 
   it('forwards the expression unchanged to the daemon', async () => {
@@ -186,6 +185,6 @@ describe('browser eval --via-extension e2e', () => {
 
     await runCli(['browser', 'work', 'eval', expr, '--via-extension'], { env });
 
-    expect(daemon.lastExec()?.code).toContain(expr);
+    expect(daemon.lastCommand()?.code).toContain(expr);
   });
 });

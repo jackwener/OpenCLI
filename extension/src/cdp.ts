@@ -227,19 +227,23 @@ export async function evaluateViaScripting(tabId: number, expression: string): P
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`--no-debugger eval failed: ${msg}`);
+    throw new Error(`--via-extension eval failed: ${msg}`);
   }
 
   if (!results || results.length === 0) {
-    throw new Error('--no-debugger eval failed: executeScript returned no results');
+    throw new Error('--via-extension eval failed: executeScript returned no results');
   }
 
   const payload = results[0].result as { ok: boolean; value?: unknown; error?: string } | undefined;
   if (!payload) {
-    throw new Error('--no-debugger eval failed: script returned undefined (return value may not be structured-cloneable)');
+    throw new Error('--via-extension eval failed: script returned undefined (return value may not be structured-cloneable)');
   }
   if (!payload.ok) {
-    throw new Error(payload.error ?? 'Script evaluation failed');
+    const msg = payload.error ?? 'Script evaluation failed';
+    const isCsp = /unsafe-eval|content security policy|EvalError/i.test(msg);
+    throw new Error(isCsp
+      ? `${msg}\n(--via-extension eval runs in the page's MAIN world and is subject to its CSP; sites that block unsafe-eval will reject this. Use plain \`browser eval\` (CDP path) on such pages.)`
+      : msg);
   }
   return payload.value;
 }

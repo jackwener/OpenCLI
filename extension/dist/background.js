@@ -137,17 +137,20 @@ async function evaluateViaScripting(tabId, expression) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`--no-debugger eval failed: ${msg}`);
+    throw new Error(`--via-extension eval failed: ${msg}`);
   }
   if (!results || results.length === 0) {
-    throw new Error("--no-debugger eval failed: executeScript returned no results");
+    throw new Error("--via-extension eval failed: executeScript returned no results");
   }
   const payload = results[0].result;
   if (!payload) {
-    throw new Error("--no-debugger eval failed: script returned undefined (return value may not be structured-cloneable)");
+    throw new Error("--via-extension eval failed: script returned undefined (return value may not be structured-cloneable)");
   }
   if (!payload.ok) {
-    throw new Error(payload.error ?? "Script evaluation failed");
+    const msg = payload.error ?? "Script evaluation failed";
+    const isCsp = /unsafe-eval|content security policy|EvalError/i.test(msg);
+    throw new Error(isCsp ? `${msg}
+(--via-extension eval runs in the page's MAIN world and is subject to its CSP; sites that block unsafe-eval will reject this. Use plain \`browser eval\` (CDP path) on such pages.)` : msg);
   }
   return payload.value;
 }
@@ -732,6 +735,7 @@ console.error = (...args) => {
   forwardLog("error", args);
 };
 function isDaemonSocketActive(socket = ws) {
+  if (typeof WebSocket === "undefined") return false;
   return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
 }
 function connect() {
@@ -1415,6 +1419,8 @@ async function handleCommand(cmd) {
     switch (cmd.action) {
       case "exec":
         return await handleExec(cmd, leaseKey);
+      case "exec-via-scripting":
+        return await handleExecViaScripting(cmd, leaseKey);
       case "navigate":
         return await handleNavigate(cmd, leaseKey);
       case "tabs":
@@ -1645,18 +1651,22 @@ async function listAutomationWebTabs(leaseKey) {
   const tabs = await listAutomationTabs(leaseKey);
   return tabs.filter((tab) => isDebuggableUrl(tab.url));
 }
+async function handleExecViaScripting(cmd, leaseKey) {
+  if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  try {
+    const data = await evaluateViaScripting(tabId, cmd.code);
+    return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
 async function handleExec(cmd, leaseKey) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
   const cmdTabId = await resolveCommandTabId(cmd);
   const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
-    if (cmd.noDebugger) {
-      if (cmd.frameIndex != null) {
-        return { id: cmd.id, ok: false, error: "--no-debugger does not support --frame; omit --frame or remove --no-debugger" };
-      }
-      const data2 = await evaluateViaScripting(tabId, cmd.code);
-      return pageScopedResult(cmd.id, tabId, data2);
-    }
     const aggressive = getSurfaceFromKey(leaseKey) === "browser";
     if (cmd.frameIndex != null) {
       const tree = await getFrameTree(tabId);

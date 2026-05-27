@@ -461,13 +461,13 @@ describe('evaluateViaScripting', () => {
     await expect(mod.evaluateViaScripting(1, 'document.title')).rejects.toThrow('executeScript returned no results');
   });
 
-  it('wraps executeScript errors with a --no-debugger prefix', async () => {
+  it('wraps executeScript errors with a --via-extension prefix', async () => {
     const { chrome } = createChromeMock();
     (chrome.scripting as any).executeScript = vi.fn(async () => { throw new Error('Cannot access a chrome:// URL'); });
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./cdp');
-    await expect(mod.evaluateViaScripting(1, 'document.title')).rejects.toThrow('--no-debugger eval failed: Cannot access a chrome:// URL');
+    await expect(mod.evaluateViaScripting(1, 'document.title')).rejects.toThrow('--via-extension eval failed: Cannot access a chrome:// URL');
   });
 
   it('throws when result payload is undefined (non-cloneable return)', async () => {
@@ -476,6 +476,15 @@ describe('evaluateViaScripting', () => {
 
     const mod = await import('./cdp');
     await expect(mod.evaluateViaScripting(1, 'document.body')).rejects.toThrow('script returned undefined');
+  });
+
+  it('appends CSP hint when error mentions unsafe-eval', async () => {
+    const cspMsg = "EvalError: Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an allowed source of script in the following Content Security Policy directive: \"script-src 'self'\"";
+    const { chrome } = makeScriptingMock({ ok: false, error: cspMsg });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await expect(mod.evaluateViaScripting(1, 'eval("1")')).rejects.toThrow(/--via-extension eval runs in the page.*MAIN world.*CSP/i);
   });
 
   it('does not call chrome.debugger.attach', async () => {

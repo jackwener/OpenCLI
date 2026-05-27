@@ -335,7 +335,7 @@ export class Page extends BasePage {
 
   async evaluateNoDebugger(js: string): Promise<unknown> {
     const code = buildEvaluateExpression(js);
-    return sendCommand('exec', { code, noDebugger: true, ...this._cmdOpts() });
+    return sendCommand('exec-via-scripting', { code, ...this._cmdOpts() });
   }
 
   async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {

@@ -21,7 +21,7 @@ function generateId(): string {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
+  action: 'exec' | 'exec-via-scripting' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
@@ -61,8 +61,6 @@ export interface DaemonCommand {
   frameIndex?: number;
   /** Browser profile/context to route the command to. */
   contextId?: string;
-  /** Route eval through chrome.scripting.executeScript instead of chrome.debugger */
-  noDebugger?: boolean;
 }
 
 export interface DaemonResult {
