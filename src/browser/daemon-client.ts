@@ -61,6 +61,8 @@ export interface DaemonCommand {
   frameIndex?: number;
   /** Browser profile/context to route the command to. */
   contextId?: string;
+  /** Route eval through chrome.scripting.executeScript instead of chrome.debugger */
+  noDebugger?: boolean;
 }
 
 export interface DaemonResult {

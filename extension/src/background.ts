@@ -1279,6 +1279,13 @@ async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
   const cmdTabId = await resolveCommandTabId(cmd);
   const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
+    if (cmd.noDebugger) {
+      if (cmd.frameIndex != null) {
+        return { id: cmd.id, ok: false, error: '--no-debugger does not support --frame; omit --frame or remove --no-debugger' };
+      }
+      const data = await executor.evaluateViaScripting(tabId, cmd.code);
+      return pageScopedResult(cmd.id, tabId, data);
+    }
     const aggressive = getSurfaceFromKey(leaseKey) === 'browser';
     if (cmd.frameIndex != null) {
       const tree = await executor.getFrameTree(tabId);

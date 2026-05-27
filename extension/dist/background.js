@@ -119,6 +119,38 @@ async function evaluate(tabId, expression, aggressiveRetry = false) {
   throw new Error("evaluate: max retries exhausted");
 }
 const evaluateAsync = evaluate;
+async function evaluateViaScripting(tabId, expression) {
+  let results;
+  try {
+    results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: async (code) => {
+        try {
+          const value = await (0, eval)(code);
+          return { ok: true, value };
+        } catch (e) {
+          return { ok: false, error: e instanceof Error ? e.message : String(e) };
+        }
+      },
+      args: [expression]
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`--no-debugger eval failed: ${msg}`);
+  }
+  if (!results || results.length === 0) {
+    throw new Error("--no-debugger eval failed: executeScript returned no results");
+  }
+  const payload = results[0].result;
+  if (!payload) {
+    throw new Error("--no-debugger eval failed: script returned undefined (return value may not be structured-cloneable)");
+  }
+  if (!payload.ok) {
+    throw new Error(payload.error ?? "Script evaluation failed");
+  }
+  return payload.value;
+}
 async function screenshot(tabId, options = {}) {
   await ensureAttached(tabId);
   const format = options.format ?? "png";
@@ -1618,6 +1650,13 @@ async function handleExec(cmd, leaseKey) {
   const cmdTabId = await resolveCommandTabId(cmd);
   const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
+    if (cmd.noDebugger) {
+      if (cmd.frameIndex != null) {
+        return { id: cmd.id, ok: false, error: "--no-debugger does not support --frame; omit --frame or remove --no-debugger" };
+      }
+      const data2 = await evaluateViaScripting(tabId, cmd.code);
+      return pageScopedResult(cmd.id, tabId, data2);
+    }
     const aggressive = getSurfaceFromKey(leaseKey) === "browser";
     if (cmd.frameIndex != null) {
       const tree = await getFrameTree(tabId);

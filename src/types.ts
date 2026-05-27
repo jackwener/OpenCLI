@@ -146,6 +146,8 @@ export interface IPage {
   frames?(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>>;
   /** Evaluate JavaScript inside a cross-origin iframe identified by its frame index. */
   evaluateInFrame?(js: string, frameIndex: number): Promise<unknown>;
+  /** Evaluate JavaScript via chrome.scripting instead of CDP — bypasses debugger detection. */
+  evaluateNoDebugger?(js: string): Promise<unknown>;
   /** Click at native coordinates via CDP Input.dispatchMouseEvent. */
   nativeClick?(x: number, y: number): Promise<void>;
   /** Type text via CDP Input.insertText. */
