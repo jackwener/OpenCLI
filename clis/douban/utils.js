@@ -210,6 +210,32 @@ export function normalizeDoubanBookSubject(raw) {
         url: firstNonEmpty([raw?.url]),
     };
 }
+export function normalizeDoubanMusicSubject(raw) {
+    const info = parseDoubanBookInfoText(raw?.infoText);
+    return {
+        id: normalizeDoubanSubjectId(raw?.id),
+        type: 'music',
+        title: firstNonEmpty([raw?.title]),
+        subtitle: firstNonEmpty([raw?.subtitle, info['又名']]),
+        artists: splitDoubanPeople(firstNonEmpty([info['表演者'], info['作者']])),
+        genres: firstNonEmpty([info['流派']]),
+        albumType: firstNonEmpty([info['专辑类型']]),
+        media: firstNonEmpty([info['介质']]),
+        publishDate: firstNonEmpty([info['发行时间'], info['出版年']]),
+        publishYear: extractDoubanPublishYear(firstNonEmpty([info['发行时间'], info['出版年']])),
+        publisher: firstNonEmpty([info['出版者'], info['出版社']]),
+        discCount: parseDoubanPageCount(info['唱片数']),
+        barcode: firstNonEmpty([info['条形码'], info['ISBN']]),
+        rating: parseDoubanRating(raw?.rating),
+        ratingCount: parseDoubanCount(raw?.ratingCount),
+        summary: normalizeText(raw?.summary).replace(/\s*投诉$/, ''),
+        tracks: Array.isArray(raw?.tracks)
+            ? raw.tracks.map((track) => normalizeText(track)).filter(Boolean)
+            : [],
+        cover: firstNonEmpty([raw?.cover]),
+        url: firstNonEmpty([raw?.url]),
+    };
+}
 async function loadDoubanMovieSubject(page, subjectId) {
     const normalizedId = normalizeDoubanSubjectId(subjectId);
     const data = await withDetachedRetry(async () => {
@@ -300,10 +326,56 @@ async function loadDoubanBookSubject(page, subjectId) {
     });
     return normalizeDoubanBookSubject(data);
 }
+async function loadDoubanMusicSubject(page, subjectId) {
+    const normalizedId = normalizeDoubanSubjectId(subjectId);
+    const data = await withDetachedRetry(async () => {
+        await page.goto(`https://music.douban.com/subject/${normalizedId}/`, { waitUntil: 'load', settleMs: 1500 });
+        await ensureDoubanReady(page);
+        await page.wait({ selector: 'h1, #info', timeout: 8 }).catch(() => { });
+        return page.evaluate(`
+    (() => {
+      const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+      const sectionText = (headingPattern) => {
+        const headings = Array.from(document.querySelectorAll('h2'));
+        const heading = headings.find((node) => headingPattern.test(normalize(node.textContent)));
+        let next = heading?.nextElementSibling || null;
+        while (next) {
+          if (next.matches?.('.indent, .track-items, #link-report')) {
+            const text = normalize(next.innerText || next.textContent || '');
+            if (text) return text;
+          }
+          next = next.nextElementSibling;
+        }
+        return '';
+      };
+      const tracks = Array.from(document.querySelectorAll('.track-items li'))
+        .map((node) => normalize(node.textContent))
+        .filter(Boolean);
+      return {
+        id: ${JSON.stringify(normalizedId)},
+        title: normalize(document.querySelector('h1 span')?.textContent || document.querySelector('h1')?.textContent || ''),
+        subtitle: '',
+        infoText: document.querySelector('#info')?.innerText || document.querySelector('#info')?.textContent || '',
+        rating: normalize(document.querySelector('strong.rating_num, strong[property="v:average"]')?.textContent || ''),
+        ratingCount: normalize(document.querySelector('a.rating_people > span, span[property="v:votes"]')?.textContent || ''),
+        summary: sectionText(/简介/),
+        tracks,
+        cover: document.querySelector('#mainpic img')?.getAttribute('src') || '',
+        url: location.href,
+      };
+    })()
+  `);
+    });
+    return normalizeDoubanMusicSubject(data);
+}
 export async function loadDoubanSubjectDetail(page, subjectId, subjectType = 'movie') {
-    const type = String(subjectType || 'movie').trim() === 'book' ? 'book' : 'movie';
+    const rawType = String(subjectType || 'movie').trim();
+    const type = rawType === 'book' || rawType === 'music' ? rawType : 'movie';
     if (type === 'book') {
         return loadDoubanBookSubject(page, subjectId);
+    }
+    if (type === 'music') {
+        return loadDoubanMusicSubject(page, subjectId);
     }
     return loadDoubanMovieSubject(page, subjectId);
 }

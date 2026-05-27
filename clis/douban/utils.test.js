@@ -7,6 +7,7 @@ import {
     loadDoubanSubjectDetail,
     loadDoubanSubjectPhotos,
     normalizeDoubanBookSubject,
+    normalizeDoubanMusicSubject,
     normalizeDoubanSubjectId,
     promoteDoubanPhotoUrl,
     resolveDoubanPhotoAssetUrl,
@@ -276,6 +277,51 @@ ISBN: 9787544270871
         });
     });
 
+    it('normalizes douban music subject raw data into structured fields', () => {
+        const normalized = normalizeDoubanMusicSubject({
+            id: '26812952',
+            title: '周杰伦的床边故事',
+            infoText: `
+又名: Jay Chou's Bedtime Stories
+表演者: 周杰伦
+流派: 流行
+专辑类型: 专辑
+介质: CD
+发行时间: 2016-06-24
+出版者: 杰威尔音乐
+唱片数: 1
+条形码: 9787799452302
+      `,
+            rating: '8.1',
+            ratingCount: '30853',
+            summary: '周杰伦2016年最新专辑 投诉',
+            tracks: ['床边故事', '告白气球'],
+            cover: 'https://img9.doubanio.com/view/subject/m/public/s28836865.jpg',
+            url: 'https://music.douban.com/subject/26812952/',
+        });
+        expect(normalized).toMatchObject({
+            id: '26812952',
+            type: 'music',
+            title: '周杰伦的床边故事',
+            subtitle: "Jay Chou's Bedtime Stories",
+            artists: ['周杰伦'],
+            genres: '流行',
+            albumType: '专辑',
+            media: 'CD',
+            publishDate: '2016-06-24',
+            publishYear: '2016',
+            publisher: '杰威尔音乐',
+            discCount: 1,
+            barcode: '9787799452302',
+            rating: 8.1,
+            ratingCount: 30853,
+            summary: '周杰伦2016年最新专辑',
+            tracks: ['床边故事', '告白气球'],
+            cover: 'https://img9.doubanio.com/view/subject/m/public/s28836865.jpg',
+            url: 'https://music.douban.com/subject/26812952/',
+        });
+    });
+
     it('parses movie-hot rows with real chart fields only', async () => {
         const items = [
             createFakeMovieHotItem({
@@ -361,6 +407,60 @@ ISBN: 9787544270871
             rating: 8.9,
             ratingCount: 12345,
             url: 'https://book.douban.com/subject/2567698/',
+        });
+    });
+
+    it('loads music subject details from music.douban.com when type=music', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '周杰伦的床边故事 (豆瓣)', href: 'https://music.douban.com/subject/26812952/' })
+                .mockResolvedValueOnce({
+                id: '26812952',
+                title: '周杰伦的床边故事',
+                subtitle: '',
+                infoText: `
+表演者: 周杰伦
+流派: 流行
+专辑类型: 专辑
+介质: CD
+发行时间: 2016-06-24
+出版者: 杰威尔音乐
+唱片数: 1
+条形码: 9787799452302
+        `,
+                rating: '8.1',
+                ratingCount: '30853',
+                summary: '周杰伦2016年最新专辑',
+                tracks: ['床边故事', '告白气球'],
+                cover: 'https://img9.doubanio.com/view/subject/m/public/s28836865.jpg',
+                url: 'https://music.douban.com/subject/26812952/',
+            }),
+        };
+        const detail = await loadDoubanSubjectDetail(page, '26812952', 'music');
+        expect(page.goto).toHaveBeenCalledWith('https://music.douban.com/subject/26812952/', {
+            waitUntil: 'load',
+            settleMs: 1500,
+        });
+        expect(page.wait).toHaveBeenCalledWith({ selector: 'h1, #info', timeout: 8 });
+        expect(detail).toMatchObject({
+            id: '26812952',
+            type: 'music',
+            title: '周杰伦的床边故事',
+            artists: ['周杰伦'],
+            genres: '流行',
+            albumType: '专辑',
+            media: 'CD',
+            publishDate: '2016-06-24',
+            publishYear: '2016',
+            publisher: '杰威尔音乐',
+            discCount: 1,
+            barcode: '9787799452302',
+            rating: 8.1,
+            ratingCount: 30853,
+            tracks: ['床边故事', '告白气球'],
+            url: 'https://music.douban.com/subject/26812952/',
         });
     });
 
