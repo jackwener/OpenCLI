@@ -393,3 +393,98 @@ describe('cdp download waits', () => {
     });
   });
 });
+
+describe('evaluateViaScripting', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeScriptingMock(result: unknown) {
+    const { chrome } = createChromeMock();
+    const scripting = {
+      executeScript: vi.fn(async () => [{ result }]),
+    };
+    return { chrome: { ...chrome, scripting }, scripting };
+  }
+
+  it('returns the value from executeScript result payload', async () => {
+    const { chrome } = makeScriptingMock({ ok: true, value: 'hello' });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const result = await mod.evaluateViaScripting(1, 'document.title');
+
+    expect(result).toBe('hello');
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith(
+      expect.objectContaining({ target: { tabId: 1 }, world: 'MAIN' }),
+    );
+  });
+
+  it('returns undefined when the expression evaluates to undefined', async () => {
+    const { chrome } = makeScriptingMock({ ok: true, value: undefined });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const result = await mod.evaluateViaScripting(1, 'void 0');
+
+    expect(result).toBeUndefined();
+  });
+
+  it('returns structured values (objects, arrays)', async () => {
+    const { chrome } = makeScriptingMock({ ok: true, value: { count: 3, items: ['a', 'b', 'c'] } });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const result = await mod.evaluateViaScripting(1, 'someExpression');
+
+    expect(result).toEqual({ count: 3, items: ['a', 'b', 'c'] });
+  });
+
+  it('throws when the script itself throws (ok: false payload)', async () => {
+    const { chrome } = makeScriptingMock({ ok: false, error: 'ReferenceError: foo is not defined' });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await expect(mod.evaluateViaScripting(1, 'foo')).rejects.toThrow('ReferenceError: foo is not defined');
+  });
+
+  it('throws when executeScript returns an empty results array', async () => {
+    const { chrome } = createChromeMock();
+    (chrome.scripting as any).executeScript = vi.fn(async () => []);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await expect(mod.evaluateViaScripting(1, 'document.title')).rejects.toThrow('executeScript returned no results');
+  });
+
+  it('wraps executeScript errors with a --no-debugger prefix', async () => {
+    const { chrome } = createChromeMock();
+    (chrome.scripting as any).executeScript = vi.fn(async () => { throw new Error('Cannot access a chrome:// URL'); });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await expect(mod.evaluateViaScripting(1, 'document.title')).rejects.toThrow('--no-debugger eval failed: Cannot access a chrome:// URL');
+  });
+
+  it('throws when result payload is undefined (non-cloneable return)', async () => {
+    const { chrome } = makeScriptingMock(undefined);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await expect(mod.evaluateViaScripting(1, 'document.body')).rejects.toThrow('script returned undefined');
+  });
+
+  it('does not call chrome.debugger.attach', async () => {
+    const { chrome } = makeScriptingMock({ ok: true, value: 42 });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await mod.evaluateViaScripting(1, '42');
+
+    expect(chrome.debugger.attach).not.toHaveBeenCalled();
+  });
+});

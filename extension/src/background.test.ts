@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Listener<T extends (...args: any[]) => void> = {
   addListener: any;
@@ -215,6 +215,11 @@ function createChromeMock() {
     setLastFocusedWindowId: (windowId: number) => { lastFocusedWindowId = windowId; },
   };
 }
+
+// Keep WebSocket stubbed for the entire file so that any pending connectAttempt()
+// Promises can resolve safely between describe blocks.
+beforeAll(() => { vi.stubGlobal('WebSocket', MockWebSocket); });
+afterAll(() => { vi.unstubAllGlobals(); });
 
 describe('background tab isolation', () => {
   beforeEach(() => {
@@ -1998,5 +2003,161 @@ describe('background tab isolation', () => {
     }));
     expect(chrome.tabs.update).toHaveBeenCalledWith(2, expect.objectContaining({ url: 'https://other.example' }));
     expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleExec noDebugger path', () => {
+  // Keep WebSocket stubbed for the entire describe block so that any pending
+  // connectAttempt() Promises left over from the previous describe block can
+  // resolve safely (without "WebSocket is not defined") during our tests.
+  beforeAll(() => {
+    MockWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', MockWebSocket);
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    MockWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', MockWebSocket);
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  it('calls evaluateViaScripting instead of evaluateAsync when noDebugger is true', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'cdp-result');
+    const evaluateViaScripting = vi.fn(async () => 'scripting-result');
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateViaScripting,
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleExec({
+      id: 'scripting-exec',
+      action: 'exec',
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+      noDebugger: true,
+    }, browserKey('default'));
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toBe('scripting-result');
+    expect(evaluateViaScripting).toHaveBeenCalledOnce();
+    expect(evaluateAsync).not.toHaveBeenCalled();
+  });
+
+  it('returns an error when noDebugger is combined with frameIndex', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateViaScripting = vi.fn();
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync: vi.fn(),
+      evaluateViaScripting,
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleExec({
+      id: 'scripting-frame',
+      action: 'exec',
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+      noDebugger: true,
+      frameIndex: 0,
+    }, browserKey('default'));
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/--no-debugger.*--frame|--frame.*--no-debugger/i);
+    expect(evaluateViaScripting).not.toHaveBeenCalled();
+  });
+
+  it('still uses evaluateAsync (CDP) when noDebugger is absent', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'cdp-result');
+    const evaluateViaScripting = vi.fn();
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateViaScripting,
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleExec({
+      id: 'cdp-exec',
+      action: 'exec',
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+    }, browserKey('default'));
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toBe('cdp-result');
+    expect(evaluateAsync).toHaveBeenCalledOnce();
+    expect(evaluateViaScripting).not.toHaveBeenCalled();
+  });
+
+  it('propagates evaluateViaScripting errors as ok:false', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync: vi.fn(),
+      evaluateViaScripting: vi.fn(async () => { throw new Error('--no-debugger eval failed: Cannot access chrome:// URL'); }),
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleExec({
+      id: 'scripting-error',
+      action: 'exec',
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+      noDebugger: true,
+    }, browserKey('default'));
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('--no-debugger eval failed');
   });
 });

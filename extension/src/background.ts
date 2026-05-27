@@ -94,6 +94,7 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
 // ─── WebSocket connection ────────────────────────────────────────────
 
 function isDaemonSocketActive(socket: WebSocket | null | undefined = ws): boolean {
+  if (typeof WebSocket === 'undefined') return false;
   return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
 }
 
