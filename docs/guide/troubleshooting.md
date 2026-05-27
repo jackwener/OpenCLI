@@ -6,6 +6,7 @@
 
 - Ensure the opencli Browser Bridge extension is installed and **enabled** in `chrome://extensions`.
 - Run `opencli doctor` to diagnose connectivity.
+- On a headless VPS, Chrome's MV3 service worker does not reliably wake under `--headless=new`, so the extension never registers and `opencli doctor` stays on `Extension: not connected`. The fix is to give Chrome a real virtual display via Xvfb instead of running it headless — see [Browser Bridge on a headless VPS (Xvfb)](/advanced/remote-chrome#browser-bridge-on-a-headless-vps-xvfb).
 
 ### Empty data or 'Unauthorized' error
 
