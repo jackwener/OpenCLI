@@ -215,7 +215,7 @@ function tweetToRow(result, seen) {
     const bio = tweetUser?.legacy?.description || '';
     return {
         id: tweet.rest_id,
-        author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',
+        author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || '',
         bio,
         text: tweet.note_tweet?.note_tweet_results?.result?.text || tweet.legacy?.full_text || '',
         created_at: tweet.legacy?.created_at || '',

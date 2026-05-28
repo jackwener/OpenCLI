@@ -53,6 +53,19 @@ describe('twitter following helpers', () => {
         expect(user?.screen_name).toBe('bob');
     });
 
+    it('surfaces empty screen_name and name when upstream omits both', () => {
+        const user = __test__.extractUser({
+            __typename: 'User',
+            legacy: { description: 'no names', followers_count: 7 },
+        });
+        expect(user).toMatchObject({
+            screen_name: '',
+            name: '',
+            bio: 'no names',
+            followers: 7,
+        });
+    });
+
     it('parses following timeline with users and cursor', () => {
         const payload = {
             data: {
