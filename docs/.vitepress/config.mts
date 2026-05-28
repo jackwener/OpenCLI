@@ -50,6 +50,7 @@ export default defineConfig({
               text: 'Browser Adapters',
               collapsed: false,
               items: [
+                { text: 'Anthropic', link: '/adapters/browser/anthropic' },
                 { text: 'Twitter / X', link: '/adapters/browser/twitter' },
                 { text: 'Reddit', link: '/adapters/browser/reddit' },
                 { text: 'Tieba', link: '/adapters/browser/tieba' },
