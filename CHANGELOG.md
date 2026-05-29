@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+* **xiaohongshu** — fix `publish --topics` leaving bare `#` characters with no linked topics. The adapter now types `#keyword` into the body editor to trigger the inline suggestion dropdown and selects the matching topic, matching the current creator-center UI.
+
 ### ⚠ BREAKING CHANGES
 
 * **linux-do** — remove deprecated compatibility shims `linux-do hot`, `linux-do category`, `linux-do latest`. Use `linux-do feed --view top --period <period>`, `linux-do feed --category <id-or-name>`, and `linux-do feed --view latest` instead.

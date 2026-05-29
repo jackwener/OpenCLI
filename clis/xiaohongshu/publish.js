@@ -37,6 +37,18 @@ const TITLE_SELECTORS = [
     '.note-title input',
     'input[maxlength]',
 ];
+/** Selectors for the note body / content editor, ordered by priority. */
+const BODY_SELECTORS = [
+    '[contenteditable="true"][class*="content"]',
+    '[contenteditable="true"][class*="editor"]',
+    '[contenteditable="true"][placeholder*="描述"]',
+    '[contenteditable="true"][placeholder*="正文"]',
+    '[contenteditable="true"][placeholder*="内容"]',
+    '.note-content [contenteditable="true"]',
+    '.editor-content [contenteditable="true"]',
+    // Broad fallback — last resort; filter out any title contenteditable
+    '[contenteditable="true"]:not([placeholder*="标题"]):not([placeholder*="赞"]):not([placeholder*="title" i])',
+];
 const SUPPORTED_EXTENSIONS = {
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
@@ -332,6 +344,158 @@ async function fillField(page, selectors, text, fieldName) {
         throw new Error(`Failed to set ${fieldName}. Expected "${text}", got "${actual}". Debug screenshot: /tmp/xhs_publish_${fieldName}_debug.png`);
     }
 }
+/**
+ * Add topic hashtags by driving the editor's native inline "#" flow.
+ *
+ * Modern XHS creator-center editors turn a "#keyword" typed into the note body
+ * into a linked topic entity only after the author picks an item from the
+ * suggestion dropdown that appears while typing. There is no standalone
+ * "添加话题" search input anymore, so we type directly into the body editor.
+ *
+ * For each topic we:
+ *   1. focus the body contenteditable and move the caret to the end,
+ *   2. type " #<topic>" using native CDP insertion (falls back to execCommand)
+ *      so XHS fires its inline suggestion dropdown,
+ *   3. wait for the dropdown, then click the suggestion whose text best matches
+ *      the topic (falling back to the first suggestion, then to Enter),
+ *   4. confirm a topic chip/link was produced before moving on.
+ *
+ * Failures are non-fatal: a topic that cannot be resolved is skipped so the
+ * note still publishes.
+ */
+async function focusBodyEnd(page, bodySelectors) {
+    return page.evaluate(`
+    (selectors => {
+      const el = selectors
+        .map(sel => Array.from(document.querySelectorAll(sel)))
+        .flat()
+        .find(node => node && node.offsetParent !== null && node.isContentEditable);
+      if (!el) return false;
+      el.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      return true;
+    })(${JSON.stringify(bodySelectors)})
+  `);
+}
+function topicSuggestionScript(topic) {
+    // Returns the best matching suggestion's screen coordinates (center) so the
+    // caller can issue a real click, plus a clicked flag for the in-page path.
+    return `
+    (topicName => {
+      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
+      const want = norm(topicName);
+      const SUGGESTION_SELECTORS = [
+        '[class*="topic-item"]',
+        '[class*="hashtag-item"]',
+        '[class*="suggest-item"]',
+        '[class*="suggestion"] li',
+        '[class*="mention"] li',
+        '[class*="dropdown"] li',
+        '[id*="topic"] li',
+        '[class*="topic"] li',
+      ];
+      const seen = new Set();
+      const items = [];
+      for (const sel of SUGGESTION_SELECTORS) {
+        for (const node of document.querySelectorAll(sel)) {
+          if (!node || seen.has(node)) continue;
+          if (node.offsetParent === null) continue;
+          const rect = node.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) continue;
+          seen.add(node);
+          items.push(node);
+        }
+      }
+      if (!items.length) return { ok: false, count: 0 };
+      let target = items.find(node => norm(node.innerText || node.textContent) === want);
+      if (!target) target = items.find(node => norm(node.innerText || node.textContent).includes(want));
+      if (!target) target = items[0];
+      const rect = target.getBoundingClientRect();
+      // Try an in-page click first; report coordinates regardless for a native fallback.
+      let clicked = false;
+      try { target.click(); clicked = true; } catch (e) {}
+      return {
+        ok: true,
+        clicked,
+        count: items.length,
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2),
+        text: (target.innerText || target.textContent || '').trim().slice(0, 40),
+      };
+    })(${JSON.stringify(topic)})
+  `;
+}
+async function typeTopicQuery(page, topic) {
+    // Type "#<topic>" so XHS recognizes it as a topic query and pops the inline
+    // suggestion dropdown. The caller separates topics with Enter beforehand so
+    // each query starts on its own line and matches cleanly.
+    const query = `#${topic}`;
+    if (typeof page.insertText === 'function') {
+        try {
+            await page.insertText(query);
+            return true;
+        }
+        catch {
+            // fall through to execCommand path
+        }
+    }
+    return page.evaluate(`
+    (text => {
+      const ok = document.execCommand('insertText', false, text);
+      const active = document.activeElement;
+      if (active) active.dispatchEvent(new Event('input', { bubbles: true }));
+      return ok;
+    })(${JSON.stringify(query)})
+  `);
+}
+async function addTopics(page, bodySelectors, topics) {
+    let added = 0;
+    for (const topic of topics) {
+        const focused = await focusBodyEnd(page, bodySelectors);
+        if (!focused)
+            break; // No body editor — nothing we can do for any topic.
+        // Separate this topic from the preceding text so the dropdown is clean.
+        if (typeof page.pressKey === 'function') {
+            try {
+                await page.pressKey('Enter');
+            }
+            catch { /* non-fatal */ }
+        }
+        const typed = await typeTopicQuery(page, topic);
+        if (!typed)
+            continue; // Could not type the query; skip this topic.
+        await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
+        const suggestion = await page.evaluate(topicSuggestionScript(topic));
+        if (suggestion?.ok) {
+            if (!suggestion.clicked
+                && typeof page.nativeClick === 'function'
+                && Number.isFinite(suggestion.x)
+                && Number.isFinite(suggestion.y)) {
+                try {
+                    await page.nativeClick(suggestion.x, suggestion.y);
+                }
+                catch { /* non-fatal */ }
+            }
+            added += 1;
+        }
+        else if (typeof page.pressKey === 'function') {
+            // No dropdown items found via selectors — fall back to Enter, which
+            // accepts the highlighted suggestion in most XHS editor variants.
+            try {
+                await page.pressKey('Enter');
+                added += 1;
+            }
+            catch { /* non-fatal */ }
+        }
+        await page.wait({ time: 0.4 });
+    }
+    return added;
+}
 async function selectImageTextTab(page) {
     const result = await page.evaluate(`
     () => {
@@ -530,70 +694,19 @@ cli({
         await fillField(page, TITLE_SELECTORS, title, 'title');
         await page.wait({ time: 0.5 });
         // ── Step 5: Fill content / body ────────────────────────────────────────────
-        await fillField(page, [
-            '[contenteditable="true"][class*="content"]',
-            '[contenteditable="true"][class*="editor"]',
-            '[contenteditable="true"][placeholder*="描述"]',
-            '[contenteditable="true"][placeholder*="正文"]',
-            '[contenteditable="true"][placeholder*="内容"]',
-            '.note-content [contenteditable="true"]',
-            '.editor-content [contenteditable="true"]',
-            // Broad fallback — last resort; filter out any title contenteditable
-            '[contenteditable="true"]:not([placeholder*="标题"]):not([placeholder*="赞"]):not([placeholder*="title" i])',
-        ], content, 'content');
+        await fillField(page, BODY_SELECTORS, content, 'content');
         await page.wait({ time: 0.5 });
         // ── Step 6: Add topic hashtags ─────────────────────────────────────────────
-        for (const topic of topics) {
-            // Click the "添加话题" button
-            const btnClicked = await page.evaluate(`
-        () => {
-          const candidates = document.querySelectorAll('*');
-          for (const el of candidates) {
-            const text = (el.innerText || el.textContent || '').trim();
-            if (
-              (text === '添加话题' || text === '# 话题' || text.startsWith('添加话题')) &&
-              el.offsetParent !== null &&
-              el.children.length === 0
-            ) {
-              el.click();
-              return true;
-            }
-          }
-          // fallback: look for a hashtag icon button
-          const hashBtn = document.querySelector('[class*="topic"][class*="btn"], [class*="hashtag"][class*="btn"]');
-          if (hashBtn) { hashBtn.click(); return true; }
-          return false;
-        }
-      `);
-            if (!btnClicked)
-                continue; // Skip topic if UI not found — non-fatal
-            await page.wait({ time: 1 });
-            // Type into the topic search input
-            const typed = await page.evaluate(`
-        (topicName => {
-          const input = document.querySelector(
-            '[class*="topic"] input, [class*="hashtag"] input, input[placeholder*="搜索话题"]'
-          );
-          if (!input || input.offsetParent === null) return false;
-          input.focus();
-          document.execCommand('insertText', false, topicName);
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          return true;
-        })(${JSON.stringify(topic)})
-      `);
-            if (!typed)
-                continue;
-            await page.wait({ time: 1.5 }); // Wait for autocomplete suggestions
-            // Click the first suggestion
-            await page.evaluate(`
-        () => {
-          const item = document.querySelector(
-            '[class*="topic-item"], [class*="hashtag-item"], [class*="suggest-item"], [class*="suggestion"] li'
-          );
-          if (item) item.click();
-        }
-      `);
-            await page.wait({ time: 0.5 });
+        // XHS converts a "#keyword" typed into the body editor into a real topic
+        // entity only when the user picks an item from the inline suggestion
+        // dropdown that pops up while typing. The previous implementation looked
+        // for a standalone "添加话题" button + dedicated search <input>, which the
+        // current creator-center editor no longer exposes — it left bare "#"
+        // characters in the body with no linked topics. We now drive the native
+        // inline flow: focus the body editor, type "#keyword" (firing the
+        // dropdown), then select the matching suggestion.
+        if (topics.length) {
+            await addTopics(page, BODY_SELECTORS, topics);
         }
         // ── Step 7: Publish or save draft ─────────────────────────────────────────
         const actionLabels = isDraft ? ['暂存离开', '存草稿'] : ['发布', '发布笔记'];

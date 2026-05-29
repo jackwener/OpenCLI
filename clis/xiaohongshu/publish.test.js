@@ -505,4 +505,85 @@ describe('xiaohongshu publish', () => {
             },
         ]);
     });
+    it('adds topics via the inline "#" dropdown flow and selects suggestions', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish');
+        expect(cmd?.func).toBeTypeOf('function');
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+        const imagePath = path.join(tempDir, 'demo.jpg');
+        fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const pressKey = vi.fn().mockResolvedValue(undefined);
+        const nativeClick = vi.fn().mockResolvedValue(undefined);
+        const focusCalls = [];
+        const page = createConditionalPageMock((code) => {
+            if (code.includes('location.href'))
+                return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']"))
+                return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false };
+            if (code.includes('const images =') && code.includes('dt.items.add(new File'))
+                return { ok: true, count: 1 };
+            if (code.includes('[class*="upload"][class*="progress"]'))
+                return false;
+            if (code.includes('const sels =') && code.includes('for (const sel of sels)'))
+                return true;
+            // Body-editor focus helper (Step 6).
+            if (code.includes('node.isContentEditable') && code.includes('selectNodeContents')) {
+                focusCalls.push(true);
+                return true;
+            }
+            // Suggestion-dropdown locator (Step 6).
+            if (code.includes('SUGGESTION_SELECTORS')) {
+                return { ok: true, clicked: true, count: 1, x: 12, y: 34, text: '话题命中' };
+            }
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) {
+                return code.includes('[contenteditable="true"][placeholder*="标题"]')
+                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable' }
+                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' };
+            }
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"prepare"'))
+                return { ok: true };
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"verify"')) {
+                return code.includes('[contenteditable="true"][placeholder*="标题"]')
+                    ? { ok: true, actual: '带话题的标题' }
+                    : { ok: true, actual: '带话题的正文' };
+            }
+            if (code.includes('(function(selectors, text)')) {
+                return code.includes('[contenteditable="true"][placeholder*="标题"]')
+                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable', actual: '带话题的标题' }
+                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable', actual: '带话题的正文' };
+            }
+            if (code.includes('labels.some'))
+                return true;
+            if (code.includes('for (const el of document.querySelectorAll'))
+                return '发布成功';
+            throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
+        }, {
+            insertText,
+            pressKey,
+            nativeClick,
+        });
+        const result = await cmd.func(page, {
+            title: '带话题的标题',
+            content: '带话题的正文',
+            images: imagePath,
+            topics: 'AI,效率提升',
+            draft: false,
+        });
+        // Each topic is typed as "#<topic>" via native insertion (title + body
+        // come first, so topic queries are the 3rd and 4th insertText calls).
+        expect(insertText).toHaveBeenCalledWith('#AI');
+        expect(insertText).toHaveBeenCalledWith('#效率提升');
+        // Body editor was focused once per topic before typing.
+        expect(focusCalls.length).toBe(2);
+        // The located suggestion was clicked natively for each topic.
+        expect(nativeClick).not.toHaveBeenCalled(); // clicked in-page (clicked:true)
+        expect(result).toEqual([
+            {
+                status: '✅ 发布成功',
+                detail: '"带话题的标题" · 1张图片 · 话题: AI 效率提升 · 发布成功',
+            },
+        ]);
+    });
 });
