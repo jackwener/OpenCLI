@@ -20595,9 +20595,24 @@
       }
     ],
     "columns": [
-      "field",
-      "value"
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "date",
+      "article_type",
+      "language",
+      "doi",
+      "pmc",
+      "affiliations",
+      "grants",
+      "mesh_terms",
+      "keywords",
+      "abstract",
+      "url"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "pubmed/article.js",
     "sourceFile": "pubmed/article.js"
@@ -20734,6 +20749,194 @@
   },
   {
     "site": "pubmed",
+    "name": "clinical-trial",
+    "description": "Search PubMed clinical trials with a trial-study preset",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Clinical topic query, e.g. \"breast cancer\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "free-full-text",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include free full text articles"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "date",
+        "required": false,
+        "help": "Sort by date or relevance",
+        "choices": [
+          "date",
+          "relevance"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/clinical-trial.js",
+    "sourceFile": "pubmed/clinical-trial.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "journal",
+    "description": "Search PubMed articles by journal name",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "journal",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Journal name, e.g. \"Nature\" or \"The Lancet\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "relevance",
+        "required": false,
+        "help": "Sort by relevance or date",
+        "choices": [
+          "relevance",
+          "date"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/journal.js",
+    "sourceFile": "pubmed/journal.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "mesh",
+    "description": "Search PubMed articles by MeSH term",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "term",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "MeSH term, e.g. \"Neoplasms\" or \"Machine Learning\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "major",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include articles where this is a major MeSH topic"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "relevance",
+        "required": false,
+        "help": "Sort by relevance or date",
+        "choices": [
+          "relevance",
+          "date"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/mesh.js",
+    "sourceFile": "pubmed/mesh.js"
+  },
+  {
+    "site": "pubmed",
     "name": "related",
     "description": "Find articles related to a PubMed article",
     "access": "read",
@@ -20778,6 +20981,75 @@
     "type": "js",
     "modulePath": "pubmed/related.js",
     "sourceFile": "pubmed/related.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "review",
+    "description": "Search PubMed review articles with a review preset",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Review topic query, e.g. \"immunotherapy\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "has-abstract",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include articles with abstracts"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "date",
+        "required": false,
+        "help": "Sort by date or relevance",
+        "choices": [
+          "date",
+          "relevance"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/review.js",
+    "sourceFile": "pubmed/review.js"
   },
   {
     "site": "pubmed",

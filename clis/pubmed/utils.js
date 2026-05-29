@@ -283,6 +283,13 @@ export function parseArticleXml(xml, pmid) {
     const pubTypes = extractAll(articleBlock, 'PublicationType');
     const meshTerms = extractAll(text, 'DescriptorName');
     const keywords = extractAll(text, 'Keyword');
+    const affiliations = extractAll(text, 'Affiliation');
+    const grantBlocks = [...text.matchAll(/<Grant\b[^>]*>([\s\S]*?)<\/Grant>/gi)].map(match => match[1]);
+    const grants = grantBlocks.map(block => {
+        const grantId = extractFirst(block, 'GrantID');
+        const agency = extractFirst(block, 'Agency');
+        return [grantId, agency].filter(Boolean).join(': ');
+    }).filter(Boolean);
     const doi = text.match(/<ArticleId\b[^>]*IdType="doi"[^>]*>([\s\S]*?)<\/ArticleId>/i)?.[1] || '';
     const pmc = text.match(/<ArticleId\b[^>]*IdType="pmc"[^>]*>([\s\S]*?)<\/ArticleId>/i)?.[1] || '';
     return {
@@ -297,6 +304,8 @@ export function parseArticleXml(xml, pmid) {
         pmc: cleanText(pmc),
         article_type: articleTypeFromList(pubTypes),
         language: extractFirst(articleBlock, 'Language'),
+        affiliations: affiliations.slice(0, 10).join(' | '),
+        grants: grants.slice(0, 10).join(' | '),
         mesh_terms: meshTerms.slice(0, 10).join(', '),
         keywords: keywords.slice(0, 10).join(', '),
         url: buildPubMedUrl(pmid),

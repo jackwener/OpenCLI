@@ -104,7 +104,7 @@ Run `opencli list` for the live registry.
 | **[yahoo-finance](./browser/yahoo-finance.md)**   | `quote`                                                                                                                                        | 🌐 Public    |
 | **[arxiv](./browser/arxiv.md)**                   | `search` `paper`                                                                                                                               | 🌐 Public    |
 | **[dblp](./browser/dblp.md)**                     | `search` `author` `paper` `venue`                                                                                                              | 🌐 Public    |
-| **[pubmed](./browser/pubmed.md)**                 | `search` `article` `author` `citations` `related`                                                                                              | 🌐 Public    |
+| **[pubmed](./browser/pubmed.md)**                 | `search` `article` `author` `citations` `related` `clinical-trial` `review` `mesh` `journal`                                                 | 🌐 Public    |
 | **[openreview](./browser/openreview.md)**         | `search` `venue` `author` `paper` `reviews`                                                                                                    | 🌐 Public    |
 | **[paperreview](./browser/paperreview.md)**       | `submit` `review` `feedback`                                                                                                                   | 🌐 Public    |
 | **[barchart](./browser/barchart.md)**             | `quote` `options` `greeks` `flow`                                                                                                              | 🌐 Public    |
