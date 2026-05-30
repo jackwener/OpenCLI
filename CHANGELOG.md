@@ -1,11 +1,45 @@
 # Changelog
 
-## Unreleased
+## [1.8.1](https://github.com/jackwener/opencli/compare/v1.8.0...v1.8.1) (2026-05-31)
+
+Patch release focused on the extension tab-group convergence fix, plus 10 new adapters/commands and a wave of read-path / security hardening across browser, download, and adapters.
+
+### Features
+
+* **chess** — add Chess.com browser adapter.
+* **geogebra** — add GeoGebra browser adapter suite.
+* **jira / confluence** — add Atlassian Jira and Confluence adapter support. ([#1690](https://github.com/jackwener/opencli/pull/1690))
+* **upwork** — add `search`, `feed`, and `detail` commands.
+* **notebooklm** — add guarded write commands.
+* **bilibili** — add comment commands.
+* **weread** — add book search inside an open WeRead book.
+* **linkedin** — consolidate read commands and add `profile-experience`.
+* **xiaohongshu** — paginate `creator-notes` past the analyze list cap.
 
 ### Bug Fixes
 
-* **extension 1.0.16** — ship the `OpenCLI Browser` / `OpenCLI Adapter` tab-group race fix from #1693. The extension now serializes owned tab-group creation per role so concurrent adapter/browser leases reuse the same group instead of creating duplicate same-title groups.
-* **extension 1.0.17** — replace owned tab-group management with a Chrome-state-as-truth convergence model. The extension now keeps one canonical `OpenCLI Browser` / `OpenCLI Adapter` group per profile role, recovers renamed groups from stored hints or owned lease tabs, merges same-window and cross-window duplicates into the canonical group, and normalizes legacy or user-renamed container titles back to the canonical owned-container title.
+* **extension 1.0.16** — ship the `OpenCLI Browser` / `OpenCLI Adapter` tab-group race fix from [#1693](https://github.com/jackwener/opencli/pull/1693). The extension now serializes owned tab-group creation per role so concurrent adapter/browser leases reuse the same group instead of creating duplicate same-title groups.
+* **extension 1.0.17** — replace owned tab-group management with a Chrome-state-as-truth convergence model. The extension now keeps one canonical `OpenCLI Browser` / `OpenCLI Adapter` group per profile role, recovers renamed groups from stored hints or owned lease tabs, merges same-window and cross-window duplicates into the canonical group, and normalizes legacy or user-renamed container titles back to the canonical owned-container title. ⚠️ User-renamed `OpenCLI Browser` / `OpenCLI Adapter` groups are now force-renamed back; treat these as extension-managed automation containers, not user free-form bins. ([#1794](https://github.com/jackwener/opencli/pull/1794))
+* **browser** — write the network response cache file with `0o600` owner-only permissions to keep captured response bodies out of other local users' reach.
+* **download** — write the yt-dlp cookie file with `0o600` owner-only permissions.
+* **pixiv** — migrate `user/detail` to the shared `pixivFetch` helper.
+* **twitter** — drop unknown silent sentinels; read profile `name` / `created_at` from `result.core`; handle `NotAllowed` image-upload fallback; detect private `likes` / `following` empty-timeline shape. ([#1702](https://github.com/jackwener/opencli/pull/1702))
+* **weread** — decode HTML entities in search results.
+* **zhihu** — decode numeric HTML entities in text output. ([#1695](https://github.com/jackwener/opencli/pull/1695))
+* **xiaohongshu** — hook dashboard fetch to capture signed `datacenter/note/*` responses ([#1732](https://github.com/jackwener/opencli/pull/1732)); preserve carousel order via `__INITIAL_STATE__.imageList` on download ([#1687](https://github.com/jackwener/opencli/pull/1687)).
+* **bilibili** — subtitle support for bangumi / PGC bvid (番剧 / 纪录片 / 电影 / 综艺). ([#1669](https://github.com/jackwener/opencli/pull/1669))
+* **suno** — derive current plan from subscription metadata.
+* **douyin/hashtag** — validate action args before navigation.
+* **byte-formatting** — stabilize byte formatting output.
+
+### Docs
+
+* **readme** — correct Node floor (>=20, not 21) and drop the Prerequisites section ([#1705](https://github.com/jackwener/opencli/pull/1705)); add CLI Hub brand aliases and split Exit Codes into the dedicated docs page ([#1685](https://github.com/jackwener/opencli/pull/1685)); drop the For Developers section ([#1684](https://github.com/jackwener/opencli/pull/1684)).
+
+### Internal
+
+* **ci** — disable Dependabot automated updates.
+* **test(download)** — retry media-download Windows tests to absorb runner cold-start variance. ([#1708](https://github.com/jackwener/opencli/pull/1708))
 
 ## [1.8.0](https://github.com/jackwener/opencli/compare/v1.7.22...v1.8.0) (2026-05-20)
 
