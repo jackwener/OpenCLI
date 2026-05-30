@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, ConfigError } from '@jackwener/opencli/errors';
 import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating, sendPrompt } from './ax.js';
@@ -14,6 +15,7 @@ export const askCommand = cli({
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
         { name: 'model', required: false, help: 'Model/mode to use: auto, instant, thinking, 5.2-instant, 5.2-thinking', choices: MODEL_CHOICES },
         { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for response (default: 30)', default: 30 },
+        { name: 'image', required: false, help: 'Path to local image to attach (optional)' },
     ],
     columns: ['Role', 'Text'],
     func: async (kwargs) => {
@@ -23,6 +25,12 @@ export const askCommand = cli({
         const text = kwargs.text;
         const model = kwargs.model;
         const timeout = kwargs.timeout;
+        const image = kwargs.image;
+        if (image) {
+            if (!existsSync(image)) {
+                throw new ArgumentError(`The specified image path does not exist: ${image}`);
+            }
+        }
         if (!Number.isInteger(timeout) || timeout < 1) {
             throw new ArgumentError('--timeout must be a positive integer (seconds)');
         }
@@ -34,7 +42,7 @@ export const askCommand = cli({
         const messagesBefore = getVisibleChatMessages();
         // Send the message
         activateChatGPT();
-        sendPrompt(text);
+        sendPrompt(text, image);
         // Wait for response: poll until ChatGPT stops generating ("Stop generating" button disappears),
         // then read the final response text.
         const pollInterval = 2;
@@ -42,7 +50,7 @@ export const askCommand = cli({
         let response = '';
         let generationStarted = false;
         for (let i = 0; i < maxPolls; i++) {
-            execSync(`sleep ${pollInterval}`);
+            await new Promise((resolve) => setTimeout(resolve, pollInterval * 1000));
             const generating = isGenerating();
             if (generating) {
                 generationStarted = true;

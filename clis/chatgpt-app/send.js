@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { getErrorMessage } from '@jackwener/opencli/errors';
+import { ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
 import { activateChatGPT, selectModel, MODEL_CHOICES, sendPrompt } from './ax.js';
 export const sendCommand = cli({
     site: 'chatgpt-app',
@@ -15,6 +15,9 @@ export const sendCommand = cli({
     ],
     columns: ['Status'],
     func: async (kwargs) => {
+        if (process.platform !== 'darwin') {
+            throw new ConfigError('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
+        }
         const text = kwargs.text;
         const model = kwargs.model;
         try {

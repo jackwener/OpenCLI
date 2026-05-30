@@ -40,8 +40,17 @@ guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "
 }
 
 let axApp = AXUIElementCreateApplication(app.processIdentifier)
-guard let win = attr(axApp, kAXFocusedWindowAttribute as String) as! AXUIElement? else {
-    fputs("No focused ChatGPT window\\n", stderr)
+var targetWin: AXUIElement? = nil
+if let focused = attr(axApp, kAXFocusedWindowAttribute as String) {
+    targetWin = (focused as! AXUIElement)
+}
+if targetWin == nil {
+    if let windows = attr(axApp, kAXWindowsAttribute as String) as? [AXUIElement], !windows.isEmpty {
+        targetWin = windows.first
+    }
+}
+guard let win = targetWin else {
+    fputs("Could not find or focus any ChatGPT window\\n", stderr)
     exit(1)
 }
 
@@ -98,10 +107,11 @@ func isInput(_ el: AXUIElement) -> Bool {
 }
 
 func focusedInput(_ axApp: AXUIElement) -> AXUIElement? {
-    guard let focused = attr(axApp, kAXFocusedUIElementAttribute as String) as! AXUIElement? else {
+    guard let focused = attr(axApp, kAXFocusedUIElementAttribute as String) else {
         return nil
     }
-    return isInput(focused) && isEnabled(focused) ? focused : nil
+    let focusedEl = focused as! AXUIElement
+    return isInput(focusedEl) && isEnabled(focusedEl) ? focusedEl : nil
 }
 
 func findByDescriptions(_ el: AXUIElement, _ targets: [String], depth: Int = 0) -> AXUIElement? {
@@ -125,6 +135,7 @@ guard args.count > 1 else {
     exit(1)
 }
 let text = args[1]
+let imagePath = args.count > 2 ? args[2] : ""
 
 guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.chat").first else {
     fputs("ChatGPT not running\\n", stderr)
@@ -132,8 +143,17 @@ guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "
 }
 
 let axApp = AXUIElementCreateApplication(app.processIdentifier)
-guard let win = attr(axApp, kAXFocusedWindowAttribute as String) as! AXUIElement? else {
-    fputs("No focused ChatGPT window\\n", stderr)
+var targetWin: AXUIElement? = nil
+if let focused = attr(axApp, kAXFocusedWindowAttribute as String) {
+    targetWin = (focused as! AXUIElement)
+}
+if targetWin == nil {
+    if let windows = attr(axApp, kAXWindowsAttribute as String) as? [AXUIElement], !windows.isEmpty {
+        targetWin = windows.first
+    }
+}
+guard let win = targetWin else {
+    fputs("Could not find or focus any ChatGPT window\\n", stderr)
     exit(1)
 }
 
@@ -156,6 +176,61 @@ guard s(input, kAXValueAttribute as String) == text else {
     exit(1)
 }
 
+if !imagePath.isEmpty {
+    guard let image = NSImage(contentsOfFile: imagePath) else {
+        fputs("Failed to load image from path: \(imagePath)\\n", stderr)
+        exit(1)
+    }
+    
+    // Safeguard Clipboard: Backup existing clipboard items
+    let pasteboard = NSPasteboard.general
+    var savedItems: [NSPasteboardItem] = []
+    if let items = pasteboard.pasteboardItems {
+        for item in items {
+            let savedItem = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    savedItem.setData(data, forType: type)
+                }
+            }
+            savedItems.append(savedItem)
+        }
+    }
+    
+    pasteboard.clearContents()
+    pasteboard.writeObjects([image])
+    
+    AXUIElementSetAttributeValue(input, kAXFocusedAttribute as CFString, true as CFTypeRef)
+    Thread.sleep(forTimeInterval: 0.2)
+    
+    // Simulate paste command targeted directly to ChatGPT's PID to prevent global interference
+    let src = CGEventSource(stateID: .hidSystemState)
+    let cmdDown = CGEvent(keyboardEventSource: src, virtualKey: 0x37, keyDown: true)
+    cmdDown?.flags = .maskCommand
+    cmdDown?.postToPid(app.processIdentifier)
+    
+    let vDown = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: true)
+    vDown?.flags = .maskCommand
+    vDown?.postToPid(app.processIdentifier)
+    
+    let vUp = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: false)
+    vUp?.flags = .maskCommand
+    vUp?.postToPid(app.processIdentifier)
+    
+    let cmdUp = CGEvent(keyboardEventSource: src, virtualKey: 0x37, keyDown: false)
+    cmdUp?.postToPid(app.processIdentifier)
+    
+    Thread.sleep(forTimeInterval: 0.8)
+    
+    // Safeguard Clipboard: Restore user clipboard content
+    pasteboard.clearContents()
+    if !savedItems.isEmpty {
+        pasteboard.writeObjects(savedItems)
+    }
+}
+
+let valueBeforeSend = s(input, kAXValueAttribute as String) ?? ""
+
 guard let sendButton = findByDescriptions(win, ["发送", "傳送", "Send"]) else {
     fputs("Could not find send button\\n", stderr)
     exit(1)
@@ -166,7 +241,7 @@ press(sendButton)
 var submitted = false
 for _ in 0..<15 {
     Thread.sleep(forTimeInterval: 0.1)
-    if s(input, kAXValueAttribute as String) != text {
+    if (s(input, kAXValueAttribute as String) ?? "") != valueBeforeSend {
         submitted = true
         break
     }
@@ -228,12 +303,30 @@ func pressEscape() {
     if let esc = CGEvent(keyboardEventSource: src, virtualKey: 0x35, keyDown: false) { esc.post(tap: .cghidEventTap) }
 }
 
+func waitForElement(timeout: TimeInterval = 1.2, check: () -> AXUIElement?) -> AXUIElement? {
+    let start = Date()
+    while Date().timeIntervalSince(start) < timeout {
+        if let el = check() { return el }
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+    return nil
+}
+
 guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.chat").first else {
     fputs("ChatGPT not running\\n", stderr); exit(1)
 }
 let axApp = AXUIElementCreateApplication(app.processIdentifier)
-guard let win = attr(axApp, kAXFocusedWindowAttribute as String) as! AXUIElement? else {
-    fputs("No focused ChatGPT window\\n", stderr); exit(1)
+var targetWin: AXUIElement? = nil
+if let focused = attr(axApp, kAXFocusedWindowAttribute as String) {
+    targetWin = (focused as! AXUIElement)
+}
+if targetWin == nil {
+    if let windows = attr(axApp, kAXWindowsAttribute as String) as? [AXUIElement], !windows.isEmpty {
+        targetWin = windows.first
+    }
+}
+guard let win = targetWin else {
+    fputs("Could not find or focus any ChatGPT window\\n", stderr); exit(1)
 }
 
 let args = CommandLine.arguments
@@ -242,38 +335,46 @@ let needsLegacy = args.count > 2 && args[2] == "legacy"
 
 // Step 1: Click the "Options" button to open the popover (support English, Simplified and Traditional Chinese UI)
 var optionsBtn: AXUIElement? = nil
-if let btn = findByDesc(win, "Options") { optionsBtn = btn }
-else if let btn = findByDesc(win, "选项") { optionsBtn = btn }
-else if let btn = findByDesc(win, "選項") { optionsBtn = btn }
+for label in ["Options", "选项", "選項"] {
+    if let btn = findByDesc(win, label) {
+        optionsBtn = btn
+        break
+    }
+}
 guard let options = optionsBtn else {
     fputs("Could not find Options button\\n", stderr); exit(1)
 }
 press(options)
-Thread.sleep(forTimeInterval: 0.8)
 
-// Step 2: Find the popover that appeared, search ONLY within it
-guard let popover = findPopover(win) else {
+// Step 2: Find the popover that appeared, search ONLY within it (utilizing dynamic polling helper)
+guard let popover = waitForElement(check: { findPopover(win) }) else {
     pressEscape()
     fputs("Popover did not appear\\n", stderr); exit(1)
 }
 
-// Step 3: If legacy, click "Legacy models" to expand submenu
+// Step 3: If legacy, click "Legacy models" to expand submenu (supports EN/CN/TW localizations)
 if needsLegacy {
-    guard let legacyBtn = findByDesc(popover, "Legacy models") else {
+    var legacyBtn: AXUIElement? = nil
+    for label in ["Legacy models", "经典模型", "經典模型"] {
+        if let btn = findByDesc(popover, label) {
+            legacyBtn = btn
+            break
+        }
+    }
+    guard let btn = legacyBtn else {
         pressEscape()
         fputs("Could not find Legacy models button\\n", stderr); exit(1)
     }
-    press(legacyBtn)
-    Thread.sleep(forTimeInterval: 0.8)
+    press(btn)
 }
 
-// Step 4: Click the target model button within the popover (prefix match)
-guard let modelBtn = findByDesc(popover, target, prefix: true) else {
+// Step 4: Click the target model button within the popover (prefix match via dynamic polling helper)
+guard let modelBtn = waitForElement(check: { findByDesc(popover, target, prefix: true) }) else {
     pressEscape()
-    fputs("Could not find button starting with '\\(target)' in popover\\n", stderr); exit(1)
+    fputs("Could not find button starting with '\(target)'\\n", stderr); exit(1)
 }
 press(modelBtn)
-print("Selected: \\(target)")
+print("Selected: \(target)")
 `;
 const AX_GENERATING_SCRIPT = `
 import Cocoa
@@ -309,10 +410,19 @@ guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "
     print("false"); exit(0)
 }
 let axApp = AXUIElementCreateApplication(app.processIdentifier)
-guard let win = attr(axApp, kAXFocusedWindowAttribute as String) as! AXUIElement? else {
+var targetWin: AXUIElement? = nil
+if let focused = attr(axApp, kAXFocusedWindowAttribute as String) {
+    targetWin = (focused as! AXUIElement)
+}
+if targetWin == nil {
+    if let windows = attr(axApp, kAXWindowsAttribute as String) as? [AXUIElement], !windows.isEmpty {
+        targetWin = windows.first
+    }
+}
+guard let win = targetWin else {
     print("false"); exit(0)
 }
-let targets = ["Stop generating", "停止生成"]
+let targets = ["Stop generating", "停止生成", "停止產生", "停止傳送"]
 print(targets.contains(where: { hasButton(win, desc: $0) }) ? "true" : "false")
 `;
 const MODEL_MAP = {
@@ -342,8 +452,12 @@ export function selectModel(model) {
     }).trim();
     return output;
 }
-export function sendPrompt(text) {
-    return execFileSync('swift', ['-', text], {
+export function sendPrompt(text, imagePath = '') {
+    const args = ['-', text];
+    if (imagePath) {
+        args.push(imagePath);
+    }
+    return execFileSync('swift', args, {
         input: AX_SEND_SCRIPT,
         encoding: 'utf-8',
         maxBuffer: 10 * 1024 * 1024,

@@ -4957,6 +4957,12 @@
         "default": 30,
         "required": false,
         "help": "Max seconds to wait for response (default: 30)"
+      },
+      {
+        "name": "image",
+        "type": "str",
+        "required": false,
+        "help": "Path to local image to attach (optional)"
       }
     ],
     "columns": [
@@ -5007,7 +5013,15 @@
     "domain": "localhost",
     "strategy": "public",
     "browser": false,
-    "args": [],
+    "args": [
+      {
+        "name": "temp",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Open a temporary chat with privacy protection"
+      }
+    ],
     "columns": [
       "Status"
     ],
