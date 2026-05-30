@@ -63,6 +63,13 @@ describe('pixiv user', () => {
             message: expect.stringContaining('malformed API payload'),
         });
     });
+    it('fails typed when the user body lacks stable profile identity fields', async () => {
+        const page = createPageMock([{ body: { premium: false, following: 0 } }]);
+        await expect(cmd.func(page, { uid: '11' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('malformed profile payload'),
+        });
+    });
     it('returns profile row with computed counts for object-shaped illust fields', async () => {
         const page = createPageMock([
             {

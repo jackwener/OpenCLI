@@ -33,6 +33,29 @@ describe('pixiv detail', () => {
             message: expect.stringContaining('Too many requests'),
         });
     });
+    it('fails typed when the detail body lacks stable illustration identity fields', async () => {
+        const page = createPageMock([{ body: { illustId: '12345', illustTitle: 'Title' } }]);
+        await expect(cmd.func(page, { id: '12345' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('malformed detail payload'),
+        });
+    });
+    it('fails typed when the detail body id does not match the requested illustration', async () => {
+        const page = createPageMock([
+            {
+                body: {
+                    illustId: '99999',
+                    illustTitle: 'Wrong',
+                    userName: 'Artist',
+                    userId: '99',
+                },
+            },
+        ]);
+        await expect(cmd.func(page, { id: '12345' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('malformed detail payload'),
+        });
+    });
     it('returns detail row with mapped fields', async () => {
         const page = createPageMock([
             {

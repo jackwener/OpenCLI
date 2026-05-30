@@ -1,6 +1,18 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
+
+function requireUserBody(body, uid) {
+    if (!body || Array.isArray(body) || typeof body !== 'object') {
+        throw new CommandExecutionError(`Pixiv user ${uid} returned malformed profile payload`);
+    }
+    const name = String(body.name ?? '').trim();
+    if (!name) {
+        throw new CommandExecutionError(`Pixiv user ${uid} returned malformed profile payload`);
+    }
+    return { ...body, name };
+}
+
 cli({
     site: 'pixiv',
     name: 'user',
@@ -27,13 +39,11 @@ cli({
         if (!/^\d+$/.test(uid)) {
             throw new ArgumentError(`Invalid user ID: ${uid}`, 'Example: opencli pixiv user 123456');
         }
-        const b = await pixivFetch(page, `/ajax/user/${uid}`, {
+        const body = await pixivFetch(page, `/ajax/user/${uid}`, {
             params: { full: 1 },
             notFoundMsg: `User not found: ${uid}`,
         });
-        if (!b) {
-            throw new CommandExecutionError(`User not found: ${uid}`);
-        }
+        const b = requireUserBody(body, uid);
         return [{
             user_id: uid,
             name: b.name,

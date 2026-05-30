@@ -1,6 +1,21 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
+
+function requireIllustBody(body, id) {
+    if (!body || Array.isArray(body) || typeof body !== 'object') {
+        throw new CommandExecutionError(`Pixiv illustration ${id} returned malformed detail payload`);
+    }
+    const illustId = String(body.illustId ?? '').trim();
+    const title = String(body.illustTitle ?? '').trim();
+    const userName = String(body.userName ?? '').trim();
+    const userId = String(body.userId ?? '').trim();
+    if (!/^\d+$/.test(illustId) || illustId !== id || !title || !userName || !/^\d+$/.test(userId)) {
+        throw new CommandExecutionError(`Pixiv illustration ${id} returned malformed detail payload`);
+    }
+    return { ...body, illustId, illustTitle: title, userName, userId };
+}
+
 cli({
     site: 'pixiv',
     name: 'detail',
@@ -29,12 +44,10 @@ cli({
         if (!/^\d+$/.test(id)) {
             throw new ArgumentError(`Invalid illustration ID: ${id}`, 'Example: opencli pixiv detail 123456');
         }
-        const b = await pixivFetch(page, `/ajax/illust/${id}`, {
+        const body = await pixivFetch(page, `/ajax/illust/${id}`, {
             notFoundMsg: `Illustration not found: ${id}`,
         });
-        if (!b) {
-            throw new CommandExecutionError(`Illustration not found: ${id}`);
-        }
+        const b = requireIllustBody(body, id);
         return [{
             illust_id: b.illustId,
             title: b.illustTitle,
