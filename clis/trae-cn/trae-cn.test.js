@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { activityCommand } from './activity.js';
 import { approveCommand } from './approve.js';
 import { askCommand } from './ask.js';
@@ -333,6 +333,24 @@ describe('trae-cn commands', () => {
 
     await expect(selectModelCommand.func(page, { name: 'GPT 5.4' }))
       .rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('select-model rejects ambiguous partial model names before changing selection', async () => {
+    const page = {
+      evaluate: vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { Index: 0, Model: 'GPT 5.4' },
+          { Index: 1, Model: 'GPT 5.5' },
+        ]),
+      click: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(selectModelCommand.func(page, { name: 'GPT 5' }))
+      .rejects.toBeInstanceOf(ArgumentError);
+    expect(page.click).toHaveBeenCalledTimes(1);
+    expect(page.click).toHaveBeenCalledWith(expect.stringContaining('icd-model-select-trigger'));
   });
 
   it('new fails closed when clicking new task does not prove a fresh empty composer', async () => {

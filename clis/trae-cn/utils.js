@@ -716,8 +716,16 @@ export async function selectTraeModel(page, name) {
     await page.wait(0.8);
     models = await page.evaluate(listOpenModelItemsScript());
   }
-  const match = models.find((item) => normalizeModelLabel(item.Model) === wantedKey)
-    || models.find((item) => normalizeModelLabel(item.Model).includes(wantedKey));
+  const exactMatch = models.find((item) => normalizeModelLabel(item.Model) === wantedKey);
+  const containsMatches = exactMatch
+    ? []
+    : models.filter((item) => normalizeModelLabel(item.Model).includes(wantedKey));
+  if (!exactMatch && containsMatches.length > 1) {
+    throw new ArgumentError(
+      `Model "${wanted}" is ambiguous in Trae CN model menu: ${containsMatches.map(item => item.Model).join(', ')}`,
+    );
+  }
+  const match = exactMatch || containsMatches[0];
   if (!match) {
     throw new ArgumentError(`Model "${wanted}" not found in Trae CN model menu`);
   }
