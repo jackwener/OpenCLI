@@ -3289,7 +3289,7 @@ cli({
     .option('--timeout <seconds>', 'Maximum time to wait for a reply (default: 120s)')
     .action(async (opts) => {
       // @ts-expect-error JS adapter — no type declarations
-      const { startServe } = await import('../clis/antigravity/serve.js');
+      const { startServe } = await import('../../clis/antigravity/serve.js');
       await startServe({
         port: parseInt(opts.port, 10),
         timeout: opts.timeout ? parsePositiveIntOption(opts.timeout, '--timeout', 120) : undefined,
