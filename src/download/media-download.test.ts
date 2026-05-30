@@ -31,7 +31,9 @@ async function startServer(handler: http.RequestListener): Promise<string> {
   return `http://127.0.0.1:${address.port}`;
 }
 
-describe('media downloads', () => {
+// Windows runners occasionally exceed the default 5s timeout on the first
+// http.createServer + downloadMedia roundtrip (cold-start cost on a loaded VM).
+describe('media downloads', { retry: process.platform === 'win32' ? 2 : 0 }, () => {
   it('keeps custom filenames inside the output directory', async () => {
     const baseUrl = await startServer((_req, res) => {
       res.statusCode = 200;

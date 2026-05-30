@@ -1,14 +1,29 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { fetchWebApi, WEREAD_UA, WEREAD_WEB_ORIGIN } from './utils.js';
+function decodeNumericHtmlEntity(raw, radix) {
+    const codePoint = parseInt(raw, radix);
+    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) {
+        return null;
+    }
+    try {
+        return String.fromCodePoint(codePoint);
+    }
+    catch {
+        return null;
+    }
+}
 function decodeHtmlText(value) {
     return value
         .replace(/<[^>]+>/g, '')
-        .replace(/&#x([0-9a-fA-F]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
-        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+        .replace(/&#x([0-9a-fA-F]+);/gi, (entity, n) => decodeNumericHtmlEntity(n, 16) ?? entity)
+        .replace(/&#(\d+);/g, (entity, n) => decodeNumericHtmlEntity(n, 10) ?? entity)
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
         .trim();
 }
 function normalizeSearchTitle(value) {

@@ -1,17 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-
-function stripHtml(html) {
-    return (html || '')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/<em>/g, '')
-        .replace(/<\/em>/g, '')
-        .trim();
-}
+import { stripHtml } from './text.js';
 
 function itemKey(item) {
     const obj = item.object || {};

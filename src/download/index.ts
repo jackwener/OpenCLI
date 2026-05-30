@@ -217,7 +217,18 @@ export function exportCookiesToNetscape(
   }
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, lines.join('\n'));
+  // 0o600: file holds live session cookies, must be owner-only. fchmod before
+  // writing also tightens a pre-existing broad file before new secrets land.
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(filePath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC, 0o600);
+    fs.fchmodSync(fd, 0o600);
+    fs.writeFileSync(fd, lines.join('\n'), 'utf8');
+  } finally {
+    if (fd !== undefined) {
+      fs.closeSync(fd);
+    }
+  }
 }
 
 export function formatCookieHeader(cookies: BrowserCookie[]): string {

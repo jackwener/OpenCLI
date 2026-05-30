@@ -3,7 +3,7 @@ import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { formatCookieHeader, httpDownload, resolveRedirectUrl } from './index.js';
+import { exportCookiesToNetscape, formatCookieHeader, httpDownload, resolveRedirectUrl } from './index.js';
 
 const servers: http.Server[] = [];
 const tempDirs: string[] = [];
@@ -131,5 +131,33 @@ describe('download helpers', { retry: process.platform === 'win32' ? 2 : 0 }, ()
 
     expect(result).toEqual({ success: true, size: 2 });
     expect(fs.readFileSync(destPath, 'utf8')).toBe('ok');
+  });
+
+  it.skipIf(process.platform === 'win32')('writes the Netscape cookie file with 0o600 owner-only permissions', async () => {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
+    tempDirs.push(tempDir);
+    const cookiesPath = path.join(tempDir, 'cookies.txt');
+
+    exportCookiesToNetscape([
+      { name: 'sid', value: 'secret', domain: 'example.com' },
+    ], cookiesPath);
+
+    const mode = fs.statSync(cookiesPath).mode & 0o777;
+    expect(mode).toBe(0o600);
+  });
+
+  it.skipIf(process.platform === 'win32')('tightens an existing Netscape cookie file before rewriting it', async () => {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-dl-'));
+    tempDirs.push(tempDir);
+    const cookiesPath = path.join(tempDir, 'cookies.txt');
+    fs.writeFileSync(cookiesPath, 'stale-cookie', { mode: 0o644 });
+
+    exportCookiesToNetscape([
+      { name: 'sid', value: 'secret', domain: 'example.com' },
+    ], cookiesPath);
+
+    const mode = fs.statSync(cookiesPath).mode & 0o777;
+    expect(mode).toBe(0o600);
+    expect(fs.readFileSync(cookiesPath, 'utf8')).toContain('sid\tsecret');
   });
 });

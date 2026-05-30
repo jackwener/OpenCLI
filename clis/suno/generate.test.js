@@ -94,6 +94,15 @@ describe('suno generate argument validation', () => {
         });
     });
 
+    it('refuses to submit when planId is null (free-tier without resolved user_tier) (#1704)', async () => {
+        mocks.ensureSunoSession.mockResolvedValue({ ...okSession, planId: null, planKey: 'free' });
+        await expect(generateCommand.func(createPage(), { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('plan id'),
+        });
+        expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
+    });
+
     it('refuses to submit when credits are below the per-song minimum', async () => {
         mocks.ensureSunoSession.mockResolvedValue({ ...okSession, totalCreditsAvailable: 5, breakdown: { ...okSession.breakdown, monthlyRemaining: 5 } });
         await expect(generateCommand.func(createPage(), { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({

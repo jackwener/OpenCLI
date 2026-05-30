@@ -20,7 +20,7 @@ describe('zhihu question', () => {
                         id: '2036567240334653053',
                         author: { name: 'alice' },
                         voteup_count: 12,
-                        content: 'Hello Zhihu',
+                        content: '<p>&#34;Hello&#34; &#x26; Zhihu</p>',
                     },
                 ],
             };
@@ -33,7 +33,7 @@ describe('zhihu question', () => {
                 author: 'alice',
                 votes: 12,
                 url: 'https://www.zhihu.com/question/2021881398772981878/answer/2036567240334653053',
-                content: 'Hello Zhihu',
+                content: '"Hello" & Zhihu',
             },
         ]);
         expect(goto).toHaveBeenCalledWith('https://www.zhihu.com/question/2021881398772981878');
