@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
 cli({
     site: 'pixiv',
@@ -25,7 +25,7 @@ cli({
     func: async (page, kwargs) => {
         const uid = String(kwargs.uid ?? '');
         if (!/^\d+$/.test(uid)) {
-            throw new CommandExecutionError(`Invalid user ID: ${uid}`);
+            throw new ArgumentError(`Invalid user ID: ${uid}`, 'Example: opencli pixiv user 123456');
         }
         const b = await pixivFetch(page, `/ajax/user/${uid}`, {
             params: { full: 1 },

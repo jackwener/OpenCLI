@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 import './detail.js';
 let cmd;
@@ -9,9 +9,10 @@ beforeAll(() => {
     expect(cmd?.func).toBeTypeOf('function');
 });
 describe('pixiv detail', () => {
-    it('throws CommandExecutionError on invalid illustration ID', async () => {
+    it('throws ArgumentError on invalid illustration ID before navigation', async () => {
         const page = createPageMock([]);
-        await expect(cmd.func(page, { id: 'xyz' })).rejects.toThrow(CommandExecutionError);
+        await expect(cmd.func(page, { id: 'xyz' })).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
     it('throws AuthRequiredError on 401', async () => {
         const page = createPageMock([{ __httpError: 401 }]);
@@ -24,6 +25,13 @@ describe('pixiv detail', () => {
     it('throws CommandExecutionError on non-auth HTTP failure', async () => {
         const page = createPageMock([{ __httpError: 500 }]);
         await expect(cmd.func(page, { id: '12345' })).rejects.toThrow(CommandExecutionError);
+    });
+    it('surfaces HTTP error body messages from pixivFetch', async () => {
+        const page = createPageMock([{ __httpError: 429, message: 'Too many requests' }]);
+        await expect(cmd.func(page, { id: '12345' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Too many requests'),
+        });
     });
     it('returns detail row with mapped fields', async () => {
         const page = createPageMock([

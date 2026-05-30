@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
 cli({
     site: 'pixiv',
@@ -27,7 +27,7 @@ cli({
     func: async (page, kwargs) => {
         const id = String(kwargs.id ?? '');
         if (!/^\d+$/.test(id)) {
-            throw new CommandExecutionError(`Invalid illustration ID: ${id}`);
+            throw new ArgumentError(`Invalid illustration ID: ${id}`, 'Example: opencli pixiv detail 123456');
         }
         const b = await pixivFetch(page, `/ajax/illust/${id}`, {
             notFoundMsg: `Illustration not found: ${id}`,
