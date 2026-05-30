@@ -64,6 +64,8 @@ opencli browser my-session close
 
 如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
 
+`OpenCLI Browser` 和 `OpenCLI Adapter` tab group 是扩展管理的自动化容器；请不要把自己的长期 tab 放进去，也不要重命名。
+
 ## Daemon 生命周期
 
 Daemon 在首次运行浏览器命令时自动启动，之后保持常驻运行。

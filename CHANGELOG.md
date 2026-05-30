@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 * **extension 1.0.16** — ship the `OpenCLI Browser` / `OpenCLI Adapter` tab-group race fix from #1693. The extension now serializes owned tab-group creation per role so concurrent adapter/browser leases reuse the same group instead of creating duplicate same-title groups.
+* **extension 1.0.17** — replace owned tab-group management with a Chrome-state-as-truth convergence model. The extension now keeps one canonical `OpenCLI Browser` / `OpenCLI Adapter` group per profile role, recovers renamed groups from stored hints or owned lease tabs, merges same-window and cross-window duplicates into the canonical group, and normalizes legacy or user-renamed container titles back to the canonical owned-container title.
 
 ## [1.8.0](https://github.com/jackwener/opencli/compare/v1.7.22...v1.8.0) (2026-05-20)
 
