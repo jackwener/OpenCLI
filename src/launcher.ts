@@ -251,7 +251,19 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
   }
 
   // Step 4: Launch
-  const args = [`--remote-debugging-port=${port}`, ...(app.extraArgs ?? [])];
+  //
+  // Chrome / Electron 142+ enforces an Origin allow-list on the CDP
+  // WebSocket upgrade (ws://127.0.0.1:<port>/devtools/page/<id>). Without
+  // --remote-allow-origins=* every ws client other than chrome://inspect
+  // gets HTTP 403 "Rejected an incoming WebSocket connection from the
+  // http://127.0.0.1:<port> origin". This affects every Electron app
+  // opencli launches because they all bundle a recent Chromium. Same
+  // mitigation as Puppeteer / Playwright / chrome-devtools-mcp.
+  const args = [
+    `--remote-debugging-port=${port}`,
+    '--remote-allow-origins=*',
+    ...(app.extraArgs ?? []),
+  ];
   await launchElectronApp(appPath, app, args, label);
 
   // Step 5: Poll for readiness
