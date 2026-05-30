@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { TimeoutError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { activityCommand } from './activity.js';
 import { approveCommand } from './approve.js';
 import { askCommand } from './ask.js';
@@ -30,6 +30,7 @@ import {
   normalizeTimeout,
   readMessagesScript,
   submitPromptScript,
+  submittedPromptScript,
 } from './utils.js';
 
 function evaluateInDom(html, script) {
@@ -85,6 +86,7 @@ describe('trae-cn utils', () => {
   it('builds injectable scripts for composer, turn count, and model selection', () => {
     expect(injectPromptScript('hello')).toContain('chat-input-v2-input-box-editable');
     expect(submitPromptScript()).toContain('chat-input-v2-send-button');
+    expect(submittedPromptScript(2, 'hello')).toContain('section.chat-turn');
     expect(countTurnsScript()).toContain('section.chat-turn');
     expect(normalizeModelLabel('GPT 5.4')).toBe('gpt5.4');
     expect(normalizeModelLabel('GPT-5.4')).toBe('gpt5.4');
@@ -264,7 +266,7 @@ describe('trae-cn commands', () => {
     expect(setupText).toContain('open -a "Trae CN" --args --remote-debugging-port=39240');
     expect(setupText).toContain('export OPENCLI_CDP_TARGET="talk"');
     expect(setupText).toContain('opencli trae-cn approve --approve-kinds terminal,delete -f json');
-    expect(setupText).toContain('opencli trae-cn watch --stream true --duration 120 --auto-approve false');
+    expect(setupText).toContain('opencli trae-cn watch --stream true --duration 120 --auto-approve true');
   });
 
   it('documents endpoint/target examples for browser commands', () => {
@@ -275,9 +277,12 @@ describe('trae-cn commands', () => {
     expect(targetsCommand.example).toContain('OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240');
   });
 
-  it('keeps ask/watch auto-approval on by default for terminal/delete and keeps keep opt-in', () => {
-    expect(askCommand.args.find(arg => arg.name === 'auto-approve')).toMatchObject({ type: 'boolean', default: true });
-    expect(watchCommand.args.find(arg => arg.name === 'auto-approve')).toMatchObject({ type: 'boolean', default: true });
+  it('keeps approval clicks opt-in and marks any approval-capable command as write', () => {
+    expect(askCommand.access).toBe('write');
+    expect(watchCommand.access).toBe('write');
+    expect(approveCommand.access).toBe('write');
+    expect(askCommand.args.find(arg => arg.name === 'auto-approve')).toMatchObject({ type: 'boolean', default: false });
+    expect(watchCommand.args.find(arg => arg.name === 'auto-approve')).toMatchObject({ type: 'boolean', default: false });
     expect(askCommand.args.find(arg => arg.name === 'approve-kinds')).toMatchObject({ default: 'terminal,delete' });
     expect(watchCommand.args.find(arg => arg.name === 'approve-kinds')).toMatchObject({ default: 'terminal,delete' });
   });
@@ -304,12 +309,74 @@ describe('trae-cn commands', () => {
     expect(rows[0]).toMatchObject({ Status: 'NoPrompt', Kind: 'terminal', Action: 'dry-run' });
   });
 
+  it('approve fails closed when the native approval click fails', async () => {
+    const page = {
+      evaluate: vi.fn().mockResolvedValueOnce([
+        { Status: 'Detected', Kind: 'terminal', Button: '运行', Prompt: '运行终端命令', Selector: '[data-opencli-approval-id="x"]', Action: 'detected' },
+      ]),
+      click: vi.fn().mockRejectedValueOnce(new Error('stale element')),
+    };
+
+    await expect(approveCommand.func(page, { 'approve-kinds': 'terminal', limit: 1, 'dry-run': false }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('select-model fails closed when the selected model is not verified after click', async () => {
+    const page = {
+      evaluate: vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ Index: 0, Model: 'GPT 5.4' }])
+        .mockResolvedValueOnce({ model: 'Claude 4', workspace: 'talk', agent: '@Trae Agent' }),
+      click: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(selectModelCommand.func(page, { name: 'GPT 5.4' }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('new fails closed when clicking new task does not prove a fresh empty composer', async () => {
+    const page = {
+      evaluate: vi.fn()
+        .mockResolvedValueOnce({ ok: true, method: 'data-testid-or-class' })
+        .mockResolvedValue({ composerReady: true, turns: 2, workspace: 'talk', model: 'GPT-5.4', agent: '@Trae Agent' }),
+      wait: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(newCommand.func(page, { timeout: 1 }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('send fails closed when submit does not create a matching user turn', async () => {
+    const page = {
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true, mode: 'button' })
+        .mockResolvedValue(false),
+      wait: vi.fn().mockResolvedValue(undefined),
+    };
+    let now = 1_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+      now += 1_000;
+      return now;
+    });
+    try {
+      await expect(sendCommand.func(page, { text: 'ping' }))
+        .rejects.toBeInstanceOf(CommandExecutionError);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('ask throws a typed timeout instead of returning a system sentinel row', async () => {
     const page = {
       evaluate: vi.fn()
         .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(0)
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, mode: 'button' }),
+        .mockResolvedValueOnce({ ok: true, mode: 'button' })
+        .mockResolvedValueOnce(true),
       wait: vi.fn().mockResolvedValue(undefined),
     };
     let now = 1_000;

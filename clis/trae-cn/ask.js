@@ -13,7 +13,7 @@ import {
 } from './utils.js';
 
 function normalizeAutoApprove(value) {
-  return value === undefined || value === true || String(value).toLowerCase() === 'true';
+  return value === true || String(value).toLowerCase() === 'true';
 }
 
 export const askCommand = cli({
@@ -29,7 +29,7 @@ export const askCommand = cli({
     { name: 'text', required: true, positional: true, help: 'Prompt to send into Trae CN' },
     { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for response (default: 60)', default: 60 },
     { name: 'max-chars', type: 'int', required: false, help: 'Max chars to return from the assistant response; 0 returns full text (default: 12000)', default: 12000 },
-    { name: 'auto-approve', type: 'boolean', required: false, help: 'While waiting, approve visible terminal/delete prompts, including high-risk terminal confirmation layers (default: true; pass false to disable)', default: true },
+    { name: 'auto-approve', type: 'boolean', required: false, help: 'While waiting, approve visible terminal/delete prompts, including high-risk terminal confirmation layers (default: false)', default: false },
     { name: 'approve-kinds', type: 'string', required: false, help: 'Comma-separated approval categories for --auto-approve: terminal,delete,keep,all (default: terminal,delete; keep is not default)', default: 'terminal,delete' },
   ],
   columns: ['Role', 'Text', 'TextChars', 'Truncated', 'TurnIndex', 'MessageId'],

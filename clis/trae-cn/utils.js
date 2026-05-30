@@ -1,4 +1,4 @@
-import { ArgumentError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
 
 export const TRAE_CN_COMPOSER_SELECTOR = '.chat-input-v2-input-box-editable[data-lexical-editor="true"], .chat-input-v2-input-box-editable[contenteditable="true"]';
 export const TRAE_CN_SEND_BUTTON_SELECTOR = '.chat-input-v2-send-button';
@@ -489,6 +489,21 @@ export function countTurnsScript() {
   return `document.querySelectorAll('${TRAE_CN_TURN_SELECTOR}').length`;
 }
 
+export function submittedPromptScript(beforeCount, text) {
+  return `
+    (function(beforeCount, text) {
+      const normalize = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+      const prompt = normalize(text);
+      const turns = Array.from(document.querySelectorAll('${TRAE_CN_TURN_SELECTOR}')).slice(Number(beforeCount) || 0);
+      return turns.some((turn) => {
+        const role = String(turn.getAttribute('data-role') || '').toLowerCase();
+        const isUser = role === 'user' || turn.classList.contains('user');
+        return isUser && normalize(turn.innerText || turn.textContent).includes(prompt);
+      });
+    })(${JSON.stringify(beforeCount)}, ${JSON.stringify(text)})
+  `;
+}
+
 export function latestAssistantScript(maxChars = 0) {
   return `
     (function() {
@@ -662,20 +677,34 @@ export async function readTraeMessages(page, limit = 20, maxChars = 0) {
 
 export async function sendTraePrompt(page, text) {
   const prompt = ensurePrompt(text);
+  const beforeCount = await page.evaluate(countTurnsScript());
   const injected = await page.evaluate(injectPromptScript(prompt));
   if (!injected?.ok) throw selectorError('Trae CN chat input');
   await page.wait(0.3);
   const submitted = await page.evaluate(submitPromptScript());
+  let mode = submitted?.mode || 'unknown';
   if (!submitted?.ok) {
     if (submitted?.reason === 'send_button_disabled' && typeof page.pressKey === 'function') {
       await page.pressKey('Enter');
       await page.wait(0.8);
-      return { prompt, mode: 'keyboard' };
+      mode = 'keyboard';
+    } else {
+      throw selectorError('Trae CN send button');
     }
-    throw selectorError('Trae CN send button');
+  } else {
+    await page.wait(0.8);
   }
-  await page.wait(0.8);
-  return { prompt, mode: submitted.mode || 'unknown' };
+  const deadline = Date.now() + 2500;
+  while (Date.now() < deadline) {
+    if (await page.evaluate(submittedPromptScript(beforeCount, prompt))) {
+      return { prompt, mode };
+    }
+    await page.wait(0.2);
+  }
+  throw new CommandExecutionError(
+    'Trae CN prompt submission was not verified',
+    'The prompt was injected and submit was triggered, but no new user turn containing that prompt appeared.',
+  );
 }
 
 export async function selectTraeModel(page, name) {
@@ -695,9 +724,18 @@ export async function selectTraeModel(page, name) {
   await page.click(TRAE_CN_MODEL_ITEM_SELECTOR, { nth: match.Index });
   await page.wait(0.8);
   const info = await page.evaluate(inspectTraeShellScript());
+  const selectedLabel = info.model || '';
+  const selectedKey = normalizeModelLabel(selectedLabel);
+  const matchKey = normalizeModelLabel(match.Model);
+  if (!selectedKey || (selectedKey !== matchKey && selectedKey !== wantedKey)) {
+    throw new CommandExecutionError(
+      `Trae CN model switch did not verify the requested model: requested "${wanted}", current "${selectedLabel || 'unknown'}"`,
+      'Open the Trae CN model menu and verify the requested model is selectable, then retry.',
+    );
+  }
   return {
     requested: wanted,
-    selected: info.model || match.Model,
+    selected: selectedLabel,
     workspace: info.workspace || '',
     agent: info.agent || '',
   };

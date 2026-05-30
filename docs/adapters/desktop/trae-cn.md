@@ -55,25 +55,25 @@ export OPENCLI_CDP_TARGET="talk"
 - `opencli trae-cn activity` — read the current task state once.
 - `opencli trae-cn watch --duration 60 --interval 2` — sample task state until completion or timeout.
 - `opencli trae-cn watch --stream true` — emit one JSON object per sample as JSONL for agent pipelines.
-- `opencli trae-cn watch --auto-approve false` — keep watching without clicking terminal/delete approval prompts.
+- `opencli trae-cn watch --auto-approve true` — explicitly approve matching terminal/delete prompts while watching.
 
 `watch` defaults to `--stop-on-complete true`, so `--duration` is a maximum observation window. Use `--stop-on-complete false` when you need a fixed-length observation trace.
 
 ### Approval Prompts
 
-Trae CN may pause a long task for UI confirmations, especially before running terminal commands or deleting files. `ask` and `watch` approve visible terminal/delete prompts by default, because this adapter is meant for unattended local agent runs. The default is category-based: OpenCLI approves Trae's visible `terminal` confirmation UI and visible `delete` confirmation UI. It is not a semantic command allowlist limited to `rm` or `mv`.
+Trae CN may pause a long task for UI confirmations, especially before running terminal commands or deleting files. `ask` and `watch` do not click approval prompts unless you pass `--auto-approve true`; `approve` clicks the current matching prompt directly. The approval detector is category-based: OpenCLI approves Trae's visible `terminal` confirmation UI and visible `delete` confirmation UI. It is not a semantic command allowlist limited to `rm` or `mv`.
 
-Default approval behavior:
+Opt-in approval behavior:
 
-- `terminal` is enabled by default. It clicks ordinary terminal run confirmations, high-risk command-card `运行`, and the follow-up high-risk modal `仍要运行` when Trae exposes them with matching button/context text.
-- `delete` is enabled by default. It clicks file deletion cards and the follow-up irreversible delete modal `确认` when Trae exposes them with matching button/context text.
+- `terminal` is enabled when you opt in. It clicks ordinary terminal run confirmations, high-risk command-card `运行`, and the follow-up high-risk modal `仍要运行` when Trae exposes them with matching button/context text.
+- `delete` is enabled when you opt in. It clicks file deletion cards and the follow-up irreversible delete modal `确认` when Trae exposes them with matching button/context text.
 - `keep` is not enabled by default. Use `--approve-kinds keep` only when the intended action is to retain files rather than delete them.
 - Unknown prompts are not clicked. Use `opencli trae-cn activity`, `opencli trae-cn targets`, or `opencli trae-cn approve --dry-run true` to inspect them.
 
-Disable auto-approval when you need a manual checkpoint:
+Monitor without approval clicks:
 
 ```bash
-opencli trae-cn watch --stream true --duration 300 --auto-approve false
+opencli trae-cn watch --stream true --duration 300
 ```
 
 You can also approve the current visible prompt directly:
@@ -84,17 +84,17 @@ opencli trae-cn approve --approve-kinds terminal,delete -f json
 
 Use `--dry-run true` to inspect matching prompts without clicking. Use `--approve-kinds keep` only when the intended action is to keep/retain a file instead of approving deletion.
 
-For long-running agent tasks, the normal monitoring command already uses terminal/delete auto-approval:
+For long-running agent tasks where you explicitly want OpenCLI to approve terminal/delete prompts while watching:
 
 ```bash
-opencli trae-cn watch --stream true --duration 300
+opencli trae-cn watch --stream true --duration 300 --auto-approve true
 ```
 
 The auto-approval detector only clicks visible prompts whose button and surrounding prompt text match the requested approval kinds.
 
 In Trae CN auto-run mode, high-risk shell commands such as `mv` and `rm` can still show confirmation UI. The adapter handles both layers observed in Trae CN: the command card `运行` action and the follow-up `运行风险命令` modal with `仍要运行`.
 
-Observed high-risk patterns include `rm`, `delete`, `unlink`, `shred`, `dd`, `truncate`, `kill`, `chmod`, `mv`, `copy`, `move`, PowerShell write commands, `mkfs`, destructive Git operations, and destructive database commands. If Trae renders any of these as terminal confirmation UI with known wording/buttons, default `watch` and `ask` approve them through the `terminal` approval kind. Treat these prompts as current-product UI behavior rather than a stable public API.
+Observed high-risk patterns include `rm`, `delete`, `unlink`, `shred`, `dd`, `truncate`, `kill`, `chmod`, `mv`, `copy`, `move`, PowerShell write commands, `mkfs`, destructive Git operations, and destructive database commands. If Trae renders any of these as terminal confirmation UI with known wording/buttons, opt-in `watch --auto-approve true` and `ask --auto-approve true` approve them through the `terminal` approval kind. Treat these prompts as current-product UI behavior rather than a stable public API.
 
 When multiple Trae windows are open, use:
 

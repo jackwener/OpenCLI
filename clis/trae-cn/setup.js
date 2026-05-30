@@ -44,7 +44,7 @@ export const setupCommand = cli({
     {
       Step: '7. Monitor progress',
       Command: 'opencli trae-cn watch --stream true --duration 120',
-      Purpose: 'Read in-app running/completed state as JSONL; terminal/delete confirmations are auto-approved by default',
+      Purpose: 'Read in-app running/completed state as JSONL without approving terminal/delete confirmations',
     },
     {
       Step: '8. Approve blockers when needed',
@@ -52,9 +52,9 @@ export const setupCommand = cli({
       Purpose: 'Click visible Trae prompts for terminal command or delete confirmations',
     },
     {
-      Step: '9. Disable auto-approve when needed',
-      Command: 'opencli trae-cn watch --stream true --duration 120 --auto-approve false',
-      Purpose: 'Monitor without clicking terminal/delete prompts',
+      Step: '9. Opt in to auto-approve when needed',
+      Command: 'opencli trae-cn watch --stream true --duration 120 --auto-approve true',
+      Purpose: 'Explicitly opt in when you want watch to approve terminal/delete prompts while monitoring',
     },
     {
       Step: '10. Read result',
@@ -64,7 +64,7 @@ export const setupCommand = cli({
     {
       Step: 'Auto-run boundary',
       Command: 'rm, mv, chmod, dd, truncate, kill, destructive git/database commands',
-      Purpose: 'Trae CN may still stop these as high-risk even when command mode is 自动运行; OpenCLI auto-approves them if they appear as terminal confirmation UI',
+      Purpose: 'Trae CN may still stop these as high-risk even when command mode is 自动运行; OpenCLI approves them only after explicit --auto-approve true or approve',
     },
     {
       Step: 'Help',

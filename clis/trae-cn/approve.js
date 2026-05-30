@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
   approveTraePrompts,
   normalizeApprovalKinds,
@@ -32,6 +33,10 @@ export const approveCommand = cli({
     const maxChars = normalizeMaxChars(kwargs['max-chars'], 600);
     const dryRun = normalizeDryRun(kwargs['dry-run']);
     const rows = await approveTraePrompts(page, kinds, { click: !dryRun, limit, maxChars });
+    if (!dryRun && rows.some(row => row.Action && String(row.Action).startsWith('click-failed'))) {
+      const failed = rows.find(row => row.Action && String(row.Action).startsWith('click-failed'));
+      throw new CommandExecutionError(`Trae CN approval click failed: ${failed?.Action || 'unknown error'}`);
+    }
     if (rows.length === 0) {
       return [{
         Status: 'NoPrompt',

@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { selectorError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
 import { clickNewTaskScript, currentTaskStateScript, ensurePrompt, normalizeTimeout, sendTraePrompt } from './utils.js';
 
 export const newCommand = cli({
@@ -32,18 +32,10 @@ export const newCommand = cli({
     }
 
     if (!state?.composerReady || state.turns !== 0) {
-      return [{
-        Status: 'Unclear',
-        Action: `Clicked new task via ${clicked.method}; fresh empty composer was not confirmed`,
-        Workspace: state?.workspace || '',
-        Model: state?.model || '',
-        Agent: state?.agent || '',
-        FreshTaskConfirmed: 'no',
-        TurnsBeforeSubmit: state?.turns ?? '',
-        Turns: state?.turns ?? '',
-        ComposerReady: state?.composerReady ? 'yes' : 'no',
-        SubmitMode: '',
-      }];
+      throw new CommandExecutionError(
+        `Clicked Trae CN new task via ${clicked.method}; fresh empty composer was not confirmed`,
+        `Observed composerReady=${state?.composerReady ? 'yes' : 'no'}, turns=${state?.turns ?? 'unavailable'}. Verify the current window is a Trae CN chat workspace and retry.`,
+      );
     }
 
     const turnsBeforeSubmit = state.turns;

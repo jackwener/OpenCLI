@@ -27722,9 +27722,9 @@
       {
         "name": "auto-approve",
         "type": "boolean",
-        "default": true,
+        "default": false,
         "required": false,
-        "help": "While waiting, approve visible terminal/delete prompts, including high-risk terminal confirmation layers (default: true; pass false to disable)"
+        "help": "While waiting, approve visible terminal/delete prompts, including high-risk terminal confirmation layers (default: false)"
       },
       {
         "name": "approve-kinds",
@@ -28078,8 +28078,8 @@
   {
     "site": "trae-cn",
     "name": "watch",
-    "description": "Sample Trae CN activity over time to monitor long-running tasks",
-    "access": "read",
+    "description": "Sample Trae CN activity over time to monitor long-running tasks; optionally approve visible terminal/delete prompts",
+    "access": "write",
     "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn watch --stream true --duration 120",
     "domain": "localhost",
     "strategy": "ui",
@@ -28130,9 +28130,9 @@
       {
         "name": "auto-approve",
         "type": "boolean",
-        "default": true,
+        "default": false,
         "required": false,
-        "help": "Approve visible terminal/delete prompts before each sample, including high-risk terminal confirmation layers (default: true; pass false to disable)"
+        "help": "Approve visible terminal/delete prompts before each sample, including high-risk terminal confirmation layers (default: false)"
       },
       {
         "name": "approve-kinds",

@@ -36,14 +36,14 @@ function normalizeStopOnComplete(value) {
 }
 
 function normalizeAutoApprove(value) {
-  return value === undefined || value === true || String(value).toLowerCase() === 'true';
+  return value === true || String(value).toLowerCase() === 'true';
 }
 
 export const watchCommand = cli({
   site: 'trae-cn',
   name: 'watch',
-  access: 'read',
-  description: 'Sample Trae CN activity over time to monitor long-running tasks',
+  access: 'write',
+  description: 'Sample Trae CN activity over time to monitor long-running tasks; optionally approve visible terminal/delete prompts',
   example: 'OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn watch --stream true --duration 120',
   domain: 'localhost',
   strategy: Strategy.UI,
@@ -55,7 +55,7 @@ export const watchCommand = cli({
     { name: 'timeout', type: 'int', required: false, help: 'Max seconds for the overall watch command (default: 86400)', default: 86400 },
     { name: 'stream', type: 'boolean', required: false, help: 'Write each sample immediately as JSONL and skip result rendering (default: false)', default: false },
     { name: 'stop-on-complete', type: 'boolean', required: false, help: 'Stop watching after the first completed sample (default: true)', default: true },
-    { name: 'auto-approve', type: 'boolean', required: false, help: 'Approve visible terminal/delete prompts before each sample, including high-risk terminal confirmation layers (default: true; pass false to disable)', default: true },
+    { name: 'auto-approve', type: 'boolean', required: false, help: 'Approve visible terminal/delete prompts before each sample, including high-risk terminal confirmation layers (default: false)', default: false },
     { name: 'approve-kinds', type: 'string', required: false, help: 'Comma-separated approval categories for --auto-approve: terminal,delete,keep,all (default: terminal,delete; keep is not default)', default: 'terminal,delete' },
   ],
   columns: ['Sample', 'ElapsedSec', 'Changed', 'Status', 'Progress', 'ActiveStep', 'ApprovalPending', 'ApprovalKind', 'ApprovalButton', 'AutoApproved', 'LatestRole', 'TurnIndex', 'MessageId', 'TextChars', 'LatestText', 'UpdatedAt'],
