@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **extension 1.0.16** — ship the `OpenCLI Browser` / `OpenCLI Adapter` tab-group race fix from #1693. The extension now serializes owned tab-group creation per role so concurrent adapter/browser leases reuse the same group instead of creating duplicate same-title groups.
+
 ## [1.8.0](https://github.com/jackwener/opencli/compare/v1.7.22...v1.8.0) (2026-05-20)
 
 Substantial release: a new official-API adapter (`weread-official`), wider LinkedIn / Twitter / Reddit / Zhihu coverage, the 12306 / Suno / Xianyu inbox additions, security and reliability fixes for the Browser Bridge and media downloads, plus a 20% README shrink. Node 20 compatibility is restored after an automated `undici` bump regression.
