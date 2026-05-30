@@ -245,6 +245,86 @@ describe('weread/search regression', () => {
             },
         ]);
     });
+    it('decodes named and astral HTML entities before matching search cards', async () => {
+        const command = getRegistry().get('weread/search');
+        expect(command?.func).toBeTypeOf('function');
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({
+                books: [
+                    {
+                        bookInfo: {
+                            title: 'A <B> 😊',
+                            author: "O'Neil & Co",
+                            bookId: 'entity-book',
+                        },
+                    },
+                ],
+            }),
+        })
+            .mockResolvedValueOnce({
+            ok: true,
+            text: () => Promise.resolve(`
+          <ul class="search_bookDetail_list">
+            <li class="wr_bookList_item">
+              <a class="wr_bookList_item_link" href="/web/reader/entity-reader"></a>
+              <p class="wr_bookList_item_title">A &lt;B&gt; &#x1F60A;</p>
+              <p class="wr_bookList_item_author">O&apos;Neil &amp; Co</p>
+            </li>
+          </ul>
+        `),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const result = await command.func({ query: 'entities', limit: 5 });
+        expect(result).toEqual([
+            {
+                rank: 1,
+                title: 'A <B> 😊',
+                author: "O'Neil & Co",
+                bookId: 'entity-book',
+                url: 'https://weread.qq.com/web/reader/entity-reader',
+            },
+        ]);
+    });
+    it('leaves invalid numeric HTML entities literal instead of throwing raw RangeError', async () => {
+        const command = getRegistry().get('weread/search');
+        expect(command?.func).toBeTypeOf('function');
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({
+                books: [
+                    {
+                        bookInfo: {
+                            title: 'Bad &#xFFFFFFFF; Entity',
+                            author: 'Tester',
+                            bookId: 'bad-entity-book',
+                        },
+                    },
+                ],
+            }),
+        })
+            .mockResolvedValueOnce({
+            ok: true,
+            text: () => Promise.resolve(`
+          <ul class="search_bookDetail_list">
+            <li class="wr_bookList_item">
+              <a class="wr_bookList_item_link" href="/web/reader/bad-entity-reader"></a>
+              <p class="wr_bookList_item_title">Bad &#xFFFFFFFF; Entity</p>
+              <p class="wr_bookList_item_author">Tester</p>
+            </li>
+          </ul>
+        `),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const result = await command.func({ query: 'bad entity', limit: 5 });
+        expect(result[0]).toMatchObject({
+            title: 'Bad &#xFFFFFFFF; Entity',
+            bookId: 'bad-entity-book',
+            url: 'https://weread.qq.com/web/reader/bad-entity-reader',
+        });
+    });
     it('leaves urls empty when same-title results are ambiguous and html cards have no author', async () => {
         const command = getRegistry().get('weread/search');
         expect(command?.func).toBeTypeOf('function');

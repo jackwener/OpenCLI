@@ -136,6 +136,37 @@ function sunoHeadersJs(deviceId, extra = {}) {
 // Session bootstrap.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Parse studio-api-prod billing/info. Inlined into the page IIFE via
+ * toString() so the same parser runs in Node tests and the browser.
+ */
+export function parseSunoBillingInfo(data) {
+    const packCredits = (data?.credit_packs || []).reduce((s, p) => s + (p?.amount ?? p?.credits ?? 0), 0);
+    const monthlyRemaining = Math.max(0, (data?.monthly_limit ?? 0) - (data?.monthly_usage ?? 0));
+    const totalCreditsAvailable = typeof data?.total_credits_left === 'number'
+        ? data.total_credits_left
+        : (data?.credits ?? 0) + packCredits + monthlyRemaining;
+    const plans = Array.isArray(data?.plans) ? data.plans : [];
+    const subscriptionKey = typeof data?.subscription_type === 'string' && data.subscription_type
+        ? data.subscription_type
+        : null;
+    const currentPlan = subscriptionKey
+        ? plans.find((p) => p?.plan_key === subscriptionKey)
+        : plans.find((p) => p?.plan_key === 'free');
+    return {
+        planId: currentPlan?.id || data?.plan?.id || null,
+        planKey: currentPlan?.plan_key || data?.plan?.plan_key || (subscriptionKey ?? 'free'),
+        totalCreditsAvailable,
+        breakdown: {
+            pack: data?.credits ?? 0,
+            purchasedPacks: packCredits,
+            monthlyRemaining,
+            monthlyLimit: data?.monthly_limit ?? 0,
+            monthlyUsed: data?.monthly_usage ?? 0,
+        },
+    };
+}
+
 export async function ensureSunoSession(page) {
     await page.goto(`${SUNO_URL}/me`, { settleMs: 2000 });
     // OneTrust consent banner can block the page; dismiss it if present.
@@ -163,27 +194,8 @@ export async function ensureSunoSession(page) {
             } catch (e) {
                 return { ok: false, error: 'Malformed billing/info JSON: ' + String(e).slice(0, 200) };
             }
-            // Suno tracks credits across three buckets:
-            //   - data.credits          : leftover one-time pack credits (often 0)
-            //   - monthly subscription  : (monthly_limit - monthly_usage)
-            //   - data.credit_packs[]   : purchased packs not yet exhausted
-            // The web UI's "credits remaining" pill is the sum of all three.
-            const packCredits = (data?.credit_packs || []).reduce((s, p) => s + (p?.credits ?? 0), 0);
-            const monthlyRemaining = Math.max(0, (data?.monthly_limit ?? 0) - (data?.monthly_usage ?? 0));
-            const totalCreditsAvailable = (data?.credits ?? 0) + packCredits + monthlyRemaining;
-            return {
-                ok: true,
-                planId: data?.plan?.id || null,
-                planKey: data?.plan?.plan_key || null,
-                totalCreditsAvailable,
-                breakdown: {
-                    pack: data?.credits ?? 0,
-                    purchasedPacks: packCredits,
-                    monthlyRemaining,
-                    monthlyLimit: data?.monthly_limit ?? 0,
-                    monthlyUsed: data?.monthly_usage ?? 0,
-                },
-            };
+            const parse = ${parseSunoBillingInfo.toString()};
+            return { ok: true, ...parse(data) };
         } catch (e) {
             return { ok: false, error: String(e).slice(0, 200) };
         }
@@ -195,9 +207,6 @@ export async function ensureSunoSession(page) {
             throw new AuthRequiredError(SUNO_DOMAIN, `Suno session check failed (${detail}). Open https://suno.com in Chrome and sign in, then retry.`);
         }
         throw new CommandExecutionError(`Suno session check failed (${detail}).`);
-    }
-    if (!result.planId) {
-        throw new CommandExecutionError('Suno billing/info returned no plan id — cannot construct user_tier for generation request.');
     }
     return { ...result, deviceId };
 }

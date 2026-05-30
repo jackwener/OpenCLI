@@ -15692,6 +15692,64 @@
   },
   {
     "site": "linkedin",
+    "name": "job-detail",
+    "description": "Read one LinkedIn job page with description, apply URL, workplace type, applicants, and company metadata",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "job-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Exact LinkedIn job URL, e.g. https://www.linkedin.com/jobs/view/123/"
+      }
+    ],
+    "columns": [
+      "title",
+      "company",
+      "location",
+      "workplace_type",
+      "job_type",
+      "applicants",
+      "listed",
+      "apply_url",
+      "company_url",
+      "url",
+      "description"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/job-detail.js",
+    "sourceFile": "linkedin/job-detail.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "jobs-preferences",
+    "description": "Read visible LinkedIn Jobs preferences and alert settings without changing them",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "open_to_work",
+      "job_titles",
+      "locations",
+      "job_alerts",
+      "preferences_url",
+      "alerts_url",
+      "raw_preferences"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/jobs-preferences.js",
+    "sourceFile": "linkedin/jobs-preferences.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "people-search",
     "description": "Search standard LinkedIn (not Sales Navigator) for people by keyword. Each invocation consumes against LinkedIn's monthly Commercial Use Limit on people search; throttle accordingly.",
     "access": "read",
@@ -15724,6 +15782,229 @@
     "type": "js",
     "modulePath": "linkedin/people-search.js",
     "sourceFile": "linkedin/people-search.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "post-analytics",
+    "description": "Summarize raw visible LinkedIn post counters without custom scoring or classification",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Maximum posts to summarize (1-100)"
+      }
+    ],
+    "columns": [
+      "posts_analyzed",
+      "total_reactions",
+      "total_comments",
+      "total_reposts",
+      "total_impressions",
+      "posts_with_media",
+      "posts_with_urls",
+      "latest_posted_at",
+      "latest_reactions",
+      "latest_comments",
+      "latest_reposts",
+      "latest_impressions",
+      "latest_url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/post-analytics.js",
+    "sourceFile": "linkedin/post-analytics.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "posts",
+    "description": "Export visible posts from a LinkedIn profile activity page with engagement metrics",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum posts to return (1-100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "author",
+      "posted_at",
+      "body",
+      "reactions",
+      "comments",
+      "reposts",
+      "impressions",
+      "media",
+      "media_urls",
+      "url",
+      "raw_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/posts.js",
+    "sourceFile": "linkedin/posts.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "profile-analytics",
+    "description": "Read visible LinkedIn profile dashboard metrics such as profile views, post impressions, and search appearances",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "profile_url",
+      "profile_views",
+      "post_impressions",
+      "search_appearances",
+      "followers",
+      "connections",
+      "raw_analytics"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-analytics.js",
+    "sourceFile": "linkedin/profile-analytics.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "profile-experience",
+    "description": "Read visible LinkedIn profile experience entries with titles, dates, locations, skills, media, and URLs",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "rank",
+      "total_count",
+      "title",
+      "employment_type",
+      "company",
+      "date_range",
+      "start_date",
+      "end_date",
+      "location",
+      "location_type",
+      "description",
+      "skills",
+      "media",
+      "urls",
+      "skill_url",
+      "media_url",
+      "profile_url",
+      "raw_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-experience.js",
+    "sourceFile": "linkedin/profile-experience.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "profile-projects",
+    "description": "Read visible LinkedIn profile projects with descriptions, dates, skills, media, and URLs",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "date_range",
+      "associated_with",
+      "description",
+      "skills",
+      "media",
+      "urls",
+      "profile_url",
+      "raw_text"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-projects.js",
+    "sourceFile": "linkedin/profile-projects.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "profile-read",
+    "description": "Read visible LinkedIn profile sections: headline, About, experience, education, services, and featured sections",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      }
+    ],
+    "columns": [
+      "profile_url",
+      "name",
+      "headline",
+      "location",
+      "about",
+      "about_character_count",
+      "about_skills",
+      "experience",
+      "education",
+      "services",
+      "featured"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/profile-read.js",
+    "sourceFile": "linkedin/profile-read.js",
     "navigateBefore": "https://www.linkedin.com"
   },
   {
@@ -16104,6 +16385,47 @@
     "modulePath": "linkedin/sent-invitations.js",
     "sourceFile": "linkedin/sent-invitations.js",
     "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "services-read",
+    "description": "Read LinkedIn Services page details including services, overview, availability, pricing, and media titles/descriptions",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "profile-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /in/<handle>/ profile URL. Defaults to /in/me/."
+      },
+      {
+        "name": "services-url",
+        "type": "string",
+        "required": false,
+        "help": "LinkedIn /services/page/<id>/ URL. If omitted, it is discovered from the profile."
+      }
+    ],
+    "columns": [
+      "service_url",
+      "page_title",
+      "overview",
+      "availability",
+      "work_locations",
+      "pricing",
+      "services_provided",
+      "services_count",
+      "media",
+      "media_count",
+      "messages",
+      "reviews_visibility"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/services-read.js",
+    "sourceFile": "linkedin/services-read.js",
+    "navigateBefore": "https://www.linkedin.com"
   },
   {
     "site": "linkedin",

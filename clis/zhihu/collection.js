@@ -1,19 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { log } from '@jackwener/opencli/logger';
-
-function stripHtml(html) {
-  return html
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/<em>/g, '')
-    .replace(/<\/em>/g, '')
-    .trim();
-}
+import { stripHtml } from './text.js';
 
 function validatePositiveInt(value, name) {
   const n = Number(value);
@@ -106,7 +94,7 @@ function mapCollectionItem(item, rank) {
   return {
     rank,
     type,
-    title: title.substring(0, 100),
+    title: stripHtml(title).substring(0, 100),
     author,
     votes,
     excerpt,

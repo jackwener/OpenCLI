@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { compactRepeatedText } from './shared.js';
 function normalizeWhitespace(value) {
     return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -23,9 +24,9 @@ function buildPostId(post) {
     const url = normalizeWhitespace(post.url);
     if (url)
         return url;
-    const author = normalizeWhitespace(post.author);
+    const author = compactRepeatedText(post.author);
     const text = normalizeWhitespace(post.text);
-    const postedAt = normalizeWhitespace(post.posted_at);
+    const postedAt = normalizeTimestamp(post.posted_at);
     return `${author}::${postedAt}::${text.slice(0, 120)}`;
 }
 function mergeTimelinePosts(existing, batch) {
@@ -34,11 +35,11 @@ function mergeTimelinePosts(existing, batch) {
     for (const rawPost of batch) {
         const post = {
             id: buildPostId(rawPost),
-            author: normalizeWhitespace(rawPost.author),
+            author: compactRepeatedText(rawPost.author),
             author_url: normalizeWhitespace(rawPost.author_url),
-            headline: normalizeWhitespace(rawPost.headline),
+            headline: compactRepeatedText(rawPost.headline),
             text: normalizeWhitespace(rawPost.text),
-            posted_at: normalizeWhitespace(rawPost.posted_at),
+            posted_at: normalizeTimestamp(rawPost.posted_at),
             reactions: Number(rawPost.reactions) || 0,
             comments: Number(rawPost.comments) || 0,
             url: normalizeWhitespace(rawPost.url),
@@ -51,6 +52,11 @@ function mergeTimelinePosts(existing, batch) {
         merged.push(post);
     }
     return merged;
+}
+function normalizeTimestamp(value) {
+    const text = normalizeWhitespace(value).replace(/[•·.]$/g, '').trim();
+    const match = text.match(/\b(\d+\s*(?:s|m|h|d|w|mo|yr|min))\b/i);
+    return match ? match[1].replace(/\s+/g, '') : text;
 }
 async function extractVisiblePosts(page) {
     return page.evaluate(`(function () {
@@ -376,7 +382,7 @@ async function extractVisiblePosts(page) {
           || /see more|more/i.test(normalize(el.getAttribute('aria-label')));
       })
       .slice(0, 8);
-    var cards = Array.from(document.querySelectorAll('article, .feed-shared-update-v2, .occludable-update, [role="listitem"]'));
+    var cards = Array.from(document.querySelectorAll('article, [role="article"], .feed-shared-update-v2, .occludable-update, [role="listitem"]'));
     var seen = new Set();
     var posts = [];
     var i;
@@ -397,7 +403,7 @@ async function extractVisiblePosts(page) {
 
     for (i = 0; i < cards.length; i += 1) {
       card = cards[i];
-      root = card.closest('article, .feed-shared-update-v2, .occludable-update, [role="listitem"]') || card;
+      root = card.closest('article, [role="article"], .feed-shared-update-v2, .occludable-update, [role="listitem"]') || card;
       if (!root || seen.has(root)) continue;
       seen.add(root);
 
@@ -501,4 +507,5 @@ export const __test__ = {
     parseMetric,
     buildPostId,
     mergeTimelinePosts,
+    normalizeTimestamp,
 };

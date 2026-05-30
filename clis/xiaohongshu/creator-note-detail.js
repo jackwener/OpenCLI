@@ -9,7 +9,7 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 const NOTE_DETAIL_DATETIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const NOTE_DETAIL_METRICS = [
     { label: '曝光数', section: '基础数据' },
@@ -247,37 +247,170 @@ const DETAIL_API_ENDPOINTS = [
     { suffix: '/api/galaxy/creator/datacenter/note/base', key: 'noteBase' },
     { suffix: '/api/galaxy/creator/datacenter/note/analyze/audience/trend', key: 'audienceTrend' },
     { suffix: '/api/galaxy/creator/datacenter/note/audience/source/detail', key: 'audienceSourceDetail' },
-    { suffix: '/api/galaxy/creator/datacenter/note/audience', key: 'audienceSource' },
+    { suffix: '/api/galaxy/creator/datacenter/note/audience/source', key: 'audienceSource' },
 ];
-async function captureNoteDetailPayload(page, noteId) {
-    const payload = {};
-    let captured = 0;
-    // Try to fetch each API endpoint through the page context (uses the browser's cookies)
-    for (const { suffix, key } of DETAIL_API_ENDPOINTS) {
-        await page.wait({ time: 0.5 + Math.random() });
-        const apiUrl = `${suffix}?note_id=${noteId}`;
-        try {
-            const data = await page.evaluate(`
-        async () => {
-          try {
-            const resp = await fetch(${JSON.stringify(apiUrl)}, { credentials: 'include' });
-            if (!resp.ok) return null;
-            const json = await resp.json();
-            return JSON.stringify(json.data ?? {});
-          } catch { return null; }
-        }
-      `);
-            if (data && typeof data === 'string') {
-                try {
-                    payload[key] = JSON.parse(data);
-                    captured++;
-                }
-                catch { }
-            }
-        }
-        catch { }
+const CAPTURE_POLL_ATTEMPTS = 20;
+const CAPTURE_POLL_INTERVAL_S = 0.5;
+function detailApiEndpointForUrl(url) {
+    if (!url)
+        return null;
+    try {
+        const parsed = new URL(String(url), 'https://creator.xiaohongshu.com');
+        return DETAIL_API_ENDPOINTS.find((endpoint) => parsed.pathname === endpoint.suffix) ?? null;
     }
-    return captured > 0 ? payload : null;
+    catch {
+        return null;
+    }
+}
+function findCapturedUrl(captureMap, suffix) {
+    return Object.keys(captureMap).find((url) => detailApiEndpointForUrl(url)?.suffix === suffix);
+}
+function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function assertOptionalArray(payload, key, suffix) {
+    if (key in payload && !Array.isArray(payload[key])) {
+        throw new CommandExecutionError(`xiaohongshu creator-note-detail: signed API ${suffix} returned malformed ${key}`);
+    }
+}
+function assertOptionalPlainObject(payload, key, suffix) {
+    if (key in payload && !isPlainObject(payload[key])) {
+        throw new CommandExecutionError(`xiaohongshu creator-note-detail: signed API ${suffix} returned malformed ${key}`);
+    }
+}
+function validateCapturedPayload(payload, endpoint) {
+    const suffix = endpoint.suffix;
+    if (!isPlainObject(payload)) {
+        throw new CommandExecutionError(`xiaohongshu creator-note-detail: signed API ${suffix} returned a malformed payload`);
+    }
+    if (endpoint.key === 'noteBase') {
+        assertOptionalPlainObject(payload, 'hour', suffix);
+        assertOptionalPlainObject(payload, 'day', suffix);
+    }
+    if (endpoint.key === 'audienceSource') {
+        assertOptionalArray(payload, 'source', suffix);
+    }
+    if (endpoint.key === 'audienceSourceDetail') {
+        for (const key of ['gender', 'age', 'city', 'interest']) {
+            assertOptionalArray(payload, key, suffix);
+        }
+    }
+    return payload;
+}
+function parseCapturedJson(capture, endpoint) {
+    const suffix = endpoint.suffix;
+    if (!capture || typeof capture !== 'object') {
+        throw new CommandExecutionError(`xiaohongshu creator-note-detail: malformed capture for ${suffix}`);
+    }
+    if (capture.ok !== true) {
+        throw new CommandExecutionError(`xiaohongshu creator-note-detail: signed API ${suffix} returned HTTP ${capture.status ?? 'non-2xx'}`);
+    }
+    if (typeof capture.body !== 'string') {
+        throw new CommandExecutionError(`xiaohongshu creator-note-detail: signed API ${suffix} returned a non-text body`);
+    }
+    try {
+        const envelope = JSON.parse(capture.body);
+        const payload = isPlainObject(envelope) && Object.hasOwn(envelope, 'data') ? envelope.data : envelope;
+        return validateCapturedPayload(payload, endpoint);
+    }
+    catch {
+        throw new CommandExecutionError(`xiaohongshu creator-note-detail: signed API ${suffix} returned invalid JSON or payload shape`);
+    }
+}
+// Capture the dashboard's signed datacenter/note responses on window.__xhsCapture
+// since a direct fetch() from page.evaluate bypasses the x-s signing and gets 406.
+async function installXhsFetchCaptureHook(page) {
+    await page.evaluate(`(() => {
+    const targetPaths = ${JSON.stringify(DETAIL_API_ENDPOINTS.map((endpoint) => endpoint.suffix))};
+    const shouldCapture = (url) => {
+      try {
+        return targetPaths.includes(new URL(String(url), window.location.origin).pathname);
+      } catch (_) {
+        return false;
+      }
+    };
+    // Reset the buffer every call so stale captures from a previous run on
+    // the same tab cannot leak into the current navigation's harvest.
+    window.__xhsCapture = {};
+    if (window.__xhsCaptureInstalled) return;
+    window.__xhsCaptureInstalled = true;
+    const origFetch = window.fetch;
+    window.fetch = async function(...args) {
+      const resp = await origFetch.apply(this, args);
+      try {
+        const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
+        if (shouldCapture(url)) {
+          resp.clone().text().then((body) => {
+            try { window.__xhsCapture[url] = { status: resp.status, ok: resp.ok, body }; } catch (_) {}
+          }).catch(() => {});
+        }
+      } catch (_) {}
+      return resp;
+    };
+    const OrigXHR = window.XMLHttpRequest;
+    function HookedXHR() {
+      const xhr = new OrigXHR();
+      const origOpen = xhr.open;
+      let capturedUrl = '';
+      xhr.open = function(method, url, ...rest) {
+        capturedUrl = url;
+        return origOpen.call(this, method, url, ...rest);
+      };
+      xhr.addEventListener('load', () => {
+        try {
+          if (shouldCapture(capturedUrl)) {
+            window.__xhsCapture[capturedUrl] = { status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300, body: xhr.responseText };
+          }
+        } catch (_) {}
+      });
+      return xhr;
+    }
+    HookedXHR.prototype = OrigXHR.prototype;
+    // Preserve readyState constants (UNSENT / OPENED / HEADERS_RECEIVED / LOADING / DONE)
+    // since dashboard code may read XMLHttpRequest.DONE etc against the constructor.
+    for (const key of ['UNSENT', 'OPENED', 'HEADERS_RECEIVED', 'LOADING', 'DONE']) {
+      if (key in OrigXHR) HookedXHR[key] = OrigXHR[key];
+    }
+    window.XMLHttpRequest = HookedXHR;
+  })()`);
+}
+async function captureNoteDetailPayload(page, noteId) {
+    await installXhsFetchCaptureHook(page);
+    // SPA-navigate inside the dashboard so the React router re-fires the
+    // signed datacenter/note/* requests under our hook. A second page.goto
+    // would wipe the hook before the first auto-fetch can land.
+    await page.evaluate(`(() => {
+    const target = '/statistics/note-detail?noteId=' + ${JSON.stringify(noteId)};
+    history.pushState({}, '', target);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  })()`);
+    const wantedSuffixes = DETAIL_API_ENDPOINTS.map((endpoint) => endpoint.suffix);
+    let captureMap = {};
+    for (let i = 0; i < CAPTURE_POLL_ATTEMPTS; i++) {
+        await page.wait(CAPTURE_POLL_INTERVAL_S);
+        let raw;
+        try {
+            raw = await page.evaluate('JSON.stringify(window.__xhsCapture || {})');
+            captureMap = typeof raw === 'string' ? JSON.parse(raw) : {};
+        }
+        catch {
+            throw new CommandExecutionError('xiaohongshu creator-note-detail: failed to read signed datacenter/note capture buffer');
+        }
+        if (!captureMap || typeof captureMap !== 'object' || Array.isArray(captureMap)) {
+            throw new CommandExecutionError('xiaohongshu creator-note-detail: malformed signed datacenter/note capture buffer');
+        }
+        const captured = wantedSuffixes.filter((suffix) => findCapturedUrl(captureMap, suffix));
+        if (captured.length === wantedSuffixes.length)
+            break;
+    }
+    const payload = {};
+    for (const endpoint of DETAIL_API_ENDPOINTS) {
+        const matchUrl = findCapturedUrl(captureMap, endpoint.suffix);
+        if (!matchUrl)
+            continue;
+        payload[endpoint.key] = parseCapturedJson(captureMap[matchUrl], endpoint);
+    }
+    return Object.keys(payload).length > 0 ? payload : null;
 }
 async function captureNoteDetailDomData(page) {
     const result = await page.evaluate(`() => {
@@ -308,14 +441,18 @@ async function captureNoteDetailDomData(page) {
     return result;
 }
 export async function fetchCreatorNoteDetailRows(page, noteId) {
-    await page.goto(`https://creator.xiaohongshu.com/statistics/note-detail?noteId=${encodeURIComponent(noteId)}`);
+    // Land on the dashboard root first so the React app boots before the
+    // note-specific signed APIs fire. captureNoteDetailPayload then installs
+    // the fetch+XHR hook and SPA-navigates to /statistics/note-detail under
+    // it, which is what surfaces the audience / trend rows.
+    await page.goto('https://creator.xiaohongshu.com/statistics');
+    const apiPayload = await captureNoteDetailPayload(page, noteId);
     const domData = await captureNoteDetailDomData(page).catch(() => null);
     let rows = parseCreatorNoteDetailDomData(domData, noteId);
     if (rows.length === 0) {
         const bodyText = await page.evaluate('() => document.body.innerText');
         rows = parseCreatorNoteDetailText(typeof bodyText === 'string' ? bodyText : '', noteId);
     }
-    const apiPayload = await captureNoteDetailPayload(page, noteId).catch(() => null);
     appendTrendRows(rows, apiPayload ?? undefined);
     appendAudienceRows(rows, apiPayload ?? undefined);
     return rows;

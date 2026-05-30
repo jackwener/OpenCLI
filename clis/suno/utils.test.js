@@ -16,6 +16,7 @@ import {
     unwrapEvaluateResult,
     pollSunoClips,
     ensureSunoSession,
+    parseSunoBillingInfo,
 } from './utils.js';
 
 describe('suno utils — parseFormats', () => {
@@ -160,6 +161,84 @@ describe('suno utils — unwrapEvaluateResult', () => {
     });
 });
 
+describe('suno utils — parseSunoBillingInfo', () => {
+    it('resolves the free-tier plan when subscription_type is false (#1704)', () => {
+        const parsed = parseSunoBillingInfo({
+            subscription_type: false,
+            credits: 0,
+            monthly_limit: 50,
+            monthly_usage: 10,
+            total_credits_left: 40,
+            credit_packs: [],
+            plans: [
+                { id: '4497580c-f4eb-4f86-9f0e-960eb7c48d7d', name: 'Free Plan', plan_key: 'free', level: 0 },
+                { id: '3eaebef3-ef46-446a-931c-3d50cd1514f1', name: 'Pro Plan', plan_key: 'pro', level: 10 },
+            ],
+        });
+        expect(parsed.planId).toBe('4497580c-f4eb-4f86-9f0e-960eb7c48d7d');
+        expect(parsed.planKey).toBe('free');
+        expect(parsed.totalCreditsAvailable).toBe(40);
+        expect(parsed.breakdown.monthlyRemaining).toBe(40);
+        expect(parsed.breakdown.monthlyLimit).toBe(50);
+    });
+
+    it('resolves the paid-tier plan when subscription_type matches a plan_key', () => {
+        const parsed = parseSunoBillingInfo({
+            subscription_type: 'pro',
+            credits: 0,
+            monthly_limit: 2500,
+            monthly_usage: 100,
+            total_credits_left: 2400,
+            credit_packs: [{ id: 'pack-1', amount: 500 }],
+            plans: [
+                { id: 'free-uuid', name: 'Free Plan', plan_key: 'free', level: 0 },
+                { id: 'pro-uuid', name: 'Pro Plan', plan_key: 'pro', level: 10 },
+            ],
+        });
+        expect(parsed.planId).toBe('pro-uuid');
+        expect(parsed.planKey).toBe('pro');
+        expect(parsed.totalCreditsAvailable).toBe(2400);
+    });
+
+    it('falls back to subscription_type as planKey when plans[] lookup misses', () => {
+        const parsed = parseSunoBillingInfo({
+            subscription_type: 'enterprise',
+            plans: [{ plan_key: 'pro' }, { plan_key: 'premier' }],
+        });
+        expect(parsed.planId).toBeNull();
+        expect(parsed.planKey).toBe('enterprise');
+    });
+
+    it('returns planId null when plans[] is missing and there is no legacy plan field', () => {
+        const parsed = parseSunoBillingInfo({ subscription_type: false });
+        expect(parsed.planId).toBeNull();
+        expect(parsed.planKey).toBe('free');
+    });
+
+    it('honours the legacy data.plan field when plans[] does not surface a match', () => {
+        const parsed = parseSunoBillingInfo({
+            subscription_type: false,
+            plan: { id: 'legacy-uuid', plan_key: 'legacy' },
+        });
+        expect(parsed.planId).toBe('legacy-uuid');
+        expect(parsed.planKey).toBe('legacy');
+    });
+
+    it('sums credit_packs by amount and falls back to legacy credits field', () => {
+        const parsed = parseSunoBillingInfo({
+            subscription_type: false,
+            credits: 5,
+            monthly_limit: 0,
+            monthly_usage: 0,
+            credit_packs: [{ amount: 100 }, { credits: 50 }],
+            plans: [{ plan_key: 'free' }],
+        });
+        expect(parsed.breakdown.pack).toBe(5);
+        expect(parsed.breakdown.purchasedPacks).toBe(150);
+        expect(parsed.totalCreditsAvailable).toBe(155);
+    });
+});
+
 describe('suno utils — ensureSunoSession typed failures', () => {
     function createSessionPage(sessionCheckResult) {
         const evaluate = async (script) => {
@@ -189,6 +268,33 @@ describe('suno utils — ensureSunoSession typed failures', () => {
             ok: false,
             error: 'Malformed billing/info JSON: Unexpected token <',
         }))).rejects.toThrowError(CommandExecutionError);
+    });
+
+    it('resolves a free-tier session without throwing when subscription_type is false (#1704)', async () => {
+        const session = await ensureSunoSession(createSessionPage({
+            ok: true,
+            planId: '4497580c-f4eb-4f86-9f0e-960eb7c48d7d',
+            planKey: 'free',
+            planName: 'Free Plan',
+            totalCreditsAvailable: 40,
+            breakdown: { pack: 0, purchasedPacks: 0, monthlyRemaining: 40, monthlyLimit: 50, monthlyUsed: 10 },
+        }));
+        expect(session.planKey).toBe('free');
+        expect(session.planId).toBe('4497580c-f4eb-4f86-9f0e-960eb7c48d7d');
+        expect(session.totalCreditsAvailable).toBe(40);
+    });
+
+    it('still resolves when planId is null so read commands work even on unparseable plan shapes', async () => {
+        const session = await ensureSunoSession(createSessionPage({
+            ok: true,
+            planId: null,
+            planKey: 'free',
+            planName: null,
+            totalCreditsAvailable: 0,
+            breakdown: { pack: 0, purchasedPacks: 0, monthlyRemaining: 0, monthlyLimit: 0, monthlyUsed: 0 },
+        }));
+        expect(session.planId).toBeNull();
+        expect(session.planKey).toBe('free');
     });
 });
 

@@ -1,14 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
-function stripHtml(html) {
-    return html
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .trim();
-}
+import { stripHtml } from './text.js';
 
 function answerIdFromUrl(url) {
     if (typeof url !== 'string') return '';
