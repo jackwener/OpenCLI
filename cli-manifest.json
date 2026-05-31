@@ -11831,6 +11831,46 @@
   },
   {
     "site": "grok",
+    "name": "copy-message",
+    "description": "Return the text of the last assistant message. Pass --conv <id> to target a specific conversation. Use --markdown for formatted output.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Conversation id or URL (navigates there before reading)"
+      },
+      {
+        "name": "markdown",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Format as markdown (preserves headings/lists/code)"
+      },
+      {
+        "name": "click-button",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Also click the in-UI Copy button (writes to system clipboard)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "grok/message-actions.js",
+    "sourceFile": "grok/message-actions.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "delete",
     "description": "Delete a Grok conversation by ID. Grok takes effect immediately with no confirmation dialog — require --yes to actually delete.",
     "access": "write",
@@ -11984,6 +12024,40 @@
   },
   {
     "site": "grok",
+    "name": "model",
+    "description": "Read the current Grok model, list available models (--list), or switch model (--set <name>). Switching opens the model dropdown and clicks the matching item.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List all model options (opens dropdown)"
+      },
+      {
+        "name": "set",
+        "type": "str",
+        "required": false,
+        "help": "Switch to the model whose name matches (substring, case-insensitive)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "grok/model.js",
+    "sourceFile": "grok/model.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "new",
     "description": "Start a new conversation in Grok",
     "access": "write",
@@ -12029,6 +12103,39 @@
   },
   {
     "site": "grok",
+    "name": "react",
+    "description": "Like or dislike the last assistant message. Pass --conv <id> to target a specific conversation.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "kind",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Reaction: like or dislike"
+      },
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Conversation id or URL (navigates there before reacting)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Reaction"
+    ],
+    "type": "js",
+    "modulePath": "grok/message-actions.js",
+    "sourceFile": "grok/message-actions.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "read",
     "description": "Read messages in the current Grok conversation",
     "access": "read",
@@ -12051,6 +12158,32 @@
     "type": "js",
     "modulePath": "grok/read.js",
     "sourceFile": "grok/read.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "regenerate",
+    "description": "Click Regenerate on the last assistant message. Pass --conv <id> to target a specific conversation (otherwise operates on the current tab).",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Conversation id or URL (navigates there before acting)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Action"
+    ],
+    "type": "js",
+    "modulePath": "grok/message-actions.js",
+    "sourceFile": "grok/message-actions.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
