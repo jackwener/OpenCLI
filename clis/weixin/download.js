@@ -14,13 +14,44 @@ import { downloadArticle } from '@jackwener/opencli/download/article-download';
 /**
  * Normalize a pasted WeChat article URL.
  */
+// Wrapping quote characters to strip from a pasted URL. Pairs are matched
+// open[i] ↔ close[i]. Covers ASCII plus CJK typographic / smart quotes,
+// which are common when users copy URLs from Chinese-language environments
+// (WeChat itself, macOS smart-quote substitution, Word / Pages, …).
+//
+// Pairs:
+//   "  "         ASCII straight double
+//   '  '         ASCII straight single
+//   “  ”         curly double (U+201C / U+201D)
+//   ‘  ’         curly single (U+2018 / U+2019)
+//   「  」         CJK corner brackets (U+300C / U+300D)
+//   『  』         CJK white corner brackets (U+300E / U+300F)
+//   „  ‟         German-style double quotes (U+201E / U+201F)
+//   ‹  ›         single guillemets (U+2039 / U+203A)
+//   «  »         double guillemets (U+00AB / U+00BB)
+const WRAPPING_QUOTE_PAIRS = [
+    ['"', '"'],
+    ["'", "'"],
+    ['“', '”'],
+    ['‘', '’'],
+    ['「', '」'],
+    ['『', '』'],
+    ['„', '‟'],
+    ['‹', '›'],
+    ['«', '»'],
+];
+
 export function normalizeWechatUrl(raw) {
     let s = (raw || '').trim();
     if (!s)
         return s;
-    // Strip wrapping quotes / angle brackets
-    if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-        s = s.slice(1, -1).trim();
+    // Strip wrapping quotes / angle brackets. Walk all known pairs (ASCII +
+    // CJK typographic) and remove the outer pair when matched.
+    for (const [open, close] of WRAPPING_QUOTE_PAIRS) {
+        if (s.length >= 2 && s.startsWith(open) && s.endsWith(close)) {
+            s = s.slice(open.length, s.length - close.length).trim();
+            break;
+        }
     }
     if (s.startsWith('<') && s.endsWith('>')) {
         s = s.slice(1, -1).trim();
