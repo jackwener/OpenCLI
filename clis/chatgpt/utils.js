@@ -748,11 +748,14 @@ export async function getChatGPTVisibleImageUrls(page) {
             };
             const isUserUploadPreview = (img) => {
                 const alt = (img.getAttribute('alt') || '').toLowerCase();
-                if (img.closest('button[aria-label^="Open image:"]')) return true;
                 const turn = img.closest('section[data-testid^="conversation-turn"]');
                 const heading = (turn?.querySelector('h4')?.innerText || '').toLowerCase();
                 if (/you said|你说/.test(heading)) return true;
-                return /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(alt) || /ref-|reference|参考/.test(alt);
+                if (/chatgpt|assistant|助手/.test(heading)) return false;
+                const openButtonLabel = (img.closest('button[aria-label^="Open image:"]')?.getAttribute('aria-label') || '').toLowerCase();
+                const previewText = [alt, openButtonLabel].join(' ');
+                return /\.(png|jpe?g|webp|gif|heic|heif)(?:\b|$)/i.test(previewText)
+                    || /ref-|reference|参考|upload|uploaded|attachment/.test(previewText);
             };
 
             const imgs = Array.from(document.querySelectorAll('img')).filter(img =>
@@ -800,18 +803,31 @@ export async function getChatGPTVisibleImageUrls(page) {
                 try {
                     const ctx = canvas.getContext('2d', { willReadFrequently: true });
                     if (!ctx) continue;
-                    const sampleWidth = Math.min(canvas.width || width, 64);
-                    const sampleHeight = Math.min(canvas.height || height, 64);
-                    const imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+                    const sourceWidth = Math.max(1, Math.floor(canvas.width || width));
+                    const sourceHeight = Math.max(1, Math.floor(canvas.height || height));
+                    const sampleSize = 16;
+                    const xCount = Math.min(6, Math.max(1, Math.ceil(sourceWidth / 128)));
+                    const yCount = Math.min(6, Math.max(1, Math.ceil(sourceHeight / 128)));
                     let hasContent = false;
-                    for (let offset = 0; offset < imageData.length; offset += 4) {
-                        const r = imageData[offset];
-                        const g = imageData[offset + 1];
-                        const b = imageData[offset + 2];
-                        const a = imageData[offset + 3];
-                        if (a > 0 && !(r > 248 && g > 248 && b > 248)) {
-                            hasContent = true;
-                            break;
+                    for (let yi = 0; yi < yCount && !hasContent; yi += 1) {
+                        const y = yCount === 1 ? 0 : Math.round((sourceHeight - 1) * yi / (yCount - 1));
+                        for (let xi = 0; xi < xCount && !hasContent; xi += 1) {
+                            const x = xCount === 1 ? 0 : Math.round((sourceWidth - 1) * xi / (xCount - 1));
+                            const sampleX = Math.max(0, Math.min(sourceWidth - 1, x - Math.floor(sampleSize / 2)));
+                            const sampleY = Math.max(0, Math.min(sourceHeight - 1, y - Math.floor(sampleSize / 2)));
+                            const sampleWidth = Math.min(sampleSize, sourceWidth - sampleX);
+                            const sampleHeight = Math.min(sampleSize, sourceHeight - sampleY);
+                            const imageData = ctx.getImageData(sampleX, sampleY, sampleWidth, sampleHeight).data;
+                            for (let offset = 0; offset < imageData.length; offset += 4) {
+                                const r = imageData[offset];
+                                const g = imageData[offset + 1];
+                                const b = imageData[offset + 2];
+                                const a = imageData[offset + 3];
+                                if (a > 0 && !(r > 248 && g > 248 && b > 248)) {
+                                    hasContent = true;
+                                    break;
+                                }
+                            }
                         }
                     }
                     if (hasContent) addUrl(canvas.toDataURL('image/png'));

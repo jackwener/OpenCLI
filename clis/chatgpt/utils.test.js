@@ -208,6 +208,25 @@ describe('chatgpt generated image detection', () => {
         ]);
     });
 
+    it('samples generated canvas content outside the top-left corner', async () => {
+        const page = createDomPage('<!doctype html><canvas width="512" height="512"></canvas>', (window) => {
+            const canvas = window.document.querySelector('canvas');
+            canvas.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            canvas.getContext = () => ({
+                getImageData: (x, y) => ({
+                    data: x > 480 && y > 480
+                        ? new Uint8ClampedArray([255, 0, 0, 255])
+                        : new Uint8ClampedArray([0, 0, 0, 0]),
+                }),
+            });
+            canvas.toDataURL = () => 'data:image/png;base64,lower-right';
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'data:image/png;base64,lower-right',
+        ]);
+    });
+
     it('ignores transparent placeholder canvases', async () => {
         const page = createDomPage('<!doctype html><canvas width="512" height="512"></canvas>', (window) => {
             const canvas = window.document.querySelector('canvas');
@@ -240,6 +259,27 @@ describe('chatgpt generated image detection', () => {
                 Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 512 });
                 img.getBoundingClientRect = () => ({ width: 512, height: 512 });
             }
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'https://chatgpt.com/backend-api/generated/foo.webp',
+        ]);
+    });
+
+    it('keeps assistant generated images even when they are inside an open-image button', async () => {
+        const page = createDomPage(`
+            <!doctype html>
+            <section data-testid="conversation-turn-2">
+              <h4>ChatGPT said:</h4>
+              <button aria-label="Open image: generated image">
+                <img alt="generated image" src="https://chatgpt.com/backend-api/generated/foo.webp">
+              </button>
+            </section>
+        `, (window) => {
+            const img = window.document.querySelector('img');
+            Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 512 });
+            Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 512 });
+            img.getBoundingClientRect = () => ({ width: 512, height: 512 });
         });
 
         await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
