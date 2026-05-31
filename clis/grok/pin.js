@@ -7,6 +7,9 @@ import {
     isLoggedIn,
     parseGrokSessionId,
     clickConversationMenuItem,
+    getPinStateFromMenuLabels,
+    readConversationMenuLabels,
+    waitForConversationPinState,
 } from './utils.js';
 
 const SESSION_HINT = 'Likely login/auth/challenge/session issue in the existing grok.com browser session.';
@@ -30,12 +33,29 @@ function defineToggle(name, accessLabels) {
             await ensureOnGrok(page);
             if (!(await isLoggedIn(page))) throw authRequired();
 
+            const expectedState = name === 'pin' ? 'pinned' : 'unpinned';
+            const before = await readConversationMenuLabels(page, id);
+            if (!before.ok) {
+                const detail = before.detail ? ` ${before.detail}` : '';
+                throw new CommandExecutionError(`${before.reason || `Failed to inspect ${name} state.`}${detail}`, SESSION_HINT);
+            }
+            if (getPinStateFromMenuLabels(before.labels) === expectedState) {
+                return [{ status: `already-${expectedState}`, id }];
+            }
+
             const result = await clickConversationMenuItem(page, id, accessLabels);
             if (!result || !result.ok) {
                 const detail = result?.detail ? ` ${result.detail}` : '';
                 throw new CommandExecutionError(`${result?.reason || `Failed to ${name} conversation.`}${detail}`, SESSION_HINT);
             }
-            await page.wait(1);
+            const verified = await waitForConversationPinState(page, id, expectedState);
+            if (!verified.ok) {
+                const labels = verified.labels?.length ? ` labels=${JSON.stringify(verified.labels)}` : '';
+                throw new CommandExecutionError(
+                    `${name} menu item was clicked, but the conversation did not verify as ${expectedState}.${labels}`,
+                    SESSION_HINT,
+                );
+            }
             return [{ status: name === 'pin' ? 'pinned' : 'unpinned', id }];
         },
     });

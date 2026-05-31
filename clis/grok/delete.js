@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     GROK_DOMAIN,
     ensureOnGrok,
@@ -8,6 +8,7 @@ import {
     parseGrokSessionId,
     clickConversationMenuItem,
     normalizeBooleanFlag,
+    waitForConversationToDisappear,
 } from './utils.js';
 
 const SESSION_HINT = 'Likely login/auth/challenge/session issue in the existing grok.com browser session.';
@@ -42,8 +43,12 @@ cli({
             const detail = result?.detail ? ` ${result.detail}` : '';
             throw new CommandExecutionError(`${result?.reason || 'Failed to click delete menu item.'}${detail}`, SESSION_HINT);
         }
-        // Grok deletes without a confirmation dialog; give the sidebar a beat to update.
-        await page.wait(1);
+        if (!(await waitForConversationToDisappear(page, id))) {
+            throw new CommandExecutionError(
+                'Delete menu item was clicked, but the conversation is still visible in the sidebar.',
+                SESSION_HINT,
+            );
+        }
         return [{ status: 'deleted', id }];
     },
 });

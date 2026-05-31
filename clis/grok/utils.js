@@ -315,6 +315,117 @@ export async function clickConversationMenuItem(page, conversationId, labelOptio
   })()`);
 }
 
+export function getPinStateFromMenuLabels(labels) {
+    const normalized = (Array.isArray(labels) ? labels : [])
+        .map((label) => String(label || '').trim().toLowerCase())
+        .filter(Boolean);
+    if (normalized.some((label) => label === '取消置顶' || label === 'unpin')) {
+        return 'pinned';
+    }
+    if (normalized.some((label) => label === '置顶' || label === 'pin')) {
+        return 'unpinned';
+    }
+    return '';
+}
+
+export async function isConversationVisibleInSidebar(page, conversationId) {
+    const id = String(conversationId).toLowerCase();
+    const idJson = JSON.stringify(id);
+    const result = await page.evaluate(`(() => {
+    const id = ${idJson};
+    return Array.from(document.querySelectorAll('a[href^="/c/"]'))
+      .some((a) => a instanceof HTMLElement && a.offsetParent && (a.getAttribute('href') || '').toLowerCase().includes(id));
+  })()`);
+    return Boolean(result);
+}
+
+export async function waitForConversationToDisappear(page, conversationId, timeoutMs = 5_000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (!(await isConversationVisibleInSidebar(page, conversationId))) return true;
+        await page.wait(0.25);
+    }
+    return !(await isConversationVisibleInSidebar(page, conversationId));
+}
+
+export async function readConversationMenuLabels(page, conversationId) {
+    const id = String(conversationId).toLowerCase();
+    const idJson = JSON.stringify(id);
+    const result = await page.evaluate(`(async () => {
+    const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const id = ${idJson};
+    let link = null;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      link = Array.from(document.querySelectorAll('a[href^="/c/"]'))
+        .find((a) => a instanceof HTMLElement && a.offsetParent && (a.getAttribute('href') || '').toLowerCase().includes(id));
+      if (link) break;
+      await waitFor(300);
+    }
+    if (!link) {
+      return { ok: false, reason: 'Conversation not found in sidebar.', detail: 'id=' + id, labels: [] };
+    }
+    const rect = link.getBoundingClientRect();
+    const init = {
+      bubbles: true, cancelable: true, button: 2, buttons: 2,
+      clientX: Math.round(rect.left + Math.min(rect.width / 2, 16)),
+      clientY: Math.round(rect.top + Math.min(rect.height / 2, 16)),
+    };
+    link.dispatchEvent(new PointerEvent('pointerdown', { ...init, pointerType: 'mouse' }));
+    link.dispatchEvent(new MouseEvent('mousedown', init));
+    link.dispatchEvent(new MouseEvent('contextmenu', init));
+    link.dispatchEvent(new PointerEvent('pointerup', { ...init, pointerType: 'mouse' }));
+    link.dispatchEvent(new MouseEvent('mouseup', init));
+
+    let items = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+        .filter((it) => it instanceof HTMLElement && it.offsetParent);
+      if (items.length) break;
+      await waitFor(150);
+    }
+    const labels = items.map((it) => (it.textContent || '').trim()).filter(Boolean);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return items.length
+      ? { ok: true, labels }
+      : { ok: false, reason: 'Context menu did not open for the conversation.', labels: [] };
+  })()`);
+    try {
+        await page.keys('Escape');
+    } catch {
+        // Best-effort cleanup; some fake pages and browser adapters do not expose keys().
+    }
+    if (!result || typeof result !== 'object') {
+        return { ok: false, reason: 'Malformed context-menu result.', labels: [] };
+    }
+    return {
+        ok: Boolean(result.ok),
+        reason: String(result.reason || ''),
+        detail: String(result.detail || ''),
+        labels: Array.isArray(result.labels) ? result.labels.map((label) => String(label || '')) : [],
+    };
+}
+
+export async function waitForConversationPinState(page, conversationId, expectedState, timeoutMs = 5_000) {
+    const started = Date.now();
+    let last = null;
+    while (Date.now() - started < timeoutMs) {
+        last = await readConversationMenuLabels(page, conversationId);
+        if (last.ok && getPinStateFromMenuLabels(last.labels) === expectedState) {
+            return { ok: true, state: expectedState, labels: last.labels };
+        }
+        await page.wait(0.25);
+    }
+    last = await readConversationMenuLabels(page, conversationId);
+    const state = last.ok ? getPinStateFromMenuLabels(last.labels) : '';
+    return {
+        ok: last.ok && state === expectedState,
+        state,
+        labels: last.labels || [],
+        reason: last.reason || `Conversation did not reach ${expectedState} state.`,
+        detail: last.detail || '',
+    };
+}
+
 // After clickConversationMenuItem opens an inline rename input, fill it and
 // commit by pressing Enter. Returns the new title we set (best-effort).
 export async function fillRenameInputAndSubmit(page, newTitle) {
@@ -460,4 +571,5 @@ export async function waitForAnswer(page, prompt, timeoutSeconds, baselineLastAs
 
 export const __test__ = {
     GROK_SESSION_ID_RE,
+    getPinStateFromMenuLabels,
 };

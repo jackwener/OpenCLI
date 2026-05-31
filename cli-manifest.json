@@ -11791,25 +11791,6 @@
   },
   {
     "site": "grok",
-    "name": "account",
-    "description": "Read account info from the user dropdown in the Grok sidebar (email, displayed name, plan if shown, and the visible dropdown menu items).",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Field",
-      "Value"
-    ],
-    "type": "js",
-    "modulePath": "grok/ui-actions.js",
-    "sourceFile": "grok/ui-actions.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
     "name": "ask",
     "description": "Send a message to Grok and get response",
     "access": "write",
@@ -11846,100 +11827,6 @@
     "modulePath": "grok/ask.js",
     "sourceFile": "grok/ask.js",
     "navigateBefore": "https://grok.com",
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "attach",
-    "description": "Attach a local file to the Grok composer for the next send. Sets <input type=file> directly via CDP. Pair with `send <prompt>` to actually send.",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "file",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Absolute path to the file to attach"
-      },
-      {
-        "name": "conv",
-        "type": "str",
-        "required": false,
-        "help": "Conversation id to navigate to first"
-      }
-    ],
-    "columns": [
-      "Status",
-      "File"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "cookies",
-    "description": "List grok.com cookies visible to JavaScript (via document.cookie). NOTE: httpOnly auth cookies (e.g. session tokens) are deliberately not visible — that's a security feature, not a bug.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Index",
-      "Name",
-      "Bytes",
-      "Preview"
-    ],
-    "type": "js",
-    "modulePath": "grok/browser-storage.js",
-    "sourceFile": "grok/browser-storage.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "copy-message",
-    "description": "Return the text of the last assistant message. Pass --conv <id> to target a specific conversation. Use --markdown for formatted output.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "conv",
-        "type": "str",
-        "required": false,
-        "help": "Conversation id or URL (navigates there before reading)"
-      },
-      {
-        "name": "markdown",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Format as markdown (preserves headings/lists/code)"
-      },
-      {
-        "name": "click-button",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Also click the in-UI Copy button (writes to system clipboard)"
-      }
-    ],
-    "columns": [
-      "Field",
-      "Value"
-    ],
-    "type": "js",
-    "modulePath": "grok/message-actions.js",
-    "sourceFile": "grok/message-actions.js",
-    "navigateBefore": false,
     "siteSession": "persistent"
   },
   {
@@ -12012,38 +11899,6 @@
   },
   {
     "site": "grok",
-    "name": "edit-message",
-    "description": "Click Edit on a user message (default: last user message). Opens it for editing — you can then read the editable text or use `send` to submit a modified version.",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "conv",
-        "type": "str",
-        "required": false,
-        "help": "Conversation id to navigate to first"
-      },
-      {
-        "name": "index",
-        "type": "int",
-        "required": false,
-        "help": "Index of user message to edit (1-based from oldest). Default: last."
-      }
-    ],
-    "columns": [
-      "Status",
-      "OriginalText"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
     "name": "history",
     "description": "List recent Grok conversations from the sidebar (requires login)",
     "access": "read",
@@ -12067,26 +11922,6 @@
     "type": "js",
     "modulePath": "grok/history.js",
     "sourceFile": "grok/history.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "idb-list",
-    "description": "List IndexedDB databases visible on grok.com (via indexedDB.databases()). Does NOT read store contents — those may include third-party extension data and aren't Grok-managed.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Index",
-      "Database",
-      "Version"
-    ],
-    "type": "js",
-    "modulePath": "grok/browser-storage.js",
-    "sourceFile": "grok/browser-storage.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -12149,85 +11984,6 @@
   },
   {
     "site": "grok",
-    "name": "incognito",
-    "description": "Switch the current tab into Grok's private chat mode (URL: /c#private). Conversations in incognito mode are not saved to history.",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Status",
-      "Url"
-    ],
-    "type": "js",
-    "modulePath": "grok/ui-actions.js",
-    "sourceFile": "grok/ui-actions.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "model",
-    "description": "Read the current Grok model, list available models (--list), or switch model (--set <name>). Switching opens the model dropdown and clicks the matching item.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "list",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "List all model options (opens dropdown)"
-      },
-      {
-        "name": "set",
-        "type": "str",
-        "required": false,
-        "help": "Switch to the model whose name matches (substring, case-insensitive)"
-      }
-    ],
-    "columns": [
-      "Index",
-      "Model",
-      "Active"
-    ],
-    "type": "js",
-    "modulePath": "grok/model.js",
-    "sourceFile": "grok/model.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "more-actions",
-    "description": "Open the per-message \"More actions\" menu on the last assistant message and list its items. Closes the menu before returning.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "conv",
-        "type": "str",
-        "required": false,
-        "help": "Conversation id to navigate to first"
-      }
-    ],
-    "columns": [
-      "Index",
-      "Item"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
     "name": "new",
     "description": "Start a new conversation in Grok",
     "access": "write",
@@ -12273,101 +12029,6 @@
   },
   {
     "site": "grok",
-    "name": "project-list",
-    "description": "Expand the sidebar Projects accordion and list visible project entries. Returns empty if no projects exist on the account.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 50,
-        "required": false,
-        "help": ""
-      }
-    ],
-    "columns": [
-      "Index",
-      "Name",
-      "Href"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "project-new",
-    "description": "Create a new project. Clicks the \"New project\" button in the Projects accordion, types the name into the resulting dialog, and submits. Requires --yes.",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "name",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Project name"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually create (default: dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Name"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "react",
-    "description": "Like or dislike the last assistant message. Pass --conv <id> to target a specific conversation.",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "kind",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Reaction: like or dislike"
-      },
-      {
-        "name": "conv",
-        "type": "str",
-        "required": false,
-        "help": "Conversation id or URL (navigates there before reacting)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Reaction"
-    ],
-    "type": "js",
-    "modulePath": "grok/message-actions.js",
-    "sourceFile": "grok/message-actions.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
     "name": "read",
     "description": "Read messages in the current Grok conversation",
     "access": "read",
@@ -12390,100 +12051,6 @@
     "type": "js",
     "modulePath": "grok/read.js",
     "sourceFile": "grok/read.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "regenerate",
-    "description": "Click Regenerate on the last assistant message. Pass --conv <id> to target a specific conversation (otherwise operates on the current tab).",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "conv",
-        "type": "str",
-        "required": false,
-        "help": "Conversation id or URL (navigates there before acting)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Action"
-    ],
-    "type": "js",
-    "modulePath": "grok/message-actions.js",
-    "sourceFile": "grok/message-actions.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "rename",
-    "description": "Rename a Grok conversation by ID (NOT YET IMPLEMENTED — see commit message; pin/unpin/delete work)",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "id",
-        "type": "string",
-        "required": true,
-        "positional": true,
-        "help": "Conversation UUID or grok.com/c/<uuid> URL"
-      },
-      {
-        "name": "title",
-        "type": "string",
-        "required": true,
-        "positional": true,
-        "help": "New title"
-      }
-    ],
-    "columns": [
-      "status"
-    ],
-    "type": "js",
-    "modulePath": "grok/rename.js",
-    "sourceFile": "grok/rename.js",
-    "navigateBefore": "https://grok.com",
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "search-conversations",
-    "description": "Open the sidebar search palette, type a query, and return matched conversation titles + ids.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "query",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Search text"
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 20,
-        "required": false,
-        "help": ""
-      }
-    ],
-    "columns": [
-      "Index",
-      "Title",
-      "ConvId"
-    ],
-    "type": "js",
-    "modulePath": "grok/ui-actions.js",
-    "sourceFile": "grok/ui-actions.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -12523,51 +12090,6 @@
   },
   {
     "site": "grok",
-    "name": "share",
-    "description": "Create a shareable link for the current (or --conv specified) conversation. Clicks the \"Create share link\" button and returns the URL surfaced by the resulting dialog.",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "conv",
-        "type": "str",
-        "required": false,
-        "help": "Conversation id or URL (navigates there before clicking Share)"
-      }
-    ],
-    "columns": [
-      "Field",
-      "Value"
-    ],
-    "type": "js",
-    "modulePath": "grok/ui-actions.js",
-    "sourceFile": "grok/ui-actions.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "sidebar-toggle",
-    "description": "Collapse or expand the left sidebar in Grok. Idempotent — clicks the toggle button and reports the new visible state.",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Status",
-      "NewState"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
     "name": "status",
     "description": "Check Grok page availability, login state, current session and model",
     "access": "read",
@@ -12585,107 +12107,6 @@
     "type": "js",
     "modulePath": "grok/status.js",
     "sourceFile": "grok/status.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "storage-get",
-    "description": "Read a single localStorage (default) or sessionStorage value on grok.com. Auto-decodes JSON; pass --max-bytes to truncate.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "key",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Storage key (use storage-keys to discover)"
-      },
-      {
-        "name": "storage",
-        "type": "str",
-        "default": "local",
-        "required": false,
-        "help": "\"local\" or \"session\""
-      },
-      {
-        "name": "max-bytes",
-        "type": "int",
-        "default": 4000,
-        "required": false,
-        "help": ""
-      }
-    ],
-    "columns": [
-      "Field",
-      "Value"
-    ],
-    "type": "js",
-    "modulePath": "grok/browser-storage.js",
-    "sourceFile": "grok/browser-storage.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "storage-keys",
-    "description": "List localStorage (default) or sessionStorage keys on grok.com, with byte sizes. Pass --storage session for sessionStorage.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [
-      {
-        "name": "storage",
-        "type": "str",
-        "default": "local",
-        "required": false,
-        "help": "Storage type: \"local\" or \"session\""
-      },
-      {
-        "name": "filter",
-        "type": "str",
-        "required": false,
-        "help": "Case-insensitive substring filter over keys"
-      },
-      {
-        "name": "limit",
-        "type": "int",
-        "default": 100,
-        "required": false,
-        "help": ""
-      }
-    ],
-    "columns": [
-      "Index",
-      "Key",
-      "Bytes"
-    ],
-    "type": "js",
-    "modulePath": "grok/browser-storage.js",
-    "sourceFile": "grok/browser-storage.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "toggle-preview",
-    "description": "Toggle the \"show conversation previews\" setting (visible as the 隐藏对话预览/Show preview button when a conversation has previews surfaced in the sidebar).",
-    "access": "write",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Status",
-      "Detail"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -12714,45 +12135,6 @@
     "modulePath": "grok/pin.js",
     "sourceFile": "grok/pin.js",
     "navigateBefore": "https://grok.com",
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "user-settings",
-    "description": "Read Grok's \"user-settings\" localStorage object: privacy toggles (allowAutoShare, excludeFromTraining, enableMemory), chat preferences (hideThinkingTrace, requireCmdEnterToSubmit, isAsyncChat, ...), and the agent library / customizations.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Section",
-      "Field",
-      "Value"
-    ],
-    "type": "js",
-    "modulePath": "grok/browser-storage.js",
-    "sourceFile": "grok/browser-storage.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "grok",
-    "name": "view-all",
-    "description": "Navigate to Grok's full conversation history page (the \"查看全部\" / \"View all\" link at the bottom of the sidebar history list). Returns the resolved URL.",
-    "access": "read",
-    "domain": "grok.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Status",
-      "Url"
-    ],
-    "type": "js",
-    "modulePath": "grok/extras.js",
-    "sourceFile": "grok/extras.js",
-    "navigateBefore": false,
     "siteSession": "persistent"
   },
   {
