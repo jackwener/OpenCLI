@@ -17,6 +17,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
 const MAX_IMAGES = 9;
@@ -56,6 +57,17 @@ const SUPPORTED_EXTENSIONS = {
     '.gif': 'image/gif',
     '.webp': 'image/webp',
 };
+function unwrapBrowserResult(value) {
+    if (
+        value
+        && typeof value === 'object'
+        && typeof value.session === 'string'
+        && Object.prototype.hasOwnProperty.call(value, 'data')
+    ) {
+        return value.data;
+    }
+    return value;
+}
 /**
  * Validate image paths: check existence and extension.
  * Returns resolved absolute paths.
@@ -360,11 +372,12 @@ async function fillField(page, selectors, text, fieldName) {
  *      the topic (falling back to the first suggestion, then to Enter),
  *   4. confirm a topic chip/link was produced before moving on.
  *
- * Failures are non-fatal: a topic that cannot be resolved is skipped so the
- * note still publishes.
+ * A requested topic is a write-side postcondition: if XHS does not create a
+ * real topic entity, fail before publishing instead of silently emitting a note
+ * with bare "#text".
  */
 async function focusBodyEnd(page, bodySelectors) {
-    return page.evaluate(`
+    return unwrapBrowserResult(await page.evaluate(`
     (selectors => {
       const el = selectors
         .map(sel => Array.from(document.querySelectorAll(sel)))
@@ -380,11 +393,11 @@ async function focusBodyEnd(page, bodySelectors) {
       selection?.addRange(range);
       return true;
     })(${JSON.stringify(bodySelectors)})
-  `);
+  `));
 }
-function topicSuggestionScript(topic) {
+function topicSuggestionScript(topic, { click = false } = {}) {
     // Returns the best matching suggestion's screen coordinates (center) so the
-    // caller can issue a real click, plus a clicked flag for the in-page path.
+    // caller can issue a real click.
     return `
     (topicName => {
       const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
@@ -416,18 +429,49 @@ function topicSuggestionScript(topic) {
       if (!target) target = items.find(node => norm(node.innerText || node.textContent).includes(want));
       if (!target) target = items[0];
       const rect = target.getBoundingClientRect();
-      // Try an in-page click first; report coordinates regardless for a native fallback.
-      let clicked = false;
-      try { target.click(); clicked = true; } catch (e) {}
+      ${click ? "try { target.click(); } catch (e) { return { ok: false, count: items.length, message: String(e) }; }" : ''}
       return {
         ok: true,
-        clicked,
         count: items.length,
         x: Math.round(rect.left + rect.width / 2),
         y: Math.round(rect.top + rect.height / 2),
         text: (target.innerText || target.textContent || '').trim().slice(0, 40),
       };
     })(${JSON.stringify(topic)})
+  `;
+}
+function topicEntityCountScript(topic, bodySelectors) {
+    return `
+    ((topicName, selectors) => {
+      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
+      const want = norm(topicName);
+      const editor = selectors
+        .map(sel => Array.from(document.querySelectorAll(sel)))
+        .flat()
+        .find(node => node && node.offsetParent !== null && node.isContentEditable);
+      if (!editor || !want) return 0;
+      const hasTopicSignal = (node) => {
+        const tag = (node.tagName || '').toLowerCase();
+        const role = (node.getAttribute && node.getAttribute('role')) || '';
+        const cls = String(node.className || '');
+        const id = String(node.id || '');
+        const href = (node.getAttribute && node.getAttribute('href')) || '';
+        const dataKeys = node.dataset ? Object.keys(node.dataset).join(' ') : '';
+        const haystack = [tag, role, cls, id, href, dataKeys].join(' ');
+        return tag === 'a'
+          || /link/i.test(role)
+          || /topic|hashtag|hash-tag|tag|mention|keyword/i.test(haystack)
+          || node.isContentEditable === false;
+      };
+      let count = 0;
+      for (const node of Array.from(editor.querySelectorAll('*'))) {
+        if (!node || node.offsetParent === null) continue;
+        if (!hasTopicSignal(node)) continue;
+        const text = norm(node.innerText || node.textContent || '');
+        if (text === want || text === '#' + want) count += 1;
+      }
+      return count;
+    })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
   `;
 }
 async function typeTopicQuery(page, topic) {
@@ -444,21 +488,23 @@ async function typeTopicQuery(page, topic) {
             // fall through to execCommand path
         }
     }
-    return page.evaluate(`
+    return unwrapBrowserResult(await page.evaluate(`
     (text => {
       const ok = document.execCommand('insertText', false, text);
       const active = document.activeElement;
       if (active) active.dispatchEvent(new Event('input', { bubbles: true }));
       return ok;
     })(${JSON.stringify(query)})
-  `);
+  `));
 }
 async function addTopics(page, bodySelectors, topics) {
-    let added = 0;
+    const added = [];
     for (const topic of topics) {
         const focused = await focusBodyEnd(page, bodySelectors);
-        if (!focused)
-            break; // No body editor — nothing we can do for any topic.
+        if (!focused) {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": body editor not found`);
+        }
+        const beforeCount = Number(unwrapBrowserResult(await page.evaluate(topicEntityCountScript(topic, bodySelectors)))) || 0;
         // Separate this topic from the preceding text so the dropdown is clean.
         if (typeof page.pressKey === 'function') {
             try {
@@ -467,31 +513,38 @@ async function addTopics(page, bodySelectors, topics) {
             catch { /* non-fatal */ }
         }
         const typed = await typeTopicQuery(page, topic);
-        if (!typed)
-            continue; // Could not type the query; skip this topic.
+        if (!typed) {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": failed to type inline topic query`);
+        }
         await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
-        const suggestion = await page.evaluate(topicSuggestionScript(topic));
+        const suggestion = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic)));
         if (suggestion?.ok) {
-            if (!suggestion.clicked
-                && typeof page.nativeClick === 'function'
+            if (typeof page.nativeClick === 'function'
                 && Number.isFinite(suggestion.x)
                 && Number.isFinite(suggestion.y)) {
-                try {
-                    await page.nativeClick(suggestion.x, suggestion.y);
-                }
-                catch { /* non-fatal */ }
+                await page.nativeClick(suggestion.x, suggestion.y);
             }
-            added += 1;
+            else {
+                const clicked = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic, { click: true })));
+                if (!clicked?.ok) {
+                    throw new CommandExecutionError(`Could not attach topic "${topic}": failed to click suggestion`);
+                }
+            }
         }
         else if (typeof page.pressKey === 'function') {
             // No dropdown items found via selectors — fall back to Enter, which
             // accepts the highlighted suggestion in most XHS editor variants.
-            try {
-                await page.pressKey('Enter');
-                added += 1;
-            }
-            catch { /* non-fatal */ }
+            await page.pressKey('Enter');
         }
+        else {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": no suggestion found`);
+        }
+        await page.wait({ time: 0.8 });
+        const afterCount = Number(unwrapBrowserResult(await page.evaluate(topicEntityCountScript(topic, bodySelectors)))) || 0;
+        if (afterCount <= beforeCount) {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
+        }
+        added.push(topic);
         await page.wait({ time: 0.4 });
     }
     return added;
@@ -705,8 +758,9 @@ cli({
         // characters in the body with no linked topics. We now drive the native
         // inline flow: focus the body editor, type "#keyword" (firing the
         // dropdown), then select the matching suggestion.
+        let addedTopics = [];
         if (topics.length) {
-            await addTopics(page, BODY_SELECTORS, topics);
+            addedTopics = await addTopics(page, BODY_SELECTORS, topics);
         }
         // ── Step 7: Publish or save draft ─────────────────────────────────────────
         const actionLabels = isDraft ? ['暂存离开', '存草稿'] : ['发布', '发布笔记'];
@@ -756,7 +810,7 @@ cli({
                 detail: [
                     `"${title}"`,
                     `${absImagePaths.length}张图片`,
-                    topics.length ? `话题: ${topics.join(' ')}` : '',
+                    addedTopics.length ? `话题: ${addedTopics.join(' ')}` : '',
                     successMsg || finalUrl || '',
                 ]
                     .filter(Boolean)
