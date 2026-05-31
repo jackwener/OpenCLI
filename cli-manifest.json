@@ -31214,7 +31214,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Channel ID (UCxxxx) or handle (@name)"
+        "help": "Channel ID (UCxxxx), handle (@name), or channel URL"
       },
       {
         "name": "limit",
@@ -31222,6 +31222,13 @@
         "default": 10,
         "required": false,
         "help": "Max recent videos (max 30)"
+      },
+      {
+        "name": "tab",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Channel tab to list: videos or shorts"
       }
     ],
     "columns": [
