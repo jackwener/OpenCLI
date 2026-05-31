@@ -8,6 +8,7 @@
 // running would race with Trae's own writer and may corrupt the DB.
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     ArgumentError,
@@ -16,26 +17,44 @@ import {
 } from '@jackwener/opencli/errors';
 import {
     TRAE_GLOBAL_STATE_DB,
+    TRAE_WORKSPACE_STORAGE,
     listKeys,
     getValue,
 } from './_state.js';
+
+// Resolve the actual state.vscdb to read. With no --workspace, uses the
+// global state DB. With --workspace <id>, uses that workspaceStorage DB.
+function resolveStateDb(args) {
+    const ws = args.workspace ? String(args.workspace).trim() : '';
+    if (!ws) return TRAE_GLOBAL_STATE_DB;
+    const db = path.join(TRAE_WORKSPACE_STORAGE, ws, 'state.vscdb');
+    if (!fs.existsSync(db)) {
+        throw new CommandExecutionError(
+            `Workspace state.vscdb not found: ${db}`,
+            'List valid workspace ids with `opencli trae-solo workspaces-list`.',
+        );
+    }
+    return db;
+}
 
 // -------- storage-keys --------
 cli({
     site: 'trae-solo',
     name: 'storage-keys',
     access: 'read',
-    description: 'List all keys present in Trae SOLO\'s globalStorage state.vscdb (VSCode-style UI/agent state). Use storage-get <key> to read a specific value.',
+    description: 'List all keys present in Trae SOLO\'s globalStorage state.vscdb (VSCode-style UI/agent state). Pass --workspace <ws-id> to query a per-workspace DB instead. Use storage-get to read a specific value.',
     domain: 'localhost',
     browser: false,
     strategy: Strategy.LOCAL,
     args: [
         { name: 'filter', required: false, help: 'Case-insensitive substring filter over keys' },
+        { name: 'workspace', required: false, help: 'Workspace id (from workspaces-list) to query a per-workspace DB' },
         { name: 'limit', type: 'int', required: false, default: 200 },
     ],
     columns: ['Index', 'Key'],
     func: async (args) => {
-        const keys = listKeys(TRAE_GLOBAL_STATE_DB);
+        const db = resolveStateDb(args);
+        const keys = listKeys(db);
         const flt = args.filter ? String(args.filter).toLowerCase() : null;
         const filtered = flt ? keys.filter((k) => k.toLowerCase().includes(flt)) : keys;
         if (!filtered.length) {
@@ -51,19 +70,21 @@ cli({
     site: 'trae-solo',
     name: 'storage-get',
     access: 'read',
-    description: 'Read a single key from Trae SOLO\'s globalStorage state.vscdb. Returns parsed JSON if the value is JSON, otherwise the raw string.',
+    description: 'Read a single key from Trae SOLO\'s globalStorage state.vscdb. Pass --workspace <ws-id> to query a per-workspace DB instead. Returns parsed JSON if the value is JSON.',
     domain: 'localhost',
     browser: false,
     strategy: Strategy.LOCAL,
     args: [
         { name: 'key', positional: true, required: true, help: 'Storage key (use storage-keys to discover)' },
+        { name: 'workspace', required: false, help: 'Workspace id (from workspaces-list) to query a per-workspace DB' },
         { name: 'max-bytes', type: 'int', required: false, default: 8000, help: 'Truncate value to this many bytes' },
     ],
     columns: ['Field', 'Value'],
     func: async (args) => {
         const key = String(args.key || '').trim();
         if (!key) throw new ArgumentError('key required');
-        const val = getValue(TRAE_GLOBAL_STATE_DB, key);
+        const db = resolveStateDb(args);
+        const val = getValue(db, key);
         if (val === null) {
             throw new CommandExecutionError(`Key not found: ${key}`, 'List available keys with `opencli trae-solo storage-keys`.');
         }
