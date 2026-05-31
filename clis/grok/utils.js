@@ -464,7 +464,45 @@ export async function sendMessage(page, prompt) {
     const promptJson = JSON.stringify(prompt);
     return await page.evaluate(`(async () => {
     const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
     const composerSelector = '.ProseMirror[contenteditable="true"]';
+    const isVisible = (node) => {
+      if (!(node instanceof Element)) return false;
+      const style = window.getComputedStyle(node);
+      if (style.visibility === 'hidden' || style.display === 'none') return false;
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+    const responseIdFor = (node) => {
+      let parent = node.parentElement;
+      while (parent && parent !== document.body) {
+        const id = parent.getAttribute('id') || '';
+        if (id.startsWith('response-')) return id.slice('response-'.length);
+        parent = parent.parentElement;
+      }
+      return '';
+    };
+    const userTurns = () => Array.from(document.querySelectorAll('[data-testid="user-message"]'))
+      .filter((node) => node instanceof HTMLElement && isVisible(node))
+      .map((node, index) => ({
+        id: responseIdFor(node) || ('pos-' + index),
+        text: normalize(node.innerText || node.textContent || ''),
+      }))
+      .filter((turn) => turn.text);
+    const promptText = normalize(${promptJson});
+    const beforeTurns = userTurns();
+    const beforeKeys = new Set(beforeTurns.map((turn) => turn.id + '\\n' + turn.text));
+    const waitForSubmittedUserTurn = async () => {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const turns = userTurns();
+        const latest = turns[turns.length - 1];
+        const hasNewMatchingTurn = turns.some((turn) => turn.text === promptText && !beforeKeys.has(turn.id + '\\n' + turn.text));
+        const appendedMatchingTurn = turns.length > beforeTurns.length && latest?.text === promptText;
+        if (hasNewMatchingTurn || appendedMatchingTurn) return true;
+        await waitFor(250);
+      }
+      return false;
+    };
     let composer = null;
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const candidate = document.querySelector(composerSelector);
@@ -492,10 +530,7 @@ export async function sendMessage(page, prompt) {
     const isClickableSubmit = (node) => {
       if (!(node instanceof HTMLButtonElement)) return false;
       if (node.disabled) return false;
-      const style = window.getComputedStyle(node);
-      if (style.visibility === 'hidden' || style.display === 'none') return false;
-      const rect = node.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
+      return isVisible(node);
     };
     // Prefer data-testid (locale-independent); fall back to aria-label per
     // language. As of 2026-05-31 Grok renders button[data-testid="chat-submit"]
@@ -516,11 +551,41 @@ export async function sendMessage(page, prompt) {
       if (submit) break;
       await waitFor(500);
     }
-    if (!(submit instanceof HTMLButtonElement)) {
-      return { ok: false, reason: 'Grok submit button did not reach a clickable state after prompt insertion.' };
+    if (submit instanceof HTMLButtonElement) {
+      submit.click();
+      if (!(await waitForSubmittedUserTurn())) {
+        return { ok: false, reason: 'Grok submit button was clicked but no new user turn appeared.' };
+      }
+      return { ok: true, submittedVia: 'submit-button' };
     }
-    submit.click();
-    return { ok: true };
+    // Fallback: some Grok deployments / locales never surface a
+    // submit-labelled button (see #1782); the composer commits on Enter
+    // when there is no Shift modifier, and Tiptap honours the synthetic
+    // keypress because the editor is focused. Dispatch a full keydown +
+    // keypress + keyup chain so any modifier / IME listener stays
+    // consistent with a real user pressing Enter.
+    const dispatchEnter = (target) => {
+      const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+      target.dispatchEvent(new KeyboardEvent('keydown', opts));
+      target.dispatchEvent(new KeyboardEvent('keypress', opts));
+      target.dispatchEvent(new KeyboardEvent('keyup', opts));
+    };
+    try {
+      // Re-focus first; insertContent above may have moved focus elsewhere.
+      editor.commands.focus();
+      const focusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : composer;
+      dispatchEnter(focusTarget);
+      if (!(await waitForSubmittedUserTurn())) {
+        return { ok: false, reason: 'Grok Enter-key fallback fired but no new user turn appeared.' };
+      }
+      return { ok: true, submittedVia: 'enter-key' };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'Grok submit button never appeared and Enter-key fallback failed.',
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    }
   })()`);
 }
 
