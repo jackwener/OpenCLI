@@ -25559,6 +25559,117 @@
     "sourceFile": "toutiao/hot.js"
   },
   {
+    "site": "trae-solo",
+    "name": "history",
+    "description": "List Trae SOLO projects and the tasks within each (from the project-list view sidebar).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "help": "Filter by project name (substring, case-insensitive)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max tasks per project"
+      }
+    ],
+    "columns": [
+      "Project",
+      "Task Index",
+      "Task"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/history.js",
+    "sourceFile": "trae-solo/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "new-task",
+    "description": "Create a new task in a Trae SOLO project. Clicks the \"New task\" button in the project header.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Project name (substring match, case-insensitive)"
+      }
+    ],
+    "columns": [
+      "status",
+      "project"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/new-task.js",
+    "sourceFile": "trae-solo/new-task.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "open",
+    "description": "Open a Trae SOLO task by its title (substring match) to enter its chat view.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "task",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task title (substring match, case-insensitive)"
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "help": "Restrict to project (substring match)"
+      }
+    ],
+    "columns": [
+      "status",
+      "project",
+      "task"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/open.js",
+    "sourceFile": "trae-solo/open.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "status",
+    "description": "Check active CDP connection to Trae SOLO Desktop",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/status.js",
+    "sourceFile": "trae-solo/status.js",
+    "navigateBefore": true
+  },
+  {
     "site": "tvmaze",
     "name": "search",
     "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",

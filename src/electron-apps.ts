@@ -39,6 +39,13 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
     displayName: 'Antigravity',
   },
   'chatgpt-app': { port: 9236, processName: 'ChatGPT',      bundleId: 'com.openai.chat',                displayName: 'ChatGPT' },
+  'trae-solo':   {
+    port: 9235,
+    processName: 'TRAE SOLO',
+    executableNames: ['Electron', 'TRAE SOLO'],
+    bundleId: 'com.trae.solo.app',
+    displayName: 'Trae SOLO',
+  },
 };
 
 /** Merge builtin + user-defined apps. User entries are additive only. */
