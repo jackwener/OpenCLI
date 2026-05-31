@@ -11850,6 +11850,39 @@
   },
   {
     "site": "grok",
+    "name": "attach",
+    "description": "Attach a local file to the Grok composer for the next send. Sets <input type=file> directly via CDP. Pair with `send <prompt>` to actually send.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Absolute path to the file to attach"
+      },
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Conversation id to navigate to first"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "cookies",
     "description": "List grok.com cookies visible to JavaScript (via document.cookie). NOTE: httpOnly auth cookies (e.g. session tokens) are deliberately not visible — that's a security feature, not a bug.",
     "access": "read",
@@ -11974,6 +12007,38 @@
     "type": "js",
     "modulePath": "grok/detail.js",
     "sourceFile": "grok/detail.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "edit-message",
+    "description": "Click Edit on a user message (default: last user message). Opens it for editing — you can then read the editable text or use `send` to submit a modified version.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Conversation id to navigate to first"
+      },
+      {
+        "name": "index",
+        "type": "int",
+        "required": false,
+        "help": "Index of user message to edit (1-based from oldest). Default: last."
+      }
+    ],
+    "columns": [
+      "Status",
+      "OriginalText"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -12137,6 +12202,32 @@
   },
   {
     "site": "grok",
+    "name": "more-actions",
+    "description": "Open the per-message \"More actions\" menu on the last assistant message and list its items. Closes the menu before returning.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Conversation id to navigate to first"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "new",
     "description": "Start a new conversation in Grok",
     "access": "write",
@@ -12178,6 +12269,68 @@
     "modulePath": "grok/pin.js",
     "sourceFile": "grok/pin.js",
     "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "project-list",
+    "description": "Expand the sidebar Projects accordion and list visible project entries. Returns empty if no projects exist on the account.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Href"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "project-new",
+    "description": "Create a new project. Clicks the \"New project\" button in the Projects accordion, types the name into the resulting dialog, and submits. Requires --yes.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Project name"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually create (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Name"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
+    "navigateBefore": false,
     "siteSession": "persistent"
   },
   {
@@ -12396,6 +12549,25 @@
   },
   {
     "site": "grok",
+    "name": "sidebar-toggle",
+    "description": "Collapse or expand the left sidebar in Grok. Idempotent — clicks the toggle button and reports the new visible state.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "NewState"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "status",
     "description": "Check Grok page availability, login state, current session and model",
     "access": "read",
@@ -12500,6 +12672,25 @@
   },
   {
     "site": "grok",
+    "name": "toggle-preview",
+    "description": "Toggle the \"show conversation previews\" setting (visible as the 隐藏对话预览/Show preview button when a conversation has previews surfaced in the sidebar).",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Detail"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "unpin",
     "description": "Unpin a Grok conversation by ID",
     "access": "write",
@@ -12542,6 +12733,25 @@
     "type": "js",
     "modulePath": "grok/browser-storage.js",
     "sourceFile": "grok/browser-storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "view-all",
+    "description": "Navigate to Grok's full conversation history page (the \"查看全部\" / \"View all\" link at the bottom of the sidebar history list). Returns the resolved URL.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/extras.js",
+    "sourceFile": "grok/extras.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
