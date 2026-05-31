@@ -1449,6 +1449,155 @@
   },
   {
     "site": "antigravity",
+    "name": "add-context",
+    "description": "Click the Add context button in the composer (opens file/URL picker for context attachment).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "cookies",
+    "description": "List cookies on the Antigravity renderer (JS-visible via document.cookie).",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "copy-code",
+    "description": "Return the text of a code block in the current conversation. Default: last code block; pass --index N (1-based from top) to pick a specific one.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "index",
+        "type": "int",
+        "required": false,
+        "help": "1-based index of code block (default: last)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "copy-message",
+    "description": "Return the text of the last assistant message (best-effort: walks up from the last visible Copy button).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "click-button",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Also click the in-UI Copy button"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "delete",
+    "description": "Delete an Antigravity conversation by ID. Antigravity asks for confirmation; we click through it. Require --yes to actually delete.",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete (default: dry-run preview)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/delete.js",
+    "sourceFile": "antigravity/delete.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "display-options",
+    "description": "Open the Display Options menu and list its items.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
     "name": "dump",
     "description": "Dump the DOM to help AI understand the UI",
     "access": "read",
@@ -1484,27 +1633,144 @@
   },
   {
     "site": "antigravity",
-    "name": "model",
-    "description": "Switch the active LLM model in Antigravity",
+    "name": "history",
+    "description": "List visible Antigravity conversations from the sidebar",
     "access": "read",
-    "domain": "localhost",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max conversations to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/history.js",
+    "sourceFile": "antigravity/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "idb-list",
+    "description": "List IndexedDB databases on the Antigravity renderer.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "mark-read",
+    "description": "Mark an unread Antigravity conversation as read. Fails if the row is already read or the postcondition cannot be verified.",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "clicked"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/mark-read.js",
+    "sourceFile": "antigravity/mark-read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "model",
+    "description": "Read or switch the active model in Antigravity. Without arguments, reports the current model. With <name> (substring, case-insensitive), switches.",
+    "access": "write",
+    "domain": "127.0.0.1",
     "strategy": "ui",
     "browser": true,
     "args": [
       {
         "name": "name",
         "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Substring (case-insensitive) of target model name. Omit to read current."
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List models in the picker (does not switch)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Model"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/model.js",
+    "sourceFile": "antigravity/model.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "nav",
+    "description": "Click Go Back or Go Forward (Antigravity in-app history).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "direction",
+        "type": "str",
         "required": true,
         "positional": true,
-        "help": "Target model name (e.g. claude, gemini, o1)"
+        "help": "back or forward"
       }
     ],
     "columns": [
       "Status"
     ],
     "type": "js",
-    "modulePath": "antigravity/model.js",
-    "sourceFile": "antigravity/model.js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1522,6 +1788,32 @@
     "type": "js",
     "modulePath": "antigravity/new.js",
     "sourceFile": "antigravity/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "react",
+    "description": "Click \"Good response\" or \"Bad response\" on the LAST assistant message.",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "kind",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "good or bad"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Reaction"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1547,6 +1839,100 @@
     "type": "js",
     "modulePath": "antigravity/read.js",
     "sourceFile": "antigravity/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "recent-paths",
+    "description": "Show Antigravity's recently-opened folders/files (history.recentlyOpenedPathsList).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
+    "name": "rename",
+    "description": "Rename an Antigravity conversation by ID (NOT YET IMPLEMENTED — see source comment).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "New title"
+      }
+    ],
+    "columns": [
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/rename.js",
+    "sourceFile": "antigravity/rename.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "revert",
+    "description": "Click the revert button (per-message revert for agent changes). Requires --yes (this modifies your workspace).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually revert (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1577,6 +1963,168 @@
   },
   {
     "site": "antigravity",
+    "name": "settings",
+    "description": "Click the Antigravity settings button (matched by data-testid=\"settings-button\").",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "settings-read",
+    "description": "Read Antigravity's user settings.json (theme, proxy, agCockpit, tfa.system.autoAccept, etc.).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
+    "name": "sidebar-toggle",
+    "description": "Click Toggle Sidebar (collapses/expands the Antigravity sidebar).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "state-get",
+    "description": "Read one value from Antigravity's state.vscdb. Pass --workspace <id> for per-workspace.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key name"
+      },
+      {
+        "name": "workspace",
+        "type": "str",
+        "required": false,
+        "help": "Workspace id (from workspaces-list) to query per-workspace DB"
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 8000,
+        "required": false,
+        "help": "Truncate value to this many chars"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
+    "name": "state-keys",
+    "description": "List keys in Antigravity's globalStorage state.vscdb (VSCode-style). Pass --workspace <id> to query a per-workspace DB. Works while Antigravity is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "workspace",
+        "type": "str",
+        "required": false,
+        "help": "Workspace id (from workspaces-list) to query per-workspace DB"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
     "name": "status",
     "description": "Check Antigravity CDP connection and get current page state",
     "access": "read",
@@ -1592,6 +2140,126 @@
     "type": "js",
     "modulePath": "antigravity/status.js",
     "sourceFile": "antigravity/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "storage-get",
+    "description": "Read a single localStorage / sessionStorage value on the Antigravity renderer.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key name"
+      },
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 4000,
+        "required": false,
+        "help": "Truncate value to this many chars"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "storage-keys",
+    "description": "List localStorage / sessionStorage keys on the Antigravity renderer (CDP).",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "toggle-aux",
+    "description": "Toggle the Auxiliary Pane (Antigravity's secondary panel for code/preview).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1616,6 +2284,43 @@
     "modulePath": "antigravity/watch.js",
     "sourceFile": "antigravity/watch.js",
     "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "workspaces-list",
+    "description": "List Antigravity workspaceStorage entries (each represents a previously-opened folder).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
   },
   {
     "site": "apple-podcasts",
