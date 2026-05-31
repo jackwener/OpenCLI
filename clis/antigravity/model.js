@@ -82,12 +82,16 @@ cli({
 
       const labels = rows.map((r) => (r.innerText || r.textContent || '').trim().slice(0, 80));
       const target = ${namejson};
-      if (!target) {
+      const listOnly = ${listOnly ? 'true' : 'false'};
+      if (!target || listOnly) {
         // Close picker (Esc) and return list.
         document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
         return { ok: true, labels };
       }
-      const matches = labels
+      const exactMatches = labels
+        .map((label, index) => ({ label, index }))
+        .filter((entry) => entry.label.toLowerCase() === target);
+      const matches = exactMatches.length ? exactMatches : labels
         .map((label, index) => ({ label, index }))
         .filter((entry) => entry.label.toLowerCase().includes(target));
       if (!matches.length) {

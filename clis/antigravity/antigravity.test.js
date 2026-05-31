@@ -106,6 +106,31 @@ describe('antigravity write postconditions', () => {
             .rejects.toBeInstanceOf(ArgumentError);
     });
 
+    it('model list mode never switches even when a name filter is supplied', async () => {
+        const page = makePage([
+            'Gemini 3.5 Flash',
+            { ok: true, labels: ['Gemini 3.5 Flash', 'Claude Sonnet'] },
+        ]);
+
+        await expect(modelCommand.func(page, { list: true, name: 'claude' })).resolves.toEqual([
+            { Status: 'Active', Model: 'Gemini 3.5 Flash' },
+            { Status: 'Available', Model: 'Claude Sonnet' },
+        ]);
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+    });
+
+    it('model accepts an exact match before falling back to ambiguous partial matching', async () => {
+        const page = makePage([
+            'Gemini 3.5 Flash',
+            { ok: true, switched: true, chosen: 'Gemini Pro', labels: ['Gemini Pro', 'Gemini Pro Extended'] },
+            'Gemini Pro',
+        ]);
+
+        await expect(modelCommand.func(page, { name: 'gemini pro' })).resolves.toEqual([
+            { Status: 'switched', Model: 'Gemini Pro' },
+        ]);
+    });
+
     it('model fails closed when read-back does not prove the target is active', async () => {
         const page = makePage([
             'Gemini 3.5 Flash',
@@ -132,5 +157,16 @@ describe('antigravity write postconditions', () => {
         await expect(storageKeysCommand.func(page, { storage: 'local' })).resolves.toEqual([
             { Index: 1, Key: 'alpha', Bytes: 12 },
         ]);
+    });
+
+    it('copy-message click-button fails closed when the in-UI copy click fails', async () => {
+        const copyMessageCommand = getRegistry().get('antigravity/copy-message');
+        const page = makePage([
+            { text: 'assistant response' },
+            { ok: false, reason: 'No matching visible element.' },
+        ]);
+
+        await expect(copyMessageCommand.func(page, { 'click-button': true }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

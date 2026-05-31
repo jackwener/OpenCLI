@@ -120,7 +120,10 @@ cli({
     })()`));
         if (!data) throw new EmptyResultError('antigravity copy-message', 'No Copy buttons visible — make sure an assistant reply is on screen.');
         if (kwargs?.['click-button'] === true || kwargs?.['click-button'] === 'true') {
-            unwrapEvaluateResult(await page.evaluate(clickLastScript(['button[aria-label="Copy"]'])));
+            const clickResult = unwrapEvaluateResult(await page.evaluate(clickLastScript(['button[aria-label="Copy"]'])));
+            if (!clickResult?.ok) {
+                throw new CommandExecutionError(clickResult?.reason || 'Copy button click failed', '');
+            }
         }
         return [
             { Field: 'Length', Value: String((data.text || '').length) + ' chars' },
