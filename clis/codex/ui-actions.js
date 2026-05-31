@@ -94,11 +94,25 @@ cli({
     func: async (page, kwargs) => {
         const query = String(kwargs?.query || '').trim();
         if (!query) throw new ArgumentError('query', 'is required');
-        // Click search button — use *= to match any aria-label starting with "Search".
-        const openRes = await page.evaluate(clickFirstVisibleScript([
-            'button[aria-label^="Search"]',
-            'button[aria-label="Search"]',
-        ]));
+        // Codex's Search button has NO aria-label or data-testid — it identifies
+        // itself by innerText "Search\n⌘G". Use a text-based JS filter.
+        const openRes = await page.evaluate(`(() => {
+      const isVis = (el) => { const r = el.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
+      const btns = Array.from(document.querySelectorAll('button')).filter(isVis);
+      const target = btns.find((b) => {
+        const tx = (b.innerText || '').trim();
+        return /^Search\\b/i.test(tx) && tx.length < 30;
+      });
+      if (!target) return { ok: false, reason: 'No visible button with innerText starting with "Search".' };
+      const r = target.getBoundingClientRect();
+      const opts = { bubbles: true, cancelable: true, clientX: r.x + r.width/2, clientY: r.y + r.height/2 };
+      target.dispatchEvent(new PointerEvent('pointerdown', opts));
+      target.dispatchEvent(new MouseEvent('mousedown', opts));
+      target.dispatchEvent(new PointerEvent('pointerup', opts));
+      target.dispatchEvent(new MouseEvent('mouseup', opts));
+      target.click();
+      return { ok: true };
+    })()`);
         if (!openRes?.ok) throw new CommandExecutionError(openRes?.reason || 'search open failed', '');
         await page.wait(0.5);
         // Type into the topmost input.
@@ -115,14 +129,21 @@ cli({
     })()`);
         if (!fillRes?.ok) throw new CommandExecutionError(fillRes?.reason || 'search type failed', '');
         await page.wait(0.8);
-        // Read results — Codex usually renders matched conv titles as buttons/divs near the input.
+        // Codex renders search results as [role="option"]. Each option's text
+        // is split into individual <span> per character (for fuzzy-match
+        // highlighting), which makes innerText return empty — we need
+        // textContent. Title is the first `.truncate.flex-1` child;
+        // the option's full textContent also concatenates project + hotkey
+        // + description, so we extract just the title.
         const items = await page.evaluate(`(() => {
       const isVis = (el) => { const r = el.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
-      // Look for clickable rows in any visible search-result panel.
-      const candidates = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], button[class*="result"], div[class*="result"]')).filter(isVis);
-      const titles = candidates.map((c) => (c.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 200)).filter(Boolean);
-      // Dedupe.
-      return [...new Set(titles)];
+      const opts = Array.from(document.querySelectorAll('[role="option"]')).filter(isVis);
+      return opts.map((opt) => {
+        // First .truncate descendant = title.
+        const titleEl = opt.querySelector('.truncate');
+        const title = ((titleEl?.textContent || opt.textContent || '').trim()).replace(/\\s+/g, ' ');
+        return title;
+      }).filter(Boolean);
     })()`);
         try { await page.evaluate(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));`); } catch {}
         if (!items.length) {
