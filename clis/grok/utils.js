@@ -106,11 +106,26 @@ export async function getCurrentSessionId(page) {
     return match ? match[1].toLowerCase() : '';
 }
 
+// Model picker trigger has stable id="model-select-trigger". Use that as the
+// primary selector — aria-label localizes (e.g. "Model select" in English,
+// "模型选择" in Chinese, etc.) and is unreliable across browser locales.
+const MODEL_TRIGGER_SELECTORS = [
+    '#model-select-trigger',
+    'button[aria-label="Model select"]',
+    'button[aria-label="模型选择"]',
+    'button[aria-label="モデル選択"]',
+];
+
 export async function getModelLabel(page) {
+    const selectorJson = JSON.stringify(MODEL_TRIGGER_SELECTORS);
     const result = await page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
-    const trigger = Array.from(document.querySelectorAll('button[aria-label="Model select"]'))
-      .find((node) => isVisible(node));
+    const selectors = ${selectorJson};
+    let trigger = null;
+    for (const sel of selectors) {
+      trigger = Array.from(document.querySelectorAll(sel)).find((node) => isVisible(node));
+      if (trigger) break;
+    }
     if (!trigger) return '';
     return (trigger.innerText || trigger.textContent || '').trim().split('\\n')[0].trim();
   })()`);
@@ -262,10 +277,23 @@ export async function sendMessage(page, prompt) {
       const rect = node.getBoundingClientRect();
       return rect.width > 0 && rect.height > 0;
     };
+    // Prefer data-testid (locale-independent); fall back to aria-label per
+    // language. As of 2026-05-31 Grok renders button[data-testid="chat-submit"]
+    // once the composer has content. The aria-label varies: "Submit" (en),
+    // "提交" (zh-CN), and presumably other locales.
+    const submitSelectors = [
+      'button[data-testid="chat-submit"]',
+      'button[aria-label="Submit"]',
+      'button[aria-label="提交"]',
+      'button[aria-label="送信"]',
+    ];
     let submit = null;
     for (let attempt = 0; attempt < 12; attempt += 1) {
-      const candidate = Array.from(document.querySelectorAll('button[aria-label="Submit"]')).find(isClickableSubmit);
-      if (candidate instanceof HTMLButtonElement) { submit = candidate; break; }
+      for (const sel of submitSelectors) {
+        const candidate = Array.from(document.querySelectorAll(sel)).find(isClickableSubmit);
+        if (candidate instanceof HTMLButtonElement) { submit = candidate; break; }
+      }
+      if (submit) break;
       await waitFor(500);
     }
     if (!(submit instanceof HTMLButtonElement)) {
