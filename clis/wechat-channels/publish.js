@@ -7,9 +7,8 @@
  *   3. Wait for upload + transcode completion
  *   4. Fill title (主要内容) and description
  *   5. Add hashtag tags (appended to description)
- *   6. Set cover image (optional)
- *   7. Set scheduled publish time (optional)
- *   8. Click publish or save draft
+ *   6. Set scheduled publish time (optional)
+ *   7. Click publish or save draft
  *
  * Note: The creator center renders inside a wujie micro-frontend shadow DOM.
  * All form elements are inside wujie-app::shadow-root. The adapter handles
@@ -49,7 +48,90 @@ const UPLOAD_TRIGGER_SELECTORS = [
   '.finder-video-upload-btn',
 ];
 
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.avi', '.webm']);
 
+function unwrapEvaluateResult(result) {
+  if (result && typeof result === 'object' && 'data' in result && 'session' in result) {
+    return result.data;
+  }
+  return result;
+}
+
+async function evalPage(page, script) {
+  return unwrapEvaluateResult(await page.evaluate(script));
+}
+
+function requireFilePath(filePath, label, allowedExts) {
+  const resolved = path.resolve(String(filePath));
+  let stat;
+  try {
+    stat = fs.statSync(resolved);
+  } catch {
+    throw new ArgumentError(`${label}文件不存在: ${resolved}`);
+  }
+  if (!stat.isFile()) {
+    throw new ArgumentError(`${label}路径不是文件: ${resolved}`);
+  }
+  const ext = path.extname(resolved).toLowerCase();
+  if (!allowedExts.has(ext)) {
+    throw new ArgumentError(`不支持的${label}格式: ${ext}（支持 ${Array.from(allowedExts).join('/')}）`);
+  }
+  return resolved;
+}
+
+function parseTimeoutSeconds(raw) {
+  const timeout = raw == null || raw === '' ? 600 : Number(raw);
+  if (!Number.isInteger(timeout) || timeout < 30) {
+    throw new ArgumentError('--timeout must be an integer >= 30 seconds');
+  }
+  return timeout;
+}
+
+function parseScheduleDate(raw) {
+  if (!raw) return null;
+  const dt = typeof raw === 'number'
+    ? new Date(raw < 1e12 ? raw * 1000 : raw)
+    : new Date(String(raw));
+  if (Number.isNaN(dt.getTime())) {
+    throw new ArgumentError(`无法解析定时时间: ${raw}`);
+  }
+  if (dt.getTime() <= Date.now()) {
+    throw new ArgumentError('定时时间必须晚于当前时间');
+  }
+  return dt;
+}
+
+function parseBooleanFlag(raw) {
+  return raw === true || raw === 'true' || raw === '1' || raw === 1;
+}
+
+function remainingMs(deadline, label) {
+  const left = deadline - Date.now();
+  if (left <= 0) {
+    throw new CommandExecutionError(`${label}超时，请增加 --timeout 后重试`);
+  }
+  return left;
+}
+
+function submitSucceeded({ isDraft, finalUrl, successMsg }) {
+  const msg = String(successMsg || '');
+  if (isDraft) {
+    return /草稿已保存|暂存成功|保存成功/.test(msg);
+  }
+  if (/已发表|发布成功|发表成功|审核中/.test(msg)) {
+    return true;
+  }
+  const url = String(finalUrl || '');
+  return /\/platform\/post\/list\b/.test(url);
+}
+
+export const __test__ = {
+  parseTimeoutSeconds,
+  parseScheduleDate,
+  parseBooleanFlag,
+  requireFilePath,
+  submitSucceeded,
+};
 
 // ── Shadow DOM utility (inlined into evaluate calls) ───────────────────────
 // wujie creates exactly ONE shadow root on <wujie-app>; all creator-center UI
@@ -86,7 +168,7 @@ const DEEP_QUERY_FN = `
 
 // ── Helper: click upload trigger ────────────────────────────────────────────
 async function clickUploadTrigger(page) {
-  const clicked = await page.evaluate(`
+  const clicked = await evalPage(page, `
     (() => {
       ${DEEP_QUERY_FN}
       var sels = ${JSON.stringify(UPLOAD_TRIGGER_SELECTORS)};
@@ -129,20 +211,20 @@ async function uploadFile(page, absPath) {
   const mimeType = mimeMap[ext] || 'video/mp4';
 
   // Initialize accumulator in page context
-  await page.evaluate('() => { window.__oc_chunks = []; }');
+  await evalPage(page, '() => { window.__oc_chunks = []; }');
 
   // Send in 50KB chunks to stay well under bridge message limits
   const CHUNK = 50_000;
   for (let i = 0; i < base64Full.length; i += CHUNK) {
     const chunk = base64Full.slice(i, i + CHUNK);
-    await page.evaluate(`((c) => { window.__oc_chunks.push(c); })(${JSON.stringify(chunk)})`);
+    await evalPage(page, `((c) => { window.__oc_chunks.push(c); })(${JSON.stringify(chunk)})`);
   }
 
   // Trigger click + assemble + set on shadow DOM input
   await clickUploadTrigger(page);
   await page.wait({ time: 0.5 });
 
-  const result = await page.evaluate(`
+  const result = await evalPage(page, `
     (function(params) {
       ${DEEP_QUERY_FN}
       var inputSels = ['input[type="file"][accept*="video"]', 'input[type="file"]'];
@@ -179,34 +261,35 @@ async function uploadFile(page, absPath) {
 }
 
 // ── Helper: wait for upload + transcode completion ───────────────────────────
-async function waitForUploadDone(page, maxMs = 180_000) {
+async function waitForUploadDone(page, fileName, maxMs = 180_000) {
   const pollMs = 3_000;
   const maxAttempts = Math.ceil(maxMs / pollMs);
 
   for (let i = 0; i < maxAttempts; i++) {
     let done;
     try {
-      done = await page.evaluate(`
-        (() => {
+      done = await evalPage(page, `
+        ((fileName) => {
           ${DEEP_QUERY_FN}
+          var root = wujieRoot() || document;
+          var bodyText = (root.innerText || root.textContent || '').trim();
           var uploading = deepQuery('[class*="upload"][class*="progress"]') ||
                           deepQuery('[class*="uploading"]') ||
                           deepQuery('[class*="transcoding"]') ||
                           deepQuery('.weui-desktop-upload__status');
 
-          var titleInput = ${JSON.stringify(TITLE_SELECTORS)}.reduce(function(found, sel) {
-            return found || deepQuery(sel);
-          }, null);
-
           var preview = deepQuery('video') ||
                         deepQuery('[class*="preview-video"]') ||
-                        deepQuery('[class*="video-thumb"]');
+                        deepQuery('[class*="video-thumb"]') ||
+                        deepQuery('[class*="video"][class*="preview"]');
 
           var uploadFailed = deepQuery('[class*="upload-fail"]') || deepQuery('[class*="upload-error"]');
-          if (uploadFailed) return { done: false, failed: true };
+          if (uploadFailed || /上传失败|转码失败|处理失败/.test(bodyText)) return { done: false, failed: true };
 
-          return { done: !uploading && (!!titleInput || !!preview), failed: false };
-        })()
+          var hasFileEvidence = fileName && bodyText.indexOf(fileName) >= 0;
+          var hasSuccessText = /上传成功|转码完成|处理完成/.test(bodyText);
+          return { done: !uploading && (!!preview || hasFileEvidence || hasSuccessText), failed: false };
+        })(${JSON.stringify(fileName)})
       `);
     } catch (err) {
       // Bridge may temporarily disconnect when the page re-renders after file is set.
@@ -228,12 +311,12 @@ async function waitForUploadDone(page, maxMs = 180_000) {
     await page.wait({ time: pollMs / 1000 });
   }
 
-  throw new CommandExecutionError('视频上传/转码超时（3分钟），请检查网络或稍后重试');
+  throw new CommandExecutionError(`视频上传/转码超时（${Math.ceil(maxMs / 1000)}秒），请检查网络或稍后重试`);
 }
 
 // ── Helper: fill text field (with shadow DOM traversal) ─────────────────────
 async function fillField(page, selectors, text, fieldName) {
-  const result = await page.evaluate(`
+  const result = await evalPage(page, `
     (function(selectors, text) {
       ${DEEP_QUERY_FN}
 
@@ -276,8 +359,9 @@ async function fillField(page, selectors, text, fieldName) {
         el.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
+      var actual = el.isContentEditable ? (el.innerText || el.textContent || '') : (el.value || '');
       el.blur();
-      return { ok: true, sel: foundSel };
+      return { ok: actual.indexOf(text) >= 0, sel: foundSel, actual: actual };
     })(${JSON.stringify(selectors)}, ${JSON.stringify(text)})
   `);
 
@@ -289,101 +373,9 @@ async function fillField(page, selectors, text, fieldName) {
   }
 }
 
-// ── Helper: set cover image ──────────────────────────────────────────────────
-async function setCover(page, coverAbsPath) {
-  // Click "添加封面" button
-  const clicked = await page.evaluate(`
-    (() => {
-      ${DEEP_QUERY_FN}
-      var all = deepQueryAll('span, button, div');
-      for (var i = 0; i < all.length; i++) {
-        var el = all[i];
-        var text = (el.innerText || el.textContent || '').trim();
-        if (text === '添加封面' && isVisible(el)) {
-          el.click();
-          return true;
-        }
-      }
-      return false;
-    })()
-  `);
-
-  if (!clicked) {
-    process.stderr.write('  [warn] 找不到"添加封面"按钮，跳过封面设置\n');
-    return;
-  }
-
-  await page.wait({ time: 1.5 });
-
-  // Find and set the cover image file input
-  if (page.setFileInput) {
-    try {
-      await page.setFileInput([coverAbsPath], 'input[type="file"][accept*="image"]');
-    } catch (_) {
-      // setFileInput failed — try DataTransfer fallback
-      await setCoverViaDataTransfer(page, coverAbsPath);
-    }
-  } else {
-    await setCoverViaDataTransfer(page, coverAbsPath);
-  }
-
-  await page.wait({ time: 2 });
-
-  // Click confirm button ("确定")
-  await page.evaluate(`
-    (() => {
-      ${DEEP_QUERY_FN}
-      var btns = deepQueryAll('button');
-      for (var i = 0; i < btns.length; i++) {
-        var text = (btns[i].innerText || btns[i].textContent || '').trim();
-        if (text === '确定' && isVisible(btns[i])) {
-          btns[i].click();
-          return true;
-        }
-      }
-      return false;
-    })()
-  `);
-
-  await page.wait({ time: 1 });
-}
-
-async function setCoverViaDataTransfer(page, absPath) {
-  const base64 = fs.readFileSync(absPath).toString('base64');
-  const fileName = path.basename(absPath);
-  const ext = path.extname(absPath).toLowerCase();
-  const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
-  const mimeType = mimeMap[ext] || 'image/jpeg';
-
-  await page.evaluate(`
-    (async function(params) {
-      ${DEEP_QUERY_FN}
-      var input = deepQuery('input[type="file"][accept*="image"]') ||
-                  deepQuery('input[type="file"]');
-      if (!input) return;
-      var binary = atob(params.base64);
-      var bytes = new Uint8Array(binary.length);
-      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      var dt = new DataTransfer();
-      dt.items.add(new File([bytes], params.fileName, { type: params.mimeType }));
-      Object.defineProperty(input, 'files', { value: dt.files });
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    })({ base64: ${JSON.stringify(base64)}, fileName: ${JSON.stringify(fileName)}, mimeType: ${JSON.stringify(mimeType)} })
-  `);
-}
-
 // ── Helper: set schedule time ────────────────────────────────────────────────
-async function setScheduleTime(page, scheduleDate) {
+async function setScheduleTime(page, dt) {
   // Parse target date
-  const dt = typeof scheduleDate === 'number'
-    ? new Date(scheduleDate < 1e12 ? scheduleDate * 1000 : scheduleDate)
-    : new Date(scheduleDate);
-
-  if (isNaN(dt.getTime())) {
-    process.stderr.write(`  [warn] 无法解析定时时间 "${scheduleDate}"，跳过定时设置\n`);
-    return;
-  }
-
   const targetYear  = dt.getFullYear();
   const targetMonth = dt.getMonth() + 1;
   const targetDay   = dt.getDate();
@@ -405,7 +397,7 @@ async function setScheduleTime(page, scheduleDate) {
   //     readonly display input live.
   // All steps run in ONE async evaluate: separate calls let the session lease
   // idle out and reset the tab to about:blank between commands.
-  const result = await page.evaluate(`
+  const result = await evalPage(page, `
     (async function(TY, TM, TD, TH, TMin) {
       ${DEEP_QUERY_FN}
       function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
@@ -510,13 +502,16 @@ async function setScheduleTime(page, scheduleDate) {
 
   if (!result?.ok) {
     await page.screenshot({ path: '/tmp/wechat-channels_schedule_debug.png' });
-    process.stderr.write(
-      `  [warn] 定时设置失败 (${result?.reason || 'unknown'})，截图: /tmp/wechat-channels_schedule_debug.png\n`,
+    const reason = result?.reason ? String(result.reason) : 'empty picker result';
+    throw new CommandExecutionError(
+      `定时设置失败 (${reason})，截图: /tmp/wechat-channels_schedule_debug.png`,
     );
-    return;
   }
 
   const expected = `${targetYear}-${pad(targetMonth)}-${pad(targetDay)} ${pad(targetHour)}:${pad(targetMin)}`;
+  if (!String(result.value || '').includes(expected)) {
+    throw new CommandExecutionError(`定时设置未验证成功: expected=${expected} actual=${result.value || ''}`);
+  }
   process.stderr.write(`  定时设置完成: ${result.value || expected}\n`);
 }
 
@@ -526,7 +521,7 @@ async function clickPublish(page, isDraft) {
     ? ['存草稿', '保存草稿', '草稿']
     : ['发表', '发布'];
 
-  const clicked = await page.evaluate(`
+  const clicked = await evalPage(page, `
     (function(labels) {
       ${DEEP_QUERY_FN}
       var btns = deepQueryAll('button');
@@ -555,6 +550,7 @@ async function clickPublish(page, isDraft) {
       '截图已保存到 /tmp/wechat-channels_publish_submit_debug.png'
     );
   }
+  return clicked;
 }
 
 // ── Main cli registration ──────────────────────────────────────────────────
@@ -571,7 +567,6 @@ cli({
     { name: 'video',    required: true,  positional: true, help: '视频文件路径 (.mp4/.mov/.avi/.webm)' },
     { name: 'title',    required: false, help: '短标题（建议 6-16 字）' },
     { name: 'caption',  required: false, help: '描述内容，支持直接写 #话题（如：日常生活 #搞笑 #生活）' },
-    { name: 'cover',    required: false, help: '封面图片路径 (.jpg/.png/.webp)' },
     { name: 'schedule', required: false, help: '定时发布时间（ISO8601 或 Unix 秒，如 "2026-05-20 10:00"）' },
     { name: 'draft',    type: 'bool', default: false, help: '保存为草稿' },
     { name: 'manual',   type: 'bool', default: false, help: '填完所有字段后不自动发布，由用户手动点击发表（务必同时传 --site-session persistent，否则表单页约 30 秒后会被重置为空白页）' },
@@ -582,24 +577,15 @@ cli({
     if (!page) throw new CommandExecutionError('需要浏览器页面');
 
     // ── 1. Validate inputs ───────────────────────────────────────────────
-    const videoPath = path.resolve(String(kwargs.video));
-    if (!fs.existsSync(videoPath)) {
-      throw new ArgumentError(`视频文件不存在: ${videoPath}`);
-    }
-    const ext = path.extname(videoPath).toLowerCase();
-    if (!['.mp4', '.mov', '.avi', '.webm'].includes(ext)) {
-      throw new ArgumentError(`不支持的视频格式: ${ext}（支持 mp4/mov/avi/webm）`);
-    }
+    const timeoutSeconds = parseTimeoutSeconds(kwargs.timeout);
+    const deadline = Date.now() + timeoutSeconds * 1000;
+    const videoPath = requireFilePath(kwargs.video, '视频', VIDEO_EXTENSIONS);
 
     const title = String(kwargs.title ?? '').trim();
     const caption = String(kwargs.caption ?? '').trim();
-    const coverPath = kwargs.cover ? path.resolve(String(kwargs.cover)) : null;
-    if (coverPath && !fs.existsSync(coverPath)) {
-      throw new ArgumentError(`封面图片不存在: ${coverPath}`);
-    }
-    const scheduleTime = kwargs.schedule || null;
-    const isDraft = Boolean(kwargs.draft);
-    const isManual = Boolean(kwargs.manual);
+    const scheduleTime = parseScheduleDate(kwargs.schedule || null);
+    const isDraft = parseBooleanFlag(kwargs.draft);
+    const isManual = parseBooleanFlag(kwargs.manual);
 
     // ── 2. Navigate to creator center ────────────────────────────────────
     await page.goto(PUBLISH_URL);
@@ -607,19 +593,18 @@ cli({
 
     // ── 3. Login check — fallback: navigate to login page and wait ───────
     {
-      const urlAfterNav = await page.evaluate('() => location.href');
+      const urlAfterNav = await evalPage(page, '() => location.href');
       if (urlAfterNav.includes(LOGIN_PATH_FRAGMENT)) {
         process.stderr.write(
           '\n⚠️  未登录视频号。已跳转到登录页，请在 Chrome 中扫码登录...\n' +
           '   登录完成后将自动继续发布。\n\n'
         );
 
-        // Wait up to 2 minutes for user to scan QR code and login
-        const loginDeadline = Date.now() + 120_000;
+        const loginDeadline = Math.min(deadline, Date.now() + 120_000);
         let loggedIn = false;
         while (Date.now() < loginDeadline) {
           await page.wait({ time: 3 });
-          const url = await page.evaluate('() => location.href');
+          const url = await evalPage(page, '() => location.href');
           if (!url.includes(LOGIN_PATH_FRAGMENT)) {
             loggedIn = true;
             break;
@@ -643,7 +628,7 @@ cli({
     await page.wait({ time: 2 });
 
     // ── 5. Wait for upload + transcode done ──────────────────────────────
-    await waitForUploadDone(page, 180_000);
+    await waitForUploadDone(page, path.basename(videoPath), Math.min(180_000, remainingMs(deadline, '视频上传/转码')));
     await page.wait({ time: 1 });
 
     // ── 6. Fill title (主要内容) ─────────────────────────────────────────
@@ -658,19 +643,13 @@ cli({
       await page.wait({ time: 0.5 });
     }
 
-    // ── 8. Set cover image (optional) ────────────────────────────────────
-    if (coverPath) {
-      await setCover(page, coverPath);
-      await page.wait({ time: 1 });
-    }
-
-    // ── 9. Set schedule time (optional) ──────────────────────────────────
+    // ── 8. Set schedule time (optional) ──────────────────────────────────
     if (scheduleTime) {
       await setScheduleTime(page, scheduleTime);
       await page.wait({ time: 0.5 });
     }
 
-    // ── 10. Publish or save draft ─────────────────────────────────────────
+    // ── 9. Publish or save draft ──────────────────────────────────────────
     if (isManual) {
       // The owned automation tab is reset to about:blank when its lease is
       // released — immediately if --keep-tab is not set, or after the ~30s
@@ -687,7 +666,6 @@ cli({
         status: '⏸️ 已填写完毕，请在浏览器中手动点击发表',
         title: title || '',
         detail: [
-          coverPath ? '已设置封面' : null,
           scheduleTime ? `定时: ${scheduleTime}` : null,
         ].filter(Boolean).join(' · ') || '表单已就绪',
       }];
@@ -695,15 +673,15 @@ cli({
 
     await clickPublish(page, isDraft);
 
-    // ── 11. Verify result ─────────────────────────────────────────────────
+    // ── 10. Verify result ─────────────────────────────────────────────────
     await page.wait({ time: 4 });
-    const finalUrl = await page.evaluate('() => location.href');
+    const finalUrl = await evalPage(page, '() => location.href');
 
     const successMarkers = isDraft
       ? ['草稿已保存', '暂存成功', '保存成功']
-      : ['已发表', '发布成功', '发表成功', '上传成功', '审核中'];
+      : ['已发表', '发布成功', '发表成功', '审核中'];
 
-    const successMsg = await page.evaluate(`
+    const successMsg = await evalPage(page, `
       (function(markers) {
         ${DEEP_QUERY_FN}
         var all = deepQueryAll('*');
@@ -720,19 +698,23 @@ cli({
       })(${JSON.stringify(successMarkers)})
     `);
 
-    // Success if we got a success message OR navigated away from the create page
-    const navigatedAway = !finalUrl.includes('/post/create');
-    const isSuccess = successMsg.length > 0 || navigatedAway;
+    const isSuccess = submitSucceeded({ isDraft, finalUrl, successMsg });
+    if (!isSuccess) {
+      await page.screenshot({ path: '/tmp/wechat-channels_publish_result_debug.png' });
+      throw new CommandExecutionError(
+        `未能验证${isDraft ? '草稿保存' : '发布'}成功，截图已保存到 /tmp/wechat-channels_publish_result_debug.png`,
+        `url=${finalUrl || ''} message=${successMsg || ''}`,
+      );
+    }
 
     const verb = isDraft ? '草稿已保存' : '发布成功';
     const detailParts = [
-      coverPath ? '已设置封面' : null,
-      scheduleTime ? `定时: ${scheduleTime}` : null,
-      successMsg || (navigatedAway ? finalUrl : null),
+      scheduleTime ? `定时: ${scheduleTime.toISOString()}` : null,
+      successMsg || finalUrl,
     ].filter(Boolean);
 
     const result = [{
-      status: isSuccess ? `✅ ${verb}` : '⚠️ 请在浏览器中确认发布结果',
+      status: `✅ ${verb}`,
       title: title || '',
       detail: detailParts.join(' · ') || finalUrl,
     }];

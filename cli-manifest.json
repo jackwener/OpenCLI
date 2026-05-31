@@ -27565,12 +27565,6 @@
         "help": "描述内容，支持直接写 #话题（如：日常生活 #搞笑 #生活）"
       },
       {
-        "name": "cover",
-        "type": "str",
-        "required": false,
-        "help": "封面图片路径 (.jpg/.png/.webp)"
-      },
-      {
         "name": "schedule",
         "type": "str",
         "required": false,
