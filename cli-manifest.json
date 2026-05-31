@@ -11791,6 +11791,25 @@
   },
   {
     "site": "grok",
+    "name": "account",
+    "description": "Read account info from the user dropdown in the Grok sidebar (email, displayed name, plan if shown, and the visible dropdown menu items).",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "grok/ui-actions.js",
+    "sourceFile": "grok/ui-actions.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "ask",
     "description": "Send a message to Grok and get response",
     "access": "write",
@@ -11827,6 +11846,27 @@
     "modulePath": "grok/ask.js",
     "sourceFile": "grok/ask.js",
     "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "cookies",
+    "description": "List grok.com cookies visible to JavaScript (via document.cookie). NOTE: httpOnly auth cookies (e.g. session tokens) are deliberately not visible — that's a security feature, not a bug.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Name",
+      "Bytes",
+      "Preview"
+    ],
+    "type": "js",
+    "modulePath": "grok/browser-storage.js",
+    "sourceFile": "grok/browser-storage.js",
+    "navigateBefore": false,
     "siteSession": "persistent"
   },
   {
@@ -11967,6 +12007,26 @@
   },
   {
     "site": "grok",
+    "name": "idb-list",
+    "description": "List IndexedDB databases visible on grok.com (via indexedDB.databases()). Does NOT read store contents — those may include third-party extension data and aren't Grok-managed.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "grok/browser-storage.js",
+    "sourceFile": "grok/browser-storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "image",
     "description": "Generate images on grok.com and return image URLs",
     "access": "write",
@@ -12020,6 +12080,25 @@
     "modulePath": "grok/image.js",
     "sourceFile": "grok/image.js",
     "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "incognito",
+    "description": "Switch the current tab into Grok's private chat mode (URL: /c#private). Conversations in incognito mode are not saved to history.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "grok/ui-actions.js",
+    "sourceFile": "grok/ui-actions.js",
+    "navigateBefore": false,
     "siteSession": "persistent"
   },
   {
@@ -12222,6 +12301,41 @@
   },
   {
     "site": "grok",
+    "name": "search-conversations",
+    "description": "Open the sidebar search palette, type a query, and return matched conversation titles + ids.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "ConvId"
+    ],
+    "type": "js",
+    "modulePath": "grok/ui-actions.js",
+    "sourceFile": "grok/ui-actions.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "send",
     "description": "Fire-and-forget: send a prompt to Grok without waiting for the reply",
     "access": "write",
@@ -12256,6 +12370,32 @@
   },
   {
     "site": "grok",
+    "name": "share",
+    "description": "Create a shareable link for the current (or --conv specified) conversation. Clicks the \"Create share link\" button and returns the URL surfaced by the resulting dialog.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Conversation id or URL (navigates there before clicking Share)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "grok/ui-actions.js",
+    "sourceFile": "grok/ui-actions.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "status",
     "description": "Check Grok page availability, login state, current session and model",
     "access": "read",
@@ -12273,6 +12413,88 @@
     "type": "js",
     "modulePath": "grok/status.js",
     "sourceFile": "grok/status.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "storage-get",
+    "description": "Read a single localStorage (default) or sessionStorage value on grok.com. Auto-decodes JSON; pass --max-bytes to truncate.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key (use storage-keys to discover)"
+      },
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 4000,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "grok/browser-storage.js",
+    "sourceFile": "grok/browser-storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "storage-keys",
+    "description": "List localStorage (default) or sessionStorage keys on grok.com, with byte sizes. Pass --storage session for sessionStorage.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "Storage type: \"local\" or \"session\""
+      },
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes"
+    ],
+    "type": "js",
+    "modulePath": "grok/browser-storage.js",
+    "sourceFile": "grok/browser-storage.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -12301,6 +12523,26 @@
     "modulePath": "grok/pin.js",
     "sourceFile": "grok/pin.js",
     "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "user-settings",
+    "description": "Read Grok's \"user-settings\" localStorage object: privacy toggles (allowAutoShare, excludeFromTraining, enableMemory), chat preferences (hideThinkingTrace, requireCmdEnterToSubmit, isAsyncChat, ...), and the agent library / customizations.",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Section",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "grok/browser-storage.js",
+    "sourceFile": "grok/browser-storage.js",
+    "navigateBefore": false,
     "siteSession": "persistent"
   },
   {
