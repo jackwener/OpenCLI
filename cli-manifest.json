@@ -15068,6 +15068,927 @@
     "navigateBefore": "https://ke.com"
   },
   {
+    "site": "kimi",
+    "name": "account",
+    "description": "Read account info from the Kimi sidebar (display name + plan label, e.g. \"Allegretto\").",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "ask",
+    "description": "Send a message and wait up to --timeout seconds for the assistant reply (best-effort: polls for turn count to grow + stabilize).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "cookies",
+    "description": "List kimi.com cookies visible to JavaScript (httpOnly cookies are deliberately not shown).",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "copy-message",
+    "description": "Return the text of the last assistant message. Pass --conv <id> to navigate to a specific chat first.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL (navigates there before reading)"
+      },
+      {
+        "name": "click-button",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Also click in-UI Copy button (writes to clipboard)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "detail",
+    "description": "Open a Kimi chat by ID and return its visible messages.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Chat ID or full /chat/<id> URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "dismiss-banner",
+    "description": "Close any visible sidebar banner (e.g., \"Make a Review & Earn Credit\", \"获取应用程序\") by clicking its Close svg.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "history",
+    "description": "List recent Kimi chats from the sidebar (with chat IDs extracted from href).",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "history-rename",
+    "description": "Rename a chat from the /chat/history page (clicks the inline Edit svg next to a chat row, types the new title, and saves). Requires --yes.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "chat-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Chat id (UUID-like)"
+      },
+      {
+        "name": "new-title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "New title"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually rename (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "idb-list",
+    "description": "List IndexedDB databases on kimi.com.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "mode",
+    "description": "Switch to a Kimi work mode: ppt | docs | deep-research | websites | sheets | agent-swarm | code. With no argument, lists modes.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Mode name (omit to list all)"
+      }
+    ],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "model",
+    "description": "Read the current Kimi model (e.g. \"K2.6 思考\") or switch by clicking the model dropdown. With no argument, returns current; with --list, opens dropdown + lists; with --set <name>, switches.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Open model dropdown + list options"
+      },
+      {
+        "name": "set",
+        "type": "str",
+        "required": false,
+        "help": "Substring (case-insensitive) of model to switch to"
+      }
+    ],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "new",
+    "description": "Start a new Kimi chat (navigates to / with chat_enter_method=new_chat).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "react",
+    "description": "Like or dislike the last assistant message. Pass --conv <id> to target a specific chat.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "kind",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "like or dislike"
+      },
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "read",
+    "description": "Read messages in the current Kimi chat. Pass --conv <id> to navigate to a specific chat first.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL (navigates there before reading)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "regenerate",
+    "description": "Click Refresh (Kimi's regenerate button) on the last assistant message. Pass --conv <id> to target a specific chat.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "send",
+    "description": "Send a message in the current Kimi chat (fire-and-forget; does not wait for reply).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Message text"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "settings",
+    "description": "Open the Kimi settings page (/settings).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "share",
+    "description": "Click Share on the last assistant message (opens Kimi's share dialog). Pass --conv <id> to target a specific chat.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "sidebar-toggle",
+    "description": "Click the LeftBar svg to toggle the Kimi sidebar.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "sign-out",
+    "description": "Click SignOut on the Kimi /settings page. Navigates to /settings first if not already there. Requires --yes.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually sign out (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "status",
+    "description": "Check Kimi page connection, login state, and current URL.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "storage-get",
+    "description": "Read a single localStorage / sessionStorage value on kimi.com. Auto-decodes JSON.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key"
+      },
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": ""
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 4000,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "storage-keys",
+    "description": "List localStorage / sessionStorage keys on kimi.com (with byte sizes).",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "templates",
+    "description": "List template cards visible on a Kimi mode page (PPT/docs/deep-research/agent). Each mode shows curated example projects organized by category. Pass --mode to navigate first.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "mode",
+        "type": "str",
+        "required": false,
+        "help": "Navigate to mode first: ppt|docs|deep-research|agent|websites|sheets|agent-swarm|code"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "upgrade",
+    "description": "Click the \"Upgrade\" button (or 升级会员) in the Kimi sidebar — opens the membership/upgrade page or dialog.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "view-all-history",
+    "description": "Navigate to /chat/history (full conversation list page).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "lesswrong",
     "name": "comments",
     "description": "Top comments on a post",
