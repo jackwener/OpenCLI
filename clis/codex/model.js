@@ -31,6 +31,17 @@ function normalizeModelText(value) {
         .trim();
 }
 
+const REASONING_OPTIONS = ['extra high', 'medium', 'high', 'low', 'auto', 'fast', 'speed', 'pro'];
+
+function extractReasoning(value) {
+    return REASONING_OPTIONS.find(option => value === option || value.endsWith(` ${option}`)) || '';
+}
+
+function extractModelVersion(value) {
+    const match = value.match(/(?:^|\s)(\d+(?:\.\d+)?)(?=\s|$)/);
+    return match?.[1] || '';
+}
+
 export function findUniqueModelOption(labels, rawName) {
     const name = normalizeModelText(rawName);
     if (!name) {
@@ -57,7 +68,20 @@ export function findUniqueModelOption(labels, rawName) {
 export function modelSelectionVerified(current, chosen) {
     const active = normalizeModelText(current);
     const selected = normalizeModelText(chosen);
-    return !!active && !!selected && (active === selected || active.includes(selected));
+    if (!active || !selected) {
+        return false;
+    }
+    if (active === selected) {
+        return true;
+    }
+    if (REASONING_OPTIONS.includes(selected)) {
+        return extractReasoning(active) === selected;
+    }
+    const selectedModel = extractModelVersion(selected);
+    if (selectedModel) {
+        return extractModelVersion(active) === selectedModel;
+    }
+    return false;
 }
 
 export const modelCommand = cli({

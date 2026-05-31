@@ -100,6 +100,12 @@ export async function resolveActionConversation(page, kwargs) {
             : 'Pass --project/--conversation/--index/--thread-id, or keep the active conversation visible in the sidebar.';
         throw new CommandExecutionError('Could not resolve a stable Codex conversation identity.', hint);
     }
+    if (!resolved.conversation.threadId) {
+        throw new CommandExecutionError(
+            'Could not resolve a stable Codex conversation identity.',
+            'The selected sidebar row is missing its Codex thread id; selectors may have drifted.',
+        );
+    }
     return {
         project: resolved.project.project,
         projectPath: resolved.project.projectPath,

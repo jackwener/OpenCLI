@@ -12,6 +12,7 @@ import {
 import {
     findActiveCodexConversation,
     findCodexConversation,
+    resolveActionConversation,
 } from './_actions.js';
 import {
     findUniqueModelOption,
@@ -295,7 +296,22 @@ describe('codex sidebar helpers', () => {
     it('verifies model switch postconditions against the visible selector text', () => {
         expect(modelSelectionVerified('5.5 Extra High', 'GPT-5.5')).toBe(true);
         expect(modelSelectionVerified('5.5 Medium', 'Medium')).toBe(true);
+        expect(modelSelectionVerified('5 High', 'GPT-5')).toBe(true);
         expect(modelSelectionVerified('5.5 Extra High', 'Medium')).toBe(false);
+        expect(modelSelectionVerified('5.5 Extra High', 'High')).toBe(false);
+        expect(modelSelectionVerified('5.5 Medium', 'GPT-5')).toBe(false);
+    });
+
+    it('requires a stable thread id for write action postconditions', async () => {
+        const doc = fixtureDocument();
+        const row = doc.querySelectorAll('[data-app-action-sidebar-thread-row]')[0];
+        row.attrs['data-app-action-sidebar-thread-id'] = '';
+
+        const page = {
+            evaluate: async () => collectCodexProjectsFromDocument(doc),
+        };
+
+        await expect(resolveActionConversation(page, {})).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('reports exact thread-id misses as not found', () => {
