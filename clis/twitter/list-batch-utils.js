@@ -1,4 +1,4 @@
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 
 const USERNAME_RE = /^[A-Za-z0-9_]{1,15}$/;
 const DEFAULT_INTERVAL_SECONDS = 5;
@@ -54,6 +54,14 @@ export function toBatchFailureRow({ listId, username, error }) {
     };
 }
 
+function isGlobalBatchFailure(error) {
+    if (error instanceof ArgumentError || error instanceof AuthRequiredError) {
+        return true;
+    }
+    const message = error?.message || String(error);
+    return /Invalid listId|Could not fetch lists|List \d+ not found among your lists|Not logged into x\.com/i.test(message);
+}
+
 export async function waitBetweenBatchItems(page, seconds) {
     if (seconds <= 0) return;
     if (page && typeof page.wait === 'function') {
@@ -72,6 +80,9 @@ export async function runListBatch({ page, listId, usernames, interval, operatio
             const result = await operation(page, { listId, username });
             rows.push(...result);
         } catch (error) {
+            if (isGlobalBatchFailure(error)) {
+                throw error;
+            }
             rows.push(toBatchFailureRow({ listId, username, error }));
         }
 

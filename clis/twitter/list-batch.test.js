@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './list-add-batch.js';
 import './list-remove-batch.js';
 import {
@@ -54,6 +54,39 @@ describe('twitter list batch utilities', () => {
         expect(page.wait).toHaveBeenCalledWith(2);
         expect(rows.map((row) => row.status)).toEqual(['success', 'failed', 'success']);
         expect(rows[1]).toMatchObject({ listId: '123', username: 'bad', userId: '', status: 'failed' });
+    });
+
+    it('does not convert global precondition failures into per-user failed rows', async () => {
+        const page = { wait: vi.fn() };
+        await expect(runListBatch({
+            page,
+            listId: 'bad',
+            usernames: ['alice', 'bob'],
+            interval: 0,
+            operation: async () => {
+                throw new ArgumentError('Invalid listId: "bad". Expected numeric ID.');
+            },
+        })).rejects.toBeInstanceOf(ArgumentError);
+
+        await expect(runListBatch({
+            page,
+            listId: '123',
+            usernames: ['alice'],
+            interval: 0,
+            operation: async () => {
+                throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
+            },
+        })).rejects.toBeInstanceOf(AuthRequiredError);
+
+        await expect(runListBatch({
+            page,
+            listId: '123',
+            usernames: ['alice'],
+            interval: 0,
+            operation: async () => {
+                throw new CommandExecutionError('List 123 not found among your lists.');
+            },
+        })).rejects.toThrow(/List 123 not found/);
     });
 });
 

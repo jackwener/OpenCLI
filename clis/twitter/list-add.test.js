@@ -87,17 +87,14 @@ describe('twitter list-add registration', () => {
         expect(row.message).toBe('@alice is already a member of list 123');
     });
 
-    it('treats unchanged member_count as an idempotent noop even when membership confirmation is absent', () => {
-        const row = buildListAddMemberRow({
+    it('fails typed when member_count is unchanged but membership is not confirmed', () => {
+        expect(() => buildListAddMemberRow({
             addResult: { httpOk: true, status: 200, mc: 10, isMember: false, errors: null },
             memberCountBefore: 10,
             listId: '123',
             username: 'alice',
             userId: '42',
-        });
-
-        expect(row.status).toBe('noop');
-        expect(row.message).toBe('@alice is already a member of list 123');
+        })).toThrow(/membership was not confirmed/);
     });
 
     it('fails typed when member_count decreases unexpectedly', () => {

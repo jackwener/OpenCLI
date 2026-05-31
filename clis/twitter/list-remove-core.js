@@ -1,5 +1,5 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId } from './shared.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
 import { getListsManagementInstructions, parseListsManagement } from './lists.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
@@ -74,9 +74,9 @@ export async function listRemoveUser(page, kwargs) {
         const listId = String(kwargs.listId || '').trim();
         const username = String(kwargs.username || '').replace(/^@/, '').trim();
         if (!listId || !/^\d+$/.test(listId)) {
-            throw new CommandExecutionError(`Invalid listId: ${JSON.stringify(kwargs.listId)}`);
+            throw new ArgumentError(`Invalid listId: ${JSON.stringify(kwargs.listId)}. Expected numeric ID.`);
         }
-        if (!username) throw new CommandExecutionError('Username is required');
+        if (!username) throw new ArgumentError('twitter list-remove username is required');
 
         // Strategy.UI does not get a domain URL pre-nav from the framework.
         // This page context is load-bearing for pre-target GraphQL calls below.
@@ -95,22 +95,22 @@ export async function listRemoveUser(page, kwargs) {
         });
 
         const userLookupUrl = buildUserByScreenNameUrl(userByScreenNameQueryId, username);
-        const userId = await page.evaluate(`async () => {
+        const userId = unwrapBrowserResult(await page.evaluate(`async () => {
             const resp = await fetch(${JSON.stringify(userLookupUrl)}, { headers: ${headers}, credentials: 'include' });
             if (!resp.ok) return null;
             const d = await resp.json();
             return d.data?.user?.result?.rest_id || null;
-        }`);
+        }`));
         if (!userId) throw new CommandExecutionError(`Could not resolve user @${username}`);
 
         // Resolve listId → name so we can match the dialog row.
         const listsQueryId = await resolveTwitterQueryId(page, 'ListsManagementPageTimeline', LISTS_MANAGEMENT_QUERY_ID);
         const listsUrl = `/i/api/graphql/${listsQueryId}/ListsManagementPageTimeline?features=${encodeURIComponent(JSON.stringify(LISTS_MANAGEMENT_FEATURES))}`;
-        const listsData = await page.evaluate(`async () => {
+        const listsData = unwrapBrowserResult(await page.evaluate(`async () => {
             const r = await fetch(${JSON.stringify(listsUrl)}, { headers: ${headers}, credentials: 'include' });
             if (!r.ok) return { __error: 'HTTP ' + r.status };
             return await r.json();
-        }`);
+        }`));
         if (listsData && listsData.__error) {
             throw new CommandExecutionError(`Could not fetch lists: ${listsData.__error}`);
         }
@@ -123,7 +123,7 @@ export async function listRemoveUser(page, kwargs) {
 
         await page.goto(`https://x.com/${username}`);
         await page.wait({ selector: '[data-testid="primaryColumn"]' });
-        const uiResult = await page.evaluate(`(async () => {
+        const uiResult = unwrapBrowserResult(await page.evaluate(`(async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             const findOne = (sel, root = document) => root.querySelector(sel);
             const waitFor = async (fn, { timeoutMs = 8000, intervalMs = 200 } = {}) => {
@@ -236,7 +236,7 @@ export async function listRemoveUser(page, kwargs) {
             } catch (e) {
                 return { ok: false, message: 'UI error: ' + (e?.message || String(e)) };
             }
-        })()`);
+        })()`));
 
         if (!uiResult.ok) {
             throw new CommandExecutionError(`Failed to remove @${username} from list ${listId}: ${uiResult.message}`);
@@ -255,11 +255,11 @@ export async function listRemoveUser(page, kwargs) {
             await new Promise((r) => setTimeout(r, 800));
             await page.nativeClick(uiResult.saveClickX, uiResult.saveClickY);
             await new Promise((r) => setTimeout(r, 3500));
-            const listsAfter = await page.evaluate(`async () => {
+            const listsAfter = unwrapBrowserResult(await page.evaluate(`async () => {
                 const r = await fetch(${JSON.stringify(listsUrl)}, { headers: ${headers}, credentials: 'include' });
                 if (!r.ok) return { __error: 'HTTP ' + r.status };
                 return await r.json();
-            }`);
+            }`));
             if (listsAfter && listsAfter.__error) {
                 throw new CommandExecutionError(`Could not verify list removal: ${listsAfter.__error}`);
             }

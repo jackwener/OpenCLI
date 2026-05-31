@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 import { followOne, parseBatchUsernames, parseDelayMs } from './follow-batch.js';
 import './follow-batch.js';
 
@@ -47,6 +47,7 @@ describe('twitter follow-batch command', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'token' }]),
             evaluate: vi.fn()
                 .mockResolvedValueOnce({ ok: false, followButtonVisible: true })
                 .mockResolvedValueOnce({ ok: true, status: 'success', message: 'Successfully followed @karpathy.' })
@@ -83,6 +84,19 @@ describe('twitter follow-batch command', () => {
             status: 'success',
             message: 'Successfully followed @karpathy.',
         });
+    });
+
+    it('fails typed before batch execution when the browser session is not authenticated', async () => {
+        const cmd = getRegistry().get('twitter/follow-batch');
+        const page = {
+            goto: vi.fn(),
+            wait: vi.fn(),
+            getCookies: vi.fn().mockResolvedValue([]),
+            evaluate: vi.fn(),
+        };
+
+        await expect(cmd.func(page, { usernames: '@karpathy,swyx' })).rejects.toBeInstanceOf(AuthRequiredError);
+        expect(page.goto).not.toHaveBeenCalled();
     });
 
     it('refreshes the profile before reporting a failed post-click verification', async () => {

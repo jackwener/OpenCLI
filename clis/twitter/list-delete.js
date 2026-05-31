@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId } from './shared.js';
+import { resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
 import { parseListsManagement } from './lists.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
@@ -47,11 +47,11 @@ function normalizeConfirm(value) {
 async function getManagedLists(page, headers) {
     const listsQueryId = await resolveTwitterQueryId(page, 'ListsManagementPageTimeline', LISTS_MANAGEMENT_QUERY_ID);
     const listsUrl = `/i/api/graphql/${listsQueryId}/ListsManagementPageTimeline?features=${encodeURIComponent(JSON.stringify(LISTS_MANAGEMENT_FEATURES))}`;
-    const listsData = await page.evaluate(`async () => {
+    const listsData = unwrapBrowserResult(await page.evaluate(`async () => {
         const r = await fetch(${JSON.stringify(listsUrl)}, { headers: ${headers}, credentials: 'include' });
         if (!r.ok) return { __error: 'HTTP ' + r.status };
         return await r.json();
-    }`);
+    }`));
     if (listsData && listsData.__error) {
         throw new CommandExecutionError(`Could not fetch lists: ${listsData.__error}`);
     }
@@ -112,7 +112,7 @@ cli({
 
         await page.goto(`https://x.com/i/lists/${listId}`);
         await page.wait({ selector: '[data-testid="primaryColumn"]' });
-        const deleteResult = await page.evaluate(`(async () => {
+        const deleteResult = unwrapBrowserResult(await page.evaluate(`(async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const visible = (el) => !!el && el.offsetParent !== null;
             const buttonText = (el) => (el.innerText || el.textContent || '').trim();
@@ -143,7 +143,7 @@ cli({
             confirmButton.click();
             await sleep(2500);
             return { ok: true, url: location.href };
-        })()`);
+        })()`));
         if (!deleteResult?.ok) {
             throw new CommandExecutionError(`Failed to delete list ${listId}: ${deleteResult?.message || 'unknown UI failure'}`);
         }

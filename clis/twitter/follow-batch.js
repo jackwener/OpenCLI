@@ -1,4 +1,4 @@
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { unwrapBrowserResult } from './shared.js';
 
@@ -140,6 +140,12 @@ cli({
     func: async (page, kwargs) => {
         if (!page) {
             throw new CommandExecutionError('Browser session required for twitter follow-batch');
+        }
+
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((cookie) => cookie.name === 'ct0')?.value || null;
+        if (!ct0) {
+            throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
         }
 
         const usernames = parseBatchUsernames(kwargs.usernames);

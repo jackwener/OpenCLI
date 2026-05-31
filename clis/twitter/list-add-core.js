@@ -1,5 +1,5 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId } from './shared.js';
+import { resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
 import { parseListsManagement } from './lists.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
@@ -105,6 +105,11 @@ export function buildListAddMemberRow({ addResult, memberCountBefore, listId, us
 
     const countIncreased = memberCountAfter > memberCountBefore;
     const noop = !countIncreased;
+    if (noop && addResult.isMember !== true) {
+        throw new CommandExecutionError(
+            `Failed to add @${username} to list ${listId}: member_count unchanged and membership was not confirmed`
+        );
+    }
     const verifiedBy = `member_count ${memberCountBefore} → ${memberCountAfter}`;
     return {
         listId,
@@ -145,8 +150,6 @@ export async function listAddUser(page, kwargs) {
 
         // opencli >=1.7.x wraps page.evaluate return values as { session, data }.
         // Unwrap before use so JSON.stringify of nested values doesn't become "[object Object]".
-        const unwrap = (v) => (v && typeof v === 'object' && 'session' in v && 'data' in v ? v.data : v);
-
         const userLookupUrl = buildUserByScreenNameUrl(userByScreenNameQueryId, username);
         const userIdRaw = await page.evaluate(`async () => {
             const resp = await fetch(${JSON.stringify(userLookupUrl)}, { headers: ${headers}, credentials: 'include' });
@@ -154,7 +157,7 @@ export async function listAddUser(page, kwargs) {
             const d = await resp.json();
             return d.data?.user?.result?.rest_id || null;
         }`);
-        const userId = unwrap(userIdRaw);
+        const userId = unwrapBrowserResult(userIdRaw);
         if (!userId) {
             throw new CommandExecutionError(`Could not resolve user @${username}`);
         }
@@ -222,7 +225,7 @@ export async function listAddUser(page, kwargs) {
                 return JSON.stringify([false, 0, null, null, null, null, String(e)]);
             }
         }`);
-        const addResultJson = unwrap(addResultJsonRaw);
+        const addResultJson = unwrapBrowserResult(addResultJsonRaw);
         let addResultTuple;
         try {
             addResultTuple = JSON.parse(addResultJson);
