@@ -661,7 +661,7 @@ describe('xiaohongshu publish', () => {
                     : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable', actual: '带话题的正文' };
             }
             if (code.includes('labels.some'))
-                return true;
+                return { ok: true, via: 'click', text: '发布' };
             if (code.includes('for (const el of document.querySelectorAll'))
                 return '发布成功';
             throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);

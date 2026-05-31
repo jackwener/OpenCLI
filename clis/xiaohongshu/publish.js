@@ -832,6 +832,68 @@ cli({
         })})
     `);
         if (!invokeResult?.ok) {
+            // ── Draft fallback: try leave-and-save flow ──────────────────────────
+            if (isDraft) {
+                const leaveTriggered = await page.evaluate(`
+              (() => {
+                const labels = ['返回', '关闭', '取消', '离开'];
+                const buttons = document.querySelectorAll('button, [role="button"], div, span');
+                for (const btn of buttons) {
+                  const text = (btn.innerText || btn.textContent || '').trim();
+                  if (labels.some(l => text === l || text.includes(l)) && btn.offsetParent !== null) {
+                    btn.click();
+                    return true;
+                  }
+                }
+                return false;
+              })()
+            `);
+                if (leaveTriggered) {
+                    await page.wait({ time: 1 });
+                    const saveLabels = ['暂存离开', '存草稿', '保存草稿'];
+                    const saved = await page.evaluate(`
+                (labels => {
+                  const buttons = document.querySelectorAll('button, [role="button"]');
+                  for (const btn of buttons) {
+                    const text = (btn.innerText || btn.textContent || '').trim();
+                    if (
+                      labels.some(l => text === l || text.includes(l)) &&
+                      btn.offsetParent !== null &&
+                      !btn.disabled
+                    ) {
+                      btn.click();
+                      return true;
+                    }
+                  }
+                  return false;
+                })(${JSON.stringify(saveLabels)})
+              `);
+                    if (saved) {
+                        invokeResult.ok = true;
+                        invokeResult.via = 'leave-save-fallback';
+                    }
+                }
+                // Check if auto-saved
+                if (!invokeResult?.ok) {
+                    await page.wait({ time: 2 });
+                    const autoSaved = await page.evaluate(`
+                () => {
+                  const markers = ['草稿箱(', '保存于', '编辑于'];
+                  for (const el of document.querySelectorAll('*')) {
+                    const text = (el.innerText || el.textContent || '').trim();
+                    if (text && markers.some(marker => text.includes(marker))) return true;
+                  }
+                  return false;
+                }
+              `);
+                    if (autoSaved) {
+                        invokeResult.ok = true;
+                        invokeResult.via = 'auto-save';
+                    }
+                }
+            }
+        }
+        if (!invokeResult?.ok) {
             await page.screenshot({ path: '/tmp/xhs_publish_submit_debug.png' });
             const viaClause = invokeResult?.via ? ` (via=${invokeResult.via})` : '';
             const errorClause = invokeResult?.error ? `, error=${invokeResult.error}` : '';
@@ -843,12 +905,14 @@ cli({
         await page.wait({ time: 4 });
         const finalUrl = await page.evaluate('() => location.href');
         const successMarkers = isDraft
-            ? ['草稿已保存', '暂存成功', '保存成功', '上传成功']
+            ? ['草稿已保存', '暂存成功', '保存成功', '上传成功', '保存于', '图文笔记(', '编辑', '删除']
             : ['发布成功', '上传成功'];
         const successMsg = await page.evaluate(`
       (markers => {
         for (const el of document.querySelectorAll('*')) {
+          if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') continue;
           const text = (el.innerText || '').trim();
+          if (text.length > 200) continue;
           if (el.children.length === 0 && markers.some(marker => text.includes(marker))) return text;
         }
         return '';

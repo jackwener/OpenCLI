@@ -29883,6 +29883,151 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "draft-clear",
+    "description": "清空小红书本地草稿",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio, all"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually clear local drafts. Default is dry-run count only."
+      }
+    ],
+    "columns": [
+      "status",
+      "type",
+      "count",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/draft-clear.js",
+    "sourceFile": "xiaohongshu/draft-clear.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "draft-delete",
+    "description": "删除一条小红书本地草稿",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Draft id returned by `opencli xiaohongshu drafts`"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete the local draft. Default is dry-run verification only."
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "type",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/draft-delete.js",
+    "sourceFile": "xiaohongshu/draft-delete.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "draft-open",
+    "description": "读取一条小红书本地草稿详情",
+    "access": "read",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Draft id returned by `opencli xiaohongshu drafts`"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio"
+      }
+    ],
+    "columns": [
+      "id",
+      "type",
+      "title",
+      "updated_at",
+      "images",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/draft-open.js",
+    "sourceFile": "xiaohongshu/draft-open.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "drafts",
+    "description": "小红书本地草稿箱列表",
+    "access": "read",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "type",
+      "title",
+      "updated_at",
+      "images",
+      "text_preview"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/drafts.js",
+    "sourceFile": "xiaohongshu/drafts.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "feed",
     "description": "小红书首页推荐 Feed (via Pinia Store Action)",
     "access": "read",
