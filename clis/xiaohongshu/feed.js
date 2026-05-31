@@ -65,10 +65,13 @@ const FEEDS_READ_JS = `
   })()
 `;
 
+function toCleanString(value) {
+    return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+}
+
 /**
  * Build a signed note URL for the given web host. Falls back to the bare
- * /explore/{id} URL when the entry is missing a token (an anomaly), so the
- * row still has a URL rather than dropping out.
+ * /explore/{id} URL when the caller intentionally passes no token.
  *
  * The `xsec_source` param mirrors what XHS itself renders into feed-page note
  * links: an empty value. Only `xsec_token` is actually required by the note
@@ -76,9 +79,14 @@ const FEEDS_READ_JS = `
  * reproduce the real-world shape rather than inventing a source label.
  */
 export function buildFeedNoteUrl(webHost, id, xsecToken) {
-    const base = `https://${webHost}/explore/${id}`;
-    if (!xsecToken) return base;
-    return `${base}?xsec_token=${xsecToken}&xsec_source=`;
+    const cleanId = toCleanString(id);
+    const url = new URL(`https://${webHost}/explore/${encodeURIComponent(cleanId)}`);
+    const cleanToken = toCleanString(xsecToken);
+    if (!cleanToken)
+        return url.toString();
+    url.searchParams.set('xsec_token', cleanToken);
+    url.searchParams.set('xsec_source', '');
+    return url.toString();
 }
 
 /**
@@ -98,17 +106,33 @@ export async function runFeed(page, kwargs, webHost) {
     if (data.error) {
         throw new CommandExecutionError(`${webHost} feed: ${data.error}`, `The SPA may still be hydrating; reload ${webHost}/explore and retry.`);
     }
-    const rows = (data.items || [])
-        .filter((row) => row.id)
-        .slice(0, limit)
-        .map((row) => ({
-        id: row.id,
-        title: row.title,
-        type: row.type,
-        author: row.author,
-        likes: row.likes,
-        url: buildFeedNoteUrl(webHost, row.id, row.xsecToken),
-    }));
+    if (!Array.isArray(data.items)) {
+        throw new CommandExecutionError(`${webHost} feed: unexpected items payload shape`);
+    }
+    const rows = [];
+    for (const row of data.items) {
+        if (rows.length >= limit)
+            break;
+        if (!row || typeof row !== 'object') {
+            throw new CommandExecutionError(`${webHost} feed: malformed feed item`);
+        }
+        const id = toCleanString(row.id);
+        if (!id) {
+            throw new CommandExecutionError(`${webHost} feed: feed item is missing note id`);
+        }
+        const xsecToken = toCleanString(row.xsecToken);
+        if (!xsecToken) {
+            throw new CommandExecutionError(`${webHost} feed: feed item ${id} is missing xsecToken; cannot build a signed drill-down URL`);
+        }
+        rows.push({
+            id,
+            title: toCleanString(row.title),
+            type: toCleanString(row.type),
+            author: toCleanString(row.author),
+            likes: toCleanString(row.likes),
+            url: buildFeedNoteUrl(webHost, id, xsecToken),
+        });
+    }
     if (rows.length === 0) {
         throw new EmptyResultError(`${webHost}/feed`, 'No feed items in the hydrated store.');
     }

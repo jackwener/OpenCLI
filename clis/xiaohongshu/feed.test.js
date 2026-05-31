@@ -39,6 +39,12 @@ describe('xiaohongshu/feed buildFeedNoteUrl', () => {
     it('falls back to a bare /explore URL when the token is empty', () => {
         expect(buildFeedNoteUrl(HOST, 'abc123', '')).toBe(`https://${HOST}/explore/abc123`);
     });
+
+    it('URL-encodes xsec_token instead of interpolating raw query text', () => {
+        expect(buildFeedNoteUrl(HOST, 'abc123', 'a&b=c d')).toBe(
+            `https://${HOST}/explore/abc123?xsec_token=a%26b%3Dc+d&xsec_source=`,
+        );
+    });
 });
 
 describe('xiaohongshu/feed func', () => {
@@ -57,10 +63,12 @@ describe('xiaohongshu/feed func', () => {
         ]);
     });
 
-    it('falls back to a bare URL for an entry missing its token', async () => {
+    it('typed-fails when a feed entry is missing its note token', async () => {
         const page = createPageMock({ items: [entry('id1', { xsecToken: '' })] });
-        const rows = await feed.func(page, { limit: 20 });
-        expect(rows[0].url).toBe(`https://${HOST}/explore/id1`);
+        await expect(feed.func(page, { limit: 20 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('xsecToken'),
+        });
     });
 
     it('truncates to --limit', async () => {
@@ -69,10 +77,12 @@ describe('xiaohongshu/feed func', () => {
         expect(rows.map((r) => r.id)).toEqual(['a', 'b']);
     });
 
-    it('drops entries with no id before limiting', async () => {
+    it('typed-fails when a feed entry is missing its note id', async () => {
         const page = createPageMock({ items: [entry(''), entry('keep')] });
-        const rows = await feed.func(page, { limit: 20 });
-        expect(rows.map((r) => r.id)).toEqual(['keep']);
+        await expect(feed.func(page, { limit: 20 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('note id'),
+        });
     });
 
     it('rejects invalid --limit before browser navigation', async () => {
@@ -92,6 +102,11 @@ describe('xiaohongshu/feed func', () => {
     it('maps an empty store to EmptyResultError', async () => {
         const page = createPageMock({ items: [] });
         await expect(feed.func(page, { limit: 20 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('maps a malformed items payload to CommandExecutionError', async () => {
+        const page = createPageMock({ items: {} });
+        await expect(feed.func(page, { limit: 20 })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
     });
 
     it('reads the note token from the entry top level, not card.user', async () => {
