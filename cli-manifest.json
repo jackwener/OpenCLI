@@ -11831,6 +11831,40 @@
   },
   {
     "site": "grok",
+    "name": "delete",
+    "description": "Delete a Grok conversation by ID. Grok takes effect immediately with no confirmation dialog — require --yes to actually delete.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID or grok.com/c/<uuid> URL"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete (default is a dry-run preview)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "grok/delete.js",
+    "sourceFile": "grok/delete.js",
+    "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "detail",
     "description": "Open a Grok conversation by ID and read its messages",
     "access": "read",
@@ -11968,6 +12002,33 @@
   },
   {
     "site": "grok",
+    "name": "pin",
+    "description": "Pin a Grok conversation by ID",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID or grok.com/c/<uuid> URL"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "grok/pin.js",
+    "sourceFile": "grok/pin.js",
+    "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "read",
     "description": "Read messages in the current Grok conversation",
     "access": "read",
@@ -11991,6 +12052,39 @@
     "modulePath": "grok/read.js",
     "sourceFile": "grok/read.js",
     "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "rename",
+    "description": "Rename a Grok conversation by ID (NOT YET IMPLEMENTED — see commit message; pin/unpin/delete work)",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID or grok.com/c/<uuid> URL"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "New title"
+      }
+    ],
+    "columns": [
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "grok/rename.js",
+    "sourceFile": "grok/rename.js",
+    "navigateBefore": "https://grok.com",
     "siteSession": "persistent"
   },
   {
@@ -12047,6 +12141,33 @@
     "modulePath": "grok/status.js",
     "sourceFile": "grok/status.js",
     "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "unpin",
+    "description": "Unpin a Grok conversation by ID",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID or grok.com/c/<uuid> URL"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "grok/pin.js",
+    "sourceFile": "grok/pin.js",
+    "navigateBefore": "https://grok.com",
     "siteSession": "persistent"
   },
   {

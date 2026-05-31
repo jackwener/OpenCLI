@@ -240,6 +240,115 @@ export async function startNewChat(page) {
     await page.wait(2);
 }
 
+// Open the sidebar conversation context menu (right-click on the /c/<id>
+// link), wait for it to appear, click the menu item whose visible text
+// matches one of the localized labels. Returns whether the click happened.
+//
+// Menu items observed on grok.com (2026-05-31):
+//   "打开新标签页" / "Open in new tab"
+//   "重命名"     / "Rename"
+//   "置顶" or "取消置顶" / "Pin" or "Unpin"
+//   "删除"       / "Delete"
+//
+// Grok's delete action takes effect IMMEDIATELY — no confirmation dialog —
+// so callers must enforce their own --yes / dry-run gating.
+export async function clickConversationMenuItem(page, conversationId, labelOptions) {
+    const id = String(conversationId).toLowerCase();
+    const idJson = JSON.stringify(id);
+    const labelsJson = JSON.stringify(labelOptions.map((l) => l.toLowerCase()));
+    return await page.evaluate(`(async () => {
+    const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const id = ${idJson};
+    const labels = ${labelsJson};
+    // Find the sidebar anchor for this conversation.
+    let link = null;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      link = Array.from(document.querySelectorAll('a[href^="/c/"]'))
+        .find((a) => a instanceof HTMLElement && a.offsetParent && (a.getAttribute('href') || '').toLowerCase().includes(id));
+      if (link) break;
+      await waitFor(300);
+    }
+    if (!link) {
+      return { ok: false, reason: 'Conversation not found in sidebar.', detail: 'id=' + id };
+    }
+    // Trigger the radix context menu — radix listens to PointerEvent +
+    // contextmenu, so plain MouseEvent('contextmenu') alone is ignored.
+    // Dispatch the full sequence pointerdown/mousedown/contextmenu/pointerup/mouseup
+    // with right-button state to mirror a real right-click.
+    {
+      const rect = link.getBoundingClientRect();
+      const init = {
+        bubbles: true, cancelable: true, button: 2, buttons: 2,
+        clientX: Math.round(rect.left + Math.min(rect.width / 2, 16)),
+        clientY: Math.round(rect.top + Math.min(rect.height / 2, 16)),
+      };
+      link.dispatchEvent(new PointerEvent('pointerdown', { ...init, pointerType: 'mouse' }));
+      link.dispatchEvent(new MouseEvent('mousedown', init));
+      link.dispatchEvent(new MouseEvent('contextmenu', init));
+      link.dispatchEvent(new PointerEvent('pointerup', { ...init, pointerType: 'mouse' }));
+      link.dispatchEvent(new MouseEvent('mouseup', init));
+    }
+    // Wait for menu items to appear.
+    let items = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+        .filter((it) => it instanceof HTMLElement && it.offsetParent);
+      if (items.length) break;
+      await waitFor(150);
+    }
+    if (!items.length) {
+      return { ok: false, reason: 'Context menu did not open for the conversation.' };
+    }
+    const target = items.find((it) => {
+      const text = (it.textContent || '').trim().toLowerCase();
+      return labels.some((l) => text === l);
+    });
+    if (!target) {
+      return {
+        ok: false,
+        reason: 'No menu item matched the requested label.',
+        detail: 'available=' + JSON.stringify(items.map((it) => (it.textContent || '').trim())),
+      };
+    }
+    target.click();
+    return { ok: true, clicked: (target.textContent || '').trim() };
+  })()`);
+}
+
+// After clickConversationMenuItem opens an inline rename input, fill it and
+// commit by pressing Enter. Returns the new title we set (best-effort).
+export async function fillRenameInputAndSubmit(page, newTitle) {
+    const titleJson = JSON.stringify(newTitle);
+    return await page.evaluate(`(async () => {
+    const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    let input = null;
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      // The inline rename UI surfaces as a single visible <input> or a
+      // contenteditable inside the sidebar row.
+      input = Array.from(document.querySelectorAll('input[type="text"], [contenteditable="true"]:not(.ProseMirror)'))
+        .find((el) => el instanceof HTMLElement && el.offsetParent && el.getBoundingClientRect().left < 260);
+      if (input) break;
+      await waitFor(200);
+    }
+    if (!input) {
+      return { ok: false, reason: 'Inline rename input did not appear.' };
+    }
+    input.focus();
+    if (input instanceof HTMLInputElement) {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(input, ${titleJson});
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // contenteditable path
+      input.innerText = '';
+      document.execCommand('insertText', false, ${titleJson});
+    }
+    // Commit by Enter (Grok accepts Enter to confirm, Escape to cancel).
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    return { ok: true, value: ${titleJson} };
+  })()`);
+}
+
 export async function sendMessage(page, prompt) {
     const promptJson = JSON.stringify(prompt);
     return await page.evaluate(`(async () => {
