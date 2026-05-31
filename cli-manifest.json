@@ -21027,8 +21027,8 @@
       }
     ],
     "columns": [
-      "Status",
-      "Length",
+      "Role",
+      "Text",
       "WaitedSeconds"
     ],
     "type": "js",
@@ -21076,8 +21076,8 @@
       "Title"
     ],
     "type": "js",
-    "modulePath": "qoder/quest.js",
-    "sourceFile": "qoder/quest.js",
+    "modulePath": "qoder/history.js",
+    "sourceFile": "qoder/history.js",
     "navigateBefore": true
   },
   {
@@ -21223,8 +21223,8 @@
       "Text"
     ],
     "type": "js",
-    "modulePath": "qoder/quest.js",
-    "sourceFile": "qoder/quest.js",
+    "modulePath": "qoder/read.js",
+    "sourceFile": "qoder/read.js",
     "navigateBefore": true
   },
   {

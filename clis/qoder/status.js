@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { evaluateQoder } from './_utils.js';
 
 cli({
     site: 'qoder',
@@ -13,8 +14,8 @@ cli({
     func: async (page) => {
         return [{
             Status: 'Connected',
-            Url: await page.evaluate('window.location.href'),
-            Title: await page.evaluate('document.title'),
+            Url: await evaluateQoder(page, 'window.location.href'),
+            Title: await evaluateQoder(page, 'document.title'),
         }];
     },
 });

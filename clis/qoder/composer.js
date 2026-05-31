@@ -5,7 +5,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { clickByTextScript } from './_utils.js';
+import { clickByTextScript, evaluateQoder } from './_utils.js';
 
 // -------- prompt-enhance --------
 cli({
@@ -19,7 +19,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Prompt Enhance']));
+        const res = await evaluateQoder(page, clickByTextScript(['Prompt Enhance']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'Prompt Enhance button not found', '');
         await page.wait(0.5);
         return [{ Status: 'enhanced (check composer)' }];
@@ -38,7 +38,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Open Editor']));
+        const res = await evaluateQoder(page, clickByTextScript(['Open Editor']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'Open Editor button not found', '');
         return [{ Status: 'clicked' }];
     },

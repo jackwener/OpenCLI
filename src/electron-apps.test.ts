@@ -31,6 +31,17 @@ describe('electron-apps registry', () => {
     expect(isElectronApp('cursor')).toBe(true);
     expect(isElectronApp('codex')).toBe(true);
     expect(isElectronApp('chatwise')).toBe(true);
+    expect(isElectronApp('qoder')).toBe(true);
+  });
+
+  it('registers Qoder on its own CDP port', () => {
+    const app = getElectronApp('qoder');
+    expect(app).toMatchObject({
+      port: 9237,
+      processName: 'Qoder',
+      bundleId: 'com.qoder.ide',
+      displayName: 'Qoder',
+    });
   });
 
   it('isElectronApp returns false for non-Electron sites', () => {

@@ -18,7 +18,7 @@ import {
     CommandExecutionError,
     EmptyResultError,
 } from '@jackwener/opencli/errors';
-import { IS_VISIBLE_JS, clickByTextScript, clickFirstScript } from './_utils.js';
+import { IS_VISIBLE_JS, clickByTextScript, clickFirstScript, evaluateQoder, parsePositiveInt, requireArrayResult } from './_utils.js';
 
 // -------- sidebar-toggle --------
 cli({
@@ -32,7 +32,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Collapse Quest List', 'Expand Quest List']));
+        const res = await evaluateQoder(page, clickByTextScript(['Collapse Quest List', 'Expand Quest List']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'sidebar-toggle failed', '');
         return [{ Status: `clicked: ${res.matched}` }];
     },
@@ -50,7 +50,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Open Panel', 'Close Panel']));
+        const res = await evaluateQoder(page, clickByTextScript(['Open Panel', 'Close Panel']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'open-panel failed', '');
         return [{ Status: `clicked: ${res.matched}` }];
     },
@@ -73,11 +73,12 @@ cli({
     func: async (page, kwargs) => {
         const query = String(kwargs?.query || '').trim();
         if (!query) throw new ArgumentError('query', 'is required');
-        const openRes = await page.evaluate(clickByTextScript(['Search']));
+        const limit = parsePositiveInt(kwargs?.limit, 20, '--limit');
+        const openRes = await evaluateQoder(page, clickByTextScript(['Search']));
         if (!openRes?.ok) throw new CommandExecutionError(openRes?.reason || 'search open failed', '');
         await page.wait(0.5);
         // Type into the visible input (usually the most-recently mounted one).
-        const fillRes = await page.evaluate(`(() => {
+        const fillRes = await evaluateQoder(page, `(() => {
       ${IS_VISIBLE_JS}
       const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="search"], input:not([type])')).filter(isVisible);
       const input = inputs[inputs.length - 1];
@@ -90,7 +91,7 @@ cli({
     })()`);
         if (!fillRes?.ok) throw new CommandExecutionError(fillRes?.reason || 'search type failed', '');
         await page.wait(0.8);
-        const items = await page.evaluate(`(() => {
+        const items = requireArrayResult(await evaluateQoder(page, `(() => {
       ${IS_VISIBLE_JS}
       // Search palette results: prefer [role=option], else any clickable row in the modal.
       const opts = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"]')).filter(isVisible);
@@ -100,12 +101,11 @@ cli({
         return (titleEl.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 200);
       }).filter(Boolean);
       return [...new Set(titles)];
-    })()`);
+    })()`), 'qoder search');
         try { await page.evaluate(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));`); } catch {}
         if (!items.length) {
             throw new EmptyResultError('qoder search', `No items matched "${query}".`);
         }
-        const limit = Number.isInteger(kwargs?.limit) && kwargs.limit > 0 ? kwargs.limit : 20;
         return items.slice(0, limit).map((t, i) => ({ Index: i + 1, Item: t }));
     },
 });
@@ -122,10 +122,10 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Settings']));
+        const res = await evaluateQoder(page, clickByTextScript(['Settings']));
         if (!res?.ok) {
             // Fallback: try aria-label.
-            const ariaRes = await page.evaluate(clickFirstScript(['button[aria-label="Settings"]']));
+            const ariaRes = await evaluateQoder(page, clickFirstScript(['button[aria-label="Settings"]']));
             if (!ariaRes?.ok) throw new CommandExecutionError('Settings button not found', '');
         }
         await page.wait(0.5);
@@ -145,7 +145,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Knowledge']));
+        const res = await evaluateQoder(page, clickByTextScript(['Knowledge']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'Knowledge button not found', '');
         return [{ Status: 'clicked' }];
     },
@@ -163,7 +163,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Marketplace']));
+        const res = await evaluateQoder(page, clickByTextScript(['Marketplace']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'Marketplace button not found', '');
         return [{ Status: 'clicked' }];
     },
@@ -181,11 +181,11 @@ cli({
     args: [],
     columns: ['Field', 'Value'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Credits Usage']));
+        const res = await evaluateQoder(page, clickByTextScript(['Credits Usage']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'Credits Usage not visible', '');
         await page.wait(0.5);
         // Try to read whatever appears.
-        const info = await page.evaluate(`(() => {
+        const info = await evaluateQoder(page, `(() => {
       ${IS_VISIBLE_JS}
       // Find any dialog/popover that appeared.
       const popovers = Array.from(document.querySelectorAll('[role="dialog"], [class*="popover"i], [class*="popup"i]')).filter(isVisible);
@@ -213,7 +213,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['View all']));
+        const res = await evaluateQoder(page, clickByTextScript(['View all']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'View all button not visible', '');
         return [{ Status: 'clicked' }];
     },
@@ -231,7 +231,7 @@ cli({
     args: [],
     columns: ['Status'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['Add Workspace']));
+        const res = await evaluateQoder(page, clickByTextScript(['Add Workspace']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'Add Workspace button not found', '');
         return [{ Status: 'clicked — folder picker opened (manual selection required)' }];
     },
@@ -257,7 +257,7 @@ cli({
         let label = String(kwargs?.username || '').trim();
         if (!label) {
             // Heuristic discovery.
-            label = await page.evaluate(`(() => {
+            label = await evaluateQoder(page, `(() => {
         ${IS_VISIBLE_JS}
         const btns = Array.from(document.querySelectorAll('button')).filter(isVisible);
         const known = new Set(['Pin', 'Copy', 'New Quest', 'Search', 'Settings', 'View all', 'Knowledge', 'Marketplace', 'Credits Usage', 'Open Editor', 'Add Workspace', 'More Actions', 'Send message', 'Prompt Enhance', 'Voice input', 'button']);
@@ -274,10 +274,10 @@ cli({
             throw new CommandExecutionError('No account button detected. Pass --username <name> explicitly.', '');
         }
         // Click the username button
-        const clickRes = await page.evaluate(clickByTextScript([label], { exact: true, maxLen: 60 }));
+        const clickRes = await evaluateQoder(page, clickByTextScript([label], { exact: true, maxLen: 60 }));
         if (!clickRes?.ok) throw new CommandExecutionError(`Click on account button "${label}" failed`, '');
         await page.wait(0.5);
-        const items = await page.evaluate(`(() => {
+        const items = requireArrayResult(await evaluateQoder(page, `(() => {
       ${IS_VISIBLE_JS}
       const popovers = Array.from(document.querySelectorAll('[role="menu"], [role="dialog"], [class*="popover"i], [class*="dropdown"i]')).filter(isVisible)
         .filter((el) => { const r = el.getBoundingClientRect(); return r.width < 500 && r.height < 600; });
@@ -287,7 +287,7 @@ cli({
         .filter(isVisible)
         .map((b) => (b.innerText || b.textContent || '').trim().replace(/\\s+/g, ' '))
         .filter(Boolean);
-    })()`);
+    })()`), 'qoder account');
         try { await page.evaluate(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));`); } catch {}
         const rows = [{ Field: 'Username', Value: label }];
         (items || []).slice(0, 20).forEach((item, i) => {
@@ -309,10 +309,10 @@ cli({
     args: [],
     columns: ['Index', 'Item'],
     func: async (page) => {
-        const res = await page.evaluate(clickByTextScript(['More Actions']));
+        const res = await evaluateQoder(page, clickByTextScript(['More Actions']));
         if (!res?.ok) throw new CommandExecutionError(res?.reason || 'More Actions button not found', '');
         await page.wait(0.4);
-        const items = await page.evaluate(`(() => {
+        const items = requireArrayResult(await evaluateQoder(page, `(() => {
       ${IS_VISIBLE_JS}
       const popovers = Array.from(document.querySelectorAll('[role="menu"], [role="dialog"], [class*="popover"i], [class*="menu"i]')).filter(isVisible)
         .filter((el) => { const r = el.getBoundingClientRect(); return r.width < 500 && r.height < 600; });
@@ -322,7 +322,7 @@ cli({
         .filter(isVisible)
         .map((b) => (b.innerText || b.textContent || '').trim().replace(/\\s+/g, ' '))
         .filter(Boolean);
-    })()`);
+    })()`), 'qoder more-actions');
         try { await page.evaluate(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));`); } catch {}
         if (!items.length) {
             throw new EmptyResultError('qoder more-actions', 'Menu opened but no items detected.');

@@ -169,5 +169,6 @@ Run `opencli list` for the live registry.
 | **[Antigravity](./desktop/antigravity.md)** | Control Antigravity Ultra     | `status` `send` `read` `new` `dump` `extract-code` `model` `watch`                                          |
 | **[ChatGPT App](./desktop/chatgpt-app.md)** | Automate ChatGPT macOS app    | `status` `new` `send` `read` `ask` `model`                                                                  |
 | **[ChatWise](./desktop/chatwise.md)**       | Multi-LLM client              | `status` `new` `send` `read` `ask` `model` `history` `export` `screenshot`                                  |
+| **[Qoder](./desktop/qoder.md)**             | Control Qoder IDE             | `status` `new` `history` `send` `ask` `read` `search` `settings` `knowledge` `marketplace` `credits` `view-all` `add-workspace` `account` `more-actions` `prompt-enhance` `open-editor` `sidebar-toggle` `open-panel` |
 | **[Discord](./desktop/discord.md)**         | Desktop messages & channels   | `status` `send` `read` `channels` `servers` `search` `members`                                              |
 | **[Doubao App](./desktop/doubao-app.md)**   | Doubao AI desktop app via CDP | `status` `new` `send` `read` `ask` `screenshot` `dump`                                                      |

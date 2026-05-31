@@ -193,7 +193,7 @@ Unified passthrough for your existing command-line tools. Run `opencli <tool> ..
 
 Register your own with `opencli external register <name>`; list everything with `opencli external list`.
 
-**Desktop app adapters** (Electron, via CDP): Cursor / Codex / Antigravity / ChatGPT App / ChatWise / Discord / Doubao — see [`docs/adapters/desktop/`](./docs/adapters/desktop/).
+**Desktop app adapters** (Electron, via CDP): Cursor / Codex / Antigravity / ChatGPT App / ChatWise / Qoder / Discord / Doubao — see [`docs/adapters/desktop/`](./docs/adapters/desktop/).
 
 ## Download Support
 
