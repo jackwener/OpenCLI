@@ -5683,6 +5683,67 @@
   },
   {
     "site": "codex",
+    "name": "account",
+    "description": "Read account info from the bottom-of-sidebar account dropdown (email, plan, profile/settings/log-out menu items).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "add-automation",
+    "description": "Add an automation from the current conversation (Chat actions menu → Add automation…). Opens the create-automation dialog.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/menu-items.js",
+    "sourceFile": "codex/menu-items.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "add-files",
+    "description": "Attach a local file to the Codex composer. Sets <input type=file> via CDP page.upload. Pair with `send` to actually submit.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Absolute path to the file to attach"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "archive",
     "description": "Archive (Codex's term for delete) the selected conversation via the Chat actions header menu. No confirmation in UI — pass --yes to actually archive.",
     "access": "write",
@@ -5728,6 +5789,31 @@
     "type": "js",
     "modulePath": "codex/archive.js",
     "sourceFile": "codex/archive.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "archive-all",
+    "description": "DANGER: archive ALL chats from the Filter sidebar menu. Requires --yes; no undo from this command.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually archive all (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/menu-items.js",
+    "sourceFile": "codex/menu-items.js",
     "navigateBefore": true
   },
   {
@@ -5791,6 +5877,50 @@
   },
   {
     "site": "codex",
+    "name": "chat-actions-menu",
+    "description": "Open the conversation header \"Chat actions\" menu and list every item visible (not just pin/unpin/archive/rename — useful for discovering unwrapped actions).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "copy-message",
+    "description": "Return the text of the last assistant message in the current Codex conversation. Use --click-button to also fire the in-UI Copy button (writes to system clipboard).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "click-button",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Also click Copy message button (writes to system clipboard)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "codex/chat-actions.js",
+    "sourceFile": "codex/chat-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "dump",
     "description": "Dump the DOM and Accessibility tree of codex for reverse-engineering",
     "access": "read",
@@ -5805,6 +5935,24 @@
     "type": "js",
     "modulePath": "codex/dump.js",
     "sourceFile": "codex/dump.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "edit-message",
+    "description": "Click \"Edit message\" on the LAST user message and return its original text (the input becomes editable in-place).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "OriginalText"
+    ],
+    "type": "js",
+    "modulePath": "codex/chat-actions.js",
+    "sourceFile": "codex/chat-actions.js",
     "navigateBefore": true
   },
   {
@@ -5849,6 +5997,49 @@
     "type": "js",
     "modulePath": "codex/extract-diff.js",
     "sourceFile": "codex/extract-diff.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "filter-chats",
+    "description": "Click \"Filter sidebar chats\" and list the filter menu items.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "fork",
+    "description": "Click \"Fork from this point\" on the LAST assistant message — creates a new conversation branch from that point. Requires --yes (this is non-undoable; it starts a new chat).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually fork (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/chat-actions.js",
+    "sourceFile": "codex/chat-actions.js",
     "navigateBefore": true
   },
   {
@@ -5920,6 +6111,31 @@
   },
   {
     "site": "codex",
+    "name": "nav",
+    "description": "Navigate Codex in-app history (Back / Forward).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "direction",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "back or forward"
+      }
+    ],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "new",
     "description": "Start a new Codex conversation session",
     "access": "write",
@@ -5933,6 +6149,40 @@
     "type": "js",
     "modulePath": "codex/new.js",
     "sourceFile": "codex/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "open-in-new-window",
+    "description": "Open the current conversation in a new Codex window (Chat actions menu → Open in new window).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/menu-items.js",
+    "sourceFile": "codex/menu-items.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "organize-sidebar",
+    "description": "Open the Organize sidebar dialog (Filter sidebar menu → Organize sidebar).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/menu-items.js",
+    "sourceFile": "codex/menu-items.js",
     "navigateBefore": true
   },
   {
@@ -5979,6 +6229,39 @@
   },
   {
     "site": "codex",
+    "name": "project-new",
+    "description": "Click Add new project, type the name, submit. Requires --yes.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Project name"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually create (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Name"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "projects",
     "description": "List Codex projects and visible conversations from the sidebar",
     "access": "read",
@@ -6009,6 +6292,32 @@
     "type": "js",
     "modulePath": "codex/projects.js",
     "sourceFile": "codex/projects.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "react",
+    "description": "Click \"Good response\" or \"Bad response\" on the LAST assistant message. Codex shows these inline below each assistant turn.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "kind",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "good or bad"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Reaction"
+    ],
+    "type": "js",
+    "modulePath": "codex/chat-actions.js",
+    "sourceFile": "codex/chat-actions.js",
     "navigateBefore": true
   },
   {
@@ -6132,6 +6441,56 @@
   },
   {
     "site": "codex",
+    "name": "scroll-bottom",
+    "description": "Scroll the chat pane to the bottom (click \"Scroll to bottom\" button if visible, otherwise issue End key).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/chat-actions.js",
+    "sourceFile": "codex/chat-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "search",
+    "description": "Open the sidebar Search (⌘G), type a query, and return matched conversations. Cleans up by pressing Escape on exit.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "send",
     "description": "Send text/commands to the current or selected Codex AI composer",
     "access": "write",
@@ -6184,6 +6543,102 @@
   },
   {
     "site": "codex",
+    "name": "settings",
+    "description": "Click the sidebar Settings button (Cmd+,). Returns whether the Settings panel mounted.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "PanelVisible"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "side-chat",
+    "description": "Open the current conversation as a side chat (Chat actions menu → Open side chat).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/menu-items.js",
+    "sourceFile": "codex/menu-items.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "sidebar-toggle",
+    "description": "Hide / show the Codex sidebar (idempotent — clicks whichever toggle button is currently visible).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "sort-by",
+    "description": "Open the Sort by submenu and list its options.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "codex/menu-items.js",
+    "sourceFile": "codex/menu-items.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "start-chat-in",
+    "description": "Click \"Start new chat in <project>\" in the sidebar for a named project.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Project name"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Project"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "status",
     "description": "Check active CDP connection to OpenAI Codex App",
     "access": "read",
@@ -6199,6 +6654,56 @@
     "type": "js",
     "modulePath": "codex/status.js",
     "sourceFile": "codex/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "toggle-panel",
+    "description": "Toggle one of Codex's panels: summary, bottom, or side.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "which",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "summary | bottom | side"
+      }
+    ],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/ui-actions.js",
+    "sourceFile": "codex/ui-actions.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "undo",
+    "description": "Click Undo to revert Codex's most recent agent action (e.g., file edit, command run). Requires --yes (this modifies your workspace).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually undo (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "codex/chat-actions.js",
+    "sourceFile": "codex/chat-actions.js",
     "navigateBefore": true
   },
   {
