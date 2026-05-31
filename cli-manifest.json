@@ -1572,22 +1572,30 @@
   {
     "site": "antigravity",
     "name": "model",
-    "description": "Switch the active LLM model in Antigravity",
-    "access": "read",
-    "domain": "localhost",
+    "description": "Read or switch the active model in Antigravity. Without arguments, reports the current model. With <name> (substring, case-insensitive), switches.",
+    "access": "write",
+    "domain": "127.0.0.1",
     "strategy": "ui",
     "browser": true,
     "args": [
       {
         "name": "name",
         "type": "str",
-        "required": true,
+        "required": false,
         "positional": true,
-        "help": "Target model name (e.g. claude, gemini, o1)"
+        "help": "Substring (case-insensitive) of target model name. Omit to read current."
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List models in the picker (does not switch)"
       }
     ],
     "columns": [
-      "Status"
+      "Status",
+      "Model"
     ],
     "type": "js",
     "modulePath": "antigravity/model.js",
@@ -6007,18 +6015,25 @@
   {
     "site": "codex",
     "name": "model",
-    "description": "Get or switch the currently active AI model in Codex Desktop",
-    "access": "read",
+    "description": "Read, list, or switch the active model / reasoning level in Codex Desktop. The composer toolbar button toggles a menu that mixes model variants (GPT-5.5, Speed) with reasoning levels (Low/Medium/High/Extra High).",
+    "access": "write",
     "domain": "localhost",
     "strategy": "ui",
     "browser": true,
     "args": [
       {
-        "name": "model-name",
+        "name": "name",
         "type": "str",
         "required": false,
         "positional": true,
-        "help": "The ID of the model to switch to (e.g. gpt-4)"
+        "help": "Substring (case-insensitive) of a model / reasoning level to switch to. Omit to read current."
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List all menu options (does not switch)"
       }
     ],
     "columns": [
@@ -25589,6 +25604,39 @@
     "type": "js",
     "modulePath": "trae-solo/history.js",
     "sourceFile": "trae-solo/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "model",
+    "description": "Read or switch the current AI model in TRAE SOLO. Without arguments, reports the current model. With <name> argument (substring, case-insensitive), switches to a matching model. Pass --list to enumerate available models.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Target model name (substring match, case-insensitive). Omit to read current."
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List all available models (does not switch)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Model"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/model.js",
+    "sourceFile": "trae-solo/model.js",
     "navigateBefore": true
   },
   {
