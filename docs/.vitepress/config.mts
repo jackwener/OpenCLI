@@ -57,6 +57,7 @@ export default defineConfig({
                 { text: 'Zhihu', link: '/adapters/browser/zhihu' },
                 { text: 'Xiaohongshu', link: '/adapters/browser/xiaohongshu' },
                 { text: 'Rednote', link: '/adapters/browser/rednote' },
+                { text: 'WeChat Channels (视频号)', link: '/adapters/browser/wechat-channels' },
                 { text: 'Xiaoe', link: '/adapters/browser/xiaoe' },
                 { text: 'Weibo', link: '/adapters/browser/weibo' },
                 { text: 'YouTube', link: '/adapters/browser/youtube' },

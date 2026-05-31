@@ -27537,6 +27537,78 @@
     "navigateBefore": false
   },
   {
+    "site": "wechat-channels",
+    "name": "publish",
+    "description": "发布视频到视频号",
+    "access": "write",
+    "domain": "channels.weixin.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "video",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "视频文件路径 (.mp4/.mov/.avi/.webm)"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "短标题（建议 6-16 字）"
+      },
+      {
+        "name": "caption",
+        "type": "str",
+        "required": false,
+        "help": "描述内容，支持直接写 #话题（如：日常生活 #搞笑 #生活）"
+      },
+      {
+        "name": "cover",
+        "type": "str",
+        "required": false,
+        "help": "封面图片路径 (.jpg/.png/.webp)"
+      },
+      {
+        "name": "schedule",
+        "type": "str",
+        "required": false,
+        "help": "定时发布时间（ISO8601 或 Unix 秒，如 \"2026-05-20 10:00\"）"
+      },
+      {
+        "name": "draft",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "保存为草稿"
+      },
+      {
+        "name": "manual",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "填完所有字段后不自动发布，由用户手动点击发表（务必同时传 --site-session persistent，否则表单页约 30 秒后会被重置为空白页）"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "命令整体超时秒数（含登录等待 + 上传转码，默认 600）"
+      }
+    ],
+    "columns": [
+      "status",
+      "title",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "wechat-channels/publish.js",
+    "sourceFile": "wechat-channels/publish.js",
+    "navigateBefore": false
+  },
+  {
     "site": "weibo",
     "name": "comments",
     "description": "Get comments on a Weibo post",
