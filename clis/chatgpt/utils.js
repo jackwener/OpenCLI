@@ -746,6 +746,14 @@ export async function getChatGPTVisibleImageUrls(page) {
                 const text = [alt, cls, testId, label, src.toLowerCase()].join(' ');
                 return /avatar|profile|logo|icon/.test(text);
             };
+            const isUserUploadPreview = (img) => {
+                const alt = (img.getAttribute('alt') || '').toLowerCase();
+                if (img.closest('button[aria-label^="Open image:"]')) return true;
+                const turn = img.closest('section[data-testid^="conversation-turn"]');
+                const heading = (turn?.querySelector('h4')?.innerText || '').toLowerCase();
+                if (/you said|你说/.test(heading)) return true;
+                return /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(alt) || /ref-|reference|参考/.test(alt);
+            };
 
             const imgs = Array.from(document.querySelectorAll('img')).filter(img =>
                 img instanceof HTMLImageElement && isVisible(img)
@@ -758,6 +766,7 @@ export async function getChatGPTVisibleImageUrls(page) {
 
                 if (!src) continue;
                 if (isDecorative(img, src)) continue;
+                if (isUserUploadPreview(img)) continue;
                 if (width < 128 && height < 128) continue;
                 addUrl(src);
             }
@@ -777,16 +786,35 @@ export async function getChatGPTVisibleImageUrls(page) {
                 }
             }
 
-            // Some image experiences render to a canvas. Returning the data URL
-            // lets the downstream asset exporter save it without needing a DOM
-            // selector to rediscover the canvas.
+            // Some ChatGPT image surfaces mount large transparent canvases as
+            // placeholders/overlays before the real backend image is ready. If
+            // those data URLs are accepted as generated assets, the adapter can
+            // save a blank transparent PNG while reporting success. Prefer real
+            // <img>/background URLs; only keep a canvas if it contains at least
+            // one non-transparent/non-white sampled pixel.
             for (const canvas of Array.from(document.querySelectorAll('canvas'))) {
                 if (!(canvas instanceof HTMLCanvasElement) || !isVisible(canvas) || isDecorative(canvas)) continue;
                 const width = canvas.width || canvas.getBoundingClientRect().width || 0;
                 const height = canvas.height || canvas.getBoundingClientRect().height || 0;
                 if (width < 128 && height < 128) continue;
                 try {
-                    addUrl(canvas.toDataURL('image/png'));
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    if (!ctx) continue;
+                    const sampleWidth = Math.min(canvas.width || width, 64);
+                    const sampleHeight = Math.min(canvas.height || height, 64);
+                    const imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+                    let hasContent = false;
+                    for (let offset = 0; offset < imageData.length; offset += 4) {
+                        const r = imageData[offset];
+                        const g = imageData[offset + 1];
+                        const b = imageData[offset + 2];
+                        const a = imageData[offset + 3];
+                        if (a > 0 && !(r > 248 && g > 248 && b > 248)) {
+                            hasContent = true;
+                            break;
+                        }
+                    }
+                    if (hasContent) addUrl(canvas.toDataURL('image/png'));
                 } catch { }
             }
             return urls;
