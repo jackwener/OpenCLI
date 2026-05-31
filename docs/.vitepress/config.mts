@@ -81,6 +81,7 @@ export default defineConfig({
                 { text: 'Band', link: '/adapters/browser/band' },
                 { text: 'Chaoxing', link: '/adapters/browser/chaoxing' },
                 { text: 'Grok', link: '/adapters/browser/grok' },
+                { text: 'Kimi', link: '/adapters/browser/kimi' },
                 { text: 'Amazon', link: '/adapters/browser/amazon' },
                 { text: '1688', link: '/adapters/browser/1688' },
                 { text: 'Gitee', link: '/adapters/browser/gitee' },
