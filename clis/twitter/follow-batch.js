@@ -1,5 +1,6 @@
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { unwrapBrowserResult } from './shared.js';
 
 const USERNAME_RE = /^[A-Za-z0-9_]{1,15}$/;
 const DEFAULT_DELAY_MS = 3000;
@@ -32,7 +33,7 @@ export function parseBatchUsernames(input) {
 }
 
 async function readFollowState(page, username) {
-    return page.evaluate(`(async () => {
+    return unwrapBrowserResult(await page.evaluate(`(async () => {
         try {
             let attempts = 0;
             while (attempts < 20) {
@@ -54,11 +55,11 @@ async function readFollowState(page, username) {
         } catch (e) {
             return { ok: false, message: e.toString() };
         }
-    })()`);
+    })()`));
 }
 
 async function clickFollowAndVerify(page, username) {
-    return page.evaluate(`(async () => {
+    return unwrapBrowserResult(await page.evaluate(`(async () => {
         try {
             const followBtn = document.querySelector('[data-testid$="-follow"]');
             if (!followBtn) {
@@ -78,7 +79,7 @@ async function clickFollowAndVerify(page, username) {
         } catch (e) {
             return { ok: false, message: e.toString() };
         }
-    })()`);
+    })()`));
 }
 
 export async function followOne(page, username) {

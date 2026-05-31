@@ -67,6 +67,24 @@ describe('twitter follow-batch command', () => {
         ]);
     });
 
+    it('unwraps Browser Bridge evaluate envelopes before interpreting follow state', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ session: 's1', data: { ok: false, followButtonVisible: true } })
+                .mockResolvedValueOnce({ session: 's1', data: { ok: true, status: 'success', message: 'Successfully followed @karpathy.' } }),
+        };
+
+        const row = await followOne(page, 'karpathy');
+
+        expect(row).toEqual({
+            username: 'karpathy',
+            status: 'success',
+            message: 'Successfully followed @karpathy.',
+        });
+    });
+
     it('refreshes the profile before reporting a failed post-click verification', async () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
