@@ -905,7 +905,7 @@ cli({
         await page.wait({ time: 4 });
         const finalUrl = await page.evaluate('() => location.href');
         const successMarkers = isDraft
-            ? ['草稿已保存', '暂存成功', '保存成功', '上传成功', '保存于', '图文笔记(', '编辑', '删除']
+            ? ['草稿已保存', '暂存成功', '保存成功', '保存于', '图文笔记(']
             : ['发布成功', '上传成功'];
         const successMsg = await page.evaluate(`
       (markers => {

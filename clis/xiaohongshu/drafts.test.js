@@ -89,6 +89,16 @@ describe('xiaohongshu draft commands', () => {
         await expect(command.func(page, { id: 'n:99', type: 'image' })).rejects.toBeInstanceOf(EmptyResultError);
     });
 
+    it('does not accept raw untyped ids that can collide across IndexedDB key types', async () => {
+        const command = getRegistry().get('xiaohongshu/draft-delete');
+        const page = createPageMock([
+            { ok: true, entries: [{ key: 12, row: sampleDraft }, { key: '12', row: { title: '字符串键' } }] },
+        ]);
+
+        await expect(command.func(page, { id: '12', type: 'image', execute: true })).rejects.toBeInstanceOf(EmptyResultError);
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
     it('dry-runs draft-delete by default after proving the target exists', async () => {
         const command = getRegistry().get('xiaohongshu/draft-delete');
         const page = createPageMock([

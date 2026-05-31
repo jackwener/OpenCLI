@@ -51,9 +51,7 @@ export function encodeDraftKey(key) {
 }
 
 export function findDraftEntry(entries, id) {
-    return entries.find((entry) => encodeDraftKey(entry?.key) === id)
-        || entries.find((entry) => String(entry?.key) === id)
-        || null;
+    return entries.find((entry) => encodeDraftKey(entry?.key) === id) || null;
 }
 
 export function normalizeDraftRecord(row, key, type, rank, { contentLimit = 80 } = {}) {
