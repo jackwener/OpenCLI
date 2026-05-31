@@ -60,13 +60,25 @@ describe('normalizeWechatUrl', () => {
         expect(normalizeWechatUrl(`   “${canonical}”   `)).toBe(canonical);
     });
 
-    it('does NOT strip a mismatched pair (asymmetric quotes)', () => {
-        // Open curly + close straight should NOT be stripped — that's
-        // probably a typo, leave it for the URL parser to reject.
-        const mismatched = `“${canonical}"`;
-        // We expect the function to NOT strip; the underlying URL parser
-        // will then handle (or reject) the malformed input downstream.
-        expect(normalizeWechatUrl(mismatched).startsWith('“')).toBe(true);
+    it('strips one-sided trailing smart quotes from pasted URL text', () => {
+        expect(normalizeWechatUrl(`${canonical}”`)).toBe(canonical);
+        expect(normalizeWechatUrl(`${canonical}」`)).toBe(canonical);
+        expect(normalizeWechatUrl(`${canonical}>`)).toBe(canonical);
+    });
+
+    it('strips one-sided leading smart quotes from pasted URL text', () => {
+        expect(normalizeWechatUrl(`“${canonical}`)).toBe(canonical);
+        expect(normalizeWechatUrl(`「${canonical}`)).toBe(canonical);
+        expect(normalizeWechatUrl(`<${canonical}`)).toBe(canonical);
+    });
+
+    it('strips asymmetric boundary quote punctuation without touching the URL body', () => {
+        expect(normalizeWechatUrl(`“${canonical}"`)).toBe(canonical);
+    });
+
+    it('does not strip encoded quote-like characters inside the URL', () => {
+        const withEncodedQuote = 'https://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw?note=%E2%80%9D#frag';
+        expect(normalizeWechatUrl(withEncodedQuote)).toBe(withEncodedQuote);
     });
 
     it('removes backslash escapes inserted by some shells', () => {

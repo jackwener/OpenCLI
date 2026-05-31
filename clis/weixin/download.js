@@ -14,10 +14,10 @@ import { downloadArticle } from '@jackwener/opencli/download/article-download';
 /**
  * Normalize a pasted WeChat article URL.
  */
-// Wrapping quote characters to strip from a pasted URL. Pairs are matched
-// open[i] ↔ close[i]. Covers ASCII plus CJK typographic / smart quotes,
-// which are common when users copy URLs from Chinese-language environments
-// (WeChat itself, macOS smart-quote substitution, Word / Pages, …).
+// Wrapping quote characters to strip from a pasted URL. Covers ASCII plus
+// CJK typographic / smart quotes, which are common when users copy URLs from
+// Chinese-language environments (WeChat itself, macOS smart-quote
+// substitution, Word / Pages, …).
 //
 // Pairs:
 //   "  "         ASCII straight double
@@ -40,22 +40,39 @@ const WRAPPING_QUOTE_PAIRS = [
     ['‹', '›'],
     ['«', '»'],
 ];
+const LEADING_WRAP_CHARS = new Set(WRAPPING_QUOTE_PAIRS.map(([open]) => open).concat('<'));
+const TRAILING_WRAP_CHARS = new Set(WRAPPING_QUOTE_PAIRS.map(([, close]) => close).concat('>'));
+
+function stripBoundaryWrapChars(value) {
+    let s = value;
+    for (let i = 0; i < 4; i += 1) {
+        const before = s;
+        for (const [open, close] of WRAPPING_QUOTE_PAIRS) {
+            if (s.length >= 2 && s.startsWith(open) && s.endsWith(close)) {
+                s = s.slice(open.length, s.length - close.length).trim();
+                break;
+            }
+        }
+        while (s && LEADING_WRAP_CHARS.has(s[0])) {
+            s = s.slice(1).trimStart();
+        }
+        while (s && TRAILING_WRAP_CHARS.has(s[s.length - 1])) {
+            s = s.slice(0, -1).trimEnd();
+        }
+        if (s === before)
+            break;
+    }
+    return s;
+}
 
 export function normalizeWechatUrl(raw) {
     let s = (raw || '').trim();
     if (!s)
         return s;
-    // Strip wrapping quotes / angle brackets. Walk all known pairs (ASCII +
-    // CJK typographic) and remove the outer pair when matched.
-    for (const [open, close] of WRAPPING_QUOTE_PAIRS) {
-        if (s.length >= 2 && s.startsWith(open) && s.endsWith(close)) {
-            s = s.slice(open.length, s.length - close.length).trim();
-            break;
-        }
-    }
-    if (s.startsWith('<') && s.endsWith('>')) {
-        s = s.slice(1, -1).trim();
-    }
+    // Strip quote / angle-bracket characters only at the pasted boundary. This
+    // handles both paired wrappers ("<url>", "“url”") and common one-sided
+    // trailing punctuation ("url”") without touching encoded URL content.
+    s = stripBoundaryWrapChars(s);
     // Remove backslash escapes before URL-significant characters
     s = s.replace(/\\+([:/&?=#%])/g, '$1');
     // Decode HTML entities
