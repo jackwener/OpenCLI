@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
+import { CommandExecutionError, ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
 import { activateChatGPT, selectModel, MODEL_CHOICES, sendPrompt } from './ax.js';
 export const sendCommand = cli({
     site: 'chatgpt-app',
@@ -31,7 +31,7 @@ export const sendCommand = cli({
             return [{ Status: 'Success' }];
         }
         catch (err) {
-            return [{ Status: "Error: " + getErrorMessage(err) }];
+            throw new CommandExecutionError("Failed to send ChatGPT message: " + getErrorMessage(err));
         }
     },
 });

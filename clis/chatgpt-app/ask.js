@@ -1,7 +1,6 @@
-import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, ConfigError } from '@jackwener/opencli/errors';
+import { ArgumentError, ConfigError, TimeoutError } from '@jackwener/opencli/errors';
 import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating, sendPrompt } from './ax.js';
 export const askCommand = cli({
     site: 'chatgpt-app',
@@ -27,8 +26,15 @@ export const askCommand = cli({
         const timeout = kwargs.timeout;
         const image = kwargs.image;
         if (image) {
-            if (!existsSync(image)) {
+            let stat;
+            try {
+                stat = statSync(image);
+            }
+            catch {
                 throw new ArgumentError(`The specified image path does not exist: ${image}`);
+            }
+            if (!stat.isFile()) {
+                throw new ArgumentError(`The specified image path is not a file: ${image}`);
             }
         }
         if (!Number.isInteger(timeout) || timeout < 1) {
@@ -71,10 +77,7 @@ export const askCommand = cli({
             break;
         }
         if (!response) {
-            return [
-                { Role: 'User', Text: text },
-                { Role: 'System', Text: `No response within ${timeout}s. ChatGPT may still be generating.` },
-            ];
+            throw new TimeoutError('chatgpt-app/ask', timeout, 'ChatGPT may still be generating; rerun read or increase --timeout');
         }
         return [
             { Role: 'User', Text: text },

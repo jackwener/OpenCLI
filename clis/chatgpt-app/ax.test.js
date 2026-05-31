@@ -43,7 +43,17 @@ describe('chatgpt-app AX send script', () => {
         expect(__test__.AX_SEND_SCRIPT).toContain('pasteboard.pasteboardItems');
         expect(__test__.AX_SEND_SCRIPT).toContain('NSPasteboardItem()');
         expect(__test__.AX_SEND_SCRIPT).toContain('savedItems.append');
-        expect(__test__.AX_SEND_SCRIPT).toContain('pasteboard.writeObjects(savedItems)');
+        expect(__test__.AX_SEND_SCRIPT).toContain('func restorePasteboard()');
+        expect(__test__.AX_SEND_SCRIPT).toContain('restorePasteboard()');
+    });
+
+    it('requires visible attachment evidence before pressing send with an image', () => {
+        expect(__test__.AX_SEND_SCRIPT).toContain('attachmentEvidenceCount');
+        expect(__test__.AX_SEND_SCRIPT).toContain('let attachmentCountBefore = attachmentEvidenceCount(win, fileName: fileName)');
+        expect(__test__.AX_SEND_SCRIPT).toContain('attachmentEvidenceCount(win, fileName: fileName) > attachmentCountBefore');
+        expect(__test__.AX_SEND_SCRIPT).toContain('Image attachment did not appear in ChatGPT before send');
+        expect(__test__.AX_SEND_SCRIPT.indexOf('Image attachment did not appear in ChatGPT before send'))
+            .toBeLessThan(__test__.AX_SEND_SCRIPT.indexOf('guard let sendButton'));
     });
 
     it('uses safe casting and fallback window search to prevent runtime crashes', () => {
@@ -72,5 +82,14 @@ describe('chatgpt-app generating detection', () => {
         expect(__test__.AX_GENERATING_SCRIPT).toContain('停止生成');
         expect(__test__.AX_GENERATING_SCRIPT).toContain('停止產生');
         expect(__test__.AX_GENERATING_SCRIPT).toContain('停止傳送');
+    });
+});
+
+describe('chatgpt-app temporary chat detection', () => {
+    it('looks for localized temporary-chat state text in the active window', () => {
+        expect(__test__.AX_TEMPORARY_CHAT_SCRIPT).toContain('Temporary Chat');
+        expect(__test__.AX_TEMPORARY_CHAT_SCRIPT).toContain('临时聊天');
+        expect(__test__.AX_TEMPORARY_CHAT_SCRIPT).toContain('臨時聊天');
+        expect(__test__.AX_TEMPORARY_CHAT_SCRIPT).toContain('hasTemporaryChatText');
     });
 });

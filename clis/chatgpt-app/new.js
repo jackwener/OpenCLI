@@ -1,10 +1,11 @@
 import { execSync } from 'node:child_process';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
+import { CommandExecutionError, ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
+import { isTemporaryChatVisible } from './ax.js';
 export const newCommand = cli({
     site: 'chatgpt-app',
     name: 'new',
-    access: 'read',
+    access: 'write',
     description: 'Open a new chat in ChatGPT Desktop App',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,
@@ -41,13 +42,20 @@ export const newCommand = cli({
                     'end tell'
                 ].map(line => `-e '${line.replace(/'/g, "'\\''")}'`).join(' ');
                 execSync(`osascript ${appleScript}`);
+                execSync("osascript -e 'delay 0.8'");
+                if (!isTemporaryChatVisible()) {
+                    throw new CommandExecutionError('Temporary chat did not become visible after selecting the menu item');
+                }
             } else {
                 execSync("osascript -e 'tell application \"System Events\" to keystroke \"n\" using command down'");
             }
             return [{ Status: 'Success' }];
         }
         catch (err) {
-            return [{ Status: "Error: " + getErrorMessage(err) }];
+            if (err instanceof CommandExecutionError) {
+                throw err;
+            }
+            throw new CommandExecutionError("Failed to open ChatGPT chat: " + getErrorMessage(err));
         }
     },
 });

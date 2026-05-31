@@ -13,7 +13,7 @@ describe('chatgpt-app desktop command registration', () => {
             ask: 'write',
             send: 'write',
             read: 'read',
-            new: 'read',
+            new: 'write',
             status: 'read',
             model: 'read',
         };

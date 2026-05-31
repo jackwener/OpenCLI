@@ -5009,7 +5009,7 @@
     "site": "chatgpt-app",
     "name": "new",
     "description": "Open a new chat in ChatGPT Desktop App",
-    "access": "read",
+    "access": "write",
     "domain": "localhost",
     "strategy": "public",
     "browser": false,

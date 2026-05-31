@@ -125,6 +125,24 @@ func findByDescriptions(_ el: AXUIElement, _ targets: [String], depth: Int = 0) 
     return nil
 }
 
+func attachmentEvidenceCount(_ el: AXUIElement, fileName: String, depth: Int = 0) -> Int {
+    guard depth < 25 else { return 0 }
+    let role = s(el, kAXRoleAttribute as String) ?? ""
+    let desc = s(el, kAXDescriptionAttribute as String) ?? ""
+    let title = s(el, kAXTitleAttribute as String) ?? ""
+    let value = s(el, kAXValueAttribute as String) ?? ""
+    let help = s(el, kAXHelpAttribute as String) ?? ""
+    let haystack = [desc, title, value, help].joined(separator: " ")
+    var count = role == kAXImageRole as String ? 1 : 0
+    if !fileName.isEmpty && haystack.localizedCaseInsensitiveContains(fileName) {
+        count += 1
+    }
+    for c in children(el) {
+        count += attachmentEvidenceCount(c, fileName: fileName, depth: depth + 1)
+    }
+    return count
+}
+
 func press(_ el: AXUIElement) {
     AXUIElementPerformAction(el, kAXPressAction as CFString)
 }
@@ -181,7 +199,9 @@ if !imagePath.isEmpty {
         fputs("Failed to load image from path: \(imagePath)\\n", stderr)
         exit(1)
     }
-    
+    let fileName = URL(fileURLWithPath: imagePath).lastPathComponent
+    let attachmentCountBefore = attachmentEvidenceCount(win, fileName: fileName)
+
     // Safeguard Clipboard: Backup existing clipboard items
     let pasteboard = NSPasteboard.general
     var savedItems: [NSPasteboardItem] = []
@@ -196,36 +216,51 @@ if !imagePath.isEmpty {
             savedItems.append(savedItem)
         }
     }
-    
+    func restorePasteboard() {
+        pasteboard.clearContents()
+        if !savedItems.isEmpty {
+            pasteboard.writeObjects(savedItems)
+        }
+    }
+
     pasteboard.clearContents()
     pasteboard.writeObjects([image])
-    
+
     AXUIElementSetAttributeValue(input, kAXFocusedAttribute as CFString, true as CFTypeRef)
     Thread.sleep(forTimeInterval: 0.2)
-    
+
     // Simulate paste command targeted directly to ChatGPT's PID to prevent global interference
     let src = CGEventSource(stateID: .hidSystemState)
     let cmdDown = CGEvent(keyboardEventSource: src, virtualKey: 0x37, keyDown: true)
     cmdDown?.flags = .maskCommand
     cmdDown?.postToPid(app.processIdentifier)
-    
+
     let vDown = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: true)
     vDown?.flags = .maskCommand
     vDown?.postToPid(app.processIdentifier)
-    
+
     let vUp = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: false)
     vUp?.flags = .maskCommand
     vUp?.postToPid(app.processIdentifier)
-    
+
     let cmdUp = CGEvent(keyboardEventSource: src, virtualKey: 0x37, keyDown: false)
     cmdUp?.postToPid(app.processIdentifier)
-    
-    Thread.sleep(forTimeInterval: 0.8)
-    
-    // Safeguard Clipboard: Restore user clipboard content
-    pasteboard.clearContents()
-    if !savedItems.isEmpty {
-        pasteboard.writeObjects(savedItems)
+
+    var attachmentReady = false
+    for _ in 0..<80 {
+        Thread.sleep(forTimeInterval: 0.1)
+        if attachmentEvidenceCount(win, fileName: fileName) > attachmentCountBefore {
+            attachmentReady = true
+            break
+        }
+    }
+
+    // Safeguard Clipboard: Restore user clipboard content after the paste flow.
+    restorePasteboard()
+
+    guard attachmentReady else {
+        fputs("Image attachment did not appear in ChatGPT before send\\n", stderr)
+        exit(1)
     }
 }
 
@@ -425,6 +460,61 @@ guard let win = targetWin else {
 let targets = ["Stop generating", "停止生成", "停止產生", "停止傳送"]
 print(targets.contains(where: { hasButton(win, desc: $0) }) ? "true" : "false")
 `;
+const AX_TEMPORARY_CHAT_SCRIPT = `
+import Cocoa
+import ApplicationServices
+
+func attr(_ el: AXUIElement, _ name: String) -> AnyObject? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(el, name as CFString, &value) == .success else { return nil }
+    return value as AnyObject?
+}
+
+func s(_ el: AXUIElement, _ name: String) -> String? {
+    if let v = attr(el, name) as? String, !v.isEmpty { return v }
+    return nil
+}
+
+func children(_ el: AXUIElement) -> [AXUIElement] {
+    (attr(el, kAXChildrenAttribute as String) as? [AnyObject] ?? []).map { $0 as! AXUIElement }
+}
+
+func hasTemporaryChatText(_ el: AXUIElement, depth: Int = 0) -> Bool {
+    guard depth < 25 else { return false }
+    let haystack = [
+        s(el, kAXDescriptionAttribute as String) ?? "",
+        s(el, kAXTitleAttribute as String) ?? "",
+        s(el, kAXValueAttribute as String) ?? "",
+        s(el, kAXHelpAttribute as String) ?? "",
+    ].joined(separator: " ")
+    let labels = ["Temporary Chat", "临时聊天", "臨時聊天", "临时对话", "臨時對話"]
+    if labels.contains(where: { haystack.localizedCaseInsensitiveContains($0) }) {
+        return true
+    }
+    for c in children(el) {
+        if hasTemporaryChatText(c, depth: depth + 1) { return true }
+    }
+    return false
+}
+
+guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.chat").first else {
+    print("false"); exit(0)
+}
+let axApp = AXUIElementCreateApplication(app.processIdentifier)
+var targetWin: AXUIElement? = nil
+if let focused = attr(axApp, kAXFocusedWindowAttribute as String) {
+    targetWin = (focused as! AXUIElement)
+}
+if targetWin == nil {
+    if let windows = attr(axApp, kAXWindowsAttribute as String) as? [AXUIElement], !windows.isEmpty {
+        targetWin = windows.first
+    }
+}
+guard let win = targetWin else {
+    print("false"); exit(0)
+}
+print(hasTemporaryChatText(win) ? "true" : "false")
+`;
 const MODEL_MAP = {
     'auto': { desc: 'Auto' },
     'instant': { desc: 'Instant' },
@@ -476,6 +566,19 @@ export function isGenerating() {
         return false;
     }
 }
+export function isTemporaryChatVisible() {
+    try {
+        const output = execFileSync('swift', ['-'], {
+            input: AX_TEMPORARY_CHAT_SCRIPT,
+            encoding: 'utf-8',
+            maxBuffer: 10 * 1024 * 1024,
+        }).trim();
+        return output === 'true';
+    }
+    catch {
+        return false;
+    }
+}
 export function getVisibleChatMessages() {
     const output = execFileSync('swift', ['-'], {
         input: AX_READ_SCRIPT,
@@ -496,4 +599,5 @@ export const __test__ = {
     AX_SEND_SCRIPT,
     AX_MODEL_SCRIPT,
     AX_GENERATING_SCRIPT,
+    AX_TEMPORARY_CHAT_SCRIPT,
 };
