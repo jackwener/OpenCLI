@@ -63,6 +63,12 @@ describe('xiaohongshu/feed func', () => {
         ]);
     });
 
+    it('unwraps Browser Bridge evaluate envelopes', async () => {
+        const page = createPageMock({ session: { id: 's1' }, data: { items: [entry('id1')] } });
+        const rows = await feed.func(page, { limit: 20 });
+        expect(rows[0].url).toBe(`https://${HOST}/explore/id1?xsec_token=tok-id1&xsec_source=`);
+    });
+
     it('typed-fails when a feed entry is missing its note token', async () => {
         const page = createPageMock({ items: [entry('id1', { xsecToken: '' })] });
         await expect(feed.func(page, { limit: 20 })).rejects.toMatchObject({

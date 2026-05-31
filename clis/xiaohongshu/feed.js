@@ -69,6 +69,13 @@ function toCleanString(value) {
     return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
 }
 
+function unwrapEvaluateResult(payload) {
+    if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
+        return payload.data;
+    }
+    return payload;
+}
+
 /**
  * Build a signed note URL for the given web host. Falls back to the bare
  * /explore/{id} URL when the caller intentionally passes no token.
@@ -99,7 +106,7 @@ export async function runFeed(page, kwargs, webHost) {
     // Pinia store hydrates from SSR; give the page a beat to finish
     // bootstrapping before reading the array.
     await page.wait({ time: 2 });
-    const data = await page.evaluate(FEEDS_READ_JS);
+    const data = unwrapEvaluateResult(await page.evaluate(FEEDS_READ_JS));
     if (!data || typeof data !== 'object') {
         throw new CommandExecutionError(`${webHost} feed: unexpected evaluate response`);
     }
