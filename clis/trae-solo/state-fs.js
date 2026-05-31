@@ -1,8 +1,15 @@
 // VSCode-style state.vscdb read commands for Trae SOLO.
 //
-//   storage-keys                — list all keys in globalStorage state.vscdb
-//   storage-get <key>           — get a single value (auto-decode JSON)
+//   state-keys                  — list all keys in globalStorage state.vscdb
+//   state-get <key>             — get a single value (auto-decode JSON)
 //   recent-workspaces           — pretty-print history.recentlyOpenedPathsList
+//
+// Naming note: these were originally named `storage-keys` / `storage-get`,
+// but `storage-*` was repurposed for renderer-side localStorage in PR #1798
+// (Grok) and PR #1799/#1800 (Codex/Antigravity). Renamed here for cross-
+// surface consistency:
+//   state-*   → on-disk VSCode state.vscdb (this file)
+//   storage-* → renderer LS/SS (see renderer-storage.js)
 //
 // All commands are READ-ONLY. Writing to state.vscdb while Trae is
 // running would race with Trae's own writer and may corrupt the DB.
@@ -37,12 +44,12 @@ function resolveStateDb(args) {
     return db;
 }
 
-// -------- storage-keys --------
+// -------- state-keys --------
 cli({
     site: 'trae-solo',
-    name: 'storage-keys',
+    name: 'state-keys',
     access: 'read',
-    description: 'List all keys present in Trae SOLO\'s globalStorage state.vscdb (VSCode-style UI/agent state). Pass --workspace <ws-id> to query a per-workspace DB instead. Use storage-get to read a specific value.',
+    description: 'List all keys present in Trae SOLO\'s globalStorage state.vscdb (VSCode-style UI/agent state). Pass --workspace <ws-id> to query a per-workspace DB instead. Use state-get to read a specific value. (See renderer storage-keys for browser-side LS/SS.)',
     domain: 'localhost',
     browser: false,
     strategy: Strategy.LOCAL,
@@ -65,17 +72,17 @@ cli({
     },
 });
 
-// -------- storage-get --------
+// -------- state-get --------
 cli({
     site: 'trae-solo',
-    name: 'storage-get',
+    name: 'state-get',
     access: 'read',
     description: 'Read a single key from Trae SOLO\'s globalStorage state.vscdb. Pass --workspace <ws-id> to query a per-workspace DB instead. Returns parsed JSON if the value is JSON.',
     domain: 'localhost',
     browser: false,
     strategy: Strategy.LOCAL,
     args: [
-        { name: 'key', positional: true, required: true, help: 'Storage key (use storage-keys to discover)' },
+        { name: 'key', positional: true, required: true, help: 'State key (use state-keys to discover)' },
         { name: 'workspace', required: false, help: 'Workspace id (from workspaces-list) to query a per-workspace DB' },
         { name: 'max-bytes', type: 'int', required: false, default: 8000, help: 'Truncate value to this many bytes' },
     ],
@@ -86,7 +93,7 @@ cli({
         const db = resolveStateDb(args);
         const val = getValue(db, key);
         if (val === null) {
-            throw new CommandExecutionError(`Key not found: ${key}`, 'List available keys with `opencli trae-solo storage-keys`.');
+            throw new CommandExecutionError(`Key not found: ${key}`, 'List available keys with `opencli trae-solo state-keys`.');
         }
         const max = Number.isInteger(args['max-bytes']) && args['max-bytes'] > 0 ? args['max-bytes'] : 8000;
         const valStr = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
