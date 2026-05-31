@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
-import { parseChatId } from './_utils.js';
+import { isKimiUrl, parseChatId } from './_utils.js';
 import './chat.js';
 import './ui.js';
 import './storage.js';
@@ -54,6 +54,16 @@ describe('kimi chat id parsing', () => {
         expect(parseChatId('https://kimi.com.evil/chat/1234abcd')).toBe('');
         expect(parseChatId('https://evil.example/chat/1234abcd')).toBe('');
         expect(parseChatId('https://www.kimi.com/chat/1234abcd/extra')).toBe('');
+    });
+});
+
+describe('kimi target boundary', () => {
+    it('accepts only https kimi hosts as the current app target', () => {
+        expect(isKimiUrl('https://kimi.com/')).toBe(true);
+        expect(isKimiUrl('https://www.kimi.com/chat/1234abcd')).toBe(true);
+        expect(isKimiUrl('http://www.kimi.com/')).toBe(false);
+        expect(isKimiUrl('https://kimi.com.evil/chat/1234abcd')).toBe(false);
+        expect(isKimiUrl('https://evil.example/?next=https://kimi.com/chat/1234abcd')).toBe(false);
     });
 });
 

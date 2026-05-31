@@ -20,9 +20,19 @@ export const IS_VISIBLE_JS = `
 `;
 
 // Ensure the current page is on kimi.com (any subpath). If not, navigate to root.
+export function isKimiUrl(value) {
+    try {
+        const url = new URL(String(value || ''));
+        const host = url.hostname.toLowerCase();
+        return url.protocol === 'https:' && (host === KIMI_DOMAIN || host === `www.${KIMI_DOMAIN}`);
+    } catch {
+        return false;
+    }
+}
+
 export async function ensureOnKimi(page) {
     const url = await page.evaluate('window.location.href').catch(() => '');
-    if (typeof url === 'string' && url.includes(KIMI_DOMAIN)) return;
+    if (isKimiUrl(url)) return;
     await page.goto(KIMI_URL);
     await page.wait(2);
 }
