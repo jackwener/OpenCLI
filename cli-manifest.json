@@ -20961,6 +20961,402 @@
     "sourceFile": "pypi/package.js"
   },
   {
+    "site": "qoder",
+    "name": "account",
+    "description": "Click the account button (username) in the Qoder sidebar and return the visible account dropdown items.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": false,
+        "help": "Username text shown in the sidebar (default: tries common short labels)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "add-workspace",
+    "description": "Click \"Add Workspace\" — opens the folder picker. Note: this opens a system file-picker dialog that Qoder controls; the actual folder selection must be done in the UI by the user.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "ask",
+    "description": "Send a prompt to Qoder and wait up to --timeout seconds for the reply (best-effort: polls for the chat turn count to grow + stabilize).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Length",
+      "WaitedSeconds"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "credits",
+    "description": "Click \"Credits Usage\" and return the credits-usage display text.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "history",
+    "description": "List Quests visible in the Qoder sidebar. Returns title + visible metadata.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "knowledge",
+    "description": "Open the Knowledge view (Qoder's personal/team knowledge base).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "marketplace",
+    "description": "Open the Qoder Marketplace.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "more-actions",
+    "description": "Click the \"More Actions\" button and list its menu items.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "new",
+    "description": "Start a new Qoder Quest (conversation). Clicks the \"New Quest\" button in the sidebar (or its ⌘N variant).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "open-editor",
+    "description": "Click \"Open Editor\" — opens the current draft in a full editor pane.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/composer.js",
+    "sourceFile": "qoder/composer.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "open-panel",
+    "description": "Open / close the Qoder bottom panel (Output / Terminal / Debug Console). ⌥⌘B equivalent.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "prompt-enhance",
+    "description": "Click \"Prompt Enhance\" — Qoder rewrites the current composer draft for better LLM consumption.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/composer.js",
+    "sourceFile": "qoder/composer.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "read",
+    "description": "Read messages in the current Qoder Quest. Returns role + text for each visible turn.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "search",
+    "description": "Open Qoder Search palette (⌘P), type a query, return matched options.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "send",
+    "description": "Type text into the Qoder composer and click \"Send message\" (fire-and-forget).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Text to send"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Length"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "settings",
+    "description": "Click the Settings button in the Qoder sidebar.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "sidebar-toggle",
+    "description": "Collapse / Expand the Qoder Quest List sidebar (⌘B).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "status",
+    "description": "Check Qoder CDP connection and report the current renderer URL + title.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "qoder/status.js",
+    "sourceFile": "qoder/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "view-all",
+    "description": "Click \"View all\" to show all Quests.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
     "site": "quark",
     "name": "ls",
     "description": "List files in your Quark Drive",
