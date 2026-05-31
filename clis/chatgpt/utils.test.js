@@ -227,6 +227,24 @@ describe('chatgpt generated image detection', () => {
         ]);
     });
 
+    it('samples generated canvas content near the center', async () => {
+        const page = createDomPage('<!doctype html><canvas width="512" height="512"></canvas>', (window) => {
+            const canvas = window.document.querySelector('canvas');
+            canvas.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            canvas.getContext = () => ({
+                getImageData: (x, y) => {
+                    const inCenter = x >= 240 && x <= 272 && y >= 240 && y <= 272;
+                    return { data: new Uint8ClampedArray(inCenter ? [0, 80, 200, 255] : [255, 255, 255, 255]) };
+                },
+            });
+            canvas.toDataURL = () => 'data:image/png;base64,center';
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'data:image/png;base64,center',
+        ]);
+    });
+
     it('ignores transparent placeholder canvases', async () => {
         const page = createDomPage('<!doctype html><canvas width="512" height="512"></canvas>', (window) => {
             const canvas = window.document.querySelector('canvas');
@@ -402,6 +420,59 @@ describe('chatgpt image upload helper', () => {
             .find(script => script.includes('new DataTransfer()'));
         expect(fallbackScript).toContain('preventDefault()');
         expect(fallbackScript).toContain('stopPropagation()');
+    });
+
+    it('does not treat generic upload controls as uploaded image previews', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'cat.png');
+        fs.writeFileSync(filePath, 'fake-png');
+
+        const dom = new JSDOM(`
+            <!doctype html>
+            <main>
+              <div aria-label="Chat with ChatGPT">
+                <button class="upload-button" data-testid="upload-button">Attach</button>
+              </div>
+            </main>
+        `, { url: 'https://chatgpt.com/new', runScripts: 'outside-only' });
+        const page = {
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
+        };
+
+        const result = await uploadChatGPTImages(page, [filePath]);
+
+        expect(result.ok).toBe(false);
+        expect(result.reason).toContain('image upload preview did not appear');
+    });
+
+    it('accepts a real uploaded media preview even when the filename text is absent', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'cat.png');
+        fs.writeFileSync(filePath, 'fake-png');
+
+        const dom = new JSDOM(`
+            <!doctype html>
+            <main>
+              <div aria-label="Chat with ChatGPT">
+                <img src="blob:https://chatgpt.com/upload-preview">
+              </div>
+            </main>
+        `, { url: 'https://chatgpt.com/new', runScripts: 'outside-only' });
+        const img = dom.window.document.querySelector('img');
+        Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 512 });
+        Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 512 });
+        img.getBoundingClientRect = () => ({ width: 512, height: 512 });
+        const page = {
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
+        };
+
+        await expect(uploadChatGPTImages(page, [filePath])).resolves.toEqual({ ok: true, files: [filePath] });
     });
 
     it('exposes image MIME inference for fallback upload', () => {

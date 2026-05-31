@@ -609,7 +609,18 @@ async function waitForChatGPTUploadPreview(page, fileNames) {
                 const scope = root || document.body;
                 if (!scope) return false;
 
-                const previewNodes = scope.querySelectorAll('img[src], canvas, video, [style*="background-image"], [data-testid*="attachment"], [data-testid*="upload"], [class*="attachment"], [class*="upload"]');
+                const isVisibleMedia = (node) => {
+                    if (!(node instanceof HTMLElement)) return false;
+                    const style = window.getComputedStyle(node);
+                    if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    const rect = node.getBoundingClientRect();
+                    const width = node.naturalWidth || node.videoWidth || rect.width || 0;
+                    const height = node.naturalHeight || node.videoHeight || rect.height || 0;
+                    if (width > 32 && height > 32) return true;
+                    const backgroundImage = style.backgroundImage || '';
+                    return /url\\(/.test(backgroundImage) && rect.width > 32 && rect.height > 32;
+                };
+                const previewNodes = Array.from(scope.querySelectorAll('img[src], canvas, video, [style*="background-image"]')).filter(isVisibleMedia);
                 return previewNodes.length >= names.length;
             })()
         `)), 'chatgpt upload preview detection');
@@ -805,28 +816,21 @@ export async function getChatGPTVisibleImageUrls(page) {
                     if (!ctx) continue;
                     const sourceWidth = Math.max(1, Math.floor(canvas.width || width));
                     const sourceHeight = Math.max(1, Math.floor(canvas.height || height));
-                    const sampleSize = 16;
-                    const xCount = Math.min(6, Math.max(1, Math.ceil(sourceWidth / 128)));
-                    const yCount = Math.min(6, Math.max(1, Math.ceil(sourceHeight / 128)));
+                    const xCount = Math.min(sourceWidth, 16);
+                    const yCount = Math.min(sourceHeight, 16);
                     let hasContent = false;
                     for (let yi = 0; yi < yCount && !hasContent; yi += 1) {
-                        const y = yCount === 1 ? 0 : Math.round((sourceHeight - 1) * yi / (yCount - 1));
+                        const y = Math.min(sourceHeight - 1, Math.floor((yi + 0.5) * sourceHeight / yCount));
                         for (let xi = 0; xi < xCount && !hasContent; xi += 1) {
-                            const x = xCount === 1 ? 0 : Math.round((sourceWidth - 1) * xi / (xCount - 1));
-                            const sampleX = Math.max(0, Math.min(sourceWidth - 1, x - Math.floor(sampleSize / 2)));
-                            const sampleY = Math.max(0, Math.min(sourceHeight - 1, y - Math.floor(sampleSize / 2)));
-                            const sampleWidth = Math.min(sampleSize, sourceWidth - sampleX);
-                            const sampleHeight = Math.min(sampleSize, sourceHeight - sampleY);
-                            const imageData = ctx.getImageData(sampleX, sampleY, sampleWidth, sampleHeight).data;
-                            for (let offset = 0; offset < imageData.length; offset += 4) {
-                                const r = imageData[offset];
-                                const g = imageData[offset + 1];
-                                const b = imageData[offset + 2];
-                                const a = imageData[offset + 3];
-                                if (a > 0 && !(r > 248 && g > 248 && b > 248)) {
-                                    hasContent = true;
-                                    break;
-                                }
+                            const x = Math.min(sourceWidth - 1, Math.floor((xi + 0.5) * sourceWidth / xCount));
+                            const pixel = ctx.getImageData(x, y, 1, 1).data;
+                            const r = pixel[0];
+                            const g = pixel[1];
+                            const b = pixel[2];
+                            const a = pixel[3];
+                            if (a > 0 && !(r > 248 && g > 248 && b > 248)) {
+                                hasContent = true;
+                                break;
                             }
                         }
                     }
