@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { __test__, isOnGrok, normalizeBooleanFlag, parseGrokSessionId } from './utils.js';
+import { __test__, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {
     const id = '7c4197f2-10a1-4ebb-a84a-fea89f4f1d06';
@@ -116,5 +116,26 @@ describe('grok getPinStateFromMenuLabels', () => {
     it('returns empty string when neither state label is visible', () => {
         expect(__test__.getPinStateFromMenuLabels(['Open in new tab', 'Delete'])).toBe('');
         expect(__test__.getPinStateFromMenuLabels([])).toBe('');
+    });
+});
+
+describe('grok sendMessage', () => {
+    it('requires a submitted user turn after both submit-button and Enter fallback paths', async () => {
+        let script = '';
+        const page = {
+            evaluate: async (value) => {
+                script = String(value);
+                return { ok: false, reason: 'test-capture' };
+            },
+        };
+
+        await sendMessage(page, 'hello from test');
+
+        expect(script).toContain('waitForSubmittedUserTurn');
+        expect(script).toContain('Grok submit button was clicked but no new user turn appeared.');
+        expect(script).toContain('Grok Enter-key fallback fired but no new user turn appeared.');
+        expect(script).toContain('[data-testid="user-message"]');
+        expect(script).toContain("submittedVia: 'submit-button'");
+        expect(script).toContain("submittedVia: 'enter-key'");
     });
 });
