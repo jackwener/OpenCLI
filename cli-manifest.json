@@ -27970,6 +27970,161 @@
   },
   {
     "site": "trae-solo",
+    "name": "skill-fs-install",
+    "description": "Install (register) a skill into Trae SOLO's ~/.trae/skill-config.json. With --source <dir>, the skill directory is copied to ~/.trae/skills/<name>/ first. NOTE: Trae must be reloaded for changes to take effect (Cmd+Q + reopen, or rely on its file-watcher).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name to register"
+      },
+      {
+        "name": "source",
+        "type": "str",
+        "required": false,
+        "help": "Source dir to copy into ~/.trae/skills/<name>/ before registering. Optional if skill dir already exists."
+      },
+      {
+        "name": "source-tag",
+        "type": "str",
+        "default": "marketplace",
+        "required": false,
+        "help": "Skill source tag written to skill-config.json (e.g. \"marketplace\", \"user\")"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually install (default is dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Name",
+      "Source"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-fs-installed",
+    "description": "List INSTALLED Trae SOLO skills (managedSkills entry in ~/.trae/skill-config.json).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Index",
+      "Name",
+      "Source"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-fs-list",
+    "description": "List all Trae SOLO skills present on disk under ~/.trae/skills/. Reads SKILL.md front-matter for descriptions. Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Max rows"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-fs-show",
+    "description": "Print a skill's SKILL.md content + on-disk path.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name (folder under ~/.trae/skills/)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-fs-uninstall",
+    "description": "Unregister a skill from skill-config.json. With --purge, also rm -rf its ~/.trae/skills/<name>/ directory. NOTE: Trae must be reloaded for changes to take effect.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name to unregister"
+      },
+      {
+        "name": "purge",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Also remove the skill directory from disk"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually uninstall (default is dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Name",
+      "Action"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
     "name": "skill-install",
     "description": "Install a Skill from the Marketplace by name (substring match).",
     "access": "write",
@@ -28180,6 +28335,190 @@
     "modulePath": "trae-solo/status.js",
     "sourceFile": "trae-solo/status.js",
     "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "task-fs-delete",
+    "description": "DANGER: delete a Trae SOLO task from disk (snapshot/<id> + agentconfig/<id>.json + hooks). Refuses if Trae is actively writing the AI-agent DB.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "task-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task UUID to delete"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete (default is dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Task Id",
+      "Removed"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/task-fs.js",
+    "sourceFile": "trae-solo/task-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "task-fs-list",
+    "description": "List Trae SOLO task ids from disk (snapshot/<uuid> + agentconfig/<uuid>.json). Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Task Id",
+      "Has Snapshot",
+      "Has Config",
+      "Modified"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/task-fs.js",
+    "sourceFile": "trae-solo/task-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "task-fs-show",
+    "description": "Show the workspace tree at a given chat-turn ref (via git ls-tree). Pass --turn <turn-id> to pick a turn; otherwise the latest after-chat-turn ref.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "task-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task UUID"
+      },
+      {
+        "name": "turn",
+        "type": "str",
+        "required": false,
+        "help": "Specific turn id (omit for latest after-chat-turn)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Mode",
+      "Path",
+      "Size"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/task-fs.js",
+    "sourceFile": "trae-solo/task-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "task-fs-turns",
+    "description": "Show the chat-turn timeline for a Trae SOLO task as git tags (before-chat-turn-* / after-chat-turn-*).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "task-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task UUID (folder name under snapshot/)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Phase",
+      "Turn Id",
+      "Commit"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/task-fs.js",
+    "sourceFile": "trae-solo/task-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "user-rules",
+    "description": "Print Trae SOLO user rules (~/.trae/user_rules.md).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/user-rules.js",
+    "sourceFile": "trae-solo/user-rules.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "user-rules-set",
+    "description": "Overwrite ~/.trae/user_rules.md from a local file path. Trae picks up changes on next chat start.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "source",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Path to the markdown file whose content becomes the new user rules"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually write (default is dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Path",
+      "Action"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/user-rules.js",
+    "sourceFile": "trae-solo/user-rules.js"
   },
   {
     "site": "tvmaze",
