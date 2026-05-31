@@ -27594,6 +27594,132 @@
   },
   {
     "site": "trae-solo",
+    "name": "automation-create",
+    "description": "Open a new-automation flow. Modes: manually / in-chat. Specify --template <name> to start from a template instead.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "mode",
+        "type": "str",
+        "default": "manually",
+        "required": false,
+        "positional": true,
+        "help": "manually / in-chat"
+      },
+      {
+        "name": "template",
+        "type": "str",
+        "required": false,
+        "help": "Template name (substring) to start from instead"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Action"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/automation.js",
+    "sourceFile": "trae-solo/automation.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "automation-list",
+    "description": "List Trae SOLO Automation tab content. Default tab is \"Configured\"; pass --tab to switch.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "tab",
+        "type": "str",
+        "default": "configured",
+        "required": false,
+        "help": "Tab to view: configured / run-history / task-template"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Summary"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/automation.js",
+    "sourceFile": "trae-solo/automation.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "back",
+    "description": "In the chat view, return to the project task list (collapse back).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/back.js",
+    "sourceFile": "trae-solo/back.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "compact",
+    "description": "Toggle the mobile-compact view (bottom-left .solo-mobile-compact-btn).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/compact.js",
+    "sourceFile": "trae-solo/compact.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "copy-message",
+    "description": "Click Copy All on a message — puts its full text on the system clipboard.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "msg",
+        "type": "str",
+        "required": false,
+        "help": "Target message index. Omit for last."
+      }
+    ],
+    "columns": [
+      "Status",
+      "Msg"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/message.js",
+    "sourceFile": "trae-solo/message.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
     "name": "history",
     "description": "List Trae SOLO projects and the tasks within each (from the project-list view sidebar).",
     "access": "read",
@@ -27623,6 +27749,32 @@
     "type": "js",
     "modulePath": "trae-solo/history.js",
     "sourceFile": "trae-solo/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "mode",
+    "description": "Read or switch TRAE SOLO between Code mode and Work mode.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Target mode: code or work. Omit to read current."
+      }
+    ],
+    "columns": [
+      "Status",
+      "Mode"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/mode.js",
+    "sourceFile": "trae-solo/mode.js",
     "navigateBefore": true
   },
   {
@@ -27715,6 +27867,299 @@
     "type": "js",
     "modulePath": "trae-solo/open.js",
     "sourceFile": "trae-solo/open.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "react",
+    "description": "React to a message with thumbs Good or Bad. Default targets the last message.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "reaction",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "good or bad"
+      },
+      {
+        "name": "msg",
+        "type": "str",
+        "required": false,
+        "help": "Target message index (from history). Omit for last."
+      }
+    ],
+    "columns": [
+      "Status",
+      "Msg",
+      "Reaction"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/message.js",
+    "sourceFile": "trae-solo/message.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "retry",
+    "description": "Retry generating a response for a message. Default targets the last message.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "msg",
+        "type": "str",
+        "required": false,
+        "help": "Target message index. Omit for last."
+      }
+    ],
+    "columns": [
+      "Status",
+      "Msg"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/message.js",
+    "sourceFile": "trae-solo/message.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-category",
+    "description": "Filter Skills Marketplace by category. Pass --list to see categories.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Category name (substring; case-insensitive). Common: All / Developer Tools / Data Analysis / UI Design / Content Creation / Productivity"
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List available categories"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-install",
+    "description": "Install a Skill from the Marketplace by name (substring match).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name (substring match)"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually install (default is a dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Skill"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-list",
+    "description": "List Trae SOLO Skills — by default the Marketplace; pass --installed to list installed ones.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "installed",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List installed skills instead of the marketplace"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-run",
+    "description": "Run a Skill directly from its marketplace / installed card.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name (substring match)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Skill"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-search",
+    "description": "Filter Skills Marketplace by keyword.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (substring)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max rows"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-toggle",
+    "description": "Enable/disable an installed Skill via the per-card on/off switch.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name (substring match)"
+      },
+      {
+        "name": "state",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Desired state: on or off (omit to toggle)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Skill",
+      "State"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-uninstall",
+    "description": "Uninstall a Skill by name (substring match). Opens the card detail then clicks Uninstall.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name (substring match)"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually uninstall (default is a dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Skill"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
     "navigateBefore": true
   },
   {
