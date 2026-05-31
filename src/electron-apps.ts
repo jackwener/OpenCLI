@@ -46,6 +46,13 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
     bundleId: 'com.qoder.ide',
     displayName: 'Qoder',
   },
+  'trae-solo':   {
+    port: 9235,
+    processName: 'TRAE SOLO',
+    executableNames: ['Electron', 'TRAE SOLO'],
+    bundleId: 'com.trae.solo.app',
+    displayName: 'Trae SOLO',
+  },
 };
 
 /** Merge builtin + user-defined apps. User entries are additive only. */
