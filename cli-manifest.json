@@ -27720,6 +27720,26 @@
   },
   {
     "site": "trae-solo",
+    "name": "extensions-list",
+    "description": "List VSCode extensions installed in Trae SOLO (~/.trae/extensions/extensions.json). Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Index",
+      "Id",
+      "Version",
+      "Source",
+      "Installed"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/workspaces-fs.js",
+    "sourceFile": "trae-solo/workspaces-fs.js"
+  },
+  {
+    "site": "trae-solo",
     "name": "history",
     "description": "List Trae SOLO projects and the tasks within each (from the project-list view sidebar).",
     "access": "read",
@@ -27901,6 +27921,32 @@
     "modulePath": "trae-solo/message.js",
     "sourceFile": "trae-solo/message.js",
     "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "recent-workspaces",
+    "description": "Show Trae SOLO's recently-opened workspaces (the File → Open Recent menu, stored under key \"history.recentlyOpenedPathsList\" in state.vscdb).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Kind",
+      "Path"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/state-fs.js",
+    "sourceFile": "trae-solo/state-fs.js"
   },
   {
     "site": "trae-solo",
@@ -28338,6 +28384,69 @@
   },
   {
     "site": "trae-solo",
+    "name": "storage-get",
+    "description": "Read a single key from Trae SOLO's globalStorage state.vscdb. Returns parsed JSON if the value is JSON, otherwise the raw string.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key (use storage-keys to discover)"
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 8000,
+        "required": false,
+        "help": "Truncate value to this many bytes"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/state-fs.js",
+    "sourceFile": "trae-solo/state-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "storage-keys",
+    "description": "List all keys present in Trae SOLO's globalStorage state.vscdb (VSCode-style UI/agent state). Use storage-get <key> to read a specific value.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/state-fs.js",
+    "sourceFile": "trae-solo/state-fs.js"
+  },
+  {
+    "site": "trae-solo",
     "name": "task-fs-delete",
     "description": "DANGER: delete a Trae SOLO task from disk (snapshot/<id> + agentconfig/<id>.json + hooks). Refuses if Trae is actively writing the AI-agent DB.",
     "access": "write",
@@ -28519,6 +28628,34 @@
     "type": "js",
     "modulePath": "trae-solo/user-rules.js",
     "sourceFile": "trae-solo/user-rules.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "workspaces-list",
+    "description": "List Trae SOLO workspaceStorage entries (~/Library/.../TRAE SOLO/User/workspaceStorage/<uuid>/), resolving each workspace.json to its single-folder path or multi-folder workspace target. Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Workspace Id",
+      "Kind",
+      "Target",
+      "Modified"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/workspaces-fs.js",
+    "sourceFile": "trae-solo/workspaces-fs.js"
   },
   {
     "site": "tvmaze",
