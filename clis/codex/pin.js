@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { conversationSelectionArgs, selectAndClickAction } from './_actions.js';
+import { conversationSelectionArgs, setConversationPinned } from './_actions.js';
 
-function defineToggle(name, labelOptions, doneStatus) {
+function defineToggle(name, desiredPinned) {
     cli({
         site: 'codex',
         name,
@@ -11,16 +11,20 @@ function defineToggle(name, labelOptions, doneStatus) {
         strategy: Strategy.UI,
         browser: true,
         args: [...conversationSelectionArgs],
-        columns: ['status'],
+        columns: ['status', 'thread_id', 'project', 'conversation'],
         func: async (page, kwargs) => {
-            await selectAndClickAction(page, kwargs, labelOptions);
-            await page.wait(0.6);
-            return [{ status: doneStatus }];
+            const result = await setConversationPinned(page, kwargs, desiredPinned);
+            return [{
+                status: result.status,
+                thread_id: result.selected.threadId,
+                project: result.selected.project,
+                conversation: result.selected.conversation,
+            }];
         },
     });
 }
 
 // The Chat actions menu only shows the CURRENT state's label (Pin chat OR
 // Unpin chat, never both). Each command binds to its matching label.
-defineToggle('pin', ['Pin chat'], 'pinned');
-defineToggle('unpin', ['Unpin chat'], 'unpinned');
+defineToggle('pin', true);
+defineToggle('unpin', false);

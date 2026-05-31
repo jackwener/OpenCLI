@@ -1,6 +1,11 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { conversationSelectionArgs, selectAndClickAction } from './_actions.js';
+import {
+    conversationSelectionArgs,
+    selectAndClickAction,
+    unwrapEvaluateResult,
+    waitForConversationPostcondition,
+} from './_actions.js';
 
 cli({
     site: 'codex',
@@ -14,19 +19,19 @@ cli({
         { name: 'title', required: true, positional: true, help: 'New title (single line, no newlines)' },
         ...conversationSelectionArgs,
     ],
-    columns: ['status', 'title'],
+    columns: ['status', 'title', 'thread_id', 'project'],
     func: async (page, kwargs) => {
         const title = String(kwargs.title || '').trim();
         if (!title) throw new ArgumentError('title cannot be empty');
         if (title.includes('\n')) throw new ArgumentError('title must be a single line');
 
         // 1. Select the target chat AND click "Rename chat" in the menu.
-        await selectAndClickAction(page, kwargs, ['Rename chat']);
+        const action = await selectAndClickAction(page, kwargs, ['Rename chat']);
         await page.wait(0.5);
 
         // 2. The rename input is the only non-ProseMirror editable that just appeared.
         //    Fill it via execCommand insertText (Codex uses a contenteditable, not a plain input).
-        const filled = await page.evaluate(`(async () => {
+        const filled = unwrapEvaluateResult(await page.evaluate(`(async () => {
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       let input = null;
       for (let attempt = 0; attempt < 15; attempt += 1) {
@@ -58,14 +63,24 @@ cli({
         document.execCommand('insertText', false, newTitle);
       }
       return { ok: true };
-    })()`);
+    })()`));
         if (!filled?.ok) {
             throw new CommandExecutionError(filled?.reason || 'Failed to fill rename input.', '');
         }
 
         await page.pressKey('Enter');
-        await page.wait(0.5);
+        await waitForConversationPostcondition(
+            page,
+            action.selected,
+            match => (match?.conversation?.title || '').trim() === title,
+            'rename',
+        );
 
-        return [{ status: 'renamed', title }];
+        return [{
+            status: 'renamed',
+            title,
+            thread_id: action.selected.threadId,
+            project: action.selected.project,
+        }];
     },
 });

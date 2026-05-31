@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
 
 // Codex Desktop App exposes the active model + reasoning level on a button
 // in the composer bottom toolbar. As of 2026-05-31 the button has no
@@ -15,6 +15,50 @@ import { CommandExecutionError, selectorError } from '@jackwener/opencli/errors'
 
 const MODEL_BTN_TEXT_RE = /5\.\d|[Ee]xtra [Hh]igh|^High$|^Medium$|^Low$|^Auto$|^Fast$|^Speed$|^Pro$|GPT-/;
 const MODEL_BTN_PATTERN = MODEL_BTN_TEXT_RE.source;
+
+function unwrapEvaluateResult(result) {
+    if (result && typeof result === 'object' && 'data' in result && 'session' in result) {
+        return result.data;
+    }
+    return result;
+}
+
+function normalizeModelText(value) {
+    return String(value ?? '')
+        .toLowerCase()
+        .replace(/\bgpt[-\s]*/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+export function findUniqueModelOption(labels, rawName) {
+    const name = normalizeModelText(rawName);
+    if (!name) {
+        throw new ArgumentError('model name cannot be empty');
+    }
+    const normalized = labels.map((label) => ({ label, normalized: normalizeModelText(label) }));
+    const exact = normalized.filter(item => item.normalized === name);
+    if (exact.length === 1) {
+        return exact[0].label;
+    }
+    if (exact.length > 1) {
+        throw new CommandExecutionError(`Model name "${rawName}" is ambiguous.`, `Matches: ${exact.map(item => item.label).join(', ')}`);
+    }
+    const partial = normalized.filter(item => item.normalized.includes(name));
+    if (partial.length === 1) {
+        return partial[0].label;
+    }
+    if (partial.length > 1) {
+        throw new CommandExecutionError(`Model name "${rawName}" is ambiguous.`, `Matches: ${partial.map(item => item.label).join(', ')}`);
+    }
+    return null;
+}
+
+export function modelSelectionVerified(current, chosen) {
+    const active = normalizeModelText(current);
+    const selected = normalizeModelText(chosen);
+    return !!active && !!selected && (active === selected || active.includes(selected));
+}
 
 export const modelCommand = cli({
     site: 'codex',
@@ -34,7 +78,7 @@ export const modelCommand = cli({
         const listOnly = kwargs.list === true || kwargs.list === 'true';
         const patternJson = JSON.stringify(MODEL_BTN_PATTERN);
 
-        const current = await page.evaluate(`(function() {
+        const current = unwrapEvaluateResult(await page.evaluate(`(function() {
       const re = new RegExp(${patternJson});
       const composers = Array.from(document.querySelectorAll('[contenteditable="true"]')).filter((el) => el.offsetParent);
       const last = composers[composers.length - 1];
@@ -44,7 +88,7 @@ export const modelCommand = cli({
       const btns = Array.from(root.querySelectorAll('button')).filter((b) => b.offsetParent);
       const match = btns.find((b) => re.test((b.textContent || '').trim()));
       return match ? (match.textContent || '').trim() : '';
-    })()`);
+    })()`));
         if (!current) {
             throw selectorError('Codex model button (composer toolbar). Make sure a chat is open.');
         }
@@ -53,8 +97,8 @@ export const modelCommand = cli({
             return [{ Status: 'Active', Model: current }];
         }
 
-        const namejson = JSON.stringify(name);
-        const result = await page.evaluate(`(async () => {
+        const namejson = JSON.stringify(listOnly ? '' : name);
+        const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const re = new RegExp(${patternJson});
       const composers = Array.from(document.querySelectorAll('[contenteditable="true"]')).filter((el) => el.offsetParent);
@@ -113,11 +157,25 @@ export const modelCommand = cli({
         document.body.click();
         return { ok: true, labels };
       }
-      const idx = labels.findIndex((l) => l.toLowerCase().includes(target));
-      if (idx < 0) {
+      const wanted = target.replace(/\\bgpt[-\\s]*/g, '').replace(/\\s+/g, ' ').trim();
+      const normalizedLabels = labels.map((l) => l.toLowerCase().replace(/\\bgpt[-\\s]*/g, '').replace(/\\s+/g, ' ').trim());
+      let matches = normalizedLabels
+        .map((label, index) => ({ label, index }))
+        .filter((item) => item.label === wanted);
+      if (matches.length === 0) {
+        matches = normalizedLabels
+          .map((label, index) => ({ label, index }))
+          .filter((item) => item.label.includes(wanted));
+      }
+      if (matches.length === 0) {
         document.body.click();
         return { ok: false, reason: 'No model matched.', detail: 'wanted=' + target + ' available=' + JSON.stringify(labels) };
       }
+      if (matches.length > 1) {
+        document.body.click();
+        return { ok: false, reason: 'Model name is ambiguous.', detail: 'wanted=' + target + ' matches=' + JSON.stringify(matches.map((m) => labels[m.index])) };
+      }
+      const idx = matches[0].index;
       const chosen = modelItems[idx];
       const chosenLabel = labels[idx];
 
@@ -137,7 +195,7 @@ export const modelCommand = cli({
         } catch {}
       });
       return { ok: true, switched: true, chosen: chosenLabel, labels };
-    })()`);
+    })()`));
 
         if (!result.ok) {
             throw new CommandExecutionError(result.reason, result.detail || '');
@@ -145,6 +203,38 @@ export const modelCommand = cli({
         if (listOnly) {
             return result.labels.map((m) => ({ Status: m === current ? 'Active' : 'Available', Model: m }));
         }
-        return [{ Status: 'switched', Model: result.chosen }];
+        const selected = findUniqueModelOption(result.labels || [], name);
+        if (!selected) {
+            throw new CommandExecutionError('No model matched.', `wanted=${name} available=${JSON.stringify(result.labels || [])}`);
+        }
+        if (selected !== result.chosen) {
+            throw new CommandExecutionError('Codex model selection was inconsistent.', `expected=${selected} chosen=${result.chosen}`);
+        }
+        let verified = '';
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+            await page.wait(0.25);
+            const reread = unwrapEvaluateResult(await page.evaluate(`(function() {
+        const re = new RegExp(${patternJson});
+        const composers = Array.from(document.querySelectorAll('[contenteditable="true"]')).filter((el) => el.offsetParent);
+        const last = composers[composers.length - 1];
+        if (!last) return '';
+        let root = last;
+        for (let i = 0; i < 5; i++) root = root.parentElement || root;
+        const btns = Array.from(root.querySelectorAll('button')).filter((b) => b.offsetParent);
+        const match = btns.find((b) => re.test((b.textContent || '').trim()));
+        return match ? (match.textContent || '').trim() : '';
+      })()`));
+            if (modelSelectionVerified(reread, selected)) {
+                verified = reread;
+                break;
+            }
+        }
+        if (!verified) {
+            throw new CommandExecutionError(
+                `Codex model switch to "${selected}" was not verified.`,
+                'The model menu click may have failed or the model selector text may have drifted.',
+            );
+        }
+        return [{ Status: 'switched', Model: verified }];
     },
 });

@@ -23,11 +23,96 @@
 
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
+    collectCodexProjectsFromDocument,
     conversationSelectionArgs,
+    hasConversationTarget,
     openCodexConversation,
 } from './sidebar.js';
 
 export { conversationSelectionArgs };
+
+export function unwrapEvaluateResult(result) {
+    if (result && typeof result === 'object' && 'data' in result && 'session' in result) {
+        return result.data;
+    }
+    return result;
+}
+
+function cleanText(value) {
+    return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function sameProject(a, b) {
+    const left = cleanText(a).toLowerCase();
+    const right = cleanText(b).toLowerCase();
+    return !left || !right || left === right;
+}
+
+export function findCodexConversation(projects, ref) {
+    if (!Array.isArray(projects)) {
+        return null;
+    }
+    for (const project of projects) {
+        for (const conversation of project.conversations || []) {
+            if (ref.threadId && conversation.threadId === ref.threadId) {
+                return { project, conversation };
+            }
+            if (!ref.threadId
+                && ref.conversation
+                && cleanText(conversation.title) === cleanText(ref.conversation)
+                && sameProject(project.project, ref.project)) {
+                return { project, conversation };
+            }
+        }
+    }
+    return null;
+}
+
+export function findActiveCodexConversation(projects) {
+    const active = [];
+    for (const project of projects || []) {
+        for (const conversation of project.conversations || []) {
+            if (conversation.active) {
+                active.push({ project, conversation });
+            }
+        }
+    }
+    return active.length === 1 ? active[0] : null;
+}
+
+export async function readConversationProjects(page) {
+    const projects = unwrapEvaluateResult(await page.evaluate(`(${collectCodexProjectsFromDocument.toString()})()`));
+    if (!Array.isArray(projects)) {
+        throw new CommandExecutionError('Codex sidebar extraction returned an invalid payload.');
+    }
+    return projects;
+}
+
+export async function resolveActionConversation(page, kwargs) {
+    const selected = await openCodexConversation(page, kwargs);
+    const projects = await readConversationProjects(page);
+    const resolved = selected
+        ? findCodexConversation(projects, selected)
+        : findActiveCodexConversation(projects);
+    if (!resolved) {
+        const hint = hasConversationTarget(kwargs)
+            ? 'The selected Codex conversation was not visible after selection.'
+            : 'Pass --project/--conversation/--index/--thread-id, or keep the active conversation visible in the sidebar.';
+        throw new CommandExecutionError('Could not resolve a stable Codex conversation identity.', hint);
+    }
+    return {
+        project: resolved.project.project,
+        projectPath: resolved.project.projectPath,
+        conversation: resolved.conversation.title,
+        threadId: resolved.conversation.threadId,
+        pinned: resolved.conversation.pinned,
+        index: resolved.conversation.index,
+    };
+}
+
+function conversationRefForError(ref) {
+    return ref.threadId || `${ref.project || '(unknown project)'}/${ref.conversation || '(unknown conversation)'}`;
+}
 
 /**
  * Open the "Chat actions" header menu on the currently-active chat and
@@ -42,7 +127,7 @@ export { conversationSelectionArgs };
 export async function clickChatActionsMenuItem(page, labelOptions) {
     const labelsJson = JSON.stringify(labelOptions);
 
-    const result = await page.evaluate(`(async () => {
+    const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const labels = ${labelsJson};
 
@@ -113,7 +198,7 @@ export async function clickChatActionsMenuItem(page, labelOptions) {
     const matchedLabel = leadingText(target);
     Promise.resolve().then(() => { try { target.click(); } catch {} });
     return { ok: true, clicked: matchedLabel };
-  })()`);
+  })()`));
 
     return result || { ok: false, reason: 'Empty result from page.evaluate.' };
 }
@@ -122,7 +207,7 @@ export async function clickChatActionsMenuItem(page, labelOptions) {
  * Convenience wrapper that selects the target first, then clicks the menu.
  */
 export async function selectAndClickAction(page, kwargs, labelOptions) {
-    await openCodexConversation(page, kwargs);
+    const selected = await resolveActionConversation(page, kwargs);
     await page.wait(0.4);
     const result = await clickChatActionsMenuItem(page, labelOptions);
     if (!result.ok) {
@@ -132,5 +217,48 @@ export async function selectAndClickAction(page, kwargs, labelOptions) {
             'Make sure Codex Desktop is running and the target conversation is selectable.',
         );
     }
-    return result;
+    return { ...result, selected };
+}
+
+export async function waitForConversationPostcondition(page, ref, predicate, description, timeoutMs = 4000) {
+    const deadline = Date.now() + timeoutMs;
+    let lastMatch = null;
+    while (Date.now() < deadline) {
+        const projects = await readConversationProjects(page);
+        lastMatch = findCodexConversation(projects, ref);
+        if (predicate(lastMatch)) {
+            return lastMatch;
+        }
+        await page.wait(0.2);
+    }
+    throw new CommandExecutionError(
+        `Codex ${description} was not verified for ${conversationRefForError(ref)}.`,
+        'The UI action may have failed or the sidebar selectors may have drifted.',
+    );
+}
+
+export async function setConversationPinned(page, kwargs, desiredPinned) {
+    const selected = await resolveActionConversation(page, kwargs);
+    if (selected.pinned === desiredPinned) {
+        return { status: desiredPinned ? 'already-pinned' : 'already-unpinned', selected };
+    }
+    const action = await selectAndClickAction(page, kwargs, [desiredPinned ? 'Pin chat' : 'Unpin chat']);
+    await waitForConversationPostcondition(
+        page,
+        action.selected,
+        match => match?.conversation?.pinned === desiredPinned,
+        desiredPinned ? 'pin' : 'unpin',
+    );
+    return { status: desiredPinned ? 'pinned' : 'unpinned', selected: action.selected };
+}
+
+export async function archiveConversation(page, kwargs) {
+    const selected = await selectAndClickAction(page, kwargs, ['Archive chat']);
+    await waitForConversationPostcondition(
+        page,
+        selected.selected,
+        match => !match,
+        'archive',
+    );
+    return { status: 'archived', selected: selected.selected };
 }

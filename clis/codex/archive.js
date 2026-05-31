@@ -1,6 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { conversationSelectionArgs, selectAndClickAction } from './_actions.js';
-import { openCodexConversation } from './sidebar.js';
+import { archiveConversation, conversationSelectionArgs, resolveActionConversation } from './_actions.js';
 
 cli({
     site: 'codex',
@@ -14,18 +13,25 @@ cli({
         { name: 'yes', type: 'boolean', default: false, help: 'Actually archive (default: dry-run preview)' },
         ...conversationSelectionArgs,
     ],
-    columns: ['status'],
+    columns: ['status', 'thread_id', 'project', 'conversation'],
     func: async (page, kwargs) => {
         const yes = kwargs.yes === true || kwargs.yes === 'true' || kwargs.yes === '1';
         if (!yes) {
             // Resolve target so the dry-run still names what WOULD be archived.
-            const selected = await openCodexConversation(page, kwargs);
+            const selected = await resolveActionConversation(page, kwargs);
             return [{
-                status: `dry-run — would archive ${selected?.project || ''}/${selected?.conversation || '(active)'} — pass --yes to actually archive`,
+                status: 'dry-run',
+                thread_id: selected.threadId,
+                project: selected.project,
+                conversation: selected.conversation,
             }];
         }
-        await selectAndClickAction(page, kwargs, ['Archive chat']);
-        await page.wait(1);
-        return [{ status: 'archived' }];
+        const result = await archiveConversation(page, kwargs);
+        return [{
+            status: result.status,
+            thread_id: result.selected.threadId,
+            project: result.selected.project,
+            conversation: result.selected.conversation,
+        }];
     },
 });
