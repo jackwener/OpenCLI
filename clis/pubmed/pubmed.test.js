@@ -48,6 +48,7 @@ const SUMMARY_RESULT = {
 const ARTICLE_XML = `<?xml version="1.0"?>
 <PubmedArticle>
   <MedlineCitation>
+    <PMID Version="1">123</PMID>
     <Article>
       <Journal>
         <Title>Journal of Tests</Title>
@@ -75,6 +76,7 @@ const ARTICLE_XML = `<?xml version="1.0"?>
 const LONG_ARTICLE_XML = `<?xml version="1.0"?>
 <PubmedArticle>
   <MedlineCitation>
+    <PMID Version="1">555</PMID>
     <Article>
       <Journal>
         <Title>Clinical Trials Journal</Title>
@@ -179,6 +181,10 @@ describe('pubmed utility contracts', () => {
         expect(article.journal).toBe('Journal of Tests');
         expect(article.doi).toBe('10.1000/detail');
         expect(article.mesh_terms).toBe('Neoplasms');
+    });
+
+    it('rejects EFetch XML whose PMID identity does not match the request', () => {
+        expect(() => parseArticleXml(ARTICLE_XML.replace('>123</PMID>', '>456</PMID>'), '123')).toThrow(CommandExecutionError);
     });
 });
 

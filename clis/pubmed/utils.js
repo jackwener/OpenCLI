@@ -270,6 +270,13 @@ export function parseArticleXml(xml, pmid) {
     if (!text || /<ERROR\b/i.test(text) || !/<PubmedArticle\b/i.test(text)) {
         return null;
     }
+    const returnedPmid = extractFirst(text, 'PMID');
+    if (!returnedPmid) {
+        throw new CommandExecutionError('pubmed article response did not include a PMID', 'PubMed EFetch response shape may have changed.');
+    }
+    if (returnedPmid !== pmid) {
+        throw new CommandExecutionError(`pubmed article response PMID ${returnedPmid} did not match requested PMID ${pmid}`, 'Refusing to return metadata for a different article.');
+    }
     const articleBlock = text.match(/<Article\b[^>]*>([\s\S]*?)<\/Article>/i)?.[1] || text;
     const journalBlock = articleBlock.match(/<Journal\b[^>]*>([\s\S]*?)<\/Journal>/i)?.[1] || '';
     const journalIssue = journalBlock.match(/<JournalIssue\b[^>]*>([\s\S]*?)<\/JournalIssue>/i)?.[1] || '';
