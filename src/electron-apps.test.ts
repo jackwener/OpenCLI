@@ -32,6 +32,7 @@ describe('electron-apps registry', () => {
     expect(isElectronApp('codex')).toBe(true);
     expect(isElectronApp('chatwise')).toBe(true);
     expect(isElectronApp('qoder')).toBe(true);
+    expect(isElectronApp('trae-solo')).toBe(true);
   });
 
   it('registers Qoder on its own CDP port', () => {
@@ -42,6 +43,15 @@ describe('electron-apps registry', () => {
       bundleId: 'com.qoder.ide',
       displayName: 'Qoder',
     });
+  });
+
+  it('registers Trae SOLO with its own CDP port and process metadata', () => {
+    const app = getElectronApp('trae-solo');
+
+    expect(app).toBeDefined();
+    expect(app!.port).toBe(9235);
+    expect(app!.processName).toBe('TRAE SOLO');
+    expect(app!.bundleId).toBe('com.trae.solo.app');
   });
 
   it('isElectronApp returns false for non-Electron sites', () => {

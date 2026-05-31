@@ -1,6 +1,6 @@
 // Shared helpers for trae-solo adapter — panel navigation, pointer chain, etc.
 
-import { CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 // The 3 sidebar panel entries: 'New task' / 'Skills' / 'Automation'.
 // Each renders as a clickable DIV with class .task-list-new-task-item.

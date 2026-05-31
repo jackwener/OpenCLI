@@ -9,7 +9,6 @@
 //   task-fs-list                       — list snapshot/<uuid> dirs + agentconfig presence
 //   task-fs-turns <task-id>            — git log on the snapshot repo (chat-turn timeline)
 //   task-fs-show <task-id> [--turn N]  — extract a turn snapshot via git show
-//   task-fs-delete <task-id> --yes     — danger: rm snapshot + agentconfig (refuses if Trae is writing)
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -23,9 +22,7 @@ import {
 import {
     TRAE_SNAPSHOT_DIR,
     TRAE_AGENTCONFIG_DIR,
-    TRAE_WORK_MODE_PROJECTS,
     assertReadable,
-    checkAgentDbQuiet,
 } from './_fs.js';
 
 function snapshotRepoFor(taskId) {
@@ -48,7 +45,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', required: false, default: 100 },
     ],
-    columns: ['Index', 'Task Id', 'Has Snapshot', 'Has Config', 'Modified'],
+    columns: ['Index', 'Task Id', 'Has Snapshot', 'Has Config', 'Modified', 'Phase', 'Turn Id', 'Commit'],
     func: async (args) => {
         assertReadable(TRAE_SNAPSHOT_DIR, 'ai-agent/snapshot');
         const snapshotIds = new Set(
@@ -82,6 +79,9 @@ cli({
             'Has Snapshot': r.hasSnap ? 'yes' : 'no',
             'Has Config': r.hasCfg ? 'yes' : 'no',
             Modified: new Date(r.mtime).toISOString().replace('T', ' ').slice(0, 19),
+            Phase: '',
+            'Turn Id': '',
+            Commit: '',
         }));
     },
 });
@@ -99,7 +99,7 @@ cli({
         { name: 'task-id', positional: true, required: true, help: 'Task UUID (folder name under snapshot/)' },
         { name: 'limit', type: 'int', required: false, default: 50 },
     ],
-    columns: ['Index', 'Phase', 'Turn Id', 'Commit'],
+    columns: ['Index', 'Task Id', 'Has Snapshot', 'Has Config', 'Modified', 'Phase', 'Turn Id', 'Commit'],
     func: async (args) => {
         const tid = String(args['task-id'] || '').trim();
         if (!tid) throw new ArgumentError('task-id required');
@@ -122,6 +122,10 @@ cli({
         const limit = Number.isInteger(args.limit) && args.limit > 0 ? args.limit : 50;
         return rows.slice(0, limit).map((r, i) => ({
             Index: i + 1,
+            'Task Id': '',
+            'Has Snapshot': '',
+            'Has Config': '',
+            Modified: '',
             Phase: r.phase,
             'Turn Id': r.turnId,
             Commit: r.oid,
@@ -173,58 +177,5 @@ cli({
         });
         const limit = Number.isInteger(args.limit) && args.limit > 0 ? args.limit : 50;
         return rows.slice(0, limit).map((r) => ({ Mode: r.mode, Path: r.pth, Size: r.size }));
-    },
-});
-
-// -------- task-fs-delete --------
-cli({
-    site: 'trae-solo',
-    name: 'task-fs-delete',
-    access: 'write',
-    description: 'DANGER: delete a Trae SOLO task from disk (snapshot/<id> + agentconfig/<id>.json + hooks). Refuses if Trae is actively writing the AI-agent DB.',
-    domain: 'localhost',
-    browser: false,
-    strategy: Strategy.LOCAL,
-    args: [
-        { name: 'task-id', positional: true, required: true, help: 'Task UUID to delete' },
-        { name: 'yes', type: 'boolean', default: false, help: 'Actually delete (default is dry-run)' },
-    ],
-    columns: ['Status', 'Task Id', 'Removed'],
-    func: async (args) => {
-        const tid = String(args['task-id'] || '').trim();
-        if (!tid) throw new ArgumentError('task-id required');
-        const yes = args.yes === true || args.yes === 'true' || args.yes === '1';
-
-        const snapPath = path.join(TRAE_SNAPSHOT_DIR, tid);
-        const cfgPath = path.join(TRAE_AGENTCONFIG_DIR, tid + '.json');
-        const hooksPath = path.join(TRAE_AGENTCONFIG_DIR, tid + '-hooks.json');
-        const present = [
-            fs.existsSync(snapPath) ? snapPath : null,
-            fs.existsSync(cfgPath) ? cfgPath : null,
-            fs.existsSync(hooksPath) ? hooksPath : null,
-        ].filter(Boolean);
-
-        if (!present.length) {
-            throw new CommandExecutionError(`No on-disk artifacts found for task ${tid}.`, '');
-        }
-        if (!yes) {
-            return [{
-                Status: 'dry-run (pass --yes to delete)',
-                'Task Id': tid,
-                Removed: present.join('; '),
-            }];
-        }
-
-        // Safety: ensure Trae's AI-agent DB isn't being written right now.
-        checkAgentDbQuiet(5);
-
-        for (const p of present) {
-            fs.rmSync(p, { recursive: true, force: true });
-        }
-        return [{
-            Status: 'deleted (restart Trae SOLO to refresh sidebar)',
-            'Task Id': tid,
-            Removed: present.map((p) => path.basename(p)).join('; '),
-        }];
     },
 });

@@ -157,6 +157,7 @@ export default defineConfig({
                 { text: 'ChatWise', link: '/adapters/desktop/chatwise' },
                 { text: 'Discord', link: '/adapters/desktop/discord' },
                 { text: 'Doubao App', link: '/adapters/desktop/doubao-app' },
+                { text: 'Trae SOLO', link: '/adapters/desktop/trae-solo' },
               ],
             },
           ],

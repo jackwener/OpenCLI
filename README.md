@@ -15,7 +15,7 @@ OpenCLI gives you one surface for three different kinds of automation:
 - **Let AI Agents operate any website** — install the `opencli-browser` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type/fill, extract, and inspect any page through your logged-in browser via `opencli browser` primitives.
 - **Write new adapters** end-to-end with `opencli browser` + the `opencli-adapter-author` skill, which guides from first recon through field decoding, code, and `opencli browser verify`.
 
-It also works as a **CLI hub** for local tools such as `gh`, `docker`, `longbridge`, `tg`, `discord`, `wx`, `ntn` (Notion), and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, and ChatGPT.
+It also works as a **CLI hub** for local tools such as `gh`, `docker`, `longbridge`, `tg`, `discord`, `wx`, `ntn` (Notion), and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Codex, Antigravity, ChatGPT, and Trae SOLO.
 
 ## Quick Start
 
@@ -194,7 +194,7 @@ Unified passthrough for your existing command-line tools. Run `opencli <tool> ..
 
 Register your own with `opencli external register <name>`; list everything with `opencli external list`.
 
-**Desktop app adapters** (Electron, via CDP): Cursor / Codex / Antigravity / ChatGPT App / ChatWise / Qoder / Discord / Doubao — see [`docs/adapters/desktop/`](./docs/adapters/desktop/).
+**Desktop app adapters** (Electron, via CDP): Cursor / Codex / Antigravity / ChatGPT App / ChatWise / Qoder / Discord / Doubao / Trae SOLO — see [`docs/adapters/desktop/`](./docs/adapters/desktop/).
 
 ## Download Support
 

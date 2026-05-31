@@ -30,7 +30,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', required: false, default: 100 },
     ],
-    columns: ['Index', 'Workspace Id', 'Kind', 'Target', 'Modified'],
+    columns: ['Index', 'Workspace Id', 'Kind', 'Target', 'Modified', 'Id', 'Version', 'Source', 'Installed'],
     func: async (args) => {
         if (!fs.existsSync(TRAE_WORKSPACE_STORAGE)) {
             throw new CommandExecutionError(
@@ -59,6 +59,10 @@ cli({
             Kind: r.kind,
             Target: (r.target || '').slice(0, 120),
             Modified: new Date(r.mtime).toISOString().replace('T', ' ').slice(0, 19),
+            Id: '',
+            Version: '',
+            Source: '',
+            Installed: '',
         }));
     },
 });
@@ -73,7 +77,7 @@ cli({
     browser: false,
     strategy: Strategy.LOCAL,
     args: [],
-    columns: ['Index', 'Id', 'Version', 'Source', 'Installed'],
+    columns: ['Index', 'Workspace Id', 'Kind', 'Target', 'Modified', 'Id', 'Version', 'Source', 'Installed'],
     func: async () => {
         if (!fs.existsSync(TRAE_EXTENSIONS_JSON)) {
             throw new CommandExecutionError(
@@ -95,6 +99,10 @@ cli({
             const installed = ts ? new Date(ts).toISOString().replace('T', ' ').slice(0, 19) : '';
             return {
                 Index: i + 1,
+                'Workspace Id': '',
+                Kind: '',
+                Target: '',
+                Modified: '',
                 Id: e?.identifier?.id || '?',
                 Version: e?.version || '',
                 Source: e?.metadata?.source || '',

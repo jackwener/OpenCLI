@@ -10,7 +10,7 @@
 //   .button-eTMLAq.primary    'Create in chat'
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 import { switchToPanel } from './_actions.js';
 
 async function switchToAutomationTab(page, tabName) {
@@ -93,84 +93,5 @@ cli({
             throw new EmptyResultError('trae-solo automation-list', `No items in tab '${tabLabel}'.`);
         }
         return rows.map((r, i) => ({ Index: i + 1, Title: r.title, Summary: r.summary }));
-    },
-});
-
-// -------- automation-create --------
-cli({
-    site: 'trae-solo',
-    name: 'automation-create',
-    access: 'write',
-    description: 'Open a new-automation flow. Modes: manually / in-chat. Specify --template <name> to start from a template instead.',
-    domain: 'localhost',
-    strategy: Strategy.UI,
-    browser: true,
-    args: [
-        { name: 'mode', positional: true, required: false, default: 'manually', help: 'manually / in-chat' },
-        { name: 'template', required: false, help: 'Template name (substring) to start from instead' },
-    ],
-    columns: ['Status', 'Action'],
-    func: async (page, kwargs) => {
-        await switchToPanel(page, 'Automation');
-        const mode = String(kwargs.mode || 'manually').trim().toLowerCase();
-        const tmpl = String(kwargs.template || '').trim().toLowerCase();
-
-        if (tmpl) {
-            await switchToAutomationTab(page, 'Task Template');
-            const tmplJson = JSON.stringify(tmpl);
-            const result = await page.evaluate(`(async () => {
-        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-        const cards = Array.from(document.querySelectorAll('[class*="templateCard"], [class*="taskCard"]'))
-          .filter((c) => c.offsetParent);
-        const target = cards.find((c) => (c.innerText || '').toLowerCase().includes(${tmplJson}));
-        if (!target) return { ok: false, reason: 'Template not found.' };
-        const r = target.getBoundingClientRect();
-        const init = {
-          bubbles: true, cancelable: true, button: 0, buttons: 1,
-          clientX: Math.round(r.left + r.width / 2),
-          clientY: Math.round(r.top + r.height / 2),
-        };
-        target.dispatchEvent(new PointerEvent('pointerdown', { ...init, pointerType: 'mouse' }));
-        target.dispatchEvent(new MouseEvent('mousedown', init));
-        target.dispatchEvent(new PointerEvent('pointerup', { ...init, pointerType: 'mouse' }));
-        target.dispatchEvent(new MouseEvent('mouseup', init));
-        target.dispatchEvent(new MouseEvent('click', init));
-        await wait(700);
-        return { ok: true, title: (target.innerText || '').trim().split('\\n')[0] };
-      })()`);
-            if (!result?.ok) {
-                throw new CommandExecutionError(result?.reason || 'Template click failed.', '');
-            }
-            return [{ Status: 'template-opened', Action: result.title || tmpl }];
-        }
-
-        if (!['manually', 'in-chat'].includes(mode)) {
-            throw new ArgumentError('mode must be "manually" or "in-chat"');
-        }
-        const label = mode === 'in-chat' ? 'Create in chat' : 'Create manually';
-        const labelJson = JSON.stringify(label);
-        const result = await page.evaluate(`(async () => {
-      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-      const btn = Array.from(document.querySelectorAll('button'))
-        .find((b) => b.offsetParent && (b.textContent || '').trim() === ${labelJson});
-      if (!btn) return { ok: false, reason: 'Create button not found.' };
-      const r = btn.getBoundingClientRect();
-      const init = {
-        bubbles: true, cancelable: true, button: 0, buttons: 1,
-        clientX: Math.round(r.left + r.width / 2),
-        clientY: Math.round(r.top + r.height / 2),
-      };
-      btn.dispatchEvent(new PointerEvent('pointerdown', { ...init, pointerType: 'mouse' }));
-      btn.dispatchEvent(new MouseEvent('mousedown', init));
-      btn.dispatchEvent(new PointerEvent('pointerup', { ...init, pointerType: 'mouse' }));
-      btn.dispatchEvent(new MouseEvent('mouseup', init));
-      btn.dispatchEvent(new MouseEvent('click', init));
-      await wait(800);
-      return { ok: true };
-    })()`);
-        if (!result?.ok) {
-            throw new CommandExecutionError(result?.reason || 'Create click failed.', '');
-        }
-        return [{ Status: 'create-flow-opened', Action: label }];
     },
 });

@@ -27594,39 +27594,6 @@
   },
   {
     "site": "trae-solo",
-    "name": "automation-create",
-    "description": "Open a new-automation flow. Modes: manually / in-chat. Specify --template <name> to start from a template instead.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "mode",
-        "type": "str",
-        "default": "manually",
-        "required": false,
-        "positional": true,
-        "help": "manually / in-chat"
-      },
-      {
-        "name": "template",
-        "type": "str",
-        "required": false,
-        "help": "Template name (substring) to start from instead"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Action"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/automation.js",
-    "sourceFile": "trae-solo/automation.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
     "name": "automation-list",
     "description": "List Trae SOLO Automation tab content. Default tab is \"Configured\"; pass --tab to switch.",
     "access": "read",
@@ -27661,40 +27628,6 @@
   },
   {
     "site": "trae-solo",
-    "name": "back",
-    "description": "In the chat view, return to the project task list (collapse back).",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Status"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/back.js",
-    "sourceFile": "trae-solo/back.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "compact",
-    "description": "Toggle the mobile-compact view (bottom-left .solo-mobile-compact-btn).",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Status"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/compact.js",
-    "sourceFile": "trae-solo/compact.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
     "name": "cookies",
     "description": "List cookies on the Trae SOLO renderer (JS-visible via document.cookie; httpOnly cookies not shown).",
     "access": "read",
@@ -27704,38 +27637,16 @@
     "args": [],
     "columns": [
       "Index",
-      "Name",
+      "Key",
       "Bytes",
-      "Preview"
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
     ],
     "type": "js",
     "modulePath": "trae-solo/renderer-storage.js",
     "sourceFile": "trae-solo/renderer-storage.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "copy-message",
-    "description": "Click Copy All on a message — puts its full text on the system clipboard.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "msg",
-        "type": "str",
-        "required": false,
-        "help": "Target message index. Omit for last."
-      }
-    ],
-    "columns": [
-      "Status",
-      "Msg"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/message.js",
-    "sourceFile": "trae-solo/message.js",
     "navigateBefore": true
   },
   {
@@ -27749,6 +27660,10 @@
     "args": [],
     "columns": [
       "Index",
+      "Workspace Id",
+      "Kind",
+      "Target",
+      "Modified",
       "Id",
       "Version",
       "Source",
@@ -27802,6 +27717,10 @@
     "args": [],
     "columns": [
       "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
       "Database",
       "Version"
     ],
@@ -27871,98 +27790,6 @@
   },
   {
     "site": "trae-solo",
-    "name": "new-task",
-    "description": "Create a new task in a Trae SOLO project. Clicks the \"New task\" button in the project header.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "project",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Project name (substring match, case-insensitive)"
-      }
-    ],
-    "columns": [
-      "status",
-      "project"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/new-task.js",
-    "sourceFile": "trae-solo/new-task.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "open",
-    "description": "Open a Trae SOLO task by its title (substring match) to enter its chat view.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "task",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Task title (substring match, case-insensitive)"
-      },
-      {
-        "name": "project",
-        "type": "str",
-        "required": false,
-        "help": "Restrict to project (substring match)"
-      }
-    ],
-    "columns": [
-      "status",
-      "project",
-      "task"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/open.js",
-    "sourceFile": "trae-solo/open.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "react",
-    "description": "React to a message with thumbs Good or Bad. Default targets the last message.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "reaction",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "good or bad"
-      },
-      {
-        "name": "msg",
-        "type": "str",
-        "required": false,
-        "help": "Target message index (from history). Omit for last."
-      }
-    ],
-    "columns": [
-      "Status",
-      "Msg",
-      "Reaction"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/message.js",
-    "sourceFile": "trae-solo/message.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
     "name": "recent-workspaces",
     "description": "Show Trae SOLO's recently-opened workspaces (the File → Open Recent menu, stored under key \"history.recentlyOpenedPathsList\" in state.vscdb).",
     "access": "read",
@@ -27980,37 +27807,13 @@
     ],
     "columns": [
       "Index",
+      "Key",
       "Kind",
       "Path"
     ],
     "type": "js",
     "modulePath": "trae-solo/state-fs.js",
     "sourceFile": "trae-solo/state-fs.js"
-  },
-  {
-    "site": "trae-solo",
-    "name": "retry",
-    "description": "Retry generating a response for a message. Default targets the last message.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "msg",
-        "type": "str",
-        "required": false,
-        "help": "Target message index. Omit for last."
-      }
-    ],
-    "columns": [
-      "Status",
-      "Msg"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/message.js",
-    "sourceFile": "trae-solo/message.js",
-    "navigateBefore": true
   },
   {
     "site": "trae-solo",
@@ -28072,52 +27875,6 @@
   },
   {
     "site": "trae-solo",
-    "name": "skill-fs-install",
-    "description": "Install (register) a skill into Trae SOLO's ~/.trae/skill-config.json. With --source <dir>, the skill directory is copied to ~/.trae/skills/<name>/ first. NOTE: Trae must be reloaded for changes to take effect (Cmd+Q + reopen, or rely on its file-watcher).",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "local",
-    "browser": false,
-    "args": [
-      {
-        "name": "name",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Skill name to register"
-      },
-      {
-        "name": "source",
-        "type": "str",
-        "required": false,
-        "help": "Source dir to copy into ~/.trae/skills/<name>/ before registering. Optional if skill dir already exists."
-      },
-      {
-        "name": "source-tag",
-        "type": "str",
-        "default": "marketplace",
-        "required": false,
-        "help": "Skill source tag written to skill-config.json (e.g. \"marketplace\", \"user\")"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually install (default is dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Name",
-      "Source"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/skill-fs.js",
-    "sourceFile": "trae-solo/skill-fs.js"
-  },
-  {
-    "site": "trae-solo",
     "name": "skill-fs-installed",
     "description": "List INSTALLED Trae SOLO skills (managedSkills entry in ~/.trae/skill-config.json).",
     "access": "read",
@@ -28128,6 +27885,7 @@
     "columns": [
       "Index",
       "Name",
+      "Description",
       "Source"
     ],
     "type": "js",
@@ -28154,7 +27912,8 @@
     "columns": [
       "Index",
       "Name",
-      "Description"
+      "Description",
+      "Source"
     ],
     "type": "js",
     "modulePath": "trae-solo/skill-fs.js",
@@ -28187,79 +27946,6 @@
   },
   {
     "site": "trae-solo",
-    "name": "skill-fs-uninstall",
-    "description": "Unregister a skill from skill-config.json. With --purge, also rm -rf its ~/.trae/skills/<name>/ directory. NOTE: Trae must be reloaded for changes to take effect.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "local",
-    "browser": false,
-    "args": [
-      {
-        "name": "name",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Skill name to unregister"
-      },
-      {
-        "name": "purge",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Also remove the skill directory from disk"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually uninstall (default is dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Name",
-      "Action"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/skill-fs.js",
-    "sourceFile": "trae-solo/skill-fs.js"
-  },
-  {
-    "site": "trae-solo",
-    "name": "skill-install",
-    "description": "Install a Skill from the Marketplace by name (substring match).",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "name",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Skill name (substring match)"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually install (default is a dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Skill"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/skill.js",
-    "sourceFile": "trae-solo/skill.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
     "name": "skill-list",
     "description": "List Trae SOLO Skills — by default the Marketplace; pass --installed to list installed ones.",
     "access": "read",
@@ -28286,32 +27972,6 @@
       "Index",
       "Name",
       "Description"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/skill.js",
-    "sourceFile": "trae-solo/skill.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "skill-run",
-    "description": "Run a Skill directly from its marketplace / installed card.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "name",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Skill name (substring match)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Skill"
     ],
     "type": "js",
     "modulePath": "trae-solo/skill.js",
@@ -28350,120 +28010,6 @@
     "type": "js",
     "modulePath": "trae-solo/skill.js",
     "sourceFile": "trae-solo/skill.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "skill-toggle",
-    "description": "Enable/disable an installed Skill via the per-card on/off switch.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "name",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Skill name (substring match)"
-      },
-      {
-        "name": "state",
-        "type": "str",
-        "required": false,
-        "positional": true,
-        "help": "Desired state: on or off (omit to toggle)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Skill",
-      "State"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/skill.js",
-    "sourceFile": "trae-solo/skill.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "skill-uninstall",
-    "description": "Uninstall a Skill by name (substring match). Opens the card detail then clicks Uninstall.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "name",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Skill name (substring match)"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually uninstall (default is a dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Skill"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/skill.js",
-    "sourceFile": "trae-solo/skill.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "skill-upload",
-    "description": "Install a local skill dir into Trae SOLO (copies dir → ~/.trae/skills/<name>/, adds to skill-config.json, and clicks the marketplace \"Upload Skill\" button to trigger a Trae-side refresh). Requires --yes.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "source",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Path to the skill directory (must contain SKILL.md)"
-      },
-      {
-        "name": "name",
-        "type": "str",
-        "required": false,
-        "help": "Override the registered name (default: source directory basename)"
-      },
-      {
-        "name": "source-tag",
-        "type": "str",
-        "default": "user",
-        "required": false,
-        "help": "Skill source tag for skill-config.json (default \"user\")"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually install (default: dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Name",
-      "Action"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/audit-extras.js",
-    "sourceFile": "trae-solo/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -28535,7 +28081,9 @@
     ],
     "columns": [
       "Index",
-      "Key"
+      "Key",
+      "Kind",
+      "Path"
     ],
     "type": "js",
     "modulePath": "trae-solo/state-fs.js",
@@ -28633,89 +28181,16 @@
     "columns": [
       "Index",
       "Key",
-      "Bytes"
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
     ],
     "type": "js",
     "modulePath": "trae-solo/renderer-storage.js",
     "sourceFile": "trae-solo/renderer-storage.js",
     "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "task-collapse-all",
-    "description": "Click the expand/collapse icon on every visible task-list group header to collapse all groups (or expand all, if --expand). Useful when the sidebar is cluttered with many task groups.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "expand",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Expand all instead of collapsing"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Clicked"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/audit-extras.js",
-    "sourceFile": "trae-solo/audit-extras.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "task-filter",
-    "description": "Click the task-list filter icon in the sidebar header and report visible filter menu items (or list current filter state). The filter button sits at the top of the task list heading row.",
-    "access": "read",
-    "domain": "localhost",
-    "strategy": "ui",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "Index",
-      "Item"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/audit-extras.js",
-    "sourceFile": "trae-solo/audit-extras.js",
-    "navigateBefore": true
-  },
-  {
-    "site": "trae-solo",
-    "name": "task-fs-delete",
-    "description": "DANGER: delete a Trae SOLO task from disk (snapshot/<id> + agentconfig/<id>.json + hooks). Refuses if Trae is actively writing the AI-agent DB.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "local",
-    "browser": false,
-    "args": [
-      {
-        "name": "task-id",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Task UUID to delete"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually delete (default is dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Task Id",
-      "Removed"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/task-fs.js",
-    "sourceFile": "trae-solo/task-fs.js"
   },
   {
     "site": "trae-solo",
@@ -28739,7 +28214,10 @@
       "Task Id",
       "Has Snapshot",
       "Has Config",
-      "Modified"
+      "Modified",
+      "Phase",
+      "Turn Id",
+      "Commit"
     ],
     "type": "js",
     "modulePath": "trae-solo/task-fs.js",
@@ -28810,6 +28288,10 @@
     ],
     "columns": [
       "Index",
+      "Task Id",
+      "Has Snapshot",
+      "Has Config",
+      "Modified",
       "Phase",
       "Turn Id",
       "Commit"
@@ -28837,39 +28319,6 @@
   },
   {
     "site": "trae-solo",
-    "name": "user-rules-set",
-    "description": "Overwrite ~/.trae/user_rules.md from a local file path. Trae picks up changes on next chat start.",
-    "access": "write",
-    "domain": "localhost",
-    "strategy": "local",
-    "browser": false,
-    "args": [
-      {
-        "name": "source",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "Path to the markdown file whose content becomes the new user rules"
-      },
-      {
-        "name": "yes",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually write (default is dry-run)"
-      }
-    ],
-    "columns": [
-      "Status",
-      "Path",
-      "Action"
-    ],
-    "type": "js",
-    "modulePath": "trae-solo/user-rules.js",
-    "sourceFile": "trae-solo/user-rules.js"
-  },
-  {
-    "site": "trae-solo",
     "name": "workspaces-list",
     "description": "List Trae SOLO workspaceStorage entries (~/Library/.../TRAE SOLO/User/workspaceStorage/<uuid>/), resolving each workspace.json to its single-folder path or multi-folder workspace target. Works while Trae is closed.",
     "access": "read",
@@ -28890,7 +28339,11 @@
       "Workspace Id",
       "Kind",
       "Target",
-      "Modified"
+      "Modified",
+      "Id",
+      "Version",
+      "Source",
+      "Installed"
     ],
     "type": "js",
     "modulePath": "trae-solo/workspaces-fs.js",

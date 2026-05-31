@@ -173,3 +173,4 @@ Run `opencli list` for the live registry.
 | **[Qoder](./desktop/qoder.md)**             | Control Qoder IDE             | `status` `new` `history` `send` `ask` `read` `search` `settings` `knowledge` `marketplace` `credits` `view-all` `add-workspace` `account` `more-actions` `prompt-enhance` `open-editor` `sidebar-toggle` `open-panel` |
 | **[Discord](./desktop/discord.md)**         | Desktop messages & channels   | `status` `send` `read` `channels` `servers` `search` `members`                                              |
 | **[Doubao App](./desktop/doubao-app.md)**   | Doubao AI desktop app via CDP | `status` `new` `send` `read` `ask` `screenshot` `dump`                                                      |
+| **[Trae SOLO](./desktop/trae-solo.md)**      | Trae SOLO desktop state       | `status` `history` `model` `mode` `automation-list` `skill-*` `state-*` `task-fs-*`                         |

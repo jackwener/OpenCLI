@@ -1,6 +1,14 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
 
+async function readCurrentModel(page) {
+    const current = await page.evaluate(`(function() {
+      const trigger = document.querySelector('.core-model-select-trigger');
+      return trigger ? (trigger.textContent || '').trim() : '';
+    })()`);
+    return typeof current === 'string' ? current.trim() : '';
+}
+
 cli({
     site: 'trae-solo',
     name: 'model',
@@ -19,10 +27,7 @@ cli({
         const listOnly = kwargs.list === true || kwargs.list === 'true';
 
         // Read current model from the composer trigger
-        const current = await page.evaluate(`(function() {
-      const trigger = document.querySelector('.core-model-select-trigger');
-      return trigger ? (trigger.textContent || '').trim() : '';
-    })()`);
+        const current = await readCurrentModel(page);
         if (!current) {
             throw selectorError('TRAE SOLO model trigger (.core-model-select-trigger). Make sure a chat task is open (not the project-list view).');
         }
@@ -70,9 +75,7 @@ cli({
             }
 
             if (listOnly) {
-                document.body && (async () => {
-                    try { await page.evaluate('document.body.click()'); } catch {}
-                })();
+                try { await page.evaluate('document.body.click()'); } catch {}
                 return stage1.labels.map((m) => ({ Status: m === current ? 'Active' : 'Available', Model: m }));
             }
 
@@ -94,7 +97,7 @@ cli({
             } catch (err) {
                 // Some Trae model rows wrap option in another element; fall back
                 // to JS dispatch on the nth visible option.
-                await page.evaluate(`(function(i) {
+                const fallbackClicked = await page.evaluate(`(function(i) {
           const opts = Array.from(document.querySelectorAll('.core-model-select-model-item[role="option"]'))
             .filter((el) => el.offsetParent);
           const target = opts[i];
@@ -110,26 +113,19 @@ cli({
           target.dispatchEvent(new MouseEvent('click', init));
           return true;
         })(${idx})`);
+                if (!fallbackClicked) {
+                    throw new CommandExecutionError('Click on model option failed.', `model=${chosenLabel}`);
+                }
             }
             await page.wait(0.6);
-            return [{ Status: 'switched', Model: chosenLabel }];
-
-            // (Unreachable — kept for symmetry with the old single-eval path)
-            // eslint-disable-next-line no-unreachable
-            let result;
-            try {
-                result = { ok: true, labels: stage1.labels };
-            } catch (err) {
-                return [{ Status: 'switched (eval reply unmounted; re-read to confirm)', Model: name || '(see --list)' }];
+            const after = await readCurrentModel(page);
+            if (!after || !after.toLowerCase().includes(name)) {
+                throw new CommandExecutionError(
+                    `Model click did not verify selected model "${chosenLabel}".`,
+                    after ? `current=${after}` : 'model trigger was unreadable after click',
+                );
             }
-            if (!result.ok) {
-                throw new CommandExecutionError(result.reason, result.detail || '');
-            }
-
-            if (listOnly) {
-                return result.labels.map((m) => ({ Status: m === current ? 'Active' : 'Available', Model: m }));
-            }
-            return [{ Status: 'switched', Model: result.chosen }];
+            return [{ Status: 'switched', Model: after }];
         }
 
         // Just read the current.

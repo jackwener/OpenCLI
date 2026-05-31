@@ -58,7 +58,7 @@ cli({
         { name: 'workspace', required: false, help: 'Workspace id (from workspaces-list) to query a per-workspace DB' },
         { name: 'limit', type: 'int', required: false, default: 200 },
     ],
-    columns: ['Index', 'Key'],
+    columns: ['Index', 'Key', 'Kind', 'Path'],
     func: async (args) => {
         const db = resolveStateDb(args);
         const keys = listKeys(db);
@@ -68,7 +68,12 @@ cli({
             throw new EmptyResultError('trae-solo storage-keys', flt ? `No keys match "${flt}".` : 'No keys.');
         }
         const limit = Number.isInteger(args.limit) && args.limit > 0 ? args.limit : 200;
-        return filtered.slice(0, limit).map((k, i) => ({ Index: i + 1, Key: k }));
+        return filtered.slice(0, limit).map((k, i) => ({
+            Index: i + 1,
+            Key: k,
+            Kind: '',
+            Path: '',
+        }));
     },
 });
 
@@ -119,7 +124,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', required: false, default: 20 },
     ],
-    columns: ['Index', 'Kind', 'Path'],
+    columns: ['Index', 'Key', 'Kind', 'Path'],
     func: async (args) => {
         if (!fs.existsSync(TRAE_GLOBAL_STATE_DB)) {
             throw new CommandExecutionError(`state.vscdb not found: ${TRAE_GLOBAL_STATE_DB}`, '');
@@ -145,7 +150,7 @@ cli({
                 kind = 'file';
                 target = decodeURI(String(e.fileUri).replace(/^file:\/\//, ''));
             }
-            return { Index: i + 1, Kind: kind, Path: target };
+            return { Index: i + 1, Key: '', Kind: kind, Path: target };
         });
     },
 });

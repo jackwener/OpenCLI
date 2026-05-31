@@ -65,10 +65,17 @@ cli({
 
         const after = await page.evaluate(`(function() {
       const cap = document.querySelector('[class*="capsule"]');
+      if (!cap) return '';
       const aria = cap.getAttribute('aria-label') || '';
       const m = aria.match(/Switch to (Code|Work) mode/i);
       return m ? (m[1].toLowerCase() === 'work' ? 'code' : 'work') : '';
     })()`);
-        return [{ Status: 'switched', Mode: after || want }];
+        if (after !== want) {
+            throw new CommandExecutionError(
+                `Mode toggle did not reach requested state "${want}".`,
+                after ? `current=${after}` : 'Mode capsule state could not be read after click.',
+            );
+        }
+        return [{ Status: 'switched', Mode: after }];
     },
 });

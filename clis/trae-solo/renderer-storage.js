@@ -40,7 +40,7 @@ cli({
         { name: 'filter', required: false, help: 'Case-insensitive substring filter' },
         { name: 'limit', type: 'int', required: false, default: 100, help: 'Max rows to return' },
     ],
-    columns: ['Index', 'Key', 'Bytes'],
+    columns: ['Index', 'Key', 'Bytes', 'Name', 'Preview', 'Database', 'Version'],
     func: async (page, kwargs) => {
         const store = pickStore(kwargs);
         const raw = await page.evaluate(`(() => {
@@ -60,7 +60,15 @@ cli({
         }
         filtered.sort((a, b) => a.k.localeCompare(b.k));
         const limit = Number.isInteger(kwargs?.limit) && kwargs.limit > 0 ? kwargs.limit : 100;
-        return filtered.slice(0, limit).map((r, i) => ({ Index: i + 1, Key: r.k, Bytes: r.bytes }));
+        return filtered.slice(0, limit).map((r, i) => ({
+            Index: i + 1,
+            Key: r.k,
+            Bytes: r.bytes,
+            Name: '',
+            Preview: '',
+            Database: '',
+            Version: '',
+        }));
     },
 });
 
@@ -110,7 +118,7 @@ cli({
     strategy: Strategy.UI,
     browser: true,
     args: [],
-    columns: ['Index', 'Name', 'Bytes', 'Preview'],
+    columns: ['Index', 'Key', 'Bytes', 'Name', 'Preview', 'Database', 'Version'],
     func: async (page) => {
         const raw = await page.evaluate('document.cookie');
         if (!raw) {
@@ -123,9 +131,12 @@ cli({
         });
         return cookies.map((c, i) => ({
             Index: i + 1,
+            Key: '',
             Name: c.name,
             Bytes: c.value.length,
             Preview: c.value.slice(0, 40) + (c.value.length > 40 ? '…' : ''),
+            Database: '',
+            Version: '',
         }));
     },
 });
@@ -140,7 +151,7 @@ cli({
     strategy: Strategy.UI,
     browser: true,
     args: [],
-    columns: ['Index', 'Database', 'Version'],
+    columns: ['Index', 'Key', 'Bytes', 'Name', 'Preview', 'Database', 'Version'],
     func: async (page) => {
         const dbs = await page.evaluate(`(async () => indexedDB.databases ? await indexedDB.databases() : [])()`);
         if (!Array.isArray(dbs) || !dbs.length) {
@@ -148,6 +159,10 @@ cli({
         }
         return dbs.map((d, i) => ({
             Index: i + 1,
+            Key: '',
+            Bytes: '',
+            Name: '',
+            Preview: '',
             Database: d.name || '(unnamed)',
             Version: String(d.version || ''),
         }));
