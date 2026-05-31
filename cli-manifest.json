@@ -5895,6 +5895,26 @@
   },
   {
     "site": "codex",
+    "name": "cookies",
+    "description": "List cookies on the Codex App renderer (JS-visible via document.cookie; httpOnly cookies are not shown).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Name",
+      "Bytes",
+      "Preview"
+    ],
+    "type": "js",
+    "modulePath": "codex/storage.js",
+    "sourceFile": "codex/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "copy-message",
     "description": "Return the text of the last assistant message in the current Codex conversation. Use --click-button to also fire the in-UI Copy button (writes to system clipboard).",
     "access": "read",
@@ -6074,6 +6094,25 @@
     "type": "js",
     "modulePath": "codex/history.js",
     "sourceFile": "codex/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "idb-list",
+    "description": "List IndexedDB databases on the Codex App renderer (app:// origin).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "codex/storage.js",
+    "sourceFile": "codex/storage.js",
     "navigateBefore": true
   },
   {
@@ -6654,6 +6693,86 @@
     "type": "js",
     "modulePath": "codex/status.js",
     "sourceFile": "codex/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "storage-get",
+    "description": "Read a single localStorage / sessionStorage value on the Codex App renderer. Auto-decodes JSON.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key"
+      },
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": ""
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 4000,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "codex/storage.js",
+    "sourceFile": "codex/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "storage-keys",
+    "description": "List localStorage (default) or sessionStorage keys on the Codex App renderer, with byte sizes.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes"
+    ],
+    "type": "js",
+    "modulePath": "codex/storage.js",
+    "sourceFile": "codex/storage.js",
     "navigateBefore": true
   },
   {
