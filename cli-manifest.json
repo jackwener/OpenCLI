@@ -1449,6 +1449,39 @@
   },
   {
     "site": "antigravity",
+    "name": "delete",
+    "description": "Delete an Antigravity conversation by ID. Antigravity asks for confirmation; we click through it. Require --yes to actually delete.",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete (default: dry-run preview)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/delete.js",
+    "sourceFile": "antigravity/delete.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
     "name": "dump",
     "description": "Dump the DOM to help AI understand the UI",
     "access": "read",
@@ -1480,6 +1513,60 @@
     "type": "js",
     "modulePath": "antigravity/extract-code.js",
     "sourceFile": "antigravity/extract-code.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "history",
+    "description": "List visible Antigravity conversations from the sidebar",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max conversations to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/history.js",
+    "sourceFile": "antigravity/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "mark-read",
+    "description": "Toggle read state on an Antigravity conversation (the 3-dot menu shows \"Mark as Read\" OR \"Mark as Unread\" depending on current state — this command clicks whichever is present).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "clicked"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/mark-read.js",
+    "sourceFile": "antigravity/mark-read.js",
     "navigateBefore": true
   },
   {
@@ -1547,6 +1634,38 @@
     "type": "js",
     "modulePath": "antigravity/read.js",
     "sourceFile": "antigravity/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "rename",
+    "description": "Rename an Antigravity conversation by ID (NOT YET IMPLEMENTED — see source comment).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "New title"
+      }
+    ],
+    "columns": [
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/rename.js",
+    "sourceFile": "antigravity/rename.js",
     "navigateBefore": true
   },
   {
