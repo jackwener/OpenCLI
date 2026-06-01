@@ -100,3 +100,10 @@ Endpoint/API knowledge should reference ids from `endpoints.json` when available
 - Do not document bypasses for CAPTCHA, WAF, access control, rate limits, or paid gates.
 - Do not store brittle snapshot indices like `[17]` as durable targets. Store semantic anchors and recovery instructions.
 - Do not describe unverified paths as facts. Use `draft` or `stale` labels.
+- Drafts go inside `sitemap/draft-<topic>.md`, not `~/.opencli/sites/<site>/sitemap.draft.md` at the parent level — the latter is invisible to `opencli browser` sitemap availability detection.
+
+---
+
+## Detailed schema
+
+See [`references/sitemap-schema.md`](./references/sitemap-schema.md) for the full field-level spec — `SITE.md` / `pages/<id>.md` / `workflows/<id>.md` / `apis.md` / `pitfalls.md` schemas, action-level state signatures, `adapter_health` enum (healthy / suspect / broken), endpoint reference rules, two-layer overlay semantics, draft placement, and Phase 2 validation rules.
