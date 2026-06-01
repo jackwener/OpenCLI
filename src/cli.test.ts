@@ -1332,11 +1332,11 @@ describe('browser tab targeting commands', () => {
         ])
         .mockResolvedValueOnce([
           {
-            url: 'https://target.example/waf',
+            url: 'https://target.example/api/items',
             method: 'GET',
-            responseStatus: 403,
-            responseContentType: 'text/html',
-            responsePreview: 'Cloudflare Ray ID',
+            responseStatus: 200,
+            responseContentType: 'application/json',
+            responsePreview: '{"items":[{"title":"A","id":"1"}]}',
           },
         ]),
     } as unknown as IPage;
@@ -1346,7 +1346,9 @@ describe('browser tab targeting commands', () => {
 
     const out = lastJsonLog();
     expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
-    expect(out.anti_bot.vendor).toBe('cloudflare');
+    expect(out.pattern.pattern).toBe('A');
+    expect(out.api_candidates[0].url).toBe('https://target.example/api/items');
+    expect(out.api_candidates[0].verdict).toBe('likely_data');
     expect(out.anti_bot.evidence).toContain('cookie:cf_clearance');
   });
 

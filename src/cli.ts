@@ -1134,6 +1134,7 @@ Examples:
   //
   //   - pattern: A/B/C/D (mapped from network + SSR-globals signals)
   //   - anti_bot: vendor + evidence + the one-liner for "what to do next"
+  //   - api_candidates: captured endpoints scored as real data vs telemetry
   //   - initial_state: which window globals are populated
   //   - nearest_adapter: existing commands for the same site, if any
   //   - recommended_next_step: a single imperative sentence
@@ -1142,7 +1143,7 @@ Examples:
   // feedback loop with a single deterministic verdict. Without this, agents
   // burn ~20min per WAF-protected site re-discovering anti-bot posture.
   addBrowserTabOption(browser.command('analyze').argument('<url>'))
-    .description('Classify site: anti-bot vendor, pattern (A/B/C/D), nearest adapter, recommended next step')
+    .description('Classify site: anti-bot vendor, real-data API candidates, pattern (A/B/C/D), nearest adapter, next step')
     .action(browserAction(async (page, url) => {
       const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
       await page.goto(url);
