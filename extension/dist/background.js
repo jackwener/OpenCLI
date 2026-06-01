@@ -1025,7 +1025,7 @@ async function focusOwnedWindowIfRequested(windowId, mode) {
 async function toOwnedContainerGroupCandidate(group) {
   try {
     const chromeWindow = await chrome.windows.get(group.windowId);
-    const reusableTabId = await findReusableOwnedContainerTab(group.windowId);
+    const reusableTabId = await findReusableOwnedContainerTab(group.windowId, group.id);
     return {
       id: group.id,
       windowId: group.windowId,
@@ -1198,7 +1198,7 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
       const group2 = await ensureOwnedContainerGroup(role, container.windowId, []);
       if (group2) {
         await focusOwnedWindowIfRequested(group2.windowId, mode);
-        const initialTabId3 = await findReusableOwnedContainerTab(group2.windowId);
+        const initialTabId3 = await findReusableOwnedContainerTab(group2.windowId, group2.id);
         return {
           windowId: group2.windowId,
           initialTabId: initialTabId3
@@ -1225,7 +1225,7 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
   const existingGroup = await ensureOwnedContainerGroup(role, null, []);
   if (existingGroup) {
     await focusOwnedWindowIfRequested(existingGroup.windowId, mode);
-    const initialTabId2 = await findReusableOwnedContainerTab(existingGroup.windowId);
+    const initialTabId2 = await findReusableOwnedContainerTab(existingGroup.windowId, existingGroup.id);
     await persistRuntimeState();
     return {
       windowId: existingGroup.windowId,
@@ -1266,11 +1266,11 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
   await persistRuntimeState();
   return { windowId: group?.windowId ?? container.windowId, initialTabId };
 }
-async function findReusableOwnedContainerTab(windowId) {
+async function findReusableOwnedContainerTab(windowId, ownedGroupId) {
   try {
     const tabs = await chrome.tabs.query({ windowId });
     const reusable = tabs.find(
-      (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && isDebuggableUrl(tab.url)
+      (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && isDebuggableUrl(tab.url) && (ownedGroupId === void 0 || tab.groupId === ownedGroupId || !isSafeNavigationUrl(tab.url ?? ""))
     );
     return reusable?.id;
   } catch {

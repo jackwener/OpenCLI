@@ -538,7 +538,7 @@ async function focusOwnedWindowIfRequested(windowId: number, mode: WindowMode): 
 async function toOwnedContainerGroupCandidate(group: chrome.tabGroups.TabGroup): Promise<OwnedContainerGroupCandidate | null> {
   try {
     const chromeWindow = await chrome.windows.get(group.windowId);
-    const reusableTabId = await findReusableOwnedContainerTab(group.windowId);
+    const reusableTabId = await findReusableOwnedContainerTab(group.windowId, group.id);
     return {
       id: group.id,
       windowId: group.windowId,
@@ -776,7 +776,7 @@ async function ensureOwnedContainerWindowUnlocked(
       const group = await ensureOwnedContainerGroup(role, container.windowId, []);
       if (group) {
         await focusOwnedWindowIfRequested(group.windowId, mode);
-        const initialTabId = await findReusableOwnedContainerTab(group.windowId);
+        const initialTabId = await findReusableOwnedContainerTab(group.windowId, group.id);
         return {
           windowId: group.windowId,
           initialTabId,
@@ -804,7 +804,7 @@ async function ensureOwnedContainerWindowUnlocked(
   const existingGroup = await ensureOwnedContainerGroup(role, null, []);
   if (existingGroup) {
     await focusOwnedWindowIfRequested(existingGroup.windowId, mode);
-    const initialTabId = await findReusableOwnedContainerTab(existingGroup.windowId);
+    const initialTabId = await findReusableOwnedContainerTab(existingGroup.windowId, existingGroup.id);
     await persistRuntimeState();
     return {
       windowId: existingGroup.windowId,
@@ -853,13 +853,22 @@ async function ensureOwnedContainerWindowUnlocked(
   return { windowId: group?.windowId ?? container.windowId, initialTabId };
 }
 
-async function findReusableOwnedContainerTab(windowId: number): Promise<number | undefined> {
+async function findReusableOwnedContainerTab(windowId: number, ownedGroupId?: number): Promise<number | undefined> {
   try {
     const tabs = await chrome.tabs.query({ windowId });
+    // When a canonical owned group lives in a user window (cross-window
+    // convergence can land it there), an http(s) tab outside the group is
+    // user content and must not be reused. Group members and non-http tabs
+    // (about:blank / data: / fresh container) stay eligible.
     const reusable = tabs.find(tab =>
       tab.id !== undefined &&
       initialTabIsAvailable(tab.id) &&
-      isDebuggableUrl(tab.url),
+      isDebuggableUrl(tab.url) &&
+      (
+        ownedGroupId === undefined ||
+        tab.groupId === ownedGroupId ||
+        !isSafeNavigationUrl(tab.url ?? '')
+      ),
     );
     return reusable?.id;
   } catch {

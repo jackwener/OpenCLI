@@ -1332,6 +1332,7 @@ describe('background tab isolation', () => {
 
   it('discovers and reuses an existing OpenCLI Adapter group after service worker restart', async () => {
     const { chrome, tabs, groups } = createChromeMock();
+    tabs[0].groupId = 99;
     groups.push({
       id: 99,
       windowId: 1,
@@ -1347,7 +1348,6 @@ describe('background tab isolation', () => {
     expect(tabId).toBe(1);
     expect(tabs[0].groupId).toBe(99);
     expect(groups).toHaveLength(1);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [1] });
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
@@ -1380,6 +1380,35 @@ describe('background tab isolation', () => {
     expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(99);
     expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [77] });
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('does not reuse a user http tab outside the canonical group when the group has converged into a user window', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({
+      id: 77,
+      windowId: 7,
+      url: 'https://example.com/user-page',
+      title: 'user-page',
+      active: true,
+      status: 'complete',
+      groupId: -1,
+    });
+    groups.push({
+      id: 99,
+      windowId: 7,
+      title: 'OpenCLI Adapter',
+      color: 'orange',
+      collapsed: true,
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).not.toBe(77);
+    expect(tabs.find((tab) => tab.id === 77)?.url).toBe('https://example.com/user-page');
+    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(-1);
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(99);
   });
 
   it('prefers a discovered OpenCLI Adapter group over a stale stored window hint', async () => {
