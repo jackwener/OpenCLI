@@ -59,6 +59,8 @@ Strategy classes:
 
 选择规则：优先 `PUBLIC_API` / `COOKIE_API`。如果 UI/DOM 语义稳定，不要强行升级到 `PAGE_FETCH` / `INTERCEPT`。只有公开/官方接口不可用、UI/DOM 无法表达目标数据或操作时，才承担无契约内部接口的维护成本。
 
+实测：`PAGE_FETCH` / `INTERCEPT` 的 fix 频率约为 `PUBLIC_API` 的 7-8 倍，`UI_SELECTOR` 跟 `COOKIE_API` 同档。详细 ladder 推导、`api_candidates` 证据怎么填、booking #1680 等反例见 [`references/strategy-selection.md`](./references/strategy-selection.md)。
+
 边界：只复用页面自己已经合法获得的数据/能力。不教破解签名、不绕验证码/风控/访问控制；遇到不可复用签名（如必须由页面 runtime 生成且不能安全抽象）就降级到 `UI_SELECTOR` / `DOM_STATE` / `INTERCEPT`。
 
 ```
@@ -218,6 +220,7 @@ DONE
 | `references/coverage-matrix.md` | 动手前做"是否在范围内"自测 |
 | `references/site-recon.md` | Step 3 定站点类型 |
 | `references/api-discovery.md` | Step 4 找 endpoint |
+| `references/strategy-selection.md` | Step 6 填 strategy note 之前：契约模型 + 实测 fix 频率 + `api_candidates` 证据用法 + 反例 |
 | `references/field-conventions.md` | Step 7 查已知字段代号 |
 | `references/field-decode-playbook.md` | Step 7 字段不在词典时 |
 | `references/output-design.md` | Step 8 命名 / 类型 / 顺序 |
