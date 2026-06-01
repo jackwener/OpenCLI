@@ -217,6 +217,24 @@ describe('twitter post command', () => {
         expect(submitScript).toContain('your post was sent');
     });
 
+    it('does not treat timeline media as composer media after compose navigation completes', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true, previewCount: 1 }, // upload polling returns true
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ]);
+
+        await command.func(page, { text: 'with image', images: 'a.png' });
+
+        const submitScript = page.evaluate.mock.calls[4][0];
+        expect(submitScript).toContain('isComposeRoute');
+        expect(submitScript).toContain('/^\\/compose\\/post');
+        expect(submitScript).toContain('isComposeRoute &&');
+    });
+
     it('returns failed when image upload times out', async () => {
         const command = getCommand();
         const page = makePage([

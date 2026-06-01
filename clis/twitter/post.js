@@ -235,8 +235,11 @@ async function submitTweet(page, text) {
 
             const boxes = Array.from(document.querySelectorAll('[data-testid="tweetTextarea_0"]')).filter(visible);
             const composerStillHasText = boxes.some((box) => normalize(box.innerText || box.textContent || '').includes(expectedText));
-            const hasMedia = !!document.querySelector('[data-testid="attachments"], [data-testid="tweetPhoto"]')
-                || document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length > 0;
+            const isComposeRoute = /^\\/compose\\/post\\/?$/.test(window.location.pathname);
+            const hasMedia = isComposeRoute && (
+                !!document.querySelector('[data-testid="attachments"], [data-testid="tweetPhoto"]')
+                || document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length > 0
+            );
             if (!composerStillHasText && !hasMedia) {
                 return { ok: true, message: 'Tweet posted successfully.', ...statusUrl() };
             }
