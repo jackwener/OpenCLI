@@ -38,7 +38,7 @@ Keep individual files under roughly 800 tokens. Split pages/workflows instead of
 ## Authoring Loop
 
 1. **Load existing memory**: read local overlay first, then global seed if present.
-2. **Verify reality**: use `opencli browser <session> state`, `find`, `network`, and `analyze`; browser state is truth.
+2. **Verify reality**: use `opencli browser <session> state`, `find`, `network`, and `analyze`; browser state is truth. If you just completed an `opencli-adapter-author` session for this site, start from the retained browse trace under `~/.opencli/sites/<site>/traces/` as seed evidence instead of re-discovering the path from zero.
 3. **Record only durable structure**: page purpose, stable anchors, state signature, actions, workflows, API references, pitfalls.
 4. **Use stable ids**: page/action/workflow ids should survive URL params, locale text drift, and minor layout changes.
 5. **Write local draft**: update `~/.opencli/sites/<site>/sitemap/...` unless explicitly promoting to repo.
