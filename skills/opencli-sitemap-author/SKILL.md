@@ -50,31 +50,19 @@ Keep individual files under roughly 800 tokens. Split pages/workflows instead of
 
 Every action edge must include:
 
-```md
+```yaml
 ### action:<stable-id>
-
-Preconditions:
-- <current page/state/auth requirements>
-
-Do:
-- <agent action, preferably semantic browser command or existing adapter>
-
-Postconditions:
-- <URL/state/output that proves success>
-
-Failure signals:
-- <how to tell this edge no longer works>
-
-Recovery:
-- <fallback path, re-state/re-find instruction, or adapter fallback>
-
-Evidence:
-- verified_at: YYYY-MM-DD
-- observed_with: opencli browser <session> ...
-- source: local|global
+pre: <current page / state / auth requirements>
+do: <agent action, adapter command, or semantic browser command>
+post: <URL / state / output that proves success>
+fail: <failure signal 1> | <signal 2>
+recover: <fallback instruction>; adapter_health_update: <adapter> -> suspect
+evidence: opencli browser <cmd> or trace:<path>
 ```
 
-Do not promote an action without evidence.
+Use this compact form by default. Use the longer Markdown form from `references/sitemap-schema.md` only when an action genuinely needs long explanation. `verified_at` and `source` are inherited from file frontmatter; do not repeat them per action.
+
+Do not promote an action without evidence. If a recovery path marks `adapter_health_update`, the browser-sitemap consumer must write that health update to the local overlay so the next agent does not retry a known-suspect adapter.
 
 ---
 

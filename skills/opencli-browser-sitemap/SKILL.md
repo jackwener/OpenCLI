@@ -24,6 +24,7 @@ The sitemap is **prior knowledge**, not ground truth. It should reduce blind cli
 4. If the adapter is unavailable or fails, use the **Fallback path** browser workflow.
 5. After each navigation or state-changing action, refresh `state` and compare the workflow's `state_signature`.
 6. If reality disagrees, trust reality, continue probing, and write a local stale note or draft patch.
+7. If an action recovery includes `adapter_health_update: <adapter> -> suspect|broken`, update the local overlay workflow that references that adapter so future agents go straight to the fallback path.
 
 ---
 
@@ -69,6 +70,18 @@ Stale note:
 ```
 
 Do not edit global seed files unless the task is explicitly a sitemap-authoring or repo PR task.
+
+## Adapter Health Write-Back
+
+When an adapter fails and the sitemap action or workflow tells you to update adapter health:
+
+1. Find the local workflow file under `~/.opencli/sites/<site>/sitemap/workflows/` whose `Best path` references the adapter command.
+2. If no local workflow exists, copy the matching global workflow into the local overlay first; never edit the global seed directly during browser task execution.
+3. Set `adapter_health: suspect` or `broken` as directed.
+4. Add a short stale note with observed error, current URL, and timestamp.
+5. Continue with the browser fallback path.
+
+This write-back is the memory loop: the current agent falls back once, and the next agent does not waste a turn retrying a known-suspect adapter.
 
 ---
 
