@@ -10,15 +10,14 @@ export interface WorkflowOptions {
   service: string;
 }
 
+export const DEFAULT_MAYBEAI_PLAYGROUND_URL = 'https://play-be.maybeai.cn';
+
 export function readWorkflowOptions(kwargs: Record<string, unknown>): WorkflowOptions {
-  const baseUrl = firstString(kwargs['playground-url'], process.env.MAYBEAI_PLAYGROUND_URL, process.env.NEXT_PUBLIC_PLAYGROUND_URL);
+  const baseUrl = firstString(kwargs['playground-url'], process.env.MAYBEAI_PLAYGROUND_URL, process.env.NEXT_PUBLIC_PLAYGROUND_URL) ?? DEFAULT_MAYBEAI_PLAYGROUND_URL;
   const authToken = firstString(kwargs['auth-token'], process.env.MAYBEAI_AUTH_TOKEN, process.env.MAYBEAI_TOKEN, process.env.AUTH_TOKEN);
   const userId = firstString(kwargs['user-id'], process.env.MAYBEAI_USER_ID, process.env.USER_ID);
   const service = firstString(kwargs.service, process.env.MAYBEAI_SERVICE) || 'e-commerce';
 
-  if (!baseUrl) {
-    throw new CliError('ARGUMENT', 'Missing MAYBEAI_PLAYGROUND_URL', 'Set MAYBEAI_PLAYGROUND_URL=https://... or pass --playground-url');
-  }
   if (!authToken || !userId) {
     throw new CliError('ARGUMENT', 'Missing MaybeAI auth', 'Pass --auth-token and --user-id, or configure MAYBEAI_AUTH_TOKEN and MAYBEAI_USER_ID');
   }
@@ -56,7 +55,7 @@ export function addGenerateOptions(body: Record<string, unknown>, kwargs: Record
 }
 
 export const WORKFLOW_ARGS = [
-  { name: 'playground-url', help: 'Workflow playground URL; defaults to MAYBEAI_PLAYGROUND_URL' },
+  { name: 'playground-url', help: `Workflow playground URL; defaults to MAYBEAI_PLAYGROUND_URL or ${DEFAULT_MAYBEAI_PLAYGROUND_URL}` },
   { name: 'auth-token', help: 'User auth token; defaults to MAYBEAI_AUTH_TOKEN' },
   { name: 'user-id', help: 'User id; defaults to MAYBEAI_USER_ID' },
   { name: 'service', help: 'Workflow service; defaults to MAYBEAI_SERVICE or e-commerce' },

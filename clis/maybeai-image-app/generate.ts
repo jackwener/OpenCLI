@@ -1,6 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { addGenerateOptions, INPUT_ARGS, readJsonObjectInput, WORKFLOW_ARGS } from './common.js';
 import { executeGenerate } from './engine.js';
+import { runGenReference } from './gen-reference-runner.js';
+import { runGenImageSet } from './gen-image-set-runner.js';
+import { runReplicaListingImage } from './replica-listing-runner.js';
 
 cli({
   site: 'maybeai-image-app',
@@ -16,5 +19,12 @@ cli({
     { name: 'debug', help: 'Include workflow debug details' },
     ...WORKFLOW_ARGS,
   ],
-  func: async (_page, kwargs) => executeGenerate(String(kwargs.app), addGenerateOptions({ input: readJsonObjectInput(kwargs) }, kwargs).input as Record<string, unknown>, kwargs, !!kwargs.debug),
+  func: async (_page, kwargs) => {
+    const app = String(kwargs.app);
+    const input = addGenerateOptions({ input: readJsonObjectInput(kwargs) }, kwargs).input as Record<string, unknown>;
+    if (app === 'gen-reference') return runGenReference(input, kwargs);
+    if (app === 'gen-image-set') return runGenImageSet(input, kwargs);
+    if (app === 'replica-listing-image') return runReplicaListingImage(input, kwargs);
+    return executeGenerate(app, input, kwargs, !!kwargs.debug);
+  },
 });
