@@ -423,7 +423,15 @@ recover: <fallback instruction>; adapter_health_update: <adapter> -> suspect
 evidence: opencli browser <cmd>
 ```
 
-字段语义完全等价，pipe `|` 分隔多 failure signal，semicolon `;` 分隔多 recovery 指令。可读性可机器 parse 双向都好。**推荐 Form B**，密集站避免 verbose markdown 把 page 撑爆。
+字段分隔符约定（避免 ambiguity）：
+
+| 符号 | 用途 | 例 |
+|---|---|---|
+| `\|` | 多 failure signal 平级枚举（"任一发生即视为失败"）| `fail: button_not_found \| /flow/login redirect` |
+| `\|\|` | 多 do path / recovery path **fallback priority**（"前者失败试后者"）| `do: opencli twitter like <url> \|\| click [data-testid="like"]` |
+| `;` | 多 recovery 指令 **sequential**（"逐条执行"）| `recover: adapter_health_update: opencli twitter like -> suspect; dom_click within card scope` |
+
+字段语义完全等价 Form A，**推荐 Form B**，密集站避免 verbose markdown 把 page 撑爆。
 
 #### `verified_at` 由文件级 frontmatter `last_verified` 继承
 
@@ -478,7 +486,7 @@ evidence: opencli browser <cmd>
 ```yaml
 ### action:like_tweet
 pre: card visible AND (tweet_url known OR card permalink anchor extractable)
-do: opencli twitter like <tweet-url>; OR (within card scope) click [data-testid="like"]
+do: opencli twitter like <tweet-url> || click [data-testid="like"] (within card scope)
 post: testid 翻转 like -> unlike，icon 红色
 fail: testid 不变 | 弹 login modal
 recover: adapter_health_update: opencli twitter like -> suspect; dom_click within card scope
@@ -510,7 +518,9 @@ adapter_health_update: <adapter command> -> suspect | broken
 
 不写 directive 时，Recovery 只指导当前 agent 怎么 fallback，不影响其他 agent。带 directive = "我栽了，让我把这事告诉以后的 agent"。
 
-**实现责任**：在 `opencli-browser-sitemap` skill 的 consumption loop 里。Schema 这里只 spec directive 格式，不 spec 实现细节。
+**实现责任**：在 `opencli-browser-sitemap` skill 的 consumption loop 里。Schema 这里只 spec directive 写侧格式，不 spec 实现细节。
+
+**Recovery 回 `healthy` 不在本 schema 范围**：`adapter_health` 从 `suspect` 回 `healthy` 的路径（TTL 自动衰减 / 跑 Fallback 成功后 probe Best path / 人工 reset）留给 `opencli-browser-sitemap` skill spec 拍。本 PR 只定写侧（"failed → suspect"），不定读侧（"suspect → healthy"）的恢复策略。
 
 ---
 
