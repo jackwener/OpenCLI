@@ -166,11 +166,13 @@ function getTurnsScript() {
         // 2026-05 Doubao DOM refactor: no more receive-message / bg-g-receive-msg-bubble
         // markers on assistant turns. Wrappers are now [class*="inner-item-"] /
         // [class*="top-item-"] and the only reliable assistant signal is the
-        // .flow-markdown-body content container WITHOUT any send-bubble marker.
+        // .flow-markdown-body / .md-box-root content container WITHOUT any
+        // send-bubble marker.
         if (
           (root.matches('[class*="inner-item-"], [class*="top-item-"]')
             || root.closest('[class*="inner-item-"], [class*="top-item-"]'))
-          && (root.matches('.flow-markdown-body') || root.querySelector('.flow-markdown-body'))
+          && (root.matches('.flow-markdown-body, .md-box-root, [class*="md-box-root"]')
+            || root.querySelector('.flow-markdown-body, .md-box-root, [class*="md-box-root"]'))
           && !root.matches('[class*="bg-g-send-msg-bubble"]')
           && !root.querySelector('[class*="bg-g-send-msg-bubble"]')
         ) {
@@ -189,6 +191,8 @@ function getTurnsScript() {
         '[class*="bg-g-send-msg-bubble"]',
         '[class*="bg-g-receive-msg-bubble"]',
         '.flow-markdown-body',
+        '.md-box-root',
+        '[class*="md-box-root"]',
         '[class*="bubble"]',
       ];
       const messageImageSelector = messageTextSelectors.map((s) => s + ' img').join(', ');
@@ -232,7 +236,7 @@ function getTurnsScript() {
         return text ? text + '\\n' + imageLines.join('\\n') : imageLines.join('\\n');
       };
 
-      const messageList = document.querySelector('[class*="message-list-S2Fv2S"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"]');
+      const messageList = document.querySelector('[class*="message-list-"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"]');
       if (!messageList) return [];
 
       const itemSelectors = [
