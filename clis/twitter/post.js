@@ -235,7 +235,10 @@ async function submitTweet(page, text) {
 
             const boxes = Array.from(document.querySelectorAll('[data-testid="tweetTextarea_0"]')).filter(visible);
             const composerStillHasText = boxes.some((box) => normalize(box.innerText || box.textContent || '').includes(expectedText));
-            const hasMedia = !!document.querySelector('[data-testid="attachments"], [data-testid="tweetPhoto"]')
+            // Drop the global tweetPhoto query: tweetPhoto exists for every
+            // timeline tweet's image and would pin hasMedia true past the
+            // success path. attachments + blob: URLs are composer-only.
+            const hasMedia = !!document.querySelector('[data-testid="attachments"]')
                 || document.querySelectorAll('img[src^="blob:"], video[src^="blob:"]').length > 0;
             if (!composerStillHasText && !hasMedia) {
                 return { ok: true, message: 'Tweet posted successfully.', ...statusUrl() };
