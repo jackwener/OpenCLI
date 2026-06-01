@@ -1,5 +1,5 @@
 ---
-schema_version: 1
+schema_version: 1.1
 page_id: feed
 url_patterns:
   - https://news.ycombinator.com/newest

@@ -1,5 +1,5 @@
 ---
-schema_version: 1
+schema_version: 1.1
 workflow_id: upvote
 intent: upvote a story or comment
 last_verified: 2026-06-02

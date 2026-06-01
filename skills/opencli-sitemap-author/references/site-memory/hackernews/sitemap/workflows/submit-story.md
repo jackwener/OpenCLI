@@ -1,5 +1,5 @@
 ---
-schema_version: 1
+schema_version: 1.1
 workflow_id: submit-story
 intent: submit a new story to HN (URL or text post)
 last_verified: 2026-06-02

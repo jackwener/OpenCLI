@@ -1,5 +1,5 @@
 ---
-schema_version: 1
+schema_version: 1.1
 workflow_id: read-story
 intent: read a HN story and its top-level comments
 last_verified: 2026-06-02

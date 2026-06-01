@@ -1,5 +1,5 @@
 ---
-schema_version: 1
+schema_version: 1.1
 last_verified: 2026-06-02
 source: global
 ---

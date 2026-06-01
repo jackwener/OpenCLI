@@ -1,5 +1,5 @@
 ---
-schema_version: 1
+schema_version: 1.1
 page_id: user
 url_patterns:
   - https://news.ycombinator.com/user?id={handle}

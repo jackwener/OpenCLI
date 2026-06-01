@@ -1,5 +1,5 @@
 ---
-schema_version: 1
+schema_version: 1.1
 site: news.ycombinator.com
 auth_strategy: PUBLIC_API
 login_required: false
