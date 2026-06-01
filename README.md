@@ -104,6 +104,8 @@ Or install only what you need:
 npx skills add jackwener/opencli --skill opencli-adapter-author
 npx skills add jackwener/opencli --skill opencli-autofix
 npx skills add jackwener/opencli --skill opencli-browser
+npx skills add jackwener/opencli --skill opencli-browser-sitemap
+npx skills add jackwener/opencli --skill opencli-sitemap-author
 npx skills add jackwener/opencli --skill opencli-usage
 ```
 
@@ -114,6 +116,8 @@ npx skills add jackwener/opencli --skill opencli-usage
 | **opencli-adapter-author** | Write a reusable adapter for a new site or add a command to an existing site | "Write an adapter for douyin trending" / "Make a command that grabs the top posts from this page" |
 | **opencli-autofix** | Repair a broken adapter when a built-in command fails | "`opencli zhihu hot` is returning empty — fix it" |
 | **opencli-browser** | Drive a real Chrome page ad-hoc — navigate, fill forms, click, extract | "Help me check my Xiaohongshu notifications" / "Help me fill out this form" / "Use browser commands to scrape this page" |
+| **opencli-browser-sitemap** | Consume site sitemap context while driving a browser task | "Use the sitemap to navigate this website without blind clicking" |
+| **opencli-sitemap-author** | Create or update site sitemap knowledge for browser agents | "Record the stable workflow you just discovered for this site" |
 | **opencli-usage** | Quick reference for all OpenCLI commands and sites | "What commands does OpenCLI have for Twitter?" |
 
 ### How it works
@@ -130,6 +134,8 @@ The agent handles all the `opencli browser` commands internally — you just des
 
 **Skill references:**
 - [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — drive Chrome ad-hoc (navigate, fill forms, click, extract)
+- [`skills/opencli-browser-sitemap/SKILL.md`](./skills/opencli-browser-sitemap/SKILL.md) — use sitemap context while driving a browser task
+- [`skills/opencli-sitemap-author/SKILL.md`](./skills/opencli-sitemap-author/SKILL.md) — create or update site sitemap knowledge
 - [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — write a new adapter end-to-end
 - [`skills/opencli-autofix/SKILL.md`](./skills/opencli-autofix/SKILL.md) — repair broken adapters
 - [`skills/opencli-usage/SKILL.md`](./skills/opencli-usage/SKILL.md) — command and site reference
