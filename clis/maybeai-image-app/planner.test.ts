@@ -6,8 +6,7 @@ describe('maybeai-image-app planner', () => {
     const plan = buildImageAppPlan(['给这个商品做参考生套图'], {
       app: 'replica-listing-image',
       'product-images': 'https://example.com/front.jpg,https://example.com/side.jpg',
-      'reference-template': 'https://example.com/template.jpg',
-      'image-group-type': 'Listing',
+      'reference-images': 'https://example.com/template.jpg',
       platform: 'Amazon',
       market: 'North America',
     });
@@ -15,8 +14,7 @@ describe('maybeai-image-app planner', () => {
     expect(plan.selectedApp).toBe('replica-listing-image');
     expect(plan.missingFields).toEqual([]);
     expect(plan.input).toMatchObject({
-      template: 'https://example.com/template.jpg',
-      image_group_type: 'Listing',
+      reference_images: ['https://example.com/template.jpg'],
       platform: 'Amazon',
       market: 'North America',
     });
@@ -24,6 +22,40 @@ describe('maybeai-image-app planner', () => {
       { image_type: 'front', url: 'https://example.com/front.jpg' },
       { image_type: 'side', url: 'https://example.com/side.jpg' },
     ]);
+  });
+
+  it('builds gen-image-set module counts from flags', () => {
+    const plan = buildImageAppPlan(['生成商品套图'], {
+      app: 'gen-image-set',
+      products: 'https://example.com/product.jpg',
+      'white-bg-count': '1',
+      'scene-count': '2',
+      'selling-point-count': '2',
+      'detail-count': '2',
+      platform: 'Amazon',
+      market: 'North America',
+    });
+
+    expect(plan.selectedApp).toBe('gen-image-set');
+    expect(plan.missingFields).toEqual([]);
+    expect(plan.input).toMatchObject({
+      products: ['https://example.com/product.jpg'],
+      white_bg_count: 1,
+      scene_count: 2,
+      selling_point_count: 2,
+      detail_count: 2,
+      platform: 'Amazon',
+      market: 'North America',
+    });
+  });
+
+  it('detects gen-image-set from product image set intent', () => {
+    const plan = buildImageAppPlan(['给这个商品生成标准商品套图'], {
+      products: 'https://example.com/product.jpg',
+    });
+
+    expect(plan.selectedApp).toBe('gen-image-set');
+    expect(plan.input.preset).toBe('standard');
   });
 
   it('builds gen-reference structured inputs from product and reference flags', () => {

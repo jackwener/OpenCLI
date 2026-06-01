@@ -31,7 +31,7 @@ opencli maybeai-image-app run "给这个商品生成淘宝主图 https://example
   --platform Taobao \
   --market China \
   --category Electronics \
-  --playground-url https://play-be.omnimcp.ai \
+  --playground-url https://play-be.maybeai.cn \
   --auth-token $MAYBEAI_AUTH_TOKEN \
   --user-id $MAYBEAI_USER_ID
 ```
@@ -46,7 +46,7 @@ opencli maybeai-image-app run "给这个商品做参考生套图" \
   --image-group-type Listing \
   --platform Amazon \
   --market "North America" \
-  --playground-url https://play-be.omnimcp.ai \
+  --playground-url https://play-be.maybeai.cn \
   --auth-token $MAYBEAI_AUTH_TOKEN \
   --user-id $MAYBEAI_USER_ID
 ```
@@ -59,7 +59,7 @@ opencli maybeai-image-app run "按参考图生成一张新图" \
   --product-images "https://example.com/product-front.jpg,https://example.com/product-back.jpg" \
   --reference-images "https://example.com/ref-color.jpg,https://example.com/ref-model.jpg,https://example.com/ref-scene.jpg" \
   --prompt "保留商品材质与卖点，参考模特和排版生成更高级的展示图" \
-  --playground-url https://play-be.omnimcp.ai \
+  --playground-url https://play-be.maybeai.cn \
   --auth-token $MAYBEAI_AUTH_TOKEN \
   --user-id $MAYBEAI_USER_ID
 ```

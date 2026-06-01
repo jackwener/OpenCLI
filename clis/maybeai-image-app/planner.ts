@@ -9,6 +9,7 @@ type AppId =
   | 'change-product'
   | 'change-background'
   | 'gen-main'
+  | 'gen-image-set'
   | 'replica-listing-image'
   | 'gen-scene'
   | 'gen-details'
@@ -67,7 +68,8 @@ const APPS: AppDefinition[] = [
   app('change-product', '商品替换', 'scene', ['products'], ['换商品', '商品替换', '替换商品', 'change product', 'replace product'], ['products', 'scene', 'ratio', 'resolution', 'prompt', 'engine']),
   app('change-background', '换场景', 'scene', ['product'], ['换背景', '换场景', '背景替换', 'change background', 'change scene'], ['product', 'scene', 'ratio', 'resolution', 'prompt', 'engine']),
   app('gen-main', '商品主图', 'main', ['products'], ['主图', '商品主图', '电商主图', 'listing image', 'main image', 'hero image'], ['products', 'template', 'market', 'platform', 'category', 'count', 'ratio', 'resolution', 'prompt', 'engine']),
-  app('replica-listing-image', '参考生套图', 'main', ['product_images', 'template'], ['参考生套图', '参考套图', '套图', 'listing', '详情页', 'a+', 'a+图', 'replica listing', 'reference listing'], ['product_images', 'template', 'image_group_type', 'platform', 'market', 'count', 'ratio', 'prompt', 'engine']),
+  app('gen-image-set', '商品套图', 'main', ['products'], ['商品套图', '产品套图', '生套图', '电商套图', '整套图', '一整套商品图', 'image set', 'product image set'], ['products', 'platform', 'market', 'prompt', 'requirements', 'preset', 'white_bg_count', 'closeup_white_bg_count', 'scene_count', 'selling_point_count', 'detail_count', 'material_craft_count', 'multi_angle_count', 'size_chart_count', 'ratio', 'resolution', 'engine']),
+  app('replica-listing-image', '参考生套图', 'main', ['product_images', 'reference_images'], ['参考生套图', '参考套图', '按参考图做套图', '参考图套图', 'replica listing', 'reference listing'], ['product_images', 'reference_images', 'model_images', 'reference_type', 'platform', 'market', 'count', 'ratio', 'prompt', 'engine']),
   app('gen-scene', '场景图', 'scene', ['products'], ['场景图', '场景化', '生活方式图', 'lifestyle', 'scene image'], ['products', 'market', 'platform', 'category', 'count', 'ratio', 'resolution', 'prompt', 'engine']),
   app('gen-details', '细节特写图', 'detail', ['product_and_attrs'], ['细节', '特写', '细节图', 'detail', 'macro'], ['product_and_attrs', 'market', 'platform', 'category', 'prompt', 'count', 'ratio', 'resolution', 'engine']),
   app('details-selling-points', '商品卖点图', 'detail', ['product_and_attrs'], ['卖点图', '卖点说明', 'selling point image', 'benefit image'], ['product_and_attrs', 'category', 'count', 'ratio', 'resolution', 'prompt', 'engine']),
@@ -161,6 +163,8 @@ export const RUN_EXTRA_ARGS = [
   { name: 'person', help: 'Reference model/person image URL' },
   { name: 'reference', help: 'Generic reference image URL, routed by selected app' },
   { name: 'reference-images', help: 'Comma-separated reference image URLs for reference-generation apps' },
+  { name: 'model-images', help: 'Comma-separated model/person image URLs for replica-listing-image' },
+  { name: 'models', help: 'Alias of --model-images' },
   { name: 'scene', help: 'Scene/background reference image URL' },
   { name: 'template', help: 'Main-image template reference URL' },
   { name: 'reference-template', help: 'Reference template URL for replica-listing-image' },
@@ -170,6 +174,19 @@ export const RUN_EXTRA_ARGS = [
   { name: 'attrs', help: 'Comma-separated attribute/detail image URLs' },
   { name: 'size-chart', help: 'Size chart image URL' },
   { name: 'image-group-type', help: 'Replica listing output type: Listing or Detail' },
+  { name: 'preset', help: 'Image set preset for gen-image-set: standard, full, detail-heavy, scene-heavy' },
+  { name: 'white-bg-count', help: 'gen-image-set white background image count' },
+  { name: 'closeup-white-bg-count', help: 'gen-image-set close-up white background image count' },
+  { name: 'scene-count', help: 'gen-image-set scene/lifestyle image count' },
+  { name: 'selling-point-count', help: 'gen-image-set selling point image count' },
+  { name: 'detail-count', help: 'gen-image-set detail image count' },
+  { name: 'material-craft-count', help: 'gen-image-set material/craftsmanship image count' },
+  { name: 'multi-angle-count', help: 'gen-image-set multi-angle display image count' },
+  { name: 'size-chart-count', help: 'gen-image-set size chart image count' },
+  { name: 'requirements', help: 'User requirements for gen-image-set' },
+  { name: 'selected-style-prompt', help: 'Selected style prompt for gen-image-set' },
+  { name: 'reference-image', help: 'Person reference image URL for gen-image-set' },
+  { name: 'reference-type', help: 'replica-listing-image reference type: layout_reference or product_replace' },
   { name: 'platform', help: 'Target platform, e.g. Amazon, Taobao, XiaoHongShu' },
   { name: 'market', help: 'Target country/region, e.g. China, North America' },
   { name: 'category', help: 'Product category' },
@@ -238,10 +255,22 @@ function buildInput(intent: string, kwargs: Record<string, unknown>): Record<str
   applyScalar(input, 'resolution', firstString(kwargs.resolution) ?? inferResolution(intent));
   applyScalar(input, 'count', parseNumber(firstString(kwargs.count) ?? inferCount(intent)));
   applyScalar(input, 'prompt', firstString(kwargs.prompt));
+  applyScalar(input, 'requirements', firstString(kwargs.requirements));
   applyScalar(input, 'engine', firstString(kwargs.engine));
   applyScalar(input, 'background', firstString(kwargs.background) ?? inferBackground(intent));
   applyScalar(input, 'similarity', parseNumber(firstString(kwargs.similarity)));
   applyScalar(input, 'image_group_type', firstString(kwargs['image-group-type']) ?? inferImageGroupType(intent));
+  applyScalar(input, 'preset', firstString(kwargs.preset) ?? inferImageSetPreset(intent));
+  applyScalar(input, 'white_bg_count', parseNumber(firstString(kwargs['white-bg-count']) ?? inferModuleCount(intent, ['白底图', '白底'])));
+  applyScalar(input, 'closeup_white_bg_count', parseNumber(firstString(kwargs['closeup-white-bg-count']) ?? inferModuleCount(intent, ['白底局部', '特写白底', '白底特写'])));
+  applyScalar(input, 'scene_count', parseNumber(firstString(kwargs['scene-count']) ?? inferModuleCount(intent, ['场景图', '场景'])));
+  applyScalar(input, 'selling_point_count', parseNumber(firstString(kwargs['selling-point-count']) ?? inferModuleCount(intent, ['卖点图', '卖点'])));
+  applyScalar(input, 'detail_count', parseNumber(firstString(kwargs['detail-count']) ?? inferModuleCount(intent, ['细节图', '细节'])));
+  applyScalar(input, 'material_craft_count', parseNumber(firstString(kwargs['material-craft-count']) ?? inferModuleCount(intent, ['材质工艺图', '材质图', '工艺图', '材质'])));
+  applyScalar(input, 'multi_angle_count', parseNumber(firstString(kwargs['multi-angle-count']) ?? inferModuleCount(intent, ['多角度图', '多角度', '角度展示'])));
+  applyScalar(input, 'size_chart_count', parseNumber(firstString(kwargs['size-chart-count']) ?? inferModuleCount(intent, ['尺码图', '尺寸图', '尺码'])));
+  applyScalar(input, 'selected_style_prompt', firstString(kwargs['selected-style-prompt']));
+  applyScalar(input, 'reference_image', firstString(kwargs['reference-image']));
 
   const angles = splitList(firstString(kwargs.angles));
   const inferredAngles = inferAngles(intent);
@@ -263,6 +292,9 @@ function buildInput(intent: string, kwargs: Record<string, unknown>): Record<str
 
   const referenceImages = splitList(firstString(kwargs['reference-images']));
   if (!hasValue(input.reference_images) && referenceImages.length > 0) input.reference_images = referenceImages;
+  const modelImages = splitList(firstString(kwargs.models, kwargs['model-images']));
+  if (!hasValue(input.model_images) && modelImages.length > 0) input.model_images = modelImages;
+  applyScalar(input, 'reference_type', firstString(kwargs['reference-type']));
 
   const actions = splitList(firstString(kwargs.actions));
   if (!hasValue(input.actions) && actions.length > 0) input.actions = actions;
@@ -295,10 +327,34 @@ function normalizeSelectedAppInput(appId: AppId, input: Record<string, unknown>,
       ]);
       if (candidateUrls.length > 0) input.product_images = buildStructuredProductImages('replica-listing-image', candidateUrls);
     }
-    applyScalar(input, 'template', firstString(kwargs['reference-template'], kwargs.template, kwargs.reference));
-    applyScalar(input, 'image_group_type', firstString(kwargs['image-group-type']) ?? inferImageGroupType(intent));
+    if (!hasValue(input.reference_images)) {
+      const referenceUrls = uniqueUrls([
+        ...readRawUrls(input.reference_images),
+        ...splitList(firstString(kwargs['reference-images'], kwargs.reference, kwargs['reference-template'], kwargs.template)),
+      ]);
+      if (referenceUrls.length > 0) input.reference_images = referenceUrls;
+    }
+    applyScalar(input, 'reference_type', firstString(kwargs['reference-type']));
     delete input.product;
     delete input.products;
+    delete input.template;
+  }
+
+  if (appId === 'gen-image-set') {
+    if (!hasValue(input.products)) {
+      const productUrls = uniqueUrls([
+        ...readRawUrls(input.product_images),
+        ...splitList(firstString(kwargs['product-images'])),
+        ...readRawUrls(input.product),
+        ...splitList(firstString(kwargs.product)),
+      ]);
+      if (productUrls.length > 0) input.products = productUrls;
+    }
+    if (!hasValue(input.requirements)) applyScalar(input, 'requirements', firstString(kwargs.requirements, kwargs.prompt));
+    delete input.product;
+    delete input.product_images;
+    delete input.template;
+    delete input.image_group_type;
   }
 
   if (appId === 'gen-reference') {
@@ -517,7 +573,7 @@ function fieldBoost(field: string, appId: AppId): number {
   if (field === 'actions' && appId === 'change-action') return 0.6;
   if (field === 'scene' && ['change-product', 'change-background'].includes(appId)) return 0.3;
   if (field === 'template' && appId === 'gen-main') return 0.25;
-  if (field === 'template' && appId === 'replica-listing-image') return 0.6;
+  if (field === 'reference_images' && appId === 'replica-listing-image') return 0.8;
   if (field === 'product_and_attrs' && ['gen-details', 'details-selling-points', 'add-selling-points'].includes(appId)) return 0.4;
   if (field === 'angles' && appId === 'gen-multi-angles') return 0.8;
   if (field === 'product_and_size_chart' && appId === 'gen-size-compare') return 0.8;
@@ -540,7 +596,11 @@ function semanticBoost(appId: AppId, intent: string, input: Record<string, unkno
     boost += 0.35;
     reasons.push('product with ecommerce/platform intent');
   }
-  if (appId === 'replica-listing-image' && hasProduct && (hasTemplate || hasAny(intent, ['参考生套图', '套图', 'listing', '详情页', 'a+']))) {
+  if (appId === 'gen-image-set' && hasProduct && hasAny(intent, ['商品套图', '产品套图', '生套图', '电商套图', '整套图', '一整套商品图'])) {
+    boost += 0.9;
+    reasons.push('product with image set intent');
+  }
+  if (appId === 'replica-listing-image' && hasProduct && (hasTemplate || hasReferenceImages || hasAny(intent, ['参考生套图', '参考套图', '按参考图做套图', '参考图套图']))) {
     boost += 0.6;
     reasons.push('structured product with listing reference intent');
   }
@@ -594,6 +654,25 @@ function inferResolution(text: string): string | undefined {
 function inferImageGroupType(text: string): string | undefined {
   if (hasAny(text, ['detail', '详情', 'a+', 'a+图'])) return 'Detail';
   if (hasAny(text, ['listing', '套图'])) return 'Listing';
+  return undefined;
+}
+
+function inferImageSetPreset(text: string): string | undefined {
+  if (hasAny(text, ['完整套图', '全套图', 'full'])) return 'full';
+  if (hasAny(text, ['细节强化', '细节套图', 'detail-heavy'])) return 'detail-heavy';
+  if (hasAny(text, ['场景强化', '场景套图', 'scene-heavy'])) return 'scene-heavy';
+  if (hasAny(text, ['标准套图', '标准', 'standard'])) return 'standard';
+  return undefined;
+}
+
+function inferModuleCount(text: string, labels: string[]): string | undefined {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const after = text.match(new RegExp(`${escaped}\\s*(\\d{1,2})\\s*(?:张|个|幅)?`));
+    if (after?.[1]) return after[1];
+    const before = text.match(new RegExp(`(\\d{1,2})\\s*(?:张|个|幅)?\\s*${escaped}`));
+    if (before?.[1]) return before[1];
+  }
   return undefined;
 }
 

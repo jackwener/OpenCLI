@@ -19,6 +19,7 @@ export const WORKFLOW_PROFILES = {
   'change-background': workflowProfile('change-background', '69cb69222a1008a8834cfe60', '694e206fc1c0b24dc831ad8b'),
   'gen-main': workflowProfile('gen-main', '694cb52eb7c2c3990ca7e9b7', '694e206fc1c0b24dc831ad8b'),
   'replica-listing-image': workflowProfile('replica-listing-image', '69785a42a065c9922a4b5e5f', '69785a42a065c9922a4b5e5f'),
+  'gen-image-set': workflowProfile('gen-image-set', 'app-factory-direct-gen-image-set', 'app-factory-direct-gen-image-set'),
   'gen-scene': workflowProfile('gen-scene', '694cb7f4b7c2c3990ca7f709', '694e206fc1c0b24dc831ad8b'),
   'gen-details': workflowProfile('gen-details', '694e63e8c1c0b24dc8337f72', '694e7d10c83c43d81d214a92'),
   'details-selling-points': workflowProfile('details-selling-points', '694e47f0b7c2c3990cabaadb', '694e7d10c83c43d81d214a92'),

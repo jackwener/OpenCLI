@@ -13,6 +13,7 @@ export const APP_IMAGE_KIND: Record<string, string> = {
   'change-background': 'scene',
   'gen-main': 'main',
   'replica-listing-image': 'main',
+  'gen-image-set': 'main',
   'gen-scene': 'scene',
   'gen-details': 'detail',
   'details-selling-points': 'detail',

@@ -3,6 +3,9 @@ import { CliError } from '@jackwener/opencli/errors';
 import { INPUT_ARGS, WORKFLOW_ARGS } from './common.js';
 import { executeGenerate } from './engine.js';
 import { assertRunnablePlan, buildImageAppPlan, RUN_EXTRA_ARGS } from './planner.js';
+import { runGenReference } from './gen-reference-runner.js';
+import { runGenImageSet } from './gen-image-set-runner.js';
+import { runReplicaListingImage } from './replica-listing-runner.js';
 
 cli({
   site: 'maybeai-image-app',
@@ -31,6 +34,9 @@ cli({
       );
     }
     assertRunnablePlan(plan);
+    if (plan.selectedApp === 'gen-reference') return runGenReference(plan.input, kwargs);
+    if (plan.selectedApp === 'gen-image-set') return runGenImageSet(plan.input, kwargs);
+    if (plan.selectedApp === 'replica-listing-image') return runReplicaListingImage(plan.input, kwargs);
     return executeGenerate(plan.selectedApp, plan.input, kwargs, !!kwargs.debug);
   },
 });
