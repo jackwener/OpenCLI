@@ -24,6 +24,7 @@ describe('twitter quote helpers', () => {
         expect(() => __test__.buildQuoteComposerUrl('not a url')).toThrow(/Invalid tweet URL/);
         expect(() => __test__.buildQuoteComposerUrl('https://evil.com/?next=https://x.com/alice/status/2040254679301718161')).toThrow(ArgumentError);
     });
+
 });
 
 describe('twitter quote command', () => {
@@ -54,6 +55,9 @@ describe('twitter quote command', () => {
         expect(script).toContain('tweetButton');
         expect(script).toContain('__twHasLinkToTarget(document)');
         expect(script).toContain('__twGetStatusIdFromHref');
+        expect(script).toContain('retryWithMenuFallback');
+        expect(script).toContain('Quote target did not render in the dedicated composer; retrying through the repost menu.');
+        expect(script).toContain('Quote target did not render after opening the quote composer from the repost menu.');
         expect(script).toContain('Quote tweet submission did not complete before timeout');
         expect(script).toContain('[role="alert"], [data-testid="toast"]');
         expect(result).toEqual([
@@ -152,11 +156,45 @@ describe('twitter quote command', () => {
         })).rejects.toThrow(CommandExecutionError);
     });
 
-    it('returns a failed row when the quote target fails to render', async () => {
+    it('falls back to the target tweet repost menu when the dedicated composer misses the quote card', async () => {
         const cmd = getRegistry().get('twitter/quote');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
-            { ok: false, message: 'Quote target did not render in the composer. The source tweet may be deleted or restricted.' },
+            { ok: false, retryWithMenuFallback: true, message: 'Quote target did not render in the dedicated composer; retrying through the repost menu.' },
+            { ok: true },
+            { ok: true, message: 'Quote tweet posted successfully.' },
+        ]);
+        const result = await cmd.func(page, {
+            url: 'https://x.com/alice/status/2040254679301718161',
+            text: 'real quote',
+        });
+        expect(page.goto).toHaveBeenNthCalledWith(
+            2,
+            'https://x.com/alice/status/2040254679301718161',
+            { waitUntil: 'load', settleMs: 2500 },
+        );
+        const fallbackScript = page.evaluate.mock.calls[1][0];
+        expect(fallbackScript).toContain("targetArticle?.querySelector('[data-testid=\"retweet\"], [data-testid=\"unretweet\"]')");
+        expect(fallbackScript).toContain('quoteItem.click()');
+        expect(fallbackScript).toContain('Repost menu opened but the Quote option did not appear.');
+        expect(result).toEqual([
+            {
+                status: 'success',
+                message: 'Quote tweet posted successfully.',
+                text: 'real quote',
+            },
+        ]);
+        expect(page.wait).toHaveBeenNthCalledWith(2, { selector: '[data-testid="primaryColumn"]', timeout: 15 });
+        expect(page.wait).toHaveBeenNthCalledWith(3, { selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
+        expect(page.wait).toHaveBeenNthCalledWith(4, 3);
+    });
+
+    it('returns a failed row when both quote composer paths miss the quote target', async () => {
+        const cmd = getRegistry().get('twitter/quote');
+        const page = createPageMock([
+            { ok: false, retryWithMenuFallback: true, message: 'Quote target did not render in the dedicated composer; retrying through the repost menu.' },
+            { ok: true },
+            { ok: false, message: 'Quote target did not render after opening the quote composer from the repost menu.' },
         ]);
         const result = await cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
@@ -165,12 +203,10 @@ describe('twitter quote command', () => {
         expect(result).toEqual([
             {
                 status: 'failed',
-                message: 'Quote target did not render in the composer. The source tweet may be deleted or restricted.',
+                message: 'Quote target did not render after opening the quote composer from the repost menu.',
                 text: 'orphaned quote',
             },
         ]);
-        // Only the textarea wait should run when ok is false (no extra 3s post-submit wait).
-        expect(page.wait).toHaveBeenCalledTimes(1);
     });
 
     it('throws CommandExecutionError when no page is provided', async () => {
