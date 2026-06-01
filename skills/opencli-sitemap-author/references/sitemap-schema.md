@@ -4,6 +4,30 @@
 
 进入条件：先读 `SKILL.md` 拿到 framing（task execution graph for agents）和两层存储模型。本文件展开**怎么写得对**。
 
+## v1.1 changelog（vs v1）
+
+12 patches，按主题分 3 组。验证基础：twitter PoC（12 files / opencli-user）+ hackernews PoC（10 files / opencli-质量官）双站。
+
+**Group 1 — Scope/boundary**（clarifications，不改 format）
+1. §1.1 双语 / CJK token-per-char 比 English 高 30-50%，必要时拆 sub-file（不放宽 800）
+2. §2.1 `auth_strategy` 取主体不取并集；例外靠 page-level `contract_strength` 区分
+3. §2.5 `pitfalls.md` 只 task-executor 级；adapter-internal 坑回 `notes.md`
+4. §2.5 pitfall id / trigger / workaround 全部 **task-executor 第一人称**视角
+5. §2.4 `apis.md` entry 加 optional `notes:` 字段（GraphQL queryId path 等 meta）
+6. §2.2 page `Linked APIs` 收集中可留空，**不要塞 fake id**
+
+**Group 2 — Reuse/compactness**（结构变化）
+7. §2.2 + §4 partial 页面语义：`page_id` 以 `_` 前缀 + `url_patterns: []`，跨页通用 UI 抽到 partial
+8. §3 action schema 加 Form B compact YAML（~80 token / action vs Form A markdown ~250）
+9. §3 drop action-level `verified_at` / `source`，继承文件 frontmatter
+
+**Group 3 — Execution health/anchors**（action-level 语义）
+10. §3.3 跨页 UI 原语 action 允许 adapter-first + DOM fallback 在单个 action 内（不强抬到 workflow 层）
+11. §3.4 Recovery 加 `adapter_health_update:` directive + skill 实现 health 写回闭环
+12. §2.2 `testid` 标 optional；`selector_pattern` 一等 anchor + 列 5 种合法形态 + 禁 `nth-child` / 单 class / 文案 selector
+
+详细内容见各 section。
+
 ---
 
 ## 1. 文件层约束
@@ -17,6 +41,7 @@
 实操：
 - 一个 page 有 > 8 个 action → 拆 `pages/<page>/index.md` + `pages/<page>/actions/<group>.md`
 - 一个 workflow 步骤多 → 拆主线 + `workflows/<task>/sub/<step>.md`
+- **双语 / CJK 内容 token-per-char 比 English 高 30-50%**：CJK 单字 ~0.7-1 token，加上术语混排实测一个 1.5KB 中文 markdown 文件就 ~1000 token。**必要时拆 sub-file 而非放宽 800 限制** — 软 target 必然漂，一年后会变 3000，lazy load 失效
 
 ### 1.2 Frontmatter（每文件必填）
 
@@ -73,6 +98,8 @@ auth_strategy: COOKIE_API   # 引用 strategy-selection.md ladder
 
 `auth_strategy` 取值：`PUBLIC_API | COOKIE_API | PAGE_FETCH | INTERCEPT | DOM_STATE | UI_SELECTOR`，定义见 [`../../opencli-adapter-author/references/strategy-selection.md`](../../opencli-adapter-author/references/strategy-selection.md)。
 
+**取主体不取并集**：`auth_strategy` 单值，覆盖该站绝大多数请求的策略。少数例外（如 twitter 公开 profile 可裸 fetch，主体仍是 COOKIE_API）在对应 page 的 `Linked APIs` section 里逐条标 `contract_strength` 区分，不靠 frontmatter 表达。array form 加复杂度无收益。
+
 ### 2.2 `pages/<page-id>.md`
 
 ```yaml
@@ -92,6 +119,8 @@ source: local
 - a11y: role=main, name="Home timeline"
 - text: "What's happening?" (compose prompt)
 - pattern: feed items have role=article
+- testid: [data-testid="primaryColumn"]   # optional - 新站常用，老站可省
+- selector_pattern: tr.athing + tr.subtext  # optional - structural / attribute selector，无 testid 的老站常用
 
 ## Actions on this page
 <可执行 action，按 stable id 命名>
@@ -119,6 +148,51 @@ source: local
 **Frontmatter required**: `page_id`, `url_patterns` (array), `purpose`
 
 `page_id` 必须 stable — 不依赖 URL params / locale / A/B variant。命名建议 `home / search / profile / compose / settings` 这类语义化。
+
+#### Visual anchors 类型（5 种）
+
+| 类型 | 何时用 | 例 |
+|---|---|---|
+| `a11y` | 现代站，role + name 稳定的 | `role=button name="Post"` |
+| `text` | 站点文案不漂的（少见，i18n 风险）| `"What's happening?"` |
+| `pattern` | 多元素重复模式 | `feed items have role=article` |
+| `testid` | **Optional** — 新站约定 `data-testid="..."` 的（Twitter / React 系新站常见）| `[data-testid="tweetTextarea_0"]` |
+| `selector_pattern` | **Optional, 但旧站必填**：structural / attribute selector，无 testid 时的稳定 fallback | `tr.athing[id="<id>"] + tr` |
+
+`testid` 不存在的老站（HackerNews / 论坛系 / 政府站）`selector_pattern` 是一等 anchor 类型，不视为降级。a11y + selector_pattern 组合通常比 text 更稳。
+
+`selector_pattern` 的合法形态（按稳定性降序）：
+
+| 形态 | 例 | 何时用 |
+|---|---|---|
+| **id-anchored** | `tr.athing[id="<id>"]` | 元素有 stable id（HN story / DOM-stable comment 行） |
+| **sibling traversal** | `tr.athing + tr.subtext`, `~ a.morelink` | 元素本身无 stable handle，但 sibling 关系稳定 |
+| **attribute boundary** | `a[href^="item?id="]`, `a[href*="/status/"]` | 元素靠 URL pattern 区分（HN comments link / Twitter status link） |
+| **form name** | `input[name="title"]`, `textarea[name="text"]` | 老式 form，`name` attribute 几乎不漂 |
+| **ARIA** | `[role="article"]`, `[aria-label*="..."]` | semantic 锚点，跟 `a11y` 重叠但当 a11y 不够时 selector form 仍可作 anchor |
+
+**Discouraged**（高危 anchor）：
+
+- ❌ `tr.athing:nth-child(<rank>)` — rank ↔ nth-child 在多 row 模式下不等价（HN athing + subtext 双 row 就破了）
+- ❌ 单 class 抓（`.tweet`）— 同 class 多元素时点错
+- ❌ 文案 selector（`a:contains("Post")`）— i18n / rebrand 漂
+
+这些会触发 "verify 通过但点错 element" silent failure，**禁止**作为 stable anchor。
+
+#### `Linked APIs` 可留空
+
+`Linked APIs` 引用的 `endpoint_id` 必须存在于 `apis.md`（间接也在 `endpoints.json`）。如果该站 `endpoints.json` 还在收集中（如 twitter 32+ GraphQL operation 大部分没登记），page `Linked APIs` 留空合理，**不要塞 fake id 占位**。后续 adapter-author 补 `endpoints.json` 后再回填。
+
+#### Partial 页面（跨页通用 UI）
+
+跨页通用 UI（如 tweet card 在 home / profile / status / notifications / bookmarks 都出现）抽到 partial 文件：
+
+- `page_id` 前缀 `_`（如 `_tweet_card`）标识为 partial
+- `url_patterns: []`（空数组，表示无独立 URL）
+- 其他 page 通过 `action:<id> in pages/_tweet_card.md` reference 这里的 action
+- partial 文件不算独立 page，但 schema 字段结构跟正常 page 一样
+
+避免在多 page 复制相同 action，违反 SoT；也避免 arbitrary 把跨页 UI 塞给某个具体 page "拥有"。
 
 ### 2.3 `workflows/<task-id>.md`
 
@@ -209,6 +283,7 @@ source: local
 - triggers_on_pages: [home]
 - triggered_by_actions: [page_load, scroll_for_more]
 - contract_strength: internal-unstable
+- notes: GraphQL /i/api/graphql/{queryId}/HomeTimeline   # optional - meta 信息（queryId 路径 / 已知 schema 变化）
 
 ### endpoint:search_typeahead
 - triggers_on_pages: [search]
@@ -226,6 +301,9 @@ source: local
 - `triggers_on_pages` — array of `page_id`
 - `triggered_by_actions` — array of `action:<stable-id>`
 - `contract_strength` — `stable | visible-ui | internal-unstable`，定义见 `strategy-selection.md`
+
+**Optional per entry**:
+- `notes` — meta 信息（GraphQL queryId path、已知 schema 变化、特殊 auth 头）。**不要**复制 endpoint URL / method / params / response shape — 那些只在 `endpoints.json`
 
 **Forbidden**:
 - Endpoint URL / method / params / response shape（这些只在 `endpoints.json` 单一来源）
@@ -264,17 +342,46 @@ verified_at: 2026-06-01
 ```
 
 **Required per entry**:
-- `pitfall_id` — stable id
-- `trigger` — what causes this
+- `pitfall_id` — stable id, **第一人称 task-executor 视角**（"agent 调命令时会撞到" 视角，不是 "实现 adapter 的人会撞到" 视角）
+- `trigger` — what causes this，从 task-executor 视角描述（"agent 想做 X 时" 而非 "adapter 实现里有 Y bug"）
 - `symptom` — how agent observes the failure
-- `workaround` — what to do instead
+- `workaround` — what to do instead，task-executor 可执行（不是 "修 adapter"）
 - `verified_at` — when last seen
+
+#### Scope（避免 sitemap 变杂物间）
+
+`pitfalls.md` 只放 **task-executor 级**坑 — 跑命令 / 操作页面会撞到的坑。**adapter-internal 实现坑**（queryId 解析 / envelope unwrap / bigint id / 字段 silent rename）放在 `~/.opencli/sites/<site>/notes.md`，不进 sitemap。
+
+判断标准：
+
+| 坑的修复者是谁 | 落地 |
+|---|---|
+| 跑命令的 agent（标 `adapter_health=suspect` / 切 Fallback path / 等 cooldown） | `pitfalls.md`（task-executor 级） |
+| 写 adapter 的 agent（改解析逻辑 / 升级 queryId / 改字段路径） | `notes.md`（adapter-internal） |
+
+反例（**不要**写进 pitfalls.md）：
+
+```md
+### pitfall:queryid_rotation_breaks_adapter        # ❌ adapter-internal naming
+- trigger: adapter 调 cookie-API endpoint，queryId 已 rotation   # ❌ adapter 视角
+- workaround: adapter 升级 queryId path                          # ❌ task-executor 做不了
+```
+
+正例：
+
+```md
+### pitfall:adapter_returns_empty_after_api_drift   # ✅ task-executor naming
+- trigger: Best path adapter 返回 typed error 或空 result        # ✅ agent 视角
+- workaround: 标 workflow adapter_health=suspect 走 Fallback path # ✅ task-executor 可执行
+```
 
 ---
 
 ## 3. Action Schema（pages 内）
 
-每个 page 的 actions section 包含若干 action 节点。每个 action 必填字段：
+每个 page 的 actions section 包含若干 action 节点。**两种合法 form**，作者按需选：
+
+#### Form A: Markdown 详尽（适合复杂 action / 第一次编写）
 
 ```md
 ### action:<stable-id>
@@ -293,17 +400,36 @@ Failure signals:
 
 Recovery:
 - <fallback action / re-state / re-find instruction>
+- adapter_health_update: <adapter command> -> suspect    # OPTIONAL — see §3.3
 
 State signature:                          # OPTIONAL — for multi-step internal recovery
   url_pattern: <regex or exact match>
   dom_anchor: <a11y role+name OR semantic selector>
 
 Evidence:
-- verified_at: YYYY-MM-DD
 - observed_with: opencli browser <session> <command>
 - trace: <path to trace artifact, optional>
-- source: local | global
 ```
+
+#### Form B: Compact YAML（首选，~80 token / action vs Markdown ~250）
+
+```yaml
+### action:<stable-id>
+pre: <current page / state / auth requirements>
+do: <agent action, adapter or semantic browser command>
+post: <URL / state / output that proves success>
+fail: <failure signal 1> | <signal 2> | <signal 3>
+recover: <fallback instruction>; adapter_health_update: <adapter> -> suspect
+evidence: opencli browser <cmd>
+```
+
+字段语义完全等价，pipe `|` 分隔多 failure signal，semicolon `;` 分隔多 recovery 指令。可读性可机器 parse 双向都好。**推荐 Form B**，密集站避免 verbose markdown 把 page 撑爆。
+
+#### `verified_at` 由文件级 frontmatter `last_verified` 继承
+
+**Form A / B 都不写 action-level `verified_at`** — 文件 frontmatter `last_verified` 已经覆盖该文件所有 action 的最新验证日期。重复写既是冗余又是 drift 源（10 个 action 各自 `verified_at: 2026-06-02` 改时容易漏 1-2 个）。
+
+`source: local | global` 也不在 action 内重复 — 文件位置已隐含。Form A 旧 `Evidence` block 简化为 `observed_with` + optional `trace`，丢 `verified_at` / `source`。
 
 ### 3.1 字段说明
 
@@ -326,6 +452,7 @@ Evidence:
 **Recovery**：失败时该做什么。
 - 链到 fallback path（"use action `mobile_compose` from pages/mobile-home.md"）
 - 或回 探测模式（"re-run `find` for 'Post' button with a11y role=button"）
+- 可含 `adapter_health_update:` directive（见 §3.3）
 
 **State signature**（OPTIONAL）：用于 action **内部多步骤**的 mid-flight re-entry。
 - 简单 action（单 click）不需要
@@ -333,16 +460,57 @@ Evidence:
 - 跟 workflow 级 state signature 区分：workflow signature 是 "走到 workflow 第几步"，action signature 是 "action 内部第几步"
 
 **Evidence**：trust gate — 没 evidence 的 action 不能 promote 到 global。
-- `verified_at`：最近验证日期
 - `observed_with`：当时跑的命令（用于复现）
 - `trace`：optional，对复杂 action 建议附 trace artifact 路径
-- `source`：`local` 或 `global`
+- `verified_at` 不写在 action 里 — 继承文件 frontmatter `last_verified`
+- `source` 不写在 action 里 — 文件位置已隐含
 
 ### 3.2 Action id 命名约定
 
 - 动词 + 名词：`open_compose / submit_post / scroll_for_more / dismiss_modal`
 - 不要 page-prefix：action 默认作用域是它所在的 page，不要写 `home_open_compose`
 - stable：跨 URL params / locale / A/B variant 都应稳定
+
+### 3.3 Action-level adapter-first 模式（跨页 UI 原语）
+
+对**跨页 UI 原语 action**（一般在 partial 里，如 `_tweet_card.md` 的 `like_tweet / repost_tweet / bookmark_tweet`），允许 `Do` 字段写 adapter-first + DOM fallback 二选一，**无需借 workflow 层 Best/Fallback 抬出去**：
+
+```yaml
+### action:like_tweet
+pre: card visible AND (tweet_url known OR card permalink anchor extractable)
+do: opencli twitter like <tweet-url>; OR (within card scope) click [data-testid="like"]
+post: testid 翻转 like -> unlike，icon 红色
+fail: testid 不变 | 弹 login modal
+recover: adapter_health_update: opencli twitter like -> suspect; dom_click within card scope
+evidence: opencli twitter like + opencli browser click
+```
+
+两层 routing 不冲突：
+
+- **workflow 层** `Best path / Fallback path` 处理"task 级别"（发推 vs 浏览 vs 搜索）
+- **action 层** adapter-first 处理"UI 原语级别"（点 like 按钮）
+
+不要为了 schema 纯粹性把 `like_tweet` 这种**单原子点击但 adapter 比 DOM 稳**的 action 强行抬到 workflow 层 — 那会让"喜欢一条推文"变成一个独立 workflow，跟实际 task 颗粒度脱节。
+
+### 3.4 `adapter_health_update` directive
+
+action `Recovery` 字段可包含 directive：
+
+```
+adapter_health_update: <adapter command> -> suspect | broken
+```
+
+语义：当**本 action 因为该 adapter 失败而触发 Recovery**时，consumption skill（`opencli-browser-sitemap`）必须：
+
+1. 在 local overlay 找到 reference 该 adapter 的 workflow（一般是 `Best path: adapter: <adapter command>` 的那条）
+2. 改写 workflow 的 `adapter_health` 为 directive 指定的等级
+3. **下个 agent** 读 workflow 看到 `adapter_health=suspect` → 直接走 Fallback path，不再盲 retry adapter
+
+这是 action 失败的**写侧闭环** — agent 失败后回写健康状态，避免下个 agent 重栽。
+
+不写 directive 时，Recovery 只指导当前 agent 怎么 fallback，不影响其他 agent。带 directive = "我栽了，让我把这事告诉以后的 agent"。
+
+**实现责任**：在 `opencli-browser-sitemap` skill 的 consumption loop 里。Schema 这里只 spec directive 格式，不 spec 实现细节。
 
 ---
 
@@ -355,6 +523,7 @@ sitemap 内部多文件互相引用。引用格式：
 | 引用 page | `pages/<page-id>.md` | `see pages/home.md` |
 | 引用 workflow | `workflows/<task-id>.md` | `see workflows/publish-post.md` |
 | 引用 action | `action:<stable-id> in pages/<page>.md` | `use action open_compose in pages/home.md` |
+| 引用 partial action | `action:<stable-id> in pages/_<partial>.md` | `use action like_tweet in pages/_tweet_card.md` |
 | 引用 endpoint | `endpoint:<endpoint-id> in apis.md` | `triggers endpoint:timeline_v2` |
 | 引用 pitfall | `pitfall:<pitfall-id> in pitfalls.md` | `see pitfall:login_wall_on_search` |
 | 引用 endpoints.json | endpoint_id 直接出现，假定 `endpoints.json` 有同 id | `endpoint_id: timeline_v2` |
