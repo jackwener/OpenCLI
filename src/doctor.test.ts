@@ -49,7 +49,7 @@ describe('doctor report rendering', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindShadowedUserAdapters.mockReturnValue([]);
-    // Doctor always runs live connectivity. Tests that want connect to fail override.
+    // Doctor falls back to a live browser command only when status is not ready.
     mockConnect.mockResolvedValue({
       evaluate: vi.fn().mockResolvedValue(2),
       closeWindow: vi.fn().mockResolvedValue(undefined),
@@ -181,7 +181,9 @@ describe('doctor report rendering', () => {
 
   it('reports daemon not running when connectivity fails and daemon stays stopped', async () => {
     mockConnect.mockRejectedValueOnce(new Error('Could not start daemon'));
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
+    mockGetDaemonHealth
+      .mockResolvedValueOnce({ state: 'stopped', status: null })
+      .mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor();
 
@@ -194,7 +196,9 @@ describe('doctor report rendering', () => {
   });
 
   it('reports flapping when live check succeeds but final status shows extension disconnected', async () => {
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+    mockGetDaemonHealth
+      .mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } })
+      .mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
 
     const report = await runBrowserDoctor();
 
@@ -207,7 +211,9 @@ describe('doctor report rendering', () => {
   });
 
   it('reports daemon flapping when live check succeeds but daemon disappears afterward', async () => {
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
+    mockGetDaemonHealth
+      .mockResolvedValueOnce({ state: 'stopped', status: null })
+      .mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor();
 
@@ -231,7 +237,9 @@ describe('doctor report rendering', () => {
         closeWindow,
       };
     });
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'ready', status: { extensionConnected: true } });
+    mockGetDaemonHealth
+      .mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } })
+      .mockResolvedValueOnce({ state: 'ready', status: { extensionConnected: true } });
 
     await runBrowserDoctor();
 
@@ -328,7 +336,9 @@ describe('doctor report rendering', () => {
 
   it('reads daemon health for the resolved default profile after live connectivity succeeds', async () => {
     mockResolveProfileContextId.mockReturnValue('work');
-    mockGetDaemonHealth.mockResolvedValueOnce({
+    mockGetDaemonHealth
+      .mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } })
+      .mockResolvedValueOnce({
       state: 'ready',
       status: {
         contextId: 'work',
@@ -349,5 +359,24 @@ describe('doctor report rendering', () => {
     expect(report.issues).not.toEqual(expect.arrayContaining([
       expect.stringContaining('Extension connection is unstable'),
     ]));
+  });
+
+  it('does not open a live browser page when selected profile status is already ready', async () => {
+    mockResolveProfileContextId.mockReturnValue('work');
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'ready',
+      status: {
+        contextId: 'work',
+        extensionConnected: true,
+        extensionVersion: '1.2.3',
+      },
+    });
+
+    const report = await runBrowserDoctor();
+
+    expect(mockGetDaemonHealth).toHaveBeenCalledWith({ contextId: 'work' });
+    expect(mockConnect).not.toHaveBeenCalled();
+    expect(report.connectivity?.ok).toBe(true);
+    expect(report.extensionConnected).toBe(true);
   });
 });
