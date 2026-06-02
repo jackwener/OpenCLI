@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "notes": "Neutral starter RSS registry for the daily-brief generator. Higher base_weight means stronger source prior; final inclusion still depends on freshness, keyword match, novelty, and relevance to the user's selected topic/profile. Users can append their own feeds and scoring terms with .daily-brief/config/rss-feeds.json.",
+  "priority_keywords": {
+    "breaking": 2.2,
+    "update": 1.4,
+    "launch": 1.8,
+    "release": 1.8,
+    "announcement": 1.4,
+    "analysis": 1.6,
+    "research": 1.8,
+    "report": 1.7,
+    "study": 1.6,
+    "data": 1.4,
+    "trend": 1.5,
+    "market": 1.2,
+    "policy": 1.5,
+    "regulation": 1.7,
+    "security": 1.8,
+    "privacy": 1.6,
+    "open source": 1.5,
+    "tutorial": 1.2,
+    "guide": 1.1,
+    "case study": 1.5,
+    "interview": 1.2,
+    "roadmap": 1.4,
+    "changelog": 1.4,
+    "benchmark": 1.4,
+    "事件": 1.5,
+    "发布": 1.8,
+    "更新": 1.4,
+    "研究": 1.8,
+    "报告": 1.7,
+    "数据": 1.4,
+    "趋势": 1.5,
+    "政策": 1.5,
+    "监管": 1.7,
+    "安全": 1.8,
+    "隐私": 1.6,
+    "开源": 1.5,
+    "案例": 1.4
+  },
+  "downrank_keywords": {
+    "sponsored": -2.0,
+    "sponsored content": -2.5,
+    "advertisement": -2.0,
+    "giveaway": -2.0,
+    "roundup": -0.8,
+    "weekly links": -0.6,
+    "press release": -1.4,
+    "appoints": -1.0,
+    "deal roundup": -1.0,
+    "水贴": -1.6,
+    "摸鱼": -1.2,
+    "抽奖": -2.0,
+    "广告": -2.0,
+    "软文": -2.0
+  },
+  "feeds": [
+    {
+      "name": "Hacker News Front Page",
+      "url": "https://hnrss.org/frontpage",
+      "category": "technology-community",
+      "base_weight": 7.0,
+      "max_items": 20
+    },
+    {
+      "name": "Hacker News Best",
+      "url": "https://hnrss.org/best",
+      "category": "technology-community",
+      "base_weight": 6.5,
+      "max_items": 15
+    },
+    {
+      "name": "GitHub Blog",
+      "url": "https://github.blog/feed/",
+      "category": "software",
+      "base_weight": 6.0,
+      "max_items": 8
+    },
+    {
+      "name": "GitHub Changelog",
+      "url": "https://github.blog/changelog/feed/",
+      "category": "software",
+      "base_weight": 6.0,
+      "max_items": 10
+    },
+    {
+      "name": "The Pragmatic Engineer",
+      "url": "https://newsletter.pragmaticengineer.com/feed",
+      "category": "software-engineering",
+      "base_weight": 6.5,
+      "max_items": 6
+    },
+    {
+      "name": "Daring Fireball",
+      "url": "https://daringfireball.net/feeds/main",
+      "category": "technology-analysis",
+      "base_weight": 5.5,
+      "max_items": 8
+    },
+    {
+      "name": "Krebs on Security",
+      "url": "https://krebsonsecurity.com/feed/",
+      "category": "security",
+      "base_weight": 6.5,
+      "max_items": 8
+    },
+    {
+      "name": "Trail of Bits Blog",
+      "url": "https://blog.trailofbits.com/feed/",
+      "category": "security",
+      "base_weight": 6.0,
+      "max_items": 8
+    },
+    {
+      "name": "Ars Technica",
+      "url": "https://feeds.arstechnica.com/arstechnica/index",
+      "category": "technology-news",
+      "base_weight": 6.2,
+      "max_items": 12
+    },
+    {
+      "name": "Wired",
+      "url": "https://www.wired.com/feed/rss",
+      "category": "technology-culture",
+      "base_weight": 5.8,
+      "max_items": 10
+    },
+    {
+      "name": "The Verge",
+      "url": "https://www.theverge.com/rss/index.xml",
+      "category": "technology-news",
+      "base_weight": 5.6,
+      "max_items": 10
+    },
+    {
+      "name": "BBC World",
+      "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "category": "world-news",
+      "base_weight": 5.6,
+      "max_items": 12
+    },
+    {
+      "name": "NPR News",
+      "url": "https://feeds.npr.org/1001/rss.xml",
+      "category": "news",
+      "base_weight": 5.4,
+      "max_items": 12
+    },
+    {
+      "name": "The Guardian World",
+      "url": "https://www.theguardian.com/world/rss",
+      "category": "world-news",
+      "base_weight": 5.4,
+      "max_items": 12
+    },
+    {
+      "name": "Nature",
+      "url": "https://www.nature.com/nature.rss",
+      "category": "science",
+      "base_weight": 6.2,
+      "max_items": 10
+    },
+    {
+      "name": "ScienceDaily Top News",
+      "url": "https://www.sciencedaily.com/rss/top.xml",
+      "category": "science",
+      "base_weight": 5.6,
+      "max_items": 12
+    },
+    {
+      "name": "Product Hunt Daily",
+      "url": "https://www.producthunt.com/feed",
+      "category": "products",
+      "base_weight": 6.0,
+      "max_items": 20
+    },
+    {
+      "name": "Y Combinator Blog",
+      "url": "https://www.ycombinator.com/blog/rss",
+      "category": "startups",
+      "base_weight": 6.0,
+      "max_items": 12
+    },
+    {
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "category": "technology-business",
+      "base_weight": 5.4,
+      "max_items": 12
+    },
+    {
+      "name": "Stratechery",
+      "url": "https://stratechery.com/feed/",
+      "category": "business-strategy",
+      "base_weight": 6.0,
+      "max_items": 5
+    }
+  ]
+}
