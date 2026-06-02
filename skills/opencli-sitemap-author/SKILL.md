@@ -36,6 +36,8 @@ sitemap/
 
 `references/sitemap-schema.md` §1.1 spec 硬 800 token，但 PoC 实测简单站单 page 1-2 action 自然落到 800-2000 token。强拆反碎，author 用下表决策：
 
+> spec 800 是 lazy-load 优化目标 + Phase 2 audit 阈值；下表是 author 实战决策辅助，**不替代 spec hard 限制**。超 800 的文件 audit 会 flag，author 解释（"5 个 cohesive UI primitive 一起放"）或拆。
+
 | 文件 token | 决策 |
 |---|---|
 | < 1500 | 自然 size，不动 |
