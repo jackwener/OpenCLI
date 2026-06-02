@@ -1,5 +1,5 @@
 const DAEMON_PORT = 19825;
-const DAEMON_HOST = "localhost";
+const DAEMON_HOST = "127.0.0.1";
 const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
 const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
 const WS_RECONNECT_BASE_DELAY = 2e3;
