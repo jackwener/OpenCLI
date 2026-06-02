@@ -1205,7 +1205,7 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
         };
       }
       await focusOwnedWindowIfRequested(container.windowId, mode);
-      const initialTabId2 = await findReusableOwnedContainerTab(container.windowId);
+      const initialTabId2 = await findReusableOwnedContainerTab(container.windowId, null);
       const createdGroup = await ensureOwnedContainerGroup(role, container.windowId, [initialTabId2]);
       if (createdGroup) {
         return {
@@ -1270,7 +1270,7 @@ async function findReusableOwnedContainerTab(windowId, ownedGroupId) {
   try {
     const tabs = await chrome.tabs.query({ windowId });
     const reusable = tabs.find(
-      (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && isDebuggableUrl(tab.url) && (ownedGroupId === void 0 || tab.groupId === ownedGroupId || !isSafeNavigationUrl(tab.url ?? ""))
+      (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && isDebuggableUrl(tab.url) && (ownedGroupId === void 0 || ownedGroupId !== null && tab.groupId === ownedGroupId || !isSafeNavigationUrl(tab.url ?? ""))
     );
     return reusable?.id;
   } catch {
@@ -1641,10 +1641,13 @@ async function resolveTab(tabId, leaseKey, initialUrl) {
     return createOwnedTabLease(leaseKey, initialUrl);
   }
   const windowId = await getAutomationWindow(leaseKey, initialUrl);
-  const tabs = await chrome.tabs.query({ windowId });
-  const debuggableTab = tabs.find((t) => t.id && isDebuggableUrl(t.url));
-  if (debuggableTab?.id) return { tabId: debuggableTab.id, tab: debuggableTab };
-  const reuseTab = tabs.find((t) => t.id);
+  const role = getOwnedWindowRole(leaseKey);
+  const group = existingSession?.owned ? await ensureOwnedContainerGroup(role, windowId, []) : null;
+  const scopedWindowId = group?.windowId ?? windowId;
+  const reusableTabId = await findReusableOwnedContainerTab(scopedWindowId, existingSession?.owned ? group?.id ?? null : void 0);
+  if (reusableTabId !== void 0) return { tabId: reusableTabId, tab: await chrome.tabs.get(reusableTabId) };
+  const tabs = await chrome.tabs.query({ windowId: scopedWindowId });
+  const reuseTab = existingSession?.owned ? void 0 : tabs.find((t) => t.id);
   if (reuseTab?.id) {
     await chrome.tabs.update(reuseTab.id, { url: BLANK_PAGE });
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -1655,9 +1658,9 @@ async function resolveTab(tabId, leaseKey, initialUrl) {
     } catch {
     }
   }
-  const newTab = await chrome.tabs.create({ windowId, url: BLANK_PAGE, active: true });
+  const newTab = await chrome.tabs.create({ windowId: scopedWindowId, url: BLANK_PAGE, active: true });
   if (!newTab.id) throw new Error("Failed to create tab in automation container");
-  await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), windowId, [newTab.id]);
+  await ensureOwnedContainerGroup(role, scopedWindowId, [newTab.id]);
   return { tabId: newTab.id, tab: await chrome.tabs.get(newTab.id) };
 }
 async function pageScopedResult(id, tabId, data) {

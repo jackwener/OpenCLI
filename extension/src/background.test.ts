@@ -923,7 +923,7 @@ describe('background tab isolation', () => {
   });
 
   it('reconciles an owned container with no stored leases without closing it', async () => {
-    const { chrome } = createChromeMock();
+    const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
       opencli_target_lease_registry_v2: {
@@ -943,9 +943,12 @@ describe('background tab isolation', () => {
 
     const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'), 'https://after.example');
 
-    expect(tabId).toBe(1);
+    expect(tabId).not.toBe(1);
     expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'https://after.example' });
+    expect(tabs.find((tab) => tab.id === 1)?.url).toBe('https://automation.example');
+    expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(-1);
+    expect(tabs.find((tab) => tab.id === tabId)?.url).toBe('https://after.example');
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(groups[0]?.id);
   });
 
   it('restores owned and borrowed leases from the registry', async () => {
@@ -1411,6 +1414,32 @@ describe('background tab isolation', () => {
     expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(99);
   });
 
+  it('does not recreate a missing owned group from a user http tab in the persisted window', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v2: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1, groupId: 99 } },
+        leases: {},
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    chrome.windows.create.mockClear();
+
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'), 'https://after.example');
+
+    expect(tabId).not.toBe(1);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === 1)?.url).toBe('https://automation.example');
+    expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(-1);
+    expect(tabs.find((tab) => tab.id === tabId)?.url).toBe('https://after.example');
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(groups[0]?.id);
+  });
+
   it('prefers a discovered OpenCLI Adapter group over a stale stored window hint', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     tabs.push({
@@ -1818,6 +1847,22 @@ describe('background tab isolation', () => {
     // Should still resolve (by finding/creating a tab in the correct window)
     const tabId = await mod.__test__.resolveTabId(1, adapterKey('twitter'));
     expect(typeof tabId).toBe('number');
+  });
+
+  it('does not fall back from an owned session to a user http tab in the same window', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 3 });
+
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    expect(tabId).not.toBe(1);
+    expect(tabs.find((tab) => tab.id === 1)?.url).toBe('https://automation.example');
+    expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(-1);
+    expect(tabs.find((tab) => tab.id === tabId)?.url).toBe('about:blank');
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(groups[0]?.id);
   });
 
   it('idle timeout releases the automation lease for adapter:notebooklm', async () => {
