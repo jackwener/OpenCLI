@@ -60,6 +60,11 @@ export function stripXhsAuthorDateSuffix(value) {
     const stripped = text.replace(/\s*(?:\d{1,2}天前|\d+小时前|\d+分钟前|\d+秒前|刚刚|昨天|前天|\d+周前|\d+个月前|\d{1,2}-\d{1,2}|\d{4}-\d{1,2}-\d{1,2})$/u, '').trim();
     return stripped || text;
 }
+export function extractXhsPublishText(value) {
+    const text = (value || '').replace(/\s+/g, ' ').trim();
+    const match = text.match(/(?:\d{1,2}天前|\d+小时前|\d+分钟前|\d+秒前|刚刚|昨天(?:\s+\d{1,2}:\d{2})?|前天(?:\s+\d{1,2}:\d{2})?|\d+周前|\d+个月前|\d{1,2}-\d{1,2}|\d{4}-\d{1,2}-\d{1,2})$/u);
+    return match ? match[0] : '';
+}
 /**
  * `page.evaluate` may return either the raw IIFE value or a
  * `{ session, data }` envelope depending on the browser-bridge version.
@@ -80,6 +85,43 @@ function requireSearchRows(payload, phase) {
     }
     return rows;
 }
+function requireSortOptionIndex(payload) {
+    const result = unwrapEvaluateResult(payload);
+    if (!result || typeof result !== 'object' || result.ok !== true) {
+        const reason = result && typeof result === 'object' && 'reason' in result ? result.reason : 'unknown';
+        throw new CommandExecutionError(`Xiaohongshu search could not apply --sort latest (${reason}).`);
+    }
+    if (!Number.isSafeInteger(result.index) || result.index < 0) {
+        throw new CommandExecutionError('Xiaohongshu search could not apply --sort latest (invalid_option_index).');
+    }
+    return result.index;
+}
+export function buildDismissKnownXhsOverlaysJs() {
+    return `
+      (() => {
+        const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+        const isVisible = (el) => {
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          const style = getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+        };
+        const isBlockingNotice = (text) => /温馨提示|广告屏蔽|插件|申诉|浏览器|正常使用|风险/.test(text);
+        let clicked = 0;
+        for (const button of Array.from(document.querySelectorAll('button, [role="button"]'))) {
+          if (!isVisible(button)) continue;
+          const text = cleanText(button.innerText || button.textContent || '');
+          if (text !== '我知道了' && text !== '知道了') continue;
+          const container = button.closest('[role="dialog"], .d-modal, .reds-modal, .el-dialog, body');
+          const noticeText = cleanText(container?.innerText || '');
+          if (!isBlockingNotice(noticeText)) continue;
+          button.click();
+          clicked++;
+        }
+        return { ok: true, clicked };
+      })()
+    `;
+}
 export function parseLimit(raw) {
     const parsed = Number(raw ?? 20);
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
@@ -89,6 +131,14 @@ export function parseLimit(raw) {
         throw new ArgumentError(`--limit must be between 1 and 100, got ${parsed}`);
     }
     return parsed;
+}
+export function parseSort(raw) {
+    const value = String(raw ?? 'general').trim().toLowerCase();
+    if (value === 'general' || value === '综合')
+        return 'general';
+    if (value === 'latest' || value === '最新')
+        return 'latest';
+    throw new ArgumentError(`--sort must be one of: general, latest, got ${JSON.stringify(raw)}`);
 }
 /**
  * Build a "scroll until enough or plateaued" IIFE used in place of a fixed
@@ -174,6 +224,49 @@ export function buildScrollUntilJs(targetCount, maxScrolls = 15) {
       })()
     `;
 }
+export function buildSearchSortOptionIndexJs(sort) {
+    const label = sort === 'latest' ? '最新' : '综合';
+    return `
+      (() => {
+        const targetLabel = ${JSON.stringify(label)};
+        const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+        const isVisible = (el) => {
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          const style = getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden';
+        };
+        const visibleTextIs = (el, text) => cleanText(el.innerText || el.textContent || '') === text;
+        const allTags = Array.from(document.querySelectorAll('.filter-panel .tags'));
+        if (allTags.length === 0) return { ok: false, reason: 'filter_panel_not_found' };
+        let index = allTags.findIndex((el) => isVisible(el) && visibleTextIs(el, targetLabel) && !el.classList.contains('active'));
+        if (index < 0) {
+          index = allTags.findIndex((el) => isVisible(el) && visibleTextIs(el, targetLabel));
+        }
+        if (index < 0) return { ok: false, reason: 'sort_option_not_found', label: targetLabel };
+        return { ok: true, label: targetLabel, index };
+      })()
+    `;
+}
+async function applySearchSort(page, sort) {
+    await page.evaluate(buildDismissKnownXhsOverlaysJs());
+    await page.wait({ time: 0.2 });
+    let lastResult = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        await page.click('.search-layout__top .filter span');
+        for (let poll = 0; poll < 5; poll++) {
+            await page.wait({ time: 0.2 });
+            lastResult = unwrapEvaluateResult(await page.evaluate(buildSearchSortOptionIndexJs(sort)));
+            if (lastResult && typeof lastResult === 'object' && lastResult.ok === true) {
+                const optionIndex = requireSortOptionIndex(lastResult);
+                await page.click('.filter-panel .tags', { nth: optionIndex });
+                await page.wait({ time: 1.5 });
+                return;
+            }
+        }
+    }
+    requireSortOptionIndex(lastResult);
+}
 /**
  * Build the search-result extraction IIFE. The web host is baked into the
  * `normalizeUrl` fallback so relative `/explore/...` hrefs resolve to a full
@@ -192,6 +285,7 @@ export function buildSearchExtractJs(webHost) {
 
         const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
         const stripXhsAuthorDateSuffix = ${stripXhsAuthorDateSuffix.toString()};
+        const extractXhsPublishText = ${extractXhsPublishText.toString()};
         const isVisibleNote = (el) => {
           const rect = el.getBoundingClientRect();
           if (rect.width <= 0 || rect.height <= 0) return false;
@@ -225,9 +319,20 @@ export function buildSearchExtractJs(webHost) {
           const nameEl = el.querySelector('a.author .name, .author-name, .nick-name, .name');
           const authorWrapEl = el.querySelector('a.author');
           let author = cleanText(nameEl?.textContent || '');
+          let publishedAt = '';
           if (!author && authorWrapEl) {
             const nameChild = authorWrapEl.querySelector('.name');
-            author = nameChild ? cleanText(nameChild.textContent || '') : stripXhsAuthorDateSuffix(authorWrapEl.textContent || '');
+            const authorCandidates = Array.from(authorWrapEl.querySelectorAll('*'))
+              .map((node) => cleanText(node.textContent || ''))
+              .filter((text) => text && !extractXhsPublishText(text));
+            author = nameChild ? cleanText(nameChild.textContent || '') : (authorCandidates[0] || stripXhsAuthorDateSuffix(authorWrapEl.textContent || ''));
+          }
+          if (authorWrapEl) {
+            const publishCandidates = Array.from(authorWrapEl.querySelectorAll('*'))
+              .map((node) => extractXhsPublishText(node.textContent || ''))
+              .filter(Boolean)
+              .sort((a, b) => a.length - b.length);
+            publishedAt = publishCandidates[0] || extractXhsPublishText(authorWrapEl.textContent || '');
           }
           const likesEl = el.querySelector('.count, .like-count, .like-wrapper .count');
           // Prefer search_result link (preserves xsec_token) over generic /explore/ link
@@ -258,6 +363,7 @@ export function buildSearchExtractJs(webHost) {
             title,
             author,
             likes: cleanText(likesEl?.textContent || '0'),
+            published_at: publishedAt,
             url,
             author_url: normalizeUrl(authorLinkEl?.getAttribute('href') || ''),
           });
@@ -278,10 +384,12 @@ export const command = cli({
     args: [
         { name: 'query', required: true, positional: true, help: 'Search keyword' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
+        { name: 'sort', type: 'string', default: 'general', choices: ['general', 'latest'], help: 'Sort order: general | latest' },
     ],
     columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
     func: async (page, kwargs) => {
         const limit = parseLimit(kwargs.limit);
+        const sort = parseSort(kwargs.sort);
         const keyword = encodeURIComponent(kwargs.query);
         await page.goto(`https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
         // Wait for search results to render (or login wall to appear).
@@ -290,6 +398,9 @@ export const command = cli({
         const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
         if (waitResult === 'login_wall') {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+        }
+        if (sort === 'latest') {
+            await applySearchSort(page, sort);
         }
         // Extract before scrolling. Xiaohongshu uses a virtualized masonry
         // layout, so scrolling to the bottom can evict the initially visible
@@ -321,10 +432,11 @@ export const command = cli({
             .map((item, i) => ({
             rank: i + 1,
             ...item,
-            published_at: noteIdToDate(item.url),
+            published_at: item.published_at || noteIdToDate(item.url),
         }));
     },
 });
 export const __test__ = {
     stripXhsAuthorDateSuffix,
+    extractXhsPublishText,
 };

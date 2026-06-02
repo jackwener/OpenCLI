@@ -34317,6 +34317,17 @@
         "default": 20,
         "required": false,
         "help": "Number of results"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "general",
+        "required": false,
+        "help": "Sort order: general | latest",
+        "choices": [
+          "general",
+          "latest"
+        ]
       }
     ],
     "columns": [

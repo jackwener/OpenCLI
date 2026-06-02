@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { JSDOM } from 'jsdom';
-import { __test__, buildScrollUntilJs, noteIdToDate, unwrapEvaluateResult } from './search.js';
+import { __test__, buildDismissKnownXhsOverlaysJs, buildScrollUntilJs, buildSearchSortOptionIndexJs, noteIdToDate, parseSort, unwrapEvaluateResult } from './search.js';
 
 function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100 });
@@ -42,6 +42,16 @@ describe('xiaohongshu search', () => {
         await expect(cmd.func(page, { query: '特斯拉', limit: 0 })).rejects.toMatchObject({
             code: 'ARGUMENT',
             message: expect.stringContaining('--limit'),
+        });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+    it('rejects invalid sort before browser navigation', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([]);
+
+        await expect(cmd.func(page, { query: '特斯拉', limit: 5, sort: 'date' })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+            message: expect.stringContaining('--sort'),
         });
         expect(page.goto).not.toHaveBeenCalled();
     });
@@ -103,6 +113,55 @@ describe('xiaohongshu search', () => {
                 author_url: authorUrl,
             },
         ]);
+    });
+    it('applies the latest search filter through the page UI before extracting', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const detailUrl = 'https://www.xiaohongshu.com/search_result/6a1ded130000000013020400?xsec_token=test-token&xsec_source=';
+        const rows = [
+            {
+                title: '转租Santa Clara Orchard Glen公寓',
+                author: 'Jack Wang',
+                likes: '3',
+                url: detailUrl,
+                author_url: '',
+            },
+        ];
+        const page = createPageMock([
+            'content',
+            { ok: true, clicked: 1 },
+            { session: 'site:xiaohongshu', data: { ok: true, label: '最新', index: 2 } },
+            rows,
+        ]);
+
+        const result = await cmd.func(page, { query: '湾区租房', limit: 1, sort: 'latest' });
+
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(String(page.evaluate.mock.calls[1][0])).toContain('广告屏蔽');
+        expect(String(page.evaluate.mock.calls[2][0])).toContain('targetLabel = "最新"');
+        expect(page.click).toHaveBeenNthCalledWith(1, '.search-layout__top .filter span');
+        expect(page.click).toHaveBeenNthCalledWith(2, '.filter-panel .tags', { nth: 2 });
+        expect(page.wait).toHaveBeenNthCalledWith(1, { time: 0.2 });
+        expect(page.wait).toHaveBeenNthCalledWith(2, { time: 0.2 });
+        expect(page.wait).toHaveBeenNthCalledWith(3, { time: 1.5 });
+        expect(result[0]).toMatchObject({
+            rank: 1,
+            title: '转租Santa Clara Orchard Glen公寓',
+            published_at: '2026-06-02',
+        });
+    });
+    it('fails typed when the latest search filter cannot be applied', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            'content',
+            { ok: true, clicked: 0 },
+            ...Array.from({ length: 15 }, () => ({ ok: false, reason: 'sort_option_not_found' })),
+        ]);
+
+        await expect(cmd.func(page, { query: '湾区租房', limit: 1, sort: 'latest' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('sort_option_not_found'),
+        });
+        expect(page.evaluate).toHaveBeenCalledTimes(17);
     });
     it('fails typed instead of silently returning [] for malformed extraction payloads', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
@@ -216,8 +275,33 @@ describe('xiaohongshu search', () => {
         expect(result[0]).toMatchObject({
             title: '数字作者测试',
             author: '数字3天前端',
+            published_at: '3天前',
             likes: '8',
             author_url: 'https://www.xiaohongshu.com/user/profile/author123',
+        });
+    });
+    it('does not merge an author-name trailing digit into the publish-time text', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const dom = new JSDOM(`
+          <section class="note-item">
+            <a class="cover mask" href="/search_result/6a1f47270000000006036186?xsec_token=test-token"></a>
+            <div class="title">湾区找室友｜7月Palo Alto附近上班女生</div>
+            <a class="author" href="/user/profile/author456">
+              <div><div>Wonyii_7</div><div>1小时前</div></div>
+            </a>
+            <span class="count">4</span>
+          </section>
+        `, { url: 'https://www.xiaohongshu.com/search_result?keyword=test' });
+        markVisible(dom.window.document.querySelector('section.note-item'));
+        const page = createPageMock([]);
+        page.evaluate.mockImplementationOnce(async () => 'content');
+        page.evaluate.mockImplementationOnce(async (script) => Function('document', 'getComputedStyle', `return (${script})`)(dom.window.document, dom.window.getComputedStyle.bind(dom.window)));
+
+        const result = await cmd.func(page, { query: '测试', limit: 1 });
+
+        expect(result[0]).toMatchObject({
+            author: 'Wonyii_7',
+            published_at: '1小时前',
         });
     });
 });
@@ -258,6 +342,32 @@ describe('buildScrollUntilJs', () => {
         expect(() => buildScrollUntilJs(10, 0)).toThrow(/maxScrolls/);
     });
 });
+describe('parseSort', () => {
+    it('normalizes supported English and Chinese sort labels', () => {
+        expect(parseSort(undefined)).toBe('general');
+        expect(parseSort('general')).toBe('general');
+        expect(parseSort('综合')).toBe('general');
+        expect(parseSort('latest')).toBe('latest');
+        expect(parseSort('最新')).toBe('latest');
+    });
+    it('rejects unknown sort labels', () => {
+        expect(() => parseSort('date')).toThrow(/--sort/);
+    });
+});
+describe('buildSearchSortOptionIndexJs', () => {
+    it('targets the Xiaohongshu latest label for latest sort', () => {
+        expect(buildSearchSortOptionIndexJs('latest')).toContain('targetLabel = "最新"');
+    });
+    it('targets the Xiaohongshu general label for default sort', () => {
+        expect(buildSearchSortOptionIndexJs('general')).toContain('targetLabel = "综合"');
+    });
+});
+describe('buildDismissKnownXhsOverlaysJs', () => {
+    it('targets common Xiaohongshu blocking notice text', () => {
+        expect(buildDismissKnownXhsOverlaysJs()).toContain('广告屏蔽');
+        expect(buildDismissKnownXhsOverlaysJs()).toContain('我知道了');
+    });
+});
 describe('stripXhsAuthorDateSuffix', () => {
     it('only strips trailing date suffixes and preserves date-like author text', () => {
         expect(__test__.stripXhsAuthorDateSuffix('作者名 3天前')).toBe('作者名');
@@ -265,6 +375,13 @@ describe('stripXhsAuthorDateSuffix', () => {
         expect(__test__.stripXhsAuthorDateSuffix('3天前端工程师')).toBe('3天前端工程师');
         expect(__test__.stripXhsAuthorDateSuffix('刚刚好')).toBe('刚刚好');
         expect(__test__.stripXhsAuthorDateSuffix('刚刚')).toBe('刚刚');
+    });
+});
+describe('extractXhsPublishText', () => {
+    it('extracts visible Xiaohongshu publish-time labels only at the end', () => {
+        expect(__test__.extractXhsPublishText('作者名 30分钟前')).toBe('30分钟前');
+        expect(__test__.extractXhsPublishText('作者名 昨天 10:16')).toBe('昨天 10:16');
+        expect(__test__.extractXhsPublishText('数字3天前端')).toBe('');
     });
 });
 describe('noteIdToDate (ObjectID timestamp parsing)', () => {

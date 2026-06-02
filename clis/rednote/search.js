@@ -101,7 +101,7 @@ cli({
             .map((item, i) => ({
             rank: i + 1,
             ...item,
-            published_at: noteIdToDate(item.url),
+            published_at: item.published_at || noteIdToDate(item.url),
         }));
     },
 });
