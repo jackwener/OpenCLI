@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetDaemonHealth, mockConnect, mockClose, mockFindShadowedUserAdapters } = vi.hoisted(() => ({
+const {
+  mockGetDaemonHealth,
+  mockConnect,
+  mockClose,
+  mockFindShadowedUserAdapters,
+  mockResolveProfileContextId,
+} = vi.hoisted(() => ({
   mockGetDaemonHealth: vi.fn(),
   mockConnect: vi.fn(),
   mockClose: vi.fn(),
   mockFindShadowedUserAdapters: vi.fn(),
+  mockResolveProfileContextId: vi.fn(),
 }));
 
 vi.mock('./browser/daemon-client.js', () => ({
@@ -26,6 +33,14 @@ vi.mock('./adapter-shadow.js', async () => {
   };
 });
 
+vi.mock('./browser/profile.js', async () => {
+  const actual = await vi.importActual<typeof import('./browser/profile.js')>('./browser/profile.js');
+  return {
+    ...actual,
+    resolveProfileContextId: mockResolveProfileContextId,
+  };
+});
+
 import { renderBrowserDoctorReport, runBrowserDoctor } from './doctor.js';
 
 describe('doctor report rendering', () => {
@@ -40,6 +55,7 @@ describe('doctor report rendering', () => {
       closeWindow: vi.fn().mockResolvedValue(undefined),
     });
     mockClose.mockResolvedValue(undefined);
+    mockResolveProfileContextId.mockReturnValue(undefined);
   });
 
   it('renders OK-style report when daemon and extension connected', () => {
@@ -307,6 +323,31 @@ describe('doctor report rendering', () => {
     expect(report.profiles).toHaveLength(2);
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Multiple Chrome profiles are connected'),
+    ]));
+  });
+
+  it('reads daemon health for the resolved default profile after live connectivity succeeds', async () => {
+    mockResolveProfileContextId.mockReturnValue('work');
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'ready',
+      status: {
+        contextId: 'work',
+        extensionConnected: true,
+        extensionVersion: '1.2.3',
+        profiles: [
+          { contextId: 'work', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
+          { contextId: 'personal', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
+        ],
+      },
+    });
+
+    const report = await runBrowserDoctor();
+
+    expect(mockGetDaemonHealth).toHaveBeenCalledWith({ contextId: 'work' });
+    expect(report.extensionConnected).toBe(true);
+    expect(report.extensionFlaky).toBe(false);
+    expect(report.issues).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('Extension connection is unstable'),
     ]));
   });
 });

@@ -11,7 +11,7 @@ import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserProfileStatus } from './browser/daemon-client.js';
-import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import { aliasForContextId, loadProfileConfig, resolveProfileContextId } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
@@ -104,8 +104,11 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
   const connectivity = await checkConnectivity();
 
-  // Single status read *after* connectivity side-effects settle.
-  const health = await getDaemonHealth();
+  // Single status read *after* connectivity side-effects settle. Use the same
+  // default/env profile selection as BrowserBridge.connect so multi-profile
+  // setups do not report profile-required after the live check succeeds.
+  const contextId = resolveProfileContextId();
+  const health = await getDaemonHealth(contextId ? { contextId } : undefined);
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;
