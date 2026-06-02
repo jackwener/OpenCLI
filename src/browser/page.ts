@@ -18,6 +18,7 @@ import { waitForDomStableJs } from './dom-helpers.js';
 import { BasePage } from './base-page.js';
 import { classifyBrowserError } from './errors.js';
 import { log } from '../logger.js';
+import type { BrowserTabPlacement } from './tab-placement.js';
 
 function isUnsupportedNetworkCaptureError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -49,6 +50,7 @@ export class Page extends BasePage {
     private readonly windowMode?: 'foreground' | 'background',
     private readonly surface: 'browser' | 'adapter' = 'browser',
     private readonly siteSession?: 'ephemeral' | 'persistent',
+    private readonly tabPlacement?: BrowserTabPlacement,
   ) {
     super();
     this._idleTimeout = idleTimeout;
@@ -60,13 +62,14 @@ export class Page extends BasePage {
   private _networkCaptureWarned = false;
 
   /** Helper: spread session into command params */
-  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; siteSession?: 'ephemeral' | 'persistent' } {
+  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; tabPlacement?: BrowserTabPlacement; siteSession?: 'ephemeral' | 'persistent' } {
     return {
       session: this.session,
       surface: this.surface,
       ...(this.contextId && { contextId: this.contextId }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.tabPlacement && { tabPlacement: this.tabPlacement }),
       ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
@@ -80,6 +83,7 @@ export class Page extends BasePage {
       ...(this._page !== undefined && { page: this._page }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.tabPlacement && { tabPlacement: this.tabPlacement }),
       ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }

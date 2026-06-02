@@ -804,6 +804,7 @@ class CommandFailure extends Error {
 }
 const sessionTimeoutOverrides = /* @__PURE__ */ new Map();
 const sessionWindowModeOverrides = /* @__PURE__ */ new Map();
+const sessionTabPlacementOverrides = /* @__PURE__ */ new Map();
 const sessionLifecycleOverrides = /* @__PURE__ */ new Map();
 const LEASE_KEY_SEPARATOR = "\0";
 function getLeaseKey(session, surface) {
@@ -857,6 +858,12 @@ function getWindowRole(key, ownership) {
 function getWindowMode(key) {
   return sessionWindowModeOverrides.get(key) ?? (getOwnedWindowRole(key) === "interactive" ? "foreground" : "background");
 }
+function getTabPlacement(key) {
+  return sessionTabPlacementOverrides.get(key) ?? automationSessions.get(key)?.tabPlacement ?? "owned-container";
+}
+function usesOwnedContainer(key) {
+  return getTabPlacement(key) === "owned-container";
+}
 function makeAlarmName(leaseKey) {
   return `${LEASE_IDLE_ALARM_PREFIX}${encodeURIComponent(leaseKey)}`;
 }
@@ -880,7 +887,8 @@ function makeSession(key, session) {
     contextId: currentContextId,
     ownership,
     lifecycle: getLeaseLifecycle(key, session.kind),
-    windowRole: getWindowRole(key, ownership)
+    windowRole: getWindowRole(key, ownership),
+    tabPlacement: session.tabPlacement ?? getTabPlacement(key)
   };
 }
 function emptyRegistry() {
@@ -947,6 +955,7 @@ async function persistRuntimeState() {
       ownership: session.ownership,
       lifecycle: session.lifecycle,
       windowRole: session.windowRole,
+      tabPlacement: session.tabPlacement,
       idleDeadlineAt: session.idleDeadlineAt,
       updatedAt: Date.now()
     };
@@ -991,6 +1000,7 @@ async function removeLeaseSession(leaseKey) {
   automationSessions.delete(leaseKey);
   sessionTimeoutOverrides.delete(leaseKey);
   sessionWindowModeOverrides.delete(leaseKey);
+  sessionTabPlacementOverrides.delete(leaseKey);
   sessionLifecycleOverrides.delete(leaseKey);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
@@ -1294,6 +1304,52 @@ async function findReusableOwnedContainerTab(windowId, ownedGroupId) {
     return void 0;
   }
 }
+function isNormalChromeWindow(win) {
+  return typeof win?.id === "number" && (win.type === void 0 || win.type === "normal");
+}
+async function selectExistingNormalWindow(mode) {
+  const windowsApi = chrome.windows;
+  try {
+    const focused = await windowsApi.getLastFocused?.({ windowTypes: ["normal"] });
+    if (isNormalChromeWindow(focused)) {
+      await focusOwnedWindowIfRequested(focused.id, mode);
+      return focused.id;
+    }
+  } catch {
+  }
+  const windows = typeof windowsApi.query === "function" ? await windowsApi.query({ windowTypes: ["normal"] }).catch(() => []) : [];
+  const selected = windows.filter(isNormalChromeWindow).sort((a, b) => {
+    if (!!a.focused !== !!b.focused) return a.focused ? -1 : 1;
+    return a.id - b.id;
+  })[0];
+  if (!selected) {
+    throw new CommandFailure(
+      "existing_window_required",
+      "No normal Chrome window is open for this Browser Bridge profile.",
+      "Open the target Chrome profile window first, then retry the command."
+    );
+  }
+  await focusOwnedWindowIfRequested(selected.id, mode);
+  return selected.id;
+}
+async function createExistingWindowTabLease(leaseKey, initialUrl) {
+  const targetUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
+  const windowId = await selectExistingNormalWindow(getWindowMode(leaseKey));
+  const tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
+  const tabId = tab.id;
+  if (!tabId) throw new Error("Failed to create tab in existing Chrome window");
+  setLeaseSession(leaseKey, {
+    session: getSessionFromKey(leaseKey),
+    surface: getSurfaceFromKey(leaseKey),
+    kind: "owned",
+    windowId,
+    owned: true,
+    preferredTabId: tabId,
+    tabPlacement: "existing-window"
+  });
+  resetWindowIdleTimer(leaseKey);
+  return { tabId, tab };
+}
 function initialTabIsAvailable(tabId) {
   if (tabId === void 0) return false;
   for (const session of automationSessions.values()) {
@@ -1305,6 +1361,9 @@ async function createOwnedTabLease(leaseKey, initialUrl) {
   return withLeaseMutation(() => createOwnedTabLeaseUnlocked(leaseKey, initialUrl));
 }
 async function createOwnedTabLeaseUnlocked(leaseKey, initialUrl) {
+  if (getTabPlacement(leaseKey) === "existing-window") {
+    return createExistingWindowTabLease(leaseKey, initialUrl);
+  }
   const targetUrl = initialUrl && isSafeNavigationUrl(initialUrl) ? initialUrl : BLANK_PAGE;
   const role = getOwnedWindowRole(leaseKey);
   const { windowId, initialTabId } = await ensureOwnedContainerWindow(role, targetUrl, getWindowMode(leaseKey));
@@ -1358,6 +1417,9 @@ async function getAutomationWindow(leaseKey, initialUrl) {
     }
   }
   const role = getOwnedWindowRole(leaseKey);
+  if (!usesOwnedContainer(leaseKey)) {
+    return selectExistingNormalWindow(getWindowMode(leaseKey));
+  }
   return (await ensureOwnedContainerWindow(role, initialUrl, getWindowMode(leaseKey))).windowId;
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
@@ -1374,6 +1436,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
       automationSessions.delete(leaseKey);
       sessionTimeoutOverrides.delete(leaseKey);
       sessionWindowModeOverrides.delete(leaseKey);
+      sessionTabPlacementOverrides.delete(leaseKey);
       sessionLifecycleOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     }
@@ -1388,6 +1451,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
       automationSessions.delete(leaseKey);
       sessionTimeoutOverrides.delete(leaseKey);
       sessionWindowModeOverrides.delete(leaseKey);
+      sessionTabPlacementOverrides.delete(leaseKey);
       sessionLifecycleOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
       console.log(`[opencli] Session ${session.session} detached from tab ${tabId} (tab closed)`);
@@ -1464,6 +1528,9 @@ async function handleCommand(cmd) {
   const leaseKey = getLeaseKey(session, surface);
   if (cmd.windowMode === "foreground" || cmd.windowMode === "background") {
     sessionWindowModeOverrides.set(leaseKey, cmd.windowMode);
+  }
+  if (cmd.tabPlacement === "owned-container" || cmd.tabPlacement === "existing-window") {
+    sessionTabPlacementOverrides.set(leaseKey, cmd.tabPlacement);
   }
   if (surface === "adapter" && (cmd.siteSession === "persistent" || cmd.siteSession === "ephemeral")) {
     sessionLifecycleOverrides.set(leaseKey, cmd.siteSession);
@@ -1588,6 +1655,10 @@ async function resolveCommandTabId(cmd) {
 }
 async function resolveTab(tabId, leaseKey, initialUrl) {
   const existingSession = automationSessions.get(leaseKey);
+  if (existingSession?.owned && existingSession.tabPlacement !== getTabPlacement(leaseKey)) {
+    await releaseLease(leaseKey, "tab placement changed");
+    return createOwnedTabLease(leaseKey, initialUrl);
+  }
   if (tabId !== void 0) {
     try {
       const tab = await chrome.tabs.get(tabId);
@@ -1677,7 +1748,9 @@ async function resolveTab(tabId, leaseKey, initialUrl) {
   }
   const newTab = await chrome.tabs.create({ windowId: scopedWindowId, url: BLANK_PAGE, active: true });
   if (!newTab.id) throw new Error("Failed to create tab in automation container");
-  await ensureOwnedContainerGroup(role, scopedWindowId, [newTab.id]);
+  if (usesOwnedContainer(leaseKey)) {
+    await ensureOwnedContainerGroup(role, scopedWindowId, [newTab.id]);
+  }
   return { tabId: newTab.id, tab: await chrome.tabs.get(newTab.id) };
 }
 async function pageScopedResult(id, tabId, data) {
@@ -1846,7 +1919,7 @@ async function handleTabs(cmd, leaseKey) {
       let tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
       const tabId = tab.id;
       if (!tabId) return { id: cmd.id, ok: false, error: "Failed to create tab" };
-      const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), windowId, [tabId]);
+      const group = usesOwnedContainer(leaseKey) ? await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), windowId, [tabId]) : null;
       const sessionWindowId = group?.windowId ?? tab.windowId;
       if (tab.windowId !== sessionWindowId) tab = await chrome.tabs.get(tabId);
       setLeaseSession(leaseKey, {
@@ -1855,7 +1928,8 @@ async function handleTabs(cmd, leaseKey) {
         kind: "owned",
         windowId: sessionWindowId,
         owned: true,
-        preferredTabId: tabId
+        preferredTabId: tabId,
+        tabPlacement: getTabPlacement(leaseKey)
       });
       resetWindowIdleTimer(leaseKey);
       return pageScopedResult(cmd.id, tabId, { url: tab.url });
@@ -2070,6 +2144,7 @@ async function releaseLease(leaseKey, reason = "released") {
   if (!session) {
     sessionTimeoutOverrides.delete(leaseKey);
     sessionWindowModeOverrides.delete(leaseKey);
+    sessionTabPlacementOverrides.delete(leaseKey);
     sessionLifecycleOverrides.delete(leaseKey);
     scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     await persistRuntimeState();
@@ -2089,10 +2164,14 @@ async function releaseLease(leaseKey, reason = "released") {
         await chrome.tabs.remove(tabId).catch(() => {
         });
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
+      } else if (session.tabPlacement === "existing-window") {
+        await chrome.tabs.remove(tabId).catch(() => {
+        });
+        console.log(`[opencli] Released existing-window tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
           const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
+          const group = session.tabPlacement === "owned-container" ? await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]) : null;
           if (group) session.windowId = group.windowId;
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
         } catch {
@@ -2111,6 +2190,7 @@ async function releaseLease(leaseKey, reason = "released") {
   automationSessions.delete(leaseKey);
   sessionTimeoutOverrides.delete(leaseKey);
   sessionWindowModeOverrides.delete(leaseKey);
+  sessionTabPlacementOverrides.delete(leaseKey);
   sessionLifecycleOverrides.delete(leaseKey);
   await persistRuntimeState();
 }
@@ -2145,7 +2225,8 @@ async function reconcileTargetLeaseRegistry() {
         kind: stored.kind === "bound" || stored.owned === false ? "bound" : "owned",
         windowId: tab.windowId,
         owned: stored.owned,
-        preferredTabId: tabId
+        preferredTabId: tabId,
+        tabPlacement: stored.tabPlacement === "existing-window" ? "existing-window" : "owned-container"
       });
       const timeout = getIdleTimeout(leaseKey);
       automationSessions.set(leaseKey, {
@@ -2153,7 +2234,7 @@ async function reconcileTargetLeaseRegistry() {
         idleTimer: null,
         idleDeadlineAt: stored.idleDeadlineAt
       });
-      if (session.owned) {
+      if (session.owned && session.tabPlacement === "owned-container") {
         const role = getOwnedWindowRole(leaseKey);
         if (ownedContainers[role].windowId === null) ownedContainers[role].windowId = tab.windowId;
         const group = await ensureOwnedContainerGroup(role, tab.windowId, [tabId]);

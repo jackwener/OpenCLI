@@ -12,6 +12,7 @@ import { BrowserConnectError } from '../errors.js';
 import { PKG_VERSION } from '../version.js';
 import { resolveProfileContextId } from './profile.js';
 import { resolveDaemonLaunchSpec, spawnDaemonProcess, waitForDaemonStop } from './daemon-lifecycle.js';
+import type { BrowserTabPlacement } from './tab-placement.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
 
@@ -29,7 +30,7 @@ export class BrowserBridge implements IBrowserFactory {
     return this._state;
   }
 
-  async connect(opts: { timeout?: number; session?: string; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' } = {}): Promise<IPage> {
+  async connect(opts: { timeout?: number; session?: string; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; tabPlacement?: BrowserTabPlacement; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' } = {}): Promise<IPage> {
     if (this._state === 'connected' && this._page) return this._page;
     if (this._state === 'connecting') throw new Error('Already connecting');
     if (this._state === 'closing') throw new Error('Session is closing');
@@ -41,7 +42,7 @@ export class BrowserBridge implements IBrowserFactory {
       const contextId = opts.contextId ?? resolveProfileContextId();
       await this._ensureDaemon(opts.timeout, contextId);
       if (!opts.session?.trim()) throw new Error('Browser session is required');
-      this._page = new Page(opts.session.trim(), opts.idleTimeout, contextId, opts.windowMode, opts.surface, opts.siteSession);
+      this._page = new Page(opts.session.trim(), opts.idleTimeout, contextId, opts.windowMode, opts.surface, opts.siteSession, opts.tabPlacement);
       this._state = 'connected';
       return this._page;
     } catch (err) {

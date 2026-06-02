@@ -545,6 +545,37 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('passes OPENCLI_TAB_PLACEMENT through browser-backed adapter sessions', async () => {
+    vi.stubEnv('OPENCLI_TAB_PLACEMENT', 'existing-window');
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<Record<string, unknown>> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'browser-tab-placement-env', access: 'read',
+        description: 'test browser tab placement env',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await executeCommand(cmd, {});
+
+      expect(sessionOpts[0]).toMatchObject({ tabPlacement: 'existing-window' });
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('does not re-run custom validation when args are already prepared', async () => {
     const validateArgs = vi.fn();
     const cmd: CliCommand = {

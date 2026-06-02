@@ -7,8 +7,11 @@ commands.
 ## Permission Notes
 
 - `debugger`: sends CDP commands to OpenCLI-controlled or bound tabs.
-- `tabs` / `tabGroups`: manages the dedicated OpenCLI automation container and
-  reports selected tab metadata back to the CLI.
+- `tabs` / `tabGroups`: manages the dedicated OpenCLI automation container by
+  default and reports selected tab metadata back to the CLI. When
+  `OPENCLI_TAB_PLACEMENT=existing-window` is set, owned sessions create regular
+  tabs in an already-open Chrome profile window and do not create or manage tab
+  groups.
 - `cookies`: reads cookies for browser-backed adapters that need authenticated
   fetches.
 - `downloads`: surfaces download lifecycle to `opencli browser wait download`.
@@ -24,3 +27,11 @@ Suggested Chrome Web Store justification for `downloads`:
 > so agents can wait for downloads triggered during an automation workflow. The
 > command filters by a user-provided filename or URL pattern and timeout. We do
 > not modify, redirect, or persist user download history.
+
+## Tab Placement
+
+By default, owned Browser Bridge sessions use OpenCLI-managed windows and tab
+groups. Set `OPENCLI_TAB_PLACEMENT=existing-window` to create regular tabs in an
+already-open normal Chrome profile window instead. This opt-in mode never
+creates Chrome windows or OpenCLI tab groups; open the target Chrome profile
+window before running the command.
