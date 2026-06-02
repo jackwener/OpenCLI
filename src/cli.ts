@@ -252,15 +252,14 @@ function sitemapPathsForSite(site: string, opts: Required<Pick<SitemapAvailabili
   const safeSite = site.replace(/[^a-zA-Z0-9_-]+/g, '-');
   if (!safeSite) return {};
   const localBase = path.join(opts.homeDir, '.opencli', 'sites', safeSite);
-  const globalBase = path.join(opts.packageRoot, 'skills', 'opencli-sitemap-author', 'references', 'site-memory', safeSite);
   return {
     local: firstExistingSitemapPath([
       path.join(localBase, 'sitemap'),
       path.join(localBase, 'sitemap.md'),
     ], opts.fileExists),
     global: firstExistingSitemapPath([
-      path.join(globalBase, 'sitemap'),
-      path.join(globalBase, 'sitemap.md'),
+      path.join(opts.packageRoot, 'sitemaps', safeSite),
+      path.join(opts.packageRoot, 'sitemaps', `${safeSite}.md`),
     ], opts.fileExists),
   };
 }

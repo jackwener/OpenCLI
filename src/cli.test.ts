@@ -745,7 +745,7 @@ describe('resolveSitemapAvailabilityForUrl', () => {
     const homeDir = path.join(os.tmpdir(), 'opencli-sitemap-home');
     const packageRoot = path.join(os.tmpdir(), 'opencli-sitemap-package');
     const localSitemap = path.join(homeDir, '.opencli', 'sites', 'twitter', 'sitemap.md');
-    const globalSitemap = path.join(packageRoot, 'skills', 'opencli-sitemap-author', 'references', 'site-memory', 'twitter', 'sitemap');
+    const globalSitemap = path.join(packageRoot, 'sitemaps', 'twitter');
     const exists = new Set([localSitemap, globalSitemap]);
 
     const report = resolveSitemapAvailabilityForUrl('https://x.com/opencli', {

@@ -16,7 +16,7 @@ Keep the sitemap small and verified. Do not crawl a whole site. Capture only tas
 
 Two layers:
 
-- **Global seed**: `skills/opencli-sitemap-author/references/site-memory/<site>/sitemap/`
+- **Global seed**: `sitemaps/<site>/` (top-level)
 - **Local overlay**: `~/.opencli/sites/<site>/sitemap/`
 
 Local overlay wins by stable id. Write new discoveries to local first. Promote to global only after review.

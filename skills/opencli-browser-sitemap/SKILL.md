@@ -33,8 +33,8 @@ The sitemap is **prior knowledge**, not ground truth. It should reduce blind cli
 Read local overlay first, then global seed:
 
 ```text
-~/.opencli/sites/<site>/sitemap/
-skills/opencli-sitemap-author/references/site-memory/<site>/sitemap/
+~/.opencli/sites/<site>/sitemap/    # local overlay
+sitemaps/<site>/                    # repo seed (top-level)
 ```
 
 Local files override global files with the same stable id.
