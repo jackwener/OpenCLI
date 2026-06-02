@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.8.2](https://github.com/jackwener/opencli/compare/v1.8.1...v1.8.2) (2026-06-03)
+
+Mid-cycle release: introduces the **Site Maps Hub** subsystem (agent-facing per-site navigation knowledge), restores the **smart-search** skill, and ships a wide batch of new adapters / commands plus a long tail of read-path fixes. Extension bumped to 1.0.18 for an owned-group reusable-tab scope fix.
+
+### Site Maps Hub (new subsystem)
+
+* **`sitemaps/<site>/` top-level seed directory** — sitemap content lives alongside `clis/` and `skills/`, parallel first-class repo citizens. Twitter and HackerNews seeded as v1 baselines.
+* **`opencli browser open` / `analyze` surface sitemap availability** — when the requested site has a sitemap (global seed or local overlay `~/.opencli/sites/<site>/sitemap/`), the JSON envelope gains an optional `sitemap` field with `{ available, source, hint }`. `open` emits the hint once per session per site (deduped via `~/.opencli/cache/browser-sitemap-hints/`); `analyze` emits every call since it is a planning command. Adds no new browser-action behavior and no `~/.opencli/sites/` writes unless an agent explicitly invokes a sitemap skill.
+* **Two new skills**:
+  * `opencli-sitemap-author` — create / maintain per-site sitemaps. Two-layer storage (global repo seed + local overlay), Form B compact YAML action schema with `pre / do / post / fail / recover / evidence`, `adapter_health_update` directives, `selector_pattern` as first-class anchor type, partial pages (`_<name>.md`) for cross-page UI, and a size-guidance table with hard 800-token / 1500-3000 cohesion / >3000 split tiers.
+  * `opencli-browser-sitemap` — consume site sitemaps while executing browser tasks. Lazy load, Trust-Reality rule (`browser state` is truth, sitemap is hint), stale-on-conflict writeback, `adapter_health` write-back closure so subsequent agents skip a known-suspect adapter.
+* **`references/sitemap-schema.md`** — full field-level spec for `SITE.md / pages/<id>.md / workflows/<id>.md / apis.md / pitfalls.md`, action `state_signature` for re-entry, `adapter_health` enum, stable-id matching across overlay layers, draft placement rule, Phase 2 validation hooks.
+* **Twitter + HackerNews v1.1 seeds** under `sitemaps/{twitter,hackernews}/` validating the schema on dense React UI and simple SSR HTML respectively.
+
+### Features
+
+* **smart-search** — restored as a skill (`skills/smart-search/`) with per-category source guides (AI / info / media / shopping / social / tech / travel / other).
+* **twitter** — batch follow + list lifecycle (`list-create` / `list-delete` / `list-add` / `list-remove` batch forms).
+* **xiaohongshu** — draft management commands (`drafts` / `draft-open` / `draft-delete` / `draft-clear`).
+* **chatgpt-app** — temporary chat + multi-modal image attachment support.
+* **antigravity** — history mgmt (`history` / `delete` / `mark-read`) and model read/switch commands.
+* **codex** — conversation management (`pin` / `unpin` / `archive` / `rename`) plus model selector fix.
+* **grok** — conversation management (`delete` / `pin` / `unpin`) with locale-independent selectors.
+* **kimi** — new adapter for `kimi.com` (21 commands).
+* **qoder** — new adapter for Qoder IDE (19 commands).
+* **trae-cn** — new desktop adapter (Trae CN Electron app).
+* **trae-solo** — new desktop adapter (Trae SOLO Electron app).
+* **chatgpt** — add web model switch command.
+* **douyin** — add `search` command for keyword video search.
+* **wechat-channels** — add WeChat Video Channels (视频号) publish adapter.
+* **pubmed** — add workflow presets and richer article metadata.
+
+### Bug Fixes
+
+* **extension 1.0.18** — scope reusable-tab selection to owned-group members (follow-up to the v1.0.17 owned-container convergence model; ensures `findReusableOwnedContainerTab` does not pick up user tabs that were dragged into the owned window).
+* **chatgpt** — ignore image placeholders and upload previews when extracting the latest assistant message.
+* **xiaohongshu** — attach real topics via inline dropdown; feed returns signed note URLs for drill-down; carousel order preserved on download.
+* **twitter** — drop global tweetPhoto selector from the post-submit poll to avoid matching the wrong button.
+* **grok** — fall back to `Enter` key dispatch when send button is hidden behind layout shifts.
+* **daemon** — differentiate multi-profile status output so multiple Chrome profiles do not collapse into a single status row.
+* **youtube** — Videos tab fallback now supports `lockupViewModel` format alongside the legacy `gridVideoRenderer`.
+* **12306** — accept lowercase letters in `train_no` regex.
+* **weixin** — strip typographic quotes from pasted URLs.
+* **launcher** — Chromium 142+ CDP websocket origin check needs `--remote-allow-origins=*`.
+* **douyin/publish** — handle illegal-title errors with a typed error rather than a silent retry.
+
+### Docs
+
+* **opencli-adapter-author** — add `references/strategy-selection.md` codifying the empirical contract ladder (PUBLIC_API / COOKIE_API / UI_SELECTOR / DOM_STATE as contracted vs PAGE_FETCH / INTERCEPT as internal-unstable, with fixes/adapter-year data from a 837-adapter / 30-day window) and update SKILL.md to require a `strategy` evidence block at the top of every new adapter.
+* **opencli-adapter-author** — `browser analyze` upgrade: each candidate API gets `real_data_score` and a `likely_data` / `maybe_data` / `noise` verdict so Pattern A is no longer fired by analytics XHRs.
+* **readme** — prefix "Let AI Agents operate any website" bullet with "Browser User &" in both EN and zh-CN.
+
 ## [1.8.1](https://github.com/jackwener/opencli/compare/v1.8.0...v1.8.1) (2026-05-31)
 
 Patch release focused on the extension tab-group convergence fix, plus 10 new adapters/commands and a wave of read-path / security hardening across browser, download, and adapters.
