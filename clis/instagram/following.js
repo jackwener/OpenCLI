@@ -27,19 +27,37 @@ cli({
   const userId = d1?.data?.user?.id;
   if (!userId) throw new Error('User not found: ' + username);
 
-  const r2 = await fetch(
-    'https://www.instagram.com/api/v1/friendships/' + userId + '/following/?count=' + limit,
-    opts
-  );
-  if (!r2.ok) throw new Error('Failed to fetch following: HTTP ' + r2.status);
-  const d2 = await r2.json();
-  return (d2?.users || []).slice(0, limit).map((u, i) => ({
-    rank: i + 1,
-    username: u.username || '',
-    name: u.full_name || '',
-    verified: u.is_verified ? 'Yes' : 'No',
-    private: u.is_private ? 'Yes' : 'No',
-  }));
+  const PAGE_SIZE = 50;
+  const results = [];
+  const seen = new Set();
+  let maxId = undefined;
+  const baseUrl = 'https://www.instagram.com/api/v1/friendships/' + userId + '/following/';
+
+  while (results.length < limit) {
+    const params = new URLSearchParams({ count: String(PAGE_SIZE) });
+    if (maxId) params.set('max_id', maxId);
+    const r2 = await fetch(baseUrl + '?' + params.toString(), opts);
+    if (!r2.ok) throw new Error('Failed to fetch following: HTTP ' + r2.status);
+    const d2 = await r2.json();
+    const users = d2?.users || [];
+    for (const u of users) {
+      const pk = String(u.pk || u.pk_id || u.id || '');
+      if (!pk || seen.has(pk)) continue;
+      seen.add(pk);
+      results.push({
+        rank: results.length + 1,
+        username: u.username || '',
+        name: u.full_name || '',
+        verified: u.is_verified ? 'Yes' : 'No',
+        private: u.is_private ? 'Yes' : 'No',
+      });
+      if (results.length >= limit) break;
+    }
+    if (!d2.next_max_id || users.length === 0) break;
+    maxId = d2.next_max_id;
+    await new Promise(r => setTimeout(r, 400));
+  }
+  return results.slice(0, limit);
 })()
 ` },
     ],
