@@ -4,6 +4,8 @@
 // (JWT, ~357 bytes) readable on the manus.im domain. The API uses
 // Connect-RPC (POST + JSON + Connect-Protocol-Version: 1).
 
+import { ArgumentError } from '@jackwener/opencli/errors';
+
 export const MANUS_DOMAIN = 'manus.im';
 export const MANUS_URL = 'https://manus.im/app';
 export const API_HOST = 'https://api.manus.im';
@@ -16,6 +18,20 @@ export function isManusUrl(value) {
     } catch {
         return false;
     }
+}
+
+/**
+ * Validate a `--limit N` argument: must be a positive integer ≤ `max`.
+ * Negatives, zero, NaN, Infinity, and non-integers all reject. Manus's
+ * Connect-RPC backend enforces these server-side via Buf Validate; failing
+ * client-side gives the user a clearer error and skips a wasted round-trip.
+ */
+export function validatedLimit(raw, fallback, max = 1000) {
+    const n = raw == null ? fallback : Number(raw);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > max) {
+        throw new ArgumentError('limit', `must be a positive integer ≤ ${max}`);
+    }
+    return n;
 }
 
 export async function ensureOnManus(page) {

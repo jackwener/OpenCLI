@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS } from './_utils.js';
+import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, validatedLimit } from './_utils.js';
 
 cli({
     site: 'manus',
@@ -17,8 +17,8 @@ cli({
     ],
     columns: ['UID', 'Name', 'Brief'],
     func: async (page, kwargs) => {
+        const limit = validatedLimit(kwargs?.limit, 50, 500);
         await ensureOnManus(page);
-        const limit = kwargs?.limit || 50;
 
         const data = await page.evaluate(`(async () => {
             ${MANUS_API_CALL_JS}

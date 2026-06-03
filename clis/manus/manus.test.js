@@ -177,9 +177,18 @@ describe('manus list', () => {
   it('passes pageSize via --limit to evaluate body', async () => {
     const page = manusPage(SESSIONS);
     await listCmd.func(page, { limit: 1 });
-    // Verify page.evaluate was called (implementation-specific: the limit
-    // should be forwarded to the API call body as pageSize)
-    expect(page.evaluate).toHaveBeenCalled();
+    // ensureOnManus eats the first evaluate call (URL probe); the RPC
+    // call is the second. Assert pageSize:1 was interpolated into it.
+    const rpcCallSrc = page.evaluate.mock.calls[1][0];
+    expect(rpcCallSrc).toMatch(/pageSize:\s*1/);
+    expect(rpcCallSrc).toContain('session.v1.SessionService/ListSessions');
+  });
+
+  it('rejects --limit 0 and other non-positive limits', async () => {
+    const page = manusPage(SESSIONS);
+    await expect(listCmd.func(page, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(listCmd.func(page, { limit: -5 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(listCmd.func(page, { limit: 1.5 })).rejects.toBeInstanceOf(ArgumentError);
   });
 });
 

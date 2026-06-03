@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS } from './_utils.js';
+import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, validatedLimit } from './_utils.js';
 
 function formatTime(iso) {
     if (!iso) return '—';
@@ -33,9 +33,9 @@ cli({
     ],
     columns: ['UID', 'Title', 'Status', 'Last Message', 'Last Updated', 'Credits'],
     func: async (page, kwargs) => {
-        await ensureOnManus(page);
-        const limit = kwargs?.limit || 20;
+        const limit = validatedLimit(kwargs?.limit, 20, 200);
         const includeArchived = kwargs?.archived === true;
+        await ensureOnManus(page);
 
         const data = await page.evaluate(`(async () => {
             ${MANUS_API_CALL_JS}
