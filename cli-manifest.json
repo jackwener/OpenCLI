@@ -1449,6 +1449,155 @@
   },
   {
     "site": "antigravity",
+    "name": "add-context",
+    "description": "Click the Add context button in the composer (opens file/URL picker for context attachment).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "cookies",
+    "description": "List cookies on the Antigravity renderer (JS-visible via document.cookie).",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "copy-code",
+    "description": "Return the text of a code block in the current conversation. Default: last code block; pass --index N (1-based from top) to pick a specific one.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "index",
+        "type": "int",
+        "required": false,
+        "help": "1-based index of code block (default: last)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "copy-message",
+    "description": "Return the text of the last assistant message (best-effort: walks up from the last visible Copy button).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "click-button",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Also click the in-UI Copy button"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "delete",
+    "description": "Delete an Antigravity conversation by ID. Antigravity asks for confirmation; we click through it. Require --yes to actually delete.",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete (default: dry-run preview)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/delete.js",
+    "sourceFile": "antigravity/delete.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "display-options",
+    "description": "Open the Display Options menu and list its items.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
     "name": "dump",
     "description": "Dump the DOM to help AI understand the UI",
     "access": "read",
@@ -1484,27 +1633,144 @@
   },
   {
     "site": "antigravity",
-    "name": "model",
-    "description": "Switch the active LLM model in Antigravity",
+    "name": "history",
+    "description": "List visible Antigravity conversations from the sidebar",
     "access": "read",
-    "domain": "localhost",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max conversations to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/history.js",
+    "sourceFile": "antigravity/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "idb-list",
+    "description": "List IndexedDB databases on the Antigravity renderer.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "mark-read",
+    "description": "Mark an unread Antigravity conversation as read. Fails if the row is already read or the postcondition cannot be verified.",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "clicked"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/mark-read.js",
+    "sourceFile": "antigravity/mark-read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "model",
+    "description": "Read or switch the active model in Antigravity. Without arguments, reports the current model. With <name> (substring, case-insensitive), switches.",
+    "access": "write",
+    "domain": "127.0.0.1",
     "strategy": "ui",
     "browser": true,
     "args": [
       {
         "name": "name",
         "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Substring (case-insensitive) of target model name. Omit to read current."
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List models in the picker (does not switch)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Model"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/model.js",
+    "sourceFile": "antigravity/model.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "nav",
+    "description": "Click Go Back or Go Forward (Antigravity in-app history).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "direction",
+        "type": "str",
         "required": true,
         "positional": true,
-        "help": "Target model name (e.g. claude, gemini, o1)"
+        "help": "back or forward"
       }
     ],
     "columns": [
       "Status"
     ],
     "type": "js",
-    "modulePath": "antigravity/model.js",
-    "sourceFile": "antigravity/model.js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1522,6 +1788,32 @@
     "type": "js",
     "modulePath": "antigravity/new.js",
     "sourceFile": "antigravity/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "react",
+    "description": "Click \"Good response\" or \"Bad response\" on the LAST assistant message.",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "kind",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "good or bad"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Reaction"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1547,6 +1839,100 @@
     "type": "js",
     "modulePath": "antigravity/read.js",
     "sourceFile": "antigravity/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "recent-paths",
+    "description": "Show Antigravity's recently-opened folders/files (history.recentlyOpenedPathsList).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
+    "name": "rename",
+    "description": "Rename an Antigravity conversation by ID (NOT YET IMPLEMENTED — see source comment).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID (the part after \"convo-pill-\" in the sidebar testid)"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "New title"
+      }
+    ],
+    "columns": [
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/rename.js",
+    "sourceFile": "antigravity/rename.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "revert",
+    "description": "Click the revert button (per-message revert for agent changes). Requires --yes (this modifies your workspace).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually revert (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1577,6 +1963,168 @@
   },
   {
     "site": "antigravity",
+    "name": "settings",
+    "description": "Click the Antigravity settings button (matched by data-testid=\"settings-button\").",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "settings-read",
+    "description": "Read Antigravity's user settings.json (theme, proxy, agCockpit, tfa.system.autoAccept, etc.).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
+    "name": "sidebar-toggle",
+    "description": "Click Toggle Sidebar (collapses/expands the Antigravity sidebar).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "state-get",
+    "description": "Read one value from Antigravity's state.vscdb. Pass --workspace <id> for per-workspace.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key name"
+      },
+      {
+        "name": "workspace",
+        "type": "str",
+        "required": false,
+        "help": "Workspace id (from workspaces-list) to query per-workspace DB"
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 8000,
+        "required": false,
+        "help": "Truncate value to this many chars"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
+    "name": "state-keys",
+    "description": "List keys in Antigravity's globalStorage state.vscdb (VSCode-style). Pass --workspace <id> to query a per-workspace DB. Works while Antigravity is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "workspace",
+        "type": "str",
+        "required": false,
+        "help": "Workspace id (from workspaces-list) to query per-workspace DB"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
+  },
+  {
+    "site": "antigravity",
     "name": "status",
     "description": "Check Antigravity CDP connection and get current page state",
     "access": "read",
@@ -1592,6 +2140,126 @@
     "type": "js",
     "modulePath": "antigravity/status.js",
     "sourceFile": "antigravity/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "storage-get",
+    "description": "Read a single localStorage / sessionStorage value on the Antigravity renderer.",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key name"
+      },
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 4000,
+        "required": false,
+        "help": "Truncate value to this many chars"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "storage-keys",
+    "description": "List localStorage / sessionStorage keys on the Antigravity renderer (CDP).",
+    "access": "read",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "toggle-aux",
+    "description": "Toggle the Auxiliary Pane (Antigravity's secondary panel for code/preview).",
+    "access": "write",
+    "domain": "127.0.0.1",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/audit-extras.js",
+    "sourceFile": "antigravity/audit-extras.js",
     "navigateBefore": true
   },
   {
@@ -1616,6 +2284,43 @@
     "modulePath": "antigravity/watch.js",
     "sourceFile": "antigravity/watch.js",
     "navigateBefore": true
+  },
+  {
+    "site": "antigravity",
+    "name": "workspaces-list",
+    "description": "List Antigravity workspaceStorage entries (each represents a previously-opened folder).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version",
+      "Kind",
+      "Path",
+      "Workspace Id",
+      "Folder",
+      "Modified",
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "antigravity/storage.js",
+    "sourceFile": "antigravity/storage.js"
   },
   {
     "site": "apple-podcasts",
@@ -4748,9 +5453,40 @@
         "default": false,
         "required": false,
         "help": "Start a new chat before sending"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Wait for the assistant response after sending"
+      },
+      {
+        "name": "deep-research",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable ChatGPT 深度研究 (Deep Research)"
+      },
+      {
+        "name": "web-search",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Enable ChatGPT 网页搜索 (Web Search)"
       }
     ],
     "columns": [
+      "conversationId",
+      "conversationUrl",
+      "tool",
       "response"
     ],
     "type": "js",
@@ -4781,12 +5517,35 @@
         "default": false,
         "required": false,
         "help": "Emit assistant replies as markdown"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Wait until the conversation stops generating and stabilizes"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait when --wait is true"
+      },
+      {
+        "name": "stable",
+        "type": "int",
+        "default": 6,
+        "required": false,
+        "help": "Seconds the final messages must remain unchanged when --wait is true"
       }
     ],
     "columns": [
       "Index",
       "Role",
-      "Text"
+      "Text",
+      "Generating",
+      "StableSeconds"
     ],
     "type": "js",
     "modulePath": "chatgpt/detail.js",
@@ -4880,6 +5639,38 @@
   },
   {
     "site": "chatgpt",
+    "name": "model",
+    "description": "Switch ChatGPT web model/mode (instant, thinking, pro)",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "model",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Model/mode to switch to",
+        "choices": [
+          "instant",
+          "thinking",
+          "pro"
+        ]
+      }
+    ],
+    "columns": [
+      "Status",
+      "Model"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/model.js",
+    "sourceFile": "chatgpt/model.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
     "name": "new",
     "description": "Start a new ChatGPT web conversation",
     "access": "read",
@@ -4946,6 +5737,13 @@
         "default": false,
         "required": false,
         "help": "Start a new chat before sending"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
       }
     ],
     "columns": [
@@ -5013,6 +5811,12 @@
         "default": 30,
         "required": false,
         "help": "Max seconds to wait for response (default: 30)"
+      },
+      {
+        "name": "image",
+        "type": "str",
+        "required": false,
+        "help": "Path to local image to attach (optional)"
       }
     ],
     "columns": [
@@ -5059,11 +5863,19 @@
     "site": "chatgpt-app",
     "name": "new",
     "description": "Open a new chat in ChatGPT Desktop App",
-    "access": "read",
+    "access": "write",
     "domain": "localhost",
     "strategy": "public",
     "browser": false,
-    "args": [],
+    "args": [
+      {
+        "name": "temp",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Open a temporary chat with privacy protection"
+      }
+    ],
     "columns": [
       "Status"
     ],
@@ -5739,6 +6551,58 @@
   },
   {
     "site": "codex",
+    "name": "archive",
+    "description": "Archive (Codex's term for delete) the selected conversation via the Chat actions header menu. No confirmation in UI — pass --yes to actually archive.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually archive (default: dry-run preview)"
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "help": "Project label or path to select before running the command"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "help": "Conversation title to select within --project"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "required": false,
+        "help": "1-based conversation index within --project"
+      },
+      {
+        "name": "thread-id",
+        "type": "str",
+        "required": false,
+        "help": "Exact Codex thread id to select"
+      }
+    ],
+    "columns": [
+      "status",
+      "thread_id",
+      "project",
+      "conversation"
+    ],
+    "type": "js",
+    "modulePath": "codex/archive.js",
+    "sourceFile": "codex/archive.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
     "name": "ask",
     "description": "Send a prompt to the current or selected Codex conversation and wait for the AI response",
     "access": "write",
@@ -5895,18 +6759,25 @@
   {
     "site": "codex",
     "name": "model",
-    "description": "Get or switch the currently active AI model in Codex Desktop",
-    "access": "read",
+    "description": "Read, list, or switch the active model / reasoning level in Codex Desktop. The composer toolbar button toggles a menu that mixes model variants (GPT-5.5, Speed) with reasoning levels (Low/Medium/High/Extra High).",
+    "access": "write",
     "domain": "localhost",
     "strategy": "ui",
     "browser": true,
     "args": [
       {
-        "name": "model-name",
+        "name": "name",
         "type": "str",
         "required": false,
         "positional": true,
-        "help": "The ID of the model to switch to (e.g. gpt-4)"
+        "help": "Substring (case-insensitive) of a model / reasoning level to switch to. Omit to read current."
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List all menu options (does not switch)"
       }
     ],
     "columns": [
@@ -5933,6 +6804,51 @@
     "type": "js",
     "modulePath": "codex/new.js",
     "sourceFile": "codex/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "pin",
+    "description": "Pin the selected Codex conversation via the Chat actions header menu.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "help": "Project label or path to select before running the command"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "help": "Conversation title to select within --project"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "required": false,
+        "help": "1-based conversation index within --project"
+      },
+      {
+        "name": "thread-id",
+        "type": "str",
+        "required": false,
+        "help": "Exact Codex thread id to select"
+      }
+    ],
+    "columns": [
+      "status",
+      "thread_id",
+      "project",
+      "conversation"
+    ],
+    "type": "js",
+    "modulePath": "codex/pin.js",
+    "sourceFile": "codex/pin.js",
     "navigateBefore": true
   },
   {
@@ -6011,6 +6927,58 @@
     "type": "js",
     "modulePath": "codex/read.js",
     "sourceFile": "codex/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "rename",
+    "description": "Rename the selected Codex conversation. Opens the Chat actions menu → \"Rename chat\", then types the new title.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "New title (single line, no newlines)"
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "help": "Project label or path to select before running the command"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "help": "Conversation title to select within --project"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "required": false,
+        "help": "1-based conversation index within --project"
+      },
+      {
+        "name": "thread-id",
+        "type": "str",
+        "required": false,
+        "help": "Exact Codex thread id to select"
+      }
+    ],
+    "columns": [
+      "status",
+      "title",
+      "thread_id",
+      "project"
+    ],
+    "type": "js",
+    "modulePath": "codex/rename.js",
+    "sourceFile": "codex/rename.js",
     "navigateBefore": true
   },
   {
@@ -6107,6 +7075,51 @@
     "type": "js",
     "modulePath": "codex/status.js",
     "sourceFile": "codex/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "codex",
+    "name": "unpin",
+    "description": "Unpin the selected Codex conversation via the Chat actions header menu.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "help": "Project label or path to select before running the command"
+      },
+      {
+        "name": "conversation",
+        "type": "str",
+        "required": false,
+        "help": "Conversation title to select within --project"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "required": false,
+        "help": "1-based conversation index within --project"
+      },
+      {
+        "name": "thread-id",
+        "type": "str",
+        "required": false,
+        "help": "Exact Codex thread id to select"
+      }
+    ],
+    "columns": [
+      "status",
+      "thread_id",
+      "project",
+      "conversation"
+    ],
+    "type": "js",
+    "modulePath": "codex/pin.js",
+    "sourceFile": "codex/pin.js",
     "navigateBefore": true
   },
   {
@@ -9476,6 +10489,45 @@
   },
   {
     "site": "douyin",
+    "name": "search",
+    "description": "关键词搜索抖音视频",
+    "access": "read",
+    "domain": "www.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "结果数量 (1-30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "desc",
+      "author",
+      "url",
+      "plays",
+      "likes",
+      "comments",
+      "shares"
+    ],
+    "type": "js",
+    "modulePath": "douyin/search.js",
+    "sourceFile": "douyin/search.js",
+    "navigateBefore": "https://www.douyin.com"
+  },
+  {
+    "site": "douyin",
     "name": "stats",
     "description": "作品数据分析",
     "access": "read",
@@ -11887,6 +12939,40 @@
   },
   {
     "site": "grok",
+    "name": "delete",
+    "description": "Delete a Grok conversation by ID. Grok takes effect immediately with no confirmation dialog — require --yes to actually delete.",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID or grok.com/c/<uuid> URL"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete (default is a dry-run preview)"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "grok/delete.js",
+    "sourceFile": "grok/delete.js",
+    "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "detail",
     "description": "Open a Grok conversation by ID and read its messages",
     "access": "read",
@@ -12024,6 +13110,33 @@
   },
   {
     "site": "grok",
+    "name": "pin",
+    "description": "Pin a Grok conversation by ID",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID or grok.com/c/<uuid> URL"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "grok/pin.js",
+    "sourceFile": "grok/pin.js",
+    "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "read",
     "description": "Read messages in the current Grok conversation",
     "access": "read",
@@ -12103,6 +13216,33 @@
     "modulePath": "grok/status.js",
     "sourceFile": "grok/status.js",
     "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "unpin",
+    "description": "Unpin a Grok conversation by ID",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Conversation UUID or grok.com/c/<uuid> URL"
+      }
+    ],
+    "columns": [
+      "status",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "grok/pin.js",
+    "sourceFile": "grok/pin.js",
+    "navigateBefore": "https://grok.com",
     "siteSession": "persistent"
   },
   {
@@ -15122,6 +16262,927 @@
     "modulePath": "ke/zufang.js",
     "sourceFile": "ke/zufang.js",
     "navigateBefore": "https://ke.com"
+  },
+  {
+    "site": "kimi",
+    "name": "account",
+    "description": "Read account info from the Kimi sidebar (display name + plan label, e.g. \"Allegretto\").",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "ask",
+    "description": "Send a message and wait up to --timeout seconds for the assistant reply (best-effort: polls for turn count to grow + stabilize).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "cookies",
+    "description": "List kimi.com cookies visible to JavaScript (httpOnly cookies are deliberately not shown).",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "copy-message",
+    "description": "Return the text of the last assistant message. Pass --conv <id> to navigate to a specific chat first.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL (navigates there before reading)"
+      },
+      {
+        "name": "click-button",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Also click in-UI Copy button (writes to clipboard)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "detail",
+    "description": "Open a Kimi chat by ID and return its visible messages.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Chat ID or full /chat/<id> URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "dismiss-banner",
+    "description": "Close any visible sidebar banner (e.g., \"Make a Review & Earn Credit\", \"获取应用程序\") by clicking its Close svg.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "history",
+    "description": "List recent Kimi chats from the sidebar (with chat IDs extracted from href).",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "history-rename",
+    "description": "Rename a chat from the /chat/history page (clicks the inline Edit svg next to a chat row, types the new title, and saves). Requires --yes.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "chat-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Chat id (UUID-like)"
+      },
+      {
+        "name": "new-title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "New title"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually rename (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "idb-list",
+    "description": "List IndexedDB databases on kimi.com.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "mode",
+    "description": "Switch to a Kimi work mode: ppt | docs | deep-research | websites | sheets | agent-swarm | code. With no argument, lists modes.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Mode name (omit to list all)"
+      }
+    ],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "model",
+    "description": "Read the current Kimi model (e.g. \"K2.6 思考\") or switch by clicking the model dropdown. With no argument, returns current; with --list, opens dropdown + lists; with --set <name>, switches.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Open model dropdown + list options"
+      },
+      {
+        "name": "set",
+        "type": "str",
+        "required": false,
+        "help": "Substring (case-insensitive) of model to switch to"
+      }
+    ],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "new",
+    "description": "Start a new Kimi chat (navigates to / with chat_enter_method=new_chat).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "react",
+    "description": "Like or dislike the last assistant message. Pass --conv <id> to target a specific chat.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "kind",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "like or dislike"
+      },
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "read",
+    "description": "Read messages in the current Kimi chat. Pass --conv <id> to navigate to a specific chat first.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL (navigates there before reading)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "regenerate",
+    "description": "Click Refresh (Kimi's regenerate button) on the last assistant message. Pass --conv <id> to target a specific chat.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "send",
+    "description": "Send a message in the current Kimi chat (fire-and-forget; does not wait for reply).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Message text"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "settings",
+    "description": "Open the Kimi settings page (/settings).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "share",
+    "description": "Click Share on the last assistant message (opens Kimi's share dialog). Pass --conv <id> to target a specific chat.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": false,
+        "help": "Chat id or URL"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "sidebar-toggle",
+    "description": "Click the LeftBar svg to toggle the Kimi sidebar.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "sign-out",
+    "description": "Click SignOut on the Kimi /settings page. Navigates to /settings first if not already there. Requires --yes.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually sign out (default: dry-run)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "status",
+    "description": "Check Kimi page connection, login state, and current URL.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value",
+      "Status",
+      "Url",
+      "Index",
+      "Title",
+      "ChatId",
+      "Role",
+      "Text",
+      "Length",
+      "ClipboardClicked",
+      "Reaction",
+      "WaitedSeconds",
+      "ReplyPreview"
+    ],
+    "type": "js",
+    "modulePath": "kimi/chat.js",
+    "sourceFile": "kimi/chat.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "storage-get",
+    "description": "Read a single localStorage / sessionStorage value on kimi.com. Auto-decodes JSON.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key"
+      },
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": ""
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 4000,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "storage-keys",
+    "description": "List localStorage / sessionStorage keys on kimi.com (with byte sizes).",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value",
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "kimi/storage.js",
+    "sourceFile": "kimi/storage.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "templates",
+    "description": "List template cards visible on a Kimi mode page (PPT/docs/deep-research/agent). Each mode shows curated example projects organized by category. Pass --mode to navigate first.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "mode",
+        "type": "str",
+        "required": false,
+        "help": "Navigate to mode first: ppt|docs|deep-research|agent|websites|sheets|agent-swarm|code"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "upgrade",
+    "description": "Click the \"Upgrade\" button (or 升级会员) in the Kimi sidebar — opens the membership/upgrade page or dialog.",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Index",
+      "Category",
+      "Title",
+      "ChatId",
+      "NewTitle"
+    ],
+    "type": "js",
+    "modulePath": "kimi/audit-extras.js",
+    "sourceFile": "kimi/audit-extras.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "view-all-history",
+    "description": "Navigate to /chat/history (full conversation list page).",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Mode",
+      "Status",
+      "Url",
+      "Field",
+      "Value",
+      "Index",
+      "Model",
+      "Active"
+    ],
+    "type": "js",
+    "modulePath": "kimi/ui.js",
+    "sourceFile": "kimi/ui.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "lesswrong",
@@ -20651,9 +22712,24 @@
       }
     ],
     "columns": [
-      "field",
-      "value"
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "date",
+      "article_type",
+      "language",
+      "doi",
+      "pmc",
+      "affiliations",
+      "grants",
+      "mesh_terms",
+      "keywords",
+      "abstract",
+      "url"
     ],
+    "defaultFormat": "plain",
     "type": "js",
     "modulePath": "pubmed/article.js",
     "sourceFile": "pubmed/article.js"
@@ -20790,6 +22866,194 @@
   },
   {
     "site": "pubmed",
+    "name": "clinical-trial",
+    "description": "Search PubMed clinical trials with a trial-study preset",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Clinical topic query, e.g. \"breast cancer\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "free-full-text",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include free full text articles"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "date",
+        "required": false,
+        "help": "Sort by date or relevance",
+        "choices": [
+          "date",
+          "relevance"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/clinical-trial.js",
+    "sourceFile": "pubmed/clinical-trial.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "journal",
+    "description": "Search PubMed articles by journal name",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "journal",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Journal name, e.g. \"Nature\" or \"The Lancet\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "relevance",
+        "required": false,
+        "help": "Sort by relevance or date",
+        "choices": [
+          "relevance",
+          "date"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/journal.js",
+    "sourceFile": "pubmed/journal.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "mesh",
+    "description": "Search PubMed articles by MeSH term",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "term",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "MeSH term, e.g. \"Neoplasms\" or \"Machine Learning\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "major",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include articles where this is a major MeSH topic"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "relevance",
+        "required": false,
+        "help": "Sort by relevance or date",
+        "choices": [
+          "relevance",
+          "date"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/mesh.js",
+    "sourceFile": "pubmed/mesh.js"
+  },
+  {
+    "site": "pubmed",
     "name": "related",
     "description": "Find articles related to a PubMed article",
     "access": "read",
@@ -20834,6 +23098,75 @@
     "type": "js",
     "modulePath": "pubmed/related.js",
     "sourceFile": "pubmed/related.js"
+  },
+  {
+    "site": "pubmed",
+    "name": "review",
+    "description": "Search PubMed review articles with a review preset",
+    "access": "read",
+    "domain": "pubmed.ncbi.nlm.nih.gov",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Review topic query, e.g. \"immunotherapy\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-100)"
+      },
+      {
+        "name": "year-from",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year from"
+      },
+      {
+        "name": "year-to",
+        "type": "int",
+        "required": false,
+        "help": "Filter publication year to"
+      },
+      {
+        "name": "has-abstract",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only include articles with abstracts"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "date",
+        "required": false,
+        "help": "Sort by date or relevance",
+        "choices": [
+          "date",
+          "relevance"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "pmid",
+      "title",
+      "authors",
+      "journal",
+      "year",
+      "article_type",
+      "doi",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pubmed/review.js",
+    "sourceFile": "pubmed/review.js"
   },
   {
     "site": "pubmed",
@@ -21015,6 +23348,402 @@
     "type": "js",
     "modulePath": "pypi/package.js",
     "sourceFile": "pypi/package.js"
+  },
+  {
+    "site": "qoder",
+    "name": "account",
+    "description": "Click the account button (username) in the Qoder sidebar and return the visible account dropdown items.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "str",
+        "required": false,
+        "help": "Username text shown in the sidebar (default: tries common short labels)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "add-workspace",
+    "description": "Click \"Add Workspace\" — opens the folder picker. Note: this opens a system file-picker dialog that Qoder controls; the actual folder selection must be done in the UI by the user.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "ask",
+    "description": "Send a prompt to Qoder and wait up to --timeout seconds for the reply (best-effort: polls for the chat turn count to grow + stabilize).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt text"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text",
+      "WaitedSeconds"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "credits",
+    "description": "Click \"Credits Usage\" and return the credits-usage display text.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "history",
+    "description": "List Quests visible in the Qoder sidebar. Returns title + visible metadata.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "qoder/history.js",
+    "sourceFile": "qoder/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "knowledge",
+    "description": "Open the Knowledge view (Qoder's personal/team knowledge base).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "marketplace",
+    "description": "Open the Qoder Marketplace.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "more-actions",
+    "description": "Click the \"More Actions\" button and list its menu items.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "new",
+    "description": "Start a new Qoder Quest (conversation). Clicks the \"New Quest\" button in the sidebar (or its ⌘N variant).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "open-editor",
+    "description": "Click \"Open Editor\" — opens the current draft in a full editor pane.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/composer.js",
+    "sourceFile": "qoder/composer.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "open-panel",
+    "description": "Open / close the Qoder bottom panel (Output / Terminal / Debug Console). ⌥⌘B equivalent.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "prompt-enhance",
+    "description": "Click \"Prompt Enhance\" — Qoder rewrites the current composer draft for better LLM consumption.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/composer.js",
+    "sourceFile": "qoder/composer.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "read",
+    "description": "Read messages in the current Qoder Quest. Returns role + text for each visible turn.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "qoder/read.js",
+    "sourceFile": "qoder/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "search",
+    "description": "Open Qoder Search palette (⌘P), type a query, return matched options.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Item"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "send",
+    "description": "Type text into the Qoder composer and click \"Send message\" (fire-and-forget).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Text to send"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Length"
+    ],
+    "type": "js",
+    "modulePath": "qoder/quest.js",
+    "sourceFile": "qoder/quest.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "settings",
+    "description": "Click the Settings button in the Qoder sidebar.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "sidebar-toggle",
+    "description": "Collapse / Expand the Qoder Quest List sidebar (⌘B).",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "status",
+    "description": "Check Qoder CDP connection and report the current renderer URL + title.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "qoder/status.js",
+    "sourceFile": "qoder/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "qoder",
+    "name": "view-all",
+    "description": "Click \"View all\" to show all Quests.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status"
+    ],
+    "type": "js",
+    "modulePath": "qoder/ui.js",
+    "sourceFile": "qoder/ui.js",
+    "navigateBefore": true
   },
   {
     "site": "quark",
@@ -25196,6 +27925,1336 @@
     "sourceFile": "toutiao/hot.js"
   },
   {
+    "site": "trae-cn",
+    "name": "activity",
+    "description": "Read the current Trae CN task/activity state, including in-progress steps when visible",
+    "access": "read",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn activity --max-chars 1200 -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "max-chars",
+        "type": "int",
+        "default": 1200,
+        "required": false,
+        "help": "Max chars per text field; 0 returns full text (default: 1200)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Workspace",
+      "Model",
+      "Agent",
+      "LatestRole",
+      "TurnIndex",
+      "MessageId",
+      "Progress",
+      "ActiveStep",
+      "CompletedSteps",
+      "PendingSteps",
+      "TotalSteps",
+      "ApprovalPending",
+      "ApprovalKind",
+      "ApprovalButton",
+      "Thinking",
+      "LatestText",
+      "TextChars",
+      "UpdatedAt"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/activity.js",
+    "sourceFile": "trae-cn/activity.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "approve",
+    "description": "Approve visible Trae CN permission prompts such as terminal-run, high-risk command, or delete confirmations",
+    "access": "write",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn approve --approve-kinds terminal,delete -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "approve-kinds",
+        "type": "string",
+        "default": "terminal,delete",
+        "required": false,
+        "help": "Comma-separated approval categories: terminal,delete,keep,all (default: terminal,delete; keep is not default)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Max visible prompts to approve in this pass (default: 1)"
+      },
+      {
+        "name": "max-chars",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max chars to return from prompt text; 0 returns full text (default: 600)"
+      },
+      {
+        "name": "dry-run",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Detect matching prompts without clicking them (default: false)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Kind",
+      "Button",
+      "Prompt",
+      "Selector",
+      "Action"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/approve.js",
+    "sourceFile": "trae-cn/approve.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "ask",
+    "description": "Send a prompt to Trae CN, wait for the assistant result without treating approval cards as final, and return it",
+    "access": "write",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn ask \"请只回复 OK\" --timeout 120 -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send into Trae CN"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "Max seconds to wait for response (default: 60)"
+      },
+      {
+        "name": "max-chars",
+        "type": "int",
+        "default": 12000,
+        "required": false,
+        "help": "Max chars to return from the assistant response; 0 returns full text (default: 12000)"
+      },
+      {
+        "name": "auto-approve",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "While waiting, approve visible terminal/delete prompts, including high-risk terminal confirmation layers (default: false)"
+      },
+      {
+        "name": "approve-kinds",
+        "type": "string",
+        "default": "terminal,delete",
+        "required": false,
+        "help": "Comma-separated approval categories for --auto-approve: terminal,delete,keep,all (default: terminal,delete; keep is not default)"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text",
+      "TextChars",
+      "Truncated",
+      "TurnIndex",
+      "MessageId"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/ask.js",
+    "sourceFile": "trae-cn/ask.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "dump",
+    "description": "Dump the DOM and Accessibility tree of trae-cn for reverse-engineering",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "action",
+      "files"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/dump.js",
+    "sourceFile": "trae-cn/dump.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "export",
+    "description": "Export the current Trae CN conversation to Markdown",
+    "access": "read",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn export --limit 20 --output /tmp/trae-cn-export.md",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file (default: /tmp/trae-cn-export.md)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max recent turns to export (default: 50)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File",
+      "Messages"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/export.js",
+    "sourceFile": "trae-cn/export.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "model",
+    "description": "Read the model label currently shown in the Trae CN chat input",
+    "access": "read",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn model -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Model",
+      "Agent",
+      "Workspace"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/model.js",
+    "sourceFile": "trae-cn/model.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "new",
+    "description": "Start a new Trae CN task in the current workspace, optionally sending the first prompt",
+    "access": "write",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn new \"请执行你的任务\" -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Optional first prompt to send after creating the task"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max seconds to wait for a fresh task composer (default: 10)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Action",
+      "Workspace",
+      "Model",
+      "Agent",
+      "FreshTaskConfirmed",
+      "TurnsBeforeSubmit",
+      "Turns",
+      "ComposerReady",
+      "SubmitMode"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/new.js",
+    "sourceFile": "trae-cn/new.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "read",
+    "description": "Read the current Trae CN chat conversation",
+    "access": "read",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn read --limit 5 --max-chars 12000 -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max recent turns to return (default: 20)"
+      },
+      {
+        "name": "max-chars",
+        "type": "int",
+        "default": 6000,
+        "required": false,
+        "help": "Max chars per turn; 0 returns full text (default: 6000)"
+      }
+    ],
+    "columns": [
+      "Role",
+      "Text",
+      "TextChars",
+      "Truncated",
+      "TurnIndex",
+      "MessageId"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/read.js",
+    "sourceFile": "trae-cn/read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "screenshot",
+    "description": "Capture a snapshot of the current Trae CN window (DOM + Accessibility tree)",
+    "access": "read",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn screenshot --output /tmp/trae-cn-snapshot.txt",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "Output file path (default: /tmp/trae-cn-snapshot.txt)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/screenshot.js",
+    "sourceFile": "trae-cn/screenshot.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "select-model",
+    "description": "Select a model in the current Trae CN chat input",
+    "access": "write",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn select-model \"GPT 5.4\" -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Model label, for example GPT 5.4 or GPT-5.4"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Requested",
+      "Selected",
+      "Workspace",
+      "Agent"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/select-model.js",
+    "sourceFile": "trae-cn/select-model.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "send",
+    "description": "Send a prompt into the current Trae CN chat input",
+    "access": "write",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn send \"请执行你的任务\" -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Text to send into Trae CN"
+      }
+    ],
+    "columns": [
+      "Status",
+      "InjectedText",
+      "SubmitMode"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/send.js",
+    "sourceFile": "trae-cn/send.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "setup",
+    "description": "Show local setup commands for controlling Trae CN with OpenCLI",
+    "access": "read",
+    "example": "opencli trae-cn setup -f table",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Step",
+      "Command",
+      "Purpose"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/setup.js",
+    "sourceFile": "trae-cn/setup.js"
+  },
+  {
+    "site": "trae-cn",
+    "name": "status",
+    "description": "Check active CDP connection to Trae CN and summarize the current workspace/model",
+    "access": "read",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn status -f json",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Title",
+      "Workspace",
+      "Model",
+      "Agent",
+      "Turns",
+      "ComposerReady",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/status.js",
+    "sourceFile": "trae-cn/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-cn",
+    "name": "targets",
+    "description": "List Trae CN CDP targets and show which workspace/window is waiting",
+    "access": "read",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 opencli trae-cn targets -f table",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "endpoint",
+        "type": "string",
+        "required": false,
+        "help": "CDP endpoint (default: OPENCLI_CDP_ENDPOINT)"
+      },
+      {
+        "name": "probe-activity",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Probe each target for Trae activity state (default: true)"
+      },
+      {
+        "name": "max-chars",
+        "type": "int",
+        "default": 240,
+        "required": false,
+        "help": "Max chars for approval prompt/activity snippets (default: 240)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "SelectedHint",
+      "RecommendedTarget",
+      "Title",
+      "Workspace",
+      "Status",
+      "ApprovalPending",
+      "ApprovalKind",
+      "ApprovalButton",
+      "Model",
+      "Agent",
+      "Type",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/targets.js",
+    "sourceFile": "trae-cn/targets.js"
+  },
+  {
+    "site": "trae-cn",
+    "name": "watch",
+    "description": "Sample Trae CN activity over time to monitor long-running tasks; optionally approve visible terminal/delete prompts",
+    "access": "write",
+    "example": "OPENCLI_CDP_ENDPOINT=http://127.0.0.1:39240 OPENCLI_CDP_TARGET=talk opencli trae-cn watch --stream true --duration 120",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "duration",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Seconds to observe (default: 30)"
+      },
+      {
+        "name": "interval",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Seconds between samples (default: 2)"
+      },
+      {
+        "name": "max-chars",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max chars per text field; 0 returns full text (default: 600)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 86400,
+        "required": false,
+        "help": "Max seconds for the overall watch command (default: 86400)"
+      },
+      {
+        "name": "stream",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Write each sample immediately as JSONL and skip result rendering (default: false)"
+      },
+      {
+        "name": "stop-on-complete",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Stop watching after the first completed sample (default: true)"
+      },
+      {
+        "name": "auto-approve",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Approve visible terminal/delete prompts before each sample, including high-risk terminal confirmation layers (default: false)"
+      },
+      {
+        "name": "approve-kinds",
+        "type": "string",
+        "default": "terminal,delete",
+        "required": false,
+        "help": "Comma-separated approval categories for --auto-approve: terminal,delete,keep,all (default: terminal,delete; keep is not default)"
+      }
+    ],
+    "columns": [
+      "Sample",
+      "ElapsedSec",
+      "Changed",
+      "Status",
+      "Progress",
+      "ActiveStep",
+      "ApprovalPending",
+      "ApprovalKind",
+      "ApprovalButton",
+      "AutoApproved",
+      "LatestRole",
+      "TurnIndex",
+      "MessageId",
+      "TextChars",
+      "LatestText",
+      "UpdatedAt"
+    ],
+    "type": "js",
+    "modulePath": "trae-cn/watch.js",
+    "sourceFile": "trae-cn/watch.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "automation-list",
+    "description": "List Trae SOLO Automation tab content. Default tab is \"Configured\"; pass --tab to switch.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "tab",
+        "type": "str",
+        "default": "configured",
+        "required": false,
+        "help": "Tab to view: configured / run-history / task-template"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Summary"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/automation.js",
+    "sourceFile": "trae-solo/automation.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "cookies",
+    "description": "List cookies on the Trae SOLO renderer (JS-visible via document.cookie; httpOnly cookies not shown).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/renderer-storage.js",
+    "sourceFile": "trae-solo/renderer-storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "extensions-list",
+    "description": "List VSCode extensions installed in Trae SOLO (~/.trae/extensions/extensions.json). Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Index",
+      "Workspace Id",
+      "Kind",
+      "Target",
+      "Modified",
+      "Id",
+      "Version",
+      "Source",
+      "Installed"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/workspaces-fs.js",
+    "sourceFile": "trae-solo/workspaces-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "history",
+    "description": "List Trae SOLO projects and the tasks within each (from the project-list view sidebar).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "help": "Filter by project name (substring, case-insensitive)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max tasks per project"
+      }
+    ],
+    "columns": [
+      "Project",
+      "Task Index",
+      "Task"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/history.js",
+    "sourceFile": "trae-solo/history.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "idb-list",
+    "description": "List IndexedDB databases on the Trae SOLO renderer. Trae ships an @byted/ve-rtc DB used by the Volcengine RTC voice/video infrastructure.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/renderer-storage.js",
+    "sourceFile": "trae-solo/renderer-storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "mode",
+    "description": "Read or switch TRAE SOLO between Code mode and Work mode.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Target mode: code or work. Omit to read current."
+      }
+    ],
+    "columns": [
+      "Status",
+      "Mode"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/mode.js",
+    "sourceFile": "trae-solo/mode.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "model",
+    "description": "Read or switch the current AI model in TRAE SOLO. Without arguments, reports the current model. With <name> argument (substring, case-insensitive), switches to a matching model. Pass --list to enumerate available models.",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Target model name (substring match, case-insensitive). Omit to read current."
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List all available models (does not switch)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Model"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/model.js",
+    "sourceFile": "trae-solo/model.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "recent-workspaces",
+    "description": "Show Trae SOLO's recently-opened workspaces (the File → Open Recent menu, stored under key \"history.recentlyOpenedPathsList\" in state.vscdb).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Kind",
+      "Path"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/state-fs.js",
+    "sourceFile": "trae-solo/state-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "settings-read",
+    "description": "Parse and pretty-print Trae SOLO user settings.json (~/Library/Application Support/TRAE SOLO/User/settings.json). Handles VSCode JSONC syntax (line comments + trailing commas).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/settings.js",
+    "sourceFile": "trae-solo/settings.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-category",
+    "description": "Filter Skills Marketplace by category. Pass --list to see categories.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Category name (substring; case-insensitive). Common: All / Developer Tools / Data Analysis / UI Design / Content Creation / Productivity"
+      },
+      {
+        "name": "list",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List available categories"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-fs-installed",
+    "description": "List INSTALLED Trae SOLO skills (managedSkills entry in ~/.trae/skill-config.json).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Index",
+      "Name",
+      "Description",
+      "Source"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-fs-list",
+    "description": "List all Trae SOLO skills present on disk under ~/.trae/skills/. Reads SKILL.md front-matter for descriptions. Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "Max rows"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description",
+      "Source"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-fs-show",
+    "description": "Print a skill's SKILL.md content + on-disk path.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Skill name (folder under ~/.trae/skills/)"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill-fs.js",
+    "sourceFile": "trae-solo/skill-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-list",
+    "description": "List Trae SOLO Skills — by default the Marketplace; pass --installed to list installed ones.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "installed",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "List installed skills instead of the marketplace"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "skill-search",
+    "description": "Filter Skills Marketplace by keyword.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (substring)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max rows"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Name",
+      "Description"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/skill.js",
+    "sourceFile": "trae-solo/skill.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "state-get",
+    "description": "Read a single key from Trae SOLO's globalStorage state.vscdb. Pass --workspace <ws-id> to query a per-workspace DB instead. Returns parsed JSON if the value is JSON.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "State key (use state-keys to discover)"
+      },
+      {
+        "name": "workspace",
+        "type": "str",
+        "required": false,
+        "help": "Workspace id (from workspaces-list) to query a per-workspace DB"
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 8000,
+        "required": false,
+        "help": "Truncate value to this many bytes"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/state-fs.js",
+    "sourceFile": "trae-solo/state-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "state-keys",
+    "description": "List all keys present in Trae SOLO's globalStorage state.vscdb (VSCode-style UI/agent state). Pass --workspace <ws-id> to query a per-workspace DB instead. Use state-get to read a specific value. (See renderer storage-keys for browser-side LS/SS.)",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter over keys"
+      },
+      {
+        "name": "workspace",
+        "type": "str",
+        "required": false,
+        "help": "Workspace id (from workspaces-list) to query a per-workspace DB"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Kind",
+      "Path"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/state-fs.js",
+    "sourceFile": "trae-solo/state-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "status",
+    "description": "Check active CDP connection to Trae SOLO Desktop",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/status.js",
+    "sourceFile": "trae-solo/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "storage-get",
+    "description": "Read a single localStorage / sessionStorage value on the Trae SOLO renderer.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "key",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Storage key (use storage-keys to discover)"
+      },
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "max-bytes",
+        "type": "int",
+        "default": 4000,
+        "required": false,
+        "help": "Truncate value to this many chars"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/renderer-storage.js",
+    "sourceFile": "trae-solo/renderer-storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "storage-keys",
+    "description": "List localStorage / sessionStorage keys on the Trae SOLO renderer (CDP). For the on-disk VSCode state.vscdb, see state-keys.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "storage",
+        "type": "str",
+        "default": "local",
+        "required": false,
+        "help": "\"local\" or \"session\""
+      },
+      {
+        "name": "filter",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive substring filter"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Key",
+      "Bytes",
+      "Name",
+      "Preview",
+      "Database",
+      "Version"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/renderer-storage.js",
+    "sourceFile": "trae-solo/renderer-storage.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "trae-solo",
+    "name": "task-fs-list",
+    "description": "List Trae SOLO task ids from disk (snapshot/<uuid> + agentconfig/<uuid>.json). Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Task Id",
+      "Has Snapshot",
+      "Has Config",
+      "Modified",
+      "Phase",
+      "Turn Id",
+      "Commit"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/task-fs.js",
+    "sourceFile": "trae-solo/task-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "task-fs-show",
+    "description": "Show the workspace tree at a given chat-turn ref (via git ls-tree). Pass --turn <turn-id> to pick a turn; otherwise the latest after-chat-turn ref.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "task-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task UUID"
+      },
+      {
+        "name": "turn",
+        "type": "str",
+        "required": false,
+        "help": "Specific turn id (omit for latest after-chat-turn)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Mode",
+      "Path",
+      "Size"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/task-fs.js",
+    "sourceFile": "trae-solo/task-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "task-fs-turns",
+    "description": "Show the chat-turn timeline for a Trae SOLO task as git tags (before-chat-turn-* / after-chat-turn-*).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "task-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task UUID (folder name under snapshot/)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Task Id",
+      "Has Snapshot",
+      "Has Config",
+      "Modified",
+      "Phase",
+      "Turn Id",
+      "Commit"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/task-fs.js",
+    "sourceFile": "trae-solo/task-fs.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "user-rules",
+    "description": "Print Trae SOLO user rules (~/.trae/user_rules.md).",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/user-rules.js",
+    "sourceFile": "trae-solo/user-rules.js"
+  },
+  {
+    "site": "trae-solo",
+    "name": "workspaces-list",
+    "description": "List Trae SOLO workspaceStorage entries (~/Library/.../TRAE SOLO/User/workspaceStorage/<uuid>/), resolving each workspace.json to its single-folder path or multi-folder workspace target. Works while Trae is closed.",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": ""
+      }
+    ],
+    "columns": [
+      "Index",
+      "Workspace Id",
+      "Kind",
+      "Target",
+      "Modified",
+      "Id",
+      "Version",
+      "Source",
+      "Installed"
+    ],
+    "type": "js",
+    "modulePath": "trae-solo/workspaces-fs.js",
+    "sourceFile": "trae-solo/workspaces-fs.js"
+  },
+  {
     "site": "tvmaze",
     "name": "search",
     "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",
@@ -25656,6 +29715,40 @@
   },
   {
     "site": "twitter",
+    "name": "follow-batch",
+    "description": "Follow multiple Twitter/X users from a comma-separated username list",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "usernames",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated Twitter/X screen names, with or without @"
+      },
+      {
+        "name": "delay-ms",
+        "type": "int",
+        "default": 3000,
+        "required": false,
+        "help": "Delay between follow attempts in milliseconds"
+      }
+    ],
+    "columns": [
+      "username",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/follow-batch.js",
+    "sourceFile": "twitter/follow-batch.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "followers",
     "description": "Get accounts following a Twitter/X user (defaults to the logged-in user when no user is given)",
     "access": "read",
@@ -25861,6 +29954,56 @@
   },
   {
     "site": "twitter",
+    "name": "list-add-batch",
+    "description": "Add multiple users to a Twitter/X list you own from a comma-separated username list",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
+      },
+      {
+        "name": "usernames",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated Twitter/X handles to add (with or without @)"
+      },
+      {
+        "name": "interval",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Seconds to wait between account additions (default: 5)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall batch command (default: 600)"
+      }
+    ],
+    "columns": [
+      "listId",
+      "username",
+      "userId",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-add-batch.js",
+    "sourceFile": "twitter/list-add-batch.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "list-create",
     "description": "Create a new Twitter/X list (returns the new list id)",
     "access": "write",
@@ -25904,6 +30047,49 @@
   },
   {
     "site": "twitter",
+    "name": "list-delete",
+    "description": "Delete a Twitter/X list you own after explicit confirmation",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
+      },
+      {
+        "name": "confirm",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Required. Set --confirm true to delete the list."
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Max seconds for the overall delete command (default: 300)"
+      }
+    ],
+    "columns": [
+      "listId",
+      "name",
+      "members",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-delete.js",
+    "sourceFile": "twitter/list-delete.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "list-remove",
     "description": "Remove a user from a Twitter/X list you own (toggles via UI; no-op if not currently a member)",
     "access": "write",
@@ -25936,6 +30122,56 @@
     "type": "js",
     "modulePath": "twitter/list-remove.js",
     "sourceFile": "twitter/list-remove.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "list-remove-batch",
+    "description": "Remove multiple users from a Twitter/X list you own from a comma-separated username list",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "listId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Numeric ID of the list you own (e.g. from `opencli twitter lists`)"
+      },
+      {
+        "name": "usernames",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated Twitter/X handles to remove (with or without @)"
+      },
+      {
+        "name": "interval",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Seconds to wait between account removals (default: 5)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "Max seconds for the overall batch command (default: 600)"
+      }
+    ],
+    "columns": [
+      "listId",
+      "username",
+      "userId",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/list-remove-batch.js",
+    "sourceFile": "twitter/list-remove-batch.js",
     "navigateBefore": true
   },
   {
@@ -27417,6 +31653,72 @@
     "type": "js",
     "modulePath": "web/read.js",
     "sourceFile": "web/read.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "wechat-channels",
+    "name": "publish",
+    "description": "发布视频到视频号",
+    "access": "write",
+    "domain": "channels.weixin.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "video",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "视频文件路径 (.mp4/.mov/.avi/.webm)"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "短标题（建议 6-16 字）"
+      },
+      {
+        "name": "caption",
+        "type": "str",
+        "required": false,
+        "help": "描述内容，支持直接写 #话题（如：日常生活 #搞笑 #生活）"
+      },
+      {
+        "name": "schedule",
+        "type": "str",
+        "required": false,
+        "help": "定时发布时间（ISO8601 或 Unix 秒，如 \"2026-05-20 10:00\"）"
+      },
+      {
+        "name": "draft",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "保存为草稿"
+      },
+      {
+        "name": "manual",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "填完所有字段后不自动发布，由用户手动点击发表（务必同时传 --site-session persistent，否则表单页约 30 秒后会被重置为空白页）"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "命令整体超时秒数（含登录等待 + 上传转码，默认 600）"
+      }
+    ],
+    "columns": [
+      "status",
+      "title",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "wechat-channels/publish.js",
+    "sourceFile": "wechat-channels/publish.js",
     "navigateBefore": false
   },
   {
@@ -29768,11 +34070,156 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "draft-clear",
+    "description": "清空小红书本地草稿",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio, all"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually clear local drafts. Default is dry-run count only."
+      }
+    ],
+    "columns": [
+      "status",
+      "type",
+      "count",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/draft-clear.js",
+    "sourceFile": "xiaohongshu/draft-clear.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "draft-delete",
+    "description": "删除一条小红书本地草稿",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Draft id returned by `opencli xiaohongshu drafts`"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio"
+      },
+      {
+        "name": "execute",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete the local draft. Default is dry-run verification only."
+      }
+    ],
+    "columns": [
+      "status",
+      "id",
+      "type",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/draft-delete.js",
+    "sourceFile": "xiaohongshu/draft-delete.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "draft-open",
+    "description": "读取一条小红书本地草稿详情",
+    "access": "read",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Draft id returned by `opencli xiaohongshu drafts`"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio"
+      }
+    ],
+    "columns": [
+      "id",
+      "type",
+      "title",
+      "updated_at",
+      "images",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/draft-open.js",
+    "sourceFile": "xiaohongshu/draft-open.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "drafts",
+    "description": "小红书本地草稿箱列表",
+    "access": "read",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "str",
+        "default": "image",
+        "required": false,
+        "help": "Draft type: image, video, article, audio"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "type",
+      "title",
+      "updated_at",
+      "images",
+      "text_preview"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/drafts.js",
+    "sourceFile": "xiaohongshu/drafts.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "feed",
-    "description": "小红书首页推荐 Feed (via Pinia Store Action)",
+    "description": "小红书首页推荐 Feed (reads hydrated Pinia store)",
     "access": "read",
     "domain": "www.xiaohongshu.com",
-    "strategy": "intercept",
+    "strategy": "cookie",
     "browser": true,
     "args": [
       {
@@ -29794,7 +34241,7 @@
     "type": "js",
     "modulePath": "xiaohongshu/feed.js",
     "sourceFile": "xiaohongshu/feed.js",
-    "navigateBefore": true
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",

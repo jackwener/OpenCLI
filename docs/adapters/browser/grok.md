@@ -16,6 +16,9 @@ Drive **Grok** (grok.com) chat from the terminal. All commands run through your 
 | `opencli grok send <prompt>` | Fire-and-forget: send a prompt without waiting | write |
 | `opencli grok new` | Start a fresh conversation | write |
 | `opencli grok image <prompt>` | Generate images via Grok and return their URLs | write |
+| `opencli grok pin <id>` | Pin a conversation from the sidebar context menu | write |
+| `opencli grok unpin <id>` | Unpin a conversation from the sidebar context menu | write |
+| `opencli grok delete <id> --yes` | Delete a sidebar conversation after an explicit `--yes` confirmation | write |
 
 ## Usage Examples
 
@@ -47,6 +50,14 @@ opencli grok new
 
 # Generate an image
 opencli grok image "a cyberpunk mechanical owl, neon purple and blue" --new true
+
+# Pin or unpin a conversation by ID (or full https://grok.com/c/<id> URL)
+opencli grok pin 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06
+opencli grok unpin https://grok.com/c/7c4197f2-10a1-4ebb-a84a-fea89f4f1d06
+
+# Preview then explicitly delete a conversation
+opencli grok delete 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06
+opencli grok delete 7c4197f2-10a1-4ebb-a84a-fea89f4f1d06 --yes true
 ```
 
 ## Options
@@ -78,6 +89,13 @@ opencli grok image "a cyberpunk mechanical owl, neon purple and blue" --new true
 |--------|-------------|
 | `--limit` | Max conversations to list (default: `20`, max `100`) |
 
+### `pin` / `unpin` / `delete`
+
+| Option | Description |
+|--------|-------------|
+| `id` | Session ID (UUID) or full `https://grok.com/c/<id>` URL (required positional) |
+| `--yes` | (`delete` only) Actually delete the conversation; without it the command returns a dry-run row |
+
 ## Output Columns
 
 | Command | Columns |
@@ -89,6 +107,9 @@ opencli grok image "a cyberpunk mechanical owl, neon purple and blue" --new true
 | `ask` | `response` |
 | `send` | `Status, Prompt` |
 | `new` | `Status` |
+| `pin` | `status, id` |
+| `unpin` | `status, id` |
+| `delete` | `status, id` |
 
 ## Prerequisites
 
@@ -102,6 +123,7 @@ opencli grok image "a cyberpunk mechanical owl, neon purple and blue" --new true
 - Grok commands default to persistent site sessions, so consecutive `grok ask` / `grok read` / `grok detail` invocations continue in the same Grok page. Pass `--site-session ephemeral` for a one-shot tab.
 - `ask` waits for the streaming reply to stabilize; `send` returns immediately after submission.
 - `history` reads the visible sidebar — if Grok lazy-loads older conversations, scroll the sidebar in your browser before re-running, or use `detail <id>` directly.
+- `pin`, `unpin`, and `delete` operate on conversations visible in the sidebar. `pin` / `unpin` verify the post-action context-menu state; `delete --yes` verifies the sidebar entry disappears before returning success.
 - `status` returns `Model` / `SessionId` as `null` when they cannot be detected (e.g. page still loading) rather than a string sentinel — branch on `null` in agent code.
 - DOM or product changes on Grok can break composer detection — `opencli grok status` is the quickest sanity check.
 - `limit` is validated and rejected with `ArgumentError` if non-positive or above the documented max (`history` max 100); no silent clamp.

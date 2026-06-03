@@ -63,7 +63,18 @@ export function saveNetworkCache(
         savedAt: new Date().toISOString(),
         entries,
     };
-    fs.writeFileSync(target, JSON.stringify(payload), 'utf-8');
+    // 0o600: entries can include auth tokens and PII from captured response
+    // bodies. fchmod before writing also tightens a pre-existing broad file.
+    let fd: number | undefined;
+    try {
+        fd = fs.openSync(target, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC, 0o600);
+        fs.fchmodSync(fd, 0o600);
+        fs.writeFileSync(fd, JSON.stringify(payload), 'utf8');
+    } finally {
+        if (fd !== undefined) {
+            fs.closeSync(fd);
+        }
+    }
 }
 
 export interface LoadOptions {

@@ -51,6 +51,18 @@ export interface PageSignals {
   title: string;
 }
 
+export type EndpointEvidenceVerdict = 'likely_data' | 'maybe_data' | 'noise' | 'blocked';
+
+export interface EndpointEvidence {
+  url: string;
+  status: number;
+  contentType: string;
+  real_data_score: number;
+  verdict: EndpointEvidenceVerdict;
+  reasons: string[];
+  sample_paths: string[];
+}
+
 // ── Anti-bot detection ────────────────────────────────────────────────────
 
 export type AntiBotVendor =
@@ -160,8 +172,171 @@ export interface PatternVerdict {
   reason: string;
   /** How many JSON XHR/fetch responses we saw during navigation. */
   json_responses: number;
+  /** How many observed responses look like real business data, not telemetry. */
+  real_data_candidates: number;
   /** Count of non-2xx API responses — hint for token-gated (Pattern D). */
   auth_failures: number;
+}
+
+const NOISE_URL_RE = /(?:analytics|beacon|collect|telemetry|tracking|sentry|doubleclick|google-analytics|googletagmanager|adservice|\/ads?(?:[/?#]|$)|metrics?|pixel|personalization|experiment|\/events?(?:[/?#]|$))/i;
+const BUSINESS_KEY_RE = /^(?:data|items?|results?|records?|list|rows?|edges?|nodes?|timeline|users?|title|name|text|content|body|price|amount|id|url|avatar|nickname|desc|comments?|likes?|shares?|total|page|cursor|next|rank|score|date|time|author)$/i;
+const TRACKING_KEY_RE = /^(?:event|events|trace|traceid|sessionid|clientid|visitorid|experiment|abtest|beacon|analytics|metrics?|pixel|log|logs)$/i;
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(1, Math.round(value * 100) / 100));
+}
+
+function parseBodyPreview(preview: string | null): unknown {
+  if (!preview) return null;
+  const trimmed = preview.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+function collectJsonPaths(value: unknown, prefix = '$', out: string[] = [], depth = 0): string[] {
+  if (depth > 4 || out.length >= 24) return out;
+  if (Array.isArray(value)) {
+    out.push(`${prefix}:array(${value.length})`);
+    if (value.length > 0) collectJsonPaths(value[0], `${prefix}[0]`, out, depth + 1);
+    return out;
+  }
+  if (!value || typeof value !== 'object') {
+    out.push(`${prefix}:${typeof value}`);
+    return out;
+  }
+  const entries = Object.entries(value as Record<string, unknown>).slice(0, 12);
+  for (const [key, child] of entries) {
+    out.push(`${prefix}.${key}`);
+    if (Array.isArray(child)) out.push(`${prefix}.${key}:array(${child.length})`);
+    else if (child && typeof child === 'object') collectJsonPaths(child, `${prefix}.${key}`, out, depth + 1);
+    else out.push(`${prefix}.${key}:${typeof child}`);
+  }
+  return out;
+}
+
+function countKeys(value: unknown, predicate: (key: string) => boolean, depth = 0): number {
+  if (depth > 4 || !value || typeof value !== 'object') return 0;
+  if (Array.isArray(value)) return value.slice(0, 3).reduce((sum, item) => sum + countKeys(item, predicate, depth + 1), 0);
+  return Object.entries(value as Record<string, unknown>).reduce((sum, [key, child]) => (
+    sum + (predicate(key) ? 1 : 0) + countKeys(child, predicate, depth + 1)
+  ), 0);
+}
+
+function hasNonEmptyArray(value: unknown, depth = 0): boolean {
+  if (depth > 4 || !value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return Object.values(value as Record<string, unknown>).some((child) => hasNonEmptyArray(child, depth + 1));
+}
+
+export function scoreEndpointEvidence(entry: PageSignals['networkEntries'][number]): EndpointEvidence {
+  const reasons: string[] = [];
+  const body = parseBodyPreview(entry.bodyPreview);
+  let score = 0;
+
+  if (entry.status >= 200 && entry.status < 300) {
+    score += 0.15;
+    reasons.push('2xx status');
+  } else if (entry.status === 401 || entry.status === 403) {
+    return {
+      url: entry.url,
+      status: entry.status,
+      contentType: entry.contentType,
+      real_data_score: 0.05,
+      verdict: 'blocked',
+      reasons: ['auth-blocked status'],
+      sample_paths: [],
+    };
+  } else {
+    reasons.push(`non-2xx status ${entry.status}`);
+  }
+
+  if (/json/i.test(entry.contentType)) {
+    score += 0.2;
+    reasons.push('json content-type');
+  } else if (/html/i.test(entry.contentType)) {
+    score -= 0.25;
+    reasons.push('html content-type');
+  } else if (/javascript|text/i.test(entry.contentType)) {
+    score += 0.05;
+    reasons.push('text/script content-type');
+  }
+
+  if (NOISE_URL_RE.test(entry.url)) {
+    score -= 0.3;
+    reasons.push('telemetry-like url');
+  }
+
+  const samplePaths = collectJsonPaths(body).slice(0, 8);
+  if (typeof body === 'string') {
+    if (/^\s*</.test(body) || /<!doctype html|<html/i.test(body)) {
+      score -= 0.25;
+      reasons.push('html body');
+    } else if (body.trim().length > 20) {
+      score += 0.05;
+      reasons.push('non-empty text body');
+    }
+  } else if (Array.isArray(body)) {
+    if (body.length > 0) {
+      score += 0.3;
+      reasons.push('non-empty top-level array');
+    } else {
+      score -= 0.15;
+      reasons.push('empty array');
+    }
+  } else if (body && typeof body === 'object') {
+    const keys = Object.keys(body as Record<string, unknown>);
+    if (keys.length === 0) {
+      score -= 0.15;
+      reasons.push('empty object');
+    } else {
+      score += 0.12;
+      reasons.push('json object body');
+    }
+
+    const businessKeys = countKeys(body, (key) => BUSINESS_KEY_RE.test(key));
+    if (businessKeys > 0) {
+      score += Math.min(0.3, businessKeys * 0.05);
+      reasons.push(`${businessKeys} business-like key${businessKeys === 1 ? '' : 's'}`);
+    }
+    if (hasNonEmptyArray(body)) {
+      score += 0.2;
+      reasons.push('nested non-empty array');
+    }
+    const trackingKeys = countKeys(body, (key) => TRACKING_KEY_RE.test(key));
+    if (trackingKeys > 0 && businessKeys === 0) {
+      score -= Math.min(0.25, trackingKeys * 0.08);
+      reasons.push(`${trackingKeys} tracking-like key${trackingKeys === 1 ? '' : 's'} without business keys`);
+    }
+  }
+
+  const realDataScore = clampScore(score);
+  const verdict: EndpointEvidenceVerdict = realDataScore >= 0.65
+    ? 'likely_data'
+    : realDataScore >= 0.35
+      ? 'maybe_data'
+      : 'noise';
+
+  return {
+    url: entry.url,
+    status: entry.status,
+    contentType: entry.contentType,
+    real_data_score: realDataScore,
+    verdict,
+    reasons,
+    sample_paths: samplePaths,
+  };
+}
+
+export function scoreNetworkEvidence(signals: PageSignals): EndpointEvidence[] {
+  return signals.networkEntries
+    .map(scoreEndpointEvidence)
+    .filter((evidence) => evidence.verdict !== 'noise' || evidence.real_data_score > 0)
+    .sort((a, b) => b.real_data_score - a.real_data_score)
+    .slice(0, 8);
 }
 
 /**
@@ -174,6 +349,8 @@ export interface PatternVerdict {
  */
 export function classifyPattern(signals: PageSignals): PatternVerdict {
   const jsonEntries = signals.networkEntries.filter((e) => /json/i.test(e.contentType));
+  const endpointEvidence = scoreNetworkEvidence(signals);
+  const realDataCandidates = endpointEvidence.filter((e) => e.verdict === 'likely_data' || e.verdict === 'maybe_data').length;
   const authFailures = signals.networkEntries.filter(
     (e) => e.status === 401 || e.status === 403,
   ).length;
@@ -188,6 +365,7 @@ export function classifyPattern(signals: PageSignals): PatternVerdict {
       pattern: 'D',
       reason: `${authFailures} auth-failing API responses seen — endpoint is token-gated`,
       json_responses: jsonEntries.length,
+      real_data_candidates: realDataCandidates,
       auth_failures: authFailures,
     };
   }
@@ -200,15 +378,17 @@ export function classifyPattern(signals: PageSignals): PatternVerdict {
       pattern: 'B',
       reason: `SSR state global present: ${which.join(', ')}`,
       json_responses: jsonEntries.length,
+      real_data_candidates: realDataCandidates,
       auth_failures: authFailures,
     };
   }
 
-  if (jsonEntries.length >= 1) {
+  if (realDataCandidates >= 1) {
     return {
       pattern: 'A',
-      reason: `${jsonEntries.length} JSON XHR/fetch responses observed — classic API pattern`,
+      reason: `${realDataCandidates} captured response${realDataCandidates === 1 ? '' : 's'} look like real data — inspect api_candidates before choosing a strategy`,
       json_responses: jsonEntries.length,
+      real_data_candidates: realDataCandidates,
       auth_failures: authFailures,
     };
   }
@@ -219,8 +399,11 @@ export function classifyPattern(signals: PageSignals): PatternVerdict {
   // leave the agent to upgrade to E manually if they see WS traffic.
   return {
     pattern: 'C',
-    reason: 'No JSON XHR and no SSR state — HTML scrape (Pattern C); escalate to E manually if WebSocket traffic appears',
+    reason: jsonEntries.length > 0
+      ? `${jsonEntries.length} JSON response${jsonEntries.length === 1 ? '' : 's'} observed, but none look like target data — likely telemetry/side-channel; treat as HTML/DOM until an endpoint validates`
+      : 'No JSON XHR and no SSR state — HTML scrape (Pattern C); escalate to E manually if WebSocket traffic appears',
     json_responses: jsonEntries.length,
+    real_data_candidates: realDataCandidates,
     auth_failures: authFailures,
   };
 }
@@ -297,6 +480,7 @@ export interface AnalyzeReport {
   pattern: PatternVerdict;
   anti_bot: AntiBotVerdict;
   initial_state: PageSignals['initialState'];
+  api_candidates: EndpointEvidence[];
   nearest_adapter: NearestAdapter | null;
   recommended_next_step: string;
 }
@@ -314,13 +498,14 @@ export function analyzeSite(
 ): AnalyzeReport {
   const pattern = classifyPattern(signals);
   const antiBot = detectAntiBot(signals);
+  const apiCandidates = scoreNetworkEvidence(signals);
   const nearest = findNearestAdapter(signals.finalUrl, registry);
 
   let next: string;
   if (antiBot.detected) {
     next = antiBot.implication;
   } else if (pattern.pattern === 'A') {
-    next = 'Pick the most specific JSON endpoint from `opencli browser network` and try a bare Node fetch with cookies; escalate to browser-context fetch only if blocked.';
+    next = 'Inspect `api_candidates`, then replay the best endpoint and record the status/content-type/sample shape in your strategy note; do not choose API strategy from XHR count alone.';
   } else if (pattern.pattern === 'B') {
     next = 'Read the SSR global via `opencli browser eval "JSON.stringify(window.__INITIAL_STATE__ ?? window.__NUXT__ ?? window.__NEXT_DATA__ ?? window.__APOLLO_STATE__)"` — no API needed.';
   } else if (pattern.pattern === 'C') {
@@ -340,6 +525,7 @@ export function analyzeSite(
     pattern,
     anti_bot: antiBot,
     initial_state: signals.initialState,
+    api_candidates: apiCandidates,
     nearest_adapter: nearest,
     recommended_next_step: next,
   };

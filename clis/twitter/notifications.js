@@ -72,14 +72,14 @@ cli({
                         return;
                     let item = itemContent?.notification_results?.result || itemContent?.tweet_results?.result || itemContent;
                     let actionText = 'Notification';
-                    let author = 'unknown';
+                    let author = '';
                     let text = '';
                     let urlStr = '';
                     if (item.__typename === 'TimelineNotification') {
                         text = item.rich_message?.text || item.message?.text || '';
                         const fromUser = item.template?.from_users?.[0]?.user_results?.result;
                         // Twitter moved screen_name from legacy to core
-                        author = fromUser?.core?.screen_name || fromUser?.legacy?.screen_name || 'unknown';
+                        author = fromUser?.core?.screen_name || fromUser?.legacy?.screen_name || '';
                         urlStr = item.notification_url?.url || '';
                         actionText = item.notification_icon || 'Activity';
                         const targetTweet = item.template?.target_objects?.[0]?.tweet_results?.result;
@@ -94,14 +94,14 @@ cli({
                     else if (item.__typename === 'TweetNotification') {
                         const tweet = item.tweet_result?.result;
                         const tweetUser = tweet?.core?.user_results?.result;
-                        author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown';
+                        author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || '';
                         text = tweet?.note_tweet?.note_tweet_results?.result?.text || tweet?.legacy?.full_text || item.message?.text || '';
                         actionText = 'Mention/Reply';
                         urlStr = `https://x.com/i/status/${tweet?.rest_id}`;
                     }
                     else if (item.__typename === 'Tweet') {
                         const tweetUser = item.core?.user_results?.result;
-                        author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown';
+                        author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || '';
                         text = item.note_tweet?.note_tweet_results?.result?.text || item.legacy?.full_text || '';
                         actionText = 'Mention';
                         urlStr = `https://x.com/i/status/${item.rest_id}`;

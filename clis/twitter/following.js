@@ -90,9 +90,13 @@ function extractUser(result) {
         return null;
     const core = result.core || {};
     const legacy = result.legacy || {};
+    const screenName = core.screen_name || legacy.screen_name || '';
+    if (!screenName) {
+        throw new CommandExecutionError('Malformed Twitter following user: missing screen_name');
+    }
     return {
-        screen_name: core.screen_name || legacy.screen_name || 'unknown',
-        name: core.name || legacy.name || 'unknown',
+        screen_name: screenName,
+        name: core.name || legacy.name || '',
         bio: legacy.description || result.profile_bio?.description || '',
         followers: legacy.followers_count || legacy.normal_followers_count || 0,
     };

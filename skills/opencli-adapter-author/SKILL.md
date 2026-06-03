@@ -28,6 +28,41 @@ allowed-tools: Bash(opencli:*), Read, Edit, Write, Grep
 
 ## 顶层决策树
 
+**先定 strategy，再写 adapter。** 每次进入 Step 3/4 后、写代码前，必须产出一段 strategy note。没有这段 note，不要开始写 `clis/<site>/<name>.js`。
+
+核心判断不是 "API 比 DOM 高级"，而是 **数据源有没有外部契约**。实测维护成本显示：公开/官方接口最稳；UI/DOM 语义通常也有用户可见契约；站内未文档化 XHR/GraphQL/signature endpoint 最容易漂。不要为了 "API-first" 把稳定的 UI/DOM 实现盲目迁到无契约内部接口。
+
+```md
+Strategy: PUBLIC_API | COOKIE_API | PAGE_FETCH | INTERCEPT | DOM_STATE | UI_SELECTOR
+Contract: stable | visible-ui | internal-unstable
+Evidence:
+- observed request/state: <endpoint / state global / UI-only signal>
+- auth source: <none / browser cookie / csrf from meta / localStorage / page runtime>
+- replay result: <status + content-type + non-empty sample shape>
+
+If Strategy is PAGE_FETCH or INTERCEPT:
+- why PUBLIC_API / COOKIE_API are unavailable:
+- why UI_SELECTOR / DOM_STATE are not safer:
+- why the maintenance cost is acceptable:
+```
+
+Strategy classes:
+
+| Strategy | 契约级别 | 用在什么时候 | 证据要求 |
+|---|---|---|---|
+| `PUBLIC_API` | stable | 不需要登录，Node-side `fetch` 直接拿到目标数据 | 200 + JSON/HTML 含目标数据，不是埋点/广告 |
+| `COOKIE_API` | stable | Node-side `fetch` + `page.getCookies()` / header helper 能拿数据 | cookie/CSRF 来源清楚，replay 非空 |
+| `UI_SELECTOR` | visible-ui | publish/upload/click/表单，或页面语义比内部接口更稳 | selector 有语义锚点；错误路径是 typed error |
+| `DOM_STATE` | visible-ui | 数据在 hydration state / bootstrap JSON / SSR HTML 里 | state key / script JSON / HTML 结构明确 |
+| `PAGE_FETCH` | internal-unstable | 只能在页面上下文 `fetch` 才能复用 same-origin/session/runtime | `opencli browser eval fetch(...)` 非空；必须解释为什么避不开内部接口 |
+| `INTERCEPT` | internal-unstable | 请求签名复杂，但页面自己能自然发出请求 | 触发 UI 后能截到目标 response；必须解释为什么 UI/DOM 不够 |
+
+选择规则：优先 `PUBLIC_API` / `COOKIE_API`。如果 UI/DOM 语义稳定，不要强行升级到 `PAGE_FETCH` / `INTERCEPT`。只有公开/官方接口不可用、UI/DOM 无法表达目标数据或操作时，才承担无契约内部接口的维护成本。
+
+实测：`PAGE_FETCH` / `INTERCEPT` 的 fix 频率约为 `PUBLIC_API` 的 7-8 倍，`UI_SELECTOR` 跟 `COOKIE_API` 同档。详细 ladder 推导、`api_candidates` 证据怎么填、booking #1680 等反例见 [`references/strategy-selection.md`](./references/strategy-selection.md)。
+
+边界：只复用页面自己已经合法获得的数据/能力。不教破解签名、不绕验证码/风控/访问控制；遇到不可复用签名（如必须由页面 runtime 生成且不能安全抽象）就降级到 `UI_SELECTOR` / `DOM_STATE` / `INTERCEPT`。
+
 ```
 START
   │
@@ -123,7 +158,12 @@ DONE
 [ ] 5. 直接 fetch 候选 endpoint 验证：
        [ ] 返回 200
        [ ] 响应含目标数据（不是 HTML / 广告）
-[ ] 6. 定鉴权策略：裸 fetch 通 → PUBLIC；要 cookie / token / csrf → COOKIE；拿不到签名 → INTERCEPT；只能点 UI → UI
+[ ] 6. 写 strategy note（写代码前的强制产物）：
+       [ ] 从 `PUBLIC_API / COOKIE_API / PAGE_FETCH / INTERCEPT / DOM_STATE / UI_SELECTOR` 选一个
+       [ ] 填 Contract：`stable / visible-ui / internal-unstable`
+       [ ] 填 Evidence：observed request/state、auth source、replay result
+       [ ] 如果选 `PAGE_FETCH` / `INTERCEPT`，必须解释为什么 `PUBLIC_API` / `COOKIE_API` / `UI_SELECTOR` / `DOM_STATE` 都不适合
+       [ ] 如果选 `UI_SELECTOR` / `DOM_STATE`，不需要为 "为什么不是 API" 过度辩护；只要说明语义锚点和 typed error 路径
 [ ] 7. 字段解码：
        [ ] 自解释 → 直接用 key
        [ ] 已知代号 → field-conventions.md 查表
@@ -180,6 +220,7 @@ DONE
 | `references/coverage-matrix.md` | 动手前做"是否在范围内"自测 |
 | `references/site-recon.md` | Step 3 定站点类型 |
 | `references/api-discovery.md` | Step 4 找 endpoint |
+| `references/strategy-selection.md` | Step 6 填 strategy note 之前：契约模型 + 实测 fix 频率 + `api_candidates` 证据用法 + 反例 |
 | `references/field-conventions.md` | Step 7 查已知字段代号 |
 | `references/field-decode-playbook.md` | Step 7 字段不在词典时 |
 | `references/output-design.md` | Step 8 命名 / 类型 / 顺序 |

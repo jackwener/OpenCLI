@@ -7,8 +7,8 @@ import { __test__ as trainTest } from './train.js';
 import './orders.js';
 
 const { parseStationBundle, resolveStation, validateDate, buildCookieHeader, parseTrainRecord, maskEmail, maskMobile, maskChineseName, unwrapEvaluateResult, requireEvaluateObject, isAuthLikePayload } = __test__;
-const { parsePriceData, queryStopsForPrice, queryPrice } = priceTest;
-const { queryStops } = trainTest;
+const { parsePriceData, queryStopsForPrice, queryPrice, TRAIN_NO_RE: PRICE_TRAIN_NO_RE } = priceTest;
+const { queryStops, TRAIN_NO_RE: TRAIN_TRAIN_NO_RE } = trainTest;
 
 describe('12306 utils - parseStationBundle', () => {
     it('parses the `@`-delimited station bundle into structured records', () => {
@@ -227,6 +227,30 @@ describe('12306 price - parsePriceData', () => {
         const zz = rows.find((r) => r.seat_code === 'ZZ');
         expect(zz?.seat_name).toBe('ZZ');
     });
+});
+
+describe('12306 train_no validation regex', () => {
+    // 12306 train_no values returned by /otn/leftTicket/query sometimes contain
+    // lowercase letters (e.g. "5l000G1970A3" for G1970 上海虹桥 -> 宝鸡南).
+    // Both `12306 price` and `12306 train` must accept the raw value emitted
+    // by `12306 trains`, otherwise the two adapters drift apart and downstream
+    // calls fail with ARGUMENT before ever hitting 12306.
+    for (const [label, re] of [['price', PRICE_TRAIN_NO_RE], ['train', TRAIN_TRAIN_NO_RE]]) {
+        describe(label, () => {
+            it('accepts an all-uppercase train_no', () => {
+                expect(re.test('24000000G10L')).toBe(true);
+            });
+            it('accepts a train_no with lowercase letters (real 12306 payload)', () => {
+                expect(re.test('5l000G1970A3')).toBe(true);
+            });
+            it('rejects public codes like G1970', () => {
+                expect(re.test('G1970')).toBe(false);
+            });
+            it('rejects values with disallowed characters', () => {
+                expect(re.test('5l000-G1970A3')).toBe(false);
+            });
+        });
+    }
 });
 
 describe('12306 public API typed boundaries', () => {
