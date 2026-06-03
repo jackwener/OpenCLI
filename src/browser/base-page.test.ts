@@ -874,3 +874,47 @@ describe('BasePage native input routing', () => {
     expect(page.scripts[0]).toContain('metaKey: true');
   });
 });
+
+describe('BasePage.evaluateWithArgs — IIFE scoping', () => {
+  class EvalCapturePage extends BasePage {
+    scripts: string[] = [];
+    async goto(): Promise<void> {}
+    async evaluate<T = unknown>(js: string): Promise<T>;
+    async evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
+    async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>): Promise<unknown> {
+      const code = typeof input === 'string' ? input : input.toString();
+      this.scripts.push(code);
+      return null;
+    }
+    async getCookies(): Promise<[]> { return []; }
+    async screenshot(): Promise<string> { return ''; }
+    async tabs(): Promise<unknown[]> { return []; }
+    async selectTab(): Promise<void> {}
+  }
+
+  it('wraps declarations in an IIFE to avoid global const redeclaration', async () => {
+    const page = new EvalCapturePage();
+    await page.evaluateWithArgs('(() => markerAttr)()', { markerAttr: 'test-value' });
+
+    expect(page.scripts).toHaveLength(1);
+    const code = page.scripts[0];
+    // Must be wrapped in IIFE — not bare top-level const
+    expect(code).toMatch(/^\(\(\) => \{/);
+    expect(code).toContain('const markerAttr = "test-value"');
+    expect(code).toMatch(/return \(/);
+  });
+
+  it('allows same arg name across multiple calls without conflict', async () => {
+    const page = new EvalCapturePage();
+    await page.evaluateWithArgs('(() => x)()', { x: 'first' });
+    await page.evaluateWithArgs('(() => x)()', { x: 'second' });
+
+    expect(page.scripts).toHaveLength(2);
+    // Both should be self-contained IIFEs, not polluting global scope
+    expect(page.scripts[0]).toContain('const x = "first"');
+    expect(page.scripts[1]).toContain('const x = "second"');
+    // Both wrapped
+    expect(page.scripts[0]).toMatch(/^\(\(\) => \{/);
+    expect(page.scripts[1]).toMatch(/^\(\(\) => \{/);
+  });
+});
