@@ -13,6 +13,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
 const MAIN = path.join(ROOT, 'dist', 'src', 'main.js');
 
+/**
+ * Default stdout cap for `runCli`. `opencli list -f json` already weighs
+ * ~1 MB at 1030 entries on v1.8.2 and grows with every new adapter. The
+ * execFile default maxBuffer is 1 MB; past it stdout overflows and the
+ * helper returns code 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' instead of the
+ * actual exit code.
+ */
+const DEFAULT_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
+
 export interface CliResult {
   stdout: string;
   stderr: string;
@@ -28,11 +37,7 @@ export async function runCli(
   opts: { timeout?: number; env?: Record<string, string>; maxBuffer?: number } = {},
 ): Promise<CliResult> {
   const timeout = opts.timeout ?? 30_000;
-  // `opencli list -f json` already weighs ~1 MB at 1030 entries on v1.8.2 and
-  // grows with every new adapter. The execFile default maxBuffer is 1 MB; past
-  // it stdout overflows and the helper returns code
-  // 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' instead of the actual exit code.
-  const maxBuffer = opts.maxBuffer ?? 16 * 1024 * 1024;
+  const maxBuffer = opts.maxBuffer ?? DEFAULT_MAX_BUFFER_BYTES;
   try {
     const runtime = process.env.OPENCLI_TEST_RUNTIME || 'node';
     const { stdout, stderr } = await exec(runtime, [MAIN, ...args], {
