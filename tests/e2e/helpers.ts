@@ -25,14 +25,20 @@ export interface CliResult {
  */
 export async function runCli(
   args: string[],
-  opts: { timeout?: number; env?: Record<string, string> } = {},
+  opts: { timeout?: number; env?: Record<string, string>; maxBuffer?: number } = {},
 ): Promise<CliResult> {
   const timeout = opts.timeout ?? 30_000;
+  // `opencli list -f json` already weighs ~1 MB at 1030 entries on v1.8.2 and
+  // grows with every new adapter. The execFile default maxBuffer is 1 MB; past
+  // it stdout overflows and the helper returns code
+  // 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' instead of the actual exit code.
+  const maxBuffer = opts.maxBuffer ?? 16 * 1024 * 1024;
   try {
     const runtime = process.env.OPENCLI_TEST_RUNTIME || 'node';
     const { stdout, stderr } = await exec(runtime, [MAIN, ...args], {
       cwd: ROOT,
       timeout,
+      maxBuffer,
       env: {
         ...process.env,
         // Prevent chalk colors from polluting test assertions
