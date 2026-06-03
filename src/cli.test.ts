@@ -2371,13 +2371,36 @@ describe('browser cookies command', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies', '--domain', 'example.com']);
 
-    expect(browserState.page!.getCookies).toHaveBeenCalledWith({ domain: 'example.com', url: undefined });
+    expect(browserState.page!.getCookies).toHaveBeenCalledWith({ domain: 'example.com' });
     const out = lastJsonLog();
-    expect(out.count).toBe(2);
+    expect(out).toMatchObject({
+      session: 'test',
+      count: 2,
+      captured_at: expect.any(String),
+    });
     expect(out.cookies).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'session', httpOnly: true }),
       expect.objectContaining({ name: 'theme', httpOnly: false }),
     ]));
+  });
+
+  it('passes --url through to getCookies without sending an unset --domain', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies', '--url', 'https://example.com/login']);
+
+    expect(browserState.page!.getCookies).toHaveBeenCalledWith({ url: 'https://example.com/login' });
+  });
+
+  it('emits an empty cookies envelope with count 0 when the scope matches nothing', async () => {
+    (browserState.page!.getCookies as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies', '--domain', 'nothing.example']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(0);
+    expect(out.cookies).toEqual([]);
   });
 
   it('errors with missing_scope when neither --domain nor --url is provided', async () => {
