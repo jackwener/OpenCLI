@@ -34,14 +34,18 @@ const DRAFT_METHOD_NAMES = ['_onSave', '_onSaveDraft', '_onDraft'];
 /** Selectors for the title field, ordered by priority across current UI variants. */
 const TITLE_SELECTORS = [
     // Some creator-center variants expose the title as contenteditable,
-    // others use a normal <input> with the same placeholder.
+    // others use a normal <input> with the same placeholder. Visible
+    // user-facing variants always carry a Chinese placeholder; class-based
+    // variants also match a pair of 4 px wide hidden scaffolding inputs
+    // (same `class*="title"`, empty placeholder, no v-model commit on save)
+    // so placeholder-based selectors take precedence to avoid filling those.
     '[contenteditable="true"][placeholder*="标题"]',
     '[contenteditable="true"][placeholder*="赞"]',
+    'input[placeholder*="标题"]',
+    'input[placeholder*="title" i]',
     '[contenteditable="true"][class*="title"]',
     'input[maxlength="20"]',
     'input[class*="title"]',
-    'input[placeholder*="标题"]',
-    'input[placeholder*="title" i]',
     '.title-input input',
     '.note-title input',
     'input[maxlength]',
