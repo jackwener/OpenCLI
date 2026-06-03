@@ -19355,6 +19355,158 @@
     "navigateBefore": "https://maimai.cn"
   },
   {
+    "site": "manus",
+    "name": "connectors",
+    "description": "List available Manus connectors (integrations).",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max connectors to return"
+      }
+    ],
+    "columns": [
+      "UID",
+      "Name",
+      "Brief"
+    ],
+    "type": "js",
+    "modulePath": "manus/connectors.js",
+    "sourceFile": "manus/connectors.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "credits",
+    "description": "Show Manus credit balance and refresh details.",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "manus/credits.js",
+    "sourceFile": "manus/credits.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "list",
+    "description": "List Manus sessions (tasks).",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max sessions to return"
+      },
+      {
+        "name": "archived",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Include archived sessions"
+      }
+    ],
+    "columns": [
+      "UID",
+      "Title",
+      "Status",
+      "Last Message",
+      "Last Updated",
+      "Credits"
+    ],
+    "type": "js",
+    "modulePath": "manus/list.js",
+    "sourceFile": "manus/list.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "read",
+    "description": "Show details for a specific Manus session.",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "uid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session UID"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "manus/read.js",
+    "sourceFile": "manus/read.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "skills",
+    "description": "List Manus skills (user-added and system).",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "ID",
+      "Name",
+      "Description",
+      "Source"
+    ],
+    "type": "js",
+    "modulePath": "manus/skills.js",
+    "sourceFile": "manus/skills.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "status",
+    "description": "Show current Manus user profile and credit summary.",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "manus/status.js",
+    "sourceFile": "manus/status.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
     "site": "maven",
     "name": "artifact",
     "description": "Fetch a Maven Central artifact's version history (groupId:artifactId[:version])",
