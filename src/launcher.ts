@@ -176,6 +176,18 @@ export async function launchElectronApp(appPath: string, app: ElectronAppEntry, 
   );
 }
 
+export function electronLaunchArgs(port: number, extraArgs: string[] = []): string[] {
+  return [
+    `--remote-debugging-port=${port}`,
+    '--remote-allow-origins=*',
+    ...extraArgs,
+  ];
+}
+
+function manualElectronLaunchHint(label: string, port: number): string {
+  return `Start ${label} manually with --remote-debugging-port=${port} --remote-allow-origins=*, then either:`;
+}
+
 async function pollForReady(port: number): Promise<void> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -218,7 +230,7 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
     throw new CommandExecutionError(
       `${label} is not reachable on CDP port ${port}.`,
       `Auto-launch is not yet supported on ${process.platform}.\n` +
-      `Start ${label} manually with --remote-debugging-port=${port}, then either:\n` +
+      `${manualElectronLaunchHint(label, port)}\n` +
       `  • Set OPENCLI_CDP_ENDPOINT=http://127.0.0.1:${port}\n` +
       `  • Or just re-run the command once ${label} is listening on port ${port}.`,
     );
@@ -234,7 +246,7 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
     if (!confirmed) {
       throw new CommandExecutionError(
         `${label} needs to be restarted with CDP enabled.`,
-        `Manually restart: kill the app and relaunch with --remote-debugging-port=${port}`,
+        `Manually restart: kill the app and relaunch with --remote-debugging-port=${port} --remote-allow-origins=*`,
       );
     }
     process.stderr.write(`  Restarting ${label}...\n`);
@@ -251,7 +263,15 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
   }
 
   // Step 4: Launch
-  const args = [`--remote-debugging-port=${port}`, ...(app.extraArgs ?? [])];
+  //
+  // Chrome / Electron 142+ enforces an Origin allow-list on the CDP
+  // WebSocket upgrade (ws://127.0.0.1:<port>/devtools/page/<id>). Without
+  // --remote-allow-origins=* every ws client other than chrome://inspect
+  // gets HTTP 403 "Rejected an incoming WebSocket connection from the
+  // http://127.0.0.1:<port> origin". This affects every Electron app
+  // opencli launches because they all bundle a recent Chromium. Same
+  // mitigation as Puppeteer / Playwright / chrome-devtools-mcp.
+  const args = electronLaunchArgs(port, app.extraArgs ?? []);
   await launchElectronApp(appPath, app, args, label);
 
   // Step 5: Poll for readiness

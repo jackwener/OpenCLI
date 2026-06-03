@@ -9,7 +9,7 @@
 | `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
 | `opencli xiaohongshu note` | Read full note content (title, author, description, likes, collects, comments, tags) |
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |
-| `opencli xiaohongshu feed` | Home feed recommendations (via Pinia store interception) |
+| `opencli xiaohongshu feed` | Home feed recommendations (reads the hydrated Pinia store; URLs carry `xsec_token` for drill-down) |
 | `opencli xiaohongshu notifications` | User notifications (mentions, likes, connections) |
 | `opencli xiaohongshu user` | Get public notes from a user profile |
 | `opencli xiaohongshu download` | Download images and videos from a note |

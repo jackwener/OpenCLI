@@ -1,11 +1,12 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     CHATGPT_DOMAIN,
     CHATGPT_URL,
     ensureChatGPTComposer,
     ensureOnChatGPT,
     normalizeBooleanFlag,
+    openChatGPTConversation,
     requireNonEmptyPrompt,
     sendChatGPTMessage,
     startNewChat,
@@ -24,12 +25,22 @@ export const sendCommand = cli({
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
+        { name: 'conversation', valueRequired: true, help: 'Continue an existing ChatGPT conversation ID or /c/<id> URL' },
     ],
     columns: ['Status', 'InjectedText'],
     func: async (page, kwargs) => {
         const prompt = requireNonEmptyPrompt(kwargs.prompt, 'chatgpt send');
 
-        if (normalizeBooleanFlag(kwargs.new)) {
+        if (normalizeBooleanFlag(kwargs.new) && kwargs.conversation) {
+            throw new ArgumentError(
+                'chatgpt send cannot use --new and --conversation together',
+                'Choose either a new chat or an existing conversation.',
+            );
+        }
+
+        if (kwargs.conversation) {
+            await openChatGPTConversation(page, kwargs.conversation);
+        } else if (normalizeBooleanFlag(kwargs.new)) {
             await startNewChat(page);
         } else {
             await ensureOnChatGPT(page);

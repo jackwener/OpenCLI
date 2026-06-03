@@ -217,6 +217,23 @@ describe('twitter post command', () => {
         expect(submitScript).toContain('your post was sent');
     });
 
+    it('does not let global timeline tweetPhoto nodes keep the submit poll pending', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ]);
+
+        await command.func(page, { text: 'global media should not block' });
+
+        const submitScript = page.evaluate.mock.calls[3][0];
+        expect(submitScript).toContain("document.querySelector('[data-testid=\"attachments\"]')");
+        expect(submitScript).not.toContain("[data-testid=\"attachments\"], [data-testid=\"tweetPhoto\"]");
+        expect(submitScript).not.toContain("document.querySelectorAll('[data-testid=\"tweetPhoto\"]");
+    });
+
     it('returns failed when image upload times out', async () => {
         const command = getCommand();
         const page = makePage([

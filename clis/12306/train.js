@@ -10,7 +10,7 @@ import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwen
 import { fetchStationBundle, mintSession, resolveStation, validateDate } from './utils.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36';
-const TRAIN_NO_RE = /^[0-9A-Z]{8,18}$/;
+const TRAIN_NO_RE = /^[0-9A-Za-z]{8,18}$/;
 
 async function queryStops(cookieHeader, trainNo, fromCode, toCode, date, fetchImpl = fetch) {
     const url = `https://kyfw.12306.cn/otn/czxx/queryByTrainNo?train_no=${trainNo}&from_station_telecode=${fromCode}&to_station_telecode=${toCode}&depart_date=${date}`;

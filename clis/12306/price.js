@@ -15,7 +15,7 @@ import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwen
 import { fetchStationBundle, mintSession, resolveStation, validateDate } from './utils.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36';
-const TRAIN_NO_RE = /^[0-9A-Z]{8,18}$/;
+const TRAIN_NO_RE = /^[0-9A-Za-z]{8,18}$/;
 const SEAT_TYPES_RE = /^[A-Z0-9]{1,32}$/;
 
 const SEAT_LETTERS = {
@@ -163,4 +163,4 @@ cli({
     },
 });
 
-export const __test__ = { parsePriceData, pickStationNos, queryStopsForPrice, queryPrice, SEAT_LETTERS };
+export const __test__ = { parsePriceData, pickStationNos, queryStopsForPrice, queryPrice, SEAT_LETTERS, TRAIN_NO_RE };

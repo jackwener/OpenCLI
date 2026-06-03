@@ -72,6 +72,12 @@ Bound sessions have no OpenCLI idle-close timer; the binding lasts until `unbind
 
 ---
 
+## Sitemaps
+
+If `browser open` or `browser analyze` returns `sitemap.available: true`, switch to `opencli-browser-sitemap` before continuing a multi-step site flow. The sitemap is prior context for pages, actions, workflows, APIs, and pitfalls; it is not truth. If the browser state disagrees with the sitemap, trust the browser and mark the sitemap stale via `opencli-sitemap-author`.
+
+---
+
 ## Target contract (`<target>` for click / type / select / get text|value|attributes)
 
 ```
@@ -433,4 +439,6 @@ normal DOM `state`, or navigate/bind directly to the iframe URL when possible.
 ## See also
 
 - `opencli-adapter-author` — turning what you just figured out into a reusable `~/.opencli/clis/<site>/<command>.js`.
+- `opencli-browser-sitemap` — consuming site sitemap context while driving a browser task.
+- `opencli-sitemap-author` — creating or updating sitemap knowledge when you discover a durable path or stale entry.
 - `opencli-autofix` — when an existing adapter breaks, this skill walks you through `--trace retain-on-failure` evidence and filing a fix.

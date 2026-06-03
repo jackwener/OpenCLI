@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { isOnGrok, normalizeBooleanFlag, parseGrokSessionId } from './utils.js';
+import { __test__, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {
     const id = '7c4197f2-10a1-4ebb-a84a-fea89f4f1d06';
@@ -99,5 +99,43 @@ describe('grok normalizeBooleanFlag', () => {
         for (const v of ['no', 'off', '0', 'false', 'random']) {
             expect(normalizeBooleanFlag(v)).toBe(false);
         }
+    });
+});
+
+describe('grok getPinStateFromMenuLabels', () => {
+    it('detects pinned state from unpin labels without substring collisions', () => {
+        expect(__test__.getPinStateFromMenuLabels(['Open in new tab', 'Unpin', 'Delete'])).toBe('pinned');
+        expect(__test__.getPinStateFromMenuLabels(['打开新标签页', '取消置顶', '删除'])).toBe('pinned');
+    });
+
+    it('detects unpinned state from pin labels', () => {
+        expect(__test__.getPinStateFromMenuLabels(['Open in new tab', 'Pin', 'Delete'])).toBe('unpinned');
+        expect(__test__.getPinStateFromMenuLabels(['打开新标签页', '置顶', '删除'])).toBe('unpinned');
+    });
+
+    it('returns empty string when neither state label is visible', () => {
+        expect(__test__.getPinStateFromMenuLabels(['Open in new tab', 'Delete'])).toBe('');
+        expect(__test__.getPinStateFromMenuLabels([])).toBe('');
+    });
+});
+
+describe('grok sendMessage', () => {
+    it('requires a submitted user turn after both submit-button and Enter fallback paths', async () => {
+        let script = '';
+        const page = {
+            evaluate: async (value) => {
+                script = String(value);
+                return { ok: false, reason: 'test-capture' };
+            },
+        };
+
+        await sendMessage(page, 'hello from test');
+
+        expect(script).toContain('waitForSubmittedUserTurn');
+        expect(script).toContain('Grok submit button was clicked but no new user turn appeared.');
+        expect(script).toContain('Grok Enter-key fallback fired but no new user turn appeared.');
+        expect(script).toContain('[data-testid="user-message"]');
+        expect(script).toContain("submittedVia: 'submit-button'");
+        expect(script).toContain("submittedVia: 'enter-key'");
     });
 });
