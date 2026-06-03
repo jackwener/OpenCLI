@@ -17,6 +17,7 @@ import { render as renderOutput } from './output.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled, formatExternalCliLabel } from './external.js';
+import { loadWhitelist, isCommandWhitelisted } from './whitelist.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
 import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
@@ -703,10 +704,19 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
   program
     .command('list')
     .description('List all available CLI commands')
+    .option('-a, --all', 'Show all commands ignoring whitelist')
     .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
     .action((opts) => {
       const registry = getRegistry();
-      const commands = [...new Set(registry.values())].sort((a, b) => fullName(a).localeCompare(fullName(b)));
+      let commands = [...new Set(registry.values())].sort((a, b) => fullName(a).localeCompare(fullName(b)));
+
+      if (!opts.all) {
+        const whitelist = loadWhitelist();
+        if (whitelist) {
+          commands = commands.filter((cmd) => isCommandWhitelisted(cmd.site, cmd.name, whitelist));
+        }
+      }
+
       const fmt = opts.format;
       const isStructured = fmt === 'json' || fmt === 'yaml';
 
