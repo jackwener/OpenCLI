@@ -2338,6 +2338,60 @@ describe('browser console command', () => {
   });
 });
 
+describe('browser cookies command', () => {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    consoleLogSpy.mockClear();
+    mockBrowserConnect.mockClear();
+    mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    browserState.page = {
+      session: 'test',
+      setActivePage: vi.fn(),
+      getActivePage: vi.fn().mockReturnValue('tab-1'),
+      tabs: vi.fn().mockResolvedValue([{ page: 'tab-1', active: true }]),
+      getCookies: vi.fn().mockResolvedValue([
+        { name: 'session', value: 'abc', domain: 'example.com', path: '/', secure: true, httpOnly: true },
+        { name: 'theme', value: 'dark', domain: 'example.com', path: '/', secure: false, httpOnly: false },
+      ]),
+    } as unknown as IPage;
+  });
+
+  function lastJsonLog(): any {
+    const calls = consoleLogSpy.mock.calls;
+    if (calls.length === 0) throw new Error('Expected at least one console.log call');
+    const last = calls[calls.length - 1][0];
+    if (typeof last !== 'string') throw new Error(`Expected string arg to console.log, got ${typeof last}`);
+    return JSON.parse(last);
+  }
+
+  it('returns cookies including HttpOnly entries for a scoped domain read', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies', '--domain', 'example.com']);
+
+    expect(browserState.page!.getCookies).toHaveBeenCalledWith({ domain: 'example.com', url: undefined });
+    const out = lastJsonLog();
+    expect(out.count).toBe(2);
+    expect(out.cookies).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'session', httpOnly: true }),
+      expect.objectContaining({ name: 'theme', httpOnly: false }),
+    ]));
+  });
+
+  it('errors with missing_scope when neither --domain nor --url is provided', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'cookies']);
+
+    expect(browserState.page!.getCookies).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+    const out = lastJsonLog();
+    expect(out.error.code).toBe('missing_scope');
+  });
+});
+
 describe('browser get html command', () => {
   const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

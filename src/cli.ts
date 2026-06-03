@@ -1318,6 +1318,25 @@ Examples:
       }, null, 2));
     }));
 
+  addBrowserTabOption(browser.command('cookies'))
+    .option('--domain <domain>', 'Cookie domain scope (e.g. example.com)')
+    .option('--url <url>', 'URL scope (use domain or url, not both)')
+    .description('Read scoped cookies (includes HttpOnly)')
+    .action(browserAction(async (page, opts) => {
+      if (!opts.domain && !opts.url) {
+        console.log(JSON.stringify({ error: { code: 'missing_scope', message: 'Provide --domain or --url to scope the cookie read' } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      const cookies = await page.getCookies({ domain: opts.domain, url: opts.url });
+      console.log(JSON.stringify({
+        session: getPageSession(page),
+        captured_at: new Date().toISOString(),
+        count: cookies.length,
+        cookies,
+      }, null, 2));
+    }));
+
   // ── Analyze (site recon, agent-native) ──
   //
   // Mechanizes the `site-recon.md` decision tree into one CLI call. The agent
