@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPageMock } from '../test-utils.js';
 import './following.js';
 import { getRegistry } from '@jackwener/opencli/registry';
 
@@ -24,11 +23,12 @@ async function runFollowingEvaluate(fetchFn, args = { username: 'testuser', limi
         .replace('${{ args.username | json }}', JSON.stringify(args.username))
         .replace('${{ args.limit }}', String(args.limit));
 
+    const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchFn;
     try {
         return await eval(js);
     } finally {
-        delete globalThis.fetch;
+        globalThis.fetch = originalFetch;
     }
 }
 
@@ -186,5 +186,94 @@ describe('instagram/following pagination', () => {
 
         expect(result).toEqual([]);
         expect(fetchFn).toHaveBeenCalledTimes(2);
+    });
+
+    it('breaks when next_max_id repeats (cursor loop guard)', async () => {
+        const page1Users = Array.from({ length: 50 }, (_, i) => makeUser(1000 + i));
+        const page2Users = Array.from({ length: 50 }, (_, i) => makeUser(2000 + i));
+
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '44444' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(page1Users, 'cursor_loop')),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(page2Users, 'cursor_loop')),
+            })
+            // If guard fails this would be reached and trigger the assertion below.
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(page2Users, 'cursor_loop')),
+            });
+
+        const result = await runFollowingEvaluate(fetchFn, { username: 'loopy', limit: 500 });
+
+        expect(result).toHaveLength(100);
+        // Profile + page1 + page2 = 3 calls; cursor loop guard prevents the 4th.
+        expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
+
+    it('breaks when a page yields zero new unique users', async () => {
+        const page1Users = Array.from({ length: 50 }, (_, i) => makeUser(1000 + i));
+        // Page 2 returns the same users with a fresh cursor — dedupe leaves nothing new.
+        const page2Users = [...page1Users];
+
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '33333' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(page1Users, 'cursor_a')),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(page2Users, 'cursor_b')),
+            });
+
+        const result = await runFollowingEvaluate(fetchFn, { username: 'stuck', limit: 500 });
+
+        expect(result).toHaveLength(50);
+        // Profile + 2 following pages, then stop on zero-growth detection.
+        expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
+
+    it('respects limit=0 without calling the following endpoint', async () => {
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '22222' } } }),
+            });
+
+        const result = await runFollowingEvaluate(fetchFn, { username: 'noop', limit: 0 });
+
+        expect(result).toEqual([]);
+        // Profile fetch only — no following fetch.
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates HTTP errors that occur on a mid-pagination page', async () => {
+        const page1Users = Array.from({ length: 50 }, (_, i) => makeUser(1000 + i));
+
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '11111' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(page1Users, 'next')),
+            })
+            .mockResolvedValueOnce({ ok: false, status: 429 });
+
+        await expect(
+            runFollowingEvaluate(fetchFn, { username: 'broken', limit: 200 }),
+        ).rejects.toThrow('Failed to fetch following: HTTP 429');
     });
 });

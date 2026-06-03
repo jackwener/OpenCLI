@@ -30,6 +30,7 @@ cli({
   const PAGE_SIZE = 50;
   const results = [];
   const seen = new Set();
+  const seenCursors = new Set();
   let maxId = undefined;
   const baseUrl = 'https://www.instagram.com/api/v1/friendships/' + userId + '/following/';
 
@@ -40,6 +41,7 @@ cli({
     if (!r2.ok) throw new Error('Failed to fetch following: HTTP ' + r2.status);
     const d2 = await r2.json();
     const users = d2?.users || [];
+    const sizeBefore = results.length;
     for (const u of users) {
       const pk = String(u.pk || u.pk_id || u.id || '');
       if (!pk || seen.has(pk)) continue;
@@ -53,8 +55,13 @@ cli({
       });
       if (results.length >= limit) break;
     }
-    if (!d2.next_max_id || users.length === 0) break;
-    maxId = d2.next_max_id;
+    if (results.length >= limit) break;
+    if (results.length === sizeBefore) break;  // no new unique users this page
+    const nextCursor = d2.next_max_id;
+    if (!nextCursor || users.length === 0) break;
+    if (seenCursors.has(nextCursor)) break;  // cursor loop guard
+    seenCursors.add(nextCursor);
+    maxId = nextCursor;
     await new Promise(r => setTimeout(r, 400));
   }
   return results.slice(0, limit);
