@@ -2133,6 +2133,27 @@ Examples:
       console.log(JSON.stringify(result, null, 2));
     }));
 
+  addBrowserTabOption(browser.command('paste-files'))
+    .argument('<files...>', 'Local file path(s) to paste as clipboard content')
+    .option('--target <selector>', 'CSS selector for the paste target; defaults to the currently focused element')
+    .description('Paste local files into the focused or targeted element via a synthesized ClipboardEvent (returns {pasted, count, file_names, target})')
+    .action(browserAction(async (page, files, opts) => {
+      if (typeof page.pasteFiles !== 'function') throw new Error('browser paste-files is not supported by this browser backend');
+      const resolvedFiles = resolveUploadFilePaths(files);
+      if ('error' in resolvedFiles) {
+        console.log(JSON.stringify({ error: resolvedFiles.error }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+      await page.pasteFiles(resolvedFiles.files, opts?.target);
+      console.log(JSON.stringify({
+        pasted: true,
+        count: resolvedFiles.files.length,
+        file_names: resolvedFiles.files.map((p) => path.basename(p)),
+        target: opts?.target ?? 'focused',
+      }, null, 2));
+    }));
+
   addBrowserTabOption(
     addPrefixedSemanticLocatorOptions(
       addPrefixedSemanticLocatorOptions(browser.command('drag'), 'from'),
