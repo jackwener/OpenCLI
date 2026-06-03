@@ -11,6 +11,10 @@
 | `opencli gemini image <prompt>` | Generate images in Gemini and optionally save them locally |
 | `opencli gemini deep-research <prompt>` | Start a Gemini Deep Research run and confirm it |
 | `opencli gemini deep-research-result <query>` | Export Deep Research report URL from a Gemini conversation |
+| `opencli gemini status` | Check Gemini web page availability and login state |
+| `opencli gemini history [--limit N]` | List visible Gemini conversation history from the sidebar |
+| `opencli gemini detail <id>` | Open a Gemini conversation by id, URL, or sidebar title and read its turns |
+| `opencli gemini read` | Read the turns visible in the current Gemini web conversation |
 
 ## Usage Examples
 
