@@ -71,8 +71,13 @@ cli({
     if (d2.next_max_id != null && typeof d2.next_max_id !== 'string' && typeof d2.next_max_id !== 'number') {
       throw new Error('Instagram following returned malformed pagination cursor');
     }
+    if (d2.has_more != null && typeof d2.has_more !== 'boolean') {
+      throw new Error('Instagram following returned malformed has_more flag');
+    }
     const nextCursor = d2.next_max_id == null ? '' : String(d2.next_max_id);
-    if (!nextCursor || users.length === 0) break;
+    const hasMore = typeof d2.has_more === 'boolean' ? d2.has_more : !!nextCursor;
+    if (!hasMore || users.length === 0) break;
+    if (!nextCursor) throw new Error('Instagram following returned has_more without pagination cursor');
     if (seenCursors.has(nextCursor)) break;  // cursor loop guard
     seenCursors.add(nextCursor);
     maxId = nextCursor;

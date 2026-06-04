@@ -35,8 +35,12 @@ async function runFollowingEvaluate(fetchFn, args = { username: 'testuser', limi
 /**
  * Build a single-page Instagram following API response.
  */
-function buildFollowingResponse(users, nextMaxId = null) {
-    return { users, next_max_id: nextMaxId };
+function buildFollowingResponse(users, nextMaxId = null, hasMore = undefined) {
+    return {
+        users,
+        next_max_id: nextMaxId,
+        ...(hasMore === undefined ? {} : { has_more: hasMore }),
+    };
 }
 
 /**
@@ -168,6 +172,29 @@ describe('instagram/following pagination', () => {
         expect(result).toHaveLength(5);
         expect(result[4].rank).toBe(5);
         // Should NOT have fetched a second following page
+        expect(fetchFn).toHaveBeenCalledTimes(2);
+    });
+
+    it('honors explicit has_more=false even if a cursor is present', async () => {
+        const users = Array.from({ length: 50 }, (_, i) => makeUser(1000 + i));
+
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '77778' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(users, 'stale_cursor', false)),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse(Array.from({ length: 50 }, (_, i) => makeUser(2000 + i)))),
+            });
+
+        const result = await runFollowingEvaluate(fetchFn, { username: 'done', limit: 200 });
+
+        expect(result).toHaveLength(50);
         expect(fetchFn).toHaveBeenCalledTimes(2);
     });
 
@@ -318,5 +345,37 @@ describe('instagram/following pagination', () => {
         await expect(
             runFollowingEvaluate(fetchFn, { username: 'badcursor', limit: 20 }),
         ).rejects.toThrow('Instagram following returned malformed pagination cursor');
+    });
+
+    it('typed-fails has_more=true without a pagination cursor', async () => {
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '10104' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse([makeUser(1)], null, true)),
+            });
+
+        await expect(
+            runFollowingEvaluate(fetchFn, { username: 'missingcursor', limit: 20 }),
+        ).rejects.toThrow('Instagram following returned has_more without pagination cursor');
+    });
+
+    it('typed-fails malformed has_more flags', async () => {
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '10105' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse([makeUser(1)], 'next', 'yes')),
+            });
+
+        await expect(
+            runFollowingEvaluate(fetchFn, { username: 'badhasmore', limit: 20 }),
+        ).rejects.toThrow('Instagram following returned malformed has_more flag');
     });
 });
