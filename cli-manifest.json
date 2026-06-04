@@ -12499,7 +12499,8 @@
       "site",
       "id",
       "username",
-      "name"
+      "name",
+      "url"
     ],
     "type": "js",
     "modulePath": "github/auth.js",
@@ -12521,7 +12522,8 @@
       "site",
       "id",
       "username",
-      "name"
+      "name",
+      "url"
     ],
     "type": "js",
     "modulePath": "github/auth.js",

@@ -24,6 +24,7 @@ async function verifyGithubIdentity(page) {
     id: identity.id || '',
     username: identity.username,
     name: identity.name || '',
+    url: `https://github.com/${identity.username}`,
   };
 }
 
@@ -31,7 +32,7 @@ registerSiteAuthCommands({
   site: 'github',
   domain: 'github.com',
   loginUrl: 'https://github.com/login',
-  columns: ['id', 'username', 'name'],
+  columns: ['id', 'username', 'name', 'url'],
   verify: verifyGithubIdentity,
   poll: async (page) => {
     if (!await hasGithubSessionCookies(page)) {

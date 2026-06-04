@@ -14,19 +14,20 @@ async function verifyXhsIdentity(page) {
       try {
         const resp = await fetch('/api/galaxy/creator/home/personal_info', { credentials: 'include' });
         const text = await resp.text();
-        let data = null;
-        try { data = JSON.parse(text); } catch {}
-        return { ok: resp.ok, status: resp.status, data, body: text.slice(0, 200) };
+        let parsed = null;
+        try { parsed = JSON.parse(text); } catch {}
+        return [resp.ok, resp.status, parsed, text.slice(0, 200)];
       } catch (error) {
-        return { ok: false, status: 0, error: String(error && error.message || error) };
+        return [false, 0, null, String(error && error.message || error)];
       }
     }
   `);
-  if (!payload?.ok) {
-    const detail = payload?.error ?? payload?.data?.msg ?? payload?.body ?? `HTTP ${payload?.status ?? ''}`;
+  const [ok, status, parsed, preview] = Array.isArray(payload) ? payload : [];
+  if (!ok) {
+    const detail = parsed?.msg ?? preview ?? `HTTP ${status ?? ''}`;
     throw new AuthRequiredError('creator.xiaohongshu.com', `Xiaohongshu creator profile requires login: ${detail}`);
   }
-  const data = payload?.data?.data;
+  const data = parsed?.data;
   if (!data) {
     throw new CommandExecutionError('Xiaohongshu creator profile returned malformed personal_info payload');
   }
