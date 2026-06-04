@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS } from './_utils.js';
+import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, requireObject, requireString } from './_utils.js';
 
 cli({
     site: 'manus',
@@ -16,17 +16,19 @@ cli({
     func: async (page) => {
         await ensureOnManus(page);
 
-        const [userInfo, credits] = await page.evaluate(`(async () => {
+        const data = requireObject(await page.evaluate(`(async () => {
             ${MANUS_API_CALL_JS}
-            const [u, c] = await Promise.all([
+            const [userInfo, credits] = await Promise.all([
                 callManusAPI('user.v1.UserService/UserInfo', {}),
                 callManusAPI('user.v1.UserService/GetAvailableCredits', {}),
             ]);
-            return [u, c];
-        })()`);
+            return { userInfo, credits };
+        })()`), 'status');
 
-        const u = userInfo || {};
-        const c = credits || {};
+        const u = requireObject(data.userInfo, 'status user info');
+        const c = requireObject(data.credits, 'status credits');
+        const userIdentity = u.email || u.userId || u.uid;
+        requireString(userIdentity, 'status user identity');
         return [
             { Field: 'Email', Value: u.email || '—' },
             { Field: 'Display Name', Value: u.displayname || u.displayName || '—' },

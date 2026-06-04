@@ -4,7 +4,7 @@
 // (JWT, ~357 bytes) readable on the manus.im domain. The API uses
 // Connect-RPC (POST + JSON + Connect-Protocol-Version: 1).
 
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 export const MANUS_DOMAIN = 'manus.im';
 export const MANUS_URL = 'https://manus.im/app';
@@ -34,8 +34,65 @@ export function validatedLimit(raw, fallback, max = 1000) {
     return n;
 }
 
+export function unwrapEvaluateResult(payload) {
+    if (
+        payload
+        && typeof payload === 'object'
+        && !Array.isArray(payload)
+        && Object.prototype.hasOwnProperty.call(payload, 'session')
+        && Object.prototype.hasOwnProperty.call(payload, 'data')
+    ) {
+        return payload.data;
+    }
+    return payload;
+}
+
+function extractErrorMessage(payload) {
+    if (!payload || typeof payload !== 'object') return '';
+    const candidates = [
+        payload.message,
+        payload.error,
+        payload.errorMessage,
+        payload.details,
+    ];
+    return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
+}
+
+export function requireObject(payload, label) {
+    const value = unwrapEvaluateResult(payload);
+    if (value?.__authRequired) {
+        throw new AuthRequiredError(MANUS_DOMAIN, value.message || 'Authentication required — please sign in to Manus in the browser');
+    }
+    if (value?.__httpError) {
+        const message = extractErrorMessage(value);
+        throw new CommandExecutionError(message ? `Manus ${label} failed (HTTP ${value.__httpError}): ${message}` : `Manus ${label} failed (HTTP ${value.__httpError})`);
+    }
+    if (value?.__error) {
+        throw new CommandExecutionError(`Manus ${label} failed: ${value.message || value.__error}`);
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CommandExecutionError(`Manus ${label} returned a malformed API payload`);
+    }
+    return value;
+}
+
+export function requireArray(value, label) {
+    if (!Array.isArray(value)) {
+        throw new CommandExecutionError(`Manus ${label} returned a malformed API payload`);
+    }
+    return value;
+}
+
+export function requireString(value, label) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        throw new CommandExecutionError(`Manus ${label} returned a malformed API payload`);
+    }
+    return text;
+}
+
 export async function ensureOnManus(page) {
-    const url = await page.evaluate('window.location.href').catch(() => '');
+    const url = unwrapEvaluateResult(await page.evaluate('window.location.href').catch(() => ''));
     if (isManusUrl(url)) return;
     await page.goto(MANUS_URL);
     await page.wait(2);
@@ -49,7 +106,7 @@ export async function ensureOnManus(page) {
 export const MANUS_API_CALL_JS = `
   const callManusAPI = async (rpcPath, body) => {
     const jwt = document.cookie.split('session_id=')[1]?.split(';')[0];
-    if (!jwt) throw new Error('Not signed in to manus.im — session_id cookie missing');
+    if (!jwt) return { __authRequired: true, message: 'session_id cookie missing' };
     const r = await fetch('${API_HOST}/' + rpcPath, {
       method: 'POST',
       credentials: 'include',
@@ -62,8 +119,15 @@ export const MANUS_API_CALL_JS = `
     });
     if (!r.ok) {
       const t = await r.text();
-      throw new Error('Manus API ' + r.status + ': ' + t.slice(0, 200));
+      return {
+        __httpError: r.status,
+        message: t.slice(0, 200),
+      };
     }
-    return r.json();
+    try {
+      return await r.json();
+    } catch (error) {
+      return { __error: 'invalid_json', message: error?.message || String(error) };
+    }
   };
 `;

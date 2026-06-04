@@ -19426,7 +19426,7 @@
       }
     ],
     "columns": [
-      "UID",
+      "id",
       "Title",
       "Status",
       "Last Message",

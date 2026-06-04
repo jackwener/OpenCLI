@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, validatedLimit } from './_utils.js';
+import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, requireArray, requireObject, requireString, validatedLimit } from './_utils.js';
 
 cli({
     site: 'manus',
@@ -20,20 +20,20 @@ cli({
         const limit = validatedLimit(kwargs?.limit, 50, 500);
         await ensureOnManus(page);
 
-        const data = await page.evaluate(`(async () => {
+        const data = requireObject(await page.evaluate(`(async () => {
             ${MANUS_API_CALL_JS}
             return callManusAPI('connectors.v1.ConnectorsService/ListConnectors', {});
-        })()`);
+        })()`), 'connectors');
 
-        const connectors = data?.connectors || [];
+        const connectors = requireArray(data.connectors, 'connectors');
 
         if (!connectors.length) {
             throw new EmptyResultError('manus connectors', 'No connectors found.');
         }
 
-        return connectors.slice(0, limit).map((c) => ({
-            UID: c.uid || '—',
-            Name: c.name || '—',
+        return connectors.slice(0, limit).map((c, index) => ({
+            UID: requireString(c?.uid, `connector ${index + 1}`),
+            Name: requireString(c?.name, `connector ${index + 1}`),
             Brief: (c.brief || '—').slice(0, 60),
         }));
     },

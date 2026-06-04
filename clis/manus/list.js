@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, validatedLimit } from './_utils.js';
+import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, requireArray, requireObject, requireString, validatedLimit } from './_utils.js';
 
 function formatTime(iso) {
     if (!iso) return '—';
@@ -31,21 +31,21 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max sessions to return' },
         { name: 'archived', type: 'bool', default: false, help: 'Include archived sessions' },
     ],
-    columns: ['UID', 'Title', 'Status', 'Last Message', 'Last Updated', 'Credits'],
+    columns: ['id', 'Title', 'Status', 'Last Message', 'Last Updated', 'Credits'],
     func: async (page, kwargs) => {
         const limit = validatedLimit(kwargs?.limit, 20, 200);
         const includeArchived = kwargs?.archived === true;
         await ensureOnManus(page);
 
-        const data = await page.evaluate(`(async () => {
+        const data = requireObject(await page.evaluate(`(async () => {
             ${MANUS_API_CALL_JS}
             return callManusAPI('session.v1.SessionService/ListSessions', {
                 page: 1,
                 pageSize: ${limit},
             });
-        })()`);
+        })()`), 'list sessions');
 
-        let sessions = data?.sessions || [];
+        let sessions = requireArray(data.sessions, 'list sessions');
         if (!includeArchived) {
             sessions = sessions.filter((s) => !s.isArchived);
         }
@@ -54,8 +54,8 @@ cli({
             throw new EmptyResultError('manus list', 'No sessions found.');
         }
 
-        return sessions.slice(0, limit).map((s) => ({
-            UID: s.uid || '—',
+        return sessions.slice(0, limit).map((s, index) => ({
+            id: requireString(s?.uid, `list session ${index + 1}`),
             Title: (s.title || '—').slice(0, 80),
             Status: shortStatus(s.status),
             'Last Message': (s.lastDisplayMessage || '—').slice(0, 80),

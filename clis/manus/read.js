@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
-import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS } from './_utils.js';
+import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, requireArray, requireObject } from './_utils.js';
 
 function formatTime(iso) {
     if (!iso) return '—';
@@ -34,15 +34,15 @@ cli({
 
         await ensureOnManus(page);
 
-        const data = await page.evaluate(`(async () => {
+        const data = requireObject(await page.evaluate(`(async () => {
             ${MANUS_API_CALL_JS}
             return callManusAPI('session.v1.SessionService/ListSessions', {
                 page: 1,
                 pageSize: 100,
             });
-        })()`);
+        })()`), 'read session');
 
-        const sessions = data?.sessions || [];
+        const sessions = requireArray(data.sessions, 'read session');
         const session = sessions.find((s) => s.uid === uid);
 
         if (!session) {

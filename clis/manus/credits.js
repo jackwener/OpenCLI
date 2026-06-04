@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS } from './_utils.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, requireObject } from './_utils.js';
 
 cli({
     site: 'manus',
@@ -16,12 +17,14 @@ cli({
     func: async (page) => {
         await ensureOnManus(page);
 
-        const data = await page.evaluate(`(async () => {
+        const c = requireObject(await page.evaluate(`(async () => {
             ${MANUS_API_CALL_JS}
             return callManusAPI('user.v1.UserService/GetAvailableCredits', {});
-        })()`);
+        })()`), 'credits');
 
-        const c = data || {};
+        if (!['totalCredits', 'freeCredits', 'periodicCredits', 'refreshCredits'].some((key) => c[key] != null)) {
+            throw new CommandExecutionError('Manus credits returned a malformed API payload');
+        }
         return [
             { Field: 'Total Credits', Value: c.totalCredits ?? '—' },
             { Field: 'Free Credits', Value: c.freeCredits ?? '—' },

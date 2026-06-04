@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { isManusUrl } from './_utils.js';
 import './status.js';
 import './list.js';
@@ -104,6 +104,10 @@ function manusPage(...rpcResults) {
   return makePage(['https://manus.im/app', ...rpcResults]);
 }
 
+function envelope(data) {
+  return { session: { id: 'browser-session' }, data };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. Registration
 // ═══════════════════════════════════════════════════════════════════════════
@@ -136,7 +140,7 @@ describe('manus status', () => {
   const statusCmd = getRegistry().get('manus/status');
 
   it('returns merged UserInfo + credits as Field/Value rows', async () => {
-    const page = manusPage([USER_INFO, CREDITS]);
+    const page = manusPage({ userInfo: USER_INFO, credits: CREDITS });
     const rows = await statusCmd.func(page, {});
     expect(Array.isArray(rows)).toBe(true);
     const map = Object.fromEntries(rows.map((r) => [r.Field, r.Value]));
@@ -151,6 +155,16 @@ describe('manus status', () => {
       expect(row).toHaveProperty('Value');
     }
   });
+
+  it('unwraps Browser Bridge envelopes and fails closed on missing user identity', async () => {
+    const page = manusPage(envelope({ userInfo: USER_INFO, credits: CREDITS }));
+    const rows = await statusCmd.func(page, {});
+    expect(Object.fromEntries(rows.map((r) => [r.Field, r.Value]))['User ID']).toBe('310519663277886366');
+
+    await expect(statusCmd.func(manusPage({ userInfo: {}, credits: CREDITS }), {})).rejects.toBeInstanceOf(
+      CommandExecutionError,
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -164,8 +178,14 @@ describe('manus list', () => {
     const page = manusPage(SESSIONS);
     const rows = await listCmd.func(page, {});
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ UID: '8UcpCxMFLrNk63ZJmzALfV', Title: 'PPT task' });
-    expect(rows[1]).toMatchObject({ UID: 'YOpdpcVj7vPFD4gsBfEwVu', Title: 'Empire task' });
+    expect(rows[0]).toMatchObject({ id: '8UcpCxMFLrNk63ZJmzALfV', Title: 'PPT task' });
+    expect(rows[1]).toMatchObject({ id: 'YOpdpcVj7vPFD4gsBfEwVu', Title: 'Empire task' });
+  });
+
+  it('unwraps Browser Bridge envelopes for session list responses', async () => {
+    const page = manusPage(envelope(SESSIONS));
+    const rows = await listCmd.func(page, {});
+    expect(rows[0].id).toBe('8UcpCxMFLrNk63ZJmzALfV');
   });
 
   it('returns all sessions when --archived is passed', async () => {
@@ -189,6 +209,13 @@ describe('manus list', () => {
     await expect(listCmd.func(page, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
     await expect(listCmd.func(page, { limit: -5 })).rejects.toBeInstanceOf(ArgumentError);
     await expect(listCmd.func(page, { limit: 1.5 })).rejects.toBeInstanceOf(ArgumentError);
+  });
+
+  it('throws CommandExecutionError for malformed list payloads and rows', async () => {
+    await expect(listCmd.func(manusPage({}), {})).rejects.toBeInstanceOf(CommandExecutionError);
+    await expect(listCmd.func(manusPage({ sessions: [{ title: 'missing uid' }] }), {})).rejects.toBeInstanceOf(
+      CommandExecutionError,
+    );
   });
 });
 
@@ -221,6 +248,13 @@ describe('manus read', () => {
     const page = manusPage();
     await expect(readCmd.func(page, {})).rejects.toBeInstanceOf(ArgumentError);
   });
+
+  it('throws CommandExecutionError when read receives malformed session payload', async () => {
+    const page = manusPage({});
+    await expect(readCmd.func(page, { uid: '8UcpCxMFLrNk63ZJmzALfV' })).rejects.toBeInstanceOf(
+      CommandExecutionError,
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -244,6 +278,13 @@ describe('manus credits', () => {
     expect(map['Next Refresh']).toBe('2026-06-03T16:00:00Z');
     expect(map['Refresh Interval']).toBe('daily');
   });
+
+  it('unwraps Browser Bridge envelopes and rejects malformed credit payloads', async () => {
+    const rows = await creditsCmd.func(manusPage(envelope(CREDITS)), {});
+    expect(Object.fromEntries(rows.map((r) => [r.Field, r.Value]))['Total Credits']).toBe(12311);
+
+    await expect(creditsCmd.func(manusPage({}), {})).rejects.toBeInstanceOf(CommandExecutionError);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -266,6 +307,13 @@ describe('manus connectors', () => {
     const rows = await connectorsCmd.func(page, { limit: 1 });
     expect(rows).toHaveLength(1);
   });
+
+  it('fails closed on malformed connector payloads and rows', async () => {
+    await expect(connectorsCmd.func(manusPage({}), {})).rejects.toBeInstanceOf(CommandExecutionError);
+    await expect(connectorsCmd.func(manusPage({ connectors: [{ uid: 'missing-name' }] }), {})).rejects.toBeInstanceOf(
+      CommandExecutionError,
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -286,6 +334,13 @@ describe('manus skills', () => {
       Source: 'user',
     });
   });
+
+  it('fails closed on malformed skill payloads and rows', async () => {
+    await expect(skillsCmd.func(manusPage({}), {})).rejects.toBeInstanceOf(CommandExecutionError);
+    await expect(skillsCmd.func(manusPage({ userAddedSkills: [{ id: 'missing-name' }] }), {})).rejects.toBeInstanceOf(
+      CommandExecutionError,
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -295,11 +350,14 @@ describe('manus skills', () => {
 describe('manus auth error', () => {
   const statusCmd = getRegistry().get('manus/status');
 
-  it('propagates session_id cookie missing errors with a clear message', async () => {
-    const page = manusPage();
-    page.evaluate.mockReset();
-    page.evaluate.mockRejectedValue(new Error('session_id cookie missing'));
-    await expect(statusCmd.func(page, {})).rejects.toThrow(/session_id cookie missing/);
+  it('maps session_id cookie missing payloads to AuthRequiredError', async () => {
+    const page = manusPage({ __authRequired: true, message: 'session_id cookie missing' });
+    await expect(statusCmd.func(page, {})).rejects.toBeInstanceOf(AuthRequiredError);
+  });
+
+  it('maps Manus HTTP error payloads to CommandExecutionError', async () => {
+    const page = manusPage({ __httpError: 500, message: 'server failed' });
+    await expect(statusCmd.func(page, {})).rejects.toBeInstanceOf(CommandExecutionError);
   });
 });
 
