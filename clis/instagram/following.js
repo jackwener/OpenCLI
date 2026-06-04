@@ -15,6 +15,7 @@ cli({
         { evaluate: `(async () => {
   const username = \${{ args.username | json }};
   const limit = \${{ args.limit }};
+  if (!Number.isInteger(limit) || limit < 1) throw new Error('limit must be a positive integer');
   const headers = { 'X-IG-App-ID': '936619743392459' };
   const opts = { credentials: 'include', headers };
 
@@ -40,16 +41,26 @@ cli({
     const r2 = await fetch(baseUrl + '?' + params.toString(), opts);
     if (!r2.ok) throw new Error('Failed to fetch following: HTTP ' + r2.status);
     const d2 = await r2.json();
-    const users = d2?.users || [];
+    if (!d2 || typeof d2 !== 'object' || !Array.isArray(d2.users)) {
+      throw new Error('Instagram following returned malformed users payload');
+    }
+    const users = d2.users;
     const sizeBefore = results.length;
     for (const u of users) {
-      const pk = String(u.pk || u.pk_id || u.id || '');
+      if (!u || typeof u !== 'object') {
+        throw new Error('Instagram following returned malformed user row');
+      }
+      const pk = String(u.pk ?? u.pk_id ?? u.id ?? '');
+      const usernameValue = typeof u.username === 'string' ? u.username.trim() : '';
+      if (!pk || !usernameValue) {
+        throw new Error('Instagram following returned malformed user row');
+      }
       if (!pk || seen.has(pk)) continue;
       seen.add(pk);
       results.push({
         rank: results.length + 1,
-        username: u.username || '',
-        name: u.full_name || '',
+        username: usernameValue,
+        name: typeof u.full_name === 'string' ? u.full_name : '',
         verified: u.is_verified ? 'Yes' : 'No',
         private: u.is_private ? 'Yes' : 'No',
       });
@@ -57,7 +68,10 @@ cli({
     }
     if (results.length >= limit) break;
     if (results.length === sizeBefore) break;  // no new unique users this page
-    const nextCursor = d2.next_max_id;
+    if (d2.next_max_id != null && typeof d2.next_max_id !== 'string' && typeof d2.next_max_id !== 'number') {
+      throw new Error('Instagram following returned malformed pagination cursor');
+    }
+    const nextCursor = d2.next_max_id == null ? '' : String(d2.next_max_id);
     if (!nextCursor || users.length === 0) break;
     if (seenCursors.has(nextCursor)) break;  // cursor loop guard
     seenCursors.add(nextCursor);

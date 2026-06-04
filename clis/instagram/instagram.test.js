@@ -244,18 +244,13 @@ describe('instagram/following pagination', () => {
         expect(fetchFn).toHaveBeenCalledTimes(3);
     });
 
-    it('respects limit=0 without calling the following endpoint', async () => {
-        const fetchFn = vi.fn()
-            .mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.resolve({ data: { user: { id: '22222' } } }),
-            });
+    it('rejects non-positive limits before fetching', async () => {
+        const fetchFn = vi.fn();
 
-        const result = await runFollowingEvaluate(fetchFn, { username: 'noop', limit: 0 });
-
-        expect(result).toEqual([]);
-        // Profile fetch only — no following fetch.
-        expect(fetchFn).toHaveBeenCalledTimes(1);
+        await expect(
+            runFollowingEvaluate(fetchFn, { username: 'noop', limit: 0 }),
+        ).rejects.toThrow('limit must be a positive integer');
+        expect(fetchFn).not.toHaveBeenCalled();
     });
 
     it('propagates HTTP errors that occur on a mid-pagination page', async () => {
@@ -275,5 +270,53 @@ describe('instagram/following pagination', () => {
         await expect(
             runFollowingEvaluate(fetchFn, { username: 'broken', limit: 200 }),
         ).rejects.toThrow('Failed to fetch following: HTTP 429');
+    });
+
+    it('typed-fails malformed following payloads instead of returning empty rows', async () => {
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '10101' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ users: null }),
+            });
+
+        await expect(
+            runFollowingEvaluate(fetchFn, { username: 'malformed', limit: 20 }),
+        ).rejects.toThrow('Instagram following returned malformed users payload');
+    });
+
+    it('typed-fails malformed user identity rows instead of emitting blank usernames', async () => {
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '10102' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse([{ pk: '1', full_name: 'No username' }])),
+            });
+
+        await expect(
+            runFollowingEvaluate(fetchFn, { username: 'badrow', limit: 20 }),
+        ).rejects.toThrow('Instagram following returned malformed user row');
+    });
+
+    it('typed-fails malformed pagination cursors', async () => {
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ data: { user: { id: '10103' } } }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve(buildFollowingResponse([makeUser(1)], { cursor: 'bad' })),
+            });
+
+        await expect(
+            runFollowingEvaluate(fetchFn, { username: 'badcursor', limit: 20 }),
+        ).rejects.toThrow('Instagram following returned malformed pagination cursor');
     });
 });
