@@ -3388,6 +3388,37 @@
   },
   {
     "site": "bilibili",
+    "name": "login",
+    "description": "Open bilibili login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "level"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/auth.js",
+    "sourceFile": "bilibili/auth.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "bilibili",
     "name": "me",
     "description": "My Bilibili profile info",
     "access": "read",
@@ -3622,6 +3653,27 @@
     "modulePath": "bilibili/video.js",
     "sourceFile": "bilibili/video.js",
     "navigateBefore": true
+  },
+  {
+    "site": "bilibili",
+    "name": "whoami",
+    "description": "Show the current logged-in bilibili account",
+    "access": "read",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "level"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/auth.js",
+    "sourceFile": "bilibili/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "binance",
@@ -10290,6 +10342,37 @@
   },
   {
     "site": "douyin",
+    "name": "login",
+    "description": "Open douyin login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "creator.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "douyin/auth.js",
+    "sourceFile": "douyin/auth.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "douyin",
     "name": "profile",
     "description": "获取账号信息",
     "access": "read",
@@ -10636,6 +10719,27 @@
     "modulePath": "douyin/videos.js",
     "sourceFile": "douyin/videos.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "douyin",
+    "name": "whoami",
+    "description": "Show the current logged-in douyin account",
+    "access": "read",
+    "domain": "creator.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "douyin/auth.js",
+    "sourceFile": "douyin/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "duckduckgo",
@@ -12371,6 +12475,58 @@
     "type": "js",
     "modulePath": "gitee/user.js",
     "sourceFile": "gitee/user.js"
+  },
+  {
+    "site": "github",
+    "name": "login",
+    "description": "Open github login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "github.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "github/auth.js",
+    "sourceFile": "github/auth.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "github",
+    "name": "whoami",
+    "description": "Show the current logged-in github account",
+    "access": "read",
+    "domain": "github.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "github/auth.js",
+    "sourceFile": "github/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "google",
@@ -30196,6 +30352,36 @@
   },
   {
     "site": "twitter",
+    "name": "login",
+    "description": "Open twitter login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/auth.js",
+    "sourceFile": "twitter/auth.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "twitter",
     "name": "notifications",
     "description": "Get your Twitter/X notifications (the logged-in user's likes/replies/follows feed, newest first)",
     "access": "read",
@@ -30877,6 +31063,26 @@
     "modulePath": "twitter/unretweet.js",
     "sourceFile": "twitter/unretweet.js",
     "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "whoami",
+    "description": "Show the current logged-in twitter account",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/auth.js",
+    "sourceFile": "twitter/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "uisdc",
@@ -34183,6 +34389,36 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "login",
+    "description": "Open xiaohongshu login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/auth.js",
+    "sourceFile": "xiaohongshu/auth.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "xiaohongshu",
     "name": "note",
     "description": "获取小红书笔记正文和互动数据",
     "access": "read",
@@ -34366,6 +34602,26 @@
     "type": "js",
     "modulePath": "xiaohongshu/user.js",
     "sourceFile": "xiaohongshu/user.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "whoami",
+    "description": "Show the current logged-in xiaohongshu account",
+    "access": "read",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/auth.js",
+    "sourceFile": "xiaohongshu/auth.js",
     "navigateBefore": false
   },
   {

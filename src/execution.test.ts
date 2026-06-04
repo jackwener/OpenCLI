@@ -518,6 +518,33 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('uses command defaultWindowMode when the user does not pass --window', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ windowMode?: string }> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'browser-default-window-mode', access: 'write',
+      description: 'test command default window mode',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      defaultWindowMode: 'foreground',
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+
+    expect(sessionOpts[0]).toMatchObject({ windowMode: 'foreground' });
+    vi.restoreAllMocks();
+  });
+
   it('does not re-run custom validation when args are already prepared', async () => {
     const validateArgs = vi.fn();
     const cmd: CliCommand = {
