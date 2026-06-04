@@ -298,6 +298,15 @@ describe('browser public-data commands E2E', () => {
     expectDataOrSkip(data, 'v2ex daily');
   }, 60_000);
 
+  // ── douyu ──
+  it('douyu home returns recommendation cards', async () => {
+    const data = await tryBrowserCommand(['douyu', 'home', '--limit', '3', '-f', 'json']);
+    expectDataOrSkip(data, 'douyu home');
+    if (data?.length) {
+      expect(data[0]).toHaveProperty('title');
+    }
+  }, 60_000);
+
   // ── tieba ──
   it('tieba hot returns trending topics', async () => {
     const data = await runJsonCliOrThrow(['tieba', 'hot', '--limit', '5', '-f', 'json'], 'tieba hot', 60_000, { retryTransient: true });

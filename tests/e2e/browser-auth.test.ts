@@ -109,6 +109,19 @@ describe('login-required commands — graceful failure', () => {
     await expectGracefulAuthFailure(['xiaohongshu', 'notifications', '--limit', '3', '-f', 'json']);
   }, 60_000);
 
+  // ── douyu (requires login) ──
+  it('douyu me fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['douyu', 'me', '-f', 'json']);
+  }, 60_000);
+
+  it('douyu my-follow fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['douyu', 'my-follow', '--limit', '3', '-f', 'json']);
+  }, 60_000);
+
+  it('douyu history fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['douyu', 'history', '--limit', '3', '-f', 'json']);
+  }, 60_000);
+
   // ── yuanbao (requires login) ──
   it('yuanbao new fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['yuanbao', 'new', '-f', 'json']);

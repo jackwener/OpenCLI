@@ -10638,6 +10638,518 @@
     "navigateBefore": "https://creator.douyin.com"
   },
   {
+    "site": "douyu",
+    "name": "category",
+    "description": "获取斗鱼分类直播列表",
+    "access": "read",
+    "example": "opencli douyu category all --limit 10 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "slug",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Category slug: all, LOL, g_LOL, /g_LOL"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "anchor",
+      "watching",
+      "category",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/category.js",
+    "sourceFile": "douyu/category.js"
+  },
+  {
+    "site": "douyu",
+    "name": "daily-task",
+    "aliases": [
+      "task"
+    ],
+    "description": "随机打开斗鱼直播间完成关注、弹幕、直播观看和视频观看每日任务",
+    "access": "write",
+    "example": "opencli douyu daily-task --window foreground --keep-tab true -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "message1",
+        "type": "str",
+        "default": "打卡",
+        "required": false,
+        "help": "First danmaku text, max 50 chars"
+      },
+      {
+        "name": "message2",
+        "type": "str",
+        "default": "主播加油",
+        "required": false,
+        "help": "Second danmaku text, max 50 chars"
+      },
+      {
+        "name": "source",
+        "type": "str",
+        "default": "https://www.douyu.com/directory/all",
+        "required": false,
+        "help": "Directory/category URL used as the random room source"
+      },
+      {
+        "name": "pool",
+        "type": "int",
+        "default": 80,
+        "required": false,
+        "help": "Maximum candidate rooms to sample from"
+      },
+      {
+        "name": "delay",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "Seconds to wait between the two danmaku messages"
+      },
+      {
+        "name": "watch-minutes",
+        "type": "int",
+        "default": 40,
+        "required": false,
+        "help": "Minutes to keep the selected live room playing after task actions"
+      },
+      {
+        "name": "check-interval",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Seconds between playback keepalive checks"
+      },
+      {
+        "name": "video-source",
+        "type": "str",
+        "default": "https://v.douyu.com/video/videotag/list?tagId=15",
+        "required": false,
+        "help": "Douyu video listing URL used as the video source"
+      },
+      {
+        "name": "video-pool",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Maximum candidate videos to sample from"
+      },
+      {
+        "name": "video-watch-minutes",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "Minutes of actual video playback progress to accumulate after live watching"
+      },
+      {
+        "name": "video-check-interval",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Seconds between video playback progress checks"
+      },
+      {
+        "name": "max-videos",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Maximum videos to use if shorter videos end before target time"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 3900,
+        "required": false,
+        "help": "Runtime timeout in seconds; must exceed live and video watch time"
+      },
+      {
+        "name": "verify",
+        "type": "bool",
+        "default": true,
+        "required": false,
+        "help": "Hover account avatar and collect task/experience evidence after watching"
+      },
+      {
+        "name": "strict-verify",
+        "type": "bool",
+        "default": true,
+        "required": false,
+        "help": "Fail when the task/experience panel cannot be verified"
+      },
+      {
+        "name": "dry-run",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Only choose and open the room; do not follow or send danmaku"
+      }
+    ],
+    "columns": [
+      "room",
+      "streamer",
+      "title",
+      "follow_result",
+      "danmaku1",
+      "danmaku2",
+      "live_watch",
+      "video_watch",
+      "videos",
+      "verification",
+      "verification_evidence",
+      "status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/daily-task.js",
+    "sourceFile": "douyu/daily-task.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyu",
+    "name": "danmaku",
+    "aliases": [
+      "send"
+    ],
+    "description": "向斗鱼直播间发送普通弹幕",
+    "access": "write",
+    "example": "opencli douyu danmaku 6979222 \"hello\" -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "room",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Douyu room id or room URL"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Danmaku text, max 50 chars"
+      }
+    ],
+    "columns": [
+      "room",
+      "streamer",
+      "text",
+      "result",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/danmaku.js",
+    "sourceFile": "douyu/danmaku.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyu",
+    "name": "follow",
+    "description": "关注斗鱼直播间主播",
+    "access": "write",
+    "example": "opencli douyu follow 6979222 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "room",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Douyu room id or room URL"
+      }
+    ],
+    "columns": [
+      "room",
+      "streamer",
+      "result",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/follow.js",
+    "sourceFile": "douyu/follow.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyu",
+    "name": "history",
+    "description": "获取斗鱼观看历史",
+    "access": "read",
+    "example": "opencli douyu history --limit 10 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "streamer",
+      "watching",
+      "category",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/history.js",
+    "sourceFile": "douyu/history.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyu",
+    "name": "home",
+    "description": "获取斗鱼首页推荐直播",
+    "access": "read",
+    "example": "opencli douyu home --limit 10 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "streamer",
+      "watching",
+      "category",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/home.js",
+    "sourceFile": "douyu/home.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "douyu",
+    "name": "me",
+    "description": "获取当前斗鱼登录用户信息",
+    "access": "read",
+    "example": "opencli douyu me -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "uid",
+      "nickname",
+      "logged_in"
+    ],
+    "type": "js",
+    "modulePath": "douyu/me.js",
+    "sourceFile": "douyu/me.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyu",
+    "name": "my-follow",
+    "description": "获取我的斗鱼关注列表",
+    "access": "read",
+    "example": "opencli douyu my-follow --limit 10 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "streamer",
+      "watching",
+      "category",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/my-follow.js",
+    "sourceFile": "douyu/my-follow.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyu",
+    "name": "room",
+    "description": "获取斗鱼直播间公开信息",
+    "access": "read",
+    "example": "opencli douyu room 6979222 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "room",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Douyu room id or room URL"
+      }
+    ],
+    "columns": [
+      "room",
+      "title",
+      "anchor",
+      "category",
+      "online",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/room.js",
+    "sourceFile": "douyu/room.js"
+  },
+  {
+    "site": "douyu",
+    "name": "search",
+    "description": "搜索斗鱼直播间",
+    "access": "read",
+    "example": "opencli douyu search 英雄联盟 --limit 10 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of live room results to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "room",
+      "streamer",
+      "title",
+      "category",
+      "hot",
+      "live_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/search.js",
+    "sourceFile": "douyu/search.js"
+  },
+  {
+    "site": "douyu",
+    "name": "unfollow",
+    "description": "取消关注斗鱼直播间主播",
+    "access": "write",
+    "example": "opencli douyu unfollow 6979222 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "room",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Douyu room id or room URL"
+      }
+    ],
+    "columns": [
+      "room",
+      "streamer",
+      "result",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/unfollow.js",
+    "sourceFile": "douyu/unfollow.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "douyu",
+    "name": "watch",
+    "description": "打开斗鱼直播间并返回当前直播状态",
+    "access": "read",
+    "example": "opencli douyu watch 6979222 -f yaml",
+    "domain": "www.douyu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "room",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Douyu room id or room URL"
+      }
+    ],
+    "columns": [
+      "room",
+      "title",
+      "streamer",
+      "category",
+      "followers",
+      "live_status",
+      "live_status_reason",
+      "video_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "douyu/watch.js",
+    "sourceFile": "douyu/watch.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "duckduckgo",
     "name": "search",
     "description": "Search DuckDuckGo",
