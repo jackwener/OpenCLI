@@ -306,6 +306,28 @@ describe('public commands E2E', () => {
     }
   }, 30_000);
 
+  // ── douyu (public) ──
+  it('douyu room returns room summary', async () => {
+    const { stdout, code } = await runCli(['douyu', 'room', '8267000', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBe(1);
+    expect(data[0]).toHaveProperty('title');
+    expect(data[0]).toHaveProperty('anchor');
+    expect(data[0]).toHaveProperty('url');
+  }, 30_000);
+
+  it('douyu category returns live rooms', async () => {
+    const { stdout, code } = await runCli(['douyu', 'category', 'all', '--limit', '3', '-f', 'json']);
+    expect(code).toBe(0);
+    const data = parseJsonOutput(stdout);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThanOrEqual(1);
+    expect(data[0]).toHaveProperty('title');
+    expect(data[0]).toHaveProperty('anchor');
+  }, 30_000);
+
   // ── xiaoyuzhou (Chinese site — may return empty on overseas CI runners) ──
   it('xiaoyuzhou podcast returns podcast profile', async () => {
     const { stdout, stderr, code } = await runCli(['xiaoyuzhou', 'podcast', '6013f9f58e2f7ee375cf4216', '-f', 'json']);

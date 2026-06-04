@@ -178,7 +178,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
 | **WeChat Channels** (视频号) | `publish` |
 | **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `summary` `video` `user-videos` |
-| **douyu** | `search` `watch` `follow` `unfollow` `danmaku` `daily-task` |
+| **douyu** | `search` `room` `category` `home` `watch` `me` `my-follow` `history` `follow` `unfollow` `danmaku` `daily-task` |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
 | **geogebra** | `eval` `add-point` `add-line` `add-circle` `add-polygon` `triangle` `hexagon` `list` `info` |
