@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **twitter** — new `switch-account` command for the X account-switcher menu. `opencli twitter switch-account --list` lists every account available to switch into (with the active account marked) and `opencli twitter switch-account @handle` switches into the named account by clicking the matching `aria-label="Switch to @handle"` button.
+
 ## [1.8.3](https://github.com/jackwener/opencli/compare/v1.8.2...v1.8.3) (2026-06-06)
 
 Patch release focused on two architectural fixes around extension and daemon lifecycle, plus the first wave of the new site auth subsystem.
@@ -25,7 +31,6 @@ Patch release focused on two architectural fixes around extension and daemon lif
 ### Internal
 
 * **test(e2e)** — raise `runCli` `maxBuffer` so manifest-output snapshots no longer truncate on macOS / Windows CI.
-
 ## [1.8.2](https://github.com/jackwener/opencli/compare/v1.8.1...v1.8.2) (2026-06-03)
 
 Mid-cycle release: introduces the **Site Maps Hub** subsystem (agent-facing per-site navigation knowledge), restores the **smart-search** skill, and ships a wide batch of new adapters / commands plus a long tail of read-path fixes. Extension bumped to 1.0.18 for an owned-group reusable-tab scope fix.
