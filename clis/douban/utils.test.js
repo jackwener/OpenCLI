@@ -78,6 +78,18 @@ function runMovieHotEvaluate(script, items) {
     return vm.runInNewContext(script, { document, URL });
 }
 
+function runMovieSubjectEvaluate(script, elementMap) {
+    const document = {
+        querySelector(selector) {
+            return elementMap[selector] || null;
+        },
+        querySelectorAll() {
+            return [];
+        },
+    };
+    return vm.runInNewContext(script, { document, URL });
+}
+
 async function runSearchEvaluate(script, rawItems, domItems) {
     const document = {
         querySelector(selector) {
@@ -319,6 +331,32 @@ ISBN: 9787544270871
         };
 
         await expect(loadDoubanMovieHot(page, 20)).rejects.toThrow('douban movie-hot returned no data');
+    });
+
+    it('loads a movie subject without ReferenceError when splitDoubanTitle is toString-injected (regression for #1851)', async () => {
+        const elementMap = {
+            'span[property="v:itemreviewed"]': createFakeNode('海贼王：黄金大冒险 One Piece Gold'),
+            '.year': createFakeNode('(2016)'),
+            'strong[property="v:average"]': createFakeNode('7.5'),
+            'span[property="v:votes"]': createFakeNode('1234'),
+            '#info': createFakeNode('制片国家/地区: 日本\n类型: 动画'),
+            'span[property="v:runtime"]': createFakeNode('120分钟'),
+            'span[property="v:summary"]': createFakeNode('summary text'),
+        };
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '海贼王 (豆瓣)', href: 'https://movie.douban.com/subject/37116446/' })
+                .mockImplementationOnce((script) => runMovieSubjectEvaluate(script, elementMap)),
+        };
+
+        const detail = await loadDoubanSubjectDetail(page, '37116446', 'movie');
+
+        expect(detail.id).toBe('37116446');
+        expect(detail.type).toBe('movie');
+        expect(detail.title).toBe('海贼王：黄金大冒险');
+        expect(detail.originalTitle).toBe('One Piece Gold');
     });
 
     it('loads book subject details from book.douban.com when type=book', async () => {

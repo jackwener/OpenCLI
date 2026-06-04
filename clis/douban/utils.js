@@ -68,6 +68,10 @@ function extractDoubanPublishYear(value) {
     return match?.[0] || '';
 }
 function splitDoubanTitle(fullTitle) {
+    // Inline normalizeText so the toString-injected copy inside
+    // loadDoubanMovieSubject's page.evaluate runs without a closure reference
+    // to the module-level helper (which does not survive Function.toString()).
+    const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
     const normalized = normalizeText(fullTitle);
     if (!normalized)
         return { title: '', originalTitle: '' };
