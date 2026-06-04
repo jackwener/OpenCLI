@@ -2,23 +2,11 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultErr
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { normalizeTwitterScreenName, unwrapBrowserResult } from './shared.js';
 
-const ACCOUNT_SWITCHER_TRIGGER = '[data-testid="SideNav_AccountSwitcher_Button"]';
-const ACCOUNT_MENU_USER_CELL = '[data-testid="UserCell"]';
-// X renders the "Switch to @handle" button as a child of each UserCell.
-// aria-label is the most stable signal across X's CSS-class renames.
-const ACCOUNT_MENU_SWITCH_BTN = 'button[aria-label^="Switch to @"]';
-const ACCOUNT_MENU_CLOSE_BTN = '[data-testid="AppTabBar_Profile_Link"]';
-
 const MENU_OPEN_TIMEOUT_MS = 8000;
-const SWITCH_CONFIRM_TIMEOUT_MS = 12000;
-
-function isPlainObject(value) {
-    return value != null && typeof value === 'object' && !Array.isArray(value);
-}
+const SWITCH_CONFIRM_TIMEOUT_MS = 15000;
 
 function isListMode(kwargs) {
-    if (kwargs.list === true)
-        return true;
+    if (kwargs.list === true) return true;
     const target = String(kwargs.target ?? '').trim();
     return target === '';
 }
@@ -29,84 +17,62 @@ function isSwitchMode(kwargs) {
 
 /**
  * Read the open account-switcher menu and return one row per listed account.
- * Exported for unit tests; production callers go through cmd.func.
+ * Uses avatar containers inside UserCells to enumerate accounts; the "current"
+ * account is identified by the first <li data-testid="UserCell"> (no Switch button inside).
+ * "Add existing account" rows (have "Follow" text) are excluded.
  */
 export async function readAccountMenu(page) {
-    const handles = unwrapBrowserResult(await page.evaluate(`
+    const result = unwrapBrowserResult(await page.evaluate(`
         () => {
-            const cells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
-            return cells.map((cell) => {
-                const switchBtn = cell.querySelector('button[aria-label^="Switch to @"]');
-                const addBtn = cell.querySelector('button[aria-label^="Add existing account"]');
-                const isCurrent = !switchBtn && !addBtn;
-                const aria = switchBtn ? switchBtn.getAttribute('aria-label') : '';
-                const handle = aria ? aria.replace(/^Switch to @/, '').trim() : '';
-                const displayNameEl = cell.querySelector('[dir="ltr"] > span');
-                const displayName = displayNameEl ? displayNameEl.textContent.trim() : '';
-                // Unread badge lives in the same cell, but X's DOM changes often;
-                // keep the parser best-effort and tolerant of missing nodes.
-                const badgeEl = cell.querySelector('[data-testid="AppTabBar_Profile_Link"] + div span, [data-testid*="unreadCount"] span');
-                const unreadText = badgeEl ? badgeEl.textContent.trim() : '';
-                const unreadMatch = unreadText.match(/\\d+/);
-                const unread = unreadMatch ? Number(unreadMatch[0]) : 0;
-                return { handle, displayName, isCurrent, unread };
-            }).filter((row) => row.handle);
+            const menuCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
+            const currentCell = menuCells.find(cell =>
+                cell.tagName === 'LI' &&
+                !cell.querySelector('button[aria-label^="Switch to @"]')
+            );
+            const currentAvatar = currentCell?.querySelector('[data-testid^="UserAvatar-Container-"]');
+            const currentHandle = currentAvatar
+                ? currentAvatar.getAttribute('data-testid').replace('UserAvatar-Container-', '')
+                : '';
+
+            const avatarContainers = Array.from(document.querySelectorAll(
+                '[data-testid="UserCell"] [data-testid^="UserAvatar-Container-"]'
+            ));
+            const seen = new Set();
+            const accounts = [];
+
+            for (const av of avatarContainers) {
+                const avHandle = av.getAttribute('data-testid').replace('UserAvatar-Container-', '');
+                if (!avHandle || seen.has(avHandle)) continue;
+                seen.add(avHandle);
+
+                let hasFollow = false;
+                let parent = av.parentElement;
+                for (let i = 0; i < 5 && parent; i++, parent = parent.parentElement) {
+                    if (parent.textContent?.includes('Follow')) { hasFollow = true; break; }
+                }
+                if (hasFollow) continue;
+
+                const isCurrent = Boolean(currentHandle) && avHandle.toLowerCase() === currentHandle.toLowerCase();
+                const displayNameEl = av.closest('[data-testid="UserCell"]')?.querySelector('span')
+                    || av.querySelector('span');
+                const displayName = displayNameEl ? displayNameEl.textContent.trim() : avHandle;
+
+                accounts.push({ handle: avHandle, displayName, isCurrent, unread: 0 });
+            }
+
+            return { accounts, currentHandle };
         }
     `));
-    if (!Array.isArray(handles)) {
+    if (!result || !Array.isArray(result.accounts)) {
         throw new CommandExecutionError('X account-switcher menu did not render expected DOM (UserCell)');
     }
-    if (handles.length === 0) {
+    if (result.accounts.length === 0) {
         throw new EmptyResultError(
             'twitter switch-account',
             'X account-switcher menu rendered zero accounts. Try logging in again.',
         );
     }
-    const current = handles.find((row) => row.isCurrent) || null;
-    return { accounts: handles, current };
-}
-
-async function openAccountMenu(page) {
-    // Be tolerant of either being on a sub-page or already in a menu; just
-    // re-navigate home and then click the side-nav trigger to open it.
-    await page.goto('https://x.com/home');
-    await page.wait({ selector: '[data-testid="primaryColumn"]' });
-    const trigger = unwrapBrowserResult(await page.evaluate(`
-        () => {
-            const el = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
-            return el ? true : false;
-        }
-    `));
-    if (!trigger) {
-        throw new AuthRequiredError('x.com', 'X account-switcher trigger not found. Are you logged in?');
-    }
-    await page.click(ACCOUNT_SWITCHER_TRIGGER);
-    // The menu slides in after a short animation. Poll UserCell until it shows.
-    const opened = unwrapBrowserResult(await page.evaluate(`
-        async () => {
-            const start = Date.now();
-            while (Date.now() - start < 8000) {
-                if (document.querySelector('[data-testid="UserCell"]')) return true;
-                await new Promise((r) => setTimeout(r, 100));
-            }
-            return false;
-        }
-    `));
-    if (!opened) {
-        throw new CommandExecutionError('X account-switcher menu did not open within 8s');
-    }
-}
-
-async function closeAccountMenu(page) {
-    // Closing is best-effort — we want to leave the page in a usable state even
-    // if the user only asked for --list.
-    try {
-        await page.click(ACCOUNT_MENU_CLOSE_BTN);
-        await page.wait({ time: 0.4 });
-    }
-    catch {
-        // ignore — the menu closes on navigation in some X variants
-    }
+    return { accounts: result.accounts };
 }
 
 cli({
@@ -132,8 +98,6 @@ cli({
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter switch-account');
 
-        // Reject "switch into the currently logged-in account" as a no-op
-        // rather than silently re-selecting the active row.
         const listMode = isListMode(kwargs);
         const target = String(kwargs.target ?? '').trim();
         if (listMode && target) {
@@ -143,18 +107,174 @@ cli({
             );
         }
 
-        await openAccountMenu(page);
+        const handle = normalizeTwitterScreenName(target);
 
-        if (listMode) {
-            const { accounts, current } = await readAccountMenu(page);
-            // Best-effort: close the menu so the user lands on home, not in a menu.
-            await closeAccountMenu(page);
-            if (accounts.length === 0) {
-                throw new EmptyResultError(
-                    'twitter switch-account',
-                    'X account-switcher menu rendered zero accounts. Try logging in again.',
+        const result = unwrapBrowserResult(await page.evaluate(`
+            (async () => {
+                const MENU_OPEN_TIMEOUT_MS = ${MENU_OPEN_TIMEOUT_MS};
+                const SWITCH_CONFIRM_TIMEOUT_MS = ${SWITCH_CONFIRM_TIMEOUT_MS};
+                const targetHandle = ${JSON.stringify(handle || '')};
+                const doList = ${listMode};
+
+                if (!window.location.pathname.endsWith('/home')) {
+                    window.location.href = 'https://x.com/home';
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+
+                let attempts = 0;
+                while (attempts < 30) {
+                    if (document.querySelector('[data-testid="primaryColumn"]')) break;
+                    await new Promise(r => setTimeout(r, 500));
+                    attempts++;
+                }
+
+                const trigger = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+                if (!trigger) {
+                    return { error: 'AUTH_REQUIRED', message: 'Account-switcher trigger not found. Are you logged in?' };
+                }
+
+                // Resolve the truly current account from the OPEN menu's structure:
+                //   - Current account: <li data-testid="UserCell"> (no "Switch to @xxx" button inside)
+                //   - Switchable other accounts: <button data-testid="UserCell" aria-label="Switch to @xxx">
+                const menuCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
+                const currentCell = menuCells.find(cell =>
+                    cell.tagName === 'LI' &&
+                    !cell.querySelector('button[aria-label^="Switch to @"]')
                 );
-            }
+                const currentAvatar = currentCell?.querySelector('[data-testid^="UserAvatar-Container-"]');
+                const currentHandle = currentAvatar
+                    ? currentAvatar.getAttribute('data-testid').replace('UserAvatar-Container-', '')
+                    : '';
+
+                trigger.click();
+                await new Promise(r => setTimeout(r, 800));
+
+                let menuOpened = false;
+                for (let i = 0; i < MENU_OPEN_TIMEOUT_MS / 200; i++) {
+                    if (document.querySelectorAll('[data-testid="UserCell"]').length > 0) {
+                        menuOpened = true;
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                if (!menuOpened) {
+                    return { error: 'TIMEOUT', message: 'Account-switcher menu did not open within ' + MENU_OPEN_TIMEOUT_MS + 'ms' };
+                }
+
+                // Re-read currentHandle after menu opened (menu may have re-rendered).
+                const menuCellsAfterOpen = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
+                const currentCellAfter = menuCellsAfterOpen.find(cell =>
+                    cell.tagName === 'LI' &&
+                    !cell.querySelector('button[aria-label^="Switch to @"]')
+                );
+                const currentHandleAfter = currentCellAfter?.querySelector('[data-testid^="UserAvatar-Container-"]')
+                    ?.getAttribute('data-testid')?.replace('UserAvatar-Container-', '') || currentHandle;
+
+                const avatarContainers = Array.from(document.querySelectorAll(
+                    '[data-testid="UserCell"] [data-testid^="UserAvatar-Container-"]'
+                ));
+                const seen = new Set();
+                const accounts = [];
+
+                for (const av of avatarContainers) {
+                    const avHandle = av.getAttribute('data-testid').replace('UserAvatar-Container-', '');
+                    if (!avHandle || seen.has(avHandle)) continue;
+                    seen.add(avHandle);
+
+                    let hasFollow = false;
+                    let parent = av.parentElement;
+                    for (let i = 0; i < 5 && parent; i++, parent = parent.parentElement) {
+                        if (parent.textContent?.includes('Follow')) { hasFollow = true; break; }
+                    }
+                    if (hasFollow) continue;
+
+                    const isCurrent = Boolean(currentHandleAfter) && avHandle.toLowerCase() === currentHandleAfter.toLowerCase();
+                    const displayNameEl = av.closest('[data-testid="UserCell"]')?.querySelector('span')
+                        || av.querySelector('span');
+                    const displayName = displayNameEl ? displayNameEl.textContent.trim() : avHandle;
+
+                    accounts.push({ handle: avHandle, displayName, isCurrent, unread: 0 });
+                }
+
+                if (accounts.length === 0) {
+                    return { error: 'EMPTY', message: 'No accounts found in the switcher menu' };
+                }
+
+                if (doList) {
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                    await new Promise(r => setTimeout(r, 400));
+                    return { ok: true, mode: 'list', accounts, currentHandle: currentHandleAfter };
+                }
+
+                if (!targetHandle) {
+                    return { error: 'ARGUMENT', message: 'No target handle given' };
+                }
+
+                // Check if already current.
+                const alreadyCurrent = accounts.find(a =>
+                    a.isCurrent && a.handle.toLowerCase() === targetHandle.toLowerCase()
+                );
+                if (alreadyCurrent) {
+                    return { ok: true, mode: 'already_current', handle: targetHandle, currentHandle: currentHandleAfter };
+                }
+
+                // Find the switch button for the target handle.
+                const targetAriaLabel = 'Switch to @' + targetHandle;
+                const switchBtn = Array.from(document.querySelectorAll('[data-testid="UserCell"]'))
+                    .find(cell => cell.getAttribute('aria-label') === targetAriaLabel);
+
+                if (!switchBtn) {
+                    const allCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'))
+                        .map(c => c.getAttribute('aria-label') || ('LI' + c.tagName));
+                    const available = accounts.map(a => '@' + a.handle).join(', ');
+                    return {
+                        error: 'NOT_FOUND',
+                        message: 'Could not find "Switch to @' + targetHandle + '" button. Menu UserCells: ' + allCells.slice(0, 10).join(', '),
+                        available,
+                        accounts,
+                    };
+                }
+
+                const triggerBefore = trigger?.innerText || '';
+                switchBtn.click();
+
+                for (let i = 0; i < SWITCH_CONFIRM_TIMEOUT_MS / 200; i++) {
+                    if (document.querySelectorAll('[data-testid="UserCell"]').length === 0) {
+                        return { ok: true, mode: 'switched', handle: targetHandle, triggerBefore };
+                    }
+                    const newTrigger = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+                    if (newTrigger && newTrigger.innerText !== triggerBefore) {
+                        return { ok: true, mode: 'switched', handle: targetHandle, triggerBefore };
+                    }
+                    await new Promise(r => setTimeout(r, 200));
+                }
+
+                return {
+                    error: 'TIMEOUT',
+                    message: 'Switched to @' + targetHandle + ' but UI did not update within ' + SWITCH_CONFIRM_TIMEOUT_MS + 'ms',
+                    accounts,
+                };
+            })()
+        `));
+
+        if (result.error === 'AUTH_REQUIRED') {
+            throw new AuthRequiredError('x.com', result.message);
+        }
+        if (result.error === 'TIMEOUT' || result.error === 'ARGUMENT') {
+            throw new CommandExecutionError(result.message);
+        }
+        if (result.error === 'EMPTY') {
+            throw new EmptyResultError('twitter switch-account', result.message);
+        }
+
+        const accounts = (result.accounts || []).map(row => ({
+            handle: row.handle || '',
+            displayName: row.displayName,
+            isCurrent: row.isCurrent ?? false,
+            unread: row.unread,
+        }));
+
+        if (result.mode === 'list') {
             return accounts.map((row) => ({
                 status: 'listed',
                 handle: row.handle,
@@ -167,81 +287,32 @@ cli({
             }));
         }
 
-        // === Switch mode ===
-        const handle = normalizeTwitterScreenName(target);
-        if (target && !handle) {
-            throw new ArgumentError(
-                'twitter switch-account',
-                `Invalid Twitter handle: ${JSON.stringify(target)}. Expected e.g. @semonxue or semonxue.`,
-            );
-        }
-        if (!handle) {
-            throw new ArgumentError(
-                'twitter switch-account',
-                'No target handle given. Either pass a @handle or run with --list.',
-            );
+        if (result.mode === 'already_current') {
+            return [{
+                status: 'already_current',
+                handle: `@${result.handle}`,
+                display_name: '',
+                is_current: true,
+                unread: 0,
+                message: `@${result.handle} is already the current account. ` +
+                    'If you just switched via the web UI, you may need to wait for X to refresh the account switcher state.',
+            }];
         }
 
-        const ariaLabel = `Switch to @${handle}`;
-        const clicked = unwrapBrowserResult(await page.evaluate(`
-            (label => {
-                const btn = document.querySelector(\`button[aria-label="\${label}"]\`);
-                if (btn) {
-                    btn.click();
-                    return true;
-                }
-                return false;
-            })(${JSON.stringify(ariaLabel)})
-        `));
-        if (!clicked) {
-            // Surface the actually-listed accounts so the user can correct typos.
-            const { accounts } = await readAccountMenu(page);
-            const available = accounts.map((row) => `@${row.handle}`).join(', ');
-            await closeAccountMenu(page);
+        if (result.error === 'NOT_FOUND') {
             throw new EmptyResultError(
                 'twitter switch-account',
-                `Could not find a "Switch to @${handle}" button. Available accounts: ${available || '(none detected)'}.`,
-            );
-        }
-
-        // Wait for the page to actually flip to the new account. The
-        // profile-link in the side-nav updates text, and the trigger button's
-        // avatar changes — we wait for the menu to close and the trigger to
-        // render the new handle. Fall back to a generic "navigate away" if
-        // X does not re-render the trigger.
-        const confirmed = unwrapBrowserResult(await page.evaluate(`
-            (expected => {
-                return new Promise((resolve) => {
-                    const start = Date.now();
-                    const tick = () => {
-                        const trigger = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
-                        if (!document.querySelector('[data-testid="UserCell"]')) {
-                            // Menu closed — assume the switch started.
-                            return resolve(true);
-                        }
-                        if (trigger && trigger.textContent && trigger.textContent.includes(expected)) {
-                            return resolve(true);
-                        }
-                        if (Date.now() - start > 12000) return resolve(false);
-                        setTimeout(tick, 200);
-                    };
-                    tick();
-                });
-            })(${JSON.stringify(handle)})
-        `));
-        if (!confirmed) {
-            throw new CommandExecutionError(
-                `Switched to @${handle} but UI did not update within 12s. Open https://x.com/home in a browser to verify which account is active.`,
+                `${result.message}. Available: ${result.available || '(none detected)'}.`,
             );
         }
 
         return [{
             status: 'switched',
-            handle: `@${handle}`,
+            handle: `@${result.handle}`,
             display_name: '',
             is_current: true,
             unread: 0,
-            message: `Switched to @${handle}`,
+            message: `Switched to @${result.handle}`,
         }];
     },
 });
