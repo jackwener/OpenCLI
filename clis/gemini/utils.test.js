@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { __test__, collectGeminiTranscriptAdditions, pickGeminiDeepResearchExportUrl, sanitizeGeminiResponseText, sendGeminiMessage, } from './utils.js';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, sendGeminiMessage, } from './utils.js';
 function createPageMock() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -174,6 +175,126 @@ describe('gemini turn normalization', () => {
             { Role: 'User', Text: '请只回复：OK' },
             { Role: 'Assistant', Text: 'OK' },
         ]);
+    });
+});
+describe('gemini evaluate result boundaries', () => {
+    it('unwraps Browser Bridge envelopes for conversation lists', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({
+            session: 'site:gemini',
+            data: [{ title: 'Chat A', url: 'https://gemini.google.com/app/abc123' }],
+        });
+        await expect(getGeminiConversationList(page)).resolves.toEqual([
+            { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
+        ]);
+    });
+    it('drops non-conversation /app affordances from conversation lists', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([
+            { title: 'New chat', url: 'https://gemini.google.com/app' },
+            { title: 'Chat A', url: 'https://gemini.google.com/app/abc123' },
+        ]);
+        await expect(getGeminiConversationList(page)).resolves.toEqual([
+            { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
+        ]);
+    });
+    it('typed-fails malformed Browser Bridge envelopes instead of treating them as empty', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({ session: 'site:gemini' });
+        await expect(getGeminiConversationList(page)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+    it('typed-fails malformed conversation list rows', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([{ title: 'Chat A' }]);
+        await expect(getGeminiConversationList(page)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+    it('unwraps structured turns and transcript fallback results', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({
+            session: 'site:gemini',
+            data: [{ Role: 'User', Text: 'hello' }],
+        });
+        await expect(getGeminiVisibleTurns(page)).resolves.toEqual([{ Role: 'User', Text: 'hello' }]);
+
+        const fallbackPage = createPageMock();
+        const fallbackEvaluate = vi.mocked(fallbackPage.evaluate);
+        fallbackEvaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({
+            session: 'site:gemini',
+            data: ['plain transcript line'],
+        });
+        await expect(getGeminiVisibleTurns(fallbackPage)).resolves.toEqual([
+            { Role: 'System', Text: 'plain transcript line' },
+        ]);
+    });
+    it('typed-fails malformed visible turn rows', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([{ Role: 'Assistant' }]);
+        await expect(getGeminiVisibleTurns(page)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+    it('unwraps and validates status and snapshot objects', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({
+            session: 'site:gemini',
+            data: { url: 'https://gemini.google.com/app', canSend: true, isSignedIn: true },
+        });
+        await expect(getGeminiPageState(page)).resolves.toMatchObject({ canSend: true });
+
+        const snapshotPage = createPageMock();
+        const snapshotEvaluate = vi.mocked(snapshotPage.evaluate);
+        snapshotEvaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({
+            session: 'site:gemini',
+            data: {
+                turns: [],
+                transcriptLines: [],
+                composerHasText: false,
+                isGenerating: false,
+                structuredTurnsTrusted: true,
+            },
+        });
+        await expect(readGeminiSnapshot(snapshotPage)).resolves.toMatchObject({
+            structuredTurnsTrusted: true,
+        });
+    });
+    it('typed-fails malformed page snapshots', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({
+            turns: {},
+            transcriptLines: [],
+            composerHasText: false,
+            isGenerating: false,
+            structuredTurnsTrusted: true,
+        });
+        await expect(readGeminiSnapshot(page)).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
 describe('pickGeminiDeepResearchExportUrl', () => {
