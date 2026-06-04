@@ -96,6 +96,12 @@ describe('xiaohongshu publish', () => {
         });
         expect(insertText).toHaveBeenNthCalledWith(1, '标题走原生输入');
         expect(insertText).toHaveBeenNthCalledWith(2, '正文也走原生输入');
+        const titleLocateCall = page.evaluate.mock.calls
+            .map(([code]) => String(code))
+            .find((code) => code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"') && code.includes('input[placeholder*='));
+        expect(titleLocateCall).toBeDefined();
+        expect(titleLocateCall.indexOf('input[placeholder*=')).toBeLessThan(titleLocateCall.indexOf('input[maxlength='));
+        expect(titleLocateCall.indexOf('input[placeholder*=')).toBeLessThan(titleLocateCall.indexOf('input[class*='));
         expect(result).toEqual([
             {
                 status: '✅ 发布成功',
