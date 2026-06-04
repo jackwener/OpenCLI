@@ -516,7 +516,6 @@ async function addTopics(page, bodySelectors, topics) {
         if (!focused) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": body editor not found`);
         }
-        const beforeCount = Number(unwrapBrowserResult(await page.evaluate(topicEntityCountScript(topic, bodySelectors)))) || 0;
         // Separate this topic from the preceding text so the dropdown is clean.
         if (typeof page.pressKey === 'function') {
             try {
@@ -524,36 +523,50 @@ async function addTopics(page, bodySelectors, topics) {
             }
             catch { /* non-fatal */ }
         }
-        const typed = await typeTopicQuery(page, topic);
-        if (!typed) {
+        // Type the inline "#<topic>" query so XHS pops the inline suggestion
+        // dropdown. We must use `page.insertText` (CDP) rather than the legacy
+        // `execCommand` path, otherwise XHS's editor doesn't fire its keyup
+        // listener and no dropdown appears.
+        if (typeof page.insertText !== 'function') {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": page.insertText is unavailable`);
+        }
+        try {
+            await page.insertText(`#${topic}`);
+        }
+        catch {
             throw new CommandExecutionError(`Could not attach topic "${topic}": failed to type inline topic query`);
         }
         await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
-        const suggestion = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic)));
-        if (suggestion?.ok) {
-            if (typeof page.nativeClick === 'function'
-                && Number.isFinite(suggestion.x)
-                && Number.isFinite(suggestion.y)) {
-                await page.nativeClick(suggestion.x, suggestion.y);
-            }
-            else {
-                const clicked = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic, { click: true })));
-                if (!clicked?.ok) {
-                    throw new CommandExecutionError(`Could not attach topic "${topic}": failed to click suggestion`);
-                }
-            }
+        // The suggestion dropdown lives inside the editor's closed shadow root,
+        // so light-DOM queries cannot enumerate its items. XHS auto-highlights
+        // the first matching suggestion as soon as the query is typed, so
+        // pressing Enter accepts it directly. `page.nativeClick` would also
+        // work but is not always wired up in the browser-bridge wrapper.
+        if (typeof page.pressKey !== 'function') {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
         }
-        else if (typeof page.pressKey === 'function') {
-            // No dropdown items found via selectors — fall back to Enter, which
-            // accepts the highlighted suggestion in most XHS editor variants.
+        try {
             await page.pressKey('Enter');
         }
-        else {
-            throw new CommandExecutionError(`Could not attach topic "${topic}": no suggestion found`);
+        catch (err) {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
         }
         await page.wait({ time: 0.8 });
-        const afterCount = Number(unwrapBrowserResult(await page.evaluate(topicEntityCountScript(topic, bodySelectors)))) || 0;
-        if (afterCount <= beforeCount) {
+        // Verify the topic chip actually rendered. The chip itself lives in a
+        // closed shadow root so we cannot count `<a>` elements, but XHS exposes
+        // a stable "#<topic>[话题]" marker inside the contenteditable's
+        // innerText once the suggestion is accepted.
+        const confirmed = unwrapBrowserResult(await page.evaluate(`
+            (topic => {
+                const want = '#' + topic + '[话题]';
+                for (const ed of document.querySelectorAll('[contenteditable="true"]')) {
+                    const text = (ed.innerText || ed.textContent || '');
+                    if (text.includes(want)) return true;
+                }
+                return false;
+            })(${JSON.stringify(topic)})
+        `));
+        if (!confirmed) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
         }
         added.push(topic);
