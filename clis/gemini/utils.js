@@ -1083,10 +1083,12 @@ export async function startNewGeminiChat(page) {
 export async function getGeminiConversationList(page) {
     await ensureGeminiPage(page);
     const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
-    const rows = raw.map((item) => {
+    const rows = raw.flatMap((item) => {
         if (!isObjectRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
             throw new CommandExecutionError('Gemini conversation list returned a malformed row');
         }
+        if (!isGeminiConversationUrl(item.url))
+            return [];
         return { Title: item.title, Url: item.url };
     });
     return rows;

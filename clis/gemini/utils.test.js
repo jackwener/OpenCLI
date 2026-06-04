@@ -191,6 +191,19 @@ describe('gemini evaluate result boundaries', () => {
             { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
         ]);
     });
+    it('drops non-conversation /app affordances from conversation lists', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([
+            { title: 'New chat', url: 'https://gemini.google.com/app' },
+            { title: 'Chat A', url: 'https://gemini.google.com/app/abc123' },
+        ]);
+        await expect(getGeminiConversationList(page)).resolves.toEqual([
+            { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
+        ]);
+    });
     it('typed-fails malformed Browser Bridge envelopes instead of treating them as empty', async () => {
         const page = createPageMock();
         const evaluate = vi.mocked(page.evaluate);
