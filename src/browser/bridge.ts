@@ -81,13 +81,29 @@ export class BrowserBridge implements IBrowserFactory {
         process.stderr.write(`⚠️  Stale daemon detected (${reason}). Restarting...\n`);
       }
       const shutdownAccepted = await requestDaemonShutdown();
-      const portReleased = shutdownAccepted && await waitForDaemonStop(3000);
+      let portReleased = shutdownAccepted && await waitForDaemonStop(3000);
+
+      if (!portReleased) {
+        // Graceful shutdown failed (old daemon hung, /shutdown unsupported, etc.).
+        // The daemon already reports its own pid in `/status`, so SIGKILL it
+        // directly rather than asking the user to run `opencli daemon stop`.
+        const stalePid = health.status?.pid;
+        if (typeof stalePid === 'number' && Number.isInteger(stalePid) && stalePid > 0) {
+          try {
+            process.kill(stalePid, 'SIGKILL');
+            portReleased = await waitForDaemonStop(2000);
+          } catch {
+            // EPERM (cross-user owner) / ESRCH (already dead): fall through to the
+            // error path below; the next waitForDaemonStop poll will resolve either way.
+          }
+        }
+      }
 
       if (!portReleased) {
         // Stale daemon replacement failed — don't blindly spawn on an occupied port
         throw new BrowserConnectError(
           'Stale daemon could not be replaced',
-          `A stale daemon (${reason}) is running but did not shut down.\n` +
+          `A stale daemon (${reason}) is running but did not shut down (graceful + SIGKILL both failed).\n` +
           '  Run manually: opencli daemon stop && opencli doctor',
           'daemon-not-running',
         );
