@@ -486,6 +486,27 @@ function topicEntityCountScript(topic, bodySelectors) {
     })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
   `;
 }
+function topicMarkerCountScript(topic, bodySelectors) {
+    return `
+    ((topicName, selectors) => {
+      const __opencli_xhs_topic_marker_count = true;
+      const marker = '#' + topicName + '[话题]';
+      const editor = selectors
+        .map(sel => Array.from(document.querySelectorAll(sel)))
+        .flat()
+        .find(node => node && node.offsetParent !== null && node.isContentEditable);
+      if (!editor || !marker) return 0;
+      const text = editor.innerText || editor.textContent || '';
+      let count = 0;
+      let index = text.indexOf(marker);
+      while (index !== -1) {
+        count += 1;
+        index = text.indexOf(marker, index + marker.length);
+      }
+      return count;
+    })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
+  `;
+}
 async function typeTopicQuery(page, topic) {
     // Type "#<topic>" so XHS recognizes it as a topic query and pops the inline
     // suggestion dropdown. The caller separates topics with Enter beforehand so
@@ -516,6 +537,7 @@ async function addTopics(page, bodySelectors, topics) {
         if (!focused) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": body editor not found`);
         }
+        const beforeMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
         // Separate this topic from the preceding text so the dropdown is clean.
         if (typeof page.pressKey === 'function') {
             try {
@@ -554,19 +576,12 @@ async function addTopics(page, bodySelectors, topics) {
         await page.wait({ time: 0.8 });
         // Verify the topic chip actually rendered. The chip itself lives in a
         // closed shadow root so we cannot count `<a>` elements, but XHS exposes
-        // a stable "#<topic>[话题]" marker inside the contenteditable's
-        // innerText once the suggestion is accepted.
-        const confirmed = unwrapBrowserResult(await page.evaluate(`
-            (topic => {
-                const want = '#' + topic + '[话题]';
-                for (const ed of document.querySelectorAll('[contenteditable="true"]')) {
-                    const text = (ed.innerText || ed.textContent || '');
-                    if (text.includes(want)) return true;
-                }
-                return false;
-            })(${JSON.stringify(topic)})
-        `));
-        if (!confirmed) {
+        // a stable "#<topic>[话题]" marker in the body editor's innerText once
+        // the suggestion is accepted. Require the scoped marker count to
+        // increase so an existing marker elsewhere cannot satisfy the write
+        // postcondition.
+        const afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+        if (afterMarkerCount <= beforeMarkerCount) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
         }
         added.push(topic);

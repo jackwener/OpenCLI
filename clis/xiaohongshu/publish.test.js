@@ -615,9 +615,9 @@ describe('xiaohongshu publish', () => {
         const insertText = vi.fn().mockResolvedValue(undefined);
         const pressKey = vi.fn().mockResolvedValue(undefined);
         const focusCalls = [];
-        // Track every per-topic chip-marker evaluate so we can simulate XHS
-        // rendering the chip in the body innerText only after the accept step.
-        const chipSeen = [];
+        // Track per-topic chip-marker evaluate calls: before selection, then
+        // after Enter accepts the highlighted suggestion.
+        let markerChecks = 0;
         // Skip the upload path entirely: page.setFileInput is a no-op for
         // these tests because the topic flow is what we care about.
         const setFileInput = vi.fn().mockResolvedValue(undefined);
@@ -643,12 +643,11 @@ describe('xiaohongshu publish', () => {
                 focusCalls.push(true);
                 return true;
             }
-            // Chip-marker postcondition: read from contenteditable nodes only.
-            // We track the call so the test can assert that each topic
-            // triggered exactly one chip-marker check.
-            if (code.includes("'[contenteditable=\"true\"]'") && code.includes('innerText') && code.includes('includes')) {
-                chipSeen.push(true);
-                return true;
+            // Body-scoped chip-marker postcondition. Each topic checks count
+            // before and after Enter; simulate one new marker after selection.
+            if (code.includes('__opencli_xhs_topic_marker_count')) {
+                markerChecks += 1;
+                return markerChecks % 2 === 1 ? 0 : 1;
             }
             if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) {
                 return code.includes('[contenteditable="true"][placeholder*="标题"]')
@@ -692,8 +691,8 @@ describe('xiaohongshu publish', () => {
         // pressKey was called at least twice per topic (separator + accept).
         const enterCount = pressKey.mock.calls.filter(args => args[0] === 'Enter').length;
         expect(enterCount).toBeGreaterThanOrEqual(4);
-        // Chip-marker postcondition fired once per topic.
-        expect(chipSeen.length).toBe(2);
+        // Chip-marker postcondition checked before and after each topic.
+        expect(markerChecks).toBe(4);
         expect(result).toEqual([
             {
                 status: '✅ 发布成功',
@@ -725,9 +724,9 @@ describe('xiaohongshu publish', () => {
                 return true;
             if (code.includes('node.isContentEditable') && code.includes('selectNodeContents'))
                 return true;
-            // Chip marker absent → topic attachment failed.
-            if (code.includes("'[contenteditable=\"true\"]'") && code.includes('innerText') && code.includes('includes')) {
-                return false;
+            // Chip marker count does not increase → topic attachment failed.
+            if (code.includes('__opencli_xhs_topic_marker_count')) {
+                return 0;
             }
             if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) {
                 return code.includes('[contenteditable="true"][placeholder*="标题"]')
@@ -766,5 +765,67 @@ describe('xiaohongshu publish', () => {
         // check rejected the result before the publish button was clicked.
         expect(insertText).toHaveBeenCalledWith('#不存在的话题');
         expect(pressKey).toHaveBeenCalledWith('Enter');
+    });
+    it('does not accept a pre-existing topic marker as proof of a new attached topic', async () => {
+        const cmd = getRegistry().get('xiaohongshu/publish');
+        expect(cmd?.func).toBeTypeOf('function');
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
+        const imagePath = path.join(tempDir, 'demo.jpg');
+        fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const pressKey = vi.fn().mockResolvedValue(undefined);
+        const page = createConditionalPageMock((code) => {
+            if (code.includes('location.href'))
+                return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']"))
+                return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'editor_ready', hasTitleInput: true, hasImageInput: true, hasVideoSurface: false };
+            if (code.includes('const images =') && code.includes('for (const img of images)'))
+                return { ok: true, count: 1 };
+            if (code.includes('[class*="upload"][class*="progress"]'))
+                return false;
+            if (code.includes('const sels =') && code.includes('for (const sel of sels)'))
+                return true;
+            if (code.includes('node.isContentEditable') && code.includes('selectNodeContents'))
+                return true;
+            // Existing marker before selection, but Enter does not attach a new
+            // entity; count remains unchanged and must fail.
+            if (code.includes('__opencli_xhs_topic_marker_count')) {
+                return 1;
+            }
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) {
+                return code.includes('[contenteditable="true"][placeholder*="标题"]')
+                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable' }
+                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable' };
+            }
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"prepare"'))
+                return { ok: true };
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"verify"')) {
+                return code.includes('[contenteditable="true"][placeholder*="标题"]')
+                    ? { ok: true, actual: '已有话题标题' }
+                    : { ok: true, actual: '已有话题正文 #AI[话题]' };
+            }
+            if (code.includes('(function(selectors, text)')) {
+                return code.includes('[contenteditable="true"][placeholder*="标题"]')
+                    ? { ok: true, sel: '[contenteditable="true"][placeholder*="标题"]', kind: 'contenteditable', actual: '已有话题标题' }
+                    : { ok: true, sel: '[contenteditable="true"][class*="content"]', kind: 'contenteditable', actual: '已有话题正文 #AI[话题]' };
+            }
+            if (code.includes('labels.some')) {
+                throw new Error('publish button should not be clicked after topic postcondition failure');
+            }
+            throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
+        }, {
+            insertText,
+            pressKey,
+        });
+
+        await expect(cmd.func(page, {
+            title: '已有话题标题',
+            content: '已有话题正文 #AI[话题]',
+            images: imagePath,
+            topics: 'AI',
+            draft: false,
+        })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
