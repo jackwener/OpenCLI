@@ -45,16 +45,7 @@ export function registerSiteAuthCommands(config) {
     navigateBefore: false,
     args: [],
     columns: commandColumns(config),
-    func: async (page) => {
-      try {
-        return tryProbe(config, page, 'identity');
-      } catch (error) {
-        if (isAuthRequired(error)) {
-          throw new AuthRequiredError(config.domain, error.message || `Not logged in to ${config.site}`);
-        }
-        throw error;
-      }
-    },
+    func: async (page) => tryProbe(config, page, 'identity'),
   });
 
   cli({
