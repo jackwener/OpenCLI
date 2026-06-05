@@ -236,9 +236,6 @@ function getTurnsScript() {
         return text ? text + '\\n' + imageLines.join('\\n') : imageLines.join('\\n');
       };
 
-      const messageList = document.querySelector('[class*="message-list-"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"]');
-      if (!messageList) return [];
-
       const itemSelectors = [
         // 2026-05 Doubao DOM refactor wrappers (prepended; outer ones win via
         // ancestor-keep dedup below).
@@ -252,15 +249,21 @@ function getTurnsScript() {
         '[class*="bg-g-receive-msg-bubble"]',
       ];
 
+      const messageLists = Array.from(document.querySelectorAll('[class*="message-list-"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"]'))
+        .filter((el) => isVisible(el));
+      if (messageLists.length === 0) return [];
+
       const allRoots = [];
       const seen = new Set();
-      for (const sel of itemSelectors) {
-        messageList.querySelectorAll(sel).forEach((el) => {
-          if (!seen.has(el)) {
-            seen.add(el);
-            allRoots.push(el);
-          }
-        });
+      for (const messageList of messageLists) {
+        for (const sel of itemSelectors) {
+          messageList.querySelectorAll(sel).forEach((el) => {
+            if (!seen.has(el)) {
+              seen.add(el);
+              allRoots.push(el);
+            }
+          });
+        }
       }
       const roots = allRoots
         .filter((el) => isVisible(el) && !el.closest('script, style, noscript'))

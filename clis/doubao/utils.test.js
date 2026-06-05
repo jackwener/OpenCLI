@@ -245,6 +245,31 @@ describe('doubao receive strategy', () => {
         ]);
     });
 
+    it('does not let a stale hidden hashed message list mask the visible current one', () => {
+        const turns = runTurnsScript(`
+          <main>
+            <section class="message-list-old" style="display:none">
+              <div class="inner-item-old">
+                <div class="bg-g-send-msg-bubble-bg">旧问题</div>
+              </div>
+            </section>
+            <section class="message-list-current">
+              <div class="inner-item-current">
+                <div class="bg-g-send-msg-bubble-bg">当前问题</div>
+              </div>
+              <div class="inner-item-current">
+                <div class="md-box-root"><p>当前回答</p></div>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(turns).toEqual([
+            { Role: 'User', Text: '当前问题' },
+            { Role: 'Assistant', Text: '当前回答' },
+        ]);
+    });
+
     it('extends transcript-noise cleanup for the current zh-CN chrome copy', () => {
         const transcriptScript = __test__.getTranscriptLinesScript();
         expect(transcriptScript).toContain('请仔细甄别');
