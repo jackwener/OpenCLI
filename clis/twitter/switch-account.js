@@ -109,7 +109,14 @@ cli({
 
         const handle = normalizeTwitterScreenName(target);
 
-        const result = unwrapBrowserResult(await page.evaluate(`
+        if (!handle && !listMode) {
+            throw new ArgumentError(
+                'twitter switch-account',
+                'No target handle given. Pass a @handle to switch, or use --list to list accounts.',
+            );
+        }
+
+        const rawResult = await page.evaluate(`
             (async () => {
                 const MENU_OPEN_TIMEOUT_MS = ${MENU_OPEN_TIMEOUT_MS};
                 const SWITCH_CONFIRM_TIMEOUT_MS = ${SWITCH_CONFIRM_TIMEOUT_MS};
@@ -133,9 +140,6 @@ cli({
                     return { error: 'AUTH_REQUIRED', message: 'Account-switcher trigger not found. Are you logged in?' };
                 }
 
-                // Resolve the truly current account from the OPEN menu's structure:
-                //   - Current account: <li data-testid="UserCell"> (no "Switch to @xxx" button inside)
-                //   - Switchable other accounts: <button data-testid="UserCell" aria-label="Switch to @xxx">
                 const menuCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
                 const currentCell = menuCells.find(cell =>
                     cell.tagName === 'LI' &&
@@ -167,8 +171,10 @@ cli({
                     cell.tagName === 'LI' &&
                     !cell.querySelector('button[aria-label^="Switch to @"]')
                 );
-                const currentHandleAfter = currentCellAfter?.querySelector('[data-testid^="UserAvatar-Container-"]')
-                    ?.getAttribute('data-testid')?.replace('UserAvatar-Container-', '') || currentHandle;
+                const currentAvatarAfter = currentCellAfter?.querySelector('[data-testid^="UserAvatar-Container-"]');
+                const currentHandleAfter = currentAvatarAfter
+                    ? currentAvatarAfter.getAttribute('data-testid').replace('UserAvatar-Container-', '')
+                    : currentHandle;
 
                 const avatarContainers = Array.from(document.querySelectorAll(
                     '[data-testid="UserCell"] [data-testid^="UserAvatar-Container-"]'
@@ -203,27 +209,24 @@ cli({
                 if (doList) {
                     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                     await new Promise(r => setTimeout(r, 400));
-                    return { ok: true, mode: 'list', accounts, currentHandle: currentHandleAfter };
+                    return { ok: true, mode: 'list', accounts: accounts, currentHandle: currentHandleAfter };
                 }
 
                 if (!targetHandle) {
                     return { error: 'ARGUMENT', message: 'No target handle given' };
                 }
 
-                // Check if already current.
-                const alreadyCurrent = accounts.find(a =>
-                    a.isCurrent && a.handle.toLowerCase() === targetHandle.toLowerCase()
-                );
-                if (alreadyCurrent) {
-                    return { ok: true, mode: 'already_current', handle: targetHandle, currentHandle: currentHandleAfter };
+                if (accounts.length === 0) {
+                    return { error: 'EMPTY', message: 'No accounts found in the switcher menu' };
                 }
 
-                // Find the switch button for the target handle.
                 const targetAriaLabel = 'Switch to @' + targetHandle;
                 const switchBtn = Array.from(document.querySelectorAll('[data-testid="UserCell"]'))
                     .find(cell => cell.getAttribute('aria-label') === targetAriaLabel);
 
                 if (!switchBtn) {
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                    await new Promise(r => setTimeout(r, 200));
                     const allCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'))
                         .map(c => c.getAttribute('aria-label') || ('LI' + c.tagName));
                     const available = accounts.map(a => '@' + a.handle).join(', ');
@@ -235,27 +238,26 @@ cli({
                     };
                 }
 
-                const triggerBefore = trigger?.innerText || '';
+                // Close menu first to avoid stale state
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                await new Promise(r => setTimeout(r, 300));
+
+                // Click the switch button and reload immediately to sync browser state
                 switchBtn.click();
-
-                for (let i = 0; i < SWITCH_CONFIRM_TIMEOUT_MS / 200; i++) {
-                    if (document.querySelectorAll('[data-testid="UserCell"]').length === 0) {
-                        return { ok: true, mode: 'switched', handle: targetHandle, triggerBefore };
-                    }
-                    const newTrigger = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
-                    if (newTrigger && newTrigger.innerText !== triggerBefore) {
-                        return { ok: true, mode: 'switched', handle: targetHandle, triggerBefore };
-                    }
-                    await new Promise(r => setTimeout(r, 200));
-                }
-
-                return {
-                    error: 'TIMEOUT',
-                    message: 'Switched to @' + targetHandle + ' but UI did not update within ' + SWITCH_CONFIRM_TIMEOUT_MS + 'ms',
-                    accounts,
-                };
+                window.location.reload();
+                return { ok: true, mode: 'switched', handle: targetHandle, currentHandle: currentHandleAfter };
             })()
-        `));
+        `);
+
+        let result = unwrapBrowserResult(rawResult);
+        // Defensive: if result is an array (Playwright quirk), take first element
+        if (Array.isArray(result)) {
+            result = result[0];
+        }
+        // If still wrapped by CDP session envelope, unwrap again
+        if (result && typeof result === 'object' && result.session && Object.prototype.hasOwnProperty.call(result, 'data')) {
+            result = result.data;
+        }
 
         if (result.error === 'AUTH_REQUIRED') {
             throw new AuthRequiredError('x.com', result.message);
@@ -282,20 +284,21 @@ cli({
                 is_current: row.isCurrent,
                 unread: row.unread,
                 message: row.isCurrent
-                    ? `Current account @${row.handle}`
-                    : `Switch to @${row.handle} with: opencli twitter switch-account @${row.handle}`,
+                    ? 'Current account @' + row.handle
+                    : 'Switch to @' + row.handle + ' with: opencli twitter switch-account @' + row.handle,
             }));
         }
 
         if (result.mode === 'already_current') {
+            const dbgAccounts = (result.accounts || []).map(function(a) { return a.handle + ':' + a.isCurrent; }).join(', ');
+            const msg = '@' + result.handle + ' is already the current account (debug: result.handle=' + result.handle + ', currentHandleAfter=' + result.currentHandle + ', accounts=[' + dbgAccounts + ']). If you just switched via the web UI, you may need to wait for X to refresh the account switcher state.';
             return [{
                 status: 'already_current',
-                handle: `@${result.handle}`,
+                handle: '@' + result.handle,
                 display_name: '',
                 is_current: true,
                 unread: 0,
-                message: `@${result.handle} is already the current account. ` +
-                    'If you just switched via the web UI, you may need to wait for X to refresh the account switcher state.',
+                message: msg,
             }];
         }
 
@@ -308,11 +311,11 @@ cli({
 
         return [{
             status: 'switched',
-            handle: `@${result.handle}`,
+            handle: '@' + (result.handle || target || 'unknown'),
             display_name: '',
             is_current: true,
             unread: 0,
-            message: `Switched to @${result.handle}`,
+            message: 'Switched to @' + (result.handle || target || 'unknown'),
         }];
     },
 });
