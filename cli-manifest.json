@@ -1,6 +1,36 @@
 [
   {
     "site": "12306",
+    "name": "login",
+    "description": "Open 12306 login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "12306.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_name"
+    ],
+    "type": "js",
+    "modulePath": "12306/auth.js",
+    "sourceFile": "12306/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "12306",
     "name": "me",
     "description": "Show the logged-in 12306 account summary. Sensitive fields (real name, email, mobile, birth date) are masked by default; pass --include-sensitive to opt in.",
     "access": "read",
@@ -297,6 +327,25 @@
     "sourceFile": "12306/trains.js"
   },
   {
+    "site": "12306",
+    "name": "whoami",
+    "description": "Show the current logged-in 12306 account",
+    "access": "read",
+    "domain": "12306.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_name"
+    ],
+    "type": "js",
+    "modulePath": "12306/auth.js",
+    "sourceFile": "12306/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "1688",
     "name": "assets",
     "description": "列出 1688 商品页可提取的图片/视频素材",
@@ -393,6 +442,37 @@
   },
   {
     "site": "1688",
+    "name": "login",
+    "description": "Open 1688 login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "1688.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "1688/auth.js",
+    "sourceFile": "1688/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "1688",
     "name": "search",
     "description": "1688 商品搜索（结果候选、卖家链接、价格/MOQ/销量文本）",
     "access": "read",
@@ -457,6 +537,26 @@
     "type": "js",
     "modulePath": "1688/store.js",
     "sourceFile": "1688/store.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "1688",
+    "name": "whoami",
+    "description": "Show the current logged-in 1688 account",
+    "access": "read",
+    "domain": "1688.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "1688/auth.js",
+    "sourceFile": "1688/auth.js",
     "navigateBefore": false
   },
   {
@@ -629,6 +729,37 @@
   },
   {
     "site": "1point3acres",
+    "name": "login",
+    "description": "Open 1point3acres login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "1point3acres.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "1point3acres/auth.js",
+    "sourceFile": "1point3acres/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "1point3acres",
     "name": "notifications",
     "description": "一亩三分地 站内通知（互动 / 点评 / @ 我；需要登录）",
     "access": "read",
@@ -793,6 +924,26 @@
     "type": "js",
     "modulePath": "1point3acres/user.js",
     "sourceFile": "1point3acres/user.js"
+  },
+  {
+    "site": "1point3acres",
+    "name": "whoami",
+    "description": "Show the current logged-in 1point3acres account",
+    "access": "read",
+    "domain": "1point3acres.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "1point3acres/auth.js",
+    "sourceFile": "1point3acres/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "36kr",
@@ -1277,6 +1428,36 @@
   },
   {
     "site": "amazon",
+    "name": "login",
+    "description": "Open amazon login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "amazon.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_name"
+    ],
+    "type": "js",
+    "modulePath": "amazon/auth.js",
+    "sourceFile": "amazon/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "amazon",
     "name": "movers-shakers",
     "description": "Amazon Movers & Shakers pages for short-term growth signals",
     "access": "read",
@@ -1445,6 +1626,25 @@
     "type": "js",
     "modulePath": "amazon/search.js",
     "sourceFile": "amazon/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "amazon",
+    "name": "whoami",
+    "description": "Show the current logged-in amazon account",
+    "access": "read",
+    "domain": "amazon.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_name"
+    ],
+    "type": "js",
+    "modulePath": "amazon/auth.js",
+    "sourceFile": "amazon/auth.js",
     "navigateBefore": false
   },
   {
@@ -2618,6 +2818,36 @@
   },
   {
     "site": "band",
+    "name": "login",
+    "description": "Open band login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "band.us",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "band/auth.js",
+    "sourceFile": "band/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "band",
     "name": "mentions",
     "description": "Show Band notifications where you are @mentioned",
     "access": "read",
@@ -2749,6 +2979,25 @@
     "type": "js",
     "modulePath": "band/posts.js",
     "sourceFile": "band/posts.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "band",
+    "name": "whoami",
+    "description": "Show the current logged-in band account",
+    "access": "read",
+    "domain": "band.us",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "band/auth.js",
+    "sourceFile": "band/auth.js",
     "navigateBefore": false
   },
   {
@@ -5011,6 +5260,37 @@
   },
   {
     "site": "boss",
+    "name": "login",
+    "description": "Open boss login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "zhipin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "user_type"
+    ],
+    "type": "js",
+    "modulePath": "boss/auth.js",
+    "sourceFile": "boss/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "boss",
     "name": "mark",
     "description": "BOSS直聘给候选人添加标签",
     "access": "write",
@@ -5268,6 +5548,26 @@
     "navigateBefore": false
   },
   {
+    "site": "boss",
+    "name": "whoami",
+    "description": "Show the current logged-in boss account",
+    "access": "read",
+    "domain": "zhipin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "user_type"
+    ],
+    "type": "js",
+    "modulePath": "boss/auth.js",
+    "sourceFile": "boss/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "brave",
     "name": "search",
     "description": "Search Brave Search",
@@ -5420,6 +5720,57 @@
     "modulePath": "chaoxing/exams.js",
     "sourceFile": "chaoxing/exams.js",
     "navigateBefore": "https://mooc2-ans.chaoxing.com"
+  },
+  {
+    "site": "chaoxing",
+    "name": "login",
+    "description": "Open chaoxing login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "chaoxing.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "chaoxing/auth.js",
+    "sourceFile": "chaoxing/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "chaoxing",
+    "name": "whoami",
+    "description": "Show the current logged-in chaoxing account",
+    "access": "read",
+    "domain": "chaoxing.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "chaoxing/auth.js",
+    "sourceFile": "chaoxing/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "chatgpt",
@@ -5636,6 +5987,38 @@
   },
   {
     "site": "chatgpt",
+    "name": "login",
+    "description": "Open chatgpt login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/auth.js",
+    "sourceFile": "chatgpt/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "chatgpt",
     "name": "model",
     "description": "Switch ChatGPT web model/mode (instant, thinking, pro)",
     "access": "write",
@@ -5772,6 +6155,27 @@
     "sourceFile": "chatgpt/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "whoami",
+    "description": "Show the current logged-in chatgpt account",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/auth.js",
+    "sourceFile": "chatgpt/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "chatgpt-app",
@@ -6418,6 +6822,38 @@
   },
   {
     "site": "claude",
+    "name": "login",
+    "description": "Open claude login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "org_name",
+      "org_uuid"
+    ],
+    "type": "js",
+    "modulePath": "claude/auth.js",
+    "sourceFile": "claude/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "claude",
     "name": "new",
     "description": "Start a new conversation in Claude",
     "access": "read",
@@ -6508,6 +6944,27 @@
     "sourceFile": "claude/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "claude",
+    "name": "whoami",
+    "description": "Show the current logged-in claude account",
+    "access": "read",
+    "domain": "claude.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "org_name",
+      "org_uuid"
+    ],
+    "type": "js",
+    "modulePath": "claude/auth.js",
+    "sourceFile": "claude/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "cnki",
@@ -7615,6 +8072,36 @@
   },
   {
     "site": "coupang",
+    "name": "login",
+    "description": "Open coupang login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "coupang.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "coupang/auth.js",
+    "sourceFile": "coupang/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "coupang",
     "name": "product",
     "description": "Read full product detail (price, rating, seller, delivery) for a Coupang product",
     "access": "read",
@@ -7710,6 +8197,25 @@
     "modulePath": "coupang/search.js",
     "sourceFile": "coupang/search.js",
     "navigateBefore": "https://www.coupang.com"
+  },
+  {
+    "site": "coupang",
+    "name": "whoami",
+    "description": "Show the current logged-in coupang account",
+    "access": "read",
+    "domain": "coupang.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "coupang/auth.js",
+    "sourceFile": "coupang/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "crates",
@@ -7949,6 +8455,38 @@
   },
   {
     "site": "ctrip",
+    "name": "login",
+    "description": "Open ctrip login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "vip_grade"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/auth.js",
+    "sourceFile": "ctrip/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "ctrip",
     "name": "search",
     "description": "搜索携程目的地、景区、火车站和地标联想结果",
     "access": "read",
@@ -7989,6 +8527,27 @@
     "type": "js",
     "modulePath": "ctrip/search.js",
     "sourceFile": "ctrip/search.js"
+  },
+  {
+    "site": "ctrip",
+    "name": "whoami",
+    "description": "Show the current logged-in ctrip account",
+    "access": "read",
+    "domain": "ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "vip_grade"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/auth.js",
+    "sourceFile": "ctrip/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "cursor",
@@ -8902,6 +9461,37 @@
   },
   {
     "site": "dianping",
+    "name": "login",
+    "description": "Open dianping login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "dianping.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "dianping/auth.js",
+    "sourceFile": "dianping/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "dianping",
     "name": "search",
     "description": "大众点评店铺搜索（按关键词 + 城市）",
     "access": "read",
@@ -8974,6 +9564,26 @@
     "modulePath": "dianping/shop.js",
     "sourceFile": "dianping/shop.js",
     "navigateBefore": "https://www.dianping.com"
+  },
+  {
+    "site": "dianping",
+    "name": "whoami",
+    "description": "Show the current logged-in dianping account",
+    "access": "read",
+    "domain": "dianping.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "dianping/auth.js",
+    "sourceFile": "dianping/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "dictionary",
@@ -9391,6 +10001,37 @@
   },
   {
     "site": "douban",
+    "name": "login",
+    "description": "Open douban login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "douban.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "douban/auth.js",
+    "sourceFile": "douban/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "douban",
     "name": "marks",
     "description": "导出个人观影标记",
     "access": "read",
@@ -9696,6 +10337,26 @@
     "navigateBefore": "https://movie.douban.com"
   },
   {
+    "site": "douban",
+    "name": "whoami",
+    "description": "Show the current logged-in douban account",
+    "access": "read",
+    "domain": "douban.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "douban/auth.js",
+    "sourceFile": "douban/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "doubao",
     "name": "ask",
     "description": "Send a prompt and wait for the Doubao response",
@@ -9784,6 +10445,37 @@
     "sourceFile": "doubao/history.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "doubao",
+    "name": "login",
+    "description": "Open doubao login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "www.doubao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "doubao/auth.js",
+    "sourceFile": "doubao/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "doubao",
@@ -9939,6 +10631,26 @@
     "sourceFile": "doubao/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "doubao",
+    "name": "whoami",
+    "description": "Show the current logged-in doubao account",
+    "access": "read",
+    "domain": "www.doubao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "doubao/auth.js",
+    "sourceFile": "doubao/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "doubao-app",
@@ -11598,6 +12310,38 @@
   },
   {
     "site": "facebook",
+    "name": "login",
+    "description": "Open facebook login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "facebook.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "vanity",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "facebook/auth.js",
+    "sourceFile": "facebook/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "facebook",
     "name": "marketplace-inbox",
     "description": "List recent Facebook Marketplace buyer/seller conversations",
     "access": "read",
@@ -11781,6 +12525,27 @@
     "navigateBefore": "https://www.facebook.com"
   },
   {
+    "site": "facebook",
+    "name": "whoami",
+    "description": "Show the current logged-in facebook account",
+    "access": "read",
+    "domain": "facebook.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "vanity",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "facebook/auth.js",
+    "sourceFile": "facebook/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "flathub",
     "name": "app",
     "description": "Full Flathub appstream metadata for an app id (license, categories, latest release)",
@@ -11861,6 +12626,36 @@
   },
   {
     "site": "flomo",
+    "name": "login",
+    "description": "Open flomo login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "flomoapp.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "flomo/auth.js",
+    "sourceFile": "flomo/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "flomo",
     "name": "memos",
     "description": "List your Flomo memos",
     "access": "read",
@@ -11902,6 +12697,25 @@
     "modulePath": "flomo/memos.js",
     "sourceFile": "flomo/memos.js",
     "navigateBefore": "https://v.flomoapp.com/"
+  },
+  {
+    "site": "flomo",
+    "name": "whoami",
+    "description": "Show the current logged-in flomo account",
+    "access": "read",
+    "domain": "flomoapp.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "flomo/auth.js",
+    "sourceFile": "flomo/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "gemini",
@@ -12159,6 +12973,37 @@
   },
   {
     "site": "gemini",
+    "name": "login",
+    "description": "Open gemini login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "gemini/auth.js",
+    "sourceFile": "gemini/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "gemini",
     "name": "new",
     "description": "Start a new conversation in Gemini web chat",
     "access": "read",
@@ -12215,6 +13060,26 @@
     "sourceFile": "gemini/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "gemini",
+    "name": "whoami",
+    "description": "Show the current logged-in gemini account",
+    "access": "read",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "gemini/auth.js",
+    "sourceFile": "gemini/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "geogebra",
@@ -13416,6 +14281,38 @@
   },
   {
     "site": "grok",
+    "name": "login",
+    "description": "Open grok login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "grok/auth.js",
+    "sourceFile": "grok/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "grok",
     "name": "new",
     "description": "Start a new conversation in Grok",
     "access": "write",
@@ -13568,6 +14465,27 @@
     "sourceFile": "grok/pin.js",
     "navigateBefore": "https://grok.com",
     "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "whoami",
+    "description": "Show the current logged-in grok account",
+    "access": "read",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "grok/auth.js",
+    "sourceFile": "grok/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "hackernews",
@@ -14326,6 +15244,37 @@
   },
   {
     "site": "hupu",
+    "name": "login",
+    "description": "Open hupu login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "hupu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "hupu/auth.js",
+    "sourceFile": "hupu/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "hupu",
     "name": "mentions",
     "aliases": [
       "mention"
@@ -14513,6 +15462,26 @@
     "type": "js",
     "modulePath": "hupu/unlike.js",
     "sourceFile": "hupu/unlike.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hupu",
+    "name": "whoami",
+    "description": "Show the current logged-in hupu account",
+    "access": "read",
+    "domain": "hupu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "hupu/auth.js",
+    "sourceFile": "hupu/auth.js",
     "navigateBefore": false
   },
   {
@@ -15093,6 +16062,38 @@
   },
   {
     "site": "instagram",
+    "name": "login",
+    "description": "Open instagram login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "username",
+      "full_name"
+    ],
+    "type": "js",
+    "modulePath": "instagram/auth.js",
+    "sourceFile": "instagram/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "instagram",
     "name": "note",
     "description": "Publish a text Instagram note",
     "access": "write",
@@ -15511,6 +16512,27 @@
     "navigateBefore": "https://www.instagram.com"
   },
   {
+    "site": "instagram",
+    "name": "whoami",
+    "description": "Show the current logged-in instagram account",
+    "access": "read",
+    "domain": "instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "username",
+      "full_name"
+    ],
+    "type": "js",
+    "modulePath": "instagram/auth.js",
+    "sourceFile": "instagram/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "jd",
     "name": "add-cart",
     "description": "京东加入购物车",
@@ -15638,6 +16660,37 @@
   },
   {
     "site": "jd",
+    "name": "login",
+    "description": "Open jd login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "jd.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "pin",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "jd/auth.js",
+    "sourceFile": "jd/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "jd",
     "name": "reviews",
     "description": "京东商品评价",
     "access": "read",
@@ -15709,6 +16762,26 @@
     "navigateBefore": false
   },
   {
+    "site": "jd",
+    "name": "whoami",
+    "description": "Show the current logged-in jd account",
+    "access": "read",
+    "domain": "jd.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "pin",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "jd/auth.js",
+    "sourceFile": "jd/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "jianyu",
     "name": "detail",
     "description": "读取剑鱼标讯详情页并抽取证据字段",
@@ -15744,6 +16817,37 @@
     "modulePath": "jianyu/detail.js",
     "sourceFile": "jianyu/detail.js",
     "navigateBefore": "https://www.jianyu360.cn"
+  },
+  {
+    "site": "jianyu",
+    "name": "login",
+    "description": "Open jianyu login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "jianyu360.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "jianyu/auth.js",
+    "sourceFile": "jianyu/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "jianyu",
@@ -15789,6 +16893,26 @@
     "modulePath": "jianyu/search.js",
     "sourceFile": "jianyu/search.js",
     "navigateBefore": "https://www.jianyu360.cn"
+  },
+  {
+    "site": "jianyu",
+    "name": "whoami",
+    "description": "Show the current logged-in jianyu account",
+    "access": "read",
+    "domain": "jianyu360.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "jianyu/auth.js",
+    "sourceFile": "jianyu/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "jike",
@@ -16492,6 +17616,55 @@
   },
   {
     "site": "ke",
+    "name": "login",
+    "description": "Open ke login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "ke.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "ke/auth.js",
+    "sourceFile": "ke/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "ke",
+    "name": "whoami",
+    "description": "Show the current logged-in ke account",
+    "access": "read",
+    "domain": "ke.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "ke/auth.js",
+    "sourceFile": "ke/auth.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ke",
     "name": "xiaoqu",
     "description": "贝壳找房小区列表",
     "access": "read",
@@ -16907,6 +18080,37 @@
     "sourceFile": "kimi/storage.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "login",
+    "description": "Open kimi login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "kimi/auth.js",
+    "sourceFile": "kimi/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "kimi",
@@ -17507,6 +18711,26 @@
     "sourceFile": "kimi/ui.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "whoami",
+    "description": "Show the current logged-in kimi account",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "kimi/auth.js",
+    "sourceFile": "kimi/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "lesswrong",
@@ -18188,6 +19412,38 @@
     "modulePath": "linkedin/jobs-preferences.js",
     "sourceFile": "linkedin/jobs-preferences.js",
     "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
+    "name": "login",
+    "description": "Open linkedin login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "public_id",
+      "plain_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/auth.js",
+    "sourceFile": "linkedin/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "linkedin",
@@ -18944,6 +20200,27 @@
     "navigateBefore": "https://www.linkedin.com"
   },
   {
+    "site": "linkedin",
+    "name": "whoami",
+    "description": "Show the current logged-in linkedin account",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "public_id",
+      "plain_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/auth.js",
+    "sourceFile": "linkedin/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "linkedin-learning",
     "name": "course",
     "description": "Get LinkedIn Learning course detail by slug or course URL",
@@ -18976,6 +20253,38 @@
     "modulePath": "linkedin-learning/course.js",
     "sourceFile": "linkedin-learning/course.js",
     "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin-learning",
+    "name": "login",
+    "description": "Open linkedin-learning login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "public_id",
+      "plain_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "linkedin-learning/auth.js",
+    "sourceFile": "linkedin-learning/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "linkedin-learning",
@@ -19048,6 +20357,27 @@
     "modulePath": "linkedin-learning/trending.js",
     "sourceFile": "linkedin-learning/trending.js",
     "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin-learning",
+    "name": "whoami",
+    "description": "Show the current logged-in linkedin-learning account",
+    "access": "read",
+    "domain": "linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "public_id",
+      "plain_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "linkedin-learning/auth.js",
+    "sourceFile": "linkedin-learning/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "linux-do",
@@ -19177,6 +20507,38 @@
     "modulePath": "linux-do/categories.js",
     "sourceFile": "linux-do/categories.js",
     "navigateBefore": "https://linux.do"
+  },
+  {
+    "site": "linux-do",
+    "name": "login",
+    "description": "Open linux-do login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "linux.do",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "username",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "linux-do/auth.js",
+    "sourceFile": "linux-do/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "linux-do",
@@ -19379,6 +20741,27 @@
     "modulePath": "linux-do/user-topics.js",
     "sourceFile": "linux-do/user-topics.js",
     "navigateBefore": "https://linux.do"
+  },
+  {
+    "site": "linux-do",
+    "name": "whoami",
+    "description": "Show the current logged-in linux-do account",
+    "access": "read",
+    "domain": "linux.do",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "username",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "linux-do/auth.js",
+    "sourceFile": "linux-do/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "lobsters",
@@ -19821,6 +21204,37 @@
   },
   {
     "site": "manus",
+    "name": "login",
+    "description": "Open manus login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "manus/auth.js",
+    "sourceFile": "manus/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "manus",
     "name": "read",
     "description": "Show details for a specific Manus session.",
     "access": "read",
@@ -19885,6 +21299,26 @@
     "sourceFile": "manus/status.js",
     "navigateBefore": true,
     "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "whoami",
+    "description": "Show the current logged-in manus account",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "manus/auth.js",
+    "sourceFile": "manus/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "maven",
@@ -20638,6 +22072,37 @@
   },
   {
     "site": "notebooklm",
+    "name": "login",
+    "description": "Open notebooklm login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "name",
+      "authuser"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/auth.js",
+    "sourceFile": "notebooklm/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "notebooklm",
     "name": "note-list",
     "aliases": [
       "notes-list"
@@ -20874,6 +22339,26 @@
     "type": "js",
     "modulePath": "notebooklm/summary.js",
     "sourceFile": "notebooklm/summary.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "notebooklm",
+    "name": "whoami",
+    "description": "Show the current logged-in notebooklm account",
+    "access": "read",
+    "domain": "google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "name",
+      "authuser"
+    ],
+    "type": "js",
+    "modulePath": "notebooklm/auth.js",
+    "sourceFile": "notebooklm/auth.js",
     "navigateBefore": false
   },
   {
@@ -22832,6 +24317,37 @@
   },
   {
     "site": "pixiv",
+    "name": "login",
+    "description": "Open pixiv login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "pixiv.net",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "pixiv/auth.js",
+    "sourceFile": "pixiv/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "pixiv",
     "name": "ranking",
     "description": "Pixiv illustration rankings (daily/weekly/monthly)",
     "access": "read",
@@ -22994,6 +24510,56 @@
     "navigateBefore": "https://www.pixiv.net"
   },
   {
+    "site": "pixiv",
+    "name": "whoami",
+    "description": "Show the current logged-in pixiv account",
+    "access": "read",
+    "domain": "pixiv.net",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "pixiv/auth.js",
+    "sourceFile": "pixiv/auth.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "powerchina",
+    "name": "login",
+    "description": "Open powerchina login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "powerchina.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "powerchina/auth.js",
+    "sourceFile": "powerchina/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
     "site": "powerchina",
     "name": "search",
     "description": "搜索中国电建阳光采购公告",
@@ -23030,6 +24596,25 @@
     "modulePath": "powerchina/search.js",
     "sourceFile": "powerchina/search.js",
     "navigateBefore": "https://bid.powerchina.cn"
+  },
+  {
+    "site": "powerchina",
+    "name": "whoami",
+    "description": "Show the current logged-in powerchina account",
+    "access": "read",
+    "domain": "powerchina.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "powerchina/auth.js",
+    "sourceFile": "powerchina/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "producthunt",
@@ -24683,6 +26268,38 @@
   },
   {
     "site": "qwen",
+    "name": "login",
+    "description": "Open qwen login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "qwen.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "qwen/auth.js",
+    "sourceFile": "qwen/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "qwen",
     "name": "new",
     "description": "Start a new conversation in Qianwen",
     "access": "write",
@@ -24795,6 +26412,27 @@
     "sourceFile": "qwen/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "qwen",
+    "name": "whoami",
+    "description": "Show the current logged-in qwen account",
+    "access": "read",
+    "domain": "qwen.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "qwen/auth.js",
+    "sourceFile": "qwen/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "reddit",
@@ -24941,6 +26579,37 @@
     "modulePath": "reddit/hot.js",
     "sourceFile": "reddit/hot.js",
     "navigateBefore": "https://www.reddit.com"
+  },
+  {
+    "site": "reddit",
+    "name": "login",
+    "description": "Open reddit login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "reddit.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "reddit/auth.js",
+    "sourceFile": "reddit/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "reddit",
@@ -25653,6 +27322,37 @@
   },
   {
     "site": "rednote",
+    "name": "login",
+    "description": "Open rednote login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "rednote/auth.js",
+    "sourceFile": "rednote/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "rednote",
     "name": "note",
     "description": "Read note body and engagement counts from a rednote note",
     "access": "read",
@@ -25786,6 +27486,26 @@
     "type": "js",
     "modulePath": "rednote/user.js",
     "sourceFile": "rednote/user.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "rednote",
+    "name": "whoami",
+    "description": "Show the current logged-in rednote account",
+    "access": "read",
+    "domain": "rednote.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "rednote/auth.js",
+    "sourceFile": "rednote/auth.js",
     "navigateBefore": false
   },
   {
@@ -25925,6 +27645,37 @@
   },
   {
     "site": "reuters",
+    "name": "login",
+    "description": "Open reuters login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "reuters.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "subscribed"
+    ],
+    "type": "js",
+    "modulePath": "reuters/auth.js",
+    "sourceFile": "reuters/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "reuters",
     "name": "search",
     "description": "Reuters 路透社新闻搜索",
     "access": "read",
@@ -25960,6 +27711,26 @@
     "modulePath": "reuters/search.js",
     "sourceFile": "reuters/search.js",
     "navigateBefore": "https://www.reuters.com"
+  },
+  {
+    "site": "reuters",
+    "name": "whoami",
+    "description": "Show the current logged-in reuters account",
+    "access": "read",
+    "domain": "reuters.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "subscribed"
+    ],
+    "type": "js",
+    "modulePath": "reuters/auth.js",
+    "sourceFile": "reuters/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "rfc",
@@ -27387,6 +29158,37 @@
   },
   {
     "site": "suno",
+    "name": "login",
+    "description": "Open suno login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "suno.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "suno/auth.js",
+    "sourceFile": "suno/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "suno",
     "name": "status",
     "description": "Check Suno login, plan, credit balance, and captcha readiness",
     "access": "read",
@@ -27406,6 +29208,26 @@
     "sourceFile": "suno/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "suno",
+    "name": "whoami",
+    "description": "Show the current logged-in suno account",
+    "access": "read",
+    "domain": "suno.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "suno/auth.js",
+    "sourceFile": "suno/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "taobao",
@@ -27506,6 +29328,37 @@
   },
   {
     "site": "taobao",
+    "name": "login",
+    "description": "Open taobao login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "taobao/auth.js",
+    "sourceFile": "taobao/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "taobao",
     "name": "reviews",
     "description": "淘宝商品评价",
     "access": "read",
@@ -27589,6 +29442,26 @@
     "type": "js",
     "modulePath": "taobao/search.js",
     "sourceFile": "taobao/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
+    "name": "whoami",
+    "description": "Show the current logged-in taobao account",
+    "access": "read",
+    "domain": "taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "taobao/auth.js",
+    "sourceFile": "taobao/auth.js",
     "navigateBefore": false
   },
   {
@@ -28072,6 +29945,38 @@
   },
   {
     "site": "tiktok",
+    "name": "login",
+    "description": "Open tiktok login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "tiktok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "sec_uid",
+      "username",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "tiktok/auth.js",
+    "sourceFile": "tiktok/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "tiktok",
     "name": "notifications",
     "description": "Read TikTok inbox notifications (likes, comments, mentions, followers) via page-context APIs",
     "access": "read",
@@ -28335,6 +30240,27 @@
     "navigateBefore": "https://www.tiktok.com"
   },
   {
+    "site": "tiktok",
+    "name": "whoami",
+    "description": "Show the current logged-in tiktok account",
+    "access": "read",
+    "domain": "tiktok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "sec_uid",
+      "username",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "tiktok/auth.js",
+    "sourceFile": "tiktok/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "toutiao",
     "name": "articles",
     "description": "获取头条号创作者后台文章列表及数据",
@@ -28395,6 +30321,57 @@
     "type": "js",
     "modulePath": "toutiao/hot.js",
     "sourceFile": "toutiao/hot.js"
+  },
+  {
+    "site": "toutiao",
+    "name": "login",
+    "description": "Open toutiao login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "toutiao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "toutiao/auth.js",
+    "sourceFile": "toutiao/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "toutiao",
+    "name": "whoami",
+    "description": "Show the current logged-in toutiao account",
+    "access": "read",
+    "domain": "toutiao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "toutiao/auth.js",
+    "sourceFile": "toutiao/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "trae-cn",
@@ -31664,6 +33641,38 @@
   },
   {
     "site": "upwork",
+    "name": "login",
+    "description": "Open upwork login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "ciphertext"
+    ],
+    "type": "js",
+    "modulePath": "upwork/auth.js",
+    "sourceFile": "upwork/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "upwork",
     "name": "search",
     "description": "Upwork keyword job search (logged-in browser session, US site)",
     "access": "read",
@@ -31731,6 +33740,27 @@
     "type": "js",
     "modulePath": "upwork/search.js",
     "sourceFile": "upwork/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "upwork",
+    "name": "whoami",
+    "description": "Show the current logged-in upwork account",
+    "access": "read",
+    "domain": "upwork.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "ciphertext"
+    ],
+    "type": "js",
+    "modulePath": "upwork/auth.js",
+    "sourceFile": "upwork/auth.js",
     "navigateBefore": false
   },
   {
@@ -32180,6 +34210,37 @@
   },
   {
     "site": "wechat-channels",
+    "name": "login",
+    "description": "Open wechat-channels login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "channels.weixin.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "wechat-channels/auth.js",
+    "sourceFile": "wechat-channels/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "wechat-channels",
     "name": "publish",
     "description": "发布视频到视频号",
     "access": "write",
@@ -32242,6 +34303,26 @@
     "type": "js",
     "modulePath": "wechat-channels/publish.js",
     "sourceFile": "wechat-channels/publish.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "wechat-channels",
+    "name": "whoami",
+    "description": "Show the current logged-in wechat-channels account",
+    "access": "read",
+    "domain": "channels.weixin.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "wechat-channels/auth.js",
+    "sourceFile": "wechat-channels/auth.js",
     "navigateBefore": false
   },
   {
@@ -32412,6 +34493,38 @@
     "modulePath": "weibo/hot.js",
     "sourceFile": "weibo/hot.js",
     "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
+    "name": "login",
+    "description": "Open weibo login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "weibo/auth.js",
+    "sourceFile": "weibo/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "weibo",
@@ -32626,6 +34739,27 @@
     "modulePath": "weibo/user-posts.js",
     "sourceFile": "weibo/user-posts.js",
     "navigateBefore": "https://weibo.com"
+  },
+  {
+    "site": "weibo",
+    "name": "whoami",
+    "description": "Show the current logged-in weibo account",
+    "access": "read",
+    "domain": "weibo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "weibo/auth.js",
+    "sourceFile": "weibo/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "weixin",
@@ -32971,6 +35105,37 @@
   },
   {
     "site": "weread",
+    "name": "login",
+    "description": "Open weread login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "weread.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "weread/auth.js",
+    "sourceFile": "weread/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "weread",
     "name": "notebooks",
     "description": "List books that have highlights or notes",
     "access": "read",
@@ -33123,6 +35288,26 @@
     "modulePath": "weread/shelf.js",
     "sourceFile": "weread/shelf.js",
     "navigateBefore": "https://weread.qq.com"
+  },
+  {
+    "site": "weread",
+    "name": "whoami",
+    "description": "Show the current logged-in weread account",
+    "access": "read",
+    "domain": "weread.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "weread/auth.js",
+    "sourceFile": "weread/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "weread-official",
@@ -33967,6 +36152,37 @@
   },
   {
     "site": "xianyu",
+    "name": "login",
+    "description": "Open xianyu login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "goofish.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "xianyu/auth.js",
+    "sourceFile": "xianyu/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "xianyu",
     "name": "messages",
     "description": "读取指定闲鱼私信会话的最近聊天内容",
     "access": "read",
@@ -34185,6 +36401,26 @@
     "navigateBefore": false
   },
   {
+    "site": "xianyu",
+    "name": "whoami",
+    "description": "Show the current logged-in xianyu account",
+    "access": "read",
+    "domain": "goofish.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "xianyu/auth.js",
+    "sourceFile": "xianyu/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "xiaoe",
     "name": "catalog",
     "description": "小鹅通课程目录（支持普通课程、专栏、大专栏）",
@@ -34294,6 +36530,37 @@
   },
   {
     "site": "xiaoe",
+    "name": "login",
+    "description": "Open xiaoe login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "xiaoe-tech.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "xiaoe/auth.js",
+    "sourceFile": "xiaoe/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "xiaoe",
     "name": "play-url",
     "description": "小鹅通视频/音频/直播回放 M3U8 播放地址",
     "access": "read",
@@ -34320,6 +36587,26 @@
     "modulePath": "xiaoe/play-url.js",
     "sourceFile": "xiaoe/play-url.js",
     "navigateBefore": "https://h5.xet.citv.cn"
+  },
+  {
+    "site": "xiaoe",
+    "name": "whoami",
+    "description": "Show the current logged-in xiaoe account",
+    "access": "read",
+    "domain": "xiaoe-tech.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "xiaoe/auth.js",
+    "sourceFile": "xiaoe/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "xiaohongshu",
@@ -35474,6 +37761,36 @@
   },
   {
     "site": "xueqiu",
+    "name": "login",
+    "description": "Open xueqiu login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "xueqiu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "xueqiu/auth.js",
+    "sourceFile": "xueqiu/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "xueqiu",
     "name": "search",
     "description": "搜索雪球股票（代码或名称）",
     "access": "read",
@@ -35572,6 +37889,25 @@
     "modulePath": "xueqiu/watchlist.js",
     "sourceFile": "xueqiu/watchlist.js",
     "navigateBefore": "https://xueqiu.com"
+  },
+  {
+    "site": "xueqiu",
+    "name": "whoami",
+    "description": "Show the current logged-in xueqiu account",
+    "access": "read",
+    "domain": "xueqiu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "xueqiu/auth.js",
+    "sourceFile": "xueqiu/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "yahoo",
@@ -36441,6 +38777,36 @@
   },
   {
     "site": "youtube",
+    "name": "login",
+    "description": "Open youtube login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "www.youtube.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "youtube/auth.js",
+    "sourceFile": "youtube/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "youtube",
     "name": "playlist",
     "description": "Get YouTube playlist info and video list",
     "access": "read",
@@ -36736,6 +39102,25 @@
     "navigateBefore": "https://www.youtube.com"
   },
   {
+    "site": "youtube",
+    "name": "whoami",
+    "description": "Show the current logged-in youtube account",
+    "access": "read",
+    "domain": "www.youtube.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "youtube/auth.js",
+    "sourceFile": "youtube/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "yuanbao",
     "name": "ask",
     "description": "Send a prompt to Yuanbao web chat and wait for the assistant response",
@@ -36843,6 +39228,37 @@
   },
   {
     "site": "yuanbao",
+    "name": "login",
+    "description": "Open yuanbao login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/auth.js",
+    "sourceFile": "yuanbao/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "yuanbao",
     "name": "new",
     "description": "Start a new conversation in Yuanbao web chat",
     "access": "read",
@@ -36936,6 +39352,26 @@
     "sourceFile": "yuanbao/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "yuanbao",
+    "name": "whoami",
+    "description": "Show the current logged-in yuanbao account",
+    "access": "read",
+    "domain": "yuanbao.tencent.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "yuanbao/auth.js",
+    "sourceFile": "yuanbao/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "zhihu",
@@ -37394,6 +39830,38 @@
   },
   {
     "site": "zhihu",
+    "name": "login",
+    "description": "Open zhihu login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "url_token",
+      "name",
+      "uid"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/auth.js",
+    "sourceFile": "zhihu/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "zhihu",
     "name": "question",
     "description": "知乎问题详情和回答",
     "access": "read",
@@ -37519,6 +39987,27 @@
     "modulePath": "zhihu/search.js",
     "sourceFile": "zhihu/search.js",
     "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "whoami",
+    "description": "Show the current logged-in zhihu account",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "url_token",
+      "name",
+      "uid"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/auth.js",
+    "sourceFile": "zhihu/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "zlibrary",
@@ -37647,6 +40136,37 @@
   },
   {
     "site": "zsxq",
+    "name": "login",
+    "description": "Open zsxq login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "zsxq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "zsxq/auth.js",
+    "sourceFile": "zsxq/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "zsxq",
     "name": "search",
     "description": "搜索星球内容",
     "access": "read",
@@ -37772,5 +40292,25 @@
     "modulePath": "zsxq/topics.js",
     "sourceFile": "zsxq/topics.js",
     "navigateBefore": "https://wx.zsxq.com"
+  },
+  {
+    "site": "zsxq",
+    "name": "whoami",
+    "description": "Show the current logged-in zsxq account",
+    "access": "read",
+    "domain": "zsxq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "zsxq/auth.js",
+    "sourceFile": "zsxq/auth.js",
+    "navigateBefore": false
   }
 ]
