@@ -202,6 +202,22 @@ describe('twitter switch-account — switch mode', () => {
         await expect(cmd.func(page, { list: false, target: '!!!' })).rejects.toBeInstanceOf(ArgumentError);
     });
 
+    it('returns already_current when target matches the current account', async () => {
+        const page = createPageMock((code) => {
+            if (code.includes('UserAvatar-Container-') || code.includes('doList')) {
+                return { ok: true, mode: 'already_current', handle: 'semonxue', currentHandle: 'semonxue' };
+            }
+            throw new Error(`Unhandled evaluate: ${code.slice(0, 80)}`);
+        });
+        const cmd = getRegistry().get('twitter/switch-account');
+        const rows = await cmd.func(page, { list: false, target: '@semonxue' });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].status).toBe('already_current');
+        expect(rows[0].handle).toBe('@semonxue');
+        expect(rows[0].is_current).toBe(true);
+        expect(rows[0].message).toBe('@semonxue is already the current account.');
+    });
+
     it('raises EmptyResultError with available list when the target button is not found', async () => {
         const page = createPageMock((code) => {
             // Trigger check

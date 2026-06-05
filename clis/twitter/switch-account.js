@@ -220,6 +220,17 @@ cli({
                     return { error: 'EMPTY', message: 'No accounts found in the switcher menu' };
                 }
 
+                // If target is already current, no "Switch to @target" button will exist
+                // (current account renders as <li> instead). Detect this from the accounts list.
+                const alreadyCurrentAccount = accounts.find(a =>
+                    a.isCurrent && a.handle.toLowerCase() === targetHandle.toLowerCase()
+                );
+                if (alreadyCurrentAccount) {
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                    await new Promise(r => setTimeout(r, 200));
+                    return { ok: true, mode: 'already_current', handle: targetHandle, currentHandle: currentHandleAfter };
+                }
+
                 const targetAriaLabel = 'Switch to @' + targetHandle;
                 const switchBtn = Array.from(document.querySelectorAll('[data-testid="UserCell"]'))
                     .find(cell => cell.getAttribute('aria-label') === targetAriaLabel);
@@ -286,15 +297,13 @@ cli({
         }
 
         if (result.mode === 'already_current') {
-            const dbgAccounts = (result.accounts || []).map(function(a) { return a.handle + ':' + a.isCurrent; }).join(', ');
-            const msg = '@' + result.handle + ' is already the current account (debug: result.handle=' + result.handle + ', currentHandleAfter=' + result.currentHandle + ', accounts=[' + dbgAccounts + ']). If you just switched via the web UI, you may need to wait for X to refresh the account switcher state.';
             return [{
                 status: 'already_current',
                 handle: '@' + result.handle,
                 display_name: '',
                 is_current: true,
                 unread: 0,
-                message: msg,
+                message: '@' + result.handle + ' is already the current account.',
             }];
         }
 
