@@ -16,7 +16,7 @@ export const historyCommand = cli({
     columns: ['Index', 'Id', 'Title', 'Url'],
     func: async (page, kwargs) => {
         const limit = parseInt(kwargs.limit, 10) || 50;
-        const conversations = await getDoubaoConversationList(page);
+        const conversations = await getDoubaoConversationList(page, { limit });
         if (conversations.length === 0) {
             return [{ Index: 0, Id: '', Title: 'No conversation history found. Make sure you are logged in.', Url: '' }];
         }
