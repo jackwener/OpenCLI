@@ -151,7 +151,7 @@ describe('BrowserBridge state', () => {
       state: 'no-extension',
       status: {
         ok: true,
-        pid: 1,
+        pid: 999999,
         uptime: 0,
         daemonVersion: PKG_VERSION,
         extensionConnected: false,
@@ -171,7 +171,7 @@ describe('BrowserBridge state', () => {
       state: 'no-extension',
       status: {
         ok: true,
-        pid: 1,
+        pid: 999999,
         uptime: 0,
         extensionConnected: false,
         pending: 0,
@@ -180,6 +180,9 @@ describe('BrowserBridge state', () => {
       },
     });
     vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+    // Keep the SIGKILL fallback's poll short — neither pid 999999 nor the test
+    // daemon exists, so we'd otherwise spin for 2s on every test in the block.
+    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(false);
 
     const bridge = new BrowserBridge();
 
@@ -191,7 +194,7 @@ describe('BrowserBridge state', () => {
       state: 'no-extension',
       status: {
         ok: true,
-        pid: 1,
+        pid: 999999,
         uptime: 0,
         daemonVersion: '0.0.1',
         extensionConnected: false,
@@ -201,6 +204,7 @@ describe('BrowserBridge state', () => {
       },
     });
     vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(false);
 
     const bridge = new BrowserBridge();
 
@@ -212,7 +216,7 @@ describe('BrowserBridge state', () => {
       state: 'ready',
       status: {
         ok: true,
-        pid: 1,
+        pid: 999999,
         uptime: 0,
         daemonVersion: '0.0.1',
         extensionConnected: true,
@@ -222,6 +226,7 @@ describe('BrowserBridge state', () => {
       },
     });
     vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(false);
 
     const bridge = new BrowserBridge();
 

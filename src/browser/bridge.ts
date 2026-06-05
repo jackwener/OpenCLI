@@ -91,11 +91,12 @@ export class BrowserBridge implements IBrowserFactory {
         if (typeof stalePid === 'number' && Number.isInteger(stalePid) && stalePid > 0) {
           try {
             process.kill(stalePid, 'SIGKILL');
-            portReleased = await waitForDaemonStop(2000);
           } catch {
-            // EPERM (cross-user owner) / ESRCH (already dead): fall through to the
-            // error path below; the next waitForDaemonStop poll will resolve either way.
+            // EPERM (cross-user owner) / ESRCH (already dead) — either way, still
+            // poll the port: ESRCH means the process is already gone, EPERM means
+            // we can't help. The poll resolves both cases without re-throwing.
           }
+          portReleased = await waitForDaemonStop(2000);
         }
       }
 
