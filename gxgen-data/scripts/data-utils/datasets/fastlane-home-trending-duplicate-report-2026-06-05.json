@@ -1,0 +1,2372 @@
+{
+  "sourceFull": "scripts/data-utils/datasets/fastlane-home-trending-full-2026-06-05.json",
+  "generatedAt": "2026-06-05T09:29:42.771Z",
+  "summary": {
+    "pagesCollected": 50,
+    "totalCards": 594,
+    "resolvedKindCounts": {
+      "video": 356,
+      "slideshow": 238
+    },
+    "primaryUrls": 594,
+    "uniquePrimaryUrls": 490,
+    "duplicatePrimaryUrlsWithinHome": 104,
+    "allResolvedAssetUrls": 1805,
+    "uniqueResolvedAssetUrls": 1501,
+    "duplicateResolvedAssetUrlsWithinHome": 304,
+    "primaryTypeCounts": {
+      "wall_of_text": 135,
+      "green_screen_meme": 23,
+      "slideshow": 187,
+      "hook_and_demo": 104,
+      "other": 145
+    },
+    "resolvedAssetTypeCounts": {
+      "wall_of_text": 135,
+      "green_screen_meme": 23,
+      "slideshow": 1130,
+      "hook_and_demo": 104,
+      "other": 413
+    },
+    "existingPrimaryMatches": 413,
+    "newPrimaryUrls": 181,
+    "existingPrimaryByType": {
+      "wall_of_text": 127,
+      "green_screen_meme": 23,
+      "slideshow": 86,
+      "hook_and_demo": 91,
+      "other": 86
+    },
+    "newPrimaryByType": {
+      "hook_and_demo": 13,
+      "slideshow": 101,
+      "other": 59,
+      "wall_of_text": 8
+    },
+    "existingAssetMatches": 900,
+    "newUniqueAssetUrls": 720,
+    "unknownItems": 0
+  },
+  "duplicatePrimary": [
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fa295e98b-3642-47aa-815d-4a80aff0fb8a",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F9e9c5ecc-6af3-4eba-8192-befe74b2ed5d",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F79f34092-3f63-42fe-9f9f-33aac3112612",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7b78ae5d-f3d9-4492-ac64-beaedc78c1ec",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F6dd548cf-250c-4027-97a5-b73c7c7c0818",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fb25847e1-d44f-4efb-a3ad-d1b0ee994310",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fdea15a84-c99b-4131-8975-e754a0eee846",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F72f59002-5fc1-487f-b6cf-0fcf2f0254c0",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fe71fe677-c6ce-4278-b5d8-7b14a1123ac7",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fe5806b71-77ac-4d19-b43d-c1ee3f2de8c3",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F08b34b9a-0ed8-4320-92a8-fbc595b09684",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F24b9c0bb-22b8-4164-b5aa-cb4fd25a9399",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/41e79ed64fb44390810a99aaf9b1b953.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/8e8741d1b4ae43a094d1f79a61378816.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1ae56c0d-46f6-4cba-970f-e8043cf777fd",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/70fef97d62a141989aa630131e25cf45.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4fa61f94-6c97-4d81-9666-4f4b6f89278d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F3abbe649-af00-4a97-ac80-1fc5259fd481",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/fb974c94487e477391b3d65dd5653fcc.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5d4dfb7d-7efd-49ff-b2f6-8cba41512b45",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/7033e1d52fc74bbd8efb7bf990eda46b.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F9a940c59-1759-449c-9b13-86029260beba",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff5799208-06ab-4894-8c6c-8ba7968699a2",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F603c61fe-418f-4f5a-b0e0-98bac4d69619",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb9787f33-6a09-4c50-b91e-b2cfb12fae09",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fed40436f-8560-4297-a814-70d390b0e125",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F9efdfab5-5a7c-41dc-a289-2ef26b07462c",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fa2614aff-b8fb-498e-a106-1cea97dfa8a2",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/3358763d944747129ce19950ba774544.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F1b1de14f-7a36-4f85-aaf8-c4edb1c7cb16",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/650b298e0fe345f0bb2e720a812b8710.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F7528e6d1-ea1c-4b35-b80f-02f71937ee5f",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F91ae59a8-037e-4d18-976c-9f2d601d194e",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F950d3cd5-f7f2-466a-bd7b-be9a4aaf0402",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F6c4a86df-120e-4f69-92f4-fa2d488f62eb",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/f23aa4fa01b6454f97cf9fa95c69baf0.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/4ca01c91c07342deaf197af5b974757c.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/d525724c-5bc8-4d4d-8edf-afdea73f3a32",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/d965b17ffd7a4799b13148117a833121.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6a92124e-39d1-400b-97bc-9aaf974f3c4b",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F258417b2-ba76-487e-a7ec-ce2402f23025",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/221abd903e694ff1a638dfd63aebcac7.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fe6735f1f-c5b0-47d5-b801-ab01d7872942",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1dd73b4d-ecda-4f02-8cc3-510abb68f8a3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F2a537cd6-22d3-4997-bb3d-41a777c4846a",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb55e34c3-7587-4cdb-802f-af662ee79295",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F6480fff3-cc1f-496a-8f9d-e78b3d0e0d43",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/520bf0c69d6a43df960677afd431eed9.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fbc2748ed-0ef6-43f2-9085-c060a0504ebe",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa30c279c-1399-4f3e-9f73-0813b03374ff",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F5eefa46d-3f5f-4632-97ce-91e0fcff14f4",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fbbf6421a-c8e7-4551-80f6-70dbbaa7cd39",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F3fc732da-3d15-4690-907f-37586e8a87e8",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/f82b518897c8484680ae255c284335ce.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F9b53cc92-f03e-48e0-9ce3-0abc5c4dcefa",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/c64013ea9d1a4209b6c3ff1f9e248eac.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/4d90ea5fb6dd4387963c171d4aa85626.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/2b17db1c648043a89345140269d5e9e1.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fd4c29a2e-d1f1-47a5-a0a4-f6a15724b4f1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/7c8663cf075445728c93659430a9dee7.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/210734acd7ea4340a0b5511d3762ce24.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff03424f8-ce96-450e-9d5d-36b03c3c71f0",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F1816adcf-4dfb-43be-8389-a8598969547e",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/466ee7412fa5437ca09d3a7ccf4e863d.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fddbd54be-9bed-4b98-bdd0-0dca558b9268",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/5b2364fb47114551b0b710d8d755ee5f.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F190b106a-fc62-41ca-b029-d2bd78708e82",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fa0837333-aab9-490d-92df-9058bd637b6e",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/da34ad2aa18840d983a1c49f8bddbb3d.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F8683277a-7dd0-4da7-b8fb-3c9669a60678",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8ec5e493-7a30-425a-b9a8-45a9e544c19d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/160004ca7a9c4e91b5ce3683f6d38744.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6fcb62b7-968a-451a-9c89-adc695355a88",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fc0b8e487-f480-4827-b6e1-e89aca96787d",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fb3f217a8-fe44-4f88-a3ba-35b2a47b639f",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/e99e9afd14b043cfb1de2053e20b019e.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fb7c93f52-94f4-4a30-a393-2b562847aff5",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fdc46283d-fb6b-453c-a4a4-669ff771f27f",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0b265d5c-6f09-4fc1-af6e-07e7ce7a50c3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fad3af56d-fe2f-4f90-8e72-d8fcc4ba0ef9",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/419970db328043549745588c428d1e92.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F75e7f52e-4952-4fd2-8cda-51af1b26e968",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/843f1c83e62140929693e2f9043d78aa.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F897db069-8d4d-405e-b285-84c679e892d6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/294869a7fd954847a14b8e7190e63905.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/cd1b485fe8144380997cf89d63c685d9.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/876afae6aa7244e9aeed214e9abe40b6.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/19e55c5a-7652-4fe1-847d-358f1d7e1ebc",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fee2d22db-a96a-48dc-9a7c-07f97144d112",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F89568182-0e64-4b4b-8cd1-00824d4a25fe",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F421f49ac-2e6b-42c0-b693-f4f7cb9ee07a",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Febbe4308-fd22-4fad-baa2-36256a064a82",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4db73938-6a0f-48b9-91b5-70e8a3ddcde1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F847c14fd-a0a9-42f7-b7df-68a65285cc59",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/f2fe660492a64af99a1704b42f78235b.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0e755679-87f5-4284-b719-e15013399035",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fea655d92-778c-44a8-a37b-1672594dc290",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/325e957fee364f96988677e79ea2edcf.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4f893063-7d67-4e02-9c9f-fd1e05e8cbca",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Ff62ffc89-19ff-485c-9a7f-e2d99e455b20",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fbf942999-edb9-40d8-bdab-40621646311d",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F081a0d9b-26a2-4d77-be39-3b3b50bac7f6",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F9cbc41de-a671-4840-89af-970ab6fbeb1e",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F40ec3d44-5ac3-4743-9a35-85acefd1ae2e",
+      "count": 2,
+      "type": "slideshow"
+    }
+  ],
+  "duplicateAssets": [
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fa295e98b-3642-47aa-815d-4a80aff0fb8a",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F9e9c5ecc-6af3-4eba-8192-befe74b2ed5d",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F79f34092-3f63-42fe-9f9f-33aac3112612",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7b78ae5d-f3d9-4492-ac64-beaedc78c1ec",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F06c18869-4ce3-46ea-9943-7401b5aa1b38",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F38e220ed-5bd6-4d87-adb2-db3e5d30d264",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5604362c-3401-4947-bf5e-e551d582ae0b",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F9c8f425d-7323-4b1f-9273-a4965c4995b9",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F6dd548cf-250c-4027-97a5-b73c7c7c0818",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fb25847e1-d44f-4efb-a3ad-d1b0ee994310",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fdea15a84-c99b-4131-8975-e754a0eee846",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F72f59002-5fc1-487f-b6cf-0fcf2f0254c0",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5f011dec-f685-4ccb-8d03-e992be79b607",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fbf3eebc1-008e-4c48-9107-d4dc18351688",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Febfc559b-11d4-4850-978b-714be9f5cc25",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4b7f58f2-dd36-40bf-bbad-d59cbbcbd696",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fe71fe677-c6ce-4278-b5d8-7b14a1123ac7",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fe5806b71-77ac-4d19-b43d-c1ee3f2de8c3",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F08b34b9a-0ed8-4320-92a8-fbc595b09684",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8a9e2f6a-d1d6-4e1b-aa84-a41afa6e8874",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0374f699-2c92-4963-8e5c-060ed0dbe019",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa2d51b20-a60d-408c-99ec-185958d58146",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa0d7e89e-9e93-4c12-ab09-6250751855d2",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fca523928-e809-45f2-9696-3c7f1ed9635e",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fd6effa04-31ea-4d84-b342-2955fb6d6a4d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F24b9c0bb-22b8-4164-b5aa-cb4fd25a9399",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/41e79ed64fb44390810a99aaf9b1b953.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/8e8741d1b4ae43a094d1f79a61378816.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/42f70ecbb7284d3e907ac120376d6569.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/2be4d5e0078f465390888c1b58b420d5.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/1116c88b1cff42db86b4da702be64fc3.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/dbfaba8b12ec4ed594fb5018e059e404.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/9c76402a325942239d729e4ee17cf045.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/7503bb16f6a5410a9a91c577b73eebe3.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/3302ac4b1d6e41d3982a2dce37232bb8.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1ae56c0d-46f6-4cba-970f-e8043cf777fd",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fd5a1fcfd-cedc-49c5-b062-46c777356276",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ffb423914-5980-402f-9907-89b3236388b6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0a7a6dbc-2e76-4e5c-b715-a646544d73cb",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ffd1121eb-7203-4c15-9b9d-ae12e295726a",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5b7b86e7-3398-4864-997f-bf4e036f47e3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F30b3c6d0-037f-4850-bfae-1f1fc7f74b52",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/70fef97d62a141989aa630131e25cf45.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4fa61f94-6c97-4d81-9666-4f4b6f89278d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F44338b91-00c9-44af-890d-5fac2b4f3446",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8ad4fdac-4946-4d9f-a527-035278b1d247",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F3f130dea-c5ee-40e0-8b92-7dbed9f78b8a",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7a4e5842-3adb-4f9a-ac3b-07d33818ae6d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F3abbe649-af00-4a97-ac80-1fc5259fd481",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/fb974c94487e477391b3d65dd5653fcc.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5d4dfb7d-7efd-49ff-b2f6-8cba41512b45",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F245954f2-6b8a-40c2-a3e0-d075e9b85972",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4c3ba1f4-f41b-4b3a-9563-813d476d0cec",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fda6ab30c-cb07-4f1d-9fe1-bf41ffade5c8",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1afa066d-7519-43d1-944b-2b3da6bed13c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/7033e1d52fc74bbd8efb7bf990eda46b.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F9a940c59-1759-449c-9b13-86029260beba",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff5799208-06ab-4894-8c6c-8ba7968699a2",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fda13acab-4b8f-4256-b45a-8d06cada32a6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff8f52c0b-6b9a-4703-b79c-e7bde8f74970",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff1994c81-22c5-48f8-9425-d68f09658e4f",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa9ca1d7d-c3a7-4af8-9a45-fe4faa3003aa",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F603c61fe-418f-4f5a-b0e0-98bac4d69619",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb9787f33-6a09-4c50-b91e-b2cfb12fae09",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc75486ae-36ca-4dbf-86b4-a11da33cc2b7",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc3a91210-8c71-447f-9409-6823ebaab801",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Faa1d252a-dbca-4f2e-8bed-3ea274ed220a",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8b5ab7ff-f1c8-4986-9e62-73b47bdf063c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fd01e58b9-0905-4400-aabc-97516d371eef",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6f7582c1-cf74-4e47-97c5-9a31d2b3487a",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fed40436f-8560-4297-a814-70d390b0e125",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F9efdfab5-5a7c-41dc-a289-2ef26b07462c",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fa2614aff-b8fb-498e-a106-1cea97dfa8a2",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/3358763d944747129ce19950ba774544.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/a5c06132cf0d4389829e081fa380f9d9.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/2654ef989fac429ab2978dd61cbf39cb.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/e0b222966662475888708af8ce18261e.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/a6843e4d36664dd2b4a69f38ba76d3d1.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/fca660e3e5474a2f952213b880f1fc94.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/10873f1e1f034e14af6b71212f38d68f.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/c048e58c3b4e4dbdb28a494539d0f0e9.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F1b1de14f-7a36-4f85-aaf8-c4edb1c7cb16",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/650b298e0fe345f0bb2e720a812b8710.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/feb6b690c39e441883f3b8fb72b1b750.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/d1d0dcad0d9b458694eafa9173043604.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/13f08d8ceb8d40189eb831b767e17558.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/1b2729dd81ea4e129a96001b7607865e.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/a7c3de761a4447d7870460282d37795b.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/912228c89b134a6394ec8872ff2c621c.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/ebec80164bc1410cae83772db96647ef.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/85d92c556568497cad51f2ea20b4bad5.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/607e0c76a7964907b7f91f26e1587b11.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/6b1b28bd44e748958a1fab68743aaffc.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F7528e6d1-ea1c-4b35-b80f-02f71937ee5f",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F91ae59a8-037e-4d18-976c-9f2d601d194e",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F950d3cd5-f7f2-466a-bd7b-be9a4aaf0402",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F3bdcdefe-b0de-4079-a99b-3b99f41c3cd6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F47b8695e-9c36-4e5e-a38a-1d77d9c235e6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1f57ed6e-5206-4431-8bf7-aa687e0f7e0c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7c20e417-2fa2-40cd-8200-a092d8cc925e",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F51faedbe-1f49-4500-a3e0-b5b9610103a1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F21df4289-71e6-4b39-8a24-8731a542a141",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F6c4a86df-120e-4f69-92f4-fa2d488f62eb",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/f23aa4fa01b6454f97cf9fa95c69baf0.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/ecab6d01e359461c98d6c132e22386e5.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/068a34f26fd04a1c9510023ed3c7144e.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/98a7fb64301a437db2c161df28ef445a.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/825417f7fc4c48e2881cac90b0b981d2.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/1fa13a3cc449417584ad2f4e0344c479.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/8f8664f36e99482693afc2d2a0285cdf.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/b8d2e07e1c5d495ab557bf3b360f8d0a.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/4ca01c91c07342deaf197af5b974757c.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/d525724c-5bc8-4d4d-8edf-afdea73f3a32",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/6ca3ac63-7e2f-4513-85dd-6fa52f400a7c",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/d965b17ffd7a4799b13148117a833121.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/a5f48438171b436bb9f49fd94dfb1404.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/3a80c62b68a14093afc07576bfd29140.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/64cce62de5d84f269adb22e6e4f118d8.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/fd51c9e9996f43b594cca4c5d34b76bf.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/c8fc6c86fcc1430d8722049fbc8b4e98.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6a92124e-39d1-400b-97bc-9aaf974f3c4b",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F95861df5-4cd7-40f3-9dd8-d93d35972269",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1f7595a1-dbbe-46c4-9e0e-3d6c5e7ca290",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5829e374-83e9-4efa-8dfd-3ca72b6b6364",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fee075156-cda6-460e-b523-9f421105508c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa8df7154-096b-46fc-8dca-5986dd914e72",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F258417b2-ba76-487e-a7ec-ce2402f23025",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ffd586107-5b55-4a0a-870d-17917bca20cf",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc29bf0b4-311a-43bd-8120-7e4d4434ba67",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F361951d4-cf38-4bf4-b870-31481e3933ba",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F799866ee-b014-4058-a434-26e42981cb6c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/221abd903e694ff1a638dfd63aebcac7.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fe6735f1f-c5b0-47d5-b801-ab01d7872942",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1dd73b4d-ecda-4f02-8cc3-510abb68f8a3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa10e9613-7e83-4d80-bd48-dccea8644563",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff590488d-fbc2-4840-9a9f-dc38f5bfae65",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5cf1bfe4-4d44-4101-860a-1541f5d7153f",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb9ed87df-201a-444f-ad3e-ae5544d2eda6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5ae46a0f-ba86-4e87-a4e9-510d26e74090",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F05e712cb-0bdf-4762-b59e-f682eba441a1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ffb840dad-ff50-466f-a2d0-f5d3dbc54b77",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa549c433-9982-4414-9eb3-e55cd87d4080",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F2a537cd6-22d3-4997-bb3d-41a777c4846a",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb55e34c3-7587-4cdb-802f-af662ee79295",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fbcaf9cda-9081-4ac5-ba57-9db51434b562",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4d875b08-21b1-47ea-b181-9ef4cfc77db7",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1285ae7a-83e9-405a-9b3a-b0d980564b4b",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F3ebe86dd-04b8-4fc1-8ef2-2654c052c9a5",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa83a1433-42e0-447e-8806-d0f726afcad0",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F6480fff3-cc1f-496a-8f9d-e78b3d0e0d43",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/520bf0c69d6a43df960677afd431eed9.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/567b79cd44e54bb9aff622ac2d8d8c95.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/a563dfce1dac4987bb3d4e247d1e01b8.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/cad0c5ca93f34d91bd240cb37ebccf21.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/85947052d1104e72ae6d15b8ce92608c.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fbc2748ed-0ef6-43f2-9085-c060a0504ebe",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa30c279c-1399-4f3e-9f73-0813b03374ff",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6ce9d324-78b2-4457-ab31-c47d1226084c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1044907a-c561-4136-8ce3-09f7323ba1c7",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F2e7ba1c0-ac94-4a99-98a8-2e441eeaddea",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6a4bab7a-a880-4856-8a15-bfcf3689fbbd",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F5eefa46d-3f5f-4632-97ce-91e0fcff14f4",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fbbf6421a-c8e7-4551-80f6-70dbbaa7cd39",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F3fc732da-3d15-4690-907f-37586e8a87e8",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff797bfc4-6747-487a-bda8-25ce4e89e9ea",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8a51cb02-3c29-48a7-9cbe-90f902b7eb2b",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fbbdb0cc0-fed2-43e7-abe6-8e7357de0d58",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb689e4df-ea41-417e-8969-6e265b2240ea",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/f82b518897c8484680ae255c284335ce.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/904a6ab02f9045c992974def49b6c1b0.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/ba0b9199f7aa4151b8e6a97166d3395a.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/e5532828d6264a329a2b97833ff2cee9.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F9b53cc92-f03e-48e0-9ce3-0abc5c4dcefa",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/c64013ea9d1a4209b6c3ff1f9e248eac.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/82ca30293fb04de29ca1397fc66f5b4d.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/83c230acd85f47fb8734d86a63239a05.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/9deb83d618b74f9187d5fbb94c07a8c0.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/ae5addc054d04b5fbaf7b8f4983b5bda.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/4d90ea5fb6dd4387963c171d4aa85626.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/2b17db1c648043a89345140269d5e9e1.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fd4c29a2e-d1f1-47a5-a0a4-f6a15724b4f1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fe614c6f2-4028-424d-9e06-18ebbf459985",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4ccb912e-1aee-4016-8abd-1bce49d34843",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7ef9566a-bcd8-4543-b955-8bdd9b13c9bb",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/7c8663cf075445728c93659430a9dee7.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/210734acd7ea4340a0b5511d3762ce24.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff03424f8-ce96-450e-9d5d-36b03c3c71f0",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7a615d65-c97e-4aa8-8d27-3c7b891079ba",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff9451f5d-d4fb-464c-8add-9e39bf2456d7",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Faf58fab9-8b5a-4c68-9e6c-4e06e4c86f1c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F26240587-112e-408d-87b5-c2238722b2c7",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fdc66818a-31ce-4396-95ac-99d05266ac40",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb56bfde1-3331-4bbf-b384-0b84f700e8fd",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fec6a9937-a79d-47e2-bfeb-179cc4c771db",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F1816adcf-4dfb-43be-8389-a8598969547e",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/466ee7412fa5437ca09d3a7ccf4e863d.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/e31ac41b3f7741a0abce4250b2814b84.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/81fe88c4336c4ae3907c5d966b2f8f45.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/09e0d369efc44bfd9915609dc89fc499.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/8ed6d27ca8c74b2898b2435ebb773d52.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fddbd54be-9bed-4b98-bdd0-0dca558b9268",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/5b2364fb47114551b0b710d8d755ee5f.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F190b106a-fc62-41ca-b029-d2bd78708e82",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ffa61727f-281c-4681-9432-f8e903353b8e",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6e30cbed-f916-40e4-997e-e53b7efededc",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7592e4df-4a24-4835-8bc4-fb5c2716a123",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc7469d91-caa5-4d57-836e-9d2cd6711cdb",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F49cc4bae-9ad6-4ae8-821b-0a16c1fe8ab1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fa0837333-aab9-490d-92df-9058bd637b6e",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/da34ad2aa18840d983a1c49f8bddbb3d.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/b3907feccf1c49bdbdd689f015ccc6e1.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/671f343b9724482f9c931468caf1e97e.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/f5a5a456f7ad4759a8523347c6194947.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/e65f5022d2b244c091a540ef9c8506d1.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/images/f586ad9a0cc64d039ae1a7e699ba29a6.webp",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F8683277a-7dd0-4da7-b8fb-3c9669a60678",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8ec5e493-7a30-425a-b9a8-45a9e544c19d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1516fd65-ca2e-4901-9a25-c6c644333021",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F04b17c66-86cb-4378-9c0e-aa44e79e67de",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1c675a0c-52f5-4cfc-9c51-be5bb2e0a2f6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/160004ca7a9c4e91b5ce3683f6d38744.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6fcb62b7-968a-451a-9c89-adc695355a88",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fd61090a7-228e-42f3-8f67-a6765e2b3f74",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fc0b8e487-f480-4827-b6e1-e89aca96787d",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fb3f217a8-fe44-4f88-a3ba-35b2a47b639f",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/e99e9afd14b043cfb1de2053e20b019e.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fb7c93f52-94f4-4a30-a393-2b562847aff5",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fdc46283d-fb6b-453c-a4a4-669ff771f27f",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F127987b9-ec74-470c-9438-b4205af2b8af",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F45e3ed4c-e47e-4a74-ad6d-d560b4d462d3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff788cd33-de19-4b5b-965f-1c2970adc057",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1c91c467-a2c1-487b-87b8-41e784f2bc8c",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F2aa061fc-c71e-4fb0-8043-734e5f69d3b1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0b265d5c-6f09-4fc1-af6e-07e7ce7a50c3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F740db92f-2474-47b6-b3ca-983b6c9bd58e",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb4a8856f-d020-4ed7-9c0e-5b593dce3dca",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F93d9fb3b-82a6-4363-848d-66e6eaee524e",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb9788ca0-b55b-451f-b592-bfcfb69e6ce6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F3ddd038e-636a-4bd3-90cb-cb1333f41736",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fad3af56d-fe2f-4f90-8e72-d8fcc4ba0ef9",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/419970db328043549745588c428d1e92.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F75e7f52e-4952-4fd2-8cda-51af1b26e968",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8470aeff-4a65-4913-a130-55d301d2b7de",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F48f9dcda-b7ca-43ac-8e7e-4454fc525422",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6578a56c-5f3c-4fbb-903f-7107650100c3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5f6b729c-901e-4c14-9e9e-54f9deab11a8",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fe58b297c-c318-4605-8ca9-0d0189d68d82",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/843f1c83e62140929693e2f9043d78aa.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F897db069-8d4d-405e-b285-84c679e892d6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fe212b81b-4251-431e-bcc1-a3d7a8cfde35",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F55c8e02a-59cb-4ebb-8bcc-054f6b2cf7c9",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fbe2aef7c-2440-445f-a391-ef46b5f0f3c6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1a1a495e-aa78-4fff-aca9-8e5fc9666ff1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc9b8b812-619b-4684-ba0f-9a56fbc8c493",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc4a5534e-24bd-4b71-8581-65f8f1522c7e",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/294869a7fd954847a14b8e7190e63905.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/cd1b485fe8144380997cf89d63c685d9.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/876afae6aa7244e9aeed214e9abe40b6.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/19e55c5a-7652-4fe1-847d-358f1d7e1ebc",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/ea57a699-0938-41d7-9894-d3750559aa49",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/d0232dba-a505-4211-a2e2-953293d1a869",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/383126be-8158-431e-9bb6-ea13c396568b",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/24763a17-6592-42e5-acc6-f98228163887",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/ad2f11b1-c95d-4057-816c-0482eb278209",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/2ce7a3b8-e610-4be2-845b-e6c179bc4627",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/62219153-d0ec-4261-b80a-7f58ad2ca556",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fee2d22db-a96a-48dc-9a7c-07f97144d112",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F89568182-0e64-4b4b-8cd1-00824d4a25fe",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F421f49ac-2e6b-42c0-b693-f4f7cb9ee07a",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Febbe4308-fd22-4fad-baa2-36256a064a82",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4db73938-6a0f-48b9-91b5-70e8a3ddcde1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F9a982852-1601-4298-8301-efb0251520b1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fdd2d66b9-f91b-4714-a071-8cfa42940877",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fdc47c65d-d0f8-410b-80e4-6ba5e118a819",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fa716447c-fdea-4b3d-9e84-44ac9b79501d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F15c75c36-9fe7-4ee9-8cf6-05bc1509db6d",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F847c14fd-a0a9-42f7-b7df-68a65285cc59",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/f2fe660492a64af99a1704b42f78235b.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0e755679-87f5-4284-b719-e15013399035",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Faa227771-ac6c-4c53-a513-e704d8718ea6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F9a79464c-6b56-462d-bd4b-c523461e01fd",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0b636e25-237a-43be-a131-65f7140866e3",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1264eda2-814e-475b-bc54-02e5dc0663a7",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8fec703d-01b7-4ac7-b312-3a990e6033d6",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F69e14027-1d63-4152-af5a-78c63e47230b",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F85f1f3ed-1bdf-4427-a488-caa5b38c4b13",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fea655d92-778c-44a8-a37b-1672594dc290",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.workers.dev/videos/325e957fee364f96988677e79ea2edcf.mp4",
+      "count": 2,
+      "type": "other"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F4f893063-7d67-4e02-9c9f-fd1e05e8cbca",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F34a5445a-68fd-449f-9584-17d765f4feca",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fcb94fb46-29f9-46d2-bdf3-73316ef8c928",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F46bbb528-d18f-47e8-bf05-7cf575026a26",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F094253b3-37c8-47b0-9b3a-13f474950bd1",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Ff62ffc89-19ff-485c-9a7f-e2d99e455b20",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Fbf942999-edb9-40d8-bdab-40621646311d",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F081a0d9b-26a2-4d77-be39-3b3b50bac7f6",
+      "count": 2,
+      "type": "hook_and_demo"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F9cbc41de-a671-4840-89af-970ab6fbeb1e",
+      "count": 2,
+      "type": "wall_of_text"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F40ec3d44-5ac3-4743-9a35-85acefd1ae2e",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F389310cc-0e07-404d-b275-ed99ad6420ad",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1246f3f2-325a-40e7-a5bc-4b11b9fda9aa",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0c56484b-2b99-4082-a7b1-4001ca8f198a",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F8d5ff851-cab7-4f0e-bf78-90d12b24e781",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1504ef4b-f9c7-46d8-920d-3c0daa84797a",
+      "count": 2,
+      "type": "slideshow"
+    },
+    {
+      "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc9997cba-a014-4443-9c18-7bfb2c343267",
+      "count": 2,
+      "type": "slideshow"
+    }
+  ],
+  "examples": {
+    "existingPrimaryMatches": [
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F8e977417-f6f3-452d-b96e-26d830566fd4",
+        "type": "wall_of_text",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-wall-of-text.json",
+          "video-templates/fastlane-wall-of-text.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fgreen_screen_meme%2Fc3f7ae2d-1667-41d6-9bba-58f8f0dadef5",
+        "type": "green_screen_meme",
+        "files": [
+          "element-library/video/fastlane-green-screen-meme.json",
+          "element-library/video-templates/fastlane-green-screen-meme.json",
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F15363d5b-8899-4c40-9706-c3a014758329",
+        "type": "slideshow",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/slideshow/fastlane-slideshow.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F93939864-4978-4cc3-a338-7bb15d71712d",
+        "type": "hook_and_demo",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-video-hook.json",
+          "video-templates/fastlane-video-hook.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fgreen_screen_meme%2F3783e37d-82df-4bd6-82a1-c668221a68c6",
+        "type": "green_screen_meme",
+        "files": [
+          "element-library/video/fastlane-green-screen-meme.json",
+          "element-library/video-templates/fastlane-green-screen-meme.json",
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F9e9c5ecc-6af3-4eba-8192-befe74b2ed5d",
+        "type": "wall_of_text",
+        "files": [
+          "inspiration-library/video/fastlane-wall-of-text.json",
+          "video-templates/fastlane-wall-of-text.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2Feefc50ec-5189-459a-96f4-cf7f0230179d",
+        "type": "wall_of_text",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-wall-of-text.json",
+          "video-templates/fastlane-wall-of-text.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fgreen_screen_meme%2F3c2c5774-473c-4eb2-9904-fa41e13552aa",
+        "type": "green_screen_meme",
+        "files": [
+          "element-library/video/fastlane-green-screen-meme.json",
+          "element-library/video-templates/fastlane-green-screen-meme.json",
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F5d9c6afc-6924-485a-86fb-201f30bc0b82",
+        "type": "slideshow",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/slideshow/fastlane-slideshow.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2F79f34092-3f63-42fe-9f9f-33aac3112612",
+        "type": "hook_and_demo",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-video-hook.json",
+          "video-templates/fastlane-video-hook.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Ff7bd011a-2282-4067-a37c-c638a9b0f2bb",
+        "type": "hook_and_demo",
+        "files": [
+          "inspiration-library/video/fastlane-video-hook.json",
+          "video-templates/fastlane-video-hook.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fgreen_screen_meme%2F359bf3b2-05ed-4096-bc21-6768349cf6ab",
+        "type": "green_screen_meme",
+        "files": [
+          "element-library/video/fastlane-green-screen-meme.json",
+          "element-library/video-templates/fastlane-green-screen-meme.json",
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fwall_of_text%2F097ad9cb-09a0-4fa7-bc70-b87e1ce22373",
+        "type": "wall_of_text",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-wall-of-text.json",
+          "video-templates/fastlane-wall-of-text.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff98f41ee-9bba-46c3-9db7-0358c0b34fa8",
+        "type": "slideshow",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/slideshow/fastlane-slideshow.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fba69dd63-e7a8-4336-8670-4c6e5388de87",
+        "type": "hook_and_demo",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-video-hook.json",
+          "video-templates/fastlane-video-hook.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fgreen_screen_meme%2F80f49c2a-1942-4f8e-bccd-16a86c67e687",
+        "type": "green_screen_meme",
+        "files": [
+          "element-library/video/fastlane-green-screen-meme.json",
+          "element-library/video-templates/fastlane-green-screen-meme.json",
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.workers.dev/videos/8dd3d83a72804f7c98db3225465f3e06.mp4",
+        "type": "other",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-wall-of-text.json",
+          "video-templates/fastlane-wall-of-text.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F6f51aa63-6cdd-4c03-adc8-b235a10e8edd",
+        "type": "slideshow",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/slideshow/fastlane-slideshow.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.workers.dev/videos/4636394750e6485da926f76a981bd92f.mp4",
+        "type": "other",
+        "files": [
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json",
+          "inspiration-library/video/fastlane-video-hook.json",
+          "video-templates/fastlane-video-hook.json"
+        ]
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fgreen_screen_meme%2Ff0bf2054-df74-4bfe-bdb8-6cd36b988477",
+        "type": "green_screen_meme",
+        "files": [
+          "element-library/video/fastlane-green-screen-meme.json",
+          "element-library/video-templates/fastlane-green-screen-meme.json",
+          "gxgen-data-index_backup_20260601172128.json",
+          "gxgen-data-index_backup_full_20260601180846.json"
+        ]
+      }
+    ],
+    "newPrimaryUrls": [
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fhook_and_demo%2Fa295e98b-3642-47aa-815d-4a80aff0fb8a",
+        "type": "hook_and_demo"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7db158e8-a3b4-4fb8-94f3-6232fcd9c6b7",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.workers.dev/images/4eab419c9b64469bb80eec3d3180ab32.webp",
+        "type": "other"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F19194622-582a-4b58-94ad-167f955a78ce",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F78933139-e40d-4421-86d4-6c96afc4d064",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fb6588761-0b97-407a-b507-ae1191887cc4",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/4158cc86-d564-47f9-8e31-f9d752093a97",
+        "type": "other"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Ff7be0eab-d8f6-468b-9a0e-6110c6993dc9",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F2aae9c51-2257-45c9-9ed1-2feac7d3cb84",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fc2fc012b-2c4f-4198-ad25-b7b6db32261c",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fea5fe198-57cf-439f-9980-b30f9e35ac39",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F92af99df-92b1-4b48-b30d-58f97b1d880a",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2Fd60bf963-f2e8-478e-9d18-a911f7b7c1f9",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F0be2feb9-c9d2-4a39-a05b-70969b500132",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F7b78ae5d-f3d9-4492-ac64-beaedc78c1ec",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F72f59002-5fc1-487f-b6cf-0fcf2f0254c0",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.workers.dev/images/79a755f15a38442a83d158805e8159b2.webp",
+        "type": "other"
+      },
+      {
+        "url": "https://media.aftermark.workers.dev/images/8e8741d1b4ae43a094d1f79a61378816.webp",
+        "type": "other"
+      },
+      {
+        "url": "https://media.aftermark.ai/trending_content%2Fslideshow%2F1ae56c0d-46f6-4cba-970f-e8043cf777fd",
+        "type": "slideshow"
+      },
+      {
+        "url": "https://media.aftermark.workers.dev/videos/70fef97d62a141989aa630131e25cf45.mp4",
+        "type": "other"
+      }
+    ]
+  }
+}
