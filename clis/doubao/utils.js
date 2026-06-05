@@ -819,22 +819,105 @@ export function collectDoubaoTranscriptAdditions(beforeLines, currentLines, prom
         .map(({ sanitized }) => sanitized)
         .join('\n');
 }
+function getRecentConversationsScript(limit) {
+    return `
+    (async () => {
+      const clean = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+      const requestedLimit = Math.max(1, Math.min(Number(${JSON.stringify(limit)}) || 50, 1000));
+      const resources = performance.getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((name) => typeof name === 'string');
+      const recentUrl = [...resources].reverse().find((name) => name.includes('/im/chain/recent_conv'));
+      if (!recentUrl) return { ok: false, reason: 'recent_conv resource not found', conversations: [] };
+
+      const conversations = [];
+      const seen = new Set();
+      let convVersion = 0;
+      let hasMore = true;
+
+      for (let pageIndex = 0; pageIndex < 60 && hasMore && conversations.length < requestedLimit; pageIndex += 1) {
+        const batchLimit = Math.max(1, Math.min(50, requestedLimit - conversations.length));
+        const body = {
+          cmd: 3200,
+          sequence_id: String(Date.now()) + '_' + pageIndex,
+          channel: 2,
+          version: '1',
+          uplink_body: {
+            pull_recent_conv_chain_uplink_body: {
+              api_version: 1,
+              conv_version: Number(convVersion) || 0,
+              direction: Number(convVersion) === 0 ? 3 : 1,
+              limit: batchLimit,
+              message_count_per_conv: 10,
+              option: {
+                not_need_message: true,
+                need_complete_conversation: true,
+                need_coco_conversation: Number(convVersion) === 0,
+                need_coco_bot: Number(convVersion) === 0,
+                need_pc_pin_chain: true,
+                pc_pin_query_type: 0,
+              },
+            },
+          },
+        };
+        const response = await fetch(recentUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; encoding=utf-8' },
+          body: JSON.stringify(body),
+        });
+        const json = await response.json().catch(() => ({}));
+        if (json.status_code !== 0) {
+          return {
+            ok: false,
+            reason: json.status_desc || json.message || 'recent_conv request failed',
+            conversations,
+          };
+        }
+
+        const downlink = json.downlink_body?.pull_recent_conv_chain_downlink_body || {};
+        for (const cell of downlink.cells || []) {
+          const conversation = cell?.conversation || {};
+          const id = clean(conversation.conversation_id || cell?.id || '');
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          conversations.push({
+            id,
+            title: clean(conversation.name || conversation.title || 'Untitled conversation').slice(0, 200),
+            href: '/chat/' + id,
+            updateTime: clean(conversation.update_time || ''),
+            latestIndex: clean(conversation.latest_index || ''),
+            botId: clean(conversation.bot_id || ''),
+            botType: conversation.bot_type ?? '',
+          });
+          if (conversations.length >= requestedLimit) break;
+        }
+
+        hasMore = Boolean(downlink.has_more);
+        convVersion = downlink.next_conv_version || 0;
+        if (!convVersion || !(downlink.cells || []).length) break;
+      }
+
+      return { ok: true, conversations };
+    })()
+  `;
+}
 function getConversationListScript() {
     return `
     (() => {
-      const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"]');
+      const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"], #flow_chat_sidebar');
       if (!sidebar) return [];
 
       const items = Array.from(
-        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"]')
+        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"], a[id^="conversation_"], a[href*="/chat/"]')
       );
 
       return items
         .map(a => {
           const href = a.getAttribute('href') || '';
-          const match = href.match(/\\/chat\\/(\\d{10,})/);
-          if (!match) return null;
-          const id = match[1];
+          const idFromAttr = (a.getAttribute('id') || '').match(/^conversation_(\\d{10,})$/)?.[1] || '';
+          const idFromHref = href.match(/\\/chat\\/(?:bot\\/chat\\/)?(\\d{10,})/)?.[1] || '';
+          const id = idFromAttr || idFromHref;
+          if (!id) return null;
           const textContent = (a.textContent || a.innerText || '').trim();
           const title = textContent
             .replace(/\\s+/g, ' ')
@@ -845,8 +928,21 @@ function getConversationListScript() {
     })()
   `;
 }
-export async function getDoubaoConversationList(page) {
+export async function getDoubaoConversationList(page, options = {}) {
     await ensureDoubaoChatPage(page);
+    const requestedLimit = Math.max(1, parseInt(String(options.limit || '50'), 10) || 50);
+    const apiResult = await page.evaluate(getRecentConversationsScript(requestedLimit)).catch(() => null);
+    if (apiResult?.ok && Array.isArray(apiResult.conversations) && apiResult.conversations.length > 0) {
+        return apiResult.conversations.map((item) => ({
+            Id: item.id,
+            Title: item.title || 'Untitled conversation',
+            Url: `${DOUBAO_CHAT_URL}/${item.id}`,
+            UpdateTime: item.updateTime,
+            LatestIndex: item.latestIndex,
+            BotId: item.botId,
+            BotType: item.botType,
+        }));
+    }
     const raw = await page.evaluate(getConversationListScript());
     if (!Array.isArray(raw))
         return [];
@@ -863,9 +959,22 @@ export function parseDoubaoConversationId(input) {
 function getConversationDetailScript() {
     return `
     (() => {
-      const clean = (v) => (v || '').replace(/\\u00a0/g, ' ').replace(/\\n{3,}/g, '\\n\\n').trim();
+      const clean = (v) => (v || '')
+        .replace(/\\u00a0/g, ' ')
+        .replace(/\\n{3,}/g, '\\n\\n')
+        .trim();
 
-      const messageList = document.querySelector('[data-testid="message-list"]');
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const messageList = document.querySelector(
+        '[data-testid="message-list"], .conversation-page-message-host, [class*="message-list-"]'
+      );
       if (!messageList) return { messages: [], meeting: null };
 
       const meetingCard = messageList.querySelector('[data-testid="meeting-minutes-card"]');
@@ -879,8 +988,114 @@ function getConversationDetailScript() {
         };
       }
 
+      const roleFor = (root) => {
+        if (
+          root.matches('[data-testid="send_message"], [class*="send-message"], [class*="justify-end"]')
+          || root.querySelector('[data-testid="send_message"], [class*="send-message"], [class*="bg-g-send-msg-bubble"]')
+          || root.querySelector('[data-foundation-type="send-message-action-bar"]')
+        ) {
+          return 'User';
+        }
+        if (
+          root.matches('[data-testid="receive_message"], [data-testid*="receive_message"], [class*="receive-message"]')
+          || root.querySelector('[data-testid="receive_message"], [data-testid*="receive_message"], [class*="receive-message"]')
+          || root.querySelector('[data-foundation-type="receive-message-action-bar"]')
+          || root.querySelector('.md-box-root, [class*="md-box-root"], .flow-markdown-body, [class*="markdown"]')
+        ) {
+          return 'Assistant';
+        }
+        return '';
+      };
+
+      const textSelectors = [
+        '[data-testid="message_text_content"]',
+        '[data-testid="message_content"]',
+        '[data-testid*="message_text"]',
+        '[data-testid*="message_content"]',
+        '[class*="bg-g-send-msg-bubble"]',
+        '[class*="bg-g-receive-msg-bubble"]',
+        '.md-box-root',
+        '[class*="md-box-root"]',
+        '.flow-markdown-body',
+        '[class*="message-content"]',
+      ];
+
+      const extractImageLines = (root) => Array.from(root.querySelectorAll('img'))
+        .filter((img) => img instanceof HTMLImageElement && isVisible(img))
+        .map((img) => {
+          const width = img.naturalWidth || img.width || 0;
+          const height = img.naturalHeight || img.height || 0;
+          if (width > 0 && height > 0 && width <= 48 && height <= 48) return '';
+          const url = clean(img.currentSrc || img.src || '');
+          return /^https?:\\/\\//i.test(url) ? 'Image: ' + url : '';
+        })
+        .filter((line, index, lines) => line && lines.indexOf(line) === index);
+
+      const extractText = (root) => {
+        const chunks = [];
+        const seenText = new Set();
+        for (const selector of textSelectors) {
+          const nodes = Array.from(root.querySelectorAll(selector)).filter(isVisible);
+          for (const node of nodes) {
+            const text = clean(node.innerText || node.textContent || '');
+            if (!text || seenText.has(text)) continue;
+            seenText.add(text);
+            chunks.push(text);
+          }
+          if (chunks.length > 0) break;
+        }
+        const text = chunks.length > 0 ? clean(chunks.join('\\n')) : clean(root.innerText || root.textContent || '');
+        const imageLines = extractImageLines(root);
+        return clean([text, ...imageLines].filter(Boolean).join('\\n'));
+      };
+
+      const roots = [];
+      const seenNodes = new Set();
+      const selectors = [
+        '[data-testid="union_message"]',
+        '[data-testid="message-block-container"]',
+        '.v_list_row [data-message-id]',
+        '[data-message-id]',
+      ];
+      for (const selector of selectors) {
+        messageList.querySelectorAll(selector).forEach((node) => {
+          if (!(node instanceof HTMLElement) || seenNodes.has(node)) return;
+          seenNodes.add(node);
+          roots.push(node);
+        });
+      }
+
+      const filteredRoots = roots
+        .filter((node) => isVisible(node) && !node.closest('script, style, noscript'))
+        .filter((node, index, nodes) => !nodes.some((other, otherIndex) => otherIndex !== index && other.contains(node)));
+
+      filteredRoots.sort((a, b) => {
+        if (a === b) return 0;
+        const pos = a.compareDocumentPosition(b);
+        return pos & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+      });
+
+      const deduped = [];
+      const seenMessages = new Set();
+      for (const root of filteredRoots) {
+        const role = roleFor(root) || 'System';
+        const text = extractText(root);
+        if (!text) continue;
+        const key = role + '::' + text;
+        if (seenMessages.has(key)) continue;
+        seenMessages.add(key);
+        deduped.push({
+          role,
+          text,
+          hasMeetingCard: !!root.querySelector('[data-testid="meeting-minutes-card"]'),
+        });
+      }
+
+      const messages = deduped.filter((message) => message.text);
+      if (messages.length > 0) return { messages, meeting };
+
       const unions = Array.from(messageList.querySelectorAll('[data-testid="union_message"]'));
-      const messages = unions.map(u => {
+      const legacyMessages = unions.map(u => {
         const isSend = !!u.querySelector('[data-testid="send_message"]');
         const isReceive = !!u.querySelector('[data-testid="receive_message"]');
         const textEl = u.querySelector('[data-testid="message_text_content"]');
@@ -892,7 +1107,7 @@ function getConversationDetailScript() {
         };
       }).filter(m => m.text);
 
-      return { messages, meeting };
+      return { messages: legacyMessages, meeting };
     })()
   `;
 }
