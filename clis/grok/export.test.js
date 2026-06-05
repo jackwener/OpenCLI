@@ -166,6 +166,36 @@ describe('grok export-all command', () => {
         });
     });
 
+    it('records per-conversation failed status for malformed page-load checks', async () => {
+        const path = writeManifest([{ id: ID, title: 'One' }]);
+        const page = makePage([{ session: 'browser', data: { loaded: true } }]);
+        const rows = await grokExportAllCommand.func(page, {
+            manifestPath: path,
+            limit: 0,
+            offset: 0,
+            pageScrolls: 1,
+            pageTimeoutMs: 5000,
+        });
+        expect(rows[0]).toMatchObject({
+            status: 'failed',
+            messageCount: 0,
+            error: expect.stringContaining('Page load check failed:'),
+            messagesJson: '[]',
+        });
+    });
+
+    it('records per-conversation failed status for malformed transcript envelopes', async () => {
+        const path = writeManifest([{ id: ID, title: 'One' }]);
+        const page = makePage([true, { session: 'browser', data: [] }]);
+        const rows = await grokExportAllCommand.func(page, { manifestPath: path, limit: 0, offset: 0, pageScrolls: 1 });
+        expect(rows[0]).toMatchObject({
+            status: 'failed',
+            messageCount: 0,
+            error: expect.stringContaining('Conversation reader failed:'),
+            messagesJson: '[]',
+        });
+    });
+
     it('does not silently drop malformed transcript rows into a partial success', async () => {
         const path = writeManifest([{ id: ID, title: 'One' }]);
         const page = makePage([true, { messages: [{ messageId: '', messageRole: 'assistant', messageText: 'bad' }] }]);

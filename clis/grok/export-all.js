@@ -170,10 +170,20 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
   let loaded = false;
 
   while (Date.now() - startedAt < pageTimeoutMs) {
-    const loadedPayload = await page.evaluate(`(() => {
-      return Boolean(document.querySelector('[data-testid="user-message"], [data-testid="assistant-message"]'));
-    })()`).catch(() => false);
-    loaded = requireBooleanEvaluateResult(loadedPayload, 'grok export-all page load check');
+    let loadedPayload;
+    try {
+      loadedPayload = await page.evaluate(`(() => {
+        return Boolean(document.querySelector('[data-testid="user-message"], [data-testid="assistant-message"]'));
+      })()`);
+      loaded = requireBooleanEvaluateResult(loadedPayload, 'grok export-all page load check');
+    } catch (error) {
+      return {
+        status: 'failed',
+        error: `Page load check failed: ${error?.message || error}`,
+        messageCount: 0,
+        messagesJson: '[]',
+      };
+    }
     if (loaded) break;
     await page.wait(1);
   }
@@ -188,84 +198,94 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
 
   await waitRandom(page, delayMinMs, delayMaxMs);
 
-  const rawResult = await page.evaluate(`(async () => {
-    const maxScrolls = ${JSON.stringify(pageScrolls)};
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const isVisible = (node) => {
-      if (!(node instanceof Element)) return false;
-      const style = window.getComputedStyle(node);
-      if (style.visibility === 'hidden' || style.display === 'none') return false;
-      const rect = node.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
-    };
-    const messageSelector = '[data-testid="user-message"], [data-testid="assistant-message"]';
-    const findScrollableAncestors = () => {
-      const first = document.querySelector(messageSelector);
-      const out = [document.scrollingElement || document.documentElement];
-      let node = first ? first.parentElement : null;
-      while (node && node !== document.body) {
-        if (node.scrollHeight > node.clientHeight + 20) out.push(node);
-        node = node.parentElement;
-      }
-      return Array.from(new Set(out));
-    };
-    const scrollables = findScrollableAncestors();
-    const countMessages = () => Array.from(document.querySelectorAll(messageSelector)).filter(isVisible).length;
+  let rawResult;
+  let result;
+  try {
+    rawResult = await page.evaluate(`(async () => {
+      const maxScrolls = ${JSON.stringify(pageScrolls)};
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const isVisible = (node) => {
+        if (!(node instanceof Element)) return false;
+        const style = window.getComputedStyle(node);
+        if (style.visibility === 'hidden' || style.display === 'none') return false;
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      const messageSelector = '[data-testid="user-message"], [data-testid="assistant-message"]';
+      const findScrollableAncestors = () => {
+        const first = document.querySelector(messageSelector);
+        const out = [document.scrollingElement || document.documentElement];
+        let node = first ? first.parentElement : null;
+        while (node && node !== document.body) {
+          if (node.scrollHeight > node.clientHeight + 20) out.push(node);
+          node = node.parentElement;
+        }
+        return Array.from(new Set(out));
+      };
+      const scrollables = findScrollableAncestors();
+      const countMessages = () => Array.from(document.querySelectorAll(messageSelector)).filter(isVisible).length;
 
-    let lastCount = -1;
-    let lastBottom = -1;
-    let stableRounds = 0;
-    for (let attempt = 0; attempt < maxScrolls && stableRounds < 5; attempt += 1) {
-      for (const scroller of scrollables) {
-        scroller.scrollTop = scroller.scrollHeight;
-        scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+      let lastCount = -1;
+      let lastBottom = -1;
+      let stableRounds = 0;
+      for (let attempt = 0; attempt < maxScrolls && stableRounds < 5; attempt += 1) {
+        for (const scroller of scrollables) {
+          scroller.scrollTop = scroller.scrollHeight;
+          scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+        }
+        window.scrollTo(0, document.documentElement.scrollHeight || document.body.scrollHeight);
+        await sleep(300);
+        const count = countMessages();
+        const bottom = Math.max(
+          document.documentElement.scrollHeight || 0,
+          document.body.scrollHeight || 0,
+          ...scrollables.map((node) => node.scrollHeight || 0),
+        );
+        if (count === lastCount && bottom === lastBottom) {
+          stableRounds += 1;
+        } else {
+          stableRounds = 0;
+          lastCount = count;
+          lastBottom = bottom;
+        }
       }
-      window.scrollTo(0, document.documentElement.scrollHeight || document.body.scrollHeight);
-      await sleep(300);
-      const count = countMessages();
-      const bottom = Math.max(
-        document.documentElement.scrollHeight || 0,
-        document.body.scrollHeight || 0,
-        ...scrollables.map((node) => node.scrollHeight || 0),
-      );
-      if (count === lastCount && bottom === lastBottom) {
-        stableRounds += 1;
-      } else {
-        stableRounds = 0;
-        lastCount = count;
-        lastBottom = bottom;
-      }
-    }
 
-    const findResponseId = (node) => {
-      let parent = node.parentElement;
-      while (parent && parent !== document.body) {
-        const id = parent.getAttribute('id') || '';
-        if (id.startsWith('response-')) return id.slice('response-'.length);
-        parent = parent.parentElement;
+      const findResponseId = (node) => {
+        let parent = node.parentElement;
+        while (parent && parent !== document.body) {
+          const id = parent.getAttribute('id') || '';
+          if (id.startsWith('response-')) return id.slice('response-'.length);
+          parent = parent.parentElement;
+        }
+        return '';
+      };
+      const messages = [];
+      let position = 0;
+      for (const node of Array.from(document.querySelectorAll(messageSelector))) {
+        if (!(node instanceof HTMLElement) || !isVisible(node)) continue;
+        const isAssistant = node.getAttribute('data-testid') === 'assistant-message';
+        const text = (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim();
+        const html = node.innerHTML || '';
+        if (!text && !html) continue;
+        messages.push({
+          messageIndex: messages.length + 1,
+          messageId: findResponseId(node) || ('pos-' + position),
+          messageRole: isAssistant ? 'assistant' : 'user',
+          messageText: text,
+        });
+        position += 1;
       }
-      return '';
+      return { messages };
+    })()`);
+    result = requireObjectEvaluateResult(rawResult, 'grok export-all conversation reader');
+  } catch (error) {
+    return {
+      status: 'failed',
+      error: `Conversation reader failed: ${error?.message || error}`,
+      messageCount: 0,
+      messagesJson: '[]',
     };
-    const messages = [];
-    let position = 0;
-    for (const node of Array.from(document.querySelectorAll(messageSelector))) {
-      if (!(node instanceof HTMLElement) || !isVisible(node)) continue;
-      const isAssistant = node.getAttribute('data-testid') === 'assistant-message';
-      const text = (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim();
-      const html = node.innerHTML || '';
-      if (!text && !html) continue;
-      messages.push({
-        messageIndex: messages.length + 1,
-        messageId: findResponseId(node) || ('pos-' + position),
-        messageRole: isAssistant ? 'assistant' : 'user',
-        messageText: text,
-      });
-      position += 1;
-    }
-    return { messages };
-  })()`);
-
-  const result = requireObjectEvaluateResult(rawResult, 'grok export-all conversation reader');
+  }
   if (!Array.isArray(result.messages)) {
     return {
       status: 'failed',
