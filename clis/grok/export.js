@@ -1,9 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
+import { normalizeConversationRows, requireObjectEvaluateResult } from './export-utils.js';
 
 const GROK_DOMAIN = 'grok.com';
 const GROK_URL = 'https://grok.com/';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function normalizeLimit(value) {
   const raw = value ?? 0;
@@ -26,7 +26,7 @@ function normalizeMaxScrolls(value) {
   return n;
 }
 
-cli({
+export const grokExportCommand = cli({
   site: 'grok',
   name: 'export',
   description: 'Export all visible Grok conversation history metadata',
@@ -49,7 +49,7 @@ cli({
     await page.goto(GROK_URL);
     await page.wait(2);
 
-    const result = await page.evaluate(`(async () => {
+    const rawResult = await page.evaluate(`(async () => {
       const targetLimit = ${JSON.stringify(limit)};
       const maxScrolls = ${JSON.stringify(maxScrolls)};
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -156,7 +156,8 @@ cli({
       };
     })()`);
 
-    if (!result || result.ok !== true) {
+    const result = requireObjectEvaluateResult(rawResult, 'grok export history dialog');
+    if (result.ok !== true) {
       if (result?.code === 'AUTH') {
         throw new AuthRequiredError(GROK_DOMAIN, 'Sign in to grok.com in the browser, then retry.');
       }
@@ -166,8 +167,7 @@ cli({
       throw new EmptyResultError('grok export', 'No Grok conversation history was visible.');
     }
 
-    const rows = Array.isArray(result.rows) ? result.rows : [];
-    const validRows = rows.filter((row) => UUID_RE.test(String(row?.id || '')));
+    const validRows = normalizeConversationRows(result.rows, 'grok export history dialog');
     if (!validRows.length) {
       throw new EmptyResultError('grok export', 'No Grok conversations found in the signed-in account history.');
     }
@@ -182,3 +182,8 @@ cli({
     }));
   },
 });
+
+export const __test__ = {
+  normalizeLimit,
+  normalizeMaxScrolls,
+};

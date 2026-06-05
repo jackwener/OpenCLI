@@ -1,10 +1,15 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 import fs from 'node:fs';
+import {
+  normalizeConversationRows,
+  normalizeManifestRows,
+  requireBooleanEvaluateResult,
+  requireObjectEvaluateResult,
+} from './export-utils.js';
 
 const GROK_DOMAIN = 'grok.com';
 const GROK_URL = 'https://grok.com/';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function normalizeInteger(value, defaultValue, label, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
   const raw = value ?? defaultValue;
@@ -37,20 +42,7 @@ function readManifest(manifestPath, { offset, limit }) {
   } catch (error) {
     throw new ArgumentError('manifestPath', `failed to read JSON manifest: ${error?.message || error}`);
   }
-  if (!Array.isArray(parsed)) {
-    throw new ArgumentError('manifestPath', 'must point to a JSON array exported by grok/export');
-  }
-  const rows = parsed
-    .map((row) => {
-      const id = String(row?.id || '').toLowerCase();
-      return {
-        id,
-        title: row?.title ? String(row.title) : '',
-        date: row?.date ? String(row.date) : '',
-        url: row?.url ? String(row.url) : `https://grok.com/c/${id}`,
-      };
-    })
-    .filter((row) => UUID_RE.test(row.id));
+  const rows = normalizeManifestRows(parsed);
   const sliced = limit ? rows.slice(offset, offset + limit) : rows.slice(offset);
   if (!sliced.length) {
     throw new EmptyResultError('grok export-all', `No manifest rows after offset=${offset}, limit=${limit}`);
@@ -61,7 +53,7 @@ function readManifest(manifestPath, { offset, limit }) {
 async function collectHistory(page, { offset, limit, maxScrolls }) {
   await page.goto(GROK_URL);
   await page.wait(2);
-  const result = await page.evaluate(`(async () => {
+  const rawResult = await page.evaluate(`(async () => {
     const targetLimit = ${JSON.stringify(limit > 0 ? offset + limit : 0)};
     const maxScrolls = ${JSON.stringify(maxScrolls)};
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -155,7 +147,8 @@ async function collectHistory(page, { offset, limit, maxScrolls }) {
     return { ok: true, rows: Array.from(seen.values()) };
   })()`);
 
-  if (!result || result.ok !== true) {
+  const result = requireObjectEvaluateResult(rawResult, 'grok export-all history dialog');
+  if (result.ok !== true) {
     if (result?.code === 'AUTH') {
       throw new AuthRequiredError(GROK_DOMAIN, 'Sign in to grok.com in the browser, then retry.');
     }
@@ -164,8 +157,7 @@ async function collectHistory(page, { offset, limit, maxScrolls }) {
     }
     throw new EmptyResultError('grok export-all', 'No Grok conversation history was visible.');
   }
-  const rows = Array.isArray(result.rows) ? result.rows : [];
-  const validRows = rows.filter((row) => UUID_RE.test(String(row?.id || '')));
+  const validRows = normalizeConversationRows(result.rows, 'grok export-all history dialog');
   if (!validRows.length) {
     throw new EmptyResultError('grok export-all', 'No Grok conversations found in the signed-in account history.');
   }
@@ -178,9 +170,10 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
   let loaded = false;
 
   while (Date.now() - startedAt < pageTimeoutMs) {
-    loaded = await page.evaluate(`(() => {
+    const loadedPayload = await page.evaluate(`(() => {
       return Boolean(document.querySelector('[data-testid="user-message"], [data-testid="assistant-message"]'));
     })()`).catch(() => false);
+    loaded = requireBooleanEvaluateResult(loadedPayload, 'grok export-all page load check');
     if (loaded) break;
     await page.wait(1);
   }
@@ -195,7 +188,7 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
 
   await waitRandom(page, delayMinMs, delayMaxMs);
 
-  const result = await page.evaluate(`(async () => {
+  const rawResult = await page.evaluate(`(async () => {
     const maxScrolls = ${JSON.stringify(pageScrolls)};
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const isVisible = (node) => {
@@ -272,7 +265,43 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
     return { messages };
   })()`);
 
-  const messages = Array.isArray(result?.messages) ? result.messages : [];
+  const result = requireObjectEvaluateResult(rawResult, 'grok export-all conversation reader');
+  if (!Array.isArray(result.messages)) {
+    return {
+      status: 'failed',
+      error: 'Conversation reader returned malformed message rows.',
+      messageCount: 0,
+      messagesJson: '[]',
+    };
+  }
+  const messages = [];
+  for (let index = 0; index < result.messages.length; index += 1) {
+    const message = result.messages[index];
+    if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      return {
+        status: 'failed',
+        error: `Conversation reader returned malformed message row ${index + 1}.`,
+        messageCount: 0,
+        messagesJson: '[]',
+      };
+    }
+    const messageId = String(message.messageId || '').trim();
+    const messageText = String(message.messageText || '').trim();
+    if (!messageId || !messageText || (message.messageRole !== 'assistant' && message.messageRole !== 'user')) {
+      return {
+        status: 'failed',
+        error: `Conversation reader returned malformed message row ${index + 1}.`,
+        messageCount: 0,
+        messagesJson: '[]',
+      };
+    }
+    messages.push({
+      messageIndex: Number.isInteger(message.messageIndex) ? message.messageIndex : index + 1,
+      messageId,
+      messageRole: message.messageRole,
+      messageText,
+    });
+  }
   if (!messages.length) {
     return {
       status: 'empty',
@@ -289,7 +318,7 @@ async function readConversation(page, conversation, { pageTimeoutMs, pageScrolls
   };
 }
 
-cli({
+export const grokExportAllCommand = cli({
   site: 'grok',
   name: 'export-all',
   description: 'Export Grok conversation history and each conversation transcript',
@@ -353,3 +382,8 @@ cli({
     return rows;
   },
 });
+
+export const __test__ = {
+  normalizeInteger,
+  readManifest,
+};
