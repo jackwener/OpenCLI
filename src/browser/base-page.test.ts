@@ -875,7 +875,7 @@ describe('BasePage native input routing', () => {
   });
 });
 
-describe('BasePage.evaluateWithArgs — IIFE scoping', () => {
+describe('BasePage.evaluateWithArgs scoping', () => {
   class EvalCapturePage extends BasePage {
     scripts: string[] = [];
     async goto(): Promise<void> {}
@@ -884,7 +884,8 @@ describe('BasePage.evaluateWithArgs — IIFE scoping', () => {
     async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>): Promise<unknown> {
       const code = typeof input === 'string' ? input : input.toString();
       this.scripts.push(code);
-      return null;
+      if (typeof input !== 'string') return null;
+      return globalThis.eval(input);
     }
     async getCookies(): Promise<[]> { return []; }
     async screenshot(): Promise<string> { return ''; }
@@ -892,29 +893,37 @@ describe('BasePage.evaluateWithArgs — IIFE scoping', () => {
     async selectTab(): Promise<void> {}
   }
 
-  it('wraps declarations in an IIFE to avoid global const redeclaration', async () => {
+  it('wraps declarations in a lexical block to avoid global const redeclaration', async () => {
     const page = new EvalCapturePage();
-    await page.evaluateWithArgs('(() => markerAttr)()', { markerAttr: 'test-value' });
+    const result = await page.evaluateWithArgs('(() => markerAttr)()', { markerAttr: 'test-value' });
 
+    expect(result).toBe('test-value');
     expect(page.scripts).toHaveLength(1);
     const code = page.scripts[0];
-    // Must be wrapped in IIFE — not bare top-level const
-    expect(code).toMatch(/^\(\(\) => \{/);
+    // Must be wrapped in a lexical block, not bare top-level const.
+    expect(code).toMatch(/^\{\n/);
     expect(code).toContain('const markerAttr = "test-value"');
-    expect(code).toMatch(/return \(/);
   });
 
   it('allows same arg name across multiple calls without conflict', async () => {
     const page = new EvalCapturePage();
-    await page.evaluateWithArgs('(() => x)()', { x: 'first' });
-    await page.evaluateWithArgs('(() => x)()', { x: 'second' });
+    await expect(page.evaluateWithArgs('(() => x)()', { x: 'first' })).resolves.toBe('first');
+    await expect(page.evaluateWithArgs('(() => x)()', { x: 'second' })).resolves.toBe('second');
 
     expect(page.scripts).toHaveLength(2);
-    // Both should be self-contained IIFEs, not polluting global scope
+    // Both should be self-contained blocks, not polluting global scope.
     expect(page.scripts[0]).toContain('const x = "first"');
     expect(page.scripts[1]).toContain('const x = "second"');
-    // Both wrapped
-    expect(page.scripts[0]).toMatch(/^\(\(\) => \{/);
-    expect(page.scripts[1]).toMatch(/^\(\(\) => \{/);
+    expect(page.scripts[0]).toMatch(/^\{\n/);
+    expect(page.scripts[1]).toMatch(/^\{\n/);
+  });
+
+  it('preserves completion value semantics for statement snippets', async () => {
+    const page = new EvalCapturePage();
+
+    await expect(page.evaluateWithArgs(`
+      const local = value + 1;
+      local * 2
+    `, { value: 20 })).resolves.toBe(42);
   });
 });

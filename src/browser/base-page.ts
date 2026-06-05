@@ -152,12 +152,13 @@ export abstract class BasePage implements IPage {
   /**
    * Safely evaluate JS with pre-serialized arguments.
    * Each key in `args` becomes a `const` declaration with JSON-serialized value,
-   * wrapped in an IIFE to avoid polluting the global execution context.
+   * wrapped in a lexical block to avoid polluting the global execution context.
    *
-   * Why IIFE: Chrome's Runtime.evaluate shares a single global context per page.
+   * Why a block: Chrome's Runtime.evaluate shares a single global context per page.
    * Top-level `const` declarations persist across calls, so re-declaring the same
    * variable name (e.g. `markerAttr` in both click resolution and file upload)
-   * throws "SyntaxError: Identifier has already been declared".
+   * throws "SyntaxError: Identifier has already been declared". A block keeps
+   * the args scoped without forcing callers to pass expression-only code.
    *
    * Usage:
    *   page.evaluateWithArgs(`(async () => { return sym; })()`, { sym: userInput })
@@ -171,7 +172,7 @@ export abstract class BasePage implements IPage {
         return `const ${key} = ${JSON.stringify(value)};`;
       })
       .join('\n');
-    return this.evaluate(`(() => { ${declarations}\nreturn (${js}); })()`);
+    return this.evaluate(`{\n${declarations}\n${js}\n}`);
   }
 
   async fetchJson(url: string, opts: FetchJsonOptions = {}): Promise<unknown> {
