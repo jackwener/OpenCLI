@@ -238,10 +238,6 @@ cli({
                     };
                 }
 
-                // Close menu first to avoid stale state
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                await new Promise(r => setTimeout(r, 300));
-
                 // Click the switch button and reload immediately to sync browser state
                 switchBtn.click();
                 window.location.reload();
