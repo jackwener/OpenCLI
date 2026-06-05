@@ -13048,6 +13048,128 @@
   },
   {
     "site": "grok",
+    "name": "export",
+    "description": "Export all visible Grok conversation history metadata",
+    "access": "read",
+    "example": "opencli grok export -f yaml",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max conversations to export; 0 means all loaded history"
+      },
+      {
+        "name": "maxScrolls",
+        "type": "int",
+        "default": 80,
+        "required": false,
+        "help": "Max history-list scroll rounds when limit is 0 (max 500)"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "title",
+      "date",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "grok/export.js",
+    "sourceFile": "grok/export.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "export-all",
+    "description": "Export Grok conversation history and each conversation transcript",
+    "access": "read",
+    "example": "opencli grok export-all --limit 5 -f json",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max conversations to export; 0 means all loaded history"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Skip this many conversations before exporting"
+      },
+      {
+        "name": "manifestPath",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional grok/export JSON manifest path; skips history dialog and visits listed /c pages directly"
+      },
+      {
+        "name": "maxScrolls",
+        "type": "int",
+        "default": 80,
+        "required": false,
+        "help": "Max history-list scroll rounds when limit is 0 (max 500)"
+      },
+      {
+        "name": "pageScrolls",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max per-conversation scroll-to-bottom rounds (max 200)"
+      },
+      {
+        "name": "pageTimeoutMs",
+        "type": "int",
+        "default": 30000,
+        "required": false,
+        "help": "Max wait for each conversation page to show messages"
+      },
+      {
+        "name": "delayMinMs",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Minimum polite delay after a conversation page loads"
+      },
+      {
+        "name": "delayMaxMs",
+        "type": "int",
+        "default": 5000,
+        "required": false,
+        "help": "Maximum polite delay after a conversation page loads"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "title",
+      "date",
+      "url",
+      "status",
+      "messageCount",
+      "error",
+      "messagesJson"
+    ],
+    "type": "js",
+    "modulePath": "grok/export-all.js",
+    "sourceFile": "grok/export-all.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "history",
     "description": "List recent Grok conversations from the sidebar (requires login)",
     "access": "read",
