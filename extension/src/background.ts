@@ -593,6 +593,37 @@ async function collectOwnedGroupCandidates(role: OwnedWindowRole): Promise<Owned
     }
   }
 
+  // 4th layer: scan every window for empty-title orphan groups left behind
+  // when the worker died between `chrome.tabs.group` returning and the
+  // title/color `tabGroups.update` landing. We cannot use color as a signal
+  // (Chrome assigns a default palette color before our update lands), and we
+  // cannot scope by `container.windowId` because the canonical group can
+  // converge into the user window after cross-window moves so `windowId`
+  // would miss the multi-window orphan symptom. Hijack-protected via a
+  // per-role ownership-tab signal: the orphan must contain a tab that is the
+  // `preferredTabId` of a still-registered owned session for this role.
+  // User-built untitled groups never satisfy that condition.
+  const ownedPreferredTabIds = new Set<number>();
+  for (const [leaseKey, session] of automationSessions.entries()) {
+    if (!session.owned || getOwnedWindowRole(leaseKey) !== role || session.preferredTabId === null) continue;
+    ownedPreferredTabIds.add(session.preferredTabId);
+  }
+  if (ownedPreferredTabIds.size > 0) {
+    try {
+      const allGroups = await chrome.tabGroups.query({});
+      for (const group of allGroups) {
+        if (group.title) continue;
+        if (groupsById.has(group.id)) continue;
+        const tabsInGroup = await chrome.tabs.query({ groupId: group.id });
+        if (tabsInGroup.some((tab) => tab.id !== undefined && ownedPreferredTabIds.has(tab.id))) {
+          groupsById.set(group.id, group);
+        }
+      }
+    } catch {
+      // Transient query failure: convergence proceeds with the other layers.
+    }
+  }
+
   const candidates = await Promise.all([...groupsById.values()].map(toOwnedContainerGroupCandidate));
   return candidates.filter((candidate): candidate is OwnedContainerGroupCandidate => candidate !== null);
 }
@@ -666,7 +697,7 @@ async function attachTabsToOwnedGroup(
   return group;
 }
 
-async function createOwnedGroupWithRollback(
+async function createOwnedGroup(
   role: OwnedWindowRole,
   windowId: number,
   ids: number[],
@@ -674,18 +705,20 @@ async function createOwnedGroupWithRollback(
   if (ids.length === 0) throw new Error(`Cannot create ${role} tab group without tabs`);
   await ensureTabsInWindow(ids, windowId);
   const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
-  try {
-    const group = await chrome.tabGroups.update(groupId, {
-      color: AUTOMATION_TAB_GROUP_COLOR,
-      title: CONTAINER_TAB_GROUP_TITLE[role],
-      collapsed: false,
-    });
-    updateOwnedSessionWindowForTabs(role, ids, group.windowId);
-    return { id: group.id, windowId: group.windowId, title: group.title };
-  } catch (err) {
-    await chrome.tabs.ungroup(ids).catch(() => {});
-    throw err;
-  }
+  // Persist groupId before the title/color update so a worker crash between
+  // the two API calls can self-heal on resume. `ensureCanonicalGroupTitle`
+  // will repair the title on the next ensure cycle if the update never lands;
+  // we must not `tabs.ungroup` on failure or the persisted id dangles.
+  ownedContainers[role].groupId = groupId;
+  ownedContainers[role].windowId = windowId;
+  await persistRuntimeState();
+  const group = await chrome.tabGroups.update(groupId, {
+    color: AUTOMATION_TAB_GROUP_COLOR,
+    title: CONTAINER_TAB_GROUP_TITLE[role],
+    collapsed: false,
+  });
+  updateOwnedSessionWindowForTabs(role, ids, group.windowId);
+  return { id: group.id, windowId: group.windowId, title: group.title };
 }
 
 async function ensureOwnedContainerGroup(
@@ -724,7 +757,7 @@ async function ensureOwnedContainerGroupUnlocked(
       canonical = await ensureCanonicalGroupTitle(role, canonical);
       canonical = await attachTabsToOwnedGroup(role, canonical, ids);
     } else if (fallbackWindowId !== null && ids.length > 0) {
-      canonical = await createOwnedGroupWithRollback(role, fallbackWindowId, ids);
+      canonical = await createOwnedGroup(role, fallbackWindowId, ids);
     }
 
     if (canonical) {
@@ -824,6 +857,11 @@ async function ensureOwnedContainerWindowUnlocked(
     type: 'normal',
   });
   container.windowId = win.id!;
+  // Persist windowId before any further awaits so a worker crash between
+  // `windows.create` returning and the subsequent `tabs.group` call still
+  // lets the next ensure cycle reuse this window instead of spawning a
+  // second owned window in `chrome.windows.create`.
+  await persistRuntimeState();
   console.log(`[opencli] Created owned ${role} window ${container.windowId} (start=${startUrl})`);
 
   // macOS 15.x (and intermittently 26.x) ignore `focused: false` on windows.create()

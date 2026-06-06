@@ -64,6 +64,8 @@ interface BaseCliCommand {
   navigateBefore?: boolean | string;
   /** Site session lifecycle for adapter commands. */
   siteSession?: SiteSessionMode;
+  /** Default browser window mode for commands whose UX requires visibility. */
+  defaultWindowMode?: 'foreground' | 'background';
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
 }
@@ -138,6 +140,7 @@ export function cli(opts: CliOptions): CliCommand {
     validateArgs: opts.validateArgs,
     navigateBefore: opts.navigateBefore,
     siteSession: opts.siteSession,
+    defaultWindowMode: opts.defaultWindowMode,
     defaultFormat: opts.defaultFormat,
   };
 

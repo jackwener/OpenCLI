@@ -3416,6 +3416,38 @@
   },
   {
     "site": "bilibili",
+    "name": "login",
+    "description": "Open bilibili login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "level"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/auth.js",
+    "sourceFile": "bilibili/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "bilibili",
     "name": "me",
     "description": "My Bilibili profile info",
     "access": "read",
@@ -3678,6 +3710,27 @@
     "modulePath": "bilibili/video.js",
     "sourceFile": "bilibili/video.js",
     "navigateBefore": true
+  },
+  {
+    "site": "bilibili",
+    "name": "whoami",
+    "description": "Show the current logged-in bilibili account",
+    "access": "read",
+    "domain": "www.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "level"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/auth.js",
+    "sourceFile": "bilibili/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "binance",
@@ -10346,6 +10399,38 @@
   },
   {
     "site": "douyin",
+    "name": "login",
+    "description": "Open douyin login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "creator.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "douyin/auth.js",
+    "sourceFile": "douyin/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "douyin",
     "name": "profile",
     "description": "获取账号信息",
     "access": "read",
@@ -10692,6 +10777,27 @@
     "modulePath": "douyin/videos.js",
     "sourceFile": "douyin/videos.js",
     "navigateBefore": "https://creator.douyin.com"
+  },
+  {
+    "site": "douyin",
+    "name": "whoami",
+    "description": "Show the current logged-in douyin account",
+    "access": "read",
+    "domain": "creator.douyin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "douyin/auth.js",
+    "sourceFile": "douyin/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "duckduckgo",
@@ -11988,6 +12094,63 @@
   },
   {
     "site": "gemini",
+    "name": "detail",
+    "description": "Open a Gemini web conversation by id, URL, or sidebar title and read its turns",
+    "access": "read",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation id, /app/<id> URL, or sidebar title"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "gemini/detail.js",
+    "sourceFile": "gemini/detail.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gemini",
+    "name": "history",
+    "description": "List visible Gemini web conversation history from the sidebar",
+    "access": "read",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max conversations to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "gemini/history.js",
+    "sourceFile": "gemini/history.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gemini",
     "name": "image",
     "description": "Generate images with Gemini web and save them locally",
     "access": "write",
@@ -12066,6 +12229,46 @@
     "type": "js",
     "modulePath": "gemini/new.js",
     "sourceFile": "gemini/new.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gemini",
+    "name": "read",
+    "description": "Read the turns visible in the current Gemini web conversation",
+    "access": "read",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Index",
+      "Role",
+      "Text"
+    ],
+    "type": "js",
+    "modulePath": "gemini/read.js",
+    "sourceFile": "gemini/read.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gemini",
+    "name": "status",
+    "description": "Check Gemini web page availability and login state",
+    "access": "read",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Login",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "gemini/status.js",
+    "sourceFile": "gemini/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -12427,6 +12630,61 @@
     "type": "js",
     "modulePath": "gitee/user.js",
     "sourceFile": "gitee/user.js"
+  },
+  {
+    "site": "github",
+    "name": "login",
+    "description": "Open github login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "github.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "github/auth.js",
+    "sourceFile": "github/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "github",
+    "name": "whoami",
+    "description": "Show the current logged-in github account",
+    "access": "read",
+    "domain": "github.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "github/auth.js",
+    "sourceFile": "github/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "google",
@@ -13002,6 +13260,128 @@
     "type": "js",
     "modulePath": "grok/detail.js",
     "sourceFile": "grok/detail.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "export",
+    "description": "Export all visible Grok conversation history metadata",
+    "access": "read",
+    "example": "opencli grok export -f yaml",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max conversations to export; 0 means all loaded history"
+      },
+      {
+        "name": "maxScrolls",
+        "type": "int",
+        "default": 80,
+        "required": false,
+        "help": "Max history-list scroll rounds when limit is 0 (max 500)"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "title",
+      "date",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "grok/export.js",
+    "sourceFile": "grok/export.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
+    "name": "export-all",
+    "description": "Export Grok conversation history and each conversation transcript",
+    "access": "read",
+    "example": "opencli grok export-all --limit 5 -f json",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max conversations to export; 0 means all loaded history"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Skip this many conversations before exporting"
+      },
+      {
+        "name": "manifestPath",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional grok/export JSON manifest path; skips history dialog and visits listed /c pages directly"
+      },
+      {
+        "name": "maxScrolls",
+        "type": "int",
+        "default": 80,
+        "required": false,
+        "help": "Max history-list scroll rounds when limit is 0 (max 500)"
+      },
+      {
+        "name": "pageScrolls",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max per-conversation scroll-to-bottom rounds (max 200)"
+      },
+      {
+        "name": "pageTimeoutMs",
+        "type": "int",
+        "default": 30000,
+        "required": false,
+        "help": "Max wait for each conversation page to show messages"
+      },
+      {
+        "name": "delayMinMs",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Minimum polite delay after a conversation page loads"
+      },
+      {
+        "name": "delayMaxMs",
+        "type": "int",
+        "default": 5000,
+        "required": false,
+        "help": "Maximum polite delay after a conversation page loads"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "title",
+      "date",
+      "url",
+      "status",
+      "messageCount",
+      "error",
+      "messagesJson"
+    ],
+    "type": "js",
+    "modulePath": "grok/export-all.js",
+    "sourceFile": "grok/export-all.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -19409,6 +19789,158 @@
     "modulePath": "maimai/search-talents.js",
     "sourceFile": "maimai/search-talents.js",
     "navigateBefore": "https://maimai.cn"
+  },
+  {
+    "site": "manus",
+    "name": "connectors",
+    "description": "List available Manus connectors (integrations).",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max connectors to return"
+      }
+    ],
+    "columns": [
+      "UID",
+      "Name",
+      "Brief"
+    ],
+    "type": "js",
+    "modulePath": "manus/connectors.js",
+    "sourceFile": "manus/connectors.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "credits",
+    "description": "Show Manus credit balance and refresh details.",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "manus/credits.js",
+    "sourceFile": "manus/credits.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "list",
+    "description": "List Manus sessions (tasks).",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max sessions to return"
+      },
+      {
+        "name": "archived",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Include archived sessions"
+      }
+    ],
+    "columns": [
+      "id",
+      "Title",
+      "Status",
+      "Last Message",
+      "Last Updated",
+      "Credits"
+    ],
+    "type": "js",
+    "modulePath": "manus/list.js",
+    "sourceFile": "manus/list.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "read",
+    "description": "Show details for a specific Manus session.",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "uid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Session UID"
+      }
+    ],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "manus/read.js",
+    "sourceFile": "manus/read.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "skills",
+    "description": "List Manus skills (user-added and system).",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "ID",
+      "Name",
+      "Description",
+      "Source"
+    ],
+    "type": "js",
+    "modulePath": "manus/skills.js",
+    "sourceFile": "manus/skills.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "manus",
+    "name": "status",
+    "description": "Show current Manus user profile and credit summary.",
+    "access": "read",
+    "domain": "manus.im",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Field",
+      "Value"
+    ],
+    "type": "js",
+    "modulePath": "manus/status.js",
+    "sourceFile": "manus/status.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
   },
   {
     "site": "maven",
@@ -30256,6 +30788,37 @@
   },
   {
     "site": "twitter",
+    "name": "login",
+    "description": "Open twitter login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/auth.js",
+    "sourceFile": "twitter/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "twitter",
     "name": "notifications",
     "description": "Get your Twitter/X notifications (the logged-in user's likes/replies/follows feed, newest first)",
     "access": "read",
@@ -30937,6 +31500,26 @@
     "modulePath": "twitter/unretweet.js",
     "sourceFile": "twitter/unretweet.js",
     "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "whoami",
+    "description": "Show the current logged-in twitter account",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "twitter/auth.js",
+    "sourceFile": "twitter/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "uisdc",
@@ -34272,6 +34855,37 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "login",
+    "description": "Open xiaohongshu login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/auth.js",
+    "sourceFile": "xiaohongshu/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "xiaohongshu",
     "name": "note",
     "description": "获取小红书笔记正文和互动数据",
     "access": "read",
@@ -34482,6 +35096,26 @@
     "type": "js",
     "modulePath": "xiaohongshu/user.js",
     "sourceFile": "xiaohongshu/user.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "whoami",
+    "description": "Show the current logged-in xiaohongshu account",
+    "access": "read",
+    "domain": "creator.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username",
+      "followers"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/auth.js",
+    "sourceFile": "xiaohongshu/auth.js",
     "navigateBefore": false
   },
   {

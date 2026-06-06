@@ -34,14 +34,18 @@ const DRAFT_METHOD_NAMES = ['_onSave', '_onSaveDraft', '_onDraft'];
 /** Selectors for the title field, ordered by priority across current UI variants. */
 const TITLE_SELECTORS = [
     // Some creator-center variants expose the title as contenteditable,
-    // others use a normal <input> with the same placeholder.
+    // others use a normal <input> with the same placeholder. Visible
+    // user-facing variants always carry a Chinese placeholder; class-based
+    // variants also match a pair of 4 px wide hidden scaffolding inputs
+    // (same `class*="title"`, empty placeholder, no v-model commit on save)
+    // so placeholder-based selectors take precedence to avoid filling those.
     '[contenteditable="true"][placeholder*="标题"]',
     '[contenteditable="true"][placeholder*="赞"]',
+    'input[placeholder*="标题"]',
+    'input[placeholder*="title" i]',
     '[contenteditable="true"][class*="title"]',
     'input[maxlength="20"]',
     'input[class*="title"]',
-    'input[placeholder*="标题"]',
-    'input[placeholder*="title" i]',
     '.title-input input',
     '.note-title input',
     'input[maxlength]',
@@ -482,6 +486,27 @@ function topicEntityCountScript(topic, bodySelectors) {
     })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
   `;
 }
+function topicMarkerCountScript(topic, bodySelectors) {
+    return `
+    ((topicName, selectors) => {
+      const __opencli_xhs_topic_marker_count = true;
+      const marker = '#' + topicName + '[话题]';
+      const editor = selectors
+        .map(sel => Array.from(document.querySelectorAll(sel)))
+        .flat()
+        .find(node => node && node.offsetParent !== null && node.isContentEditable);
+      if (!editor || !marker) return 0;
+      const text = editor.innerText || editor.textContent || '';
+      let count = 0;
+      let index = text.indexOf(marker);
+      while (index !== -1) {
+        count += 1;
+        index = text.indexOf(marker, index + marker.length);
+      }
+      return count;
+    })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
+  `;
+}
 async function typeTopicQuery(page, topic) {
     // Type "#<topic>" so XHS recognizes it as a topic query and pops the inline
     // suggestion dropdown. The caller separates topics with Enter beforehand so
@@ -512,7 +537,7 @@ async function addTopics(page, bodySelectors, topics) {
         if (!focused) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": body editor not found`);
         }
-        const beforeCount = Number(unwrapBrowserResult(await page.evaluate(topicEntityCountScript(topic, bodySelectors)))) || 0;
+        const beforeMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
         // Separate this topic from the preceding text so the dropdown is clean.
         if (typeof page.pressKey === 'function') {
             try {
@@ -520,36 +545,43 @@ async function addTopics(page, bodySelectors, topics) {
             }
             catch { /* non-fatal */ }
         }
-        const typed = await typeTopicQuery(page, topic);
-        if (!typed) {
+        // Type the inline "#<topic>" query so XHS pops the inline suggestion
+        // dropdown. We must use `page.insertText` (CDP) rather than the legacy
+        // `execCommand` path, otherwise XHS's editor doesn't fire its keyup
+        // listener and no dropdown appears.
+        if (typeof page.insertText !== 'function') {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": page.insertText is unavailable`);
+        }
+        try {
+            await page.insertText(`#${topic}`);
+        }
+        catch {
             throw new CommandExecutionError(`Could not attach topic "${topic}": failed to type inline topic query`);
         }
         await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
-        const suggestion = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic)));
-        if (suggestion?.ok) {
-            if (typeof page.nativeClick === 'function'
-                && Number.isFinite(suggestion.x)
-                && Number.isFinite(suggestion.y)) {
-                await page.nativeClick(suggestion.x, suggestion.y);
-            }
-            else {
-                const clicked = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic, { click: true })));
-                if (!clicked?.ok) {
-                    throw new CommandExecutionError(`Could not attach topic "${topic}": failed to click suggestion`);
-                }
-            }
+        // The suggestion dropdown lives inside the editor's closed shadow root,
+        // so light-DOM queries cannot enumerate its items. XHS auto-highlights
+        // the first matching suggestion as soon as the query is typed, so
+        // pressing Enter accepts it directly. `page.nativeClick` would also
+        // work but is not always wired up in the browser-bridge wrapper.
+        if (typeof page.pressKey !== 'function') {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
         }
-        else if (typeof page.pressKey === 'function') {
-            // No dropdown items found via selectors — fall back to Enter, which
-            // accepts the highlighted suggestion in most XHS editor variants.
+        try {
             await page.pressKey('Enter');
         }
-        else {
-            throw new CommandExecutionError(`Could not attach topic "${topic}": no suggestion found`);
+        catch (err) {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
         }
         await page.wait({ time: 0.8 });
-        const afterCount = Number(unwrapBrowserResult(await page.evaluate(topicEntityCountScript(topic, bodySelectors)))) || 0;
-        if (afterCount <= beforeCount) {
+        // Verify the topic chip actually rendered. The chip itself lives in a
+        // closed shadow root so we cannot count `<a>` elements, but XHS exposes
+        // a stable "#<topic>[话题]" marker in the body editor's innerText once
+        // the suggestion is accepted. Require the scoped marker count to
+        // increase so an existing marker elsewhere cannot satisfy the write
+        // postcondition.
+        const afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+        if (afterMarkerCount <= beforeMarkerCount) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
         }
         added.push(topic);
