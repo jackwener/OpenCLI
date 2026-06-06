@@ -1272,19 +1272,41 @@ function getConversationAssetsScript(conversationId, variant) {
       };
 
       const loaderData = window._ROUTER_DATA?.loaderData || {};
-      const scoped = Object.entries(loaderData)
-        .filter(([key, value]) => key.includes(conversationId) || key.includes('chat_') || value?.messageList || value?.messages)
-        .map(([, value]) => value);
-      const roots = scoped.length > 0 ? scoped : [loaderData];
+      const scoped = [];
+      const collectScoped = (value, key = '', depth = 0) => {
+        if (!value || typeof value !== 'object' || depth > 6) return;
+        if (
+          key.includes(conversationId)
+          || value.conversationId === conversationId
+          || value.conversation_id === conversationId
+          || value.conversationInfo?.conversation_id === conversationId
+        ) {
+          scoped.push(value);
+          return;
+        }
+        for (const [childKey, childValue] of Object.entries(value)) {
+          collectScoped(childValue, childKey, depth + 1);
+        }
+      };
+      collectScoped(loaderData);
+
+      const roots = scoped.flatMap((root) => {
+        if (root?.messageList) return [root.messageList];
+        if (root?.messages) return [root.messages];
+        return [root];
+      });
       for (const root of roots) visit(root);
 
       const domSeen = new Set(assets.map((item) => item.url));
-      document.querySelectorAll('img').forEach((img) => {
+      const messageList = document.querySelector('[data-testid="message-list"], .conversation-page-message-host, [class*="message-list-"]');
+      const isIgnoredDomImage = (url) => !/^https?:\\/\\//i.test(url)
+        || /doubao_avatar|user-avatar|passport|FileBizType\\.BIZ_BOT_ICON|\\/chat\\/static\\/image\\/intro/i.test(url);
+      (messageList || document).querySelectorAll('img').forEach((img) => {
         const url = img.currentSrc || img.src || '';
         const width = img.naturalWidth || img.width || 0;
         const height = img.naturalHeight || img.height || 0;
-        if (!isHttpUrl(url) || domSeen.has(url)) return;
-        if (width > 0 && height > 0 && width <= 64 && height <= 64) return;
+        if (isIgnoredDomImage(url) || domSeen.has(url)) return;
+        if (width > 0 && height > 0 && (width <= 256 || height <= 256)) return;
         push({ type: 'image', url, label: 'dom', width, height });
       });
 
