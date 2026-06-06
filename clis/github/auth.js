@@ -33,6 +33,7 @@ registerSiteAuthCommands({
   domain: 'github.com',
   loginUrl: 'https://github.com/login',
   columns: ['id', 'username', 'name', 'url'],
+  quickCheck: hasGithubSessionCookies,
   verify: verifyGithubIdentity,
   poll: async (page) => {
     if (!await hasGithubSessionCookies(page)) {
