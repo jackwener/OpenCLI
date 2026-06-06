@@ -28,21 +28,20 @@ async function verifyUpworkIdentity(page) {
       return {
         ok: true,
         user_id: String(profile.id || profile.uid || ''),
-        name: String((profile.firstName || '') + ' ' + (profile.lastName || '')).trim(),
         ciphertext: String(profile.ciphertext || ''),
       };
     })()
   `);
   if (probe?.kind === 'auth') throw new AuthRequiredError('upwork.com', probe.detail);
   if (!probe?.ok) throw new CommandExecutionError(`Unexpected Upwork probe: ${JSON.stringify(probe)}`);
-  return { user_id: probe.user_id, name: probe.name, ciphertext: probe.ciphertext };
+  return { user_id: probe.user_id, ciphertext: probe.ciphertext };
 }
 
 registerSiteAuthCommands({
   site: 'upwork',
   domain: 'upwork.com',
   loginUrl: 'https://www.upwork.com/ab/account-security/login',
-  columns: ['user_id', 'name', 'ciphertext'],
+  columns: ['user_id', 'ciphertext'],
   verify: verifyUpworkIdentity,
   poll: async (page) => {
     if (!await hasUpworkSessionCookie(page)) {

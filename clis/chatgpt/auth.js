@@ -24,7 +24,7 @@ async function verifyChatgptIdentity(page) {
       if (!user || !user.id) {
         return { kind: 'auth', detail: 'ChatGPT /api/auth/session has no user — anonymous' };
       }
-      return { ok: true, user_id: String(user.id), email: String(user.email || ''), name: String(user.name || '') };
+      return { ok: true, user_id: String(user.id), name: String(user.name || '') };
     } catch (e) {
       return { kind: 'exception', detail: String(e && e.message || e) };
     }
@@ -33,14 +33,14 @@ async function verifyChatgptIdentity(page) {
   if (result?.kind === 'http') throw new CommandExecutionError(`HTTP ${result.httpStatus} from /api/auth/session`);
   if (result?.kind === 'exception') throw new CommandExecutionError(`ChatGPT whoami failed: ${result.detail}`);
   if (!result?.ok) throw new CommandExecutionError(`Unexpected ChatGPT probe: ${JSON.stringify(result)}`);
-  return { user_id: result.user_id, name: result.name, email: result.email };
+  return { user_id: result.user_id, name: result.name };
 }
 
 registerSiteAuthCommands({
   site: 'chatgpt',
   domain: 'chatgpt.com',
   loginUrl: 'https://auth.openai.com/log-in',
-  columns: ['user_id', 'name', 'email'],
+  columns: ['user_id', 'name'],
   verify: verifyChatgptIdentity,
   poll: async (page) => {
     if (!await hasChatgptSessionCookie(page)) {

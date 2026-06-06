@@ -24,7 +24,7 @@ async function verifyGrokIdentity(page) {
       if (!user || !user.id) {
         return { kind: 'auth', detail: 'Grok /api/auth/session has no user — anonymous' };
       }
-      return { ok: true, user_id: String(user.id), name: String(user.name || ''), email: String(user.email || '') };
+      return { ok: true, user_id: String(user.id), name: String(user.name || '') };
     } catch (e) {
       return { kind: 'exception', detail: String(e && e.message || e) };
     }
@@ -33,14 +33,14 @@ async function verifyGrokIdentity(page) {
   if (result?.kind === 'http') throw new CommandExecutionError(`HTTP ${result.httpStatus} from /api/auth/session`);
   if (result?.kind === 'exception') throw new CommandExecutionError(`Grok whoami failed: ${result.detail}`);
   if (!result?.ok) throw new CommandExecutionError(`Unexpected Grok probe: ${JSON.stringify(result)}`);
-  return { user_id: result.user_id, name: result.name, email: result.email };
+  return { user_id: result.user_id, name: result.name };
 }
 
 registerSiteAuthCommands({
   site: 'grok',
   domain: 'grok.com',
   loginUrl: 'https://grok.com/auth/sign-in',
-  columns: ['user_id', 'name', 'email'],
+  columns: ['user_id', 'name'],
   verify: verifyGrokIdentity,
   poll: async (page) => {
     if (!await hasGrokSessionCookie(page)) {

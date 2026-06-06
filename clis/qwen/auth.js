@@ -28,7 +28,7 @@ async function verifyQwenIdentity(page) {
       if (!d || !d.id) {
         return { kind: 'auth', detail: 'Qwen /api/v1/auths/ returned no user id' };
       }
-      return { ok: true, user_id: String(d.id), name: String(d.name || ''), email: String(d.email || '') };
+      return { ok: true, user_id: String(d.id), name: String(d.name || '') };
     } catch (e) {
       return { kind: 'exception', detail: String(e && e.message || e) };
     }
@@ -37,14 +37,14 @@ async function verifyQwenIdentity(page) {
   if (result?.kind === 'http') throw new CommandExecutionError(`HTTP ${result.httpStatus} from /api/v1/auths/`);
   if (result?.kind === 'exception') throw new CommandExecutionError(`Qwen whoami failed: ${result.detail}`);
   if (!result?.ok) throw new CommandExecutionError(`Unexpected Qwen probe: ${JSON.stringify(result)}`);
-  return { user_id: result.user_id, name: result.name, email: result.email };
+  return { user_id: result.user_id, name: result.name };
 }
 
 registerSiteAuthCommands({
   site: 'qwen',
   domain: 'qwen.ai',
   loginUrl: 'https://chat.qwen.ai/auth?action=login',
-  columns: ['user_id', 'name', 'email'],
+  columns: ['user_id', 'name'],
   verify: verifyQwenIdentity,
   poll: async (page) => {
     if (!await hasQwenSessionCookie(page)) {

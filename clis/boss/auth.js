@@ -28,18 +28,14 @@ async function verifyBossIdentity(page) {
   `);
   if (probe?.kind === 'auth') throw new AuthRequiredError('zhipin.com', probe.detail);
   if (!probe?.ok) throw new CommandExecutionError(`Unexpected Boss probe: ${JSON.stringify(probe)}`);
-  // wt2 may be httpOnly — read it via CDP, not document.cookie.
-  const after = await page.getCookies({ url: 'https://www.zhipin.com' });
-  const wt2 = after.find(c => c.name === 'wt2')?.value || '';
-  if (!wt2) throw new AuthRequiredError('zhipin.com', 'Boss wt2 cookie empty after auth');
-  return { user_id: wt2, user_type: probe.user_type };
+  return { user_type: probe.user_type };
 }
 
 registerSiteAuthCommands({
   site: 'boss',
   domain: 'zhipin.com',
   loginUrl: 'https://login.zhipin.com/',
-  columns: ['user_id', 'user_type'],
+  columns: ['user_type'],
   verify: verifyBossIdentity,
   poll: async (page) => {
     if (!await hasBossSessionCookie(page)) {

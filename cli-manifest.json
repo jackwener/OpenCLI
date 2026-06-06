@@ -5279,7 +5279,6 @@
       "status",
       "logged_in",
       "site",
-      "user_id",
       "user_type"
     ],
     "type": "js",
@@ -5559,7 +5558,6 @@
     "columns": [
       "logged_in",
       "site",
-      "user_id",
       "user_type"
     ],
     "type": "js",
@@ -6007,8 +6005,7 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "chatgpt/auth.js",
@@ -6169,8 +6166,7 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "chatgpt/auth.js",
@@ -13043,8 +13039,7 @@
       "status",
       "logged_in",
       "site",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "gemini/auth.js",
@@ -13124,8 +13119,7 @@
     "columns": [
       "logged_in",
       "site",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "gemini/auth.js",
@@ -14405,8 +14399,7 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "grok/auth.js",
@@ -14583,8 +14576,7 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "grok/auth.js",
@@ -26494,8 +26486,7 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "qwen/auth.js",
@@ -26632,8 +26623,7 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
-      "email"
+      "name"
     ],
     "type": "js",
     "modulePath": "qwen/auth.js",
@@ -33867,7 +33857,6 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
       "ciphertext"
     ],
     "type": "js",
@@ -33961,7 +33950,6 @@
       "logged_in",
       "site",
       "user_id",
-      "name",
       "ciphertext"
     ],
     "type": "js",

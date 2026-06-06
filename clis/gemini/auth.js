@@ -24,19 +24,19 @@ async function verifyGeminiIdentity(page) {
       if (!m) {
         return { kind: 'auth', detail: 'Gemini aria-label unparseable: ' + label };
       }
-      return { ok: true, name: m[1].trim(), email: m[2].trim() };
+      return { ok: true, name: m[1].trim() };
     })()
   `);
   if (probe?.kind === 'auth') throw new AuthRequiredError('gemini.google.com', probe.detail);
   if (!probe?.ok) throw new CommandExecutionError(`Unexpected Gemini probe: ${JSON.stringify(probe)}`);
-  return { name: probe.name, email: probe.email };
+  return { name: probe.name };
 }
 
 registerSiteAuthCommands({
   site: 'gemini',
   domain: 'gemini.google.com',
   loginUrl: 'https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fgemini.google.com%2F',
-  columns: ['name', 'email'],
+  columns: ['name'],
   verify: verifyGeminiIdentity,
   poll: async (page) => {
     if (!await hasGoogleSessionCookie(page)) {

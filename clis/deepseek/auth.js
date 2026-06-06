@@ -20,7 +20,7 @@ const WHOAMI_PROBE = `(async () => {
     if (!d || d.code !== 0) return { kind: 'auth', detail: 'DeepSeek users/current code=' + String(d && d.code) + ' — anonymous' };
     const u = (d.data && (d.data.biz_data || d.data.user || d.data)) || {};
     const userId = String(u.id || u.user_id || u.uuid || '');
-    const name = String(u.name || u.nickname || u.username || u.email || '');
+    const name = String(u.name || u.nickname || u.username || '');
     if (!userId && !name) return { kind: 'render-error', detail: 'DeepSeek users/current ok but no id/name field — response shape drift' };
     return { ok: true, user_id: userId, name };
   } catch (e) {
