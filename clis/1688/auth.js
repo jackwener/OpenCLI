@@ -35,6 +35,7 @@ registerSiteAuthCommands({
   domain: '1688.com',
   loginUrl: 'https://login.1688.com/member/signin.htm',
   columns: ['user_id', 'name'],
+  quickCheck: has1688LogonCookie,
   verify: verify1688Identity,
   poll: async (page) => {
     if (!await has1688LogonCookie(page)) {

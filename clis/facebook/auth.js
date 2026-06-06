@@ -32,6 +32,7 @@ registerSiteAuthCommands({
   domain: 'facebook.com',
   loginUrl: 'https://www.facebook.com/login.php',
   columns: ['user_id', 'vanity', 'profile_url'],
+  quickCheck: hasFacebookCUserCookie,
   verify: verifyFacebookIdentity,
   poll: async (page) => {
     if (!await hasFacebookCUserCookie(page)) {

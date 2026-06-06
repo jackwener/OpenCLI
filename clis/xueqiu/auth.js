@@ -52,6 +52,7 @@ registerSiteAuthCommands({
   domain: 'xueqiu.com',
   loginUrl: 'https://xueqiu.com/',
   columns: ['user_id'],
+  quickCheck: hasXueqiuAccessToken,
   verify: verifyXueqiuIdentity,
   poll: async (page) => {
     if (!await hasXueqiuAccessToken(page)) {

@@ -48,6 +48,7 @@ registerSiteAuthCommands({
   domain: YUANBAO_DOMAIN,
   loginUrl: YUANBAO_URL,
   columns: ['user_id', 'nickname'],
+  quickCheck: hasYuanbaoUserCookie,
   verify: verifyYuanbaoIdentity,
   poll: async (page) => {
     if (!await hasYuanbaoUserCookie(page)) {

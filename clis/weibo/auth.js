@@ -42,6 +42,7 @@ registerSiteAuthCommands({
   domain: 'weibo.com',
   loginUrl: 'https://weibo.com/login',
   columns: ['user_id', 'screen_name', 'profile_url'],
+  quickCheck: hasWeiboSessionCookie,
   verify: verifyWeiboIdentity,
   poll: async (page) => {
     if (!await hasWeiboSessionCookie(page)) {

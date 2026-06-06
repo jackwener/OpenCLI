@@ -36,6 +36,7 @@ registerSiteAuthCommands({
   domain: 'zhipin.com',
   loginUrl: 'https://login.zhipin.com/',
   columns: ['user_type'],
+  quickCheck: hasBossSessionCookie,
   verify: verifyBossIdentity,
   poll: async (page) => {
     if (!await hasBossSessionCookie(page)) {

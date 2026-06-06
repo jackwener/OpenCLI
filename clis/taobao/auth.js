@@ -47,6 +47,7 @@ registerSiteAuthCommands({
   domain: 'taobao.com',
   loginUrl: 'https://login.taobao.com/member/login.jhtml',
   columns: ['user_id', 'nickname'],
+  quickCheck: hasTaobaoSessionCookie,
   verify: verifyTaobaoIdentity,
   poll: async (page) => {
     if (!await hasTaobaoSessionCookie(page)) {

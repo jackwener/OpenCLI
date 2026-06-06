@@ -54,6 +54,7 @@ registerSiteAuthCommands({
   domain: 'tiktok.com',
   loginUrl: 'https://www.tiktok.com/login',
   columns: ['sec_uid', 'username', 'nickname'],
+  quickCheck: hasTiktokSessionCookie,
   verify: verifyTiktokIdentity,
   poll: async (page) => {
     if (!await hasTiktokSessionCookie(page)) {

@@ -44,6 +44,7 @@ registerSiteAuthCommands({
   domain: 'linux.do',
   loginUrl: 'https://linux.do/login',
   columns: ['user_id', 'username', 'name'],
+  quickCheck: hasLinuxDoSessionCookie,
   verify: verifyLinuxDoIdentity,
   poll: async (page) => {
     if (!await hasLinuxDoSessionCookie(page)) {

@@ -42,6 +42,7 @@ registerSiteAuthCommands({
   domain: 'upwork.com',
   loginUrl: 'https://www.upwork.com/ab/account-security/login',
   columns: ['user_id', 'ciphertext'],
+  quickCheck: hasUpworkSessionCookie,
   verify: verifyUpworkIdentity,
   poll: async (page) => {
     if (!await hasUpworkSessionCookie(page)) {

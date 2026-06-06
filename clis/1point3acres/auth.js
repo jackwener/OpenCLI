@@ -41,6 +41,7 @@ registerSiteAuthCommands({
   domain: '1point3acres.com',
   loginUrl: 'https://auth.1point3acres.com/login',
   columns: ['user_id', 'username'],
+  quickCheck: has1Point3AcresAuthCookie,
   verify: verify1Point3AcresIdentity,
   poll: async (page) => {
     if (!await has1Point3AcresAuthCookie(page)) {

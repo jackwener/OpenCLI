@@ -28,6 +28,7 @@ registerSiteAuthCommands({
   domain: 'creator.douyin.com',
   loginUrl: 'https://creator.douyin.com/',
   columns: ['id', 'username', 'followers'],
+  quickCheck: hasDouyinSessionCookies,
   verify: verifyDouyinIdentity,
   poll: async (page) => {
     if (!await hasDouyinSessionCookies(page)) {

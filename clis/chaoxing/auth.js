@@ -43,6 +43,7 @@ registerSiteAuthCommands({
   domain: 'chaoxing.com',
   loginUrl: 'https://passport2.chaoxing.com/login?fid=&newversion=true&refer=https%3A%2F%2Fi.chaoxing.com',
   columns: ['user_id', 'name'],
+  quickCheck: hasChaoxingSessionCookie,
   verify: verifyChaoxingIdentity,
   poll: async (page) => {
     if (!await hasChaoxingSessionCookie(page)) {

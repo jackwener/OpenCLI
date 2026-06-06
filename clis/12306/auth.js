@@ -48,6 +48,7 @@ registerSiteAuthCommands({
   domain: '12306.cn',
   loginUrl: 'https://kyfw.12306.cn/otn/resources/login.html',
   columns: ['user_name'],
+  quickCheck: has12306SessionCookie,
   verify: verify12306Identity,
   poll: async (page) => {
     if (!await has12306SessionCookie(page)) {

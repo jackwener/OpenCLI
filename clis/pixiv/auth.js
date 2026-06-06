@@ -53,6 +53,7 @@ registerSiteAuthCommands({
   domain: 'pixiv.net',
   loginUrl: 'https://accounts.pixiv.net/login',
   columns: ['user_id', 'name'],
+  quickCheck: hasPixivSessionCookie,
   verify: verifyPixivIdentity,
   poll: async (page) => {
     if (!await hasPixivSessionCookie(page)) {

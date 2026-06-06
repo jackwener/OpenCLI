@@ -39,6 +39,7 @@ registerSiteAuthCommands({
   domain: 'ctrip.com',
   loginUrl: 'https://passport.ctrip.com/user/login',
   columns: ['user_id', 'name', 'vip_grade'],
+  quickCheck: hasCtripLoginUid,
   verify: verifyCtripIdentity,
   poll: async (page) => {
     if (!await hasCtripLoginUid(page)) {

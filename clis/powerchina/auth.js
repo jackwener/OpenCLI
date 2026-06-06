@@ -41,6 +41,7 @@ registerSiteAuthCommands({
   domain: 'powerchina.cn',
   loginUrl: 'https://zhaopin.powerchina.cn/login',
   columns: ['name'],
+  quickCheck: hasPowerchinaSessionCookie,
   verify: verifyPowerchinaIdentity,
   poll: async (page) => {
     if (!await hasPowerchinaSessionCookie(page)) {

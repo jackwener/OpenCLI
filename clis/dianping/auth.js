@@ -38,6 +38,7 @@ registerSiteAuthCommands({
   domain: 'dianping.com',
   loginUrl: 'https://account.dianping.com/pclogin',
   columns: ['user_id', 'nickname'],
+  quickCheck: hasDianpingSessionCookie,
   verify: verifyDianpingIdentity,
   poll: async (page) => {
     if (!await hasDianpingSessionCookie(page)) {

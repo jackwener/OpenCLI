@@ -51,6 +51,7 @@ registerSiteAuthCommands({
   domain: 'channels.weixin.qq.com',
   loginUrl: 'https://channels.weixin.qq.com/login.html?from=assistant',
   columns: ['user_id', 'name'],
+  quickCheck: hasWechatChannelsSessionCookie,
   verify: verifyWechatChannelsIdentity,
   poll: async (page) => {
     if (!await hasWechatChannelsSessionCookie(page)) {

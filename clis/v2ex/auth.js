@@ -33,6 +33,7 @@ registerSiteAuthCommands({
   domain: 'v2ex.com',
   loginUrl: 'https://www.v2ex.com/signin',
   columns: ['username'],
+  quickCheck: hasV2exAuthCookie,
   verify: verifyV2exIdentity,
   poll: async (page) => {
     if (!await hasV2exAuthCookie(page)) {
