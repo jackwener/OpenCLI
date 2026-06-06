@@ -177,6 +177,9 @@ External CLI ergonomics + two adapter envelope/auth fixes. New `longbridge` exte
 
 * **external** — add the Longbridge CLI as a built-in external CLI passthrough (`opencli longbridge ...`) for Longbridge OpenAPI market data, account, and trading commands. ([#1584](https://github.com/jackwener/opencli/issues/1584))
 * **external-cli** — render brand alias `name(package)` in `opencli list` and root help when the bare executable name is ambiguous. Built-in entries `ntn` → `ntn(notion)`, `dws` → `dws(DingTalk Workspace)`, `wecom-cli` → `wecom-cli(企业微信)` now self-explain in help output. `package` field is repurposed to cover both upstream distribution names (e.g. `tg-cli`) and human-readable brand labels (e.g. `notion`, `企业微信`). ([#1585](https://github.com/jackwener/opencli/issues/1585))
+* **browser** (fork) — add `page.evaluate(fn, ...args)` for type-safe browser-context evaluation with JSON-serialized arguments. String evaluation remains supported, but new adapter code should use function form to avoid implicit `wrapForEval` auto-IIFE magic.
+* **twitter** (fork) — read commands (`search`, `list-tweets`, `thread`, `timeline`) now expose a `card` field (link preview) and `quoted_tweet` field when present; `list-create` adds `access:'write'`; `list-add` matches rows with emoji-stripped names.
+* **reddit** (fork) — `subscribed` command + listing endpoints expose `id` / `created_utc` / `selftext` / `post_hint` / `url` / `preview` / `gallery` columns.
 
 ### Bug Fixes
 

@@ -1,7 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, extractQuotedTweet, normalizeTwitterGraphqlPayload, unwrapBrowserResult } from './shared.js';
-import { normalizeTwitterScreenName } from './shared.js';
+import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, extractQuotedTweet, normalizeTwitterGraphqlPayload, unwrapBrowserResult, normalizeTwitterScreenName, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
 const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';
@@ -291,7 +290,7 @@ cli({
         return r.ok ? await r.json() : { error: r.status };
       }`));
             if (data?.error) {
-                if (all.length === 0) throw new CommandExecutionError(`HTTP ${data.error}: UserTweets fetch failed — queryId may have expired`);
+                if (all.length === 0) throw new CommandExecutionError(describeTwitterApiError('UserTweets', data.error));
                 break;
             }
             const { tweets, nextCursor } = parseUserTweets(data, seen);

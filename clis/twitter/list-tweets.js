@@ -1,7 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { extractMedia, extractCard, extractQuotedTweet } from './shared.js';
+import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
+import { extractCard, extractQuotedTweet, extractMedia, describeTwitterApiError } from './shared.js';
 
 const LIST_TWEETS_QUERY_ID = 'RlZzktZY_9wJynoepm8ZsA';
 const OPERATION_NAME = 'ListLatestTweetsTimeline';
@@ -74,6 +75,8 @@ export function extractTimelineTweet(result, seen) {
         replies: legacy.reply_count || 0,
         created_at: legacy.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
+        card: extractCard(tw),
+        quoted_tweet: extractQuotedTweet(tw),
         ...extractMedia(legacy),
         card: extractCard(tw),
         quoted_tweet: extractQuotedTweet(tw),
@@ -124,7 +127,7 @@ cli({
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the list timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the list\'s native (recency) ordering.' },
     ],
-    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'card', 'quoted_tweet', 'has_media', 'media_urls', 'media_posters'],
     func: async (page, kwargs) => {
         const listId = String(kwargs.listId || '').trim();
         if (!listId || !/^\d+$/.test(listId)) {
@@ -177,13 +180,13 @@ cli({
         for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildUrl(queryId, listId, fetchCount, cursor);
-            const data = await page.evaluate(`async () => {
-                const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
-                return r.ok ? await r.json() : { error: r.status };
-            }`);
+            const data = throwIfLoginWall(await page.evaluate(`async () => {
+                ${BROWSER_JSON_SNIFF_FN}
+                return await fetchJsonOrLoginWall(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
+            }`), { url: apiUrl });
             if (data?.error) {
                 if (allTweets.length === 0)
-                    throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch list timeline. queryId may have expired or list may be private.`);
+                    throw new CommandExecutionError(describeTwitterApiError('ListLatestTweetsTimeline', data.error, 'list may be private'));
                 break;
             }
             const { tweets, nextCursor } = parseListTimeline(data, seen);

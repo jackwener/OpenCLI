@@ -81,7 +81,18 @@ describe('reddit read adapter', () => {
     it('uses an ephemeral Reddit site tab by default', () => {
         expect(command?.browser).toBe(true);
         expect(command?.siteSession).toBeUndefined();
-        expect(command?.columns).toEqual(['type', 'author', 'score', 'text']);
+        expect(command?.columns).toEqual([
+            'type', 'author', 'score', 'text',
+            'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls',
+        ]);
+    });
+
+    it('embeds extractRedditMedia in the browser-evaluated source and applies it to the POST row', async () => {
+        const page = makePage({ kind: 'ok', rows: [], expandMeta: { rounds: 0, fetched: 0, capped: false, errors: [] } });
+        await command.func(page, { 'post-id': 'abc123', limit: 5 });
+        const src = page.evaluate.mock.calls[0][0];
+        expect(src).toContain('function extractRedditMedia');
+        expect(src).toContain('var postMedia = extractRedditMedia(post)');
     });
 
     it('exposes the new --expand-more / --expand-rounds args', () => {
@@ -153,16 +164,24 @@ describe('reddit read adapter', () => {
         const page = makePage({
             kind: 'ok',
             rows: [
-                { type: 'POST', author: 'alice', score: 10, text: 'Title' },
-                { type: 'L0', author: 'bob', score: 5, text: 'Comment' },
+                { type: 'POST', author: 'alice', score: 10, text: 'Title',
+                  post_hint: 'image', url_overridden_by_dest: 'https://i.redd.it/a.jpg',
+                  preview_image_url: 'https://preview.redd.it/a.jpg?width=640',
+                  gallery_urls: [] },
+                { type: 'L0', author: 'bob', score: 5, text: 'Comment',
+                  post_hint: '', url_overridden_by_dest: '', preview_image_url: '', gallery_urls: [] },
             ],
             expandMeta: { rounds: 0, fetched: 0, capped: false, errors: [] },
         });
         const result = await command.func(page, { 'post-id': 'abc123', limit: 5 });
         expect(page.goto).toHaveBeenCalledWith('https://www.reddit.com');
         expect(result).toEqual([
-            { type: 'POST', author: 'alice', score: 10, text: 'Title' },
-            { type: 'L0', author: 'bob', score: 5, text: 'Comment' },
+            { type: 'POST', author: 'alice', score: 10, text: 'Title',
+              post_hint: 'image', url_overridden_by_dest: 'https://i.redd.it/a.jpg',
+              preview_image_url: 'https://preview.redd.it/a.jpg?width=640',
+              gallery_urls: [] },
+            { type: 'L0', author: 'bob', score: 5, text: 'Comment',
+              post_hint: '', url_overridden_by_dest: '', preview_image_url: '', gallery_urls: [] },
         ]);
     });
 
