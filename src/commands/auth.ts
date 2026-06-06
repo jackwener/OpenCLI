@@ -214,8 +214,23 @@ function rowForError(site: string, checked: AuthStatusMode, error: unknown): Aut
 
 function refreshCommand(cmd: CliCommand, timeoutSeconds: number): BrowserCliCommand | null {
   if (cmd.browser !== true) return null;
-  const refreshFunc = cmd.authStatus?.refresh ?? cmd.func;
-  if (typeof refreshFunc !== 'function') return null;
+  let refreshFunc = cmd.authStatus?.refresh;
+  if (typeof refreshFunc !== 'function') {
+    const quickCheck = cmd.authStatus?.quickCheck;
+    if (typeof quickCheck !== 'function' || !cmd.domain) return null;
+    const refreshUrl = cmd.domain.startsWith('http://') || cmd.domain.startsWith('https://')
+      ? cmd.domain
+      : `https://${cmd.domain}`;
+    refreshFunc = async (page, kwargs, debug) => {
+      await page.goto(refreshUrl);
+      await page.wait(1);
+      const loggedIn = normalizeQuickResult(await quickCheck(page, kwargs, debug));
+      if (loggedIn !== true) {
+        throw new AuthRequiredError(cmd.domain ?? cmd.site, `Auth refresh quickCheck failed for ${cmd.site}`);
+      }
+      return { status: 'touched' };
+    };
+  }
   return withTimeoutArg({
     ...cmd,
     func: refreshFunc,

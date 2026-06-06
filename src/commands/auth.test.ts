@@ -49,7 +49,7 @@ beforeEach(() => {
   executeCommandMock.mockReset();
   executeCommandMock.mockImplementation(async (cmd: BrowserCliCommand, kwargs: Record<string, unknown>) => {
     if (!cmd.func) return {};
-    return cmd.func({} as never, kwargs);
+    return cmd.func({ goto: vi.fn(), wait: vi.fn() } as never, kwargs);
   });
 });
 
@@ -121,7 +121,7 @@ describe('auth status collection', () => {
 
 describe('auth refresh collection', () => {
   it('touches sites through persistent sessions and writes last_touched_at on success', async () => {
-    registerWhoami('alpha');
+    registerWhoami('alpha', { quick: true, quickLoggedIn: true });
     const statePath = await tempStatePath();
     const now = new Date('2026-06-06T12:00:00.000Z');
 
@@ -172,7 +172,7 @@ describe('auth refresh collection', () => {
   });
 
   it('skips sites touched within the hidden 24h throttle', async () => {
-    registerWhoami('gamma');
+    registerWhoami('gamma', { quick: true, quickLoggedIn: true });
     const statePath = await tempStatePath();
     await collectAuthRefresh({
       sites: 'gamma',
@@ -200,7 +200,7 @@ describe('auth refresh collection', () => {
   });
 
   it('lets --all bypass the 24h throttle', async () => {
-    registerWhoami('delta');
+    registerWhoami('delta', { quick: true, quickLoggedIn: true });
     const statePath = await tempStatePath();
     await collectAuthRefresh({
       sites: 'delta',
@@ -222,7 +222,7 @@ describe('auth refresh collection', () => {
   });
 
   it('does not throttle not_logged_in results', async () => {
-    registerWhoami('epsilon');
+    registerWhoami('epsilon', { quick: true, quickLoggedIn: true });
     const statePath = await tempStatePath();
     executeCommandMock.mockRejectedValueOnce(new AuthRequiredError('epsilon.example.com'));
 
@@ -252,7 +252,7 @@ describe('auth refresh collection', () => {
   });
 
   it('does not update last_touched_at for generic errors', async () => {
-    registerWhoami('zeta');
+    registerWhoami('zeta', { quick: true, quickLoggedIn: true });
     const statePath = await tempStatePath();
     executeCommandMock.mockRejectedValueOnce(new Error('network down'));
 
@@ -271,5 +271,27 @@ describe('auth refresh collection', () => {
       last_status: 'error',
     });
     expect(state.sites.zeta.last_touched_at).toBeUndefined();
+  });
+
+  it('marks sites without quickCheck or refresh hook as unsupported instead of running DOM whoami fallback', async () => {
+    registerWhoami('eta');
+    const statePath = await tempStatePath();
+
+    const rows = await collectAuthRefresh({
+      sites: 'eta',
+      statePath,
+      now: new Date('2026-06-06T12:00:00.000Z'),
+    });
+
+    expect(rows).toEqual([
+      {
+        site: 'eta',
+        status: 'unsupported',
+        last_touched_at: '',
+        next_refresh_at: '',
+        error: 'refresh probe is not available for this site',
+      },
+    ]);
+    expect(executeCommandMock).not.toHaveBeenCalled();
   });
 });
