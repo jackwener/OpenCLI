@@ -2,7 +2,7 @@
  * YouTube playlist — get playlist info and video list via InnerTube browse API.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { prepareYoutubeApiPage, FETCH_BROWSE_FN, extractPlaylistVideos } from './utils.js';
+import { prepareYoutubeApiPage, FETCH_BROWSE_FN, extractPlaylistVideos, unwrapBrowserResult } from './utils.js';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 /**
@@ -36,7 +36,7 @@ cli({
         const playlistId = parsePlaylistId(String(kwargs.id));
         const limit = Math.min(kwargs.limit || 50, 200);
         await prepareYoutubeApiPage(page);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const cfg = window.ytcfg?.data_ || {};
         const apiKey = cfg.INNERTUBE_API_KEY;
@@ -82,6 +82,7 @@ cli({
         return { title, channelName, stats, videos: videos.slice(0, limit) };
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!data || typeof data !== 'object') {
             throw new CommandExecutionError('Failed to fetch playlist data');
         }

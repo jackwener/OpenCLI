@@ -2,7 +2,7 @@
  * YouTube video metadata — fetch watch HTML and parse bootstrap data without opening the watch UI.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
+import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage, unwrapBrowserResult } from './utils.js';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'youtube',
@@ -18,7 +18,7 @@ cli({
     func: async (page, kwargs) => {
         const videoId = parseVideoId(kwargs.url);
         await prepareYoutubeApiPage(page);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const extractJsonAssignmentFromHtml = ${extractJsonAssignmentFromHtml.toString()};
 
@@ -104,6 +104,7 @@ cli({
         };
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!data || typeof data !== 'object')
             throw new CommandExecutionError('Failed to extract video metadata from page');
         if (data.error)

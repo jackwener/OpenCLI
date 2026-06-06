@@ -3,7 +3,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { parseVideoId } from './utils.js';
+import { parseVideoId, unwrapBrowserResult } from './utils.js';
 cli({
     site: 'youtube',
     name: 'comments',
@@ -21,7 +21,7 @@ cli({
         const limit = Math.min(kwargs.limit || 20, 100);
         await page.goto(`https://www.youtube.com/watch?v=${videoId}`);
         await page.wait(3);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const videoId = ${JSON.stringify(videoId)};
         const limit = ${limit};
@@ -85,6 +85,7 @@ cli({
         });
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!Array.isArray(data)) {
             const errMsg = data && typeof data === 'object' ? String(data.error || '') : '';
             if (errMsg)

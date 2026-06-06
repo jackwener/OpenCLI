@@ -2,6 +2,7 @@
  * YouTube search — innertube API via browser session.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { unwrapBrowserResult } from './utils.js';
 cli({
     site: 'youtube',
     name: 'search',
@@ -54,7 +55,7 @@ cli({
             url += `&sp=${sp}`;
         await page.goto(url);
         await page.wait(3);
-        const data = await page.evaluate(`
+        const rawData = await page.evaluate(`
       (async () => {
         const data = window.ytInitialData;
         if (!data) return {error: 'YouTube data not found'};
@@ -93,6 +94,7 @@ cli({
         return videos;
       })()
     `);
+        const data = unwrapBrowserResult(rawData);
         if (!Array.isArray(data))
             return [];
         return data;

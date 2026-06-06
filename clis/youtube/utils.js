@@ -2,6 +2,19 @@
  * Extract a YouTube video ID from a URL or bare video ID string.
  * Supports: watch?v=, youtu.be/, /shorts/, /embed/, /live/, /v/
  */
+export function unwrapBrowserResult(value) {
+    if (
+        value
+        && typeof value === 'object'
+        && !Array.isArray(value)
+        && 'session' in value
+        && 'data' in value
+    ) {
+        return value.data;
+    }
+    return value;
+}
+
 export function parseVideoId(input) {
     if (!input.startsWith('http'))
         return input;
