@@ -42,6 +42,7 @@ registerSiteAuthCommands({
   domain: 'creator.xiaohongshu.com',
   loginUrl: 'https://creator.xiaohongshu.com/',
   columns: ['username', 'followers'],
+  quickCheck: hasXhsSessionCookies,
   verify: verifyXhsIdentity,
   poll: async (page) => {
     if (!await hasXhsSessionCookies(page)) {

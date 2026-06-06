@@ -25,6 +25,7 @@ registerSiteAuthCommands({
   domain: 'www.bilibili.com',
   loginUrl: 'https://passport.bilibili.com/login',
   columns: ['id', 'username', 'level'],
+  quickCheck: hasBilibiliSessionCookies,
   verify: verifyBilibiliIdentity,
   poll: async (page) => {
     if (!await hasBilibiliSessionCookies(page)) {
