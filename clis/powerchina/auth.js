@@ -3,7 +3,9 @@ import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 
 async function hasPowerchinaSessionCookie(page) {
   const cookies = await page.getCookies({ url: 'https://zhaopin.powerchina.cn' });
-  return cookies.some(c => /^(JSESSIONID|SESSION|Admin-Token|access_token)$/i.test(c.name) && c.value);
+  // JSESSIONID / SESSION are issued for anonymous Java sessions too; gate only on
+  // the auth-token cookies so the login poll doesn't navigate away mid-login.
+  return cookies.some(c => /^(Admin-Token|access_token)$/i.test(c.name) && c.value);
 }
 
 async function verifyPowerchinaIdentity(page) {

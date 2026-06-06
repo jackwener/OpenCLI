@@ -46,9 +46,20 @@ registerSiteAuthCommands({
   loginUrl: 'https://www.doubao.com/chat/',
   columns: ['user_id', 'name'],
   verify: verifyDoubaoIdentity,
+  // passport_csrf_token is set for anonymous sessions too, so a cookie gate
+  // would navigate away mid-login. Probe the account API on the current page
+  // (no goto) and only confirm once a real user_id is present.
   poll: async (page) => {
-    if (!await hasDoubaoSessionCookie(page)) {
-      throw new AuthRequiredError('www.doubao.com', 'Waiting for Doubao session cookie');
+    const loggedIn = await page.evaluate(`(async () => {
+      try {
+        const r = await fetch('/passport/account/info/v2/', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (!r.ok) return false;
+        const d = await r.json();
+        return !!(d?.data?.user_id_str);
+      } catch { return false; }
+    })()`);
+    if (!loggedIn) {
+      throw new AuthRequiredError('www.doubao.com', 'Waiting for Doubao login');
     }
     return verifyDoubaoIdentity(page);
   },

@@ -3,7 +3,10 @@ import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 
 async function hasSunoClerkCookie(page) {
   const cookies = await page.getCookies({ url: 'https://clerk.suno.com' });
-  return cookies.some(c => /^__(session|client)$/.test(c.name) && c.value);
+  // Clerk sets __client for anonymous sessions too; __session (the session JWT)
+  // is present only when authenticated, so gate on it to avoid navigating away
+  // mid-login.
+  return cookies.some(c => c.name === '__session' && c.value);
 }
 
 async function verifySunoIdentity(page) {

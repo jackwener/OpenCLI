@@ -49,5 +49,20 @@ registerSiteAuthCommands({
   loginUrl: 'https://wx.zsxq.com/login',
   columns: ['user_id', 'name'],
   verify: verifyZsxqIdentity,
-  poll: verifyZsxqIdentity,
+  // No-navigation poll: probe the API from the current page so the login-page
+  // QR code isn't reset by a goto on every interval.
+  poll: async (page) => {
+    const loggedIn = await page.evaluate(`(async () => {
+      try {
+        const r = await fetch('https://api.zsxq.com/v2/users/self', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (!r.ok) return false;
+        const d = await r.json();
+        return !!(d?.resp_data?.user);
+      } catch { return false; }
+    })()`);
+    if (!loggedIn) {
+      throw new AuthRequiredError('zsxq.com', 'Waiting for zsxq login');
+    }
+    return verifyZsxqIdentity(page);
+  },
 });
