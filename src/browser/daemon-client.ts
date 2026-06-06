@@ -186,7 +186,16 @@ async function sendCommandRaw(
       : undefined;
     const contextId = params.contextId ?? resolveProfileContextId();
     const windowMode = params.windowMode ?? envWindowMode;
-    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowMode && { windowMode }) };
+    // OPENCLI_IDLE_TIMEOUT_MS: keep automation window alive longer than the
+    // 30s adapter default so polling pipelines reuse the same window instead
+    // of forcing a new windows.create() — the real focus-steal trigger on
+    // macOS 15.x / 26.x. Caller-supplied params.idleTimeout (seconds) wins.
+    const rawIdleMs = process.env.OPENCLI_IDLE_TIMEOUT_MS;
+    const idleTimeoutFromEnv = rawIdleMs && /^\d+$/.test(rawIdleMs)
+      ? Math.max(0, Math.floor(parseInt(rawIdleMs, 10) / 1000))
+      : undefined;
+    const idleTimeout = params.idleTimeout ?? idleTimeoutFromEnv;
+    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowMode && { windowMode }), ...(idleTimeout !== undefined && { idleTimeout }) };
     try {
       const res = await requestDaemon('/command', {
         method: 'POST',
