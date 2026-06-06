@@ -834,6 +834,7 @@ function getRecentConversationsScript(limit) {
       const seen = new Set();
       let convVersion = 0;
       let hasMore = true;
+      let pcPinQueryType = 0;
 
       for (let pageIndex = 0; pageIndex < 60 && hasMore && conversations.length < requestedLimit; pageIndex += 1) {
         const batchLimit = Math.max(1, Math.min(50, requestedLimit - conversations.length));
@@ -855,7 +856,7 @@ function getRecentConversationsScript(limit) {
                 need_coco_conversation: Number(convVersion) === 0,
                 need_coco_bot: Number(convVersion) === 0,
                 need_pc_pin_chain: true,
-                pc_pin_query_type: 0,
+                pc_pin_query_type: pcPinQueryType,
               },
             },
           },
@@ -894,6 +895,7 @@ function getRecentConversationsScript(limit) {
 
         hasMore = Boolean(downlink.has_more);
         convVersion = downlink.next_conv_version || 0;
+        pcPinQueryType = downlink.extra?.pc_pin_query_type ?? pcPinQueryType;
         if (!convVersion || !(downlink.cells || []).length) break;
       }
 
@@ -1355,6 +1357,7 @@ export const __test__ = {
     clickSendButtonScript,
     composerStateScript,
     detectDoubaoVerificationScript,
+    getRecentConversationsScript,
     getTurnsScript,
     getTranscriptLinesScript,
 };

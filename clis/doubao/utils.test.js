@@ -275,6 +275,13 @@ describe('doubao receive strategy', () => {
         expect(transcriptScript).toContain('请仔细甄别');
         expect(transcriptScript).toContain('下载电脑版');
     });
+
+    it('carries the server pc_pin_query_type across recent-conversation pages', () => {
+        const recentScript = __test__.getRecentConversationsScript(100);
+        expect(recentScript).toContain('let pcPinQueryType = 0');
+        expect(recentScript).toContain('pc_pin_query_type: pcPinQueryType');
+        expect(recentScript).toContain('pcPinQueryType = downlink.extra?.pc_pin_query_type ?? pcPinQueryType');
+    });
 });
 describe('collectDoubaoTranscriptAdditions', () => {
     it('ignores landing-page capability chips that are not assistant content', () => {
