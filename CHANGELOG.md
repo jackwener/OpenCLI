@@ -17,6 +17,7 @@ Patch release focused on two architectural fixes around extension and daemon lif
 * **site auth subsystem** — new `opencli <site> login` and `opencli <site> whoami` commands, registered through a shared `clis/_shared/site-auth.js` helper. `login` opens the site's auth page in a foreground persistent session and polls the configured `verify` probe (cookie, JSON API, DOM scrape) until the browser session reports logged-in; `whoami` runs the same probe without opening the page. First five sites: twitter, github, bilibili, douyin, xiaohongshu. `whoami` outputs are PII-scrubbed (no email / phone / token in row columns). ([#1852](https://github.com/jackwener/opencli/pull/1852))
 * **gemini** — add read-only conversation commands (list / read / search).
 * **manus** — add a read-only `manus.im` adapter.
+* **twitter** — `extractMedia` now exposes `media_posters[]`, index-aligned with `media_urls[]`: the still-preview image for each item. For videos / animated GIFs this surfaces the `video_info` thumbnail that was previously discarded; for photos it equals the photo URL. Flows through every media-bearing command (timeline / thread / search / tweets / likes / bookmarks / bookmark-folder / list-tweets) and quoted tweets.
 
 ### Docs / Sitemap
 

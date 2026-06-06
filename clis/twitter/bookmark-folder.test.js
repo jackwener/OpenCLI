@@ -99,6 +99,7 @@ describe('twitter bookmark-folder timeline parser', () => {
                 url: 'https://x.com/alice/status/1',
                 has_media: false,
                 media_urls: [],
+                media_posters: [],
             },
         ]);
         expect(nextCursor).toBe('NEXT_CURSOR');

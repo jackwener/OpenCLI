@@ -114,7 +114,7 @@ cli({
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the thread by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the conversation\'s structural ordering.' },
     ],
-    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'card', 'quoted_tweet'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet'],
     func: async (page, kwargs) => {
         let tweetId = kwargs['tweet-id'];
         const urlMatch = tweetId.match(/\/status\/(\d+)/);

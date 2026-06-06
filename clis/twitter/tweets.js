@@ -226,7 +226,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max tweets to return' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the chronological ordering.' },
     ],
-    columns: ['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'quoted_tweet'],
+    columns: ['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet'],
     func: async (page, kwargs) => {
         const limit = Math.max(1, Math.min(200, kwargs.limit || 20));
         const rawUsername = String(kwargs.username ?? '').trim();

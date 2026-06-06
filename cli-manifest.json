@@ -30035,7 +30035,8 @@
       "created_at",
       "url",
       "has_media",
-      "media_urls"
+      "media_urls",
+      "media_posters"
     ],
     "type": "js",
     "modulePath": "twitter/bookmark-folder.js",
@@ -30096,7 +30097,8 @@
       "created_at",
       "url",
       "has_media",
-      "media_urls"
+      "media_urls",
+      "media_posters"
     ],
     "type": "js",
     "modulePath": "twitter/bookmarks.js",
@@ -30441,7 +30443,8 @@
       "created_at",
       "url",
       "has_media",
-      "media_urls"
+      "media_urls",
+      "media_posters"
     ],
     "type": "js",
     "modulePath": "twitter/likes.js",
@@ -30750,7 +30753,8 @@
       "card",
       "quoted_tweet",
       "has_media",
-      "media_urls"
+      "media_urls",
+      "media_posters"
     ],
     "type": "js",
     "modulePath": "twitter/list-tweets.js",
@@ -31180,6 +31184,7 @@
       "url",
       "has_media",
       "media_urls",
+      "media_posters",
       "card",
       "quoted_tweet"
     ],
@@ -31229,6 +31234,7 @@
       "url",
       "has_media",
       "media_urls",
+      "media_posters",
       "card",
       "quoted_tweet"
     ],
@@ -31285,6 +31291,7 @@
       "url",
       "has_media",
       "media_urls",
+      "media_posters",
       "card",
       "quoted_tweet"
     ],
@@ -31364,6 +31371,7 @@
       "url",
       "has_media",
       "media_urls",
+      "media_posters",
       "quoted_tweet"
     ],
     "type": "js",

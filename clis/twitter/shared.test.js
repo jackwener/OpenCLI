@@ -336,11 +336,12 @@ describe('twitter buildTwitterArticleScopeSource', () => {
 
 describe('twitter extractMedia', () => {
     it('returns false + empty list when legacy has no media', () => {
-        expect(extractMedia({})).toEqual({ has_media: false, media_urls: [] });
-        expect(extractMedia(undefined)).toEqual({ has_media: false, media_urls: [] });
+        expect(extractMedia({})).toEqual({ has_media: false, media_urls: [], media_posters: [] });
+        expect(extractMedia(undefined)).toEqual({ has_media: false, media_urls: [], media_posters: [] });
         expect(extractMedia({ extended_entities: { media: [] } })).toEqual({
             has_media: false,
             media_urls: [],
+            media_posters: [],
         });
     });
 
@@ -355,6 +356,11 @@ describe('twitter extractMedia', () => {
         });
         expect(result.has_media).toBe(true);
         expect(result.media_urls).toEqual([
+            'https://pbs.twimg.com/media/a.jpg',
+            'https://pbs.twimg.com/media/b.jpg',
+        ]);
+        // For photos the poster equals the photo URL itself.
+        expect(result.media_posters).toEqual([
             'https://pbs.twimg.com/media/a.jpg',
             'https://pbs.twimg.com/media/b.jpg',
         ]);
@@ -391,6 +397,14 @@ describe('twitter extractMedia', () => {
             'https://video.twimg.com/x.mp4',
             'https://video.twimg.com/g.mp4',
         ]);
+        // The previously-discarded video_info thumbnails are now exposed as
+        // posters, index-aligned with media_urls and distinct from the mp4 URLs.
+        expect(result.media_posters).toEqual([
+            'https://pbs.twimg.com/media/thumb.jpg',
+            'https://pbs.twimg.com/tweet_video_thumb/g.jpg',
+        ]);
+        expect(result.media_posters[0]).not.toBe(result.media_urls[0]);
+        expect(result.media_posters[1]).not.toBe(result.media_urls[1]);
     });
 
     it('falls back to media_url_https when no mp4 variant is available', () => {
@@ -408,6 +422,7 @@ describe('twitter extractMedia', () => {
         expect(result).toEqual({
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/thumb.jpg'],
+            media_posters: ['https://pbs.twimg.com/media/thumb.jpg'],
         });
     });
 
@@ -422,6 +437,7 @@ describe('twitter extractMedia', () => {
         expect(result).toEqual({
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/c.jpg'],
+            media_posters: ['https://pbs.twimg.com/media/c.jpg'],
         });
     });
 });
@@ -703,6 +719,7 @@ describe('twitter extractQuotedTweet', () => {
             url: 'https://x.com/alice/status/2040254679301718161',
             has_media: false,
             media_urls: [],
+            media_posters: [],
         });
     });
 
@@ -728,6 +745,10 @@ describe('twitter extractQuotedTweet', () => {
         const q = extractQuotedTweet(tweet);
         expect(q.has_media).toBe(true);
         expect(q.media_urls).toEqual([
+            'https://pbs.twimg.com/media/a.jpg',
+            'https://pbs.twimg.com/media/b.jpg',
+        ]);
+        expect(q.media_posters).toEqual([
             'https://pbs.twimg.com/media/a.jpg',
             'https://pbs.twimg.com/media/b.jpg',
         ]);
