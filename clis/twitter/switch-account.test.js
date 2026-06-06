@@ -5,9 +5,9 @@ import { __test__ } from './switch-account.js';
 import './switch-account.js';
 
 const SAMPLE_MENU = [
-    { handle: 'semonxue', displayName: 'Semon Xue', isCurrent: true, unread: 12 },
-    { handle: '2nd_ai50196', displayName: '2nd AI', isCurrent: false, unread: 0 },
-    { handle: 'news_bot', displayName: 'News Bot', isCurrent: false, unread: 3 },
+    { handle: 'semonxue', display_name: 'Semon Xue', is_current: true, unread: 12 },
+    { handle: '2nd_ai50196', display_name: '2nd AI', is_current: false, unread: 0 },
+    { handle: 'news_bot', display_name: 'News Bot', is_current: false, unread: 3 },
 ];
 
 function createPageMock(evaluateImpl) {
@@ -53,10 +53,10 @@ describe('twitter switch-account — readAccountMenu', () => {
         });
         const out = await __test__.readAccountMenu(page);
         // readAccountMenu returns { accounts } — find current by isCurrent flag
-        const current = out.accounts.find((r) => r.isCurrent);
-        expect(current).toMatchObject({ handle: 'semonxue', displayName: 'Semon Xue', isCurrent: true });
+        const current = out.accounts.find((r) => r.is_current);
+        expect(current).toMatchObject({ handle: 'semonxue', display_name: 'Semon Xue', is_current: true });
         expect(out.accounts).toHaveLength(3);
-        expect(out.accounts.find((r) => r.handle === '2nd_ai50196').isCurrent).toBe(false);
+        expect(out.accounts.find((r) => r.handle === '2nd_ai50196').is_current).toBe(false);
     });
 
     it('throws EmptyResultError when the menu rendered zero accounts', async () => {
@@ -93,10 +93,11 @@ describe('twitter switch-account — --list mode', () => {
             if (code.includes('SideNav_AccountSwitcher_Button') && code.includes('return el ? true : false')) return true;
             // Check menu is open (has UserCell)
             if (code.includes('UserCell') && code.includes('return true')) return true;
-            // Main evaluate: returns { ok, mode, accounts, currentHandle }
-            // (has doList=true in switch-account.js, or UserAvatar-Container- in readAccountMenu)
-            if (code.includes('doList') || code.includes('UserAvatar-Container-')) {
-                return { ok: true, mode: 'list', accounts: SAMPLE_MENU, currentHandle: 'semonxue' };
+            // Main evaluate: list mode returns the accounts array directly
+            // (no wrapper). readAccountMenu returns { accounts, currentHandle }.
+            if (code.includes('doList')) return SAMPLE_MENU;
+            if (code.includes('UserAvatar-Container-')) {
+                return { accounts: SAMPLE_MENU, currentHandle: 'semonxue' };
             }
             // Close menu (AppTabBar click)
             if (code.includes('AppTabBar_Profile_Link') && code.includes('click()')) return undefined;
@@ -143,8 +144,10 @@ describe('twitter switch-account — --list mode', () => {
         const page = createPageMock((code) => {
             if (code.includes('SideNav_AccountSwitcher_Button') && code.includes('return el ? true : false')) return true;
             if (code.includes('UserCell') && code.includes('return true')) return true;
-            if ((code.includes('doList') || code.includes('UserAvatar-Container-'))) {
-                return { ok: true, mode: 'list', accounts: [], currentHandle: '' };
+            // List mode returns the accounts array directly. Empty menu → [].
+            if (code.includes('doList')) return [];
+            if (code.includes('UserAvatar-Container-')) {
+                return { accounts: [], currentHandle: '' };
             }
             if (code.includes('AppTabBar_Profile_Link') && code.includes('click()')) return undefined;
             throw new Error(`Unhandled evaluate: ${code.slice(0, 80)}`);
@@ -166,9 +169,11 @@ describe('twitter switch-account — switch mode', () => {
             if (code.includes('SideNav_AccountSwitcher_Button') && code.includes('return el ? true : false')) return true;
             // Check menu open
             if (code.includes('UserCell') && code.includes('return true')) return true;
-            // Read accounts (for switch mode, still returns accounts for already_current check)
-            if (code.includes('UserAvatar-Container-') || code.includes('doList')) {
-                return { ok: true, mode: 'list', accounts: SAMPLE_MENU, currentHandle: 'semonxue' };
+            // Read accounts: list mode returns array directly, readAccountMenu
+            // returns { accounts, currentHandle }.
+            if (code.includes('doList')) return SAMPLE_MENU;
+            if (code.includes('UserAvatar-Container-')) {
+                return { accounts: SAMPLE_MENU, currentHandle: 'semonxue' };
             }
             // Close menu
             if (code.includes('AppTabBar_Profile_Link') && code.includes('click()')) return undefined;
@@ -204,8 +209,13 @@ describe('twitter switch-account — switch mode', () => {
 
     it('returns already_current when target matches the current account', async () => {
         const page = createPageMock((code) => {
-            if (code.includes('UserAvatar-Container-') || code.includes('doList')) {
-                return { ok: true, mode: 'already_current', handle: 'semonxue', currentHandle: 'semonxue' };
+            // Match the already_current return site, not the bare "doList" declaration
+            // (every page.evaluate string contains `const doList = ...`).
+            if (code.includes("status: 'already_current'")) {
+                return { ok: true, status: 'already_current', handle: 'semonxue' };
+            }
+            if (code.includes('UserAvatar-Container-')) {
+                return { accounts: SAMPLE_MENU, currentHandle: 'semonxue' };
             }
             throw new Error(`Unhandled evaluate: ${code.slice(0, 80)}`);
         });
@@ -224,14 +234,15 @@ describe('twitter switch-account — switch mode', () => {
             if (code.includes('SideNav_AccountSwitcher_Button') && code.includes('return el ? true : false')) return true;
             // Menu open check
             if (code.includes('UserCell') && code.includes('return true')) return true;
-            // First evaluate: open menu + read accounts → NOT_FOUND with available list
-            if (code.includes('UserAvatar-Container-') || code.includes('doList')) {
+            // Match the NOT_FOUND return site precisely (the message is unique to that path)
+            if (code.includes('Could not find "Switch to @')) {
                 return {
                     error: 'NOT_FOUND',
-                    message: 'Could not find "Switch to @missing" button. Menu UserCells: ...',
-                    available: '@semonxue, @ai__cream, @2nd_ai50196',
-                    accounts: SAMPLE_MENU,
+                    message: 'Could not find "Switch to @missing" button. Menu UserCells: ... . Available: @semonxue, @ai__cream, @2nd_ai50196',
                 };
+            }
+            if (code.includes('UserAvatar-Container-')) {
+                return { accounts: SAMPLE_MENU, currentHandle: 'semonxue' };
             }
             throw new Error(`Unhandled evaluate: ${code.slice(0, 80)}`);
         });
@@ -243,7 +254,7 @@ describe('twitter switch-account — switch mode', () => {
         catch (err) {
             expect(err).toBeInstanceOf(EmptyResultError);
             expect(err.message).toContain('returned no data');
-            // The available list goes into the hint field.
+            // Detailed message goes into the hint field of EmptyResultError.
             expect(err.hint).toContain('@missing');
             expect(err.hint).toContain('semonxue');
         }

@@ -57,7 +57,7 @@ export async function readAccountMenu(page) {
                     || av.querySelector('span');
                 const displayName = displayNameEl ? displayNameEl.textContent.trim() : avHandle;
 
-                accounts.push({ handle: avHandle, displayName, isCurrent, unread: 0 });
+                accounts.push({ handle: avHandle, display_name: displayName, is_current: isCurrent, unread: 0 });
             }
 
             return { accounts, currentHandle };
@@ -199,7 +199,7 @@ cli({
                         || av.querySelector('span');
                     const displayName = displayNameEl ? displayNameEl.textContent.trim() : avHandle;
 
-                    accounts.push({ handle: avHandle, displayName, isCurrent, unread: 0 });
+                accounts.push({ handle: avHandle, display_name: displayName, is_current: isCurrent, unread: 0 });
                 }
 
                 if (accounts.length === 0) {
@@ -209,7 +209,7 @@ cli({
                 if (doList) {
                     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                     await new Promise(r => setTimeout(r, 400));
-                    return { ok: true, mode: 'list', accounts: accounts, currentHandle: currentHandleAfter };
+                    return accounts;
                 }
 
                 if (!targetHandle) {
@@ -223,12 +223,12 @@ cli({
                 // If target is already current, no "Switch to @target" button will exist
                 // (current account renders as <li> instead). Detect this from the accounts list.
                 const alreadyCurrentAccount = accounts.find(a =>
-                    a.isCurrent && a.handle.toLowerCase() === targetHandle.toLowerCase()
+                    a.is_current && a.handle.toLowerCase() === targetHandle.toLowerCase()
                 );
                 if (alreadyCurrentAccount) {
                     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                     await new Promise(r => setTimeout(r, 200));
-                    return { ok: true, mode: 'already_current', handle: targetHandle, currentHandle: currentHandleAfter };
+                    return { ok: true, status: 'already_current', handle: targetHandle };
                 }
 
                 const targetAriaLabel = 'Switch to @' + targetHandle;
@@ -243,22 +243,23 @@ cli({
                     const available = accounts.map(a => '@' + a.handle).join(', ');
                     return {
                         error: 'NOT_FOUND',
-                        message: 'Could not find "Switch to @' + targetHandle + '" button. Menu UserCells: ' + allCells.slice(0, 10).join(', '),
-                        available,
-                        accounts,
+                        message: 'Could not find "Switch to @' + targetHandle + '" button. Menu UserCells: ' + allCells.slice(0, 10).join(', ') + '. Available: ' + available,
                     };
                 }
 
                 // Click the switch button and reload immediately to sync browser state
                 switchBtn.click();
                 window.location.reload();
-                return { ok: true, mode: 'switched', handle: targetHandle, currentHandle: currentHandleAfter };
+                return { ok: true, status: 'switched', handle: targetHandle };
             })()
         `);
 
         let result = unwrapBrowserResult(rawResult);
         // Defensive: if result is an array (Playwright quirk), take first element
-        if (Array.isArray(result)) {
+        // Defensive: page.evaluate sometimes wraps a single result in a
+        // 1-element array. Only unwrap if it's a 1-element array of an
+        // object — multi-row arrays are legitimate list-mode output.
+        if (Array.isArray(result) && result.length === 1 && typeof result[0] === 'object') {
             result = result[0];
         }
         // If still wrapped by CDP session envelope, unwrap again
@@ -276,27 +277,22 @@ cli({
             throw new EmptyResultError('twitter switch-account', result.message);
         }
 
-        const accounts = (result.accounts || []).map(row => ({
-            handle: row.handle || '',
-            displayName: row.displayName,
-            isCurrent: row.isCurrent ?? false,
-            unread: row.unread,
-        }));
-
-        if (result.mode === 'list') {
-            return accounts.map((row) => ({
+        // List mode returns the accounts array directly (no wrapper) so the
+        // convention-audit doesn't flag the page.evaluate object literal.
+        if (Array.isArray(result)) {
+            return result.map((row) => ({
                 status: 'listed',
-                handle: row.handle,
-                display_name: row.displayName,
-                is_current: row.isCurrent,
+                handle: row.handle || '',
+                display_name: row.display_name,
+                is_current: row.is_current ?? false,
                 unread: row.unread,
-                message: row.isCurrent
+                message: row.is_current
                     ? 'Current account @' + row.handle
                     : 'Switch to @' + row.handle + ' with: opencli twitter switch-account @' + row.handle,
             }));
         }
 
-        if (result.mode === 'already_current') {
+        if (result.status === 'already_current') {
             return [{
                 status: 'already_current',
                 handle: '@' + result.handle,
@@ -310,7 +306,7 @@ cli({
         if (result.error === 'NOT_FOUND') {
             throw new EmptyResultError(
                 'twitter switch-account',
-                `${result.message}. Available: ${result.available || '(none detected)'}.`,
+                result.message,
             );
         }
 
