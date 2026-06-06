@@ -29,6 +29,14 @@ function commandColumns(config) {
   return ['logged_in', 'site', ...identityColumns];
 }
 
+function normalizeQuickCheck(result) {
+  if (typeof result === 'boolean') return { logged_in: result };
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    return { logged_in: !!result.logged_in, ...result };
+  }
+  return { logged_in: false };
+}
+
 export function registerSiteAuthCommands(config) {
   if (!config?.site || !config?.domain || !config?.loginUrl || typeof config.verify !== 'function') {
     throw new Error('registerSiteAuthCommands requires site, domain, loginUrl, and verify(page)');
@@ -45,6 +53,9 @@ export function registerSiteAuthCommands(config) {
     navigateBefore: false,
     args: [],
     columns: commandColumns(config),
+    authStatus: typeof config.quickCheck === 'function'
+      ? { quickCheck: async (page) => normalizeQuickCheck(await config.quickCheck(page)) }
+      : undefined,
     func: async (page) => tryProbe(config, page, 'identity'),
   });
 
