@@ -310,13 +310,19 @@ cli({
             );
         }
 
+        const finalHandle = result.handle || target;
+        if (!finalHandle) {
+            throw new CommandExecutionError(
+                'twitter switch-account: page.evaluate returned no handle on the switched path',
+            );
+        }
         return [{
             status: 'switched',
-            handle: '@' + (result.handle || target || 'unknown'),
+            handle: '@' + finalHandle,
             display_name: '',
             is_current: true,
             unread: 0,
-            message: 'Switched to @' + (result.handle || target || 'unknown'),
+            message: 'Switched to @' + finalHandle,
         }];
     },
 });
