@@ -17181,6 +17181,38 @@
   },
   {
     "site": "jike",
+    "name": "login",
+    "description": "Open jike login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "web.okjike.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "jike/auth.js",
+    "sourceFile": "jike/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "jike",
     "name": "notifications",
     "description": "即刻通知",
     "access": "read",
@@ -17383,6 +17415,27 @@
     "navigateBefore": "https://m.okjike.com"
   },
   {
+    "site": "jike",
+    "name": "whoami",
+    "description": "Show the current logged-in jike account",
+    "access": "read",
+    "domain": "web.okjike.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "jike/auth.js",
+    "sourceFile": "jike/auth.js",
+    "navigateBefore": false
+  },
+  {
     "site": "jimeng",
     "name": "generate",
     "description": "即梦AI 文生图 — 输入 prompt 生成图片",
@@ -17455,6 +17508,37 @@
   },
   {
     "site": "jimeng",
+    "name": "login",
+    "description": "Open jimeng login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "jimeng.jianying.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name"
+    ],
+    "type": "js",
+    "modulePath": "jimeng/auth.js",
+    "sourceFile": "jimeng/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "jimeng",
     "name": "new",
     "description": "即梦AI 新建会话（workspace）",
     "access": "write",
@@ -17470,6 +17554,26 @@
     "modulePath": "jimeng/new.js",
     "sourceFile": "jimeng/new.js",
     "navigateBefore": "https://jimeng.jianying.com"
+  },
+  {
+    "site": "jimeng",
+    "name": "whoami",
+    "description": "Show the current logged-in jimeng account",
+    "access": "read",
+    "domain": "jimeng.jianying.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name"
+    ],
+    "type": "js",
+    "modulePath": "jimeng/auth.js",
+    "sourceFile": "jimeng/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "jimeng",
@@ -21144,6 +21248,38 @@
   },
   {
     "site": "maimai",
+    "name": "login",
+    "description": "Open maimai login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "maimai.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "company"
+    ],
+    "type": "js",
+    "modulePath": "maimai/auth.js",
+    "sourceFile": "maimai/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "maimai",
     "name": "search-talents",
     "description": "Search for candidates on Maimai with multi-dimensional filters",
     "access": "read",
@@ -21265,6 +21401,27 @@
     "modulePath": "maimai/search-talents.js",
     "sourceFile": "maimai/search-talents.js",
     "navigateBefore": "https://maimai.cn"
+  },
+  {
+    "site": "maimai",
+    "name": "whoami",
+    "description": "Show the current logged-in maimai account",
+    "access": "read",
+    "domain": "maimai.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "company"
+    ],
+    "type": "js",
+    "modulePath": "maimai/auth.js",
+    "sourceFile": "maimai/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "manus",
@@ -22729,6 +22886,37 @@
   },
   {
     "site": "nowcoder",
+    "name": "login",
+    "description": "Open nowcoder login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "nowcoder.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "nowcoder/auth.js",
+    "sourceFile": "nowcoder/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "nowcoder",
     "name": "notifications",
     "description": "Unread message summary",
     "access": "read",
@@ -23064,6 +23252,26 @@
     "type": "js",
     "modulePath": "nowcoder/trending.js",
     "sourceFile": "nowcoder/trending.js"
+  },
+  {
+    "site": "nowcoder",
+    "name": "whoami",
+    "description": "Show the current logged-in nowcoder account",
+    "access": "read",
+    "domain": "nowcoder.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "nowcoder/auth.js",
+    "sourceFile": "nowcoder/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "npm",
