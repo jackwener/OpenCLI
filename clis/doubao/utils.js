@@ -1133,6 +1133,173 @@ export async function getConversationDetail(page, conversationId) {
     }));
     return { messages, meeting: raw.meeting };
 }
+function getConversationAssetsScript(conversationId, variant) {
+    return `
+    (() => {
+      const conversationId = ${JSON.stringify(conversationId)};
+      const variant = ${JSON.stringify(variant)};
+      const assets = [];
+      const seen = new Set();
+
+      const clean = (value) => String(value || '').trim();
+      const isHttpUrl = (value) => /^https?:\\/\\//i.test(clean(value));
+      const push = (item) => {
+        const url = clean(item.url);
+        if (!isHttpUrl(url)) return;
+        const key = item.type + ':' + url;
+        if (seen.has(key)) return;
+        seen.add(key);
+        assets.push({
+          type: item.type,
+          url,
+          key: clean(item.key),
+          label: clean(item.label),
+          width: Number(item.width) || 0,
+          height: Number(item.height) || 0,
+          resourceId: clean(item.resourceId),
+          identifier: clean(item.identifier),
+          format: clean(item.format),
+        });
+      };
+
+      const pickUrlObject = (image) => {
+        const candidates = [
+          ['raw', image.image_raw || image.raw_image],
+          ['original', image.image_ori || image.image_original],
+          ['preview', image.preview_img || image.image_preview],
+          ['thumb', image.image_thumb],
+          ['url', image],
+        ];
+        const preferred = candidates.find(([name, value]) => name === variant && isHttpUrl(value?.url));
+        if (preferred) return { label: preferred[0], value: preferred[1] };
+        return candidates
+          .map(([name, value]) => ({ label: name, value }))
+          .find((item) => isHttpUrl(item.value?.url));
+      };
+
+      const pushImage = (image, owner = {}) => {
+        if (!image || typeof image !== 'object') return;
+        const picked = pickUrlObject(image);
+        if (!picked) return;
+        push({
+          type: 'image',
+          url: picked.value.url,
+          key: image.key || owner.key,
+          label: picked.label,
+          width: picked.value.width || image.width,
+          height: picked.value.height || image.height,
+          resourceId: image.resource_id || owner.resource_id,
+          identifier: image.identifier || owner.identifier,
+          format: picked.value.format || image.format,
+        });
+      };
+
+      const looksLikeVideoUrl = (value) => /\\.(?:mp4|m3u8|webm)(?:[?#]|$)|\\/video\\//i.test(value);
+      const visit = (value, owner = {}) => {
+        if (!value) return;
+
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try {
+              visit(JSON.parse(trimmed), owner);
+            } catch {}
+          }
+          return;
+        }
+
+        if (Array.isArray(value)) {
+          for (const item of value) visit(item, owner);
+          return;
+        }
+
+        if (typeof value !== 'object') return;
+        const record = value;
+        const nextOwner = {
+          key: record.key || owner.key,
+          resource_id: record.resource_id || owner.resource_id,
+          identifier: record.identifier || owner.identifier,
+        };
+
+        if (record.entity_content?.image) pushImage(record.entity_content.image, nextOwner);
+        if (record.image) pushImage(record.image, nextOwner);
+        if (record.cover) pushImage(record.cover, nextOwner);
+        if (
+          (record.image_ori || record.image_raw || record.raw_image || record.preview_img || record.image_thumb)
+          && (record.key || record.url || record.image_ori?.url || record.image_raw?.url || record.raw_image?.url)
+        ) {
+          pushImage(record, nextOwner);
+        }
+
+        for (const [key, child] of Object.entries(record)) {
+          if (key === 'download_url' && isHttpUrl(child)) {
+            push({
+              type: looksLikeVideoUrl(child) ? 'video' : 'image',
+              url: child,
+              key: record.vid || record.key || nextOwner.key,
+              label: key,
+              width: record.width,
+              height: record.height,
+              resourceId: record.resource_id || nextOwner.resource_id,
+              identifier: record.identifier || nextOwner.identifier,
+              format: record.video_type || record.format,
+            });
+            continue;
+          }
+
+          if ((key === 'main_url' || key.startsWith('backup_url')) && typeof child === 'string') {
+            try {
+              const decoded = atob(child);
+              if (isHttpUrl(decoded)) {
+                push({
+                  type: looksLikeVideoUrl(decoded) ? 'video' : 'image',
+                  url: decoded,
+                  key: record.file_id || record.vid || nextOwner.key,
+                  label: key,
+                  width: record.vwidth || record.width,
+                  height: record.vheight || record.height,
+                  resourceId: record.resource_id || nextOwner.resource_id,
+                  identifier: record.identifier || nextOwner.identifier,
+                  format: record.vtype || record.video_type || record.format,
+                });
+                continue;
+              }
+            } catch {}
+          }
+
+          visit(child, nextOwner);
+        }
+      };
+
+      const loaderData = window._ROUTER_DATA?.loaderData || {};
+      const scoped = Object.entries(loaderData)
+        .filter(([key, value]) => key.includes(conversationId) || key.includes('chat_') || value?.messageList || value?.messages)
+        .map(([, value]) => value);
+      const roots = scoped.length > 0 ? scoped : [loaderData];
+      for (const root of roots) visit(root);
+
+      const domSeen = new Set(assets.map((item) => item.url));
+      document.querySelectorAll('img').forEach((img) => {
+        const url = img.currentSrc || img.src || '';
+        const width = img.naturalWidth || img.width || 0;
+        const height = img.naturalHeight || img.height || 0;
+        if (!isHttpUrl(url) || domSeen.has(url)) return;
+        if (width > 0 && height > 0 && width <= 64 && height <= 64) return;
+        push({ type: 'image', url, label: 'dom', width, height });
+      });
+
+      return assets;
+    })()
+  `;
+}
+export async function getConversationAssets(page, conversationId, options = {}) {
+    const variant = ['original', 'raw', 'preview', 'thumb'].includes(options.variant)
+        ? options.variant
+        : 'original';
+    await navigateToConversation(page, conversationId);
+    const assets = await page.evaluate(getConversationAssetsScript(conversationId, variant));
+    return Array.isArray(assets) ? assets : [];
+}
 // ---------------------------------------------------------------------------
 // Meeting minutes panel helpers
 // ---------------------------------------------------------------------------
@@ -1358,6 +1525,7 @@ export const __test__ = {
     composerStateScript,
     detectDoubaoVerificationScript,
     getRecentConversationsScript,
+    getConversationAssetsScript,
     getTurnsScript,
     getTranscriptLinesScript,
 };

@@ -11874,6 +11874,62 @@
   },
   {
     "site": "doubao",
+    "name": "download",
+    "description": "Download images and media from a Doubao conversation",
+    "access": "read",
+    "domain": "www.doubao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID (numeric or full URL)"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./doubao-downloads",
+        "required": false,
+        "help": "Output directory"
+      },
+      {
+        "name": "variant",
+        "type": "str",
+        "default": "original",
+        "required": false,
+        "help": "Image variant: original, raw, preview, or thumb"
+      },
+      {
+        "name": "limit",
+        "type": "str",
+        "default": "0",
+        "required": false,
+        "help": "Max media files to download; 0 means all"
+      },
+      {
+        "name": "timeout",
+        "type": "str",
+        "default": "15000",
+        "required": false,
+        "help": "Per-file download timeout in milliseconds"
+      }
+    ],
+    "columns": [
+      "index",
+      "type",
+      "status",
+      "size"
+    ],
+    "type": "js",
+    "modulePath": "doubao/download.js",
+    "sourceFile": "doubao/download.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "doubao",
     "name": "history",
     "description": "List conversation history from Doubao sidebar",
     "access": "read",
