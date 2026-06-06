@@ -875,6 +875,41 @@ describe('BasePage native input routing', () => {
   });
 });
 
+describe('BasePage installInterceptor', () => {
+  it('installs the interceptor into future documents when CDP is available', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({ identifier: 'interceptor-script' });
+
+    await page.installInterceptor('batchSearch');
+
+    expect(page.scripts).toHaveLength(1);
+    expect(page.scripts[0]).toContain('batchSearch');
+    expect(page.scripts[0]).toContain('__opencli_xhr');
+    expect(page.cdp).toHaveBeenCalledWith(
+      'Page.addScriptToEvaluateOnNewDocument',
+      {
+        source: expect.stringContaining('batchSearch'),
+      },
+    );
+  });
+
+  it('keeps the current-document interceptor when future-document registration fails', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockRejectedValue(new Error('not supported'));
+
+    await expect(page.installInterceptor('batchSearch')).resolves.toBeUndefined();
+
+    expect(page.scripts).toHaveLength(1);
+    expect(page.scripts[0]).toContain('batchSearch');
+    expect(page.cdp).toHaveBeenCalledWith(
+      'Page.addScriptToEvaluateOnNewDocument',
+      expect.objectContaining({
+        source: expect.stringContaining('batchSearch'),
+      }),
+    );
+  });
+});
+
 describe('BasePage.evaluateWithArgs scoping', () => {
   class EvalCapturePage extends BasePage {
     scripts: string[] = [];
