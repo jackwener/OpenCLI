@@ -1,3 +1,6 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { AuthRequiredError, CliError, getErrorMessage } from '../errors.js';
@@ -14,6 +17,10 @@ import { render as renderOutput } from '../output.js';
 
 type AuthStatus = 'logged_in' | 'not_logged_in' | 'unknown' | 'error';
 type AuthStatusMode = 'quick' | 'full';
+type AuthRefreshStatus = 'refreshed' | 'touched' | 'not_logged_in' | 'skipped' | 'unsupported' | 'error';
+
+const AUTH_REFRESH_STATE_VERSION = 1;
+const AUTH_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export interface AuthStatusRow {
   site: string;
@@ -33,6 +40,35 @@ interface AuthStatusOptions {
   profile?: string;
 }
 
+export interface AuthRefreshRow {
+  site: string;
+  status: AuthRefreshStatus;
+  last_touched_at: string;
+  next_refresh_at: string;
+  error: string;
+}
+
+interface AuthRefreshOptions {
+  sites?: string;
+  all?: boolean;
+  concurrency?: string | number;
+  timeout?: string | number;
+  profile?: string;
+  statePath?: string;
+  now?: Date;
+}
+
+interface AuthRefreshSiteState {
+  last_touched_at?: string;
+  last_attempt_at?: string;
+  last_status?: AuthRefreshStatus;
+}
+
+interface AuthRefreshState {
+  version: number;
+  sites: Record<string, AuthRefreshSiteState>;
+}
+
 function parsePositiveInt(raw: string | number | undefined, label: string, fallback: number): number {
   if (raw === undefined || raw === null || raw === '') return fallback;
   const parsed = Number(raw);
@@ -46,6 +82,47 @@ function parseSiteFilter(raw: string | undefined): Set<string> | null {
   if (!raw || !raw.trim()) return null;
   const sites = raw.split(',').map(site => site.trim()).filter(Boolean);
   return sites.length > 0 ? new Set(sites) : null;
+}
+
+function defaultAuthRefreshStatePath(): string {
+  return join(homedir(), '.opencli', 'auth-refresh.json');
+}
+
+function emptyAuthRefreshState(): AuthRefreshState {
+  return { version: AUTH_REFRESH_STATE_VERSION, sites: {} };
+}
+
+async function loadAuthRefreshState(statePath: string): Promise<AuthRefreshState> {
+  try {
+    const parsed = JSON.parse(await readFile(statePath, 'utf8')) as Partial<AuthRefreshState>;
+    if (parsed && parsed.version === AUTH_REFRESH_STATE_VERSION && parsed.sites && typeof parsed.sites === 'object') {
+      return { version: AUTH_REFRESH_STATE_VERSION, sites: parsed.sites as Record<string, AuthRefreshSiteState> };
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  return emptyAuthRefreshState();
+}
+
+async function saveAuthRefreshState(statePath: string, state: AuthRefreshState): Promise<void> {
+  await mkdir(dirname(statePath), { recursive: true });
+  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+function lastTouchedMs(entry: AuthRefreshSiteState | undefined): number | null {
+  if (!entry?.last_touched_at) return null;
+  const parsed = Date.parse(entry.last_touched_at);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isRefreshThrottled(entry: AuthRefreshSiteState | undefined, now: Date): boolean {
+  const touched = lastTouchedMs(entry);
+  return touched !== null && now.getTime() - touched < AUTH_REFRESH_INTERVAL_MS;
+}
+
+function nextRefreshAt(entry: AuthRefreshSiteState | undefined): string {
+  const touched = lastTouchedMs(entry);
+  return touched === null ? '' : new Date(touched + AUTH_REFRESH_INTERVAL_MS).toISOString();
 }
 
 function authWhoamiCommands(): CliCommand[] {
@@ -72,7 +149,7 @@ function withTimeoutArg(cmd: CliCommand, timeoutSeconds: number): CliCommand {
     ...cmd,
     args: hasTimeout
       ? cmd.args
-      : [...cmd.args, { name: 'timeout', type: 'int', default: timeoutSeconds, help: 'Per-site auth status timeout in seconds' }],
+      : [...cmd.args, { name: 'timeout', type: 'int', default: timeoutSeconds, help: 'Per-site auth command timeout in seconds' }],
   };
 }
 
@@ -131,6 +208,48 @@ function rowForError(site: string, checked: AuthStatusMode, error: unknown): Aut
     logged_in: '',
     identity: '',
     checked,
+    error: code ? `${code}: ${message}` : message,
+  };
+}
+
+function refreshCommand(cmd: CliCommand, timeoutSeconds: number): BrowserCliCommand | null {
+  if (cmd.browser !== true) return null;
+  const refreshFunc = cmd.authStatus?.refresh ?? cmd.func;
+  if (typeof refreshFunc !== 'function') return null;
+  return withTimeoutArg({
+    ...cmd,
+    func: refreshFunc,
+    navigateBefore: false,
+    siteSession: 'persistent',
+    defaultWindowMode: 'background',
+  }, timeoutSeconds) as BrowserCliCommand;
+}
+
+function normalizeRefreshStatus(result: unknown): 'refreshed' | 'touched' {
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const row = result as Record<string, unknown>;
+    if (row.status === 'refreshed' || row.refreshed === true) return 'refreshed';
+  }
+  return 'touched';
+}
+
+function refreshRowForError(site: string, entry: AuthRefreshSiteState | undefined, error: unknown): AuthRefreshRow {
+  if (error instanceof AuthRequiredError) {
+    return {
+      site,
+      status: 'not_logged_in',
+      last_touched_at: entry?.last_touched_at ?? '',
+      next_refresh_at: nextRefreshAt(entry),
+      error: '',
+    };
+  }
+  const code = error instanceof CliError ? error.code : '';
+  const message = getErrorMessage(error);
+  return {
+    site,
+    status: 'error',
+    last_touched_at: entry?.last_touched_at ?? '',
+    next_refresh_at: nextRefreshAt(entry),
     error: code ? `${code}: ${message}` : message,
   };
 }
@@ -199,6 +318,66 @@ async function runFull(cmd: CliCommand, opts: { timeoutSeconds: number; profile?
   }
 }
 
+async function runRefresh(cmd: CliCommand, opts: {
+  timeoutSeconds: number;
+  profile?: string;
+  now: Date;
+  state: AuthRefreshState;
+  force: boolean;
+}): Promise<AuthRefreshRow> {
+  const existing = opts.state.sites[cmd.site];
+  if (!opts.force && isRefreshThrottled(existing, opts.now)) {
+    return {
+      site: cmd.site,
+      status: 'skipped',
+      last_touched_at: existing?.last_touched_at ?? '',
+      next_refresh_at: nextRefreshAt(existing),
+      error: '',
+    };
+  }
+
+  const attemptAt = opts.now.toISOString();
+  const loaded = await loadLazyCommand(cmd);
+  const refreshCmd = refreshCommand(loaded, opts.timeoutSeconds);
+  if (!refreshCmd) {
+    opts.state.sites[cmd.site] = { ...existing, last_attempt_at: attemptAt, last_status: 'unsupported' };
+    return {
+      site: cmd.site,
+      status: 'unsupported',
+      last_touched_at: existing?.last_touched_at ?? '',
+      next_refresh_at: nextRefreshAt(existing),
+      error: 'refresh probe is not available for this site',
+    };
+  }
+
+  try {
+    const result = await executeCommand(refreshCmd, { timeout: opts.timeoutSeconds } as CommandArgs, false, {
+      siteSession: 'persistent',
+      keepTab: 'true',
+      windowMode: 'background',
+      ...(opts.profile ? { profile: opts.profile } : {}),
+    });
+    const status = normalizeRefreshStatus(result);
+    opts.state.sites[cmd.site] = {
+      ...existing,
+      last_attempt_at: attemptAt,
+      last_touched_at: attemptAt,
+      last_status: status,
+    };
+    return {
+      site: cmd.site,
+      status,
+      last_touched_at: attemptAt,
+      next_refresh_at: new Date(opts.now.getTime() + AUTH_REFRESH_INTERVAL_MS).toISOString(),
+      error: '',
+    };
+  } catch (error) {
+    const status: AuthRefreshStatus = error instanceof AuthRequiredError ? 'not_logged_in' : 'error';
+    opts.state.sites[cmd.site] = { ...existing, last_attempt_at: attemptAt, last_status: status };
+    return refreshRowForError(cmd.site, existing, error);
+  }
+}
+
 async function mapConcurrent<T, R>(
   items: T[],
   concurrency: number,
@@ -239,6 +418,26 @@ export async function collectAuthStatus(options: AuthStatusOptions): Promise<Aut
     : rows.filter(row => row.status === normalizedOnly);
 }
 
+export async function collectAuthRefresh(options: AuthRefreshOptions): Promise<AuthRefreshRow[]> {
+  const selectedSites = parseSiteFilter(options.sites);
+  const concurrency = parsePositiveInt(options.concurrency, '--concurrency', 3);
+  const timeoutSeconds = parsePositiveInt(options.timeout, '--timeout', 20);
+  const statePath = options.statePath ?? defaultAuthRefreshStatePath();
+  const now = options.now ?? new Date();
+  const state = await loadAuthRefreshState(statePath);
+
+  const commands = authWhoamiCommands().filter(cmd => !selectedSites || selectedSites.has(cmd.site));
+  const rows = await mapConcurrent(commands, concurrency, cmd => runRefresh(cmd, {
+    timeoutSeconds,
+    profile: options.profile,
+    now,
+    state,
+    force: options.all === true,
+  }));
+  await saveAuthRefreshState(statePath, state);
+  return rows;
+}
+
 export function registerAuthCommands(program: Command): Command {
   const auth = program
     .command('auth')
@@ -270,6 +469,33 @@ export function registerAuthCommands(program: Command): Command {
         columns: ['site', 'status', 'identity', 'checked', 'error'],
         title: 'opencli/auth status',
         source: opts.full ? 'full whoami probe' : 'quick auth check',
+      });
+    });
+
+  const refresh = auth
+    .command('refresh')
+    .description('Touch logged-in site sessions to keep browser auth fresh')
+    .option('--site <sites>', 'Comma-separated site names to refresh, e.g. github,claude')
+    .option('--all', 'Ignore the 24h refresh throttle and force every selected site', false)
+    .option('--concurrency <n>', 'Maximum sites to refresh at once')
+    .option('--timeout <seconds>', 'Per-site timeout in seconds')
+    .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
+    .action(async (opts) => {
+      const globals = typeof refresh.optsWithGlobals === 'function' ? refresh.optsWithGlobals() as Record<string, unknown> : {};
+      const rows = await collectAuthRefresh({
+        sites: opts.site,
+        all: opts.all === true,
+        concurrency: opts.concurrency,
+        timeout: opts.timeout,
+        profile: typeof globals.profile === 'string' && globals.profile.trim() ? globals.profile.trim() : undefined,
+      });
+      const fmt = typeof opts.format === 'string' ? opts.format : 'table';
+      renderOutput(rows, {
+        fmt,
+        fmtExplicit: refresh.getOptionValueSource('format') === 'cli',
+        columns: ['site', 'status', 'last_touched_at', 'next_refresh_at', 'error'],
+        title: 'opencli/auth refresh',
+        source: opts.all ? 'forced persistent touch' : 'persistent touch with 24h throttle',
       });
     });
 

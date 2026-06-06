@@ -66,7 +66,7 @@ describe('createProgram root help descriptions', () => {
     expect(descriptionFor(program, 'browser')).toContain('type');
     expect(descriptionFor(program, 'browser')).toContain('verify');
     expect(descriptionFor(program, 'browser')).not.toContain('Browser control');
-    expect(descriptionFor(program, 'auth')).toBe('status');
+    expect(descriptionFor(program, 'auth')).toBe('refresh, status');
     expect(descriptionFor(program, 'plugin')).toBe('create, install, list, uninstall, update');
     expect(descriptionFor(program, 'adapter')).toBe('eject, reset, status');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
@@ -87,9 +87,9 @@ describe('createProgram root help descriptions', () => {
       expect(data).toMatchObject({
         namespace: 'auth',
         description: 'Inspect website login status',
-        command_count: 1,
+        command_count: 2,
       });
-      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['status']);
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['refresh', 'status']);
       const status = auth.commands.find(cmd => cmd.name() === 'status')!;
       process.argv = ['node', 'opencli', 'auth', 'status', '--help', '-f', 'yaml'];
       const statusData = yaml.load(status.helpInformation()) as any;

@@ -31,6 +31,7 @@ export type SiteSessionMode = 'ephemeral' | 'persistent';
 
 export interface AuthStatusMetadata {
   quickCheck?: BrowserCommandFunc;
+  refresh?: BrowserCommandFunc;
 }
 
 interface BaseCliCommand {

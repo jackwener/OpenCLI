@@ -37,6 +37,11 @@ function normalizeQuickCheck(result) {
   return { logged_in: false };
 }
 
+function normalizeRefreshResult(result) {
+  if (result && typeof result === 'object' && !Array.isArray(result)) return result;
+  return { touched: true };
+}
+
 export function registerSiteAuthCommands(config) {
   if (!config?.site || !config?.domain || !config?.loginUrl || typeof config.verify !== 'function') {
     throw new Error('registerSiteAuthCommands requires site, domain, loginUrl, and verify(page)');
@@ -53,9 +58,14 @@ export function registerSiteAuthCommands(config) {
     navigateBefore: false,
     args: [],
     columns: commandColumns(config),
-    authStatus: typeof config.quickCheck === 'function'
-      ? { quickCheck: async (page) => normalizeQuickCheck(await config.quickCheck(page)) }
-      : undefined,
+    authStatus: {
+      ...(typeof config.quickCheck === 'function'
+        ? { quickCheck: async (page) => normalizeQuickCheck(await config.quickCheck(page)) }
+        : {}),
+      ...(typeof config.refresh === 'function'
+        ? { refresh: async (page, kwargs) => normalizeRefreshResult(await config.refresh(page, kwargs)) }
+        : {}),
+    },
     func: async (page) => tryProbe(config, page, 'identity'),
   });
 
