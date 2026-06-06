@@ -15,24 +15,25 @@ async function verifyYoutubeIdentity(page) {
   await page.wait(3);
   const probe = await page.evaluate(`
     (() => {
-      const cfg = (typeof window !== 'undefined' && window.ytcfg && typeof window.ytcfg.get === 'function')
-        ? window.ytcfg.get('INNERTUBE_CONTEXT')
-        : null;
-      const user = cfg && cfg.client && cfg.client.userIdentity;
-      const loggedIn = !!(cfg && cfg.user && cfg.user.lockedSafetyMode === false);
-      const account = document.querySelector('button#avatar-btn, ytd-topbar-menu-button-renderer #avatar-btn');
-      if (!account) {
-        return { kind: 'auth', detail: 'YouTube avatar button missing — not signed in' };
+      const cfg = (typeof window !== 'undefined' && window.ytcfg && typeof window.ytcfg.get === 'function') ? window.ytcfg : null;
+      // ytcfg LOGGED_IN is the reliable signed-in signal; the avatar button is a fallback.
+      const loggedIn = !!(cfg && cfg.get('LOGGED_IN') === true) || !!document.querySelector('#avatar-btn');
+      if (!loggedIn) {
+        return { kind: 'auth', detail: 'YouTube ytcfg LOGGED_IN not true and no avatar — not signed in' };
       }
-      const name = (cfg && cfg.user && cfg.user.identityName) || (account.getAttribute('aria-label') || '').replace(/^Account menu.*/i, '').trim();
+      // Name is best-effort: YouTube's masthead avatar exposes a generic
+      // "Account menu" aria-label, so the channel name is often unavailable
+      // without opening the menu. Surface it when present, else leave empty.
+      let name = '';
+      try { const ctx = cfg && cfg.get('INNERTUBE_CONTEXT'); name = (ctx && ctx.user && ctx.user.identityName) || ''; } catch {}
       if (!name) {
-        return { kind: 'render-error', detail: 'YouTube avatar present but identity name not extractable — layout drift' };
+        const aria = (document.querySelector('#avatar-btn')?.getAttribute('aria-label') || '').trim();
+        if (aria && !/^account menu$/i.test(aria)) name = aria;
       }
-      return { ok: true, name };
+      return { ok: true, name: String(name || '') };
     })()
   `);
   if (probe?.kind === 'auth') throw new AuthRequiredError('www.youtube.com', probe.detail);
-  if (probe?.kind === 'render-error') throw new CommandExecutionError(probe.detail);
   if (!probe?.ok) throw new CommandExecutionError(`Unexpected YouTube probe: ${JSON.stringify(probe)}`);
   return { name: probe.name };
 }

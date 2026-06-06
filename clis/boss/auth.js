@@ -23,14 +23,16 @@ async function verifyBossIdentity(page) {
       if (!userType) {
         return { kind: 'auth', detail: 'Boss path does not look like authenticated geek/recruiter page: ' + path };
       }
-      const wt2 = (document.cookie.split('; ').find(c => c.startsWith('wt2=')) || '').split('=')[1] || '';
-      return { ok: true, user_id: wt2, user_type: userType };
+      return { ok: true, user_type: userType };
     })()
   `);
   if (probe?.kind === 'auth') throw new AuthRequiredError('zhipin.com', probe.detail);
   if (!probe?.ok) throw new CommandExecutionError(`Unexpected Boss probe: ${JSON.stringify(probe)}`);
-  if (!probe.user_id) throw new AuthRequiredError('zhipin.com', 'Boss wt2 cookie empty');
-  return { user_id: probe.user_id, user_type: probe.user_type };
+  // wt2 may be httpOnly — read it via CDP, not document.cookie.
+  const after = await page.getCookies({ url: 'https://www.zhipin.com' });
+  const wt2 = after.find(c => c.name === 'wt2')?.value || '';
+  if (!wt2) throw new AuthRequiredError('zhipin.com', 'Boss wt2 cookie empty after auth');
+  return { user_id: wt2, user_type: probe.user_type };
 }
 
 registerSiteAuthCommands({

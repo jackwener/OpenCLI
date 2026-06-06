@@ -8,15 +8,18 @@ async function hasKimiSessionCookie(page) {
 }
 
 async function verifyKimiIdentity(page) {
-  if (!await hasKimiSessionCookie(page)) {
-    throw new AuthRequiredError('kimi.com', 'Kimi access_token / refresh_token cookies missing');
+  // Source the token via CDP getCookies (works even if access_token is httpOnly,
+  // which document.cookie cannot read).
+  const cookies = await page.getCookies({ url: 'https://www.kimi.com' });
+  const token = cookies.find(c => c.name === 'access_token')?.value || '';
+  if (!token) {
+    throw new AuthRequiredError('kimi.com', 'Kimi access_token cookie missing');
   }
   await page.goto('https://www.kimi.com/');
   await page.wait(3);
   const result = await page.evaluate(`(async () => {
     try {
-      const token = (document.cookie.split('; ').find(c => c.startsWith('access_token=')) || '').split('=')[1] || '';
-      if (!token) return { kind: 'auth', detail: 'Kimi access_token cookie absent in document.cookie' };
+      const token = ${JSON.stringify(token)};
       const res = await fetch('/api/user', { credentials: 'include', headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' } });
       if (res.status === 401 || res.status === 403) {
         return { kind: 'auth', detail: 'Kimi /api/user HTTP ' + res.status };

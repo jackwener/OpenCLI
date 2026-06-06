@@ -7,15 +7,18 @@ async function hasQwenSessionCookie(page) {
 }
 
 async function verifyQwenIdentity(page) {
-  if (!await hasQwenSessionCookie(page)) {
+  // Source the token via CDP getCookies (works even if `token` is httpOnly,
+  // which document.cookie cannot read).
+  const cookies = await page.getCookies({ url: 'https://chat.qwen.ai' });
+  const token = cookies.find(c => c.name === 'token')?.value || '';
+  if (!token) {
     throw new AuthRequiredError('qwen.ai', 'Qwen token cookie missing');
   }
   await page.goto('https://chat.qwen.ai/');
   await page.wait(2);
   const result = await page.evaluate(`(async () => {
     try {
-      const token = (document.cookie.split('; ').find(c => c.startsWith('token=')) || '').split('=')[1] || '';
-      if (!token) return { kind: 'auth', detail: 'Qwen token cookie absent in document.cookie' };
+      const token = ${JSON.stringify(token)};
       const res = await fetch('/api/v1/auths/', { credentials: 'include', headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' } });
       if (res.status === 401 || res.status === 403) {
         return { kind: 'auth', detail: 'Qwen /api/v1/auths/ HTTP ' + res.status };
