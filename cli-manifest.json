@@ -9101,6 +9101,37 @@
   },
   {
     "site": "deepseek",
+    "name": "login",
+    "description": "Open deepseek login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/auth.js",
+    "sourceFile": "deepseek/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "deepseek",
     "name": "new",
     "description": "Start a new conversation in DeepSeek",
     "access": "read",
@@ -9196,6 +9227,26 @@
     "sourceFile": "deepseek/status.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "deepseek",
+    "name": "whoami",
+    "description": "Show the current logged-in deepseek account",
+    "access": "read",
+    "domain": "chat.deepseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "deepseek/auth.js",
+    "sourceFile": "deepseek/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "defillama",
@@ -13354,6 +13405,38 @@
   },
   {
     "site": "gitee",
+    "name": "login",
+    "description": "Open gitee login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "gitee.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "username",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "gitee/auth.js",
+    "sourceFile": "gitee/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "gitee",
     "name": "search",
     "description": "Search repositories on Gitee",
     "access": "read",
@@ -13439,6 +13522,27 @@
     "type": "js",
     "modulePath": "gitee/user.js",
     "sourceFile": "gitee/user.js"
+  },
+  {
+    "site": "gitee",
+    "name": "whoami",
+    "description": "Show the current logged-in gitee account",
+    "access": "read",
+    "domain": "gitee.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "username",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "gitee/auth.js",
+    "sourceFile": "gitee/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "github",
@@ -14841,6 +14945,38 @@
   },
   {
     "site": "hf",
+    "name": "login",
+    "description": "Open hf login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "huggingface.co",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username",
+      "fullname",
+      "type"
+    ],
+    "type": "js",
+    "modulePath": "hf/auth.js",
+    "sourceFile": "hf/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "hf",
     "name": "models",
     "description": "Top Hugging Face models (downloads / likes / trending / freshness).",
     "access": "read",
@@ -15024,6 +15160,27 @@
     "type": "js",
     "modulePath": "hf/top.js",
     "sourceFile": "hf/top.js"
+  },
+  {
+    "site": "hf",
+    "name": "whoami",
+    "description": "Show the current logged-in hf account",
+    "access": "read",
+    "domain": "huggingface.co",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username",
+      "fullname",
+      "type"
+    ],
+    "type": "js",
+    "modulePath": "hf/auth.js",
+    "sourceFile": "hf/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "homebrew",
@@ -25808,6 +25965,36 @@
   },
   {
     "site": "quark",
+    "name": "login",
+    "description": "Open quark login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "quark.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "quark/auth.js",
+    "sourceFile": "quark/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "quark",
     "name": "ls",
     "description": "List files in your Quark Drive",
     "access": "read",
@@ -26082,6 +26269,25 @@
     "modulePath": "quark/share-tree.js",
     "sourceFile": "quark/share-tree.js",
     "navigateBefore": "https://pan.quark.cn"
+  },
+  {
+    "site": "quark",
+    "name": "whoami",
+    "description": "Show the current logged-in quark account",
+    "access": "read",
+    "domain": "quark.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "quark/auth.js",
+    "sourceFile": "quark/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "qwen",
@@ -33841,6 +34047,36 @@
   },
   {
     "site": "v2ex",
+    "name": "login",
+    "description": "Open v2ex login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "v2ex.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "v2ex/auth.js",
+    "sourceFile": "v2ex/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "v2ex",
     "name": "me",
     "description": "V2EX 获取个人资料 (余额/未读提醒)",
     "access": "read",
@@ -34076,6 +34312,25 @@
     "type": "js",
     "modulePath": "v2ex/user.js",
     "sourceFile": "v2ex/user.js"
+  },
+  {
+    "site": "v2ex",
+    "name": "whoami",
+    "description": "Show the current logged-in v2ex account",
+    "access": "read",
+    "domain": "v2ex.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "v2ex/auth.js",
+    "sourceFile": "v2ex/auth.js",
+    "navigateBefore": false
   },
   {
     "site": "wanfang",
