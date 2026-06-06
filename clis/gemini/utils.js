@@ -35,6 +35,32 @@ const GEMINI_COMPOSER_SELECTORS = [
 const GEMINI_COMPOSER_MARKER_ATTR = 'data-opencli-gemini-composer';
 const GEMINI_COMPOSER_PREPARE_ATTEMPTS = 4;
 const GEMINI_COMPOSER_PREPARE_WAIT_SECONDS = 1;
+function isObjectRecord(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+function unwrapGeminiEvaluateResult(value, context) {
+    if (isObjectRecord(value) && Object.prototype.hasOwnProperty.call(value, 'session')) {
+        if (Object.prototype.hasOwnProperty.call(value, 'data')) {
+            return value.data;
+        }
+        throw new CommandExecutionError(`${context} returned a malformed Browser Bridge envelope`);
+    }
+    return value;
+}
+function requireGeminiArrayResult(value, context) {
+    const unwrapped = unwrapGeminiEvaluateResult(value, context);
+    if (!Array.isArray(unwrapped)) {
+        throw new CommandExecutionError(`${context} returned a malformed result`);
+    }
+    return unwrapped;
+}
+function requireGeminiObjectResult(value, context) {
+    const unwrapped = unwrapGeminiEvaluateResult(value, context);
+    if (!isObjectRecord(unwrapped)) {
+        throw new CommandExecutionError(`${context} returned a malformed result`);
+    }
+    return unwrapped;
+}
 function buildGeminiComposerLocatorScript() {
     const selectorsJson = JSON.stringify(GEMINI_COMPOSER_SELECTORS);
     const markerAttrJson = JSON.stringify(GEMINI_COMPOSER_MARKER_ATTR);
@@ -1043,7 +1069,7 @@ export async function waitForGeminiConfirmButton(page, labels, timeoutSeconds) {
 }
 export async function getGeminiPageState(page) {
     await ensureGeminiPage(page);
-    return await page.evaluate(getStateScript());
+    return requireGeminiObjectResult(await page.evaluate(getStateScript()), 'Gemini status');
 }
 export async function startNewGeminiChat(page) {
     await ensureGeminiPage(page);
@@ -1056,12 +1082,16 @@ export async function startNewGeminiChat(page) {
 }
 export async function getGeminiConversationList(page) {
     await ensureGeminiPage(page);
-    const raw = await page.evaluate(getGeminiConversationListScript());
-    if (!Array.isArray(raw))
-        return [];
-    return raw
-        .filter((item) => item && typeof item.title === 'string' && typeof item.url === 'string')
-        .map((item) => ({ Title: item.title, Url: item.url }));
+    const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
+    const rows = raw.flatMap((item) => {
+        if (!isObjectRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
+            throw new CommandExecutionError('Gemini conversation list returned a malformed row');
+        }
+        if (!isGeminiConversationUrl(item.url))
+            return [];
+        return { Title: item.title, Url: item.url };
+    });
+    return rows;
 }
 export async function clickGeminiConversationByTitle(page, query) {
     await ensureGeminiPage(page);
@@ -1082,12 +1112,22 @@ export async function getGeminiVisibleTurns(page) {
 }
 async function getGeminiStructuredTurns(page) {
     await ensureGeminiPage(page);
-    const turns = collapseAdjacentGeminiTurns(await page.evaluate(getTurnsScript()));
+    const raw = requireGeminiArrayResult(await page.evaluate(getTurnsScript()), 'Gemini visible turns');
+    for (const turn of raw) {
+        if (!isObjectRecord(turn) || typeof turn.Role !== 'string' || typeof turn.Text !== 'string') {
+            throw new CommandExecutionError('Gemini visible turns returned a malformed row');
+        }
+    }
+    const turns = collapseAdjacentGeminiTurns(raw);
     return Array.isArray(turns) ? turns : [];
 }
 export async function getGeminiTranscriptLines(page) {
     await ensureGeminiPage(page);
-    return await page.evaluate(getTranscriptLinesScript());
+    const lines = requireGeminiArrayResult(await page.evaluate(getTranscriptLinesScript()), 'Gemini transcript lines');
+    if (!lines.every((line) => typeof line === 'string')) {
+        throw new CommandExecutionError('Gemini transcript lines returned a malformed row');
+    }
+    return lines;
 }
 export async function waitForGeminiTranscript(page, attempts = 5) {
     let lines = [];
@@ -1112,7 +1152,15 @@ export async function getLatestGeminiAssistantResponse(page) {
 }
 export async function readGeminiSnapshot(page) {
     await ensureGeminiPage(page);
-    return await page.evaluate(readGeminiSnapshotScript());
+    const snapshot = requireGeminiObjectResult(await page.evaluate(readGeminiSnapshotScript()), 'Gemini page snapshot');
+    if (!Array.isArray(snapshot.turns) ||
+        !Array.isArray(snapshot.transcriptLines) ||
+        typeof snapshot.composerHasText !== 'boolean' ||
+        typeof snapshot.isGenerating !== 'boolean' ||
+        typeof snapshot.structuredTurnsTrusted !== 'boolean') {
+        throw new CommandExecutionError('Gemini page snapshot returned a malformed result');
+    }
+    return snapshot;
 }
 function findLastUserTurnIndex(turns) {
     for (let index = turns.length - 1; index >= 0; index -= 1) {

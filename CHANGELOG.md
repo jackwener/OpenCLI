@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.8.3](https://github.com/jackwener/opencli/compare/v1.8.2...v1.8.3) (2026-06-06)
+
+Patch release focused on two architectural fixes around extension and daemon lifecycle, plus the first wave of the new site auth subsystem.
+
+### Bug Fixes
+
+* **extension 1.0.19** — close the MV3 Service Worker race that spawned duplicate `OpenCLI Adapter` tab groups (and, in the worst case, duplicate Adapter windows). The extension now persists the owned `windowId` immediately after `chrome.windows.create` returns and persists the owned `groupId` immediately after `chrome.tabs.group` returns, so a worker death between those API calls and the subsequent `chrome.tabGroups.update` no longer leaves a titleless orphan group and no longer drops the window pointer. Title-update failure no longer ungroups (it lets `ensureCanonicalGroupTitle` self-heal on the next ensure cycle), and `collectOwnedGroupCandidates` gains a fourth recovery layer: a global scan for empty-title groups containing a known owned `preferredTabId` for the role, with explicit hijack defense for user-built untitled groups. Closes the duplicate-tab-group bug report users had reported across the 1.8.2 window. ([#1862](https://github.com/jackwener/opencli/pull/1862))
+* **daemon** — SIGKILL fallback when the stale daemon refuses graceful shutdown. After `npm install -g @jackwener/opencli@latest`, the CLI detects a version-mismatched daemon (`daemonVersion !== PKG_VERSION`), asks it to exit via `/shutdown`, and now — if the port is still held after 3 s — reads the stale daemon's pid from its own `/status` response and `process.kill(pid, 'SIGKILL')` (cross-platform: maps to `TerminateProcess` on Windows). The previous flow surfaced `Stale daemon could not be replaced` and asked users to run `opencli daemon stop && opencli doctor`; this is now automatic. ([#1861](https://github.com/jackwener/opencli/pull/1861))
+* **xiaohongshu/publish** — prioritize the visible title input when the editor renders both a hidden draft input and a visible publish input.
+* **xiaohongshu/publish** — accept inline topic suggestions with Enter when the dropdown lives inside a Shadow DOM surface, while still verifying the topic marker appears in the editor.
+* **instagram/following** — paginate beyond the first endpoint page so high `--limit` values return more than the initial batch.
+
+### Features
+
+* **site auth subsystem** — new `opencli <site> login` and `opencli <site> whoami` commands, registered through a shared `clis/_shared/site-auth.js` helper. `login` opens the site's auth page in a foreground persistent session and polls the configured `verify` probe (cookie, JSON API, DOM scrape) until the browser session reports logged-in; `whoami` runs the same probe without opening the page. First five sites: twitter, github, bilibili, douyin, xiaohongshu. `whoami` outputs are PII-scrubbed (no email / phone / token in row columns). ([#1852](https://github.com/jackwener/opencli/pull/1852))
+* **gemini** — add read-only conversation commands (list / read / search).
+* **manus** — add a read-only `manus.im` adapter.
+
+### Docs / Sitemap
+
+* **sitemaps/xiaohongshu** — Phase 2 sitemap content seeded with login schema dogfood, the first non-PoC consumer of the v1.1 sitemap schema. ([#1853](https://github.com/jackwener/opencli/pull/1853))
+
+### Internal
+
+* **test(e2e)** — raise `runCli` `maxBuffer` so manifest-output snapshots no longer truncate on macOS / Windows CI.
+
 ## [1.8.2](https://github.com/jackwener/opencli/compare/v1.8.1...v1.8.2) (2026-06-03)
 
 Mid-cycle release: introduces the **Site Maps Hub** subsystem (agent-facing per-site navigation knowledge), restores the **smart-search** skill, and ships a wide batch of new adapters / commands plus a long tail of read-path fixes. Extension bumped to 1.0.18 for an owned-group reusable-tab scope fix.

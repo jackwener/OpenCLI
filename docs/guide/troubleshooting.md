@@ -42,6 +42,8 @@ opencli doctor
 
 > The daemon is persistent and stays alive until explicitly stopped (`opencli daemon stop`) or the package is uninstalled.
 
+> When the CLI detects a stale daemon (version mismatch after `npm install -g @jackwener/opencli@latest`), it first asks the daemon to shut down via `/shutdown`, then falls back to `SIGKILL` if the daemon does not release the port within 3 seconds. Manual `opencli daemon stop` is only needed if SIGKILL itself is rejected (cross-user owner / cross-machine PID file).
+
 ### Desktop adapter connection issues
 
 For Electron/CDP-based adapters (Cursor, Codex, etc.):
