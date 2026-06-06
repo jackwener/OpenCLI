@@ -1,6 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { extractMedia, extractCard, extractQuotedTweet, normalizeTwitterGraphqlPayload, resolveTwitterOperationMetadata } from './shared.js';
+import { extractMedia, extractCard, extractQuotedTweet, normalizeTwitterGraphqlPayload, resolveTwitterOperationMetadata, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
 // ── Public-search operator surface ─────────────────────────────────────
@@ -44,7 +44,7 @@ const PRODUCT_TO_GRAPHQL_PRODUCT = Object.freeze({
 const MAX_PAGINATION_PAGES = 100;
 
 const SEARCH_TIMELINE_OPERATION = {
-    queryId: 'VhUd6vHVmLBcw0uX-6jMLA',
+    queryId: 'Yw6L66Pw54NHKuq4Dp7b4Q',
     features: {
     rweb_video_screen_enabled: true,
     rweb_cashtags_enabled: true,
@@ -275,7 +275,7 @@ cli({
         { name: 'limit', type: 'int', default: 15, help: 'Maximum number of tweets to return (default 15). Result count after server-side filtering.' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the results by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
-    columns: ['id', 'author', 'bio', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls', 'card', 'quoted_tweet'],
+    columns: ['id', 'author', 'bio', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet'],
     func: async (page, kwargs) => {
         const finalQuery = buildSearchQuery(kwargs.query, kwargs);
         if (!finalQuery) {
@@ -318,7 +318,7 @@ cli({
         return r.ok ? await r.json() : { error: r.status };
       }`));
             if (data?.error) {
-                if (results.length === 0) throw new CommandExecutionError(`HTTP ${data.error}: SearchTimeline fetch failed — queryId may have expired`);
+                if (results.length === 0) throw new CommandExecutionError(describeTwitterApiError('SearchTimeline', data.error));
                 break;
             }
             const { rows, nextCursor } = parseSearchTimeline(data, seen);

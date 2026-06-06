@@ -31,8 +31,11 @@ describe('twitter list-tweets parser', () => {
             replies: 2,
             created_at: 'Wed Apr 16 10:00:00 +0000 2026',
             url: 'https://x.com/bob/status/99',
+            card: null,
+            quoted_tweet: null,
             has_media: false,
             media_urls: [],
+            media_posters: [],
             card: null,
             quoted_tweet: null,
         });
@@ -72,6 +75,7 @@ describe('twitter list-tweets parser', () => {
             url: 'https://x.com/alice/status/499',
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/x.jpg'],
+            media_posters: ['https://pbs.twimg.com/media/x.jpg'],
         });
     });
 
