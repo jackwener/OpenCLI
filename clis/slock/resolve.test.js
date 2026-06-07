@@ -3,6 +3,7 @@ import { UUID_RE } from './resolve.js';
 import { classifyThreadTarget } from './resolve.js';
 import { classifyTarget } from './resolve.js';
 import { assertMessageIdShape } from './resolve.js';
+import { resolveServerOverride } from './resolve.js';
 
 describe('UUID_RE', () => {
   it('matches a v4-shaped uuid', () => {
@@ -63,5 +64,25 @@ describe('assertMessageIdShape', () => {
 
   it('rejects short ids with a hint mentioning "NOT accepted"', () => {
     expect(() => assertMessageIdShape('8af3cbbb')).toThrow(/NOT accepted/);
+  });
+});
+
+describe('resolveServerOverride', () => {
+  const list = [
+    { id: '11111111-1111-1111-1111-111111111111', slug: 'engineering' },
+    { id: '22222222-2222-2222-2222-222222222222', slug: 'design' },
+  ];
+
+  it('resolves a slug match (case-insensitive, # prefix tolerated) to its id', () => {
+    expect(resolveServerOverride('#Engineering', list)).toBe('11111111-1111-1111-1111-111111111111');
+  });
+
+  it('passes a UUID through unchanged', () => {
+    expect(resolveServerOverride('22222222-2222-2222-2222-222222222222', list))
+      .toBe('22222222-2222-2222-2222-222222222222');
+  });
+
+  it('throws BAD_SERVER when slug is unknown and lists choices', () => {
+    expect(() => resolveServerOverride('marketing', list)).toThrow(/no server matches.*engineering, design/);
   });
 });

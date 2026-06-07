@@ -42,3 +42,15 @@ export function assertMessageIdShape(messageId) {
   }
   return v;
 }
+
+// list items are { id, slug? }
+export function resolveServerOverride(input, list) {
+  const raw = String(input ?? '').trim();
+  if (!raw) throw new Error('--server requires a slug or id');
+  if (UUID_RE.test(raw)) return raw;
+  const slug = raw.replace(/^#/, '').toLowerCase();
+  const m = list.find((s) => (s.slug || '').toLowerCase() === slug);
+  if (m) return m.id;
+  const choices = list.map((s) => s.slug).filter(Boolean).join(', ');
+  throw new Error(`--server: no server matches "${raw}". Known slugs: ${choices}`);
+}
