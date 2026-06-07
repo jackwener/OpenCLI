@@ -49,7 +49,7 @@ describe('slock attachment-upload', () => {
     } finally { spy.mockRestore(); }
   });
 
-  it('sends a multipart upload with field name "files" (Bugen contract)', async () => {
+  it('sends a multipart upload with field name "files" (Bugen contract) and the uploadHeaders invariants', async () => {
     const f = tmpfile(Buffer.from('hello world')); files.push(f);
     const page = makePage({
       kind: 'ok',
@@ -58,18 +58,43 @@ describe('slock attachment-upload', () => {
     const rows = await command.func(page, { file: f });
     expect(page.evaluate).toHaveBeenCalledOnce();
     const snippet = page.evaluate.mock.calls[0][0];
+
     // multipart field name MUST be 'files' — multer.array('files', 5). If
-    // someone changes it to 'file' the server returns 400; this assertion
-    // catches that drift before it ships.
+    // someone changes it to 'file' the server returns 400; this catches drift
+    // before it ships.
     expect(snippet).toContain("fd.append('files'");
-    // We post to the upload endpoint, and we DON'T forward content-type into
-    // the form-data fetch so the browser builds its own multipart boundary.
-    // (We build `uploadHeaders` from scratch, copying only authorization,
-    // accept, and x-server-id — content-type intentionally absent.)
+    // Endpoint stays put.
     expect(snippet).toContain('/api/attachments/upload');
-    expect(snippet).toContain('uploadHeaders');
-    // The form fetch's headers object must be uploadHeaders, not the JSON one.
-    expect(snippet).toMatch(/body: fd[\s,]/);
+
+    // --- The from-scratch `uploadHeaders` invariants (托瓦茲 #1 fix-now). ---
+    //
+    // The whole point of building uploadHeaders from scratch is: forward auth,
+    // drop content-type so the browser sets its own multipart boundary. If a
+    // future refactor either (a) drops Bearer / X-Server-Id, or (b) re-adds
+    // content-type, multipart auth or the boundary breaks.
+
+    // POSITIVE — Bearer MUST be copied into uploadHeaders. Drift catch: if
+    // someone writes `const uploadHeaders = { accept: headers.accept }` and
+    // forgets authorization, requests go out unauthenticated → 401 in prod.
+    expect(snippet).toMatch(/uploadHeaders\s*=\s*\{[^}]*\bauthorization\s*:\s*headers\.authorization/);
+
+    // POSITIVE — X-Server-Id MUST be conditionally forwarded. Drift catch:
+    // dropping this line means server-scoped uploads fall back to no-server
+    // selection and 400/403.
+    expect(snippet).toMatch(/uploadHeaders\[['"]x-server-id['"]\]\s*=\s*headers\[['"]x-server-id['"]\]/);
+
+    // NEGATIVE — content-type MUST NOT be set on uploadHeaders, in any form
+    // (bracket, dot, camelCase, quoted, unquoted). If anyone adds one,
+    // the browser stops generating the multipart boundary and the server
+    // 400s with "unexpected end of form".
+    expect(snippet).not.toMatch(/uploadHeaders\s*[\[\.][^=]*content[-_]?type/i);
+
+    // POSITIVE — fetch's headers field is uploadHeaders (not the raw `headers`
+    // which still carries content-type: application/json). Drift catch: a
+    // refactor that passes `headers` instead would silently break multipart.
+    expect(snippet).toMatch(/fetch\([^)]*?,[\s\S]*?headers:\s*uploadHeaders/);
+    expect(snippet).toMatch(/body:\s*fd[\s,]/);
+
     expect(rows[0]).toMatchObject({
       attachmentId: '550e8400-e29b-41d4-a716-446655440000',
       filename: path.basename(f),
