@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { UUID_RE } from './resolve.js';
 import { classifyThreadTarget } from './resolve.js';
+import { classifyTarget } from './resolve.js';
 
 describe('UUID_RE', () => {
   it('matches a v4-shaped uuid', () => {
@@ -29,5 +30,26 @@ describe('classifyThreadTarget', () => {
 
   it('returns null when the suffix is shorter than 6 chars (not a thread shape)', () => {
     expect(classifyThreadTarget('#general:abc')).toBeNull();
+  });
+});
+
+describe('classifyTarget', () => {
+  it('treats "#name" as a channel-name target', () => {
+    expect(classifyTarget('#general')).toEqual({ kind: 'channel-name', name: 'general' });
+  });
+
+  it('treats a raw 36-char uuid as a channel-uuid target', () => {
+    expect(classifyTarget('550e8400-e29b-41d4-a716-446655440000')).toEqual({
+      kind: 'channel-uuid',
+      channelId: '550e8400-e29b-41d4-a716-446655440000',
+    });
+  });
+
+  it('treats "dm:@name" as a dm-name target', () => {
+    expect(classifyTarget('dm:@alice')).toEqual({ kind: 'dm-name', name: 'alice' });
+  });
+
+  it('rejects "dm:not-a-uuid" with an ArgumentError-shaped throw', () => {
+    expect(() => classifyTarget('dm:nope')).toThrow(/dm target must be/);
   });
 });

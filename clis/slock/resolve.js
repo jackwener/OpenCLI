@@ -7,3 +7,25 @@ export function classifyThreadTarget(raw) {
   if (!m) return null;
   return { parentTarget: m[1], parentMsgId: m[2] };
 }
+
+// Target kinds:
+//   { kind: 'channel-uuid', channelId }
+//   { kind: 'channel-name', name }
+//   { kind: 'dm-uuid', userId }
+//   { kind: 'dm-name', name }
+//   { kind: 'thread', parentTarget, parentMsgId }
+export function classifyTarget(raw) {
+  const v = String(raw ?? '').trim();
+  if (!v) throw new Error('target required: "#channel", "#channel:threadShortId", "dm:@name", "dm:<userId>", or channelId UUID.');
+  if (v.startsWith('dm:')) {
+    const rest = v.slice(3);
+    if (!rest) throw new Error('dm target must be "dm:<userId>" or "dm:@name".');
+    if (UUID_RE.test(rest)) return { kind: 'dm-uuid', userId: rest };
+    if (rest.startsWith('@')) return { kind: 'dm-name', name: rest.slice(1) };
+    throw new Error('dm target must be "dm:<userId-uuid>" or "dm:@name".');
+  }
+  const tt = classifyThreadTarget(v);
+  if (tt) return { kind: 'thread', ...tt };
+  if (UUID_RE.test(v)) return { kind: 'channel-uuid', channelId: v };
+  return { kind: 'channel-name', name: v.replace(/^#/, '').toLowerCase() };
+}
