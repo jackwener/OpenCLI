@@ -19,6 +19,10 @@ export async function mapConcurrent<T, R>(
   fn: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
+  const workerCount = Math.min(
+    Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 1,
+    items.length,
+  );
   let index = 0;
 
   async function worker() {
@@ -28,7 +32,7 @@ export async function mapConcurrent<T, R>(
     }
   }
 
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+  const workers = Array.from({ length: workerCount }, () => worker());
   await Promise.all(workers);
   return results;
 }

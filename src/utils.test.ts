@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  mapConcurrent,
   parseJsonOrThrowLoginWall,
   throwIfLoginWall,
   BROWSER_JSON_SNIFF_FN,
@@ -13,6 +14,27 @@ function makeResponse(body: string, opts: { status?: number; contentType?: strin
     headers: { 'content-type': opts.contentType ?? 'application/json' },
   });
 }
+
+describe('mapConcurrent', () => {
+  it('falls back to one worker for non-positive limits', async () => {
+    const seen: number[] = [];
+    const result = await mapConcurrent([1, 2, 3], 0, async (item, index) => {
+      seen.push(index);
+      return item * 2;
+    });
+    const negativeResult = await mapConcurrent([4, 5], -3, async (item) => item + 1);
+
+    expect(result).toEqual([2, 4, 6]);
+    expect(seen).toEqual([0, 1, 2]);
+    expect(negativeResult).toEqual([5, 6]);
+  });
+
+  it('falls back to one worker for non-finite limits', async () => {
+    const result = await mapConcurrent([1, 2], Number.NaN, async (item) => item);
+
+    expect(result).toEqual([1, 2]);
+  });
+});
 
 describe('parseJsonOrThrowLoginWall', () => {
   it('returns parsed JSON on a normal application/json response', async () => {
