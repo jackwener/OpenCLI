@@ -20,7 +20,7 @@ interface ManifestCompletionEntry {
 }
 
 /**
- * Returns true only if ALL manifest files exist and are readable.
+ * Returns true only if ALL manifest files exist, are readable, and contain JSON arrays.
  * If any source lacks a manifest (e.g. user adapters without a compiled manifest),
  * the fast path must not be used — otherwise those adapters would silently
  * disappear from completion results.
@@ -28,7 +28,8 @@ interface ManifestCompletionEntry {
 export function hasAllManifests(manifestPaths: string[]): boolean {
   for (const p of manifestPaths) {
     try {
-      fs.accessSync(p);
+      const raw = fs.readFileSync(p, 'utf-8');
+      if (!Array.isArray(JSON.parse(raw))) return false;
     } catch {
       return false;
     }
