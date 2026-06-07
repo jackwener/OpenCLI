@@ -12,7 +12,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { type InternalCliCommand, Strategy, registerCommand } from './registry.js';
+import { type InternalCliCommand, Strategy, cli, registerCommand } from './registry.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import type { ManifestEntry } from './manifest-types.js';
@@ -34,6 +34,15 @@ function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Str
 }
 
 const PACKAGE_ROOT = findPackageRoot(fileURLToPath(import.meta.url));
+
+function ensureLegacyPluginGlobals(): void {
+  const legacyGlobals = globalThis as typeof globalThis & {
+    cli?: typeof cli;
+    Strategy?: typeof Strategy;
+  };
+  legacyGlobals.cli ??= cli;
+  legacyGlobals.Strategy ??= Strategy;
+}
 
 /**
  * Ensure ~/.opencli/node_modules/@jackwener/opencli symlink exists so that
@@ -189,6 +198,7 @@ async function discoverClisFromFs(dir: string): Promise<void> {
  */
 export async function discoverPlugins(): Promise<void> {
   try { await fs.promises.access(PLUGINS_DIR); } catch { return; }
+  ensureLegacyPluginGlobals();
   const entries = await fs.promises.readdir(PLUGINS_DIR, { withFileTypes: true });
   await Promise.all(entries.map(async (entry) => {
     const pluginDir = path.join(PLUGINS_DIR, entry.name);
