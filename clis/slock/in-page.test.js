@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildFetchSnippet } from './in-page.js';
+import { buildFetchSnippet, buildChannelScopedSnippet, channelResolveFragment } from './in-page.js';
+
+const UUID_A = '11111111-1111-1111-1111-111111111111';
 
 // Run a snippet in this realm with fetch + localStorage stubbed.
 // async + awaited inside try/finally so globals are restored only AFTER
@@ -116,4 +118,55 @@ describe('buildFetchSnippet [red-line] injection safety', () => {
       expect(sentBody.content).toBe(evil);
     });
   }
+});
+
+describe('buildChannelScopedSnippet', () => {
+  it('UUID channel + server override: single fetch straight to /channels/:id<suffix>', async () => {
+    const snippet = buildChannelScopedSnippet({
+      channelInput: UUID_A, method: 'GET', pathSuffix: '/members', serverIdOverride: 'sid-x',
+    });
+    const fakeFetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'u1' }] });
+    const result = await runSnippet(snippet, fakeFetch, { slock_access_token: 'tkn' });
+    // No /servers/ resolve (override) and no /channels/ resolve (uuid) — one call.
+    expect(fakeFetch).toHaveBeenCalledTimes(1);
+    expect(fakeFetch.mock.calls[0][0]).toBe(`/api/channels/${UUID_A}/members`);
+    expect(fakeFetch.mock.calls[0][1].headers['x-server-id']).toBe('sid-x');
+    expect(result).toEqual({ kind: 'ok', rows: [{ id: 'u1' }] });
+  });
+
+  it('#name channel: resolves slug→sid, then name→id, then hits the target', async () => {
+    const snippet = buildChannelScopedSnippet({
+      channelInput: '#general', method: 'POST', pathSuffix: '/read-all',
+    });
+    const fakeFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'sid-1', slug: 'eng' }] })   // /servers/
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'chan-7', name: 'general' }] }) // /channels/
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true, seq: 42 }) });            // target
+    const result = await runSnippet(snippet, fakeFetch, {
+      slock_access_token: 'tkn', slock_last_server_slug: 'eng',
+    });
+    expect(fakeFetch.mock.calls[2][0]).toBe('/api/channels/chan-7/read-all');
+    expect(result).toEqual({ kind: 'ok', rows: { ok: true, seq: 42 } });
+  });
+
+  it('unresolvable channel name → kind:"unresolvable", no target fetch', async () => {
+    const snippet = buildChannelScopedSnippet({
+      channelInput: '#ghost', method: 'GET', serverIdOverride: 'sid-x',
+    });
+    const fakeFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'chan-7', name: 'general' }] }); // /channels/
+    const result = await runSnippet(snippet, fakeFetch, { slock_access_token: 'tkn' });
+    expect(result).toMatchObject({ kind: 'unresolvable' });
+    expect(fakeFetch).toHaveBeenCalledTimes(1); // only the resolve, no target
+  });
+});
+
+describe('channelResolveFragment', () => {
+  it('embeds the lowercased bare name (leading # stripped) as the lookup key', () => {
+    const frag = channelResolveFragment('#General');
+    // The name-lookup key is lowercased with the # stripped...
+    expect(frag).toContain('=== "general"');
+    // ...and never lowercases/strips into a different key.
+    expect(frag).not.toContain('=== "#general"');
+  });
 });
