@@ -33,6 +33,7 @@ describe('twitter list-tweets parser', () => {
             url: 'https://x.com/bob/status/99',
             has_media: false,
             media_urls: [],
+            media_posters: [],
             card: null,
             quoted_tweet: null,
         });
@@ -72,6 +73,7 @@ describe('twitter list-tweets parser', () => {
             url: 'https://x.com/alice/status/499',
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/x.jpg'],
+            media_posters: ['https://pbs.twimg.com/media/x.jpg'],
         });
     });
 

@@ -278,25 +278,39 @@ export async function resolveTwitterQueryId(page, operationName, fallbackId) {
  * back to `entities.media` when the extended form is missing. For videos and
  * animated GIFs, returns the mp4 variant URL; for photos, returns
  * `media_url_https`.
+ *
+ * Also returns `media_posters`, index-aligned 1:1 with `media_urls`: the still
+ * preview image for each item. For videos / animated GIFs this is the
+ * `media_url_https` thumbnail (otherwise discarded in favour of the mp4 URL);
+ * for photos it equals the photo URL itself. Each entry is a non-null string —
+ * it falls back to the media URL if a thumbnail is somehow absent, preserving
+ * alignment.
  */
 export function extractMedia(legacy) {
     const media = legacy?.extended_entities?.media || legacy?.entities?.media;
     if (!Array.isArray(media) || media.length === 0) {
-        return { has_media: false, media_urls: [] };
+        return { has_media: false, media_urls: [], media_posters: [] };
     }
     const urls = [];
+    const posters = [];
     for (const m of media) {
         if (!m) continue;
         if (m.type === 'video' || m.type === 'animated_gif') {
             const variants = m.video_info?.variants || [];
             const mp4 = variants.find((v) => v?.content_type === 'video/mp4');
             const url = mp4?.url || m.media_url_https;
-            if (url) urls.push(url);
+            if (url) {
+                urls.push(url);
+                posters.push(m.media_url_https || url);
+            }
         } else {
-            if (m.media_url_https) urls.push(m.media_url_https);
+            if (m.media_url_https) {
+                urls.push(m.media_url_https);
+                posters.push(m.media_url_https);
+            }
         }
     }
-    return { has_media: urls.length > 0, media_urls: urls };
+    return { has_media: urls.length > 0, media_urls: urls, media_posters: posters };
 }
 
 /**
@@ -435,6 +449,7 @@ export function extractQuotedTweet(tweet) {
         url: `https://x.com/${qScreenName}/status/${qTw.rest_id}`,
         has_media: qMedia.has_media,
         media_urls: qMedia.media_urls,
+        media_posters: qMedia.media_posters,
     };
     if (qCard) out.card = qCard;
     return out;
