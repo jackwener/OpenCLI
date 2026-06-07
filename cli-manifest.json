@@ -26336,6 +26336,112 @@
   },
   {
     "site": "slock",
+    "name": "attachment-download",
+    "description": "Download an attachment to a local file. Resolves a signed CDN URL in the page, then fetches bytes node-side (no CORS).",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "attachmentId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Attachment UUID"
+      },
+      {
+        "name": "out",
+        "type": "str",
+        "required": false,
+        "help": "Local path to write to. Defaults to ./<attachmentId>.bin"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server slug"
+      }
+    ],
+    "columns": [
+      "attachmentId",
+      "out",
+      "sizeBytes"
+    ],
+    "type": "js",
+    "modulePath": "slock/attachment-download.js",
+    "sourceFile": "slock/attachment-download.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "attachment-upload",
+    "description": "Upload a local file to Slock attachments. Prints the attachmentId for use with `message-send --attach`.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Local file path to upload (single file; max 50 MB)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server slug"
+      }
+    ],
+    "columns": [
+      "attachmentId",
+      "filename",
+      "mimeType",
+      "sizeBytes"
+    ],
+    "type": "js",
+    "modulePath": "slock/attachment-upload.js",
+    "sourceFile": "slock/attachment-upload.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "attachment-url",
+    "description": "Get a short-lived signed CDN URL for an attachment (does not download bytes).",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "attachmentId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Attachment UUID"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server slug"
+      }
+    ],
+    "columns": [
+      "attachmentId",
+      "url",
+      "expiresAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/attachment-url.js",
+    "sourceFile": "slock/attachment-url.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
     "name": "bookmark-add",
     "description": "Bookmark a message (POST /channels/saved). Requires full messageId UUID.",
     "access": "write",
