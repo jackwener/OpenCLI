@@ -91,6 +91,7 @@ describe('buildFetchSnippet', () => {
   });
 });
 
+// Red-line: body is always JSON.stringify'd — no string concatenation, so injection is impossible.
 describe('buildFetchSnippet [red-line] injection safety', () => {
   for (const evil of [
     `'); alert('x'); ('`,
