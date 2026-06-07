@@ -1,17 +1,14 @@
-// task-list.js
+// task-list-server.js
 //
-// GET /api/tasks/channel/:channelId[?status=<status>]
+// GET /api/tasks/server[?status=<status>] — server-wide task feed.
 //
-// Chat tasks are messages with task fields (taskStatus / taskNumber / content),
-// not a separate table. Server unwraps responses as `{tasks: [...]}`. The
-// previous `--v2` flag and `/api/tasks/v2/` fallback were both dead — removed.
-//
-// Filtering: pass --status to narrow server-side; one of
-//   todo | in_progress | in_review | done | closed.
+// Source-verified (Bugen §Phase 9). Different from `task-list` which is
+// channel-scoped; this one returns tasks across all channels in the active
+// server. Same {tasks:[...]} response wrap.
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { authHeadersFragment, channelResolveFragment } from './in-page.js';
+import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
 
@@ -19,21 +16,18 @@ const TASK_STATUSES = ['todo', 'in_progress', 'in_review', 'done', 'closed'];
 
 cli({
   site: SLOCK_SITE,
-  name: 'task-list',
+  name: 'task-list-server',
   access: 'read',
-  description: 'List tasks (chat tasks = messages with task fields) attached to a channel. Optional --status filter.',
+  description: 'List tasks across all channels in the active server (GET /tasks/server). Optional --status filter.',
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'channel', positional: true, required: true, help: 'channelId UUID or #name' },
     { name: 'status', help: `Filter by status: ${TASK_STATUSES.join('|')}` },
     { name: 'server', help: 'Override active server' },
   ],
-  columns: ['id', 'taskNumber', 'title', 'taskStatus', 'assigneeId'],
+  columns: ['id', 'taskNumber', 'title', 'taskStatus', 'channelId', 'assigneeId'],
   func: async (page, kwargs) => {
-    const channel = String(kwargs.channel ?? '').trim();
-    if (!channel) throw new ArgumentError('channel required');
     const status = kwargs.status ? String(kwargs.status).trim() : '';
     if (status && !TASK_STATUSES.includes(status)) {
       throw new ArgumentError(`status "${status}" not in {${TASK_STATUSES.join('|')}}`);
@@ -41,15 +35,13 @@ cli({
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
-      ${channelResolveFragment(channel)}
       const status = ${JSON.stringify(status)};
       const qs = status ? ('?status=' + encodeURIComponent(status)) : '';
-      const tres = await fetch('/api/tasks/channel/' + encodeURIComponent(channelId) + qs, { credentials:'include', headers });
-      if (!tres.ok) return { kind: tres.status===401?'auth':'http', status: tres.status, where: '/tasks/channel/:id' };
-      const data = await tres.json();
-      // Server contract: { tasks: [...] }. Reject anything else as drift.
+      const res = await fetch('/api/tasks/server' + qs, { credentials:'include', headers });
+      if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where: '/tasks/server' };
+      const data = await res.json();
       if (!data || !Array.isArray(data.tasks)) {
-        return { kind: 'http', status: 200, where: '/tasks/channel/:id (expected {tasks:[]}, got drift)' };
+        return { kind: 'http', status: 200, where: '/tasks/server (expected {tasks:[]}, got drift)' };
       }
       return { kind: 'ok', rows: data.tasks };
     `;
@@ -63,6 +55,7 @@ cli({
       taskNumber: t.taskNumber ?? null,
       title: t.content ?? t.title ?? '',
       taskStatus: t.taskStatus ?? t.status ?? '',
+      channelId: t.channelId ?? null,
       assigneeId: t.assigneeId ?? null,
     }));
   },

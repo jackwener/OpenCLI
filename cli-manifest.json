@@ -27385,8 +27385,164 @@
   },
   {
     "site": "slock",
-    "name": "task-list",
-    "description": "List tasks attached to a channel",
+    "name": "task-claim",
+    "description": "Claim a chat task (PATCH /tasks/:id/claim). Requires full task UUID (= message id).",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "taskStatus",
+      "assigneeId",
+      "taskNumber"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-claim.js",
+    "sourceFile": "slock/task-claim.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-convert",
+    "description": "Convert a message into a chat task (POST /tasks/convert-message). Accepts a message UUID or \"#channel:shortId\".",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full message UUID, or \"#channel:shortId\" (short id expanded via /messages/context)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "channelId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-convert.js",
+    "sourceFile": "slock/task-convert.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-create",
+    "description": "Create a task in a channel (single title; batch 1-50 is server-supported but client surface is single — see backlog R4).",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task title (single; batch TODO via R4)"
+      },
+      {
+        "name": "desc",
+        "type": "str",
+        "required": false,
+        "help": "Optional description body for the task"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "channelId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-create.js",
+    "sourceFile": "slock/task-create.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-delete",
+    "description": "Delete a chat task (DELETE /tasks/:taskId). Requires --confirm — destructive, irreversible.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Required acknowledgement: deletion is irreversible"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-delete.js",
+    "sourceFile": "slock/task-delete.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-get",
+    "description": "Fetch a task by channel + taskNumber (GET /tasks/channel/:channelId/number/:taskNumber).",
     "access": "read",
     "domain": "slock.ai",
     "strategy": "cookie",
@@ -27400,11 +27556,11 @@
         "help": "channelId UUID or #name"
       },
       {
-        "name": "v2",
-        "type": "bool",
-        "default": false,
-        "required": false,
-        "help": "Use /tasks/v2 endpoint"
+        "name": "number",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "taskNumber (per-channel integer, as shown in \"task #N\")"
       },
       {
         "name": "server",
@@ -27415,13 +27571,165 @@
     ],
     "columns": [
       "id",
+      "taskNumber",
       "title",
-      "status",
-      "dueAt"
+      "taskStatus",
+      "assigneeId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-get.js",
+    "sourceFile": "slock/task-get.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-list",
+    "description": "List tasks (chat tasks = messages with task fields) attached to a channel. Optional --status filter.",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "Filter by status: todo|in_progress|in_review|done|closed"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "assigneeId"
     ],
     "type": "js",
     "modulePath": "slock/task-list.js",
     "sourceFile": "slock/task-list.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-list-server",
+    "description": "List tasks across all channels in the active server (GET /tasks/server). Optional --status filter.",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "Filter by status: todo|in_progress|in_review|done|closed"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "channelId",
+      "assigneeId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-list-server.js",
+    "sourceFile": "slock/task-list-server.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-status",
+    "description": "Set a task's status (PATCH /tasks/:taskId/status, body {status}). One of todo|in_progress|in_review|done|closed.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "One of: todo|in_progress|in_review|done|closed"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "taskStatus",
+      "assigneeId",
+      "taskNumber"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-status.js",
+    "sourceFile": "slock/task-status.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-unclaim",
+    "description": "Release ownership of a chat task (PATCH /tasks/:id/unclaim).",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "taskStatus",
+      "assigneeId",
+      "taskNumber"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-unclaim.js",
+    "sourceFile": "slock/task-unclaim.js",
     "navigateBefore": "https://slock.ai"
   },
   {
