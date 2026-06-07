@@ -71,4 +71,35 @@ describe('slock message-send', () => {
     await command.func(page, { target: '#general', content: 'hi', server: 'design' });
     expect(page.evaluate.mock.calls[0][0]).toContain('"design"');
   });
+
+  it('--as-task adds asTask:true to the POST body', async () => {
+    const page = makePage();
+    await command.func(page, { target: '#general', content: 'ship it', 'as-task': true });
+    expect(page.evaluate.mock.calls[0][0]).toContain('asTask: true');
+  });
+
+  it('--attach embeds the attachmentId UUIDs in the body', async () => {
+    const page = makePage();
+    const a = '550e8400-e29b-41d4-a716-446655440000';
+    const b = '550e8400-e29b-41d4-a716-446655440001';
+    await command.func(page, { target: '#general', content: 'files', attach: `${a}, ${b}` });
+    const script = page.evaluate.mock.calls[0][0];
+    expect(script).toContain('attachmentIds');
+    expect(script).toContain(a);
+    expect(script).toContain(b);
+  });
+
+  it('--attach rejects a non-UUID id before navigation', async () => {
+    const page = makePage();
+    await expect(command.func(page, { target: '#general', content: 'x', attach: 'not-a-uuid' }))
+      .rejects.toBeInstanceOf(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('--as-task is reflected in the --dry-run plan row', async () => {
+    const page = makePage();
+    const rows = await command.func(page, { target: '#general', content: 'hi', 'as-task': true, 'dry-run': true });
+    expect(page.evaluate).not.toHaveBeenCalled();
+    expect(rows[0]).toMatchObject({ result: 'dry-run (asTask)' });
+  });
 });

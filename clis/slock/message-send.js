@@ -17,6 +17,8 @@ cli({
     { name: 'target', positional: true, required: true, help: '"#channel", "#channel:msgIdOrShort", "dm:@name", "dm:<uuid>", or channel UUID' },
     { name: 'content', positional: true, required: true, help: 'Message body (sent verbatim, no marker)' },
     { name: 'dry-run', type: 'bool', default: false, help: 'Print the planned payload without sending' },
+    { name: 'as-task', type: 'bool', default: false, help: 'Create the message as a task (asTask)' },
+    { name: 'attach', help: 'Comma-separated attachmentId UUIDs (upload separately first)' },
     { name: 'server', help: 'Override active server (slug or id)' },
   ],
   columns: ['target', 'channelId', 'content', 'result', 'messageId'],
@@ -24,19 +26,27 @@ cli({
     const target = String(kwargs.target ?? '').trim();
     if (!target) throw new ArgumentError('target required');
     const content = String(kwargs.content ?? '');
+    const asTask = !!kwargs['as-task'];
+    const attachmentIds = String(kwargs.attach ?? '')
+      .split(',').map((s) => s.trim()).filter(Boolean);
+    for (const aid of attachmentIds) {
+      if (!UUID_RE.test(aid)) throw new ArgumentError(`--attach expects attachmentId UUIDs; "${aid}" is not a UUID`);
+    }
     let cls;
     try { cls = classifyTarget(target); }
     catch (e) { throw new ArgumentError(e.message); }
 
+    const extra = { asTask, attachmentIds };
+
     if (kwargs['dry-run']) {
       return [{
         target, channelId: '(not resolved in dry-run)', content,
-        result: 'dry-run', messageId: null,
+        result: asTask ? 'dry-run (asTask)' : 'dry-run', messageId: null,
       }];
     }
 
     await page.goto(SLOCK_HOME_URL);
-    const snippet = buildSendSnippet(target, content, cls, kwargs.server);
+    const snippet = buildSendSnippet(target, content, cls, kwargs.server, extra);
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
     const r = rows[0] ?? {};
@@ -50,9 +60,15 @@ cli({
   },
 });
 
-function buildSendSnippet(target, content, cls, serverOverride) {
+function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
   const override = serverOverride ? JSON.stringify(serverOverride) : 'null';
   const contentJson = JSON.stringify(content);
+  const extraParts = [];
+  if (extra.asTask) extraParts.push('asTask: true');
+  if (Array.isArray(extra.attachmentIds) && extra.attachmentIds.length) {
+    extraParts.push(`attachmentIds: ${JSON.stringify(extra.attachmentIds)}`);
+  }
+  const extraStr = extraParts.length ? ', ' + extraParts.join(', ') : '';
   const auth = `
     const token = localStorage.getItem('slock_access_token');
     if (!token) return { kind: 'auth', detail: 'no token' };
@@ -70,7 +86,7 @@ function buildSendSnippet(target, content, cls, serverOverride) {
     const headers = { authorization:'Bearer '+token, accept:'application/json', 'content-type':'application/json', 'x-server-id': sid };
   `;
   const postMsg = `
-    const mres = await fetch('/api/messages', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId, content: ${contentJson} }) });
+    const mres = await fetch('/api/messages', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId, content: ${contentJson}${extraStr} }) });
     if (!mres.ok) return { kind: mres.status===401?'auth':'http', status: mres.status, where:'/messages' };
     const m = await mres.json();
     return { kind: 'ok', rows: [{ id: m.id ?? m.messageId, channelId }] };
