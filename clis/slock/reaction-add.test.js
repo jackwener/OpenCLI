@@ -28,7 +28,9 @@ describe('slock reaction-add', () => {
   it('full UUID + emoji POSTs to /messages/:id/reactions and returns added', async () => {
     const page = makePage();
     const rows = await command.func(page, { messageId: UUID, emoji: '👍' });
-    expect(page.evaluate.mock.calls[0][0]).toContain(`/api/messages/${UUID}/reactions`);
+    const script = page.evaluate.mock.calls[0][0];
+    expect(script).toContain(`/api/messages/${UUID}/reactions`);
+    expect(script).toContain('emoji'); // body is {emoji}, server validates via parseReactionEmoji
     expect(rows[0]).toMatchObject({ messageId: UUID, emoji: '👍', result: 'added' });
   });
 });

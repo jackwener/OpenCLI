@@ -23,10 +23,12 @@ cli({
     const snippet = `
       ${authHeadersFragment({ serverScoped: false })}
       const sres = await fetch('/api/servers/', { credentials:'include', headers });
-      if (!sres.ok) return { kind: sres.status===401?'auth':'http', status: sres.status, where:'/servers/' };
+      if (sres.status === 401) return { kind: 'auth', detail: '/servers/ returned 401' };
+      if (!sres.ok) return { kind: 'http', status: sres.status, where:'/servers/' };
       const servers = await sres.json();
       const ures = await fetch('/api/servers/unread-summary', { credentials:'include', headers });
-      if (!ures.ok) return { kind: ures.status===401?'auth':'http', status: ures.status, where:'/servers/unread-summary' };
+      if (ures.status === 401) return { kind: 'auth', detail: '/servers/unread-summary returned 401' };
+      if (!ures.ok) return { kind: 'http', status: ures.status, where:'/servers/unread-summary' };
       const summary = await ures.json();
       const byId = {};
       (Array.isArray(servers) ? servers : []).forEach((s) => { if (s && s.id) byId[s.id] = s; });

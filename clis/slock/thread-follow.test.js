@@ -21,6 +21,7 @@ describe('slock thread-follow', () => {
     const rows = await command.func(page, { parentMessageId: UUID });
     const script = page.evaluate.mock.calls[0][0];
     expect(script).toContain('/channels/threads/follow');
+    expect(script).toContain('parentMessageId'); // body keyed by parentMessageId, not threadChannelId
     expect(rows[0]).toMatchObject({ parentMessageId: UUID, threadChannelId: 'th1', result: 'followed' });
   });
 });

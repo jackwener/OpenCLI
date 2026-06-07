@@ -23,6 +23,7 @@ describe('slock reaction-remove', () => {
     const script = page.evaluate.mock.calls[0][0];
     expect(script).toContain(`/api/messages/${UUID}/reactions`);
     expect(script).toContain('"DELETE"');
+    expect(script).toContain('emoji'); // body is {emoji}
     expect(rows[0]).toMatchObject({ messageId: UUID, emoji: '👍', result: 'removed' });
   });
 });

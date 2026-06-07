@@ -29,7 +29,9 @@ describe('slock thread-state factory', () => {
     it(`${name}: POSTs /channels/threads/${verb} and returns "${label}"`, async () => {
       const page = makePage();
       const rows = await command.func(page, { threadChannelId: UUID });
-      expect(page.evaluate.mock.calls[0][0]).toContain(`/channels/threads/${verb}`);
+      const script = page.evaluate.mock.calls[0][0];
+      expect(script).toContain(`/channels/threads/${verb}`);
+      expect(script).toContain('threadChannelId'); // body keyed by threadChannelId, not parentMessageId
       expect(rows[0]).toMatchObject({ threadChannelId: UUID, result: label });
     });
   }

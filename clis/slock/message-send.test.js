@@ -102,4 +102,21 @@ describe('slock message-send', () => {
     expect(page.evaluate).not.toHaveBeenCalled();
     expect(rows[0]).toMatchObject({ result: 'dry-run (asTask)' });
   });
+
+  it('[red-line] a channel name with a quote cannot break out of the snippet string', async () => {
+    const page = makePage({ kind: 'unresolvable', detail: 'x' });
+    await command.func(page, { target: "#ev'il", content: 'x' }).catch(() => {});
+    const script = page.evaluate.mock.calls[0][0];
+    // Vulnerable form would embed the name raw as `matches ev'il`, letting the
+    // quote close the string literal. The name must only appear JSON-encoded.
+    expect(script).not.toContain("no channel matches ev'il");
+    expect(script).toContain('"ev\'il"');
+  });
+
+  it('[red-line] a dm:@name with a quote is JSON-encoded, not interpolated raw', async () => {
+    const page = makePage({ kind: 'unresolvable', detail: 'x' });
+    await command.func(page, { target: "dm:@ev'il", content: 'x' }).catch(() => {});
+    const script = page.evaluate.mock.calls[0][0];
+    expect(script).not.toContain("no member @ev'il");
+  });
 });

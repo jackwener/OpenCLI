@@ -100,7 +100,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
       if (!cres.ok) return { kind: cres.status===401?'auth':'http', status: cres.status, where:'/channels/' };
       const carr = await cres.json();
       const hit = (Array.isArray(carr)?carr:(carr.channels||carr.data||[])).find((c) => (c.name||c.slug||'').toLowerCase() === ${JSON.stringify(cls.name)});
-      if (!hit) return { kind: 'unresolvable', detail: 'no channel matches ${cls.name}' };
+      if (!hit) return { kind: 'unresolvable', detail: 'no channel matches ' + ${JSON.stringify(cls.name)} };
       let channelId = hit.id;
     `;
   } else if (cls.kind === 'dm-uuid') {
@@ -118,7 +118,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
       const mlist = await sres2.json();
       const marr = Array.isArray(mlist) ? mlist : (mlist.members || mlist.data || []);
       const mh = marr.find((u) => (u.username||u.name||u.displayName||'').toLowerCase() === ${JSON.stringify(cls.name.toLowerCase())});
-      if (!mh) return { kind: 'unresolvable', detail: 'no member @${cls.name}' };
+      if (!mh) return { kind: 'unresolvable', detail: 'no member @' + ${JSON.stringify(cls.name)} };
       const dres = await fetch('/api/channels/dm', { method:'POST', credentials:'include', headers, body: JSON.stringify({ userId: mh.userId ?? mh.id }) });
       if (!dres.ok) return { kind: dres.status===401?'auth':'http', status: dres.status, where:'/channels/dm' };
       const dd = await dres.json();

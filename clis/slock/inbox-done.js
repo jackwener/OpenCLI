@@ -27,7 +27,8 @@ cli({
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
       ${channelResolveFragment(channel)}
       const res = await fetch('/api/channels/inbox/done', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId }) });
-      if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/channels/inbox/done' };
+      if (res.status === 401) return { kind: 'auth', detail: '/channels/inbox/done returned 401' };
+      if (!res.ok) return { kind: 'http', status: res.status, where:'/channels/inbox/done' };
       const data = await res.json().catch(() => ({}));
       return { kind: 'ok', rows: data };
     `;
