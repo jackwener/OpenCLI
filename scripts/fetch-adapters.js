@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Sparse adapter sync: keeps ~/.opencli/clis/ clean by removing stale overrides.
+ * Sparse adapter sync: tracks official adapter hashes without deleting user data.
  *
  * Strategy (hash-based, site-level granularity):
- * - When an official site has upstream changes: DELETE the local override
- *   (do NOT copy new version — runtime falls back to package baseline)
+ * - When an official site has upstream changes: preserve the local override
+ *   and print an explicit follow-up command for the user to run if they want
+ *   to reset it.
  * - When an official site has no changes: leave local override intact
  * - User-created custom sites (not in package): always preserved
  * - Skips entirely if already synced at the same version
@@ -19,9 +20,9 @@
  * This is an ESM script (package.json type: module). No TypeScript, no src/ imports.
  */
 
-import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join, resolve, dirname, relative } from 'node:path';
+import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
 const OPENCLI_DIR = join(homedir(), '.opencli');
@@ -76,26 +77,6 @@ function walkFiles(dir, prefix = '') {
     }
   }
   return results;
-}
-
-/**
- * Remove empty parent directories up to (but not including) stopAt.
- */
-function pruneEmptyDirs(filePath, stopAt) {
-  const boundary = resolve(stopAt);
-  let dir = resolve(dirname(filePath));
-  while (dir !== boundary) {
-    const rel = relative(boundary, dir);
-    if (!rel || rel.startsWith('..')) break;
-    try {
-      const entries = readdirSync(dir);
-      if (entries.length > 0) break;
-      rmSync(dir);
-      dir = dirname(dir);
-    } catch {
-      break;
-    }
-  }
 }
 
 export function fetchAdapters() {
@@ -157,54 +138,50 @@ export function fetchAdapters() {
     }
   }
 
-  // 2. Sparse cleanup: for changed/removed official sites, delete local overrides.
-  //    Do NOT copy new versions — runtime falls back to package baseline.
-  //    Only eject-ed sites live in ~/.opencli/clis/.
-  let cleared = 0;
+  // 2. Sparse sync: preserve local overrides for changed/removed official sites.
+  //    This script runs during install/update, so it must not make destructive
+  //    decisions on the user's behalf. Users can reset a site explicitly with
+  //    `opencli adapter reset <site>` after reviewing their local changes.
+  const preservedOverrides = [];
   for (const site of changedSites) {
     const siteDir = join(USER_CLIS_DIR, site);
     if (existsSync(siteDir)) {
-      rmSync(siteDir, { recursive: true, force: true });
-      cleared++;
+      preservedOverrides.push(site);
     }
   }
 
-  // 3. Clean up stale .ts adapter files left by older versions (pre-1.7.1)
+  // 3. Detect stale .ts adapter files left by older versions (pre-1.7.1)
   // Older versions shipped adapters as .ts; current versions use .js only.
-  let tsCleaned = 0;
+  const staleTsFiles = [];
   for (const relPath of walkFiles(USER_CLIS_DIR)) {
     if (relPath.endsWith('.ts') && !relPath.endsWith('.d.ts')) {
       const jsCounterpart = relPath.replace(/\.ts$/, '.js');
       if (newOfficialFiles.has(jsCounterpart)) {
-        try {
-          unlinkSync(join(USER_CLIS_DIR, relPath));
-          pruneEmptyDirs(join(USER_CLIS_DIR, relPath), USER_CLIS_DIR);
-          tsCleaned++;
-        } catch { /* ignore */ }
+        staleTsFiles.push(relPath);
       }
     }
   }
-  if (tsCleaned > 0) log(`Cleaned up ${tsCleaned} stale .ts adapter files`);
+  if (staleTsFiles.length > 0) {
+    log(`Detected ${staleTsFiles.length} stale .ts adapter file(s); preserved them. Review ~/.opencli/clis/ before removing them manually.`);
+  }
 
-  // 3b. Clean up stale .yaml/.yml adapter files left by older versions (pre-1.7.0)
+  // 3b. Detect stale .yaml/.yml adapter files left by older versions (pre-1.7.0)
   // Older versions shipped adapters as YAML; current versions use .js only.
   // These are no longer discoverable and can shadow the current .js adapter layout.
-  let yamlCleaned = 0;
+  const staleYamlFiles = [];
   for (const relPath of walkFiles(USER_CLIS_DIR)) {
     if (relPath.endsWith('.yaml') || relPath.endsWith('.yml')) {
       const jsCounterpart = relPath.replace(/\.ya?ml$/, '.js');
       if (newOfficialFiles.has(jsCounterpart)) {
-        try {
-          unlinkSync(join(USER_CLIS_DIR, relPath));
-          pruneEmptyDirs(join(USER_CLIS_DIR, relPath), USER_CLIS_DIR);
-          yamlCleaned++;
-        } catch { /* ignore */ }
+        staleYamlFiles.push(relPath);
       }
     }
   }
-  if (yamlCleaned > 0) log(`Cleaned up ${yamlCleaned} stale .yaml adapter files`);
+  if (staleYamlFiles.length > 0) {
+    log(`Detected ${staleYamlFiles.length} stale .yaml/.yml adapter file(s); preserved them. Review ~/.opencli/clis/ before removing them manually.`);
+  }
 
-  // 4. Clean up legacy compat shim files from ~/.opencli/
+  // 4. Detect legacy compat shim files from ~/.opencli/
   // These were created by an older approach that placed re-export shims directly
   // in ~/.opencli/ (e.g., registry.js, errors.js, browser/). The current approach
   // uses a node_modules/@jackwener/opencli symlink instead.
@@ -214,55 +191,46 @@ export function fetchAdapters() {
   const LEGACY_SHIM_DIRS = [
     'browser', 'download', 'errors', 'launcher', 'logger', 'pipeline', 'registry', 'types', 'utils',
   ];
-  let legacyCleaned = 0;
+  const legacyShimPaths = [];
   for (const file of LEGACY_SHIM_FILES) {
     const p = join(OPENCLI_DIR, file);
     try {
       const content = readFileSync(p, 'utf-8');
-      // Only delete if it's a re-export shim, not a user-created file
+      // Only report if it's a re-export shim, not a user-created file
       if (content.includes("export * from 'file://")) {
-        unlinkSync(p);
-        legacyCleaned++;
+        legacyShimPaths.push(p);
       }
     } catch { /* doesn't exist */ }
   }
   for (const dir of LEGACY_SHIM_DIRS) {
     const p = join(OPENCLI_DIR, dir);
     try {
-      // Delete individual shim files, then prune empty directory
+      // Report individual shim files without removing them during install.
       for (const entry of readdirSync(p)) {
         const fp = join(p, entry);
         try {
           if (!statSync(fp).isFile()) continue;
           const content = readFileSync(fp, 'utf-8');
           if (content.includes("export * from 'file://")) {
-            unlinkSync(fp);
-            legacyCleaned++;
+            legacyShimPaths.push(fp);
           }
         } catch { /* skip unreadable entries */ }
       }
-      // Remove directory only if now empty
-      try {
-        if (readdirSync(p).length === 0) rmSync(p);
-      } catch { /* ignore */ }
     } catch { /* doesn't exist or not a directory */ }
   }
 
-  // 5. Clean up stale .plugins.lock.json.tmp-* files
-  let tmpCleaned = 0;
+  // 5. Detect stale .plugins.lock.json.tmp-* files
+  const staleTmpFiles = [];
   try {
     for (const entry of readdirSync(OPENCLI_DIR)) {
       if (entry.startsWith('.plugins.lock.json.tmp-')) {
-        try {
-          unlinkSync(join(OPENCLI_DIR, entry));
-          tmpCleaned++;
-        } catch { /* ignore */ }
+        staleTmpFiles.push(join(OPENCLI_DIR, entry));
       }
     }
   } catch { /* ignore */ }
 
-  if (legacyCleaned > 0 || tmpCleaned > 0) {
-    log(`Cleaned up${legacyCleaned > 0 ? ` ${legacyCleaned} legacy shim files` : ''}${tmpCleaned > 0 ? `${legacyCleaned > 0 ? ',' : ''} ${tmpCleaned} stale tmp files` : ''}`);
+  if (legacyShimPaths.length > 0 || staleTmpFiles.length > 0) {
+    log(`Detected${legacyShimPaths.length > 0 ? ` ${legacyShimPaths.length} legacy shim file(s)` : ''}${staleTmpFiles.length > 0 ? `${legacyShimPaths.length > 0 ? ',' : ''} ${staleTmpFiles.length} stale tmp file(s)` : ''}; preserved them for manual review.`);
   }
 
   // 6. Write updated manifest (with per-file hashes for smart sync)
@@ -273,9 +241,14 @@ export function fetchAdapters() {
     updatedAt: new Date().toISOString(),
   }, null, 2));
 
-  log(`Synced adapters: ${cleared} local override(s) cleared` +
-    (tsCleaned > 0 ? `, ${tsCleaned} stale .ts files removed` : '') +
-    (yamlCleaned > 0 ? `, ${yamlCleaned} stale .yaml files removed` : ''));
+  if (preservedOverrides.length > 0) {
+    log(`Preserved ${preservedOverrides.length} local override(s) for changed official site(s): ${preservedOverrides.sort().join(', ')}`);
+    log('To restore official versions, review your local files first, then run: opencli adapter reset <site>');
+  }
+
+  log(`Synced adapter manifest: ${preservedOverrides.length} local override(s) preserved` +
+    (staleTsFiles.length > 0 ? `, ${staleTsFiles.length} stale .ts file(s) preserved` : '') +
+    (staleYamlFiles.length > 0 ? `, ${staleYamlFiles.length} stale .yaml file(s) preserved` : ''));
 }
 
 function main() {
