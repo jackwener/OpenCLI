@@ -29,3 +29,16 @@ export function classifyTarget(raw) {
   if (UUID_RE.test(v)) return { kind: 'channel-uuid', channelId: v };
   return { kind: 'channel-name', name: v.replace(/^#/, '').toLowerCase() };
 }
+
+const SHORT_ID_HINT =
+  'short ids (the 8-hex `msg=...` form in channel headers) are NOT accepted — use the FULL UUID ' +
+  'from `bookmark-list` / `message-read` output.';
+
+export function assertMessageIdShape(messageId) {
+  const v = String(messageId ?? '').trim();
+  if (!v) throw new Error('messageId required');
+  if (!UUID_RE.test(v)) {
+    throw new Error(`messageId "${v}" is not a full UUID. ${SHORT_ID_HINT}`);
+  }
+  return v;
+}

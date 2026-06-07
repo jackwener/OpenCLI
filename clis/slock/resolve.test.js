@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { UUID_RE } from './resolve.js';
 import { classifyThreadTarget } from './resolve.js';
 import { classifyTarget } from './resolve.js';
+import { assertMessageIdShape } from './resolve.js';
 
 describe('UUID_RE', () => {
   it('matches a v4-shaped uuid', () => {
@@ -51,5 +52,16 @@ describe('classifyTarget', () => {
 
   it('rejects "dm:not-a-uuid" with an ArgumentError-shaped throw', () => {
     expect(() => classifyTarget('dm:nope')).toThrow(/dm target must be/);
+  });
+});
+
+describe('assertMessageIdShape', () => {
+  it('returns the trimmed UUID when shape is valid', () => {
+    const v = '  550e8400-e29b-41d4-a716-446655440000  ';
+    expect(assertMessageIdShape(v)).toBe('550e8400-e29b-41d4-a716-446655440000');
+  });
+
+  it('rejects short ids with a hint mentioning "NOT accepted"', () => {
+    expect(() => assertMessageIdShape('8af3cbbb')).toThrow(/NOT accepted/);
   });
 });
