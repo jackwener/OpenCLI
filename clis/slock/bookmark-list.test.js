@@ -15,4 +15,9 @@ describe('slock bookmark-list', () => {
     expect(page.evaluate.mock.calls[0][0]).toContain('offset=20');
     expect(rows[0]).toMatchObject({ id: 'b1', messageId: 'm1' });
   });
+
+  it('[anti-drift] non-array rows throws instead of silently returning empty', async () => {
+    const page = { goto: vi.fn(), evaluate: vi.fn().mockResolvedValue({ kind: 'ok', rows: { wrong: 'shape' } }) };
+    await expect(command.func(page, {})).rejects.toThrow(/expected array/);
+  });
 });

@@ -66,4 +66,9 @@ describe('slock message-read', () => {
     expect(rows[0].content).toMatch(/threads-enrichment unavailable/);
     expect(rows[1].replyCount).toBeNull();
   });
+
+  it('[anti-drift] non-array rows throws instead of silently returning empty', async () => {
+    const page = makePage({ kind: 'ok', rows: { wrong: 'shape' } });
+    await expect(command.func(page, { channel: '11111111-1111-1111-1111-111111111111' })).rejects.toThrow(/expected array/);
+  });
 });

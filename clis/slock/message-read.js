@@ -1,6 +1,6 @@
 // message-read.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
 import { UUID_RE, classifyThreadTarget } from './resolve.js';
@@ -71,6 +71,9 @@ cli({
       }];
     }
     const list = dispatchEvaluateResult(result);
+    if (!Array.isArray(list)) {
+      throw new CommandExecutionError(`expected array of rows from server, got ${typeof list} (contract drift?)`);
+    }
     const threadsMap = result.meta?.threadsMap ?? {};
     const threadsDegraded = result.meta?.threadsDegraded === true;
     const mapArg = threadsDegraded ? null : threadsMap;

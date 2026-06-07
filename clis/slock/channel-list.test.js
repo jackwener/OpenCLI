@@ -29,4 +29,9 @@ describe('slock channel-list', () => {
     const page = makePage({ kind: 'auth', detail: '401' });
     await expect(command.func(page, {})).rejects.toBeInstanceOf(AuthRequiredError);
   });
+
+  it('[anti-drift] non-array rows throws instead of silently returning empty', async () => {
+    const page = makePage({ kind: 'ok', rows: { wrong: 'shape' } });
+    await expect(command.func(page, {})).rejects.toThrow(/expected array/);
+  });
 });
