@@ -26335,6 +26335,1189 @@
     "navigateBefore": false
   },
   {
+    "site": "slock",
+    "name": "bookmark-add",
+    "description": "Bookmark a message (POST /channels/saved). Requires full messageId UUID.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "bookmarkId"
+    ],
+    "type": "js",
+    "modulePath": "slock/bookmark-add.js",
+    "sourceFile": "slock/bookmark-add.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "bookmark-list",
+    "description": "List bookmarks (saved messages) in the active server",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max results"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Offset"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "messageId",
+      "content",
+      "savedAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/bookmark-list.js",
+    "sourceFile": "slock/bookmark-list.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "bookmark-remove",
+    "description": "Remove a bookmark (DELETE /channels/saved/:messageId). 404 is treated as already-removed.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "removed",
+      "note"
+    ],
+    "type": "js",
+    "modulePath": "slock/bookmark-remove.js",
+    "sourceFile": "slock/bookmark-remove.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-archive",
+    "description": "Archive a channel — admin only (POST /channels/:id/archive)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-archive.js",
+    "sourceFile": "slock/channel-archive.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-create",
+    "description": "Create a channel — admin only (POST /channels/). Public unless --private.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Channel name"
+      },
+      {
+        "name": "description",
+        "type": "str",
+        "required": false,
+        "help": "Channel description / topic (≤500 chars)"
+      },
+      {
+        "name": "private",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Create a private channel instead of public"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-create.js",
+    "sourceFile": "slock/channel-create.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-files",
+    "description": "List files shared in a channel (GET /channels/:id/files)",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max files"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "filename",
+      "mimeType",
+      "sizeBytes",
+      "messageId",
+      "createdAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-files.js",
+    "sourceFile": "slock/channel-files.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-info",
+    "description": "Show one channel's details (GET /channels/:id)",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "topic",
+      "joined",
+      "archivedAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-info.js",
+    "sourceFile": "slock/channel-info.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-join",
+    "description": "Join a public channel (POST /channels/:id/join)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-join.js",
+    "sourceFile": "slock/channel-join.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-leave",
+    "description": "Leave a channel (POST /channels/:id/leave)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-leave.js",
+    "sourceFile": "slock/channel-leave.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-list",
+    "description": "List channels in the active slock server",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id) for this call"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "topic"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-list.js",
+    "sourceFile": "slock/channel-list.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-mark",
+    "description": "Mark a channel read (default), read up to --seq, or --unread.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "seq",
+        "type": "int",
+        "required": false,
+        "help": "Mark read up to this seq (omit for read-all)"
+      },
+      {
+        "name": "unread",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Mark the channel unread instead of read"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "action",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-mark.js",
+    "sourceFile": "slock/channel-mark.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-members",
+    "description": "List members of a channel",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id)"
+      }
+    ],
+    "columns": [
+      "userId",
+      "name",
+      "role"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-members.js",
+    "sourceFile": "slock/channel-members.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "channel-unarchive",
+    "description": "Unarchive a channel — admin only (POST /channels/:id/unarchive)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-unarchive.js",
+    "sourceFile": "slock/channel-unarchive.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "dm-list",
+    "description": "List DM channels in the active server (GET /channels/dm)",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id)"
+      }
+    ],
+    "columns": [
+      "channelId",
+      "peerName",
+      "peerId",
+      "createdAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/dm-list.js",
+    "sourceFile": "slock/dm-list.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "inbox",
+    "description": "List unified inbox items (channels, DMs, followed threads) that need attention.",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "filter",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "all | unread | mentions"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max items (server caps at 100)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "kind",
+      "id",
+      "name",
+      "unreadCount",
+      "hasMention",
+      "lastActivityAt",
+      "preview"
+    ],
+    "type": "js",
+    "modulePath": "slock/inbox.js",
+    "sourceFile": "slock/inbox.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "inbox-done",
+    "description": "Mark one chat as done / clear it from the inbox (POST /channels/inbox/done)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/inbox-done.js",
+    "sourceFile": "slock/inbox-done.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "inbox-read-all",
+    "description": "Mark the entire inbox as read (POST /channels/inbox/read-all)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "result",
+      "markedCount"
+    ],
+    "type": "js",
+    "modulePath": "slock/inbox-read-all.js",
+    "sourceFile": "slock/inbox-read-all.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "login",
+    "description": "Open slock login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "slock/whoami.js",
+    "sourceFile": "slock/whoami.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "slock",
+    "name": "message-read",
+    "description": "Read messages in a channel or thread. Thread form: \"#channel:msgIdOrShort\". Use --after seq|UUID for cursor.",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID, \"#name\", or \"#channel:msgIdOrShort\""
+      },
+      {
+        "name": "after",
+        "type": "str",
+        "required": false,
+        "help": "Cursor: seq number or messageId UUID (exclusive)"
+      },
+      {
+        "name": "before",
+        "type": "str",
+        "required": false,
+        "help": "seq to page before"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max messages"
+      },
+      {
+        "name": "no-threads",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Skip /threads enrichment"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "seq",
+      "createdAt",
+      "senderName",
+      "content",
+      "threadChannelId",
+      "replyCount",
+      "unreadCount",
+      "lastReplyAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/message-read.js",
+    "sourceFile": "slock/message-read.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "message-search",
+    "description": "Search messages",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Restrict to a channel (UUID or #name)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max results"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "channelId",
+      "createdAt",
+      "senderName",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "slock/message-search.js",
+    "sourceFile": "slock/message-search.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "message-send",
+    "description": "Send a message to a channel, DM, or thread (content sent verbatim)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "\"#channel\", \"#channel:msgIdOrShort\", \"dm:@name\", \"dm:<uuid>\", or channel UUID"
+      },
+      {
+        "name": "content",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Message body (sent verbatim, no marker)"
+      },
+      {
+        "name": "dry-run",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Print the planned payload without sending"
+      },
+      {
+        "name": "as-task",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Create the message as a task (asTask)"
+      },
+      {
+        "name": "attach",
+        "type": "str",
+        "required": false,
+        "help": "Comma-separated attachmentId UUIDs (upload separately first)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id)"
+      }
+    ],
+    "columns": [
+      "target",
+      "channelId",
+      "content",
+      "result",
+      "messageId"
+    ],
+    "type": "js",
+    "modulePath": "slock/message-send.js",
+    "sourceFile": "slock/message-send.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "reaction-add",
+    "description": "Add an emoji reaction to a message (POST /messages/:id/reactions). Idempotent server-side.",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "emoji",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "A single unicode emoji, e.g. 👍"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "emoji",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/reaction-add.js",
+    "sourceFile": "slock/reaction-add.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "reaction-remove",
+    "description": "Remove your emoji reaction from a message (DELETE /messages/:id/reactions).",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "emoji",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "The unicode emoji to remove, e.g. 👍"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "emoji",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/reaction-remove.js",
+    "sourceFile": "slock/reaction-remove.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "server-list",
+    "description": "List slock servers you belong to; marks active per localStorage slug",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "id",
+      "slug",
+      "name",
+      "active"
+    ],
+    "type": "js",
+    "modulePath": "slock/server-list.js",
+    "sourceFile": "slock/server-list.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "server-use",
+    "description": "Set the active slock server (writes localStorage.slock_last_server_slug)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "input",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "server slug, \"#slug\", or UUID id"
+      }
+    ],
+    "columns": [
+      "id",
+      "slug",
+      "name",
+      "written"
+    ],
+    "type": "js",
+    "modulePath": "slock/server-use.js",
+    "sourceFile": "slock/server-use.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "task-list",
+    "description": "List tasks attached to a channel",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "v2",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Use /tasks/v2 endpoint"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "status",
+      "dueAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-list.js",
+    "sourceFile": "slock/task-list.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "thread-done",
+    "description": "Mark a thread as done / hide it from the active list (POST /channels/threads/done)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "threadChannelId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Thread channel UUID (from thread-list / message-read)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-done.js",
+    "sourceFile": "slock/thread-done.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "thread-follow",
+    "description": "Follow the thread on a parent message (POST /channels/threads/follow)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "parentMessageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full parent messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "parentMessageId",
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-follow.js",
+    "sourceFile": "slock/thread-follow.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "thread-list",
+    "description": "List followed threads in the active server (GET /channels/threads/followed)",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "parentMessageId",
+      "parentChannelName",
+      "unreadCount",
+      "replyCount",
+      "lastReplyAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-list.js",
+    "sourceFile": "slock/thread-list.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "thread-undone",
+    "description": "Restore a done thread to the active list (POST /channels/threads/undone)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "threadChannelId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Thread channel UUID (from thread-list / message-read)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-undone.js",
+    "sourceFile": "slock/thread-undone.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "thread-unfollow",
+    "description": "Stop following a thread (POST /channels/threads/unfollow)",
+    "access": "write",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "threadChannelId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Thread channel UUID (from thread-list / message-read)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-unfollow.js",
+    "sourceFile": "slock/thread-unfollow.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "unread-summary",
+    "description": "Global unread counts across every server you belong to.",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "serverId",
+      "slug",
+      "name",
+      "unreadCount"
+    ],
+    "type": "js",
+    "modulePath": "slock/unread-summary.js",
+    "sourceFile": "slock/unread-summary.js",
+    "navigateBefore": "https://slock.ai"
+  },
+  {
+    "site": "slock",
+    "name": "whoami",
+    "description": "Show the current logged-in slock account",
+    "access": "read",
+    "domain": "slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "slock/whoami.js",
+    "sourceFile": "slock/whoami.js",
+    "navigateBefore": false
+  },
+  {
     "site": "smzdm",
     "name": "search",
     "description": "什么值得买搜索好价",
