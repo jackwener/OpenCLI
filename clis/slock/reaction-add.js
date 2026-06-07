@@ -14,6 +14,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'messageId', positional: true, required: true, help: 'Full messageId UUID (short ids rejected)' },
     { name: 'emoji', positional: true, required: true, help: 'A single unicode emoji, e.g. 👍' },

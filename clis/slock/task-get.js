@@ -20,6 +20,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'channel', positional: true, required: true, help: 'channelId UUID or #name' },
     { name: 'number', positional: true, required: true, help: 'taskNumber (per-channel integer, as shown in "task #N")' },

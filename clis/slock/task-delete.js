@@ -22,6 +22,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'taskId', positional: true, required: true, help: 'Full task UUID (= message id; short ids rejected)' },
     { name: 'confirm', type: 'bool', default: false, help: 'Required acknowledgement: deletion is irreversible' },

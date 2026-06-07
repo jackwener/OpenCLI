@@ -17,6 +17,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'parentMessageId', positional: true, required: true, help: 'Full parent messageId UUID (short ids rejected)' },
     { name: 'server', help: 'Override active server' },

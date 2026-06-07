@@ -38,6 +38,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'file', positional: true, required: true, help: 'Local file path to upload (single file; max 50 MB)' },
     { name: 'server', help: 'Override active server slug' },

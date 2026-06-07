@@ -13,6 +13,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'channel', positional: true, required: true, help: 'channelId UUID or #name' },
     { name: 'limit', type: 'int', default: 50, help: 'Max files' },

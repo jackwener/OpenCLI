@@ -29,6 +29,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'channel', positional: true, required: true, help: 'channelId UUID, "#name", or "#channel:msgIdOrShort"' },
     { name: 'after', help: 'Cursor: seq number or messageId UUID (exclusive)' },

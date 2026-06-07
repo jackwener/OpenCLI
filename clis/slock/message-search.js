@@ -13,6 +13,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'query', positional: true, required: true, help: 'Search query' },
     { name: 'channel', help: 'Restrict to a channel (UUID or #name)' },

@@ -13,6 +13,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'limit', type: 'int', default: 50, help: 'Max results' },
     { name: 'offset', type: 'int', default: 0, help: 'Offset' },

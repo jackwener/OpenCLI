@@ -22,6 +22,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'attachmentId', positional: true, required: true, help: 'Attachment UUID' },
     { name: 'server', help: 'Override active server slug' },

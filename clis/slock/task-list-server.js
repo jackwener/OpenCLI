@@ -22,6 +22,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'status', help: `Filter by status: ${TASK_STATUSES.join('|')}` },
     { name: 'server', help: 'Override active server' },

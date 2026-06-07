@@ -29,6 +29,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'messageId', positional: true, required: true, help: 'Full message UUID, or "#channel:shortId" (short id expanded via /messages/context)' },
     { name: 'server', help: 'Override active server' },

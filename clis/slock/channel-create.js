@@ -16,6 +16,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'name', positional: true, required: true, help: 'Channel name' },
     { name: 'description', help: 'Channel description / topic (≤500 chars)' },

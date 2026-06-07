@@ -40,6 +40,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'filter', default: 'all', help: 'all | unread | mentions' },
     { name: 'limit', type: 'int', default: 30, help: 'Max items (server caps at 100)' },

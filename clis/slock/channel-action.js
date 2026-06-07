@@ -17,6 +17,7 @@ export function makeChannelActionCommand({ name, verb, resultLabel, description 
     domain: SLOCK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
       { name: 'channel', positional: true, required: true, help: 'channelId UUID or #name' },
       { name: 'server', help: 'Override active server' },

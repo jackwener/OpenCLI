@@ -3674,7 +3674,8 @@
     "type": "js",
     "modulePath": "bilibili/auth.js",
     "sourceFile": "bilibili/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "binance",
@@ -10741,7 +10742,8 @@
     "type": "js",
     "modulePath": "douyin/auth.js",
     "sourceFile": "douyin/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "duckduckgo",
@@ -12628,7 +12630,8 @@
     "type": "js",
     "modulePath": "github/auth.js",
     "sourceFile": "github/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "google",
@@ -26371,7 +26374,8 @@
     "type": "js",
     "modulePath": "slock/attachment-download.js",
     "sourceFile": "slock/attachment-download.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26405,7 +26409,8 @@
     "type": "js",
     "modulePath": "slock/attachment-upload.js",
     "sourceFile": "slock/attachment-upload.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26438,7 +26443,8 @@
     "type": "js",
     "modulePath": "slock/attachment-url.js",
     "sourceFile": "slock/attachment-url.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26470,7 +26476,8 @@
     "type": "js",
     "modulePath": "slock/bookmark-add.js",
     "sourceFile": "slock/bookmark-add.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26511,7 +26518,8 @@
     "type": "js",
     "modulePath": "slock/bookmark-list.js",
     "sourceFile": "slock/bookmark-list.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26544,7 +26552,8 @@
     "type": "js",
     "modulePath": "slock/bookmark-remove.js",
     "sourceFile": "slock/bookmark-remove.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26578,7 +26587,8 @@
     "type": "js",
     "modulePath": "slock/channel-archive.js",
     "sourceFile": "slock/channel-archive.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26625,7 +26635,8 @@
     "type": "js",
     "modulePath": "slock/channel-create.js",
     "sourceFile": "slock/channel-create.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26668,7 +26679,8 @@
     "type": "js",
     "modulePath": "slock/channel-files.js",
     "sourceFile": "slock/channel-files.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26704,7 +26716,8 @@
     "type": "js",
     "modulePath": "slock/channel-info.js",
     "sourceFile": "slock/channel-info.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26738,7 +26751,8 @@
     "type": "js",
     "modulePath": "slock/channel-join.js",
     "sourceFile": "slock/channel-join.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26772,7 +26786,8 @@
     "type": "js",
     "modulePath": "slock/channel-leave.js",
     "sourceFile": "slock/channel-leave.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26798,7 +26813,8 @@
     "type": "js",
     "modulePath": "slock/channel-list.js",
     "sourceFile": "slock/channel-list.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26844,7 +26860,8 @@
     "type": "js",
     "modulePath": "slock/channel-mark.js",
     "sourceFile": "slock/channel-mark.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26877,7 +26894,8 @@
     "type": "js",
     "modulePath": "slock/channel-members.js",
     "sourceFile": "slock/channel-members.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26911,7 +26929,8 @@
     "type": "js",
     "modulePath": "slock/channel-unarchive.js",
     "sourceFile": "slock/channel-unarchive.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26938,7 +26957,8 @@
     "type": "js",
     "modulePath": "slock/dm-list.js",
     "sourceFile": "slock/dm-list.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -26989,7 +27009,8 @@
     "type": "js",
     "modulePath": "slock/inbox.js",
     "sourceFile": "slock/inbox.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27021,7 +27042,8 @@
     "type": "js",
     "modulePath": "slock/inbox-done.js",
     "sourceFile": "slock/inbox-done.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27046,7 +27068,8 @@
     "type": "js",
     "modulePath": "slock/inbox-read-all.js",
     "sourceFile": "slock/inbox-read-all.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27143,7 +27166,8 @@
     "type": "js",
     "modulePath": "slock/message-read.js",
     "sourceFile": "slock/message-read.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27191,7 +27215,8 @@
     "type": "js",
     "modulePath": "slock/message-search.js",
     "sourceFile": "slock/message-search.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27253,7 +27278,8 @@
     "type": "js",
     "modulePath": "slock/message-send.js",
     "sourceFile": "slock/message-send.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27293,7 +27319,8 @@
     "type": "js",
     "modulePath": "slock/reaction-add.js",
     "sourceFile": "slock/reaction-add.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27333,7 +27360,8 @@
     "type": "js",
     "modulePath": "slock/reaction-remove.js",
     "sourceFile": "slock/reaction-remove.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27353,7 +27381,8 @@
     "type": "js",
     "modulePath": "slock/server-list.js",
     "sourceFile": "slock/server-list.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27381,7 +27410,8 @@
     "type": "js",
     "modulePath": "slock/server-use.js",
     "sourceFile": "slock/server-use.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27415,7 +27445,8 @@
     "type": "js",
     "modulePath": "slock/task-claim.js",
     "sourceFile": "slock/task-claim.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27450,7 +27481,8 @@
     "type": "js",
     "modulePath": "slock/task-convert.js",
     "sourceFile": "slock/task-convert.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27498,7 +27530,8 @@
     "type": "js",
     "modulePath": "slock/task-create.js",
     "sourceFile": "slock/task-create.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27537,7 +27570,8 @@
     "type": "js",
     "modulePath": "slock/task-delete.js",
     "sourceFile": "slock/task-delete.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27579,7 +27613,8 @@
     "type": "js",
     "modulePath": "slock/task-get.js",
     "sourceFile": "slock/task-get.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27620,7 +27655,8 @@
     "type": "js",
     "modulePath": "slock/task-list.js",
     "sourceFile": "slock/task-list.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27655,7 +27691,8 @@
     "type": "js",
     "modulePath": "slock/task-list-server.js",
     "sourceFile": "slock/task-list-server.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27696,7 +27733,8 @@
     "type": "js",
     "modulePath": "slock/task-status.js",
     "sourceFile": "slock/task-status.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27730,7 +27768,8 @@
     "type": "js",
     "modulePath": "slock/task-unclaim.js",
     "sourceFile": "slock/task-unclaim.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27762,7 +27801,8 @@
     "type": "js",
     "modulePath": "slock/thread-done.js",
     "sourceFile": "slock/thread-done.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27795,7 +27835,8 @@
     "type": "js",
     "modulePath": "slock/thread-follow.js",
     "sourceFile": "slock/thread-follow.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27824,7 +27865,8 @@
     "type": "js",
     "modulePath": "slock/thread-list.js",
     "sourceFile": "slock/thread-list.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27856,7 +27898,8 @@
     "type": "js",
     "modulePath": "slock/thread-undone.js",
     "sourceFile": "slock/thread-undone.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27888,7 +27931,8 @@
     "type": "js",
     "modulePath": "slock/thread-unfollow.js",
     "sourceFile": "slock/thread-unfollow.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27908,7 +27952,8 @@
     "type": "js",
     "modulePath": "slock/unread-summary.js",
     "sourceFile": "slock/unread-summary.js",
-    "navigateBefore": "https://slock.ai"
+    "navigateBefore": "https://slock.ai",
+    "siteSession": "persistent"
   },
   {
     "site": "slock",
@@ -27929,7 +27974,8 @@
     "type": "js",
     "modulePath": "slock/whoami.js",
     "sourceFile": "slock/whoami.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "smzdm",
@@ -33056,7 +33102,8 @@
     "type": "js",
     "modulePath": "twitter/auth.js",
     "sourceFile": "twitter/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "uisdc",
@@ -36597,7 +36644,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/auth.js",
     "sourceFile": "xiaohongshu/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaoyuzhou",

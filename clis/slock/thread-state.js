@@ -18,6 +18,7 @@ export function makeThreadStateCommand({ name, verb, resultLabel, description })
     domain: SLOCK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     args: [
       { name: 'threadChannelId', positional: true, required: true, help: 'Thread channel UUID (from thread-list / message-read)' },
       { name: 'server', help: 'Override active server' },

@@ -13,6 +13,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [
     { name: 'target', positional: true, required: true, help: '"#channel", "#channel:msgIdOrShort", "dm:@name", "dm:<uuid>", or channel UUID' },
     { name: 'content', positional: true, required: true, help: 'Message body (sent verbatim, no marker)' },

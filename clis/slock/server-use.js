@@ -13,6 +13,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [{ name: 'input', positional: true, required: true, help: 'server slug, "#slug", or UUID id' }],
   columns: ['id', 'slug', 'name', 'written'],
   func: async (page, kwargs) => {

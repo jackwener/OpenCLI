@@ -11,6 +11,7 @@ cli({
   domain: SLOCK_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
+  siteSession: 'persistent',
   args: [],
   columns: ['id', 'slug', 'name', 'active'],
   func: async (page) => {
