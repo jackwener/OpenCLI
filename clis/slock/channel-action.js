@@ -8,7 +8,9 @@ import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
 // join / leave / archive / unarchive resolve a channel then POST a fixed verb
 // with no body. join/leave return {ok:true}; archive/unarchive return the
 // updated channel (so `id`/`archivedAt` are populated for those).
-export function makeChannelActionCommand({ name, verb, resultLabel, description }) {
+// `archivedHint`: when true, an unresolvable #name surfaces a hint that
+// archived channels are excluded from the name lookup (use UUID).
+export function makeChannelActionCommand({ name, verb, resultLabel, description, archivedHint = false }) {
   cli({
     site: SLOCK_SITE,
     name,
@@ -34,7 +36,22 @@ export function makeChannelActionCommand({ name, verb, resultLabel, description 
         serverIdOverride: kwargs.server,
       });
       const result = await page.evaluate(`(async () => { ${snippet} })()`);
-      const data = dispatchEvaluateResult(result);
+      let data;
+      try {
+        data = dispatchEvaluateResult(result);
+      } catch (e) {
+        // F7 — channelResolveFragment lists active channels only; archived
+        // channels are absent from the lookup, so `#name` resolve fails for
+        // a channel you're trying to unarchive. UUID still works. Rewrite
+        // the bare "no channel matches" message into something actionable.
+        if (archivedHint && e instanceof ArgumentError && /no channel matches/.test(e.message)) {
+          throw new ArgumentError(
+            `${e.message}. Archived channels are excluded from the name lookup; ` +
+            `pass the channelId UUID instead (find it via \`slock channel-list --include-archived\` or the URL of the archived channel).`
+          );
+        }
+        throw e;
+      }
       return [{
         channel,
         id: data?.id ?? '',

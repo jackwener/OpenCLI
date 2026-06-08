@@ -26394,6 +26394,13 @@
         "help": "Local file path to upload (single file; max 50 MB)"
       },
       {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name — server requires the attachment be scoped to a channel"
+      },
+      {
         "name": "server",
         "type": "str",
         "required": false,
@@ -26471,7 +26478,7 @@
     ],
     "columns": [
       "messageId",
-      "bookmarkId"
+      "saved"
     ],
     "type": "js",
     "modulePath": "slock/bookmark-add.js",
@@ -26889,6 +26896,7 @@
     "columns": [
       "userId",
       "name",
+      "kind",
       "role"
     ],
     "type": "js",
@@ -26900,7 +26908,7 @@
   {
     "site": "slock",
     "name": "channel-unarchive",
-    "description": "Unarchive a channel — admin only (POST /channels/:id/unarchive)",
+    "description": "Unarchive a channel — admin only (POST /channels/:id/unarchive). #name lookups exclude archived channels; pass the channelId UUID for archived ones.",
     "access": "write",
     "domain": "app.slock.ai",
     "strategy": "cookie",

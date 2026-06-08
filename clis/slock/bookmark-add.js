@@ -19,7 +19,7 @@ cli({
     { name: 'messageId', positional: true, required: true, help: 'Full messageId UUID (short ids rejected)' },
     { name: 'server', help: 'Override active server' },
   ],
-  columns: ['messageId', 'bookmarkId'],
+  columns: ['messageId', 'saved'],
   func: async (page, kwargs) => {
     let id;
     try { id = assertMessageIdShape(String(kwargs.messageId ?? '')); }
@@ -29,11 +29,15 @@ cli({
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
       const res = await fetch('${SLOCK_API_BASE}/channels/saved', { method:'POST', credentials:'include', headers, body: JSON.stringify({ messageId: ${JSON.stringify(id)} }) });
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/channels/saved' };
-      const data = await res.json();
-      return { kind: 'ok', rows: [{ id: data.id ?? data.bookmarkId ?? null, messageId: ${JSON.stringify(id)} }] };
+      const data = await res.json().catch(() => ({}));
+      // F3-a — qatester live dump: response is { ok: true } with NO id field.
+      // The bookmark is keyed by messageId on the server side, so there is no
+      // separate bookmark id to surface; we report saved=true and echo the
+      // message id back.
+      return { kind: 'ok', rows: [{ saved: data && data.ok === true, messageId: ${JSON.stringify(id)} }] };
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
-    return rows.map((b) => ({ messageId: b.messageId ?? id, bookmarkId: b.id ?? null }));
+    return rows.map((b) => ({ messageId: b.messageId ?? id, saved: b.saved === true }));
   },
 });

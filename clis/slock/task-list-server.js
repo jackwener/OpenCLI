@@ -57,7 +57,7 @@ cli({
       title: t.content ?? t.title ?? '',
       taskStatus: t.taskStatus ?? t.status ?? '',
       channelId: t.channelId ?? null,
-      assigneeId: t.assigneeId ?? null,
+      assigneeId: t.claimedById ?? t.assigneeId ?? null,
     }));
   },
 });

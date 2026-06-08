@@ -22,4 +22,18 @@ describe('slock message-search', () => {
     await command.func(page, { query: 'x', channel: '#general' });
     expect(page.evaluate.mock.calls[0][0]).toContain('channelId=');
   });
+
+  // F2-b — qatester live dump: real shape is { results, hasMore }. If a future
+  // refactor strips data.results out of the in-page unwrap chain, the command
+  // silently returns [] even when matches exist. Pin the unwrap order so the
+  // drift is caught pre-network.
+  it('[F2-b drift] in-page snippet unwraps data.results FIRST in the fallback chain', async () => {
+    const page = makePage({ kind: 'ok', rows: [] });
+    await command.func(page, { query: 'x' });
+    const snippet = page.evaluate.mock.calls[0][0];
+    // results before messages before data — order matters because legacy
+    // shapes used data.messages and data.data, but the live server now
+    // returns data.results and only data.results.
+    expect(snippet).toMatch(/data\.results\s*\|\|\s*data\.messages\s*\|\|\s*data\.data/);
+  });
 });

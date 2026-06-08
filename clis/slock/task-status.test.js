@@ -52,6 +52,12 @@ describe('slock task-status', () => {
     }
   });
 
+  it('[F6] 409 repeat-set surfaces actionable hint (status already X)', async () => {
+    const page = makePage({ kind: 'http', status: 409, where: '/tasks/:taskId/status (conflict — task is already in status "in_progress"; no-op set rejected)' });
+    await expect(command.func(page, { taskId: ID, status: 'in_progress' }))
+      .rejects.toThrow(/already in status|409/);
+  });
+
   it('403 terminal-status surfaces actionable hint (done/closed cannot be transitioned)', async () => {
     const page = makePage({ kind: 'http', status: 403, where: '/tasks/:taskId/status (forbidden — terminal status (done/closed), not the assignee, or channel archived)' });
     await expect(command.func(page, { taskId: ID, status: 'in_progress' }))

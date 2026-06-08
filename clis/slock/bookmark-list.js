@@ -29,7 +29,10 @@ cli({
       const res = await fetch('${SLOCK_API_BASE}/channels/saved?limit=${limit}&offset=${offset}', { credentials:'include', headers });
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/channels/saved' };
       const data = await res.json();
-      return { kind: 'ok', rows: Array.isArray(data) ? data : (data.bookmarks || data.data || []) };
+      // F3-b — qatester live dump: shape is { saved: [...], hasMore }.
+      // Unwrap .saved first; fall back to legacy .bookmarks / .data /
+      // bare array for forward-compat.
+      return { kind: 'ok', rows: Array.isArray(data) ? data : (data.saved || data.bookmarks || data.data || []) };
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);

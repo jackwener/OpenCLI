@@ -29,6 +29,12 @@ describe('slock task-unclaim', () => {
     expect(rows[0]).toMatchObject({ taskId: ID, taskStatus: 'todo', assigneeId: null, taskNumber: 7 });
   });
 
+  it('[F6] 409 surfaces actionable hint (not claimed, or terminal)', async () => {
+    const page = makePage({ kind: 'http', status: 409, where: '/tasks/:id/unclaim (conflict — task is not claimed, or already in a terminal state (done/closed))' });
+    await expect(command.func(page, { taskId: ID }))
+      .rejects.toThrow(/not claimed|terminal|409/);
+  });
+
   it('403 surfaces actionable detail (not assignee / terminal / archived)', async () => {
     const page = makePage({ kind: 'http', status: 403, where: '/tasks/:id/unclaim (forbidden — not the assignee, terminal status, or channel archived)' });
     await expect(command.func(page, { taskId: ID }))

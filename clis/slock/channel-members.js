@@ -18,7 +18,7 @@ cli({
     { name: 'channel', positional: true, required: true, help: 'channelId UUID or #name' },
     { name: 'server', help: 'Override active server (slug or id)' },
   ],
-  columns: ['userId', 'name', 'role'],
+  columns: ['userId', 'name', 'kind', 'role'],
   func: async (page, kwargs) => {
     const channel = String(kwargs.channel ?? '').trim();
     if (!channel) throw new ArgumentError('channel required');
@@ -31,11 +31,34 @@ cli({
     });
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const data = dispatchEvaluateResult(result);
-    const arr = Array.isArray(data) ? data : (data.members || data.data || []);
-    return arr.map((m) => ({
-      userId: m.userId ?? m.id ?? '',
-      name: m.name ?? m.username ?? m.displayName ?? '',
-      role: m.role ?? '',
-    }));
+    // F2-a — qatester live dump: response is `{ agents: [...], humans: [...] }`,
+    // NOT a flat array and NOT under `.members`. Combine both lists and tag each
+    // row with `kind` so the caller can tell agents from humans. Fall back to
+    // the legacy shapes (`.members` / `.data` / bare array) for forward-compat.
+    let agents = [], humans = [];
+    if (Array.isArray(data)) {
+      humans = data;
+    } else if (data) {
+      agents = Array.isArray(data.agents) ? data.agents : [];
+      humans = Array.isArray(data.humans) ? data.humans : [];
+      if (!agents.length && !humans.length) {
+        const legacy = data.members || data.data || [];
+        humans = Array.isArray(legacy) ? legacy : [];
+      }
+    }
+    return [
+      ...humans.map((m) => ({
+        userId: m.userId ?? m.id ?? '',
+        name: m.name ?? m.username ?? m.displayName ?? '',
+        kind: 'human',
+        role: m.role ?? '',
+      })),
+      ...agents.map((m) => ({
+        userId: m.userId ?? m.id ?? '',
+        name: m.name ?? m.username ?? m.displayName ?? '',
+        kind: 'agent',
+        role: m.status ?? m.activity ?? '',
+      })),
+    ];
   },
 });

@@ -95,7 +95,10 @@ cli({
       if (res.status === 409) return { kind: 'http', status: 409, where: '/tasks/convert-message (conflict — message is already a task, or in a thread channel which does not accept tasks)' };
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/tasks/convert-message' };
       const data = await res.json().catch(() => ({}));
-      return { kind: 'ok', rows: [data] };
+      // F5 — server wraps the task as { task: {...} }; unwrap so the
+      // command surfaces the inner row instead of all-null columns.
+      const t = (data && data.task) ? data.task : data;
+      return { kind: 'ok', rows: [t] };
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);

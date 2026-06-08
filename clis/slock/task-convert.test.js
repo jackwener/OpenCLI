@@ -58,6 +58,13 @@ describe('slock task-convert', () => {
     expect(snippet).toContain('/api/tasks/convert-message');
   });
 
+  it('[F5 drift] in-page snippet unwraps data.task before returning the envelope', async () => {
+    const page = makePage({ kind: 'ok', rows: [{ id: FULL, taskNumber: 33, content: 'x', taskStatus: 'todo' }] });
+    await command.func(page, { messageId: FULL });
+    const snippet = page.evaluate.mock.calls[0][0];
+    expect(snippet).toContain('data && data.task');
+  });
+
   it('409 already-a-task surfaces actionable hint', async () => {
     const page = makePage({ kind: 'http', status: 409, where: '/tasks/convert-message (conflict — message is already a task, or in a thread channel which does not accept tasks)' });
     await expect(command.func(page, { messageId: FULL }))

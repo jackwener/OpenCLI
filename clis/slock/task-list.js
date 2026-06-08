@@ -64,7 +64,7 @@ cli({
       taskNumber: t.taskNumber ?? null,
       title: t.content ?? t.title ?? '',
       taskStatus: t.taskStatus ?? t.status ?? '',
-      assigneeId: t.assigneeId ?? null,
+      assigneeId: t.claimedById ?? t.assigneeId ?? null,
     }));
   },
 });

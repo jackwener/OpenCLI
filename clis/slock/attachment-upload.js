@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { authHeadersFragment } from './in-page.js';
+import { authHeadersFragment, channelResolveFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
@@ -41,12 +41,15 @@ cli({
   siteSession: 'persistent',
   args: [
     { name: 'file', positional: true, required: true, help: 'Local file path to upload (single file; max 50 MB)' },
+    { name: 'channel', positional: true, required: true, help: 'channelId UUID or #name — server requires the attachment be scoped to a channel' },
     { name: 'server', help: 'Override active server slug' },
   ],
   columns: ['attachmentId', 'filename', 'mimeType', 'sizeBytes'],
   func: async (page, kwargs) => {
     const filePath = String(kwargs.file ?? '').trim();
     if (!filePath) throw new ArgumentError('file path required');
+    const channel = String(kwargs.channel ?? '').trim();
+    if (!channel) throw new ArgumentError('channel required (UUID or #name); server rejects uploads without channelId');
     const abs = path.resolve(filePath);
     let stat;
     try { stat = fs.statSync(abs); }
@@ -65,6 +68,7 @@ cli({
 
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
+      ${channelResolveFragment(channel)}
       // multipart wants the browser to set its own boundary — strip content-type.
       const uploadHeaders = { authorization: headers.authorization, accept: headers.accept };
       if (headers['x-server-id']) uploadHeaders['x-server-id'] = headers['x-server-id'];
@@ -79,6 +83,9 @@ cli({
       const file = new File([blob], ${JSON.stringify(filename)});
       const fd = new FormData();
       fd.append('files', file);
+      // qatester live-verified F4: server returns 400 "channelId is required"
+      // without this field. Must travel as a multipart text part.
+      fd.append('channelId', channelId);
       const res = await fetch('${SLOCK_API_BASE}/attachments/upload', {
         method: 'POST', credentials: 'include', headers: uploadHeaders, body: fd,
       });

@@ -15,6 +15,8 @@ function tmpfile(bytes) {
   return p;
 }
 
+const UUID_CHAN = '11111111-1111-1111-1111-111111111111';
+
 describe('slock attachment-upload', () => {
   const command = getRegistry().get('slock/attachment-upload');
   const files = [];
@@ -22,15 +24,22 @@ describe('slock attachment-upload', () => {
 
   it('refuses a missing file before navigation', async () => {
     const page = makePage({ kind: 'ok', rows: [] });
-    await expect(command.func(page, { file: '/no/such/file/here.bin' }))
+    await expect(command.func(page, { file: '/no/such/file/here.bin', channel: UUID_CHAN }))
       .rejects.toThrow(/not readable/);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('refuses a missing channel before navigation (F4: server returns 400 without channelId)', async () => {
+    const f = tmpfile(Buffer.from('x')); files.push(f);
+    const page = makePage({ kind: 'ok', rows: [] });
+    await expect(command.func(page, { file: f })).rejects.toThrow(/channel required/);
     expect(page.goto).not.toHaveBeenCalled();
   });
 
   it('refuses an empty file before navigation', async () => {
     const f = tmpfile(Buffer.alloc(0)); files.push(f);
     const page = makePage({ kind: 'ok', rows: [] });
-    await expect(command.func(page, { file: f })).rejects.toThrow(/empty/);
+    await expect(command.func(page, { file: f, channel: UUID_CHAN })).rejects.toThrow(/empty/);
     expect(page.goto).not.toHaveBeenCalled();
   });
 
@@ -44,7 +53,7 @@ describe('slock attachment-upload', () => {
     });
     try {
       const page = makePage({ kind: 'ok', rows: [] });
-      await expect(command.func(page, { file: f })).rejects.toThrow(/exceeds server limit/);
+      await expect(command.func(page, { file: f, channel: UUID_CHAN })).rejects.toThrow(/exceeds server limit/);
       expect(page.goto).not.toHaveBeenCalled();
     } finally { spy.mockRestore(); }
   });
@@ -55,7 +64,7 @@ describe('slock attachment-upload', () => {
       kind: 'ok',
       rows: [{ id: '550e8400-e29b-41d4-a716-446655440000', filename: path.basename(f), mimeType: 'application/octet-stream', sizeBytes: 11 }],
     });
-    const rows = await command.func(page, { file: f });
+    const rows = await command.func(page, { file: f, channel: UUID_CHAN });
     expect(page.evaluate).toHaveBeenCalledOnce();
     const snippet = page.evaluate.mock.calls[0][0];
 
@@ -63,6 +72,10 @@ describe('slock attachment-upload', () => {
     // someone changes it to 'file' the server returns 400; this catches drift
     // before it ships.
     expect(snippet).toContain("fd.append('files'");
+    // F4 — channelId multipart text part. qatester live-flagged: without
+    // this field server returns 400 "channelId is required". Pin so a
+    // future refactor that drops the line is caught pre-network.
+    expect(snippet).toContain("fd.append('channelId', channelId)");
     // Endpoint stays put.
     expect(snippet).toContain('/api/attachments/upload');
 
@@ -105,7 +118,7 @@ describe('slock attachment-upload', () => {
   it('passes server override through authHeadersFragment', async () => {
     const f = tmpfile(Buffer.from('x')); files.push(f);
     const page = makePage({ kind: 'ok', rows: [{ id: '550e8400-e29b-41d4-a716-446655440000' }] });
-    await command.func(page, { file: f, server: 'jackyland' });
+    await command.func(page, { file: f, channel: UUID_CHAN, server: 'jackyland' });
     const snippet = page.evaluate.mock.calls[0][0];
     expect(snippet).toContain('"jackyland"');
   });
@@ -113,6 +126,6 @@ describe('slock attachment-upload', () => {
   it('413 response surfaces as a clean http error mentioning maxBytes', async () => {
     const f = tmpfile(Buffer.from('x')); files.push(f);
     const page = makePage({ kind: 'http', status: 413, where: '/attachments/upload (file too large; maxBytes=52428800)' });
-    await expect(command.func(page, { file: f })).rejects.toThrow(/HTTP 413.*maxBytes=52428800/);
+    await expect(command.func(page, { file: f, channel: UUID_CHAN })).rejects.toThrow(/HTTP 413.*maxBytes=52428800/);
   });
 });

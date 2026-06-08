@@ -41,14 +41,20 @@ cli({
       if (res.status === 409) return { kind: 'http', status: 409, where: '/tasks/:id/claim (conflict — already claimed by someone else; use task-unclaim first)' };
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/tasks/:id/claim' };
       const data = await res.json().catch(() => ({}));
-      return { kind: 'ok', rows: [data] };
+      // F5 — qatester live dump: server wraps the task as { task: {...} }.
+      // Unwrap so the command surfaces the inner row, otherwise every column
+      // resolves to null even though the claim succeeded.
+      const t = (data && data.task) ? data.task : data;
+      return { kind: 'ok', rows: [t] };
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
     return rows.map((t) => ({
       taskId: t.id ?? id,
       taskStatus: t.taskStatus ?? t.status ?? '',
-      assigneeId: t.assigneeId ?? null,
+      // F5 — server returns `claimedById`, not `assigneeId`. Fall back to
+      // assigneeId for forward-compat in case the server adds it later.
+      assigneeId: t.claimedById ?? t.assigneeId ?? null,
       taskNumber: t.taskNumber ?? null,
     }));
   },

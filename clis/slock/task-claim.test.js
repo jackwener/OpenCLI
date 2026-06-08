@@ -43,6 +43,30 @@ describe('slock task-claim', () => {
     await expect(command.func(page403, { taskId: ID })).rejects.toThrow(/forbidden|403/);
   });
 
+  // F5 — qatester live dump: server wraps the row as { task: {...} } and
+  // names the assignee `claimedById`, NOT `assigneeId`. The in-page snippet
+  // owns the unwrap (it runs in the browser, not in this test process), so
+  // we assert two things separately:
+  //   (i) the snippet emits the unwrap logic — drift catch via string match
+  //   (ii) the mapper picks claimedById when present (real field name)
+  it('[F5 drift] in-page snippet unwraps data.task before returning the envelope', async () => {
+    const page = makePage({ kind: 'ok', rows: [{ id: ID, taskStatus: 'in_progress', claimedById: 'u1', taskNumber: 7 }] });
+    await command.func(page, { taskId: ID });
+    const snippet = page.evaluate.mock.calls[0][0];
+    // The exact unwrap line ensures a future refactor that strips it (or
+    // wraps the wrong direction) is caught pre-network.
+    expect(snippet).toContain('data && data.task');
+  });
+
+  it('[F5 real-shape mapping] claimedById from server maps to assigneeId in output', async () => {
+    // Post-unwrap shape (what dispatchEvaluateResult sees): the in-page snippet
+    // already pulled `data.task` out, so the row here matches what claim
+    // returns from the server with `claimedById` as the assignee key.
+    const page = makePage({ kind: 'ok', rows: [{ id: ID, taskStatus: 'in_progress', claimedById: 'user-c47a3491', taskNumber: 7, channelId: 'c1' }] });
+    const rows = await command.func(page, { taskId: ID });
+    expect(rows[0]).toMatchObject({ taskId: ID, taskStatus: 'in_progress', assigneeId: 'user-c47a3491', taskNumber: 7 });
+  });
+
   it('passes --server override into authHeadersFragment', async () => {
     const page = makePage({ kind: 'ok', rows: [{ id: ID }] });
     await command.func(page, { taskId: ID, server: 'jackyland' });

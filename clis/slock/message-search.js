@@ -62,7 +62,10 @@ cli({
       const res = await fetch(searchUrl, { credentials:'include', headers });
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/messages/search' };
       const data = await res.json();
-      return { kind: 'ok', rows: Array.isArray(data) ? data : (data.messages || data.data || []) };
+      // F2-b — qatester live dump: shape is { results: [...], hasMore }.
+      // Unwrap .results first; fall back to legacy .messages / .data /
+      // bare array for forward-compat.
+      return { kind: 'ok', rows: Array.isArray(data) ? data : (data.results || data.messages || data.data || []) };
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);

@@ -53,16 +53,19 @@ cli({
       }
       if (res.status === 403) return { kind: 'http', status: 403, where: '/tasks/:taskId/status (forbidden — terminal status (done/closed), not the assignee, or channel archived)' };
       if (res.status === 404) return { kind: 'http', status: 404, where: '/tasks/:taskId/status (task not found)' };
+      // F6 — actionable hint for repeat-set 409 ("status already X").
+      if (res.status === 409) return { kind: 'http', status: 409, where: '/tasks/:taskId/status (conflict — task is already in status ' + ${JSON.stringify(status)} + '; no-op set rejected)' };
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/tasks/:taskId/status' };
       const data = await res.json().catch(() => ({}));
-      return { kind: 'ok', rows: [data] };
+      const t = (data && data.task) ? data.task : data;
+      return { kind: 'ok', rows: [t] };
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
     return rows.map((t) => ({
       taskId: t.id ?? id,
       taskStatus: t.taskStatus ?? status,
-      assigneeId: t.assigneeId ?? null,
+      assigneeId: t.claimedById ?? t.assigneeId ?? null,
       taskNumber: t.taskNumber ?? null,
     }));
   },

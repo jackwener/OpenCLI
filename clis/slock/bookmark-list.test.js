@@ -20,4 +20,17 @@ describe('slock bookmark-list', () => {
     const page = { goto: vi.fn(), evaluate: vi.fn().mockResolvedValue({ kind: 'ok', rows: { wrong: 'shape' } }) };
     await expect(command.func(page, {})).rejects.toThrow(/expected array/);
   });
+
+  // F3-b drift: real shape is { saved: [...], hasMore }. If a future refactor
+  // strips data.saved out of the unwrap chain, the list silently returns [].
+  it('[F3-b drift] in-page snippet unwraps data.saved FIRST in the fallback chain', async () => {
+    const page = {
+      goto: vi.fn(),
+      evaluate: vi.fn().mockResolvedValue({ kind: 'ok', rows: [] }),
+    };
+    await command.func(page, {});
+    const snippet = page.evaluate.mock.calls[0][0];
+    // saved before bookmarks before data — order matters for forward-compat.
+    expect(snippet).toMatch(/data\.saved\s*\|\|\s*data\.bookmarks\s*\|\|\s*data\.data/);
+  });
 });

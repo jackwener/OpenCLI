@@ -35,16 +35,20 @@ cli({
       const res = await fetch('${SLOCK_API_BASE}/tasks/' + encodeURIComponent(${JSON.stringify(id)}) + '/unclaim', { method:'PATCH', credentials:'include', headers });
       if (res.status === 404) return { kind: 'http', status: 404, where: '/tasks/:id/unclaim (task not found)' };
       if (res.status === 403) return { kind: 'http', status: 403, where: '/tasks/:id/unclaim (forbidden — not the assignee, terminal status, or channel archived)' };
+      // F6 — actionable hint for the most common reason this 409s (task already
+      // unclaimed, or terminal state). Bare "HTTP 409" was confusing.
+      if (res.status === 409) return { kind: 'http', status: 409, where: '/tasks/:id/unclaim (conflict — task is not claimed, or already in a terminal state (done/closed))' };
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/tasks/:id/unclaim' };
       const data = await res.json().catch(() => ({}));
-      return { kind: 'ok', rows: [data] };
+      const t = (data && data.task) ? data.task : data;
+      return { kind: 'ok', rows: [t] };
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
     return rows.map((t) => ({
       taskId: t.id ?? id,
       taskStatus: t.taskStatus ?? t.status ?? '',
-      assigneeId: t.assigneeId ?? null,
+      assigneeId: t.claimedById ?? t.assigneeId ?? null,
       taskNumber: t.taskNumber ?? null,
     }));
   },
