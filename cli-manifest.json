@@ -4275,7 +4275,34 @@
   {
     "site": "bloomberg",
     "name": "businessweek",
-    "description": "Bloomberg Businessweek top stories (RSS)",
+    "description": "Bloomberg Businessweek top stories",
+    "access": "read",
+    "domain": "www.bloomberg.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of stories to return (max 20)"
+      }
+    ],
+    "columns": [
+      "title",
+      "summary",
+      "link",
+      "mediaLinks"
+    ],
+    "type": "js",
+    "modulePath": "bloomberg/businessweek.js",
+    "sourceFile": "bloomberg/businessweek.js"
+  },
+  {
+    "site": "bloomberg",
+    "name": "crypto",
+    "description": "Bloomberg Crypto top stories (RSS)",
     "access": "read",
     "domain": "feeds.bloomberg.com",
     "strategy": "public",
@@ -4296,8 +4323,8 @@
       "mediaLinks"
     ],
     "type": "js",
-    "modulePath": "bloomberg/businessweek.js",
-    "sourceFile": "bloomberg/businessweek.js"
+    "modulePath": "bloomberg/crypto.js",
+    "sourceFile": "bloomberg/crypto.js"
   },
   {
     "site": "bloomberg",
@@ -4342,6 +4369,33 @@
     "type": "js",
     "modulePath": "bloomberg/feeds.js",
     "sourceFile": "bloomberg/feeds.js"
+  },
+  {
+    "site": "bloomberg",
+    "name": "green",
+    "description": "Bloomberg Green (climate & energy) top stories (RSS)",
+    "access": "read",
+    "domain": "feeds.bloomberg.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of feed items to return (max 20)"
+      }
+    ],
+    "columns": [
+      "title",
+      "summary",
+      "link",
+      "mediaLinks"
+    ],
+    "type": "js",
+    "modulePath": "bloomberg/green.js",
+    "sourceFile": "bloomberg/green.js"
   },
   {
     "site": "bloomberg",
@@ -4506,6 +4560,33 @@
     "type": "js",
     "modulePath": "bloomberg/politics.js",
     "sourceFile": "bloomberg/politics.js"
+  },
+  {
+    "site": "bloomberg",
+    "name": "pursuits",
+    "description": "Bloomberg Pursuits (lifestyle) top stories (RSS)",
+    "access": "read",
+    "domain": "feeds.bloomberg.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of feed items to return (max 20)"
+      }
+    ],
+    "columns": [
+      "title",
+      "summary",
+      "link",
+      "mediaLinks"
+    ],
+    "type": "js",
+    "modulePath": "bloomberg/pursuits.js",
+    "sourceFile": "bloomberg/pursuits.js"
   },
   {
     "site": "bloomberg",
