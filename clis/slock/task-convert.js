@@ -16,7 +16,7 @@
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { authHeadersFragment } from './in-page.js';
+import { authHeadersFragment, resolveShortIdFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { UUID_RE, classifyThreadTarget } from './resolve.js';
@@ -67,14 +67,7 @@ cli({
           parentChannelId = hit.id;
         }
         let fullMsgId = ${pmsg};
-        if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(fullMsgId)) {
-          const cx = await fetch('${SLOCK_API_BASE}/messages/context/' + encodeURIComponent(fullMsgId) + '?channelId=' + encodeURIComponent(parentChannelId), { credentials:'include', headers });
-          if (cx.status === 404) return { kind: 'unresolvable', detail: 'short id "' + fullMsgId + '" not found in #' + ${parent} };
-          if (!cx.ok) return { kind: cx.status===401?'auth':'http', status: cx.status, where:'/messages/context' };
-          const cxd = await cx.json();
-          // CRITICAL — read targetMessageId, NOT m.message.id (Phase 7.1).
-          fullMsgId = cxd.targetMessageId;
-        }
+        ${resolveShortIdFragment({ shortIdVar: 'fullMsgId', parentChannelIdVar: 'parentChannelId', contextDescription: parent })}
       `;
     }
 

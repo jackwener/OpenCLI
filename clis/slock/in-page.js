@@ -130,6 +130,45 @@ export function channelResolveFragment(channelInput) {
   `;
 }
 
+// Emits JS that expands a "#channel:shortId" short message id into the full
+// messageId UUID via GET /api/messages/context/:shortId?channelId=<id>.
+//
+// Phase 7.1 invariant (kept across rewrites): read `cxd.targetMessageId`,
+// NOT `m.message.id`. The latter is the closest-message-in-context object,
+// which can be a neighbor when the short id is just a prefix — Phase 7.1
+// bug class. Also: 404 from /messages/context means short id not found
+// in that channel — caller should map it to `unresolvable`, distinct from
+// other 404s in surrounding logic (threads-404 / channel-404 mean
+// different things).
+//
+// `shortIdVar` is mutated in-place: on success it holds the resolved UUID.
+//
+// opts:
+//   shortIdVar          name of the JS variable holding the short id (mutated)
+//   parentChannelIdVar  name of the JS variable holding the parent channelId
+//   contextDescription  optional `JSON.stringify`'d JS expression that
+//                       evaluates to a string used in the "not found" detail
+//                       (e.g. `"#general"` becomes `' in #' + 'general'`).
+//                       Pass `"''"` to omit the suffix entirely.
+//
+// Drift-guarded by clis/slock/short-id-canary.test.js — any other file that
+// hand-rolls `cxd.targetMessageId` short-id resolution fails the canary.
+export function resolveShortIdFragment({ shortIdVar, parentChannelIdVar, contextDescription = "''" }) {
+  return `
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(${shortIdVar})) {
+      const cx = await fetch('${SLOCK_API_BASE}/messages/context/' + encodeURIComponent(${shortIdVar}) + '?channelId=' + encodeURIComponent(${parentChannelIdVar}), { credentials:'include', headers });
+      if (cx.status === 404) {
+        const __ctx = ${contextDescription};
+        return { kind: 'unresolvable', detail: 'short id "' + ${shortIdVar} + '" not found' + (__ctx ? ' in #' + __ctx : '') };
+      }
+      if (!cx.ok) return { kind: cx.status===401?'auth':'http', status: cx.status, where:'/messages/context' };
+      const cxd = await cx.json();
+      // CRITICAL — read targetMessageId, NOT m.message.id (Phase 7.1).
+      ${shortIdVar} = cxd.targetMessageId;
+    }
+  `;
+}
+
 // opts: { method, path, body?, serverScoped, serverIdOverride? }
 //   method      'GET' | 'POST' | 'DELETE' | 'PATCH'
 //   serverScoped  when true, resolve slug→id and send X-Server-Id

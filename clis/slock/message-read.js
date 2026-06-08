@@ -1,7 +1,7 @@
 // message-read.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { authHeadersFragment } from './in-page.js';
+import { authHeadersFragment, resolveShortIdFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { UUID_RE, classifyThreadTarget } from './resolve.js';
@@ -113,13 +113,7 @@ function buildReadSnippet(p) {
       if (!phit) return { kind: 'unresolvable', detail: 'parent channel not found: ' + ${parentTarget} };
       const parentChannelId = phit.id;
       let fullMsgId = ${parentMsgId};
-      if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(fullMsgId)) {
-        const cx = await fetch('${SLOCK_API_BASE}/messages/context/' + encodeURIComponent(fullMsgId) + '?channelId=' + encodeURIComponent(parentChannelId), { credentials:'include', headers });
-        if (cx.status === 404) return { kind: 'unresolvable', detail: 'short id "' + fullMsgId + '" not found in #' + ${parentTarget} };
-        if (!cx.ok) return { kind: cx.status===401?'auth':'http', status: cx.status, where:'/messages/context' };
-        const cxd = await cx.json();
-        fullMsgId = cxd.targetMessageId;
-      }
+      ${resolveShortIdFragment({ shortIdVar: 'fullMsgId', parentChannelIdVar: 'parentChannelId', contextDescription: parentTarget })}
       const tres = await fetch('${SLOCK_API_BASE}/channels/' + encodeURIComponent(parentChannelId) + '/threads/' + encodeURIComponent(fullMsgId), { credentials:'include', headers });
       if (tres.status === 404) return { kind: 'no-thread', parent: ${JSON.stringify(p.channel)} };
       if (!tres.ok) return { kind: tres.status===401?'auth':'http', status: tres.status, where:'/threads/:msgId' };
