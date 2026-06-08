@@ -36,6 +36,42 @@ export function authHeadersFragment({ serverScoped = false, serverIdOverride = n
     }`
     : '';
   return `
+    // Page-readiness loop: page.goto can return before the SPA's first navigation
+    // settles, leaving location on an opaque interstitial (about:blank, redirector,
+    // etc.). Reading localStorage there throws SecurityError "Access is denied".
+    // Worse, qatester also live-flagged silent-empty fetches when the SPA had
+    // navigated to app.slock.ai but had not yet hydrated the token into
+    // localStorage — fetches then went out with an empty Authorization and the
+    // server happily returned [].
+    //
+    // The loop polls BOTH: (a) location.href is on app.slock.ai (so localStorage
+    // is no longer opaque) and (b) localStorage.slock_access_token is present
+    // (so the SPA finished hydrating). Reading localStorage inside try/catch
+    // because (a) and (b) can be partially satisfied — reading localStorage on
+    // an opaque origin still throws even after a redirect starts.
+    //
+    // 3s ceiling so a real navigation failure fails loud instead of hanging.
+    let __waited = 0;
+    let __reason = 'never reached app.slock.ai';
+    while (true) {
+      let __onHost = false;
+      try { __onHost = location.href.indexOf('app.slock.ai') !== -1; } catch (e) {}
+      if (__onHost) {
+        try {
+          if (localStorage.getItem('slock_access_token')) break;
+          __reason = 'on app.slock.ai but localStorage.slock_access_token not yet hydrated';
+        } catch (e) {
+          __reason = 'localStorage access threw even on app.slock.ai: ' + (e && e.message);
+        }
+      }
+      if (__waited >= 3000) {
+        let __loc;
+        try { __loc = location.href; } catch (e) { __loc = '(unreadable)'; }
+        return { kind: 'http', status: 0, where: 'page-readiness timeout: waited 3000ms (' + __reason + '), location=' + __loc };
+      }
+      await new Promise((r) => setTimeout(r, 50));
+      __waited += 50;
+    }
     const token = localStorage.getItem('slock_access_token');
     if (!token) return { kind: 'auth', detail: 'no access token in localStorage' };
     let sid = ${overrideSid};${resolveServer}

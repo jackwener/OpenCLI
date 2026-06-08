@@ -10,18 +10,25 @@ const UUID_A = '11111111-1111-1111-1111-111111111111';
 async function runSnippet(snippet, fetchImpl, lsMap = {}) {
   const realFetch = globalThis.fetch;
   const realLS = globalThis.localStorage;
+  const realLocation = globalThis.location;
   const store = { ...lsMap };
   globalThis.fetch = fetchImpl;
   globalThis.localStorage = {
     getItem: (k) => (k in store ? store[k] : null),
     setItem: (k, v) => { store[k] = String(v); },
   };
+  // authHeadersFragment now opens with a page-readiness loop that waits until
+  // location.href contains 'app.slock.ai' (so localStorage on an opaque
+  // interstitial origin doesn't throw SecurityError). Stub a satisfied
+  // location so the snippet doesn't burn 3s of fake time.
+  globalThis.location = { href: 'https://app.slock.ai/' };
   try {
     // eslint-disable-next-line no-eval
     return await eval(`(async () => { ${snippet} })()`);
   } finally {
     globalThis.fetch = realFetch;
     globalThis.localStorage = realLS;
+    globalThis.location = realLocation;
   }
 }
 
@@ -169,5 +176,94 @@ describe('channelResolveFragment', () => {
     expect(frag).toContain('=== "general"');
     // ...and never lowercases/strips into a different key.
     expect(frag).not.toContain('=== "#general"');
+  });
+});
+
+describe('authHeadersFragment page-readiness loop', () => {
+  // qatester live-flagged a SecurityError on first command after page.goto:
+  // page.goto returned before app.slock.ai actually loaded, leaving location
+  // on an opaque interstitial — localStorage on opaque origin throws. The
+  // fix is a polled wait inside authHeadersFragment for the SPA host. These
+  // cases lock the wait shape so a future refactor can't quietly strip it.
+
+  it('emits a polled wait that gates on BOTH location AND token-hydrated BEFORE the fetch', () => {
+    const snippet = buildFetchSnippet({ method: 'GET', path: '/whoami', serverScoped: false });
+    // (a) location.href check — guards SecurityError on opaque origins.
+    expect(snippet).toContain("location.href.indexOf('app.slock.ai')");
+    // (b) localStorage token check INSIDE the loop — guards silent-empty
+    // (page is on app.slock.ai but SPA has not yet written the token, so
+    // fetches went out with empty Authorization and server returned []).
+    expect(snippet).toContain("localStorage.getItem('slock_access_token')");
+    // The wait MUST sit before the final fetch; otherwise it doesn't
+    // prevent the SecurityError. Pin order by index.
+    const waitIdx = snippet.indexOf("location.href.indexOf('app.slock.ai')");
+    const fetchIdx = snippet.indexOf('await fetch(');
+    expect(waitIdx).toBeGreaterThan(-1);
+    expect(fetchIdx).toBeGreaterThan(-1);
+    expect(waitIdx).toBeLessThan(fetchIdx);
+  });
+
+  it('has a hard timeout that returns fail-loud kind:http rather than hanging', () => {
+    const snippet = buildFetchSnippet({ method: 'GET', path: '/whoami', serverScoped: false });
+    // Timeout ceiling pinned at 3000ms — change requires intentional bump.
+    expect(snippet).toContain('3000');
+    expect(snippet).toContain("'page-readiness timeout");
+    // Must return a typed envelope (not throw / hang) so the CLI surfaces
+    // a clean error.
+    expect(snippet).toMatch(/return\s*\{\s*kind:\s*'http'/);
+  });
+
+  it('silent-empty guard: on app.slock.ai but token not yet hydrated → timeout fail-loud, never fetches', async () => {
+    const snippet = buildFetchSnippet({ method: 'GET', path: '/whoami', serverScoped: false });
+    const realFetch = globalThis.fetch;
+    const realLS = globalThis.localStorage;
+    const realLocation = globalThis.location;
+    const realSetTimeout = globalThis.setTimeout;
+    globalThis.fetch = vi.fn();
+    // localStorage exists but slock_access_token never appears (the silent-empty
+    // case qatester live-flagged: SPA hadn't hydrated yet).
+    globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+    globalThis.location = { href: 'https://app.slock.ai/' };
+    globalThis.setTimeout = (cb) => realSetTimeout(cb, 0);
+    try {
+      // eslint-disable-next-line no-eval
+      const result = await eval(`(async () => { ${snippet} })()`);
+      expect(result.kind).toBe('http');
+      expect(result.where).toMatch(/not yet hydrated/);
+      // Never fetched, because the loop never broke.
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = realFetch;
+      globalThis.localStorage = realLS;
+      globalThis.location = realLocation;
+      globalThis.setTimeout = realSetTimeout;
+    }
+  });
+
+  it('the wait actually triggers when location is NOT app.slock.ai (timeout path returns fail-loud)', async () => {
+    const snippet = buildFetchSnippet({ method: 'GET', path: '/whoami', serverScoped: false });
+    // Stub globals; location stays on a foreign origin so the loop will time out.
+    const realFetch = globalThis.fetch;
+    const realLS = globalThis.localStorage;
+    const realLocation = globalThis.location;
+    const realSetTimeout = globalThis.setTimeout;
+    globalThis.fetch = vi.fn();
+    globalThis.localStorage = { getItem: () => 'fake-token', setItem: () => {} };
+    globalThis.location = { href: 'https://example.com/' };
+    // Fast-forward setTimeout so the 3000ms loop completes instantly under test.
+    globalThis.setTimeout = (cb) => realSetTimeout(cb, 0);
+    try {
+      // eslint-disable-next-line no-eval
+      const result = await eval(`(async () => { ${snippet} })()`);
+      expect(result.kind).toBe('http');
+      expect(result.where).toMatch(/page-readiness timeout/);
+      // fetch must NEVER have been called because we never got past the loop.
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = realFetch;
+      globalThis.localStorage = realLS;
+      globalThis.location = realLocation;
+      globalThis.setTimeout = realSetTimeout;
+    }
   });
 });
