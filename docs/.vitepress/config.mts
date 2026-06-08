@@ -116,6 +116,7 @@ export default defineConfig({
                 { text: 'TDX', link: '/adapters/browser/tdx' },
                 { text: 'THS', link: '/adapters/browser/ths' },
                 { text: 'Dianping', link: '/adapters/browser/dianping' },
+                { text: 'Slock', link: '/adapters/browser/slock' },
               ],
             },
             {
