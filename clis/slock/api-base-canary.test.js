@@ -41,8 +41,10 @@ describe('slock SLOCK_API_BASE canary', () => {
         .replace(/\/\/.*$/gm, '');
 
       // Forbidden pattern: a string literal whose first chars are '/api/'.
-      // Both single- and double-quote forms.
-      const hits = (noComments.match(/(['"])\/api\//g) || []);
+      // Cover single-quote, double-quote, AND backtick forms — a future
+      // refactor that pastes `\`/api/foo\`` (template literal) would slip
+      // past a char class missing the backtick.
+      const hits = (noComments.match(/(['"`])\/api\//g) || []);
       if (hits.length) offenders.push(`${f} (${hits.length} hardcoded '/api/...' literal${hits.length === 1 ? '' : 's'})`);
     }
 
