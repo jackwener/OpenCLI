@@ -1,6 +1,7 @@
 // message-send.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
+import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { UUID_RE, classifyTarget } from './resolve.js';
@@ -62,7 +63,8 @@ cli({
 });
 
 function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
-  const override = serverOverride ? JSON.stringify(serverOverride) : 'null';
+  // R1 — raw override; authHeadersFragment owns the UUID-vs-slug resolution.
+  const override = serverOverride ?? null;
   const contentJson = JSON.stringify(content);
   const extraParts = [];
   if (extra.asTask) extraParts.push('asTask: true');
@@ -70,22 +72,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
     extraParts.push(`attachmentIds: ${JSON.stringify(extra.attachmentIds)}`);
   }
   const extraStr = extraParts.length ? ', ' + extraParts.join(', ') : '';
-  const auth = `
-    const token = localStorage.getItem('slock_access_token');
-    if (!token) return { kind: 'auth', detail: 'no token' };
-    let sid = ${override};
-    if (!sid) {
-      const slug = localStorage.getItem('slock_last_server_slug');
-      if (!slug) return { kind: 'no-server', detail: 'no slug' };
-      const sres = await fetch('${SLOCK_API_BASE}/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
-      if (!sres.ok) return { kind: sres.status===401?'auth':'http', status: sres.status, where:'/servers/' };
-      const slist = await sres.json();
-      const sm = slist.find((s) => s.slug === slug);
-      if (!sm) return { kind: 'no-server', detail: 'slug missing' };
-      sid = sm.id;
-    }
-    const headers = { authorization:'Bearer '+token, accept:'application/json', 'content-type':'application/json', 'x-server-id': sid };
-  `;
+  const auth = authHeadersFragment({ serverScoped: true, serverIdOverride: override });
   const postMsg = `
     const mres = await fetch('${SLOCK_API_BASE}/messages', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId, content: ${contentJson}${extraStr} }) });
     if (!mres.ok) return { kind: mres.status===401?'auth':'http', status: mres.status, where:'/messages' };

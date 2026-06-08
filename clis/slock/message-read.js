@@ -1,6 +1,7 @@
 // message-read.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { UUID_RE, classifyThreadTarget } from './resolve.js';
@@ -51,7 +52,9 @@ cli({
     const limit = String(kwargs.limit ?? 50);
     const before = kwargs.before !== undefined ? String(kwargs.before) : '';
     const noThreads = !!kwargs['no-threads'];
-    const override = kwargs.server ? JSON.stringify(kwargs.server) : 'null';
+    // R1 — pass the raw override through to authHeadersFragment; it owns the
+    // UUID-vs-slug resolution against /servers/ now.
+    const override = kwargs.server ?? null;
 
     await page.goto(SLOCK_HOME_URL);
 
@@ -98,20 +101,7 @@ function buildReadSnippet(p) {
   const before = JSON.stringify(p.before);
   const limit = JSON.stringify(p.limit);
   return `
-    const token = localStorage.getItem('slock_access_token');
-    if (!token) return { kind: 'auth', detail: 'no token' };
-    let sid = ${p.override};
-    if (!sid) {
-      const slug = localStorage.getItem('slock_last_server_slug');
-      if (!slug) return { kind: 'no-server', detail: 'no slug' };
-      const sres = await fetch('${SLOCK_API_BASE}/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
-      if (!sres.ok) return { kind: sres.status===401?'auth':'http', status: sres.status, where: '/servers/' };
-      const slist = await sres.json();
-      const sm = slist.find((s) => s.slug === slug);
-      if (!sm) return { kind: 'no-server', detail: 'slug missing' };
-      sid = sm.id;
-    }
-    const headers = { authorization:'Bearer '+token, accept:'application/json', 'x-server-id': sid };
+    ${authHeadersFragment({ serverScoped: true, serverIdOverride: p.override })}
     let channelId;
     ${p.isThread ? `
       // thread shape: resolve parent channel, then short-id → full, then /threads/:msgId

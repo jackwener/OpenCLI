@@ -1,6 +1,7 @@
 // message-search.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
+import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { UUID_RE } from './resolve.js';
@@ -27,24 +28,12 @@ cli({
     const channel = String(kwargs.channel ?? '').trim();
     const isUuid = channel ? UUID_RE.test(channel) : false;
     const target = channel ? JSON.stringify(channel.replace(/^#/, '').toLowerCase()) : '""';
-    const override = kwargs.server ? JSON.stringify(kwargs.server) : 'null';
+    // R1 — raw override; authHeadersFragment owns the UUID-vs-slug resolution.
+    const override = kwargs.server ?? null;
     const limit = String(kwargs.limit ?? 50);
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
-      const token = localStorage.getItem('slock_access_token');
-      if (!token) return { kind: 'auth', detail: 'no token' };
-      let sid = ${override};
-      if (!sid) {
-        const slug = localStorage.getItem('slock_last_server_slug');
-        if (!slug) return { kind: 'no-server', detail: 'no slug' };
-        const sres = await fetch('${SLOCK_API_BASE}/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
-        if (!sres.ok) return { kind: sres.status===401?'auth':'http', status: sres.status, where:'/servers/' };
-        const slist = await sres.json();
-        const sm = slist.find((s) => s.slug === slug);
-        if (!sm) return { kind: 'no-server', detail: 'slug missing' };
-        sid = sm.id;
-      }
-      const headers = { authorization:'Bearer '+token, accept:'application/json', 'x-server-id': sid };
+      ${authHeadersFragment({ serverScoped: true, serverIdOverride: override })}
       let channelId = '';
       if (${JSON.stringify(channel)}) {
         if (${isUuid}) {
