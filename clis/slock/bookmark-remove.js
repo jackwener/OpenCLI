@@ -3,7 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { assertMessageIdShape } from './resolve.js';
 
 cli({
@@ -27,7 +27,7 @@ cli({
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
-      const res = await fetch('/api/channels/saved/' + encodeURIComponent(${JSON.stringify(id)}), { method:'DELETE', credentials:'include', headers });
+      const res = await fetch('${SLOCK_API_BASE}/channels/saved/' + encodeURIComponent(${JSON.stringify(id)}), { method:'DELETE', credentials:'include', headers });
       if (res.status === 404) return { kind: 'http', status: 404, where:'/channels/saved/:id' };
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/channels/saved/:id' };
       return { kind: 'ok', rows: [{ removed: true }] };

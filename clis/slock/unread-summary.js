@@ -3,7 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 // GET /servers/unread-summary is user-scoped (no X-Server-Id) and returns bare
 // {serverId, unreadCount}. We enrich each row with the server's slug/name from
@@ -23,11 +23,11 @@ cli({
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: false })}
-      const sres = await fetch('/api/servers/', { credentials:'include', headers });
+      const sres = await fetch('${SLOCK_API_BASE}/servers/', { credentials:'include', headers });
       if (sres.status === 401) return { kind: 'auth', detail: '/servers/ returned 401' };
       if (!sres.ok) return { kind: 'http', status: sres.status, where:'/servers/' };
       const servers = await sres.json();
-      const ures = await fetch('/api/servers/unread-summary', { credentials:'include', headers });
+      const ures = await fetch('${SLOCK_API_BASE}/servers/unread-summary', { credentials:'include', headers });
       if (ures.status === 401) return { kind: 'auth', detail: '/servers/unread-summary returned 401' };
       if (!ures.ok) return { kind: 'http', status: ures.status, where:'/servers/unread-summary' };
       const summary = await ures.json();

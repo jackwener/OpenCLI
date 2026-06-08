@@ -12,7 +12,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { assertMessageIdShape } from './resolve.js';
 
 const TASK_STATUSES = ['todo', 'in_progress', 'in_review', 'done', 'closed'];
@@ -43,7 +43,7 @@ cli({
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
-      const res = await fetch('/api/tasks/' + encodeURIComponent(${JSON.stringify(id)}) + '/status', {
+      const res = await fetch('${SLOCK_API_BASE}/tasks/' + encodeURIComponent(${JSON.stringify(id)}) + '/status', {
         method:'PATCH', credentials:'include', headers,
         body: JSON.stringify({ status: ${JSON.stringify(status)} }),
       });

@@ -3,7 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment, channelResolveFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 cli({
   site: SLOCK_SITE,
@@ -27,7 +27,7 @@ cli({
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
       ${channelResolveFragment(channel)}
-      const res = await fetch('/api/channels/inbox/done', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId }) });
+      const res = await fetch('${SLOCK_API_BASE}/channels/inbox/done', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId }) });
       if (res.status === 401) return { kind: 'auth', detail: '/channels/inbox/done returned 401' };
       if (!res.ok) return { kind: 'http', status: res.status, where:'/channels/inbox/done' };
       const data = await res.json().catch(() => ({}));

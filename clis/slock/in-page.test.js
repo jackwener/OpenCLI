@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { buildFetchSnippet, buildChannelScopedSnippet, channelResolveFragment } from './in-page.js';
+import { SLOCK_API_BASE } from './shared.js';
 
 const UUID_A = '11111111-1111-1111-1111-111111111111';
 
@@ -52,7 +53,7 @@ describe('buildFetchSnippet', () => {
       slock_last_server_slug: 'eng',
     });
     const call = fakeFetch.mock.calls[1];
-    expect(call[0]).toBe('/api/messages');
+    expect(call[0]).toBe(SLOCK_API_BASE + '/messages');
     expect(call[1].method).toBe('POST');
     expect(call[1].headers['content-type']).toBe('application/json');
     expect(JSON.parse(call[1].body)).toEqual({ channelId: 'c1', content: 'hi' });
@@ -129,7 +130,7 @@ describe('buildChannelScopedSnippet', () => {
     const result = await runSnippet(snippet, fakeFetch, { slock_access_token: 'tkn' });
     // No /servers/ resolve (override) and no /channels/ resolve (uuid) — one call.
     expect(fakeFetch).toHaveBeenCalledTimes(1);
-    expect(fakeFetch.mock.calls[0][0]).toBe(`/api/channels/${UUID_A}/members`);
+    expect(fakeFetch.mock.calls[0][0]).toBe(`${SLOCK_API_BASE}/channels/${UUID_A}/members`);
     expect(fakeFetch.mock.calls[0][1].headers['x-server-id']).toBe('sid-x');
     expect(result).toEqual({ kind: 'ok', rows: [{ id: 'u1' }] });
   });
@@ -145,7 +146,7 @@ describe('buildChannelScopedSnippet', () => {
     const result = await runSnippet(snippet, fakeFetch, {
       slock_access_token: 'tkn', slock_last_server_slug: 'eng',
     });
-    expect(fakeFetch.mock.calls[2][0]).toBe('/api/channels/chan-7/read-all');
+    expect(fakeFetch.mock.calls[2][0]).toBe(SLOCK_API_BASE + '/channels/chan-7/read-all');
     expect(result).toEqual({ kind: 'ok', rows: { ok: true, seq: 42 } });
   });
 

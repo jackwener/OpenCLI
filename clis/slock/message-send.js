@@ -2,7 +2,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { UUID_RE, classifyTarget } from './resolve.js';
 
 cli({
@@ -77,7 +77,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
     if (!sid) {
       const slug = localStorage.getItem('slock_last_server_slug');
       if (!slug) return { kind: 'no-server', detail: 'no slug' };
-      const sres = await fetch('/api/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
+      const sres = await fetch('${SLOCK_API_BASE}/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
       if (!sres.ok) return { kind: sres.status===401?'auth':'http', status: sres.status, where:'/servers/' };
       const slist = await sres.json();
       const sm = slist.find((s) => s.slug === slug);
@@ -87,7 +87,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
     const headers = { authorization:'Bearer '+token, accept:'application/json', 'content-type':'application/json', 'x-server-id': sid };
   `;
   const postMsg = `
-    const mres = await fetch('/api/messages', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId, content: ${contentJson}${extraStr} }) });
+    const mres = await fetch('${SLOCK_API_BASE}/messages', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId, content: ${contentJson}${extraStr} }) });
     if (!mres.ok) return { kind: mres.status===401?'auth':'http', status: mres.status, where:'/messages' };
     const m = await mres.json();
     return { kind: 'ok', rows: [{ id: m.id ?? m.messageId, channelId }] };
@@ -97,7 +97,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
     resolve = `let channelId = ${JSON.stringify(cls.channelId)};`;
   } else if (cls.kind === 'channel-name') {
     resolve = `
-      const cres = await fetch('/api/channels/', { credentials:'include', headers });
+      const cres = await fetch('${SLOCK_API_BASE}/channels/', { credentials:'include', headers });
       if (!cres.ok) return { kind: cres.status===401?'auth':'http', status: cres.status, where:'/channels/' };
       const carr = await cres.json();
       const hit = (Array.isArray(carr)?carr:(carr.channels||carr.data||[])).find((c) => (c.name||c.slug||'').toLowerCase() === ${JSON.stringify(cls.name)});
@@ -106,7 +106,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
     `;
   } else if (cls.kind === 'dm-uuid') {
     resolve = `
-      const dres = await fetch('/api/channels/dm', { method:'POST', credentials:'include', headers, body: JSON.stringify({ userId: ${JSON.stringify(cls.userId)} }) });
+      const dres = await fetch('${SLOCK_API_BASE}/channels/dm', { method:'POST', credentials:'include', headers, body: JSON.stringify({ userId: ${JSON.stringify(cls.userId)} }) });
       if (!dres.ok) return { kind: dres.status===401?'auth':'http', status: dres.status, where:'/channels/dm' };
       const dd = await dres.json();
       let channelId = dd.channelId ?? dd.id;
@@ -114,13 +114,13 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
     `;
   } else if (cls.kind === 'dm-name') {
     resolve = `
-      const sres2 = await fetch('/api/servers/' + encodeURIComponent(sid) + '/members', { credentials:'include', headers });
+      const sres2 = await fetch('${SLOCK_API_BASE}/servers/' + encodeURIComponent(sid) + '/members', { credentials:'include', headers });
       if (!sres2.ok) return { kind: sres2.status===401?'auth':'http', status: sres2.status, where:'/servers/:id/members' };
       const mlist = await sres2.json();
       const marr = Array.isArray(mlist) ? mlist : (mlist.members || mlist.data || []);
       const mh = marr.find((u) => (u.username||u.name||u.displayName||'').toLowerCase() === ${JSON.stringify(cls.name.toLowerCase())});
       if (!mh) return { kind: 'unresolvable', detail: 'no member @' + ${JSON.stringify(cls.name)} };
-      const dres = await fetch('/api/channels/dm', { method:'POST', credentials:'include', headers, body: JSON.stringify({ userId: mh.userId ?? mh.id }) });
+      const dres = await fetch('${SLOCK_API_BASE}/channels/dm', { method:'POST', credentials:'include', headers, body: JSON.stringify({ userId: mh.userId ?? mh.id }) });
       if (!dres.ok) return { kind: dres.status===401?'auth':'http', status: dres.status, where:'/channels/dm' };
       const dd = await dres.json();
       let channelId = dd.channelId ?? dd.id;
@@ -134,7 +134,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
       if (${isUuid}) {
         parentChannelId = ${JSON.stringify(cls.parentTarget)};
       } else {
-        const cres = await fetch('/api/channels/', { credentials:'include', headers });
+        const cres = await fetch('${SLOCK_API_BASE}/channels/', { credentials:'include', headers });
         if (!cres.ok) return { kind: cres.status===401?'auth':'http', status: cres.status, where:'/channels/' };
         const carr = await cres.json();
         const hit = (Array.isArray(carr)?carr:(carr.channels||carr.data||[])).find((c) => (c.name||c.slug||'').toLowerCase() === ${parent});
@@ -143,13 +143,13 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
       }
       let fullMsgId = ${pmsg};
       if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(fullMsgId)) {
-        const cx = await fetch('/api/messages/context/' + encodeURIComponent(fullMsgId) + '?channelId=' + encodeURIComponent(parentChannelId), { credentials:'include', headers });
+        const cx = await fetch('${SLOCK_API_BASE}/messages/context/' + encodeURIComponent(fullMsgId) + '?channelId=' + encodeURIComponent(parentChannelId), { credentials:'include', headers });
         if (cx.status === 404) return { kind: 'unresolvable', detail: 'short id "' + fullMsgId + '" not found' };
         if (!cx.ok) return { kind: cx.status===401?'auth':'http', status: cx.status, where:'/messages/context' };
         const cxd = await cx.json();
         fullMsgId = cxd.targetMessageId;
       }
-      const tres = await fetch('/api/channels/' + encodeURIComponent(parentChannelId) + '/threads', { method:'POST', credentials:'include', headers, body: JSON.stringify({ parentMessageId: fullMsgId }) });
+      const tres = await fetch('${SLOCK_API_BASE}/channels/' + encodeURIComponent(parentChannelId) + '/threads', { method:'POST', credentials:'include', headers, body: JSON.stringify({ parentMessageId: fullMsgId }) });
       if (!tres.ok) return { kind: tres.status===401?'auth':'http', status: tres.status, where:'/channels/:id/threads' };
       const td = await tres.json();
       let channelId = td.threadChannelId ?? td.channelId ?? td.id;

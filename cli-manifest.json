@@ -26342,7 +26342,7 @@
     "name": "attachment-download",
     "description": "Download an attachment to a local file. Resolves a signed CDN URL in the page, then fetches bytes node-side (no CORS).",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26374,7 +26374,7 @@
     "type": "js",
     "modulePath": "slock/attachment-download.js",
     "sourceFile": "slock/attachment-download.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26382,7 +26382,7 @@
     "name": "attachment-upload",
     "description": "Upload a local file to Slock attachments. Prints the attachmentId for use with `message-send --attach`.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26409,7 +26409,7 @@
     "type": "js",
     "modulePath": "slock/attachment-upload.js",
     "sourceFile": "slock/attachment-upload.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26417,7 +26417,7 @@
     "name": "attachment-url",
     "description": "Get a short-lived signed CDN URL for an attachment (does not download bytes).",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26443,7 +26443,7 @@
     "type": "js",
     "modulePath": "slock/attachment-url.js",
     "sourceFile": "slock/attachment-url.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26451,7 +26451,7 @@
     "name": "bookmark-add",
     "description": "Bookmark a message (POST /channels/saved). Requires full messageId UUID.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26476,7 +26476,7 @@
     "type": "js",
     "modulePath": "slock/bookmark-add.js",
     "sourceFile": "slock/bookmark-add.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26484,7 +26484,7 @@
     "name": "bookmark-list",
     "description": "List bookmarks (saved messages) in the active server",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26518,7 +26518,7 @@
     "type": "js",
     "modulePath": "slock/bookmark-list.js",
     "sourceFile": "slock/bookmark-list.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26526,7 +26526,7 @@
     "name": "bookmark-remove",
     "description": "Remove a bookmark (DELETE /channels/saved/:messageId). 404 is treated as already-removed.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26552,7 +26552,7 @@
     "type": "js",
     "modulePath": "slock/bookmark-remove.js",
     "sourceFile": "slock/bookmark-remove.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26560,7 +26560,7 @@
     "name": "channel-archive",
     "description": "Archive a channel — admin only (POST /channels/:id/archive)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26587,7 +26587,7 @@
     "type": "js",
     "modulePath": "slock/channel-archive.js",
     "sourceFile": "slock/channel-archive.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26595,7 +26595,7 @@
     "name": "channel-create",
     "description": "Create a channel — admin only (POST /channels/). Public unless --private.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26635,7 +26635,7 @@
     "type": "js",
     "modulePath": "slock/channel-create.js",
     "sourceFile": "slock/channel-create.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26643,7 +26643,7 @@
     "name": "channel-files",
     "description": "List files shared in a channel (GET /channels/:id/files)",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26679,7 +26679,7 @@
     "type": "js",
     "modulePath": "slock/channel-files.js",
     "sourceFile": "slock/channel-files.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26687,7 +26687,7 @@
     "name": "channel-info",
     "description": "Show one channel's details (GET /channels/:id)",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26716,7 +26716,7 @@
     "type": "js",
     "modulePath": "slock/channel-info.js",
     "sourceFile": "slock/channel-info.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26724,7 +26724,7 @@
     "name": "channel-join",
     "description": "Join a public channel (POST /channels/:id/join)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26751,7 +26751,7 @@
     "type": "js",
     "modulePath": "slock/channel-join.js",
     "sourceFile": "slock/channel-join.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26759,7 +26759,7 @@
     "name": "channel-leave",
     "description": "Leave a channel (POST /channels/:id/leave)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26786,7 +26786,7 @@
     "type": "js",
     "modulePath": "slock/channel-leave.js",
     "sourceFile": "slock/channel-leave.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26794,7 +26794,7 @@
     "name": "channel-list",
     "description": "List channels in the active slock server",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26813,7 +26813,7 @@
     "type": "js",
     "modulePath": "slock/channel-list.js",
     "sourceFile": "slock/channel-list.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26821,7 +26821,7 @@
     "name": "channel-mark",
     "description": "Mark a channel read (default), read up to --seq, or --unread.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26860,7 +26860,7 @@
     "type": "js",
     "modulePath": "slock/channel-mark.js",
     "sourceFile": "slock/channel-mark.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26868,7 +26868,7 @@
     "name": "channel-members",
     "description": "List members of a channel",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26894,7 +26894,7 @@
     "type": "js",
     "modulePath": "slock/channel-members.js",
     "sourceFile": "slock/channel-members.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26902,7 +26902,7 @@
     "name": "channel-unarchive",
     "description": "Unarchive a channel — admin only (POST /channels/:id/unarchive)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26929,7 +26929,7 @@
     "type": "js",
     "modulePath": "slock/channel-unarchive.js",
     "sourceFile": "slock/channel-unarchive.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26937,7 +26937,7 @@
     "name": "dm-list",
     "description": "List DM channels in the active server (GET /channels/dm)",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -26957,7 +26957,7 @@
     "type": "js",
     "modulePath": "slock/dm-list.js",
     "sourceFile": "slock/dm-list.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -26965,7 +26965,7 @@
     "name": "inbox",
     "description": "List unified inbox items (channels, DMs, followed threads) that need attention.",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27009,7 +27009,7 @@
     "type": "js",
     "modulePath": "slock/inbox.js",
     "sourceFile": "slock/inbox.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27017,7 +27017,7 @@
     "name": "inbox-done",
     "description": "Mark one chat as done / clear it from the inbox (POST /channels/inbox/done)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27042,7 +27042,7 @@
     "type": "js",
     "modulePath": "slock/inbox-done.js",
     "sourceFile": "slock/inbox-done.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27050,7 +27050,7 @@
     "name": "inbox-read-all",
     "description": "Mark the entire inbox as read (POST /channels/inbox/read-all)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27068,7 +27068,7 @@
     "type": "js",
     "modulePath": "slock/inbox-read-all.js",
     "sourceFile": "slock/inbox-read-all.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27076,7 +27076,7 @@
     "name": "login",
     "description": "Open slock login and wait until the browser session is authenticated",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27108,7 +27108,7 @@
     "name": "message-read",
     "description": "Read messages in a channel or thread. Thread form: \"#channel:msgIdOrShort\". Use --after seq|UUID for cursor.",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27166,7 +27166,7 @@
     "type": "js",
     "modulePath": "slock/message-read.js",
     "sourceFile": "slock/message-read.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27174,7 +27174,7 @@
     "name": "message-search",
     "description": "Search messages",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27215,7 +27215,7 @@
     "type": "js",
     "modulePath": "slock/message-search.js",
     "sourceFile": "slock/message-search.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27223,7 +27223,7 @@
     "name": "message-send",
     "description": "Send a message to a channel, DM, or thread (content sent verbatim)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27278,7 +27278,7 @@
     "type": "js",
     "modulePath": "slock/message-send.js",
     "sourceFile": "slock/message-send.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27286,7 +27286,7 @@
     "name": "reaction-add",
     "description": "Add an emoji reaction to a message (POST /messages/:id/reactions). Idempotent server-side.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27319,7 +27319,7 @@
     "type": "js",
     "modulePath": "slock/reaction-add.js",
     "sourceFile": "slock/reaction-add.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27327,7 +27327,7 @@
     "name": "reaction-remove",
     "description": "Remove your emoji reaction from a message (DELETE /messages/:id/reactions).",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27360,7 +27360,7 @@
     "type": "js",
     "modulePath": "slock/reaction-remove.js",
     "sourceFile": "slock/reaction-remove.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27368,7 +27368,7 @@
     "name": "server-list",
     "description": "List slock servers you belong to; marks active per localStorage slug",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [],
@@ -27381,7 +27381,7 @@
     "type": "js",
     "modulePath": "slock/server-list.js",
     "sourceFile": "slock/server-list.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27389,7 +27389,7 @@
     "name": "server-use",
     "description": "Set the active slock server (writes localStorage.slock_last_server_slug)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27410,7 +27410,7 @@
     "type": "js",
     "modulePath": "slock/server-use.js",
     "sourceFile": "slock/server-use.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27418,7 +27418,7 @@
     "name": "task-claim",
     "description": "Claim a chat task (PATCH /tasks/:id/claim). Requires full task UUID (= message id).",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27445,7 +27445,7 @@
     "type": "js",
     "modulePath": "slock/task-claim.js",
     "sourceFile": "slock/task-claim.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27453,7 +27453,7 @@
     "name": "task-convert",
     "description": "Convert a message into a chat task (POST /tasks/convert-message). Accepts a message UUID or \"#channel:shortId\".",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27481,7 +27481,7 @@
     "type": "js",
     "modulePath": "slock/task-convert.js",
     "sourceFile": "slock/task-convert.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27489,7 +27489,7 @@
     "name": "task-create",
     "description": "Create a task in a channel (single title; batch 1-50 is server-supported but client surface is single — see backlog R4).",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27530,7 +27530,7 @@
     "type": "js",
     "modulePath": "slock/task-create.js",
     "sourceFile": "slock/task-create.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27538,7 +27538,7 @@
     "name": "task-delete",
     "description": "Delete a chat task (DELETE /tasks/:taskId). Requires --confirm — destructive, irreversible.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27570,7 +27570,7 @@
     "type": "js",
     "modulePath": "slock/task-delete.js",
     "sourceFile": "slock/task-delete.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27578,7 +27578,7 @@
     "name": "task-get",
     "description": "Fetch a task by channel + taskNumber (GET /tasks/channel/:channelId/number/:taskNumber).",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27613,7 +27613,7 @@
     "type": "js",
     "modulePath": "slock/task-get.js",
     "sourceFile": "slock/task-get.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27621,7 +27621,7 @@
     "name": "task-list",
     "description": "List tasks (chat tasks = messages with task fields) attached to a channel. Optional --status filter.",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27655,7 +27655,7 @@
     "type": "js",
     "modulePath": "slock/task-list.js",
     "sourceFile": "slock/task-list.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27663,7 +27663,7 @@
     "name": "task-list-server",
     "description": "List tasks across all channels in the active server (GET /tasks/server). Optional --status filter.",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27691,7 +27691,7 @@
     "type": "js",
     "modulePath": "slock/task-list-server.js",
     "sourceFile": "slock/task-list-server.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27699,7 +27699,7 @@
     "name": "task-status",
     "description": "Set a task's status (PATCH /tasks/:taskId/status, body {status}). One of todo|in_progress|in_review|done|closed.",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27733,7 +27733,7 @@
     "type": "js",
     "modulePath": "slock/task-status.js",
     "sourceFile": "slock/task-status.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27741,7 +27741,7 @@
     "name": "task-unclaim",
     "description": "Release ownership of a chat task (PATCH /tasks/:id/unclaim).",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27768,7 +27768,7 @@
     "type": "js",
     "modulePath": "slock/task-unclaim.js",
     "sourceFile": "slock/task-unclaim.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27776,7 +27776,7 @@
     "name": "thread-done",
     "description": "Mark a thread as done / hide it from the active list (POST /channels/threads/done)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27801,7 +27801,7 @@
     "type": "js",
     "modulePath": "slock/thread-done.js",
     "sourceFile": "slock/thread-done.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27809,7 +27809,7 @@
     "name": "thread-follow",
     "description": "Follow the thread on a parent message (POST /channels/threads/follow)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27835,7 +27835,7 @@
     "type": "js",
     "modulePath": "slock/thread-follow.js",
     "sourceFile": "slock/thread-follow.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27843,7 +27843,7 @@
     "name": "thread-list",
     "description": "List followed threads in the active server (GET /channels/threads/followed)",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27865,7 +27865,7 @@
     "type": "js",
     "modulePath": "slock/thread-list.js",
     "sourceFile": "slock/thread-list.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27873,7 +27873,7 @@
     "name": "thread-undone",
     "description": "Restore a done thread to the active list (POST /channels/threads/undone)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27898,7 +27898,7 @@
     "type": "js",
     "modulePath": "slock/thread-undone.js",
     "sourceFile": "slock/thread-undone.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27906,7 +27906,7 @@
     "name": "thread-unfollow",
     "description": "Stop following a thread (POST /channels/threads/unfollow)",
     "access": "write",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -27931,7 +27931,7 @@
     "type": "js",
     "modulePath": "slock/thread-unfollow.js",
     "sourceFile": "slock/thread-unfollow.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27939,7 +27939,7 @@
     "name": "unread-summary",
     "description": "Global unread counts across every server you belong to.",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [],
@@ -27952,7 +27952,7 @@
     "type": "js",
     "modulePath": "slock/unread-summary.js",
     "sourceFile": "slock/unread-summary.js",
-    "navigateBefore": "https://slock.ai",
+    "navigateBefore": "https://app.slock.ai",
     "siteSession": "persistent"
   },
   {
@@ -27960,7 +27960,7 @@
     "name": "whoami",
     "description": "Show the current logged-in slock account",
     "access": "read",
-    "domain": "slock.ai",
+    "domain": "app.slock.ai",
     "strategy": "cookie",
     "browser": true,
     "args": [],

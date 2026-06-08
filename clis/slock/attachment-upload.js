@@ -23,7 +23,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 // Bugen source-verified: 50 MiB = 52428800 bytes; multer hard cap = 51 MiB.
 // We refuse anything > 50 MiB locally so the user sees a clean error rather
@@ -79,7 +79,7 @@ cli({
       const file = new File([blob], ${JSON.stringify(filename)});
       const fd = new FormData();
       fd.append('files', file);
-      const res = await fetch('/api/attachments/upload', {
+      const res = await fetch('${SLOCK_API_BASE}/attachments/upload', {
         method: 'POST', credentials: 'include', headers: uploadHeaders, body: fd,
       });
       if (res.status === 401) return { kind: 'auth', detail: '/attachments/upload returned 401' };

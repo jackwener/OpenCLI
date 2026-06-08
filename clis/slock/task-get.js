@@ -10,7 +10,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment, channelResolveFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 cli({
   site: SLOCK_SITE,
@@ -37,7 +37,7 @@ cli({
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
       ${channelResolveFragment(channel)}
-      const res = await fetch('/api/tasks/channel/' + encodeURIComponent(channelId) + '/number/' + encodeURIComponent(${JSON.stringify(String(number))}), { credentials:'include', headers });
+      const res = await fetch('${SLOCK_API_BASE}/tasks/channel/' + encodeURIComponent(channelId) + '/number/' + encodeURIComponent(${JSON.stringify(String(number))}), { credentials:'include', headers });
       if (res.status === 404) return { kind: 'http', status: 404, where: '/tasks/channel/:id/number/:n (task #' + ${JSON.stringify(number)} + ' not found in channel)' };
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/tasks/channel/:id/number/:n' };
       const data = await res.json().catch(() => ({}));

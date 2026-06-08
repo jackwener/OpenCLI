@@ -19,7 +19,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment, channelResolveFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 cli({
   site: SLOCK_SITE,
@@ -52,7 +52,7 @@ cli({
       // title at a time (R4 will widen this). Keep the wrapper so the server
       // sees the same shape as a real batch and we don't fork the contract.
       const body = { tasks: [${JSON.stringify(taskObj)}] };
-      const res = await fetch('/api/tasks/channel/' + encodeURIComponent(channelId), {
+      const res = await fetch('${SLOCK_API_BASE}/tasks/channel/' + encodeURIComponent(channelId), {
         method:'POST', credentials:'include', headers, body: JSON.stringify(body),
       });
       if (res.status === 400) {

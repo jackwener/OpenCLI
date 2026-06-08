@@ -11,7 +11,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { assertMessageIdShape } from './resolve.js';
 
 cli({
@@ -35,7 +35,7 @@ cli({
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
-      const res = await fetch('/api/tasks/' + encodeURIComponent(${JSON.stringify(id)}) + '/claim', { method:'PATCH', credentials:'include', headers });
+      const res = await fetch('${SLOCK_API_BASE}/tasks/' + encodeURIComponent(${JSON.stringify(id)}) + '/claim', { method:'PATCH', credentials:'include', headers });
       if (res.status === 404) return { kind: 'http', status: 404, where: '/tasks/:id/claim (task not found)' };
       if (res.status === 403) return { kind: 'http', status: 403, where: '/tasks/:id/claim (forbidden — not your task, terminal status, or channel archived)' };
       if (res.status === 409) return { kind: 'http', status: 409, where: '/tasks/:id/claim (conflict — already claimed by someone else; use task-unclaim first)' };

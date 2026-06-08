@@ -13,7 +13,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment, channelResolveFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 const TASK_STATUSES = ['todo', 'in_progress', 'in_review', 'done', 'closed'];
 
@@ -45,7 +45,7 @@ cli({
       ${channelResolveFragment(channel)}
       const status = ${JSON.stringify(status)};
       const qs = status ? ('?status=' + encodeURIComponent(status)) : '';
-      const tres = await fetch('/api/tasks/channel/' + encodeURIComponent(channelId) + qs, { credentials:'include', headers });
+      const tres = await fetch('${SLOCK_API_BASE}/tasks/channel/' + encodeURIComponent(channelId) + qs, { credentials:'include', headers });
       if (!tres.ok) return { kind: tres.status===401?'auth':'http', status: tres.status, where: '/tasks/channel/:id' };
       const data = await tres.json();
       // Server contract: { tasks: [...] }. Reject anything else as drift.

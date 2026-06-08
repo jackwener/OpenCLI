@@ -10,7 +10,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 const TASK_STATUSES = ['todo', 'in_progress', 'in_review', 'done', 'closed'];
 
@@ -38,7 +38,7 @@ cli({
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
       const status = ${JSON.stringify(status)};
       const qs = status ? ('?status=' + encodeURIComponent(status)) : '';
-      const res = await fetch('/api/tasks/server' + qs, { credentials:'include', headers });
+      const res = await fetch('${SLOCK_API_BASE}/tasks/server' + qs, { credentials:'include', headers });
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where: '/tasks/server' };
       const data = await res.json();
       if (!data || !Array.isArray(data.tasks)) {

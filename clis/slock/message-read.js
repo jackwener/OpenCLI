@@ -2,7 +2,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { UUID_RE, classifyThreadTarget } from './resolve.js';
 
 function mapRow(m, threadsMap) {
@@ -104,7 +104,7 @@ function buildReadSnippet(p) {
     if (!sid) {
       const slug = localStorage.getItem('slock_last_server_slug');
       if (!slug) return { kind: 'no-server', detail: 'no slug' };
-      const sres = await fetch('/api/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
+      const sres = await fetch('${SLOCK_API_BASE}/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
       if (!sres.ok) return { kind: sres.status===401?'auth':'http', status: sres.status, where: '/servers/' };
       const slist = await sres.json();
       const sm = slist.find((s) => s.slug === slug);
@@ -115,7 +115,7 @@ function buildReadSnippet(p) {
     let channelId;
     ${p.isThread ? `
       // thread shape: resolve parent channel, then short-id → full, then /threads/:msgId
-      const cres = await fetch('/api/channels/', { credentials:'include', headers });
+      const cres = await fetch('${SLOCK_API_BASE}/channels/', { credentials:'include', headers });
       if (!cres.ok) return { kind: cres.status===401?'auth':'http', status: cres.status, where:'/channels/' };
       const carr = await cres.json();
       const carrL = Array.isArray(carr) ? carr : (carr.channels || carr.data || []);
@@ -124,13 +124,13 @@ function buildReadSnippet(p) {
       const parentChannelId = phit.id;
       let fullMsgId = ${parentMsgId};
       if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(fullMsgId)) {
-        const cx = await fetch('/api/messages/context/' + encodeURIComponent(fullMsgId) + '?channelId=' + encodeURIComponent(parentChannelId), { credentials:'include', headers });
+        const cx = await fetch('${SLOCK_API_BASE}/messages/context/' + encodeURIComponent(fullMsgId) + '?channelId=' + encodeURIComponent(parentChannelId), { credentials:'include', headers });
         if (cx.status === 404) return { kind: 'unresolvable', detail: 'short id "' + fullMsgId + '" not found in #' + ${parentTarget} };
         if (!cx.ok) return { kind: cx.status===401?'auth':'http', status: cx.status, where:'/messages/context' };
         const cxd = await cx.json();
         fullMsgId = cxd.targetMessageId;
       }
-      const tres = await fetch('/api/channels/' + encodeURIComponent(parentChannelId) + '/threads/' + encodeURIComponent(fullMsgId), { credentials:'include', headers });
+      const tres = await fetch('${SLOCK_API_BASE}/channels/' + encodeURIComponent(parentChannelId) + '/threads/' + encodeURIComponent(fullMsgId), { credentials:'include', headers });
       if (tres.status === 404) return { kind: 'no-thread', parent: ${JSON.stringify(p.channel)} };
       if (!tres.ok) return { kind: tres.status===401?'auth':'http', status: tres.status, where:'/threads/:msgId' };
       const tinfo = await tres.json();
@@ -139,7 +139,7 @@ function buildReadSnippet(p) {
       if (${p.isUuid}) {
         channelId = ${JSON.stringify(p.channel)};
       } else {
-        const cres = await fetch('/api/channels/', { credentials:'include', headers });
+        const cres = await fetch('${SLOCK_API_BASE}/channels/', { credentials:'include', headers });
         if (!cres.ok) return { kind: cres.status===401?'auth':'http', status: cres.status, where:'/channels/' };
         const arr = await cres.json();
         const arrL = Array.isArray(arr) ? arr : (arr.channels || arr.data || []);
@@ -150,7 +150,7 @@ function buildReadSnippet(p) {
     `}
     let afterSeq = ${after};
     if (afterSeq && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(afterSeq)) {
-      const cx = await fetch('/api/messages/context/' + encodeURIComponent(afterSeq), { credentials:'include', headers });
+      const cx = await fetch('${SLOCK_API_BASE}/messages/context/' + encodeURIComponent(afterSeq), { credentials:'include', headers });
       if (!cx.ok) return { kind: cx.status===401?'auth':'http', status: cx.status, where:'/messages/context (--after)' };
       const cxd = await cx.json();
       const anchor = (cxd.messages || []).find((m) => (m.id||m.messageId) === cxd.targetMessageId);
@@ -160,7 +160,7 @@ function buildReadSnippet(p) {
     if (afterSeq) qs.set('after', afterSeq);
     if (${before}) qs.set('before', ${before});
     qs.set('limit', ${limit});
-    const mres = await fetch('/api/messages/channel/' + encodeURIComponent(channelId) + '?' + qs.toString(), { credentials:'include', headers });
+    const mres = await fetch('${SLOCK_API_BASE}/messages/channel/' + encodeURIComponent(channelId) + '?' + qs.toString(), { credentials:'include', headers });
     if (!mres.ok) return { kind: mres.status===401?'auth':'http', status: mres.status, where: '/messages/channel/:id' };
     const mdata = await mres.json();
     const messages = Array.isArray(mdata) ? mdata : (mdata.messages || mdata.data || []);
@@ -168,7 +168,7 @@ function buildReadSnippet(p) {
     let threadsDegraded = false;
     ${p.noThreads ? '' : `
     try {
-      const thres = await fetch('/api/channels/' + encodeURIComponent(channelId) + '/threads', { credentials:'include', headers });
+      const thres = await fetch('${SLOCK_API_BASE}/channels/' + encodeURIComponent(channelId) + '/threads', { credentials:'include', headers });
       if (thres.ok) {
         const tmap = await thres.json();
         if (tmap && typeof tmap === 'object' && !Array.isArray(tmap)) threadsMap = tmap;

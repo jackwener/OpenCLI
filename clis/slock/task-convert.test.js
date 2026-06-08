@@ -27,7 +27,7 @@ describe('slock task-convert', () => {
     const rows = await command.func(page, { messageId: FULL });
     const snippet = page.evaluate.mock.calls[0][0];
     // Endpoint: convert-message under tasks router (NOT a messages PATCH).
-    expect(snippet).toContain("'/api/tasks/convert-message'");
+    expect(snippet).toContain('/api/tasks/convert-message');
     expect(snippet).toContain("method:'POST'");
     expect(snippet).toMatch(/JSON\.stringify\(\{\s*messageId:\s*fullMsgId\s*\}\)/);
     // UUID path: no /messages/context fetch should appear.
@@ -55,7 +55,7 @@ describe('slock task-convert', () => {
     expect(snippet).toContain('"8af3cbbb"');
     expect(snippet).toContain('"general"');
     // Finally still POSTs to convert-message.
-    expect(snippet).toContain("'/api/tasks/convert-message'");
+    expect(snippet).toContain('/api/tasks/convert-message');
   });
 
   it('409 already-a-task surfaces actionable hint', async () => {

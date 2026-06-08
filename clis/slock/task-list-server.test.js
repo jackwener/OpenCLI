@@ -19,7 +19,7 @@ describe('slock task-list-server', () => {
     });
     const rows = await command.func(page, {});
     const snippet = page.evaluate.mock.calls[0][0];
-    expect(snippet).toContain("'/api/tasks/server'");
+    expect(snippet).toContain('/api/tasks/server');
     expect(snippet).not.toContain('/api/tasks/channel/');
     expect(rows.length).toBe(2);
     expect(rows[0].title).toBe('a');

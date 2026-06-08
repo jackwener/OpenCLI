@@ -1,7 +1,7 @@
 // server-list.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { dispatchEvaluateResult } from './errors.js';
-import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 
 cli({
   site: SLOCK_SITE,
@@ -19,7 +19,7 @@ cli({
     const snippet = `
       const token = localStorage.getItem('slock_access_token');
       if (!token) return { kind: 'auth', detail: 'no token' };
-      const res = await fetch('/api/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
+      const res = await fetch('${SLOCK_API_BASE}/servers/', { credentials:'include', headers:{authorization:'Bearer '+token,accept:'application/json'} });
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where: '/servers/' };
       const list = await res.json();
       const activeSlug = localStorage.getItem('slock_last_server_slug') || null;

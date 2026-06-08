@@ -1,4 +1,5 @@
 import { UUID_RE } from './resolve.js';
+import { SLOCK_API_BASE } from './shared.js';
 
 // ── Reusable in-page snippet fragments ──────────────────────────────────────
 // Every slock command runs a string of JS inside the logged-in page via
@@ -22,7 +23,7 @@ export function authHeadersFragment({ serverScoped = false, serverIdOverride = n
     if (!sid) {
       const slug = localStorage.getItem('slock_last_server_slug');
       if (!slug) return { kind: 'no-server', detail: 'localStorage.slock_last_server_slug is empty; run \`slock server-use <slug>\`' };
-      const sres = await fetch('/api/servers/', {
+      const sres = await fetch('${SLOCK_API_BASE}/servers/', {
         method: 'GET', credentials: 'include',
         headers: { authorization: 'Bearer ' + token, accept: 'application/json' },
       });
@@ -61,7 +62,7 @@ export function channelResolveFragment(channelInput) {
     if (${isUuid}) {
       channelId = ${rawJson};
     } else {
-      const cres = await fetch('/api/channels/', { credentials: 'include', headers });
+      const cres = await fetch('${SLOCK_API_BASE}/channels/', { credentials: 'include', headers });
       if (cres.status === 401) return { kind: 'auth', detail: '/channels/ returned 401' };
       if (!cres.ok) return { kind: 'http', status: cres.status, where: '/channels/' };
       const carr = await cres.json();
@@ -81,7 +82,7 @@ export function channelResolveFragment(channelInput) {
 // depends on a channel that must first be resolved from a name.
 export function buildFetchSnippet(opts) {
   const method = JSON.stringify(opts.method);
-  const path = JSON.stringify('/api' + opts.path);
+  const path = JSON.stringify(SLOCK_API_BASE + opts.path);
   const bodyJson = opts.body === undefined ? 'undefined' : JSON.stringify(JSON.stringify(opts.body));
   return `
     ${authHeadersFragment({ serverScoped: opts.serverScoped, serverIdOverride: opts.serverIdOverride })}
@@ -107,7 +108,7 @@ export function buildChannelScopedSnippet(opts) {
   return `
     ${authHeadersFragment({ serverScoped: true, serverIdOverride: opts.serverIdOverride })}
     ${channelResolveFragment(opts.channelInput)}
-    const __url = '/api/channels/' + encodeURIComponent(channelId) + ${suffix} + ${query};
+    const __url = '${SLOCK_API_BASE}/channels/' + encodeURIComponent(channelId) + ${suffix} + ${query};
     const res = await fetch(__url, { method: ${method}, credentials: 'include', headers, body: ${bodyJson} });
     if (res.status === 401) return { kind: 'auth', detail: __url + ' returned 401' };
     if (!res.ok) return { kind: 'http', status: res.status, where: __url };
