@@ -131,14 +131,14 @@ describe('buildFetchSnippet [red-line] injection safety', () => {
 describe('buildChannelScopedSnippet', () => {
   it('UUID channel + server override: single fetch straight to /channels/:id<suffix>', async () => {
     const snippet = buildChannelScopedSnippet({
-      channelInput: UUID_A, method: 'GET', pathSuffix: '/members', serverIdOverride: 'sid-x',
+      channelInput: UUID_A, method: 'GET', pathSuffix: '/members', serverIdOverride: '22222222-2222-2222-2222-222222222222',
     });
     const fakeFetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'u1' }] });
     const result = await runSnippet(snippet, fakeFetch, { slock_access_token: 'tkn' });
     // No /servers/ resolve (override) and no /channels/ resolve (uuid) — one call.
     expect(fakeFetch).toHaveBeenCalledTimes(1);
     expect(fakeFetch.mock.calls[0][0]).toBe(`${SLOCK_API_BASE}/channels/${UUID_A}/members`);
-    expect(fakeFetch.mock.calls[0][1].headers['x-server-id']).toBe('sid-x');
+    expect(fakeFetch.mock.calls[0][1].headers['x-server-id']).toBe('22222222-2222-2222-2222-222222222222');
     expect(result).toEqual({ kind: 'ok', rows: [{ id: 'u1' }] });
   });
 
@@ -159,7 +159,7 @@ describe('buildChannelScopedSnippet', () => {
 
   it('unresolvable channel name → kind:"unresolvable", no target fetch', async () => {
     const snippet = buildChannelScopedSnippet({
-      channelInput: '#ghost', method: 'GET', serverIdOverride: 'sid-x',
+      channelInput: '#ghost', method: 'GET', serverIdOverride: '22222222-2222-2222-2222-222222222222',
     });
     const fakeFetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'chan-7', name: 'general' }] }); // /channels/
@@ -176,6 +176,99 @@ describe('channelResolveFragment', () => {
     expect(frag).toContain('=== "general"');
     // ...and never lowercases/strips into a different key.
     expect(frag).not.toContain('=== "#general"');
+  });
+});
+
+describe('authHeadersFragment R1 — --server slug resolution', () => {
+  // R1 — old behavior: `--server <slug>` was passed RAW as X-Server-Id, server
+  // returned 500 because it only accepts UUIDs. Fix: resolve override slug
+  // against /servers/ the same way active-slug does. UUID overrides bypass
+  // the lookup (already an id).
+  it('UUID override bypasses /servers/ lookup and goes straight to the target with x-server-id=<uuid>', async () => {
+    const snippet = buildFetchSnippet({
+      method: 'GET',
+      path: '/channels/',
+      serverScoped: true,
+      serverIdOverride: '33333333-3333-3333-3333-333333333333',
+    });
+    const fakeFetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'c1' }] });
+    const result = await runSnippet(snippet, fakeFetch, { slock_access_token: 'tkn' });
+    // Exactly one fetch — the target. No /servers/ resolve needed.
+    expect(fakeFetch).toHaveBeenCalledTimes(1);
+    expect(fakeFetch.mock.calls[0][0]).toBe(SLOCK_API_BASE + '/channels/');
+    expect(fakeFetch.mock.calls[0][1].headers['x-server-id']).toBe('33333333-3333-3333-3333-333333333333');
+    expect(result.kind).toBe('ok');
+  });
+
+  it('[R1 critical] slug override resolves via /servers/ — NEVER sent raw as x-server-id', async () => {
+    const snippet = buildFetchSnippet({
+      method: 'GET',
+      path: '/channels/',
+      serverScoped: true,
+      serverIdOverride: 'community',
+    });
+    const fakeFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [
+        { id: 'sid-community-uuid', slug: 'community' },
+        { id: 'sid-botiverse-uuid', slug: 'botiverse' },
+      ] })  // /servers/ lookup
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 'c1' }] }); // target
+    const result = await runSnippet(snippet, fakeFetch, {
+      slock_access_token: 'tkn',
+      slock_last_server_slug: 'botiverse',  // active is botiverse — override must win
+    });
+    // First call: /servers/ — resolving the override slug "community".
+    expect(fakeFetch.mock.calls[0][0]).toBe(SLOCK_API_BASE + '/servers/');
+    // Second call: target — with the RESOLVED sid, NOT the raw "community".
+    expect(fakeFetch.mock.calls[1][0]).toBe(SLOCK_API_BASE + '/channels/');
+    const sentSid = fakeFetch.mock.calls[1][1].headers['x-server-id'];
+    expect(sentSid).toBe('sid-community-uuid');
+    expect(sentSid).not.toBe('community'); // regression catch: raw slug must NEVER be sent
+    expect(result.kind).toBe('ok');
+  });
+
+  it('[R1 critical] slug override wins over active slug in localStorage', async () => {
+    // Whether user has done server-use, the override must steer.
+    const snippet = buildFetchSnippet({
+      method: 'GET', path: '/channels/', serverScoped: true, serverIdOverride: 'community',
+    });
+    const fakeFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [
+        { id: 'sid-community-uuid', slug: 'community' },
+        { id: 'sid-botiverse-uuid', slug: 'botiverse' },
+      ] })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] });
+    await runSnippet(snippet, fakeFetch, {
+      slock_access_token: 'tkn',
+      slock_last_server_slug: 'botiverse',
+    });
+    // It MUST have looked up 'community' (not 'botiverse'). Easiest check:
+    // the resolved sid is the community one.
+    expect(fakeFetch.mock.calls[1][1].headers['x-server-id']).toBe('sid-community-uuid');
+  });
+
+  it('slug override that does NOT exist in /servers/ fails loud with no-server + known slugs hint', async () => {
+    const snippet = buildFetchSnippet({
+      method: 'GET', path: '/channels/', serverScoped: true, serverIdOverride: 'no-such-slug',
+    });
+    const fakeFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: 's1', slug: 'community' }, { id: 's2', slug: 'botiverse' }] });
+    const result = await runSnippet(snippet, fakeFetch, { slock_access_token: 'tkn' });
+    expect(result.kind).toBe('no-server');
+    expect(result.detail).toMatch(/no-such-slug/);
+    expect(result.detail).toMatch(/--server/);
+    expect(result.detail).toMatch(/community/);   // hint lists known slugs
+    expect(fakeFetch).toHaveBeenCalledTimes(1);   // bailed before target fetch
+  });
+
+  it('with no override and no active-slug, fails loud with `no-server` mentioning server-use AND --server', async () => {
+    const snippet = buildFetchSnippet({ method: 'GET', path: '/channels/', serverScoped: true });
+    const fakeFetch = vi.fn();
+    const result = await runSnippet(snippet, fakeFetch, { slock_access_token: 'tkn' });
+    expect(result.kind).toBe('no-server');
+    expect(result.detail).toMatch(/server-use/);
+    expect(result.detail).toMatch(/--server/);
+    expect(fakeFetch).not.toHaveBeenCalled();
   });
 });
 

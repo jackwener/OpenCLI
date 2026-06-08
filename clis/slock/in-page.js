@@ -17,12 +17,23 @@ import { SLOCK_API_BASE } from './shared.js';
 // Emits JS that leaves `token`, `sid` (null unless server-scoped) and `headers`
 // in scope on success, or `return`s an error envelope. Run it first in a snippet.
 export function authHeadersFragment({ serverScoped = false, serverIdOverride = null } = {}) {
-  const overrideSid = serverIdOverride ? JSON.stringify(serverIdOverride) : 'null';
+  // R1 — `--server <slug>` was being passed raw as X-Server-Id. The server
+  // only accepts UUIDs, so a slug override returned 500 from /channels/ and
+  // friends. Now: a UUID override is used directly; a slug override is
+  // resolved against /servers/ the same way the active-slug path does
+  // (single source of truth for slug→id). If neither override nor
+  // active-slug yields a known server, we fail loud with `no-server`.
+  // Source-verified (Bugen): /servers/ returns rows of { id, slug, name }.
+  const overrideStr = serverIdOverride ? JSON.stringify(serverIdOverride) : 'null';
+  const UUID_RE_SRC = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
   const resolveServer = serverScoped
     ? `
     if (!sid) {
-      const slug = localStorage.getItem('slock_last_server_slug');
-      if (!slug) return { kind: 'no-server', detail: 'localStorage.slock_last_server_slug is empty; run \`slock server-use <slug>\`' };
+      // Determine the slug to look up: override slug (if not a UUID) wins,
+      // otherwise fall back to the active slug from localStorage.
+      const __override = ${overrideStr};
+      const __slug = __override ?? localStorage.getItem('slock_last_server_slug');
+      if (!__slug) return { kind: 'no-server', detail: 'no --server override and localStorage.slock_last_server_slug is empty; run \`slock server-use <slug>\` or pass --server <slug>' };
       const sres = await fetch('${SLOCK_API_BASE}/servers/', {
         method: 'GET', credentials: 'include',
         headers: { authorization: 'Bearer ' + token, accept: 'application/json' },
@@ -30,11 +41,20 @@ export function authHeadersFragment({ serverScoped = false, serverIdOverride = n
       if (sres.status === 401) return { kind: 'auth', detail: '/servers/ returned 401' };
       if (!sres.ok) return { kind: 'http', status: sres.status, where: '/servers/' };
       const slist = await sres.json();
-      const sm = (Array.isArray(slist) ? slist : []).find((s) => s && s.slug === slug);
-      if (!sm) return { kind: 'no-server', detail: 'slug "' + slug + '" not in /servers/ — refresh in browser?' };
+      const __arr = Array.isArray(slist) ? slist : [];
+      const sm = __arr.find((s) => s && s.slug === __slug);
+      if (!sm) {
+        const __choices = __arr.map((s) => s && s.slug).filter(Boolean).join(', ');
+        return { kind: 'no-server', detail: 'slug "' + __slug + '" not in /servers/' + (__override ? ' (--server)' : ' (active)') + '. Known slugs: ' + __choices };
+      }
       sid = sm.id;
     }`
     : '';
+  // Node-side gate: if the override looks like a UUID, set sid directly and
+  // skip the lookup. Otherwise emit `let sid = null;` so the resolveServer
+  // block runs and treats the override (or active slug) uniformly.
+  const isUuidOverride = !!serverIdOverride && new RegExp(UUID_RE_SRC).test(String(serverIdOverride));
+  const sidInit = isUuidOverride ? overrideStr : 'null';
   return `
     // Page-readiness loop: page.goto can return before the SPA's first navigation
     // settles, leaving location on an opaque interstitial (about:blank, redirector,
@@ -74,7 +94,7 @@ export function authHeadersFragment({ serverScoped = false, serverIdOverride = n
     }
     const token = localStorage.getItem('slock_access_token');
     if (!token) return { kind: 'auth', detail: 'no access token in localStorage' };
-    let sid = ${overrideSid};${resolveServer}
+    let sid = ${sidInit};${resolveServer}
     const headers = {
       authorization: 'Bearer ' + token,
       accept: 'application/json',
