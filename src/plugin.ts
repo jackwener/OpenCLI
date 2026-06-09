@@ -430,6 +430,41 @@ export interface ValidationResult {
   errors: string[];
 }
 
+/**
+ * Conservative plugin-name pattern: a leading alphanumeric or underscore
+ * followed by alphanumerics, dots, underscores, or hyphens. Aligns with the
+ * scaffold's naming rules (`plugin-scaffold.ts`) while staying permissive
+ * enough (case-insensitive, leading underscore) not to reject pre-existing
+ * installed names or monorepo sub-plugin keys. A leading `.` is excluded so a
+ * name like `..` can never traverse out of PLUGINS_DIR.
+ */
+const SAFE_PLUGIN_NAME = /^[a-z0-9_][a-z0-9._-]*$/i;
+
+/**
+ * Reject plugin names that could escape PLUGINS_DIR when joined into a
+ * filesystem path. The name often derives from an attacker-controllable
+ * plugin manifest (`name` field or monorepo `plugins` key), so it must be
+ * validated before every `path.join(PLUGINS_DIR, name)` on the install/link
+ * paths. Throws PluginError for empty, absolute, separator-bearing, `..`, or
+ * dot-leading names.
+ */
+function assertSafePluginName(name: string): void {
+  if (
+    !name ||
+    path.isAbsolute(name) ||
+    name.includes('/') ||
+    name.includes('\\') ||
+    name.includes('..') ||
+    name.startsWith('.') ||
+    !SAFE_PLUGIN_NAME.test(name)
+  ) {
+    throw new PluginError(
+      `Unsafe plugin name "${name}".`,
+      'Plugin names must start with a letter or digit and contain only letters, digits, dots, underscores, or hyphens (no path separators or "..").',
+    );
+  }
+}
+
 // ── Lock file helpers ───────────────────────────────────────────────────────
 
 function readLockFileWithWriter(
@@ -664,6 +699,7 @@ function publishMonorepoPlugins(
 
     const commitHash = getCommitHash(repoDir);
     for (const plugin of plugins) {
+      assertSafePluginName(plugin.name);
       const linkPath = path.join(pluginsDir, plugin.name);
       const subDir = resolveRepoContainedPath(repoDir, plugin.subPath);
       tx.track(beginReplaceSymlink(subDir, linkPath));
@@ -734,6 +770,7 @@ function installSinglePlugin(
   manifest: PluginManifest | null,
 ): string {
   const pluginName = manifest?.name ?? name;
+  assertSafePluginName(pluginName);
   const targetDir = path.join(PLUGINS_DIR, pluginName);
 
   if (fs.existsSync(targetDir)) {
@@ -780,6 +817,7 @@ function installLocalPlugin(localPath: string, name: string): string {
   }
 
   const pluginName = manifest?.name ?? name;
+  assertSafePluginName(pluginName);
   const targetDir = path.join(PLUGINS_DIR, pluginName);
 
   if (fs.existsSync(targetDir)) {
@@ -1557,6 +1595,7 @@ export {
   readLockFileWithWriter as _readLockFileWithWriter,
   updateAllPlugins as _updateAllPlugins,
   validatePluginStructure as _validatePluginStructure,
+  assertSafePluginName as _assertSafePluginName,
   writeLockFile as _writeLockFile,
   writeLockFileWithFs as _writeLockFileWithFs,
   isSymlinkSync as _isSymlinkSync,

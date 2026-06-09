@@ -8,6 +8,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { PLUGINS_DIR } from './discovery.js';
+import { PluginError } from './errors.js';
 import type { LockEntry } from './plugin.js';
 import * as pluginModule from './plugin.js';
 
@@ -31,6 +32,7 @@ const {
   _parseSource,
   _updateAllPlugins,
   _validatePluginStructure,
+  _assertSafePluginName,
   _writeLockFile,
   _writeLockFileWithFs,
   _isSymlinkSync,
@@ -929,6 +931,63 @@ describe('listPlugins with monorepo metadata', () => {
     expect(found!.monorepoName).toBe('test-mono');
     expect(found!.commands).toContain('hello');
     expect(found!.source).toBe('https://github.com/user/test-mono.git');
+  });
+});
+
+describe('assertSafePluginName', () => {
+  it('accepts conservative plugin names', () => {
+    for (const name of ['github-trending', 'my_tool', 'Plugin.v2', 'a', '__test-mono-sub__']) {
+      expect(() => _assertSafePluginName(name)).not.toThrow();
+    }
+  });
+
+  it('rejects path-traversal and separator-bearing names', () => {
+    for (const name of ['../evil', 'a/b', 'a\\b', '..', '.hidden', '', '/abs/path']) {
+      expect(() => _assertSafePluginName(name)).toThrow(PluginError);
+    }
+  });
+});
+
+describe('installPlugin name sanitization', () => {
+  const traversalEscape = path.join(PLUGINS_DIR, '..', 'evil');
+
+  beforeEach(() => {
+    mockExecFileSync.mockClear();
+    mockExecSync.mockClear();
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(traversalEscape, { recursive: true, force: true }); } catch {}
+    vi.clearAllMocks();
+  });
+
+  function mockCloneWithManifestName(maliciousName: string): void {
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[args.length - 1]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'hello.js'), 'cli({ site: "test", name: "hello", access: "read" })');
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({ name: maliciousName }));
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+  }
+
+  it('rejects a manifest name containing ".." and writes nothing outside PLUGINS_DIR', () => {
+    mockCloneWithManifestName('../evil');
+
+    expect(() => installPlugin('github:user/opencli-plugin-evil')).toThrow(PluginError);
+    expect(fs.existsSync(traversalEscape)).toBe(false);
+  });
+
+  it('rejects a manifest name containing a path separator', () => {
+    mockCloneWithManifestName('evil/sub');
+
+    expect(() => installPlugin('github:user/opencli-plugin-evil')).toThrow(PluginError);
   });
 });
 
