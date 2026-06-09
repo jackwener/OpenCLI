@@ -59,4 +59,32 @@ describe('output TTY detection', () => {
     expect(out).toBe('# Title\n\nBody');
     expect(out).not.toContain('| markdown |');
   });
+
+  it('escapes pipes and newlines in markdown cells so columns stay aligned', () => {
+    render([{ name: 'a|b', note: 'line1\nline2' }], { fmt: 'md', columns: ['name', 'note'] });
+    const lines = logSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    // Header, separator, one data row.
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toBe('| name | note |');
+    expect(lines[1]).toBe('| --- | --- |');
+    // '|' is escaped to '\|' and the newline becomes '<br>'.
+    expect(lines[2]).toBe('| a\\|b | line1<br>line2 |');
+    // Every row keeps exactly the column count: 3 pipes for 2 columns.
+    for (const line of lines) {
+      expect((line.match(/(?<!\\)\|/g) ?? []).length).toBe(3);
+    }
+  });
+
+  it('keeps columns aligned when a cell value is only a pipe', () => {
+    // Realistic reachable path: e.g. `weread book-search ... --raw -f md` renders
+    // book snippets/titles verbatim, and a snippet can be a literal '|'.
+    render([{ rank: '1', snippet: '|' }], { fmt: 'md', columns: ['rank', 'snippet'] });
+    const lines = logSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(lines).toHaveLength(3);
+    expect(lines[2]).toBe('| 1 | \\| |');
+    // 2 columns => exactly 3 unescaped delimiters per row; the cell '|' must not add a fourth.
+    for (const line of lines) {
+      expect((line.match(/(?<!\\)\|/g) ?? []).length).toBe(3);
+    }
+  });
 });
