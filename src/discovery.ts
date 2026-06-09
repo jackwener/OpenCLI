@@ -24,8 +24,13 @@ export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
 export const USER_CLIS_DIR = path.join(USER_OPENCLI_DIR, 'clis');
 /** Plugins directory: ~/.opencli/plugins/ */
 export const PLUGINS_DIR = path.join(USER_OPENCLI_DIR, 'plugins');
-/** Matches files that register commands via cli() or lifecycle hooks */
-const PLUGIN_MODULE_PATTERN = /\b(?:cli|registerSiteAuthCommands|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
+/**
+ * Matches files that register commands via cli(), shared make<Pascal>Command
+ * factories (clis/_shared/), or lifecycle hooks. Must stay in sync with
+ * build-manifest's CLI_MODULE_PATTERN — otherwise factory-authored adapters
+ * land in the manifest but are silently dropped by the runtime scanner.
+ */
+export const PLUGIN_MODULE_PATTERN = /\b(?:cli|registerSiteAuthCommands|onStartup|onBeforeExecute|onAfterExecute)\s*\(|\bmake[A-Z]\w*Command\s*\(/;
 
 function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Strategy.COOKIE): Strategy {
   if (!rawStrategy) return fallback;
