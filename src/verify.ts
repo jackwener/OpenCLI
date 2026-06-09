@@ -1,9 +1,10 @@
 /**
- * Verification: runs validation and optional smoke test.
+ * Verification: runs validation and an optional smoke test.
  *
- * The smoke test is intentionally kept as a stub — full browser-based
- * smoke testing requires a running browser session and is better suited
- * to the `opencli test` command or CI pipelines.
+ * The smoke test runs `vitest run tests/smoke/` from the package root when that
+ * directory is present (repo/dev/CI checkouts). It reports "unavailable" when the
+ * directory is absent — notably in published npm installs, since `tests/` is not
+ * listed in package.json "files".
  */
 
 import { validateClisWithTarget, renderValidationReport, type ValidationReport } from './validate.js';
@@ -47,7 +48,10 @@ export function renderVerifyReport(report: VerifyReport): string {
 }
 
 async function runSmokeTests(builtinClis: string): Promise<NonNullable<VerifyReport['smoke']>> {
-  const projectRoot = path.resolve(builtinClis, '..', '..');
+  // builtinClis is `<packageRoot>/clis` (see src/main.ts: BUILTIN_CLIS =
+  // path.join(findPackageRoot(__filename), 'clis')), so the package root that
+  // owns tests/smoke is a single level up.
+  const projectRoot = path.resolve(builtinClis, '..');
   const smokeDir = path.join(projectRoot, 'tests', 'smoke');
 
   if (!fs.existsSync(smokeDir)) {
