@@ -76,6 +76,23 @@ function parseOpenToArg(value) {
     return tokens;
 }
 
+// ID-based filters expect bare numeric IDs (LinkedIn accepts the URN's
+// numeric tail; the `urn:li:fs_*:` prefix is not required). Accepts CSV
+// of one or more IDs.
+function parseIdListArg(value, label) {
+    if (!value) return [];
+    const tokens = parseCsv(value).map((t) => {
+        // Allow callers to paste a full URN (e.g. "urn:li:fs_geo:105214831")
+        // and we'll strip down to the numeric tail.
+        const stripped = t.replace(/^urn:li:[a-z_]+:/, '');
+        return stripped;
+    });
+    for (const tok of tokens) {
+        if (!/^\d+$/.test(tok)) throw new ArgumentError(`${label} values must be numeric IDs (got "${tok}")`);
+    }
+    return tokens;
+}
+
 function buildSearchUrl(opts) {
     // Back-compat: original signature was buildSearchUrl(keywordsString).
     // Existing tests still call buildSearchUrl('site reliability engineer'),
@@ -99,6 +116,11 @@ function buildSearchUrl(opts) {
     addArray('network', opts.network);
     addArray('profileLanguage', opts.profileLanguage);
     addArray('serviceCategory', opts.openTo);
+    addArray('currentCompany', opts.currentCompanyIds);
+    addArray('pastCompany', opts.pastCompanyIds);
+    addArray('industry', opts.industryIds);
+    addArray('geoUrn', opts.geoIds);
+    addArray('schoolFilter', opts.schoolIds);
     return SEARCH_URL_BASE + '?' + parts.join('&');
 }
 
@@ -262,6 +284,11 @@ cli({
         { name: 'network', type: 'string', required: false, help: 'Comma-separated connection degrees: 1, 2, 3 (where 3 means 3rd+). E.g. "1,2" for 1st and 2nd-degree only.' },
         { name: 'profile-language', type: 'string', required: false, help: 'Comma-separated ISO 639-1 codes for profile language, e.g. "en,fr".' },
         { name: 'open-to', type: 'string', required: false, help: 'Comma-separated open-to values: proBono, boardMember.' },
+        { name: 'current-company-id', type: 'string', required: false, help: 'Comma-separated LinkedIn company IDs for CURRENT COMPANY filter (e.g. "1441" for Google). To find an ID: visit the company\'s LinkedIn URL — `/company/<slug>/` — then open Network tools, or click the filter chip on a search results page and read the URL\'s `currentCompany` param. A full URN like `urn:li:fs_company:1441` is also accepted.' },
+        { name: 'past-company-id', type: 'string', required: false, help: 'Comma-separated LinkedIn company IDs for PAST COMPANY filter. Same lookup pattern as --current-company-id.' },
+        { name: 'industry-id', type: 'string', required: false, help: 'Comma-separated LinkedIn industry IDs (e.g. "4" for Computer Software). Apply the filter once via the LinkedIn UI and read the URL\'s `industry` param to discover IDs.' },
+        { name: 'location-id', type: 'string', required: false, help: 'Comma-separated LinkedIn location IDs (geoUrn numeric tail; e.g. "105214831" for Bengaluru area). Apply the location filter once via UI and read the URL\'s `geoUrn` param.' },
+        { name: 'school-id', type: 'string', required: false, help: 'Comma-separated LinkedIn school IDs (numeric tail of urn:li:fs_school:<id>). For free-text school name matching, use --school-keyword instead.' },
     ],
     columns: ['rank', 'name', 'headline', 'location', 'profile_url'],
     func: async (page, args) => {
@@ -278,6 +305,11 @@ cli({
             network: parseNetworkArg(args.network),
             profileLanguage: parseProfileLanguageArg(args['profile-language']),
             openTo: parseOpenToArg(args['open-to']),
+            currentCompanyIds: parseIdListArg(args['current-company-id'], '--current-company-id'),
+            pastCompanyIds: parseIdListArg(args['past-company-id'], '--past-company-id'),
+            industryIds: parseIdListArg(args['industry-id'], '--industry-id'),
+            geoIds: parseIdListArg(args['location-id'], '--location-id'),
+            schoolIds: parseIdListArg(args['school-id'], '--school-id'),
         };
 
         try {
@@ -344,4 +376,5 @@ export const __test__ = {
     parseNetworkArg,
     parseProfileLanguageArg,
     parseOpenToArg,
+    parseIdListArg,
 };
