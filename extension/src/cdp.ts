@@ -153,6 +153,17 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   } catch {
     // Some pages may not need explicit enable
   }
+
+  try {
+    await chrome.debugger.sendCommand({ tabId }, 'Emulation.setPageVisibilityState', {
+      visibilityState: 'visible',
+    });
+    await chrome.debugger.sendCommand({ tabId }, 'Emulation.setFocusEmulationEnabled', {
+      enabled: true,
+    });
+  } catch {
+    // Best effort
+  }
 }
 
 export async function evaluate(tabId: number, expression: string, aggressiveRetry: boolean = false): Promise<unknown> {
