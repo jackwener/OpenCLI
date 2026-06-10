@@ -396,7 +396,7 @@ describe('chatgpt send selectors', () => {
 });
 
 describe('chatgpt generated image detection', () => {
-    function createDomPage(html, setup = () => {}) {
+    function createDomPage(html, setup = () => { }) {
         const dom = new JSDOM(html, {
             url: 'https://chatgpt.com/c/demo',
             runScripts: 'outside-only',

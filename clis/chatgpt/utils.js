@@ -611,7 +611,7 @@ export async function sendChatGPTMessage(page, text) {
     `)), 'chatgpt composer readiness');
 
     if (!typeResult.ready) return false;
-    
+
     // Use page.type() which is Playwright's native method
     try {
         if (page.nativeType) {
@@ -636,7 +636,7 @@ export async function sendChatGPTMessage(page, text) {
             })()
         `);
     }
-    
+
     let sent = null;
     for (let attempt = 0; attempt < 20; attempt += 1) {
         await page.wait(0.5);
@@ -676,7 +676,7 @@ export async function sendChatGPTMessage(page, text) {
     if (!sent?.sendBtnFound) {
         return false;
     }
-    
+
     await page.evaluate(`
         (() => {
             const isVisible = (el) => {
@@ -847,6 +847,11 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
     let lastText = '';
     let stableCount = 0;
 
+    const clean = (str) => String(str || '')
+        .replace(/[*_`#\-+>!\[\]()]/g, '')
+        .replace(/\s+/g, '')
+        .toLowerCase();
+
     while (Date.now() - startTime < timeoutSeconds * 1000) {
         await page.wait(3);
         if (await isGenerating(page)) {
@@ -855,10 +860,21 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
         }
 
         const messages = await getVisibleMessages(page);
-        const newMessages = messages.slice(Math.max(0, baselineCount));
-        const assistant = [...newMessages].reverse().find((m) => m.Role === 'Assistant')
-            || [...messages].reverse().find((m) => m.Role === 'Assistant');
-        const candidate = String(assistant?.Text || '').trim();
+        const lastUser = [...messages].reverse().find((m) => m.Role === 'User');
+        const lastAssistant = [...messages].reverse().find((m) => m.Role === 'Assistant');
+
+        if (!lastUser || !lastAssistant) continue;
+
+        const isPromptVisible = clean(lastUser.Text) === clean(prompt)
+            || clean(lastUser.Text).includes(clean(prompt))
+            || clean(prompt).includes(clean(lastUser.Text));
+        
+        const hasAssistantResponded = isPromptVisible
+            && messages.indexOf(lastAssistant) > messages.indexOf(lastUser);
+
+        if (!hasAssistantResponded) continue;
+
+        const candidate = String(lastAssistant.Text || '').trim();
         if (!candidate || candidate === String(prompt || '').trim()) continue;
 
         if (candidate === lastText) {
@@ -941,11 +957,11 @@ async function extractConversationLinks(page) {
         return rows;
     })()`)), 'chatgpt conversation link extraction');
     return items.map((item, index) => ({
-            Index: index + 1,
-            Id: String(item?.Id || ''),
-            Title: String(item?.Title || '(untitled)').trim() || '(untitled)',
-            Url: String(item?.Url || ''),
-        })).filter((item) => item.Id);
+        Index: index + 1,
+        Id: String(item?.Id || ''),
+        Title: String(item?.Title || '(untitled)').trim() || '(untitled)',
+        Url: String(item?.Url || ''),
+    })).filter((item) => item.Id);
 }
 
 function imageMimeFromPath(filePath) {
