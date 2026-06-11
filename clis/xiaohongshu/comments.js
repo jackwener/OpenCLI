@@ -8,15 +8,32 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
-import { normalizeXhsUserId } from './user-helpers.js';
 
 const XHS_PROFILE_HREF_SELECTOR = '.author-wrapper a[href*="/user/profile/"], a.name[href*="/user/profile/"], a.user-name[href*="/user/profile/"], a[href*="/user/profile/"]';
 
-export function buildXhsProfileUrl(href, webHost = 'www.xiaohongshu.com') {
+export function parseXhsProfileHref(href, webHost = 'www.xiaohongshu.com') {
     const raw = typeof href === 'string' ? href.trim() : '';
     if (!raw)
         return '';
-    const userId = normalizeXhsUserId(raw);
+    const expectedHost = String(webHost || 'www.xiaohongshu.com').toLowerCase();
+    let parsed;
+    try {
+        parsed = new URL(raw, `https://${expectedHost}`);
+    }
+    catch {
+        return '';
+    }
+    if (parsed.protocol !== 'https:')
+        return '';
+    const host = parsed.hostname.toLowerCase();
+    if (host !== expectedHost)
+        return '';
+    const match = parsed.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]+)\/?$/);
+    return match?.[1] ?? '';
+}
+
+export function buildXhsProfileUrl(href, webHost = 'www.xiaohongshu.com') {
+    const userId = parseXhsProfileHref(href, webHost);
     if (!userId)
         return '';
     return `https://${webHost}/user/profile/${userId}`;
@@ -185,7 +202,7 @@ export const command = cli({
         const enrich = (c, i) => ({
             rank: i + 1,
             author: c.author,
-            userId: c.authorHrefRaw ? normalizeXhsUserId(c.authorHrefRaw) : '',
+            userId: c.authorHrefRaw ? parseXhsProfileHref(c.authorHrefRaw) : '',
             profileUrl: c.authorHrefRaw ? buildXhsProfileUrl(c.authorHrefRaw) : '',
             text: c.text,
             likes: c.likes,

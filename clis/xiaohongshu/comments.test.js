@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { buildCommentsExtractJs, buildXhsProfileUrl, parseXhsLikeCountText } from './comments.js';
+import { buildCommentsExtractJs, buildXhsProfileUrl, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -247,12 +247,20 @@ describe('xiaohongshu comments', () => {
             expect(row).not.toHaveProperty('authorHref');
         }
     });
-    it('buildXhsProfileUrl handles relative, absolute, and empty inputs', () => {
+    it('buildXhsProfileUrl handles trusted relative/absolute inputs and rejects host/path drift', () => {
+        expect(parseXhsProfileHref('/user/profile/abc123')).toBe('abc123');
+        expect(parseXhsProfileHref('https://www.xiaohongshu.com/user/profile/xyz?xsec_token=tok')).toBe('xyz');
         expect(buildXhsProfileUrl('/user/profile/abc123')).toBe('https://www.xiaohongshu.com/user/profile/abc123');
         expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/xyz?xsec_token=tok')).toBe('https://www.xiaohongshu.com/user/profile/xyz');
         expect(buildXhsProfileUrl('')).toBe('');
         expect(buildXhsProfileUrl(null)).toBe('');
         expect(buildXhsProfileUrl('/user/profile/zzz', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/zzz');
+        expect(buildXhsProfileUrl('http://www.xiaohongshu.com/user/profile/abc123')).toBe('');
+        expect(buildXhsProfileUrl('https://evil.test/user/profile/abc123')).toBe('');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/abc123/extra')).toBe('');
+        expect(buildXhsProfileUrl('/user/profile/abc123/extra')).toBe('');
+        expect(buildXhsProfileUrl('https://www.rednote.com/user/profile/zzz', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/zzz');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/zzz', 'www.rednote.com')).toBe('');
     });
     it('clamps invalid negative limits to a safe minimum', async () => {
         const page = createPageMock({
