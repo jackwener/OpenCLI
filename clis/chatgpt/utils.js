@@ -842,39 +842,76 @@ export async function getBubbleCount(page) {
     return messages.length;
 }
 
-export async function waitForChatGPTResponse(page, baselineCount, prompt, timeoutSeconds) {
-    const startTime = Date.now();
-    let lastText = '';
-    let stableCount = 0;
-
-    const clean = (str) => String(str || '')
+function cleanPromptText(str) {
+    return String(str || '')
         .replace(/[*_`#\-+>!\[\]()]/g, '')
         .replace(/\s+/g, '')
         .toLowerCase();
+}
+
+function responsePairKey(user, assistant) {
+    return JSON.stringify([
+        cleanPromptText(user?.Text),
+        String(assistant?.Text || '').trim(),
+    ]);
+}
+
+export function getChatGPTResponsePairKeys(messages, prompt) {
+    const promptKey = cleanPromptText(prompt);
+    if (!promptKey) return [];
+    const keys = [];
+    for (let index = 0; index < messages.length; index += 1) {
+        const user = messages[index];
+        if (user?.Role !== 'User' || cleanPromptText(user.Text) !== promptKey) continue;
+        const assistant = messages.slice(index + 1).find((message) => message?.Role === 'Assistant');
+        if (!assistant || !String(assistant.Text || '').trim()) continue;
+        keys.push(responsePairKey(user, assistant));
+    }
+    return keys;
+}
+
+function findLatestNewAssistantResponse(messages, prompt, baselinePairKeys) {
+    const promptKey = cleanPromptText(prompt);
+    if (!promptKey) return '';
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+        const user = messages[index];
+        if (user?.Role !== 'User' || cleanPromptText(user.Text) !== promptKey) continue;
+        const assistantIndex = messages.findIndex((message, candidateIndex) => (
+            candidateIndex > index
+            && message?.Role === 'Assistant'
+            && String(message.Text || '').trim()
+        ));
+        if (assistantIndex < 0) continue;
+        const assistant = messages[assistantIndex];
+        if (baselinePairKeys.has(responsePairKey(user, assistant))) continue;
+        return String(assistant.Text || '').trim();
+    }
+    return '';
+}
+
+export async function waitForChatGPTResponse(page, baselineCount, prompt, timeoutSeconds, options = {}) {
+    const startTime = Date.now();
+    let lastText = '';
+    let stableCount = 0;
+    const baselinePairKeys = new Set(options.baselinePairKeys || []);
 
     while (Date.now() - startTime < timeoutSeconds * 1000) {
         await page.wait(3);
+        if (options.conversationUrl) {
+            const currentUrl = await currentChatGPTUrl(page);
+            if (currentUrl && !isSameChatGPTConversation(currentUrl, options.conversationUrl)) {
+                throw new CommandExecutionError(
+                    `ChatGPT navigated away from the target conversation (${options.conversationUrl}); current URL is ${currentUrl}`,
+                );
+            }
+        }
         if (await isGenerating(page)) {
             stableCount = 0;
             continue;
         }
 
         const messages = await getVisibleMessages(page);
-        const lastUser = [...messages].reverse().find((m) => m.Role === 'User');
-        const lastAssistant = [...messages].reverse().find((m) => m.Role === 'Assistant');
-
-        if (!lastUser || !lastAssistant) continue;
-
-        const isPromptVisible = clean(lastUser.Text) === clean(prompt)
-            || clean(lastUser.Text).includes(clean(prompt))
-            || clean(prompt).includes(clean(lastUser.Text));
-        
-        const hasAssistantResponded = isPromptVisible
-            && messages.indexOf(lastAssistant) > messages.indexOf(lastUser);
-
-        if (!hasAssistantResponded) continue;
-
-        const candidate = String(lastAssistant.Text || '').trim();
+        const candidate = findLatestNewAssistantResponse(messages, prompt, baselinePairKeys);
         if (!candidate || candidate === String(prompt || '').trim()) continue;
 
         if (candidate === lastText) {
