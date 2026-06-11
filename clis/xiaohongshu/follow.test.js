@@ -124,7 +124,17 @@ describe('xiaohongshu follow', () => {
             expect(() => __test__.assertUserId('')).toThrow(ArgumentError);
             expect(() => __test__.assertUserId('abc')).toThrow(ArgumentError);
             expect(() => __test__.assertUserId('!!!')).toThrow(ArgumentError);
+            expect(() => __test__.assertUserId(`https://evil.example/user/profile/${validId}`)).toThrow(ArgumentError);
+            expect(() => __test__.assertUserId(`https://www.xiaohongshu.com/user/profile/${validId}/note123`)).toThrow(ArgumentError);
         });
+    });
+
+    it('throws CommandExecutionError when navigation lands on a non-Xiaohongshu host', async () => {
+        const page = makePage([
+            `https://evil.example/user/profile/${validId}`,
+        ]);
+        await expect(getCommand().func(page, { 'user-id': validId })).rejects.toThrowError(/expected Xiaohongshu profile host/);
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -170,6 +180,14 @@ describe('xiaohongshu unfollow', () => {
             'https://www.xiaohongshu.com/user/profile/5d8f88dc0000000001005d4b',
         ]);
         await expect(getCommand().func(page, { 'user-id': validId })).rejects.toThrowError(/expected profile/);
+    });
+
+    it('throws CommandExecutionError when unfollow navigation lands on a non-Xiaohongshu host', async () => {
+        const page = makePage([
+            `https://evil.example/user/profile/${validId}`,
+        ]);
+        await expect(getCommand().func(page, { 'user-id': validId })).rejects.toThrowError(/expected Xiaohongshu profile host/);
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
 
     it('throws CommandExecutionError when modal confirmation is missing', async () => {

@@ -19,6 +19,11 @@ const MODAL_SETTLE_MS = 1500;
 const STATE_FLIP_TIMEOUT_MS = 5000;
 const USER_ID_RE = /^[a-zA-Z0-9]{8,32}$/;
 
+function isXiaohongshuHost(hostname) {
+    const host = String(hostname || '').toLowerCase();
+    return host === 'xiaohongshu.com' || host.endsWith('.xiaohongshu.com');
+}
+
 function unwrapEvaluateResult(payload) {
     if (payload && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
         return payload.data;
@@ -35,6 +40,23 @@ function requireActionResult(payload, context) {
 }
 
 function assertUserId(raw) {
+    const input = String(raw ?? '').trim();
+    if (/^https?:\/\//i.test(input)) {
+        let parsed;
+        try {
+            parsed = new URL(input);
+        } catch {
+            throw new ArgumentError('xiaohongshu/unfollow: invalid profile URL');
+        }
+        if (parsed.protocol !== 'https:' || !isXiaohongshuHost(parsed.hostname)) {
+            throw new ArgumentError('xiaohongshu/unfollow: profile URL must be an exact https://*.xiaohongshu.com URL');
+        }
+        const match = parsed.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]{8,32})\/?$/);
+        if (!match) {
+            throw new ArgumentError('xiaohongshu/unfollow: profile URL must be /user/profile/<userId>');
+        }
+        return match[1];
+    }
     const userId = normalizeXhsUserId(raw);
     if (!userId || !USER_ID_RE.test(userId)) {
         throw new ArgumentError(
@@ -195,10 +217,15 @@ cli({
                 throw new CommandExecutionError('xiaohongshu/unfollow: malformed current-url payload');
             }
             const parsedHref = new URL(hrefRaw);
+            if (parsedHref.protocol !== 'https:' || !isXiaohongshuHost(parsedHref.hostname)) {
+                throw new CommandExecutionError(
+                    `xiaohongshu/unfollow: expected Xiaohongshu profile host, got ${parsedHref.hostname}`,
+                );
+            }
             if (/\/login(?:[/?#]|$)/i.test(parsedHref.pathname)) {
                 throw new AuthRequiredError('www.xiaohongshu.com');
             }
-            const currentProfile = parsedHref.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]+)/);
+            const currentProfile = parsedHref.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]{8,32})\/?$/);
             if (currentProfile?.[1] !== userId) {
                 throw new CommandExecutionError(
                     `xiaohongshu/unfollow: expected profile ${userId}, got ${parsedHref.pathname}`,
