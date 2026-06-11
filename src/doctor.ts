@@ -9,7 +9,7 @@ import { BrowserBridge } from './browser/index.js';
 import { getDaemonHealth } from './browser/daemon-client.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
-import { getCachedLatestExtensionVersion } from './update-check.js';
+import { getCachedLatestExtensionVersion, getCachedExtensionVersion } from './update-check.js';
 import type { BrowserProfileStatus } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
@@ -152,6 +152,20 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
         '  3. Click "Load unpacked" → select the extension folder',
       );
+    }
+    // When extension is disconnected, check cached version from last successful handshake.
+    // Chrome Web Store auto-upgrades can leave the extension at a version that the npm
+    // CLI can't talk to — this surfaces the version mismatch instead of staying silent.
+    if (opts.cliVersion) {
+      const cachedExtVersion = getCachedExtensionVersion();
+      if (cachedExtVersion) {
+        issues.push(
+          `Extension was previously connected at v${cachedExtVersion} but is now unreachable. ` +
+          `CLI is v${opts.cliVersion}. This may indicate a version mismatch from Chrome Web Store auto-upgrade.\n` +
+          '  Try: npm install -g @jackwener/opencli && opencli daemon restart\n' +
+          '  Then restart Chrome to reload the extension service worker.',
+        );
+      }
     }
   }
   if (extensionConnected && !extensionVersion) {

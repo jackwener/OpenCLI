@@ -222,11 +222,21 @@ export function recordExtensionVersion(version: string): void {
 }
 
 /**
- * Get the cached latest extension version (if available).
+ * Get the cached latest extension version from GitHub Releases (if available).
  * Used by `opencli doctor` to report extension updates.
  */
 export function getCachedLatestExtensionVersion(): string | undefined {
   return _cache?.latestExtensionVersion;
+}
+
+/**
+ * Get the last-seen extension version from the daemon cache.
+ * The daemon writes this on each successful WebSocket hello handshake.
+ * When the extension is disconnected, this is the most recent version
+ * we saw working — useful for detecting version drift.
+ */
+export function getCachedExtensionVersion(): string | undefined {
+  return _cache?.currentExtensionVersion;
 }
 
 export {
