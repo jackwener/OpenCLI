@@ -75,8 +75,6 @@ export function extractTimelineTweet(result, seen) {
         replies: legacy.reply_count || 0,
         created_at: legacy.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
-        card: extractCard(tw),
-        quoted_tweet: extractQuotedTweet(tw),
         ...extractMedia(legacy),
         card: extractCard(tw),
         quoted_tweet: extractQuotedTweet(tw),

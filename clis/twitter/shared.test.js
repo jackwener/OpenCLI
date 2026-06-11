@@ -12,6 +12,7 @@ const {
     unwrapBrowserResult,
     normalizeTwitterGraphqlPayload,
     normalizeTwitterScreenName,
+    normalizeTwitterOperationFlags,
     sanitizeTwitterOperationMetadata,
     looksLikePrivateTwitterTimeline,
     parseOperationFromBundleText,
@@ -89,6 +90,48 @@ describe('twitter browser result helpers', () => {
         });
         expect(result.features).toEqual({ fallback_feature: true });
         expect(result.fieldToggles).toEqual({ fallback_field: true });
+    });
+
+    it('normalizes operation feature arrays and boolean maps without losing false flags', () => {
+        expect(normalizeTwitterOperationFlags(['feature_a', 'feature_b'])).toEqual({
+            feature_a: true,
+            feature_b: true,
+        });
+        expect(normalizeTwitterOperationFlags({
+            rweb_video_screen_enabled: false,
+            responsive_web_graphql_timeline_navigation_enabled: true,
+            ignored_non_boolean: 'true',
+        })).toEqual({
+            rweb_video_screen_enabled: false,
+            responsive_web_graphql_timeline_navigation_enabled: true,
+        });
+    });
+
+    it('keeps GitHub placeholder-style features boolean maps instead of falling back', () => {
+        const result = sanitizeTwitterOperationMetadata({
+            queryId: 'newQueryId',
+            features: {
+                rweb_video_screen_enabled: false,
+                responsive_web_graphql_timeline_navigation_enabled: true,
+            },
+            fieldToggles: {
+                withArticlePlainText: true,
+            },
+        }, {
+            queryId: 'fallback',
+            features: { fallback_feature: true },
+            fieldToggles: { fallback_field: true },
+        });
+        expect(result).toEqual({
+            queryId: 'newQueryId',
+            features: {
+                rweb_video_screen_enabled: false,
+                responsive_web_graphql_timeline_navigation_enabled: true,
+            },
+            fieldToggles: {
+                withArticlePlainText: true,
+            },
+        });
     });
 
     it('normalizes GraphQL payloads when the bridge strips the top-level data key', () => {

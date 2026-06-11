@@ -134,12 +134,21 @@ function keysToFlags(keys) {
     return Object.fromEntries(keys.filter((key) => typeof key === 'string' && key).map((key) => [key, true]));
 }
 
+export function normalizeTwitterOperationFlags(value) {
+    if (Array.isArray(value)) return keysToFlags(value);
+    if (!value || typeof value !== 'object') return {};
+    return Object.fromEntries(
+        Object.entries(value)
+            .filter(([key, flag]) => typeof key === 'string' && key && typeof flag === 'boolean'),
+    );
+}
+
 function normalizeOperationFallback(fallback) {
     if (typeof fallback === 'string') return { queryId: fallback, features: {}, fieldToggles: {} };
     return {
         queryId: fallback?.queryId || null,
-        features: fallback?.features || {},
-        fieldToggles: fallback?.fieldToggles || {},
+        features: normalizeTwitterOperationFlags(fallback?.features),
+        fieldToggles: normalizeTwitterOperationFlags(fallback?.fieldToggles),
     };
 }
 
@@ -192,15 +201,11 @@ export function sanitizeTwitterOperationMetadata(resolved, fallback) {
     // surfacing a misleading "queryId expired" error.
     return {
         queryId: sanitizeQueryId(value?.queryId, normalizedFallback.queryId),
-        features: value?.features
-            && typeof value.features === 'object'
-            && Object.keys(value.features).length > 0
-            ? value.features
+        features: Object.keys(normalizeTwitterOperationFlags(value?.features)).length > 0
+            ? normalizeTwitterOperationFlags(value.features)
             : normalizedFallback.features,
-        fieldToggles: value?.fieldToggles
-            && typeof value.fieldToggles === 'object'
-            && Object.keys(value.fieldToggles).length > 0
-            ? value.fieldToggles
+        fieldToggles: Object.keys(normalizeTwitterOperationFlags(value?.fieldToggles)).length > 0
+            ? normalizeTwitterOperationFlags(value.fieldToggles)
             : normalizedFallback.fieldToggles,
     };
 }
@@ -261,6 +266,11 @@ export async function resolveTwitterOperationMetadata(page, operationName, fallb
     const resolved = await page.evaluate(`async () => {
     const operationName = ${JSON.stringify(operationName)};
     const keysToFlags = (keys) => Object.fromEntries((keys || []).filter((k) => typeof k === 'string' && k).map((key) => [key, true]));
+    const normalizeFlags = (value) => {
+      if (Array.isArray(value)) return keysToFlags(value);
+      if (!value || typeof value !== 'object') return {};
+      return Object.fromEntries(Object.entries(value).filter(([key, flag]) => typeof key === 'string' && key && typeof flag === 'boolean'));
+    };
     const parseOperationFromBundleText = ${parserSource};
 
     try {
@@ -275,8 +285,8 @@ export async function resolveTwitterOperationMetadata(page, operationName, fallb
           if (entry && entry.queryId) {
             return {
               queryId: entry.queryId,
-              features: keysToFlags(entry.featureSwitches),
-              fieldToggles: keysToFlags(entry.fieldToggles),
+              features: normalizeFlags(entry.features ?? entry.featureSwitches),
+              fieldToggles: normalizeFlags(entry.fieldToggles),
             };
           }
         }
@@ -523,6 +533,7 @@ export function describeTwitterApiError(operation, status, extraHint) {
 
 export const __test__ = {
     sanitizeQueryId,
+    normalizeTwitterOperationFlags,
     sanitizeTwitterOperationMetadata,
     unwrapBrowserResult,
     normalizeTwitterGraphqlPayload,
