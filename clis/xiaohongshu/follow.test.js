@@ -3,6 +3,7 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 import { __test__ } from './follow.js';
+import './unfollow.js';
 
 function makePage(evaluateResults = []) {
     const evaluate = vi.fn();
@@ -76,6 +77,13 @@ describe('xiaohongshu follow', () => {
         await expect(getCommand().func(page, { 'user-id': validId })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
+    it('throws CommandExecutionError when navigation lands on a different profile', async () => {
+        const page = makePage([
+            'https://www.xiaohongshu.com/user/profile/5d8f88dc0000000001005d4b',
+        ]);
+        await expect(getCommand().func(page, { 'user-id': validId })).rejects.toThrowError(/expected profile/);
+    });
+
     it('throws CommandExecutionError when the follow button is not found', async () => {
         const page = makePage([
             `https://www.xiaohongshu.com/user/profile/${validId}`,
@@ -117,5 +125,69 @@ describe('xiaohongshu follow', () => {
             expect(() => __test__.assertUserId('abc')).toThrow(ArgumentError);
             expect(() => __test__.assertUserId('!!!')).toThrow(ArgumentError);
         });
+    });
+});
+
+describe('xiaohongshu unfollow', () => {
+    const getCommand = () => getRegistry().get('xiaohongshu/unfollow');
+    const validId = '5d8f88dc0000000001005d3a';
+
+    it('returns unfollowed when click, confirm, and state verification succeed', async () => {
+        const page = makePage([
+            `https://www.xiaohongshu.com/user/profile/${validId}`,
+            { ok: true, state: 'unfollow-clicked' },
+            { ok: true },
+            { ok: true },
+        ]);
+        const result = await getCommand().func(page, { 'user-id': validId });
+        expect(result).toEqual([{
+            status: 'unfollowed',
+            user_id: validId,
+            url: `https://www.xiaohongshu.com/user/profile/${validId}`,
+        }]);
+        expect(page.goto).toHaveBeenCalledWith(`https://www.xiaohongshu.com/user/profile/${validId}`);
+    });
+
+    it('returns not-following without modal confirmation when already unfollowed', async () => {
+        const page = makePage([
+            `https://www.xiaohongshu.com/user/profile/${validId}`,
+            { ok: true, state: 'not-following' },
+        ]);
+        const result = await getCommand().func(page, { 'user-id': validId });
+        expect(result[0].status).toBe('not-following');
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws AuthRequiredError when xhs redirects unfollow to /login', async () => {
+        const page = makePage([
+            'https://www.xiaohongshu.com/login?redirectPath=/user/profile/' + validId,
+        ]);
+        await expect(getCommand().func(page, { 'user-id': validId })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('throws CommandExecutionError when unfollow navigation lands on a different profile', async () => {
+        const page = makePage([
+            'https://www.xiaohongshu.com/user/profile/5d8f88dc0000000001005d4b',
+        ]);
+        await expect(getCommand().func(page, { 'user-id': validId })).rejects.toThrowError(/expected profile/);
+    });
+
+    it('throws CommandExecutionError when modal confirmation is missing', async () => {
+        const page = makePage([
+            `https://www.xiaohongshu.com/user/profile/${validId}`,
+            { ok: true, state: 'unfollow-clicked' },
+            { ok: false, kind: 'no_modal' },
+        ]);
+        await expect(getCommand().func(page, { 'user-id': validId })).rejects.toThrowError(/confirmation modal/);
+    });
+
+    it('throws CommandExecutionError when final unfollow verification fails', async () => {
+        const page = makePage([
+            `https://www.xiaohongshu.com/user/profile/${validId}`,
+            { ok: true, state: 'unfollow-clicked' },
+            { ok: true },
+            { ok: false, reason: 'still following' },
+        ]);
+        await expect(getCommand().func(page, { 'user-id': validId })).rejects.toThrowError(/still following/);
     });
 });

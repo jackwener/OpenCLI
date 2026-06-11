@@ -194,8 +194,15 @@ cli({
             if (typeof hrefRaw !== 'string') {
                 throw new CommandExecutionError('xiaohongshu/unfollow: malformed current-url payload');
             }
-            if (/\/login(?:[/?#]|$)/i.test(new URL(hrefRaw).pathname)) {
+            const parsedHref = new URL(hrefRaw);
+            if (/\/login(?:[/?#]|$)/i.test(parsedHref.pathname)) {
                 throw new AuthRequiredError('www.xiaohongshu.com');
+            }
+            const currentProfile = parsedHref.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]+)/);
+            if (currentProfile?.[1] !== userId) {
+                throw new CommandExecutionError(
+                    `xiaohongshu/unfollow: expected profile ${userId}, got ${parsedHref.pathname}`,
+                );
             }
 
             // Step 1: click 已关注 (idempotent — bails out if 关注 is visible)

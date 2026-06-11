@@ -167,6 +167,12 @@ cli({
             if (/\/login(?:[/?#]|$)/i.test(parsedHref.pathname)) {
                 throw new AuthRequiredError('www.xiaohongshu.com');
             }
+            const currentProfile = parsedHref.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]+)/);
+            if (currentProfile?.[1] !== userId) {
+                throw new CommandExecutionError(
+                    `xiaohongshu/follow: expected profile ${userId}, got ${parsedHref.pathname}`,
+                );
+            }
 
             const result = requireActionResult(
                 await page.evaluate(buildFollowScript()),

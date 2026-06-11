@@ -10,7 +10,23 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { apiPost, fetchJson, getSelfUid, requireOkPayload, resolveUid } from './utils.js';
 
-const SPACE_URL_RE = /space\.bilibili\.com\/(\d+)/i;
+const RELATION_VERIFY_TIMEOUT_MS = 5000;
+const RELATION_VERIFY_POLL_MS = 500;
+
+function parseSpaceMidUrl(raw) {
+    const trimmed = String(raw ?? '').trim();
+    if (!trimmed) return '';
+    const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    let parsed;
+    try {
+        parsed = new URL(candidate);
+    } catch {
+        return '';
+    }
+    if (parsed.hostname.toLowerCase() !== 'space.bilibili.com') return '';
+    const match = parsed.pathname.match(/^\/(\d+)\/?$/);
+    return match ? match[1] : '';
+}
 
 /**
  * Pull a uid out of a `space.bilibili.com/<uid>` URL before falling back to the
@@ -23,8 +39,13 @@ async function resolveTargetMid(page, raw) {
     if (!trimmed) {
         throw new ArgumentError('bilibili follow target cannot be empty');
     }
-    const urlMatch = trimmed.match(SPACE_URL_RE);
-    if (urlMatch) return urlMatch[1];
+    if (/^(?:https?:\/\/)?space\.bilibili\.com\//i.test(trimmed)) {
+        const mid = parseSpaceMidUrl(trimmed);
+        if (!mid) {
+            throw new ArgumentError('bilibili follow target must be a valid space.bilibili.com/<uid> URL');
+        }
+        return mid;
+    }
     try {
         return await resolveUid(page, trimmed);
     } catch (error) {
@@ -45,7 +66,24 @@ async function fetchRelationAttribute(page, mid) {
     const payload = await fetchJson(page, `https://api.bilibili.com/x/relation?fid=${mid}`);
     requireOkPayload(payload, 'relation query');
     const attribute = payload?.data?.attribute;
-    return typeof attribute === 'number' ? attribute : 0;
+    if (typeof attribute !== 'number') {
+        throw new CommandExecutionError('Bilibili relation query returned a malformed attribute');
+    }
+    return attribute;
+}
+
+async function waitForRelation(page, mid, predicate, expectedLabel) {
+    const deadline = Date.now() + RELATION_VERIFY_TIMEOUT_MS;
+    let lastAttribute;
+    while (Date.now() <= deadline) {
+        lastAttribute = await fetchRelationAttribute(page, mid);
+        if (predicate(lastAttribute)) return lastAttribute;
+        if (typeof page.wait !== 'function') break;
+        await page.wait({ time: RELATION_VERIFY_POLL_MS / 1000 });
+    }
+    throw new CommandExecutionError(
+        `Bilibili relation modify did not verify ${expectedLabel}; last attribute=${lastAttribute}`,
+    );
 }
 
 cli({
@@ -90,6 +128,7 @@ cli({
             params: { fid: mid, act: 1, re_src: 11 },
         });
         requireOkPayload(payload, 'relation modify');
+        await waitForRelation(page, mid, (nextAttribute) => nextAttribute === 2 || nextAttribute === 6, 'following');
         return [{ mid, name: '', status: 'followed', url }];
     },
 });
@@ -97,4 +136,5 @@ cli({
 export const __test__ = {
     resolveTargetMid,
     fetchRelationAttribute,
+    waitForRelation,
 };
