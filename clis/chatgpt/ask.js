@@ -6,7 +6,7 @@ import {
     currentChatGPTUrl,
     ensureChatGPTComposer,
     ensureOnChatGPT,
-    getChatGPTResponsePairKeys,
+    getChatGPTResponsePairCounts,
     getVisibleMessages,
     normalizeBooleanFlag,
     openChatGPTConversation,
@@ -100,7 +100,7 @@ export const askCommand = cli({
 
         const baselineMessages = await getVisibleMessages(page);
         const baseline = baselineMessages.length;
-        const baselinePairKeys = new Set(getChatGPTResponsePairKeys(baselineMessages, prompt));
+        const baselinePairCounts = getChatGPTResponsePairCounts(baselineMessages, prompt);
         const sent = await sendChatGPTMessage(page, prompt);
         if (!sent) {
             throw new CommandExecutionError('Failed to send message to ChatGPT', `Open ${CHATGPT_URL} and verify the composer is ready.`);
@@ -111,7 +111,7 @@ export const askCommand = cli({
             return [{ conversationId, conversationUrl, tool: selectedTool?.Tool ?? '', response: '' }];
         }
         const response = await waitForChatGPTResponse(page, baseline, prompt, timeout, {
-            baselinePairKeys,
+            baselinePairCounts,
             conversationUrl,
         });
         return [{ conversationId, conversationUrl, tool: selectedTool?.Tool ?? '', response }];

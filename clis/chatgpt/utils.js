@@ -844,9 +844,8 @@ export async function getBubbleCount(page) {
 
 function cleanPromptText(str) {
     return String(str || '')
-        .replace(/[*_`#\-+>!\[\]()]/g, '')
-        .replace(/\s+/g, '')
-        .toLowerCase();
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 function responsePairKey(user, assistant) {
@@ -870,9 +869,23 @@ export function getChatGPTResponsePairKeys(messages, prompt) {
     return keys;
 }
 
-function findLatestNewAssistantResponse(messages, prompt, baselinePairKeys) {
+export function getChatGPTResponsePairCounts(messages, prompt) {
+    const counts = new Map();
+    for (const key of getChatGPTResponsePairKeys(messages, prompt)) {
+        counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+}
+
+function normalizeBaselinePairCounts(options) {
+    if (options.baselinePairCounts instanceof Map) return options.baselinePairCounts;
+    return new Map(Array.from(options.baselinePairKeys || []).map((key) => [key, 1]));
+}
+
+function findLatestNewAssistantResponse(messages, prompt, baselinePairCounts) {
     const promptKey = cleanPromptText(prompt);
     if (!promptKey) return '';
+    const currentPairCounts = getChatGPTResponsePairCounts(messages, prompt);
     for (let index = messages.length - 1; index >= 0; index -= 1) {
         const user = messages[index];
         if (user?.Role !== 'User' || cleanPromptText(user.Text) !== promptKey) continue;
@@ -883,7 +896,8 @@ function findLatestNewAssistantResponse(messages, prompt, baselinePairKeys) {
         ));
         if (assistantIndex < 0) continue;
         const assistant = messages[assistantIndex];
-        if (baselinePairKeys.has(responsePairKey(user, assistant))) continue;
+        const key = responsePairKey(user, assistant);
+        if ((currentPairCounts.get(key) || 0) <= (baselinePairCounts.get(key) || 0)) continue;
         return String(assistant.Text || '').trim();
     }
     return '';
@@ -893,7 +907,7 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
     const startTime = Date.now();
     let lastText = '';
     let stableCount = 0;
-    const baselinePairKeys = new Set(options.baselinePairKeys || []);
+    const baselinePairCounts = normalizeBaselinePairCounts(options);
 
     while (Date.now() - startTime < timeoutSeconds * 1000) {
         await page.wait(3);
@@ -911,7 +925,7 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
         }
 
         const messages = await getVisibleMessages(page);
-        const candidate = findLatestNewAssistantResponse(messages, prompt, baselinePairKeys);
+        const candidate = findLatestNewAssistantResponse(messages, prompt, baselinePairCounts);
         if (!candidate || candidate === String(prompt || '').trim()) continue;
 
         if (candidate === lastText) {
