@@ -187,13 +187,16 @@ export function decideProxy(url: URL, env: NodeJS.ProcessEnv = process.env): Pro
 
 export function getDispatcherForUrl(url: URL, env: NodeJS.ProcessEnv = process.env): Dispatcher {
   const config = resolveProxyConfig(env);
+  if (config.noProxyEntries.some((entry) => matchesNoProxyEntry(url, entry))) {
+    return directDispatcher;
+  }
   if (!config.httpProxy && !config.httpsProxy) return directDispatcher;
   return createProxyDispatcher(config);
 }
 
 export async function fetchWithNodeNetwork(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const url = resolveUrl(input);
-  if (!url || !hasProxyEnv()) {
+  if (!url || !hasProxyEnv() || decideProxy(url).mode === 'direct') {
     return nativeFetch(input, init);
   }
 

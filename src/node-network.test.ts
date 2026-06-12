@@ -1,6 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { decideProxy, hasProxyEnv } from './node-network.js';
+const nativeFetchMock = vi.hoisted(() => vi.fn());
+const undiciFetchMock = vi.hoisted(() => vi.fn());
+
+vi.mock('undici', () => ({
+  Agent: class Agent {},
+  EnvHttpProxyAgent: class EnvHttpProxyAgent {},
+  fetch: undiciFetchMock,
+}));
+
+vi.stubGlobal('fetch', nativeFetchMock);
+
+const { decideProxy, fetchWithNodeNetwork, hasProxyEnv } = await import('./node-network.js');
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  nativeFetchMock.mockReset();
+  undiciFetchMock.mockReset();
+});
 
 describe('node network proxy decisions', () => {
   it('detects common proxy env variables', () => {
@@ -89,5 +106,20 @@ describe('node network proxy decisions', () => {
       mode: 'proxy',
       proxyUrl: 'socks5://127.0.0.1:1080',
     });
+  });
+
+  it('uses native fetch for loopback URLs even when proxy env vars exist', async () => {
+    const response = new Response('direct');
+    nativeFetchMock.mockResolvedValue(response);
+    undiciFetchMock.mockResolvedValue(new Response('proxied'));
+
+    vi.stubEnv('HTTP_PROXY', 'http://127.0.0.1:7897');
+    vi.stubEnv('HTTPS_PROXY', 'http://127.0.0.1:7897');
+
+    const result = await fetchWithNodeNetwork('http://127.0.0.1:19825/status');
+
+    expect(result).toBe(response);
+    expect(nativeFetchMock).toHaveBeenCalledTimes(1);
+    expect(undiciFetchMock).not.toHaveBeenCalled();
   });
 });
