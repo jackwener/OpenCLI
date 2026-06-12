@@ -116,6 +116,35 @@ describe('rewriteBrowserArgv', () => {
     ]);
   });
 
+  it('hoists a trailing parent `--window` option to before the subcommand (#1850)', () => {
+    // The natural placement (after the subcommand + its args) must work the same
+    // as the parent-slot placement.
+    expect(rewriteBrowserArgv(['browser', 'work', 'open', 'https://x.com', '--window', 'background'])).toEqual([
+      'browser', '--session', 'work', '--window', 'background', 'open', 'https://x.com',
+    ]);
+    expect(rewriteBrowserArgv(['browser', 'work', 'state', '--window', 'foreground'])).toEqual([
+      'browser', '--session', 'work', '--window', 'foreground', 'state',
+    ]);
+  });
+
+  it('hoists the `--window=<mode>` long form too (#1850)', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', 'open', 'https://x.com', '--window=background'])).toEqual([
+      'browser', '--session', 'work', '--window=background', 'open', 'https://x.com',
+    ]);
+  });
+
+  it('leaves an already-parent-slot `--window` untouched (#1850)', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', '--window', 'background', 'open', 'https://x.com'])).toEqual([
+      'browser', '--session', 'work', '--window', 'background', 'open', 'https://x.com',
+    ]);
+  });
+
+  it('hoists `--window` alongside a leading root --profile flag (#1850)', () => {
+    expect(rewriteBrowserArgv(['--profile', 'work', 'browser', 'mercury', 'open', 'https://x.com', '--window', 'background'])).toEqual([
+      '--profile', 'work', 'browser', '--session', 'mercury', '--window', 'background', 'open', 'https://x.com',
+    ]);
+  });
+
   it('leaves argv alone when the root command is not `browser`, even if `browser` appears later', () => {
     // The first browser keyword does NOT win — it must be at the root.
     expect(rewriteBrowserArgv(['twitter', 'browser', 'work', 'state'])).toEqual([

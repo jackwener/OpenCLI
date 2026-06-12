@@ -116,7 +116,41 @@ export function rewriteBrowserArgv(argv: readonly string[]): string[] {
   if (BROWSER_SUBCOMMAND_NAMES.has(next)) return result;
   // Splice in --session <name> in place of the positional.
   result.splice(sessionIdx, 1, '--session', next);
+  // `--window` is a parent (`browser`) option, so commander only accepts it
+  // *before* the leaf subcommand. Users naturally write it at the end
+  // (`browser work open <url> --window background`); hoist such a trailing
+  // occurrence to the parent option slot so the obvious placement works. (#1850)
+  hoistParentWindowOption(result, sessionIdx + 2);
   return result;
+}
+
+/**
+ * Move a `--window <mode>` / `--window=<mode>` that appears after the browser
+ * subcommand to the parent option slot (just before the subcommand), so
+ * `browser <session> <subcommand> ... --window <mode>` parses the same as the
+ * already-working `browser <session> --window <mode> <subcommand> ...`. Mutates
+ * `argv` in place; only the first occurrence is hoisted. Stops at `--`.
+ */
+function hoistParentWindowOption(argv: string[], fromIndex: number): void {
+  const subIdx = argv.findIndex((tok, idx) => idx >= fromIndex && BROWSER_SUBCOMMAND_NAMES.has(tok));
+  if (subIdx === -1) return;
+  for (let k = subIdx + 1; k < argv.length; k += 1) {
+    const tok = argv[k];
+    if (tok === '--') return;
+    if (tok === '--window') {
+      const value = argv[k + 1];
+      const removed = value !== undefined && !value.startsWith('-')
+        ? argv.splice(k, 2)
+        : argv.splice(k, 1);
+      argv.splice(subIdx, 0, ...removed);
+      return;
+    }
+    if (tok.startsWith('--window=')) {
+      const removed = argv.splice(k, 1);
+      argv.splice(subIdx, 0, ...removed);
+      return;
+    }
+  }
 }
 
 /**
