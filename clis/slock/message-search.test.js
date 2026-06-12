@@ -36,4 +36,14 @@ describe('slock message-search', () => {
     // returns data.results and only data.results.
     expect(snippet).toMatch(/data\.results\s*\|\|\s*data\.messages\s*\|\|\s*data\.data/);
   });
+
+  it('[red-line] a --channel name with a quote cannot break out of the snippet string', async () => {
+    const page = makePage({ kind: 'unresolvable', detail: 'x' });
+    await command.func(page, { query: 'x', channel: "#ev'il" }).catch(() => {});
+    const script = page.evaluate.mock.calls[0][0];
+    // Vulnerable form would embed the name raw as `matches #ev'il`, letting the
+    // quote close the string literal. The name must only appear JSON-encoded.
+    expect(script).not.toContain("no channel matches #ev'il");
+    expect(script).toContain('"#ev\'il"');
+  });
 });

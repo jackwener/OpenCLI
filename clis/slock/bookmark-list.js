@@ -26,7 +26,7 @@ cli({
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
-      const res = await fetch('${SLOCK_API_BASE}/channels/saved?limit=${limit}&offset=${offset}', { credentials:'include', headers });
+      const res = await fetch('${SLOCK_API_BASE}/channels/saved?limit=' + encodeURIComponent(${JSON.stringify(limit)}) + '&offset=' + encodeURIComponent(${JSON.stringify(offset)}), { credentials:'include', headers });
       if (!res.ok) return { kind: res.status===401?'auth':'http', status: res.status, where:'/channels/saved' };
       const data = await res.json();
       // F3-b — qatester live dump: shape is { saved: [...], hasMore }.

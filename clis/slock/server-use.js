@@ -35,7 +35,7 @@ cli({
       else hit = arr.find((s) => (s.slug || '').toLowerCase() === ${slugJson});
       if (!hit) {
         const choices = arr.map((s) => s.slug).filter(Boolean).join(', ');
-        return { kind: 'unresolvable', detail: 'no server matches "${raw}". Known slugs: ' + choices };
+        return { kind: 'unresolvable', detail: 'no server matches ' + ${JSON.stringify(raw)} + '. Known slugs: ' + choices };
       }
       // ATOMICITY: write to localStorage ONLY after we have a confirmed hit.
       localStorage.setItem('slock_last_server_slug', hit.slug);

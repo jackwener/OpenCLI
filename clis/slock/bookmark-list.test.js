@@ -11,8 +11,10 @@ describe('slock bookmark-list', () => {
       evaluate: vi.fn().mockResolvedValue({ kind: 'ok', rows: [{ id: 'b1', messageId: 'm1', content: 'hi' }] }),
     };
     const rows = await command.func(page, { limit: 10, offset: 20 });
-    expect(page.evaluate.mock.calls[0][0]).toContain('limit=10');
-    expect(page.evaluate.mock.calls[0][0]).toContain('offset=20');
+    // Values are JSON-encoded outside the quoted URL literal (injection
+    // defense), so assert the runtime-concat form, not a contiguous literal.
+    expect(page.evaluate.mock.calls[0][0]).toContain('limit=\' + encodeURIComponent("10")');
+    expect(page.evaluate.mock.calls[0][0]).toContain('offset=\' + encodeURIComponent("20")');
     expect(rows[0]).toMatchObject({ id: 'b1', messageId: 'm1' });
   });
 

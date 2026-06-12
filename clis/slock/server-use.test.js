@@ -32,4 +32,17 @@ describe('slock server-use', () => {
     await expect(command.func(page, { input: '' })).rejects.toBeInstanceOf(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
   });
+
+  it('[red-line] an input with a quote cannot break out of the snippet string', async () => {
+    const page = {
+      goto: vi.fn(),
+      evaluate: vi.fn().mockResolvedValue({ kind: 'unresolvable', detail: 'x' }),
+    };
+    await command.func(page, { input: "ev'il" }).catch(() => {});
+    const script = page.evaluate.mock.calls[0][0];
+    // Vulnerable form embedded the input raw as `matches "ev'il"`, letting the
+    // quote close the string literal. The input must only appear JSON-encoded.
+    expect(script).not.toContain('no server matches "ev\'il"');
+    expect(script).toContain('"ev\'il"');
+  });
 });

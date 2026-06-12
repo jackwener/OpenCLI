@@ -43,7 +43,7 @@ cli({
           if (!cres.ok) return { kind: cres.status===401?'auth':'http', status: cres.status, where:'/channels/' };
           const arr = await cres.json();
           const hit = (Array.isArray(arr)?arr:(arr.channels||arr.data||[])).find((c) => (c.name||c.slug||'').toLowerCase() === ${target});
-          if (!hit) return { kind: 'unresolvable', detail: 'no channel matches ${channel}' };
+          if (!hit) return { kind: 'unresolvable', detail: 'no channel matches ' + ${JSON.stringify(channel)} };
           channelId = hit.id;
         }
       }
