@@ -47,7 +47,7 @@ export function assertMessageIdShape(messageId) {
 
 export function parsePositiveInteger(value, name, { defaultValue, max } = {}) {
   const raw = value === undefined || value === null || value === '' ? defaultValue : value;
-  const n = Number(raw);
+  const n = parseStrictInteger(raw);
   if (!Number.isInteger(n) || n <= 0 || (max !== undefined && n > max)) {
     const suffix = max !== undefined ? ` between 1 and ${max}` : ' as a positive integer';
     throw new ArgumentError(`${name} must be${suffix} (got "${raw}")`);
@@ -57,9 +57,18 @@ export function parsePositiveInteger(value, name, { defaultValue, max } = {}) {
 
 export function parseNonNegativeInteger(value, name, { defaultValue } = {}) {
   const raw = value === undefined || value === null || value === '' ? defaultValue : value;
-  const n = Number(raw);
+  const n = parseStrictInteger(raw);
   if (!Number.isInteger(n) || n < 0) {
     throw new ArgumentError(`${name} must be a non-negative integer (got "${raw}")`);
   }
   return n;
+}
+
+function parseStrictInteger(raw) {
+  if (typeof raw === 'number')
+    return raw;
+  const text = String(raw);
+  if (!/^\d+$/.test(text))
+    return NaN;
+  return Number(text);
 }

@@ -86,6 +86,8 @@ describe('integer boundary helpers', () => {
     expect(() => parsePositiveInteger(0, '--limit')).toThrow(ArgumentError);
     expect(() => parsePositiveInteger(-1, '--limit')).toThrow(ArgumentError);
     expect(() => parsePositiveInteger(1.5, '--limit')).toThrow(ArgumentError);
+    expect(() => parsePositiveInteger('1e2', '--limit')).toThrow(ArgumentError);
+    expect(() => parsePositiveInteger(' 3 ', '--limit')).toThrow(ArgumentError);
     expect(() => parsePositiveInteger(101, '--limit', { max: 100 })).toThrow(ArgumentError);
   });
 
@@ -95,5 +97,6 @@ describe('integer boundary helpers', () => {
     expect(parseNonNegativeInteger(2, '--offset')).toBe(2);
     expect(() => parseNonNegativeInteger(-1, '--offset')).toThrow(ArgumentError);
     expect(() => parseNonNegativeInteger(1.5, '--offset')).toThrow(ArgumentError);
+    expect(() => parseNonNegativeInteger('1e2', '--offset')).toThrow(ArgumentError);
   });
 });
