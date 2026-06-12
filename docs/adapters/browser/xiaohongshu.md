@@ -13,6 +13,8 @@
 | `opencli xiaohongshu feed` | Home feed recommendations (reads the hydrated Pinia store; URLs carry `xsec_token` for drill-down) |
 | `opencli xiaohongshu notifications` | User notifications (mentions, likes, connections) |
 | `opencli xiaohongshu user` | Get public notes from a user profile |
+| `opencli xiaohongshu saved` | List saved/collected notes (`/user/profile/<id>?tab=fav&subTab=note`) |
+| `opencli xiaohongshu liked` | List liked notes (`/user/profile/<id>?tab=liked&subTab=note`) |
 | `opencli xiaohongshu download` | Download images and videos from a note |
 | `opencli xiaohongshu publish` | Publish image-text notes (creator center UI automation) |
 | `opencli xiaohongshu delete-note` | Verify or delete a published creator-center note by exact note ID |
@@ -44,6 +46,10 @@ opencli xiaohongshu search 旅行 -f json
 
 # Other commands
 opencli xiaohongshu feed
+opencli xiaohongshu saved --limit 20
+opencli xiaohongshu liked --limit 20
+opencli xiaohongshu saved "https://www.xiaohongshu.com/user/profile/<id>?tab=fav&subTab=note"
+opencli xiaohongshu liked "https://www.xiaohongshu.com/user/profile/<id>?tab=liked&subTab=note"
 opencli xiaohongshu notifications
 opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..."
 opencli xiaohongshu download "https://xhslink.com/..."

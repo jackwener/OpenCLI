@@ -39689,6 +39689,43 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "liked",
+    "description": "小红书赞过笔记列表",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": false,
+        "help": "User id or profile URL (defaults to current logged-in user)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/liked.js",
+    "sourceFile": "xiaohongshu/liked.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "login",
     "description": "Open xiaohongshu login and wait until the browser session is authenticated",
     "access": "write",
@@ -39830,6 +39867,43 @@
     "type": "js",
     "modulePath": "xiaohongshu/publish.js",
     "sourceFile": "xiaohongshu/publish.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "saved",
+    "description": "小红书收藏笔记列表",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": false,
+        "help": "User id or profile URL (defaults to current logged-in user)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/saved.js",
+    "sourceFile": "xiaohongshu/saved.js",
     "navigateBefore": false
   },
   {
