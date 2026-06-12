@@ -233,9 +233,11 @@ const REGISTRY_KEY = 'opencli_target_lease_registry_v2';
 const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
 const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
   interactive: 'OpenCLI Browser',
+  // Retained for registry/type compatibility. Adapter automation no longer
+  // creates or discovers a visible tab group.
   automation: 'OpenCLI Adapter',
 };
-const AUTOMATION_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
+const OWNED_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
 let leaseMutationQueue: Promise<void> = Promise.resolve();
 const ownedContainers: Record<OwnedWindowRole, {
   windowId: number | null;
@@ -658,7 +660,7 @@ async function ensureCanonicalGroupTitle(role: OwnedWindowRole, group: OwnedCont
   if (group.title === canonicalTitle) return group;
   const updated = await chrome.tabGroups.update(group.id, {
     title: canonicalTitle,
-    color: AUTOMATION_TAB_GROUP_COLOR,
+    color: OWNED_TAB_GROUP_COLOR,
   });
   return { id: updated.id, windowId: updated.windowId, title: updated.title };
 }
@@ -712,7 +714,7 @@ async function createOwnedGroup(
   ownedContainers[role].windowId = windowId;
   await persistRuntimeState();
   const group = await chrome.tabGroups.update(groupId, {
-    color: AUTOMATION_TAB_GROUP_COLOR,
+    color: OWNED_TAB_GROUP_COLOR,
     title: CONTAINER_TAB_GROUP_TITLE[role],
     collapsed: false,
   });
