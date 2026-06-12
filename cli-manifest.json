@@ -15426,6 +15426,79 @@
     "sourceFile": "homebrew/popular.js"
   },
   {
+    "site": "huodongxing",
+    "name": "events",
+    "description": "活动行活动搜索（按标签、城市、日期、线上/线下、名称过滤）",
+    "access": "read",
+    "domain": "www.huodongxing.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "tag",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "活动标签，例如 AI"
+      },
+      {
+        "name": "city",
+        "type": "string",
+        "default": "全部",
+        "required": false,
+        "help": "城市名，例如 北京 / 上海 / 全部"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "开始日期，格式 YYYY-MM-DD"
+      },
+      {
+        "name": "dateTo",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "结束日期，格式 YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "int",
+        "required": false,
+        "help": "活动类型：1 线下，2 线上"
+      },
+      {
+        "name": "qs",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "按活动名称关键词过滤"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回条数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "time",
+      "eventType",
+      "city",
+      "location",
+      "organizer",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "huodongxing/events.js",
+    "sourceFile": "huodongxing/events.js"
+  },
+  {
     "site": "hupu",
     "name": "detail",
     "description": "获取虎扑帖子详情 (使用Next.js JSON数据)",
