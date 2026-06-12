@@ -47,7 +47,7 @@ export function makeChannelActionCommand({ name, verb, resultLabel, description,
         if (archivedHint && e instanceof ArgumentError && /no channel matches/.test(e.message)) {
           throw new ArgumentError(
             `${e.message}. Archived channels are excluded from the name lookup; ` +
-            `pass the channelId UUID instead (find it via \`slock channel-list --include-archived\` or the URL of the archived channel).`
+            `pass the channelId UUID instead (find it in the archived channel's URL in the Slock app).`
           );
         }
         throw e;
