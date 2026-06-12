@@ -183,10 +183,7 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
           const rounds = typeof store.getSceneRounds === 'function'
             ? store.getSceneRounds(scenes.AiChat)
             : (Array.isArray(store.rounds) ? store.rounds : []);
-          return [...rounds].reverse().find((round) => round?.aiMessage?.msgId === msgId)
-            || [...rounds].reverse().find((round) => round?.userMessage?.text === prompt)
-            || rounds[rounds.length - 1]
-            || null;
+          return [...rounds].reverse().find((round) => round?.aiMessage?.msgId === msgId) || null;
         };
         const slimSource = (item) => ({
           id: item?.id || item?.noteId || item?.note_id || '',
@@ -219,7 +216,9 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
             return { ok: false, error: 'conversation_api_missing', page_url: location.href };
           }
           if (typeof store.switchScene === 'function') store.switchScene(scenes.AiChat);
-          if (typeof store.clearConversation === 'function') store.clearConversation(scenes.AiChat);
+          if (typeof store.clearConversation === 'function') {
+            await Promise.resolve(store.clearConversation(scenes.AiChat));
+          }
           const conversationId = crypto.randomUUID();
           store.createConversation(conversationId, scenes.AiChat);
           const msgId = await store.sendMessage(conversationId, prompt, {

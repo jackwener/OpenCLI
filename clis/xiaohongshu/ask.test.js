@@ -149,12 +149,15 @@ describe('xiaohongshu ask', () => {
         expect(result).not.toHaveProperty('source_error');
     });
 
-    it('resets the 点点 scene before send so same-query retries are not rejected as duplicates', () => {
+    it('resets the 点点 scene and only accepts the sent message id on retry', () => {
         const script = buildAskEvaluateJs('上海露营需要注意什么？', 30, 10);
         const resetIndex = script.indexOf('clearConversation');
         const sendIndex = script.indexOf('store.sendMessage(conversationId');
         expect(resetIndex).toBeGreaterThan(0);
         expect(sendIndex).toBeGreaterThan(0);
         expect(resetIndex).toBeLessThan(sendIndex);
+        expect(script).toContain('await Promise.resolve(store.clearConversation(scenes.AiChat))');
+        expect(script).not.toContain('userMessage?.text === prompt');
+        expect(script).not.toContain('rounds[rounds.length - 1]');
     });
 });
