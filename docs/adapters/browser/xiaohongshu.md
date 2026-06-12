@@ -7,6 +7,7 @@
 | Command | Description |
 |---------|-------------|
 | `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
+| `opencli xiaohongshu ask` | Ask 点点 and return its answer with citation sources (`sources[]` in JSON) |
 | `opencli xiaohongshu note` | Read full note content (title, author, description, likes, collects, comments, tags) |
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |
 | `opencli xiaohongshu feed` | Home feed recommendations (reads the hydrated Pinia store; URLs carry `xsec_token` for drill-down) |
@@ -28,6 +29,9 @@
 ```bash
 # Search for notes
 opencli xiaohongshu search 美食 --limit 10
+
+# Ask 点点 and keep the citation audit trail
+opencli xiaohongshu ask "上海露营需要注意什么？" -f json
 
 # Read a note's full content (pass URL from search results to preserve xsec_token)
 opencli xiaohongshu note "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..."
@@ -56,6 +60,7 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 ```
 
 > Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
+> `ask` is separate from ordinary `search`: it submits the question to 点点, returns `answer`, `source_count`, and `sources[]`, and keeps `xsec_token` in JSON when Xiaohongshu returns one. The current 点点 source API may return bare note IDs without `xsec_token`; in that case `url` falls back to `/explore/<note_id>` and `xsec_token` is an empty string.
 > `delete-note` operates in creator center and accepts a 24-character note ID or exact Xiaohongshu note URL; it defaults to dry-run verification and only deletes with `--execute`.
 > `follow` and `unfollow` are write commands on the public profile page. They verify the browser stayed on the requested `/user/profile/<id>` target before clicking, and verify the visible follow-state button after the action.
 

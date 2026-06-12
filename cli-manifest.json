@@ -38854,6 +38854,55 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "ask",
+    "description": "Ask 小红书点点 and return the answer with citation sources.",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Question for 点点"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Seconds to wait for the 点点 answer"
+      },
+      {
+        "name": "source-limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Maximum citation sources to return"
+      }
+    ],
+    "columns": [
+      "query",
+      "answer",
+      "source_count",
+      "source_total_text",
+      "sources_summary",
+      "sources",
+      "warning",
+      "message_id",
+      "conversation_id",
+      "raw_sources",
+      "source_error"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/ask.js",
+    "sourceFile": "xiaohongshu/ask.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "comments",
     "description": "获取小红书笔记评论（支持楼中楼子回复）",
     "access": "read",

@@ -1,0 +1,150 @@
+import { describe, expect, it, vi } from 'vitest';
+import { getRegistry, Strategy } from '@jackwener/opencli/registry';
+import {
+    buildAskResult,
+    buildNoteUrl,
+    normalizeAskSource,
+    parseAskLimit,
+    parseAskTimeout,
+    unwrapEvaluateResult,
+} from './ask.js';
+import './ask.js';
+
+function createPageMock(evaluateResult) {
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        evaluate: vi.fn().mockResolvedValue(evaluateResult),
+    };
+}
+
+describe('xiaohongshu ask', () => {
+    it('registers as a browser-backed write command with audit columns', () => {
+        const cmd = getRegistry().get('xiaohongshu/ask');
+        expect(cmd).toMatchObject({
+            site: 'xiaohongshu',
+            name: 'ask',
+            access: 'write',
+            strategy: Strategy.COOKIE,
+            browser: true,
+            navigateBefore: false,
+        });
+        expect(cmd.columns).toEqual([
+            'query',
+            'answer',
+            'source_count',
+            'source_total_text',
+            'sources_summary',
+            'sources',
+            'warning',
+            'message_id',
+            'conversation_id',
+            'raw_sources',
+            'source_error',
+        ]);
+    });
+
+    it('rejects invalid timeout and source-limit values', () => {
+        expect(() => parseAskTimeout(0)).toThrow('--timeout');
+        expect(() => parseAskTimeout(181)).toThrow('--timeout');
+        expect(() => parseAskLimit(0)).toThrow('--source-limit');
+        expect(() => parseAskLimit(51)).toThrow('--source-limit');
+    });
+
+    it('normalizes note sources while keeping xsec_token separate from terminal summary', () => {
+        const source = normalizeAskSource({
+            id: '69d6fc08000000001f007646',
+            title: '新手露营有哪些建议？',
+            nickName: '郑小喜',
+            type: 'note',
+            noteType: 'normal',
+            textLink: 'xhsdiscover://item/69d6fc08000000001f007646?xsec_token=tok%20123',
+            content: '第一次露营踩了不少坑，整理了这份清单，新手可以直接参考。',
+            originLocation: [0, 10],
+        }, 0);
+
+        expect(source).toEqual({
+            rank: 1,
+            type: 'note',
+            title: '新手露营有哪些建议？',
+            url: 'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646?xsec_token=tok+123&xsec_source=',
+            note_id: '69d6fc08000000001f007646',
+            xsec_token: 'tok 123',
+            author: '郑小喜',
+            quote: '第一次露营踩了不少坑',
+            deeplink: 'xhsdiscover://item/69d6fc08000000001f007646?xsec_token=tok%20123',
+        });
+    });
+
+    it('builds a bare note URL when 点点 source data has no xsec token', () => {
+        expect(buildNoteUrl('69d6fc08000000001f007646', '')).toBe(
+            'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646',
+        );
+    });
+
+    it('keeps answer output successful when no citation sources are returned', () => {
+        const result = buildAskResult({
+            query: '上海露营需要注意什么？',
+            answer: '注意天气和营地规则。',
+            raw_sources: [],
+            source_total_text: '',
+            message_id: 'mid',
+            conversation_id: 'cid',
+        });
+
+        expect(result).toMatchObject({
+            answer: '注意天气和营地规则。',
+            source_count: 0,
+            sources: [],
+            warning: expect.stringContaining('no citation sources'),
+        });
+    });
+
+    it('unwraps Browser Bridge envelopes', () => {
+        expect(unwrapEvaluateResult({ session: 'site:xiaohongshu', data: { ok: true } })).toEqual({ ok: true });
+    });
+
+    it('runs the page evaluate path and normalizes returned sources', async () => {
+        const cmd = getRegistry().get('xiaohongshu/ask');
+        const page = createPageMock({
+            ok: true,
+            query: '上海露营需要注意什么？',
+            answer: '答案正文',
+            source_total_text: 'ai总结54篇笔记生成',
+            raw_sources: [
+                {
+                    id: '69d6fc08000000001f007646',
+                    title: '来源标题',
+                    nickName: '作者A',
+                    content: '引用片段来自笔记正文',
+                    originLocation: [0, 4],
+                    textLink: 'xhsdiscover://item/69d6fc08000000001f007646',
+                },
+            ],
+            message_id: '7650435070293180448$prod',
+            conversation_id: 'conversation-id',
+        });
+
+        const result = await cmd.func(page, { query: '上海露营需要注意什么？', timeout: 30, 'source-limit': 10 });
+
+        expect(page.goto).toHaveBeenCalledWith(expect.stringContaining('https://www.xiaohongshu.com/search_result?keyword='));
+        expect(page.evaluate.mock.calls[0][0]).toContain('window.webpackChunkxhs_pc_web');
+        expect(result).toMatchObject({
+            answer: '答案正文',
+            source_count: 1,
+            source_total_text: 'ai总结54篇笔记生成',
+            sources_summary: '1. 来源标题 - 作者A',
+            sources: [
+                {
+                    rank: 1,
+                    title: '来源标题',
+                    author: '作者A',
+                    note_id: '69d6fc08000000001f007646',
+                    xsec_token: '',
+                },
+            ],
+            message_id: '7650435070293180448$prod',
+            conversation_id: 'conversation-id',
+        });
+    });
+});
