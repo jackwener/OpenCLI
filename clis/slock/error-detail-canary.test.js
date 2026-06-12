@@ -12,11 +12,16 @@
 //   detail: 'no channel matches ${channel}'
 // (input inside the quotes, raw).
 //
-// This canary greps every non-test slock source file for `detail:`/`where:`
-// string literals that contain a `${...}` interpolation. The only allowed
-// interpolation inside such a literal is the compile-time constant
-// SLOCK_API_BASE. Node-side error messages (ArgumentError etc.) are not
-// `detail:`/`where:` fields, so they don't trip this.
+// This canary scans every non-test slock source file: on each line carrying
+// a `detail:`/`where:` field, every quoted literal (single, double, or
+// template — including the \`…\` escaped form template literals take inside
+// the outer snippet template) must be free of `${...}` interpolation, except
+// the compile-time constant SLOCK_API_BASE. Node-side error messages
+// (ArgumentError etc.) are not `detail:`/`where:` fields, so they don't trip.
+//
+// Known limitations (accepted): a detail string built in a separate variable
+// and a concatenation continued on the next line are out of reach of a
+// line-based scan. Both have no precedent in this adapter's snippet style.
 
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -27,25 +32,46 @@ const DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const RAW_INTERPOLATION = /\$\{(?!SLOCK_API_BASE\})/;
 
+// Extracts the contents of quoted literals from one line of source. A real
+// tokenizer (not a per-quote regex) because the snippet style nests quote
+// characters: in `'short id "' + x + '" not found'` the double quotes are
+// CONTENT of single-quoted literals — a naive /"..."/ scan would invent a
+// phantom span around `' + x + '` and false-positive. Handles '…', "…",
+// raw `…`, and the \`…\` form, with backslash escapes.
+function quotedSpans(line) {
+  const spans = [];
+  let i = 0;
+  while (i < line.length) {
+    const escapedTick = line[i] === '\\' && line[i + 1] === '`';
+    if (!escapedTick && line[i] !== "'" && line[i] !== '"' && line[i] !== '`') {
+      i += 1;
+      continue;
+    }
+    const close = escapedTick ? '\\`' : line[i];
+    let j = i + (escapedTick ? 2 : 1);
+    let span = '';
+    while (j < line.length) {
+      if (close === '\\`' && line[j] === '\\' && line[j + 1] === '`') break;
+      if (line[j] === '\\') { span += line.slice(j, j + 2); j += 2; continue; }
+      if (close !== '\\`' && line[j] === close) break;
+      span += line[j]; j += 1;
+    }
+    spans.push(span);
+    i = j + close.length;
+  }
+  return spans;
+}
+
 // Returns human-readable offence descriptions for one file's source.
 function findOffenders(src) {
   const noComments = src
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/.*$/gm, '');
   const offenders = [];
-
-  // (a) The string literal directly assigned to detail:/where: — both quote
-  // styles, so a future `detail: "no ${x}"` can't slip past a single-quote rule.
-  for (const m of noComments.matchAll(/(detail|where)\s*:\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/g)) {
-    if (RAW_INTERPOLATION.test(m[2])) offenders.push(`${m[1]}: ${m[2].slice(0, 60)}`);
-  }
-
-  // (b) Any single-quoted literal on a detail:/where: line — catches raw input
-  // hidden in a later concatenated segment, e.g. detail: 'a' + 'bad ${x}'.
   for (const line of noComments.split('\n')) {
     if (!/\b(detail|where)\s*:/.test(line)) continue;
-    for (const span of line.matchAll(/'(?:[^'\\\n]|\\.)*'/g)) {
-      if (RAW_INTERPOLATION.test(span[0])) offenders.push(`segment: ${span[0].slice(0, 60)}`);
+    for (const span of quotedSpans(line)) {
+      if (RAW_INTERPOLATION.test(span)) offenders.push(`raw interpolation in: ${span.slice(0, 60)}`);
     }
   }
   return offenders;
@@ -64,18 +90,32 @@ describe('slock error-detail injection canary', () => {
     expect(offenders).toEqual([]);
   });
 
-  // Mutation proof — the checker actually catches the two historical bugs
-  // verbatim, and does not flag the fixed forms or legit runtime concatenation.
+  // Mutation proof — the checker actually catches the historical bugs
+  // verbatim plus the quote-variant forms, and stays quiet on the fixed
+  // forms and legit runtime concatenation.
   it('flags the historical vulnerable forms (message-search / server-use)', () => {
-    // Rules (a) and (b) may both hit the same literal — assert "caught", not a count.
     expect(findOffenders(
       "if (!hit) return { kind: 'unresolvable', detail: 'no channel matches ${channel}' };"
     ).length).toBeGreaterThan(0);
     expect(findOffenders(
       'return { kind: \'unresolvable\', detail: \'no server matches "${raw}". Known slugs: \' + choices };'
     ).length).toBeGreaterThan(0);
+  });
+
+  it('flags double-quoted, template-literal, and concatenated-segment variants', () => {
+    expect(findOffenders(
+      "return { kind: 'unresolvable', detail: \"bad ${x}\" };"
+    ).length).toBeGreaterThan(0);
+    // Template literal as it appears inside the outer snippet template: \`…\`
+    expect(findOffenders(
+      "return { kind: 'unresolvable', detail: \\`no channel matches ${channel}\\` };"
+    ).length).toBeGreaterThan(0);
+    // Raw input hidden in a later concatenated segment, either quote style.
     expect(findOffenders(
       "return { kind: 'unresolvable', detail: 'a' + 'bad ${x}' };"
+    ).length).toBeGreaterThan(0);
+    expect(findOffenders(
+      "return { kind: 'unresolvable', detail: 'a' + \"bad ${x}\" };"
     ).length).toBeGreaterThan(0);
   });
 
@@ -87,9 +127,18 @@ describe('slock error-detail injection canary', () => {
       "if (!res.ok) return { kind: 'http', status: res.status, where: '${SLOCK_API_BASE}/channels/' };"
     )).toEqual([]);
     // in-page.js resolveShortIdFragment style: page-side variable concatenated
-    // OUTSIDE the quoted literals — the double quotes are literal content.
+    // OUTSIDE the quoted literals — the double quotes are literal content and
+    // must not be misread as span delimiters around the variable.
     expect(findOffenders(
       "return { kind: 'unresolvable', detail: 'short id \"' + ${shortIdVar} + '\" not found' };"
+    )).toEqual([]);
+    // in-page.js authHeadersFragment style: many alternating segments + a
+    // \`…\` hint nested INSIDE a single-quoted literal stays content.
+    expect(findOffenders(
+      "return { kind: 'no-server', detail: 'slug \"' + __slug + '\" not in /servers/' + '. Known slugs: ' + __choices };"
+    )).toEqual([]);
+    expect(findOffenders(
+      "return { kind: 'no-server', detail: 'run \\`slock server-use <slug>\\` or pass --server <slug>' };"
     )).toEqual([]);
   });
 });
