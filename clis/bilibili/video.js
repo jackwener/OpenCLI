@@ -41,6 +41,21 @@ cli({
     const stat = d.stat || {};
     const owner = d.owner || {};
 
+    // 付费/会员标记：view API 的 rights 位 + 充电专属字段本来就在响应里，
+    // 透出给下游在下载/截屏前判断"拿不到视频流"。
+    //   rights.pay=1                  → 付费 OGV（大会员专享/单点付费番剧、影视；实测会员番剧单集 pay=1）
+    //   rights.ugc_pay=1 / arc_pay=1  → UGC 单点付费 / 付费合集
+    //   is_upower_exclusive=true      → 充电专属视频
+    // redirect_url 非空（指向 /bangumi/play/ep<id>）= OGV 内容，细分可再查 pgc season API。
+    const rights = d.rights || {};
+    const paymentType = rights.pay
+      ? 'vip'
+      : (rights.ugc_pay || rights.arc_pay)
+        ? 'ugc_pay'
+        : d.is_upower_exclusive
+          ? 'upower'
+          : '';
+
     const pubDate = d.pubdate ? new Date(d.pubdate * 1000).toISOString().slice(0, 16).replace('T', ' ') : '';
     const dur = d.duration || 0;
     const mm = Math.floor(dur / 60);
@@ -64,6 +79,11 @@ cli({
       { field: 'parts',        value: String(d.videos ?? 1) },
       { field: 'thumbnail',    value: d.pic ?? '' },
       { field: 'description',  value: d.desc ?? '' },
+      { field: 'requires_payment', value: String(!!paymentType) },
+      { field: 'payment_type',     value: paymentType },
+      // 可试看（ugc_pay_preview / 充电预览）：有预览流但拿不到完整正片
+      { field: 'pay_preview',      value: String(!!(rights.ugc_pay_preview || d.is_upower_preview)) },
+      { field: 'redirect_url',     value: d.redirect_url ?? '' },
     ];
   },
 });
