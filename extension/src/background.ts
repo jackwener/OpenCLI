@@ -235,7 +235,6 @@ const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
   interactive: 'OpenCLI Browser',
   automation: 'OpenCLI Adapter',
 };
-const LEGACY_AUTOMATION_TAB_GROUP_TITLE = 'OpenCLI';
 const AUTOMATION_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
 let leaseMutationQueue: Promise<void> = Promise.resolve();
 const ownedContainers: Record<OwnedWindowRole, {
@@ -380,7 +379,7 @@ function emptyRegistry(): StoredRegistry {
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
-        groupId: ownedContainers.automation.groupId,
+        groupId: null,
       },
     },
     leases: {},
@@ -407,7 +406,7 @@ async function readRegistry(): Promise<StoredRegistry> {
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === 'number' ? storedContainers.automation.windowId : null,
-          groupId: typeof storedContainers.automation?.groupId === 'number' ? storedContainers.automation.groupId : null,
+          groupId: null,
         },
       },
       leases: stored.leases as Record<string, StoredLease>,
@@ -453,7 +452,7 @@ async function persistRuntimeState(): Promise<void> {
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
-        groupId: ownedContainers.automation.groupId,
+        groupId: null,
       },
     },
     leases,
@@ -513,9 +512,7 @@ function resetWindowIdleTimer(leaseKey: string): void {
 }
 
 function getOwnedContainerGroupTitles(role: OwnedWindowRole): string[] {
-  return role === 'automation'
-    ? [CONTAINER_TAB_GROUP_TITLE.automation, LEGACY_AUTOMATION_TAB_GROUP_TITLE]
-    : [CONTAINER_TAB_GROUP_TITLE.interactive];
+  return role === 'automation' ? [] : [CONTAINER_TAB_GROUP_TITLE.interactive];
 }
 
 type OwnedContainerGroup = {
@@ -563,6 +560,8 @@ function selectOwnedContainerGroupCandidate(candidates: OwnedContainerGroupCandi
 }
 
 async function collectOwnedGroupCandidates(role: OwnedWindowRole): Promise<OwnedContainerGroupCandidate[]> {
+  if (role === 'automation') return [];
+
   const container = ownedContainers[role];
   const groupsById = new Map<number, chrome.tabGroups.TabGroup>();
 
@@ -726,6 +725,11 @@ async function ensureOwnedContainerGroup(
   fallbackWindowId: number | null,
   tabIds: Array<number | undefined>,
 ): Promise<OwnedContainerGroup | null> {
+  // Adapter automation runs in an owned background window but no longer creates
+  // a visible "OpenCLI Adapter" tab group. Its ownership anchors are the
+  // persisted container windowId and per-lease preferredTabId.
+  if (role === 'automation') return null;
+
   const ids = [...new Set(tabIds.filter((id): id is number => id !== undefined))];
 
   const container = ownedContainers[role];
