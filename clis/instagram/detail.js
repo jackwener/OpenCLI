@@ -114,6 +114,7 @@ cli({
     ],
     columns: [
         'shortcode',
+        'media_id',
         'kind',
         'type',
         'posted_at',
