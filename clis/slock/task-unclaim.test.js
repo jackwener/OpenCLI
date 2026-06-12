@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './task-unclaim.js';
 
 function makePage(envelope) {
@@ -39,5 +39,11 @@ describe('slock task-unclaim', () => {
     const page = makePage({ kind: 'http', status: 403, where: '/tasks/:id/unclaim (forbidden — not the assignee, terminal status, or channel archived)' });
     await expect(command.func(page, { taskId: ID }))
       .rejects.toThrow(/forbidden|403/);
+  });
+
+  it('[postcondition] rejects a 2xx unclaim response without task identity', async () => {
+    const page = makePage({ kind: 'ok', rows: [{ taskStatus: 'todo' }] });
+    await expect(command.func(page, { taskId: ID }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
   });
 });

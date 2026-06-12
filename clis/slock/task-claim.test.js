@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './task-claim.js';
 
 function makePage(envelope) {
@@ -67,8 +67,14 @@ describe('slock task-claim', () => {
     expect(rows[0]).toMatchObject({ taskId: ID, taskStatus: 'in_progress', assigneeId: 'user-c47a3491', taskNumber: 7 });
   });
 
+  it('[postcondition] rejects a 2xx claim response with the wrong task identity', async () => {
+    const page = makePage({ kind: 'ok', rows: [{ id: '550e8400-e29b-41d4-a716-446655440001', taskStatus: 'in_progress' }] });
+    await expect(command.func(page, { taskId: ID }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
   it('passes --server override into authHeadersFragment', async () => {
-    const page = makePage({ kind: 'ok', rows: [{ id: ID }] });
+    const page = makePage({ kind: 'ok', rows: [{ id: ID, taskStatus: 'in_progress' }] });
     await command.func(page, { taskId: ID, server: 'jackyland' });
     expect(page.evaluate.mock.calls[0][0]).toContain('"jackyland"');
   });

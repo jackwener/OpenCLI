@@ -9,7 +9,7 @@
 // Client validates the enum locally so an unknown value never round-trips.
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
@@ -62,11 +62,32 @@ cli({
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
-    return rows.map((t) => ({
-      taskId: t.id ?? id,
-      taskStatus: t.taskStatus ?? status,
-      assigneeId: t.claimedById ?? t.assigneeId ?? null,
-      taskNumber: t.taskNumber ?? null,
-    }));
+    return rows.map((t) => {
+      const task = assertTaskMutationIdentity(t, id, status);
+      return {
+        taskId: task.taskId,
+        taskStatus: task.taskStatus,
+        assigneeId: t.claimedById ?? t.assigneeId ?? null,
+        taskNumber: t.taskNumber ?? null,
+      };
+    });
   },
 });
+
+function assertTaskMutationIdentity(t, expectedId, expectedStatus) {
+  const taskId = t?.id;
+  if (!taskId) {
+    throw new CommandExecutionError(`Slock task-status succeeded without returning task id ${expectedId}; refusing to report a status row.`);
+  }
+  if (taskId !== expectedId) {
+    throw new CommandExecutionError(`Slock task-status returned task id ${taskId}, expected ${expectedId}.`);
+  }
+  const taskStatus = t.taskStatus ?? t.status;
+  if (!taskStatus) {
+    throw new CommandExecutionError(`Slock task-status returned task ${expectedId} without taskStatus.`);
+  }
+  if (taskStatus !== expectedStatus) {
+    throw new CommandExecutionError(`Slock task-status returned status ${taskStatus}, expected ${expectedStatus}.`);
+  }
+  return { taskId, taskStatus };
+}

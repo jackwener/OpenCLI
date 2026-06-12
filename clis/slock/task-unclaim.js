@@ -5,7 +5,7 @@
 // (done / closed) task.
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
@@ -46,10 +46,21 @@ cli({
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
     return rows.map((t) => ({
-      taskId: t.id ?? id,
+      taskId: assertTaskIdentity(t, id, 'task-unclaim'),
       taskStatus: t.taskStatus ?? t.status ?? '',
       assigneeId: t.claimedById ?? t.assigneeId ?? null,
       taskNumber: t.taskNumber ?? null,
     }));
   },
 });
+
+function assertTaskIdentity(t, expectedId, commandName) {
+  const taskId = t?.id;
+  if (!taskId) {
+    throw new CommandExecutionError(`Slock ${commandName} succeeded without returning task id ${expectedId}; refusing to report a task row.`);
+  }
+  if (taskId !== expectedId) {
+    throw new CommandExecutionError(`Slock ${commandName} returned task id ${taskId}, expected ${expectedId}.`);
+  }
+  return taskId;
+}

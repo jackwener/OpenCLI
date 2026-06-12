@@ -1,6 +1,6 @@
 // thread-follow.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { buildFetchSnippet } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
@@ -37,6 +37,10 @@ cli({
     });
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const data = dispatchEvaluateResult(result);
-    return [{ parentMessageId: id, threadChannelId: data?.threadChannelId ?? '', result: 'followed' }];
+    const threadChannelId = data?.threadChannelId ?? data?.channelId ?? data?.id;
+    if (!threadChannelId) {
+      throw new CommandExecutionError(`Slock thread-follow succeeded without returning a thread channel id for parent message ${id}.`);
+    }
+    return [{ parentMessageId: id, threadChannelId, result: 'followed' }];
   },
 });

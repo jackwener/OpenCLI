@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import './thread-follow.js';
 
 const UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -23,5 +24,11 @@ describe('slock thread-follow', () => {
     expect(script).toContain('/channels/threads/follow');
     expect(script).toContain('parentMessageId'); // body keyed by parentMessageId, not threadChannelId
     expect(rows[0]).toMatchObject({ parentMessageId: UUID, threadChannelId: 'th1', result: 'followed' });
+  });
+
+  it('[postcondition] rejects a 2xx follow response without threadChannelId', async () => {
+    const page = makePage({ kind: 'ok', rows: { ok: true } });
+    await expect(command.func(page, { parentMessageId: UUID }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
   });
 });

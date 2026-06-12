@@ -66,6 +66,11 @@ describe('slock message-send', () => {
       .rejects.toBeInstanceOf(CommandExecutionError);
   });
 
+  it('[postcondition] rejects 2xx send responses that do not return a message id', async () => {
+    await expect(command.func(makePage({ kind: 'ok', rows: [{ channelId: 'c1' }] }), { target: '#g', content: 'x' }))
+      .rejects.toThrow(/message id/);
+  });
+
   it('--server override passes the override into the snippet', async () => {
     const page = makePage();
     await command.func(page, { target: '#general', content: 'hi', server: 'design' });

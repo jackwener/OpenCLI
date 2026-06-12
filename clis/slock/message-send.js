@@ -1,6 +1,6 @@
 // message-send.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment, resolveShortIdFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
@@ -52,12 +52,16 @@ cli({
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
     const r = rows[0] ?? {};
+    const messageId = r.id ?? r.messageId;
+    if (!messageId) {
+      throw new CommandExecutionError('Slock message-send succeeded without returning a message id; refusing to report a sent row.');
+    }
     return [{
       target,
       channelId: r.channelId ?? '',
       content,
       result: 'sent',
-      messageId: r.id ?? r.messageId ?? null,
+      messageId,
     }];
   },
 });
@@ -74,10 +78,13 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
   const extraStr = extraParts.length ? ', ' + extraParts.join(', ') : '';
   const auth = authHeadersFragment({ serverScoped: true, serverIdOverride: override });
   const postMsg = `
+    if (!channelId) return { kind: 'http', status: 500, where:'/messages (target resolved without channelId)' };
     const mres = await fetch('${SLOCK_API_BASE}/messages', { method:'POST', credentials:'include', headers, body: JSON.stringify({ channelId, content: ${contentJson}${extraStr} }) });
     if (!mres.ok) return { kind: mres.status===401?'auth':'http', status: mres.status, where:'/messages' };
     const m = await mres.json();
-    return { kind: 'ok', rows: [{ id: m.id ?? m.messageId, channelId }] };
+    const messageId = m.id ?? m.messageId;
+    if (!messageId) return { kind: 'http', status: 200, where:'/messages (no message id in response)' };
+    return { kind: 'ok', rows: [{ id: messageId, channelId }] };
   `;
   let resolve = '';
   if (cls.kind === 'channel-uuid') {
@@ -111,6 +118,7 @@ function buildSendSnippet(target, content, cls, serverOverride, extra = {}) {
       if (!dres.ok) return { kind: dres.status===401?'auth':'http', status: dres.status, where:'/channels/dm' };
       const dd = await dres.json();
       let channelId = dd.channelId ?? dd.id;
+      if (!channelId) return { kind: 'http', status: 500, where: '/channels/dm (no id in response)' };
     `;
   } else if (cls.kind === 'thread') {
     const isUuid = UUID_RE.test(cls.parentTarget);

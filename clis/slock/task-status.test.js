@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './task-status.js';
 
 function makePage(envelope) {
@@ -56,6 +56,16 @@ describe('slock task-status', () => {
     const page = makePage({ kind: 'http', status: 409, where: '/tasks/:taskId/status (conflict — task is already in status "in_progress"; no-op set rejected)' });
     await expect(command.func(page, { taskId: ID, status: 'in_progress' }))
       .rejects.toThrow(/already in status|409/);
+  });
+
+  it('[postcondition] rejects a 2xx status response for the wrong task/status', async () => {
+    const wrongId = makePage({ kind: 'ok', rows: [{ id: '550e8400-e29b-41d4-a716-446655440001', taskStatus: 'in_progress' }] });
+    await expect(command.func(wrongId, { taskId: ID, status: 'in_progress' }))
+      .rejects.toBeInstanceOf(CommandExecutionError);
+
+    const wrongStatus = makePage({ kind: 'ok', rows: [{ id: ID, taskStatus: 'todo' }] });
+    await expect(command.func(wrongStatus, { taskId: ID, status: 'in_progress' }))
+      .rejects.toThrow(/expected in_progress/);
   });
 
   it('403 terminal-status surfaces actionable hint (done/closed cannot be transitioned)', async () => {
