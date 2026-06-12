@@ -32,6 +32,16 @@ export const askCommand = cli({
         const timeoutMs = (kwargs.timeout || 120) * 1000;
         const wantThink = parseBoolFlag(kwargs.think);
         const wantSearch = parseBoolFlag(kwargs.search);
+        const wantModel = kwargs.model || 'instant';
+
+        if ((wantModel === 'vision' || wantModel === 'expert') && wantSearch) {
+            throw new CliError(
+                'ARGUMENT',
+                `DeepSeek ${wantModel} mode does not support --search.`,
+                'Run without --search, or use --model instant for web search.',
+                EXIT_CODES.USAGE_ERROR,
+            );
+        }
 
         if (parseBoolFlag(kwargs.new)) {
             await page.goto(DEEPSEEK_URL);
@@ -70,7 +80,6 @@ export const askCommand = cli({
         const inConversation = currentUrl.includes('/a/chat/s/');
         const modelExplicit = kwargs.__opencliOptionSources?.model === 'cli';
 
-        const wantModel = kwargs.model || 'instant';
         if (inConversation && modelExplicit) {
             throw new CliError(
                 'ARGUMENT',
@@ -93,15 +102,6 @@ export const askCommand = cli({
         const thinkResult = await withRetry(() => setFeature(page, 'DeepThink', wantThink));
         if (!thinkResult?.ok && wantThink) {
             throw new CommandExecutionError('Could not enable DeepThink');
-        }
-
-        if ((wantModel === 'vision' || wantModel === 'expert') && wantSearch) {
-            throw new CliError(
-                'ARGUMENT',
-                `DeepSeek ${wantModel} mode does not support --search.`,
-                'Run without --search, or use --model instant for web search.',
-                EXIT_CODES.USAGE_ERROR,
-            );
         }
 
         // Only instant mode has the Search toggle in the DeepSeek UI.

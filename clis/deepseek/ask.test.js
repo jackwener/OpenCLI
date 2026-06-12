@@ -306,6 +306,10 @@ describe('deepseek ask conversation resume', () => {
       EXIT_CODES.USAGE_ERROR,
     ));
 
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockEnsureOnDeepSeek).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSetFeature).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockSendWithFile).not.toHaveBeenCalled();
   });
@@ -352,6 +356,10 @@ describe('deepseek ask conversation resume', () => {
       EXIT_CODES.USAGE_ERROR,
     ));
 
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockEnsureOnDeepSeek).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSetFeature).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockSendWithFile).not.toHaveBeenCalled();
   });
