@@ -40,6 +40,17 @@ function createConditionalPageMock(evaluateImpl, overrides = {}) {
     return page;
 }
 describe('xiaohongshu publish', () => {
+    it('keeps the positional content argument before named options', () => {
+        const cmd = getRegistry().get('xiaohongshu/publish');
+        expect(cmd?.args.map((arg) => arg.name)).toEqual([
+            'content',
+            'title',
+            'images',
+            'topics',
+            'draft',
+        ]);
+    });
+
     it('uses native insertText for contenteditable title fields when available', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
         expect(cmd?.func).toBeTypeOf('function');

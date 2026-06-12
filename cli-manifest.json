@@ -39428,17 +39428,17 @@
     "browser": true,
     "args": [
       {
-        "name": "title",
-        "type": "str",
-        "required": true,
-        "help": "笔记标题 (最多20字)"
-      },
-      {
         "name": "content",
         "type": "str",
         "required": true,
         "positional": true,
         "help": "笔记正文"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "笔记标题 (最多20字)"
       },
       {
         "name": "images",
