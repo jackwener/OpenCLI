@@ -8,7 +8,7 @@
 // but CLI uses header). Bugen source-verified.
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { buildFetchSnippet } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
@@ -41,6 +41,9 @@ cli({
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
     const data = Array.isArray(rows) ? rows[0] : rows;
+    if (!data?.url) {
+      throw new CommandExecutionError(`no signed url returned for attachment ${id}`);
+    }
     return [{
       attachmentId: id,
       url: data?.url ?? null,

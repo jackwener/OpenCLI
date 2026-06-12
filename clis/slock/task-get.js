@@ -11,6 +11,7 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment, channelResolveFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
+import { parsePositiveInteger } from './resolve.js';
 
 cli({
   site: SLOCK_SITE,
@@ -32,7 +33,7 @@ cli({
     if (!channel) throw new ArgumentError('channel required');
     const numRaw = String(kwargs.number ?? '').trim();
     if (!/^\d+$/.test(numRaw)) throw new ArgumentError(`number "${numRaw}" is not a positive integer`);
-    const number = parseInt(numRaw, 10);
+    const number = parsePositiveInteger(numRaw, 'number');
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}

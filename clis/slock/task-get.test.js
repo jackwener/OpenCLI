@@ -18,6 +18,13 @@ describe('slock task-get', () => {
     expect(page.goto).not.toHaveBeenCalled();
   });
 
+  it('rejects zero before navigation', async () => {
+    const page = makePage({ kind: 'ok', rows: [] });
+    await expect(command.func(page, { channel: CHAN, number: '0' }))
+      .rejects.toThrow(/positive integer/);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
   it('hits GET /api/tasks/channel/:id/number/:n — keeps the /number/ segment (Bugen contract)', async () => {
     const page = makePage({ kind: 'ok', rows: [{ id: 'm1', taskNumber: 7, content: 'task seven', taskStatus: 'todo' }] });
     const rows = await command.func(page, { channel: CHAN, number: '7' });

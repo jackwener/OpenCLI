@@ -1,10 +1,10 @@
 // message-search.js
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
-import { UUID_RE } from './resolve.js';
+import { UUID_RE, parsePositiveInteger } from './resolve.js';
 
 cli({
   site: SLOCK_SITE,
@@ -30,7 +30,7 @@ cli({
     const target = channel ? JSON.stringify(channel.replace(/^#/, '').toLowerCase()) : '""';
     // R1 — raw override; authHeadersFragment owns the UUID-vs-slug resolution.
     const override = kwargs.server ?? null;
-    const limit = String(kwargs.limit ?? 50);
+    const limit = parsePositiveInteger(kwargs.limit, '--limit', { defaultValue: 50 });
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: override })}
@@ -58,6 +58,9 @@ cli({
     `;
     const result = await page.evaluate(`(async () => { ${snippet} })()`);
     const rows = dispatchEvaluateResult(result);
+    if (!Array.isArray(rows)) {
+      throw new CommandExecutionError(`expected array of rows from server, got ${typeof rows} (contract drift?)`);
+    }
     return rows.map((m) => ({
       id: m.id ?? m.messageId ?? '',
       channelId: m.channelId ?? '',

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './bookmark-list.js';
 
@@ -11,11 +12,19 @@ describe('slock bookmark-list', () => {
       evaluate: vi.fn().mockResolvedValue({ kind: 'ok', rows: [{ id: 'b1', messageId: 'm1', content: 'hi' }] }),
     };
     const rows = await command.func(page, { limit: 10, offset: 20 });
-    // Values are JSON-encoded outside the quoted URL literal (injection
-    // defense), so assert the runtime-concat form, not a contiguous literal.
-    expect(page.evaluate.mock.calls[0][0]).toContain('limit=\' + encodeURIComponent("10")');
-    expect(page.evaluate.mock.calls[0][0]).toContain('offset=\' + encodeURIComponent("20")');
+    expect(page.evaluate.mock.calls[0][0]).toContain("limit=' + encodeURIComponent(10)");
+    expect(page.evaluate.mock.calls[0][0]).toContain("offset=' + encodeURIComponent(20)");
     expect(rows[0]).toMatchObject({ id: 'b1', messageId: 'm1' });
+  });
+
+  it('rejects invalid pagination before navigation', async () => {
+    const page = {
+      goto: vi.fn(),
+      evaluate: vi.fn().mockResolvedValue({ kind: 'ok', rows: [] }),
+    };
+    await expect(command.func(page, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(command.func(page, { offset: -1 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
   });
 
   it('[anti-drift] non-array rows throws instead of silently returning empty', async () => {

@@ -44,3 +44,22 @@ export function assertMessageIdShape(messageId) {
   }
   return v;
 }
+
+export function parsePositiveInteger(value, name, { defaultValue, max } = {}) {
+  const raw = value === undefined || value === null || value === '' ? defaultValue : value;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0 || (max !== undefined && n > max)) {
+    const suffix = max !== undefined ? ` between 1 and ${max}` : ' as a positive integer';
+    throw new ArgumentError(`${name} must be${suffix} (got "${raw}")`);
+  }
+  return n;
+}
+
+export function parseNonNegativeInteger(value, name, { defaultValue } = {}) {
+  const raw = value === undefined || value === null || value === '' ? defaultValue : value;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new ArgumentError(`${name} must be a non-negative integer (got "${raw}")`);
+  }
+  return n;
+}

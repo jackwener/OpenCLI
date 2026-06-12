@@ -4,6 +4,7 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import { buildFetchSnippet } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { parseNonNegativeInteger, parsePositiveInteger } from './resolve.js';
 
 const FILTERS = ['all', 'unread', 'mentions'];
 
@@ -53,8 +54,8 @@ cli({
     if (!FILTERS.includes(filter)) {
       throw new ArgumentError(`--filter must be one of ${FILTERS.join(' | ')} (got "${filter}")`);
     }
-    const limit = String(kwargs.limit ?? 30);
-    const offset = String(kwargs.offset ?? 0);
+    const limit = parsePositiveInteger(kwargs.limit, '--limit', { defaultValue: 30, max: 100 });
+    const offset = parseNonNegativeInteger(kwargs.offset, '--offset', { defaultValue: 0 });
     await page.goto(SLOCK_HOME_URL);
     const snippet = buildFetchSnippet({
       method: 'GET',

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './message-read.js';
 
@@ -46,6 +47,14 @@ describe('slock message-read', () => {
     const script = page.evaluate.mock.calls[0][0];
     expect(script).toContain('"22222222-2222-2222-2222-222222222222"');
     expect(script).toContain('/messages/context/');
+  });
+
+  it('rejects invalid --limit and --before before navigation', async () => {
+    const page = makePage({ kind: 'ok', rows: [] });
+    await expect(command.func(page, { channel: '#general', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(command.func(page, { channel: '#general', before: 'abc' })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(command.func(page, { channel: '#general', before: '0' })).rejects.toBeInstanceOf(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
   });
 
   it('--no-threads omits the threads enrichment fetch from the snippet', async () => {

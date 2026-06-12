@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './attachment-url.js';
 
@@ -31,5 +32,10 @@ describe('slock attachment-url', () => {
       url: 'https://cdn.slock.ai/a/550e8400.bin?sig=abc',
       expiresAt: '2026-06-07T13:00:00Z',
     });
+  });
+
+  it('fails typed when the signed url is missing', async () => {
+    const page = makePage({ kind: 'ok', rows: { expiresAt: 'soon' } });
+    await expect(command.func(page, { attachmentId: ID })).rejects.toBeInstanceOf(CommandExecutionError);
   });
 });

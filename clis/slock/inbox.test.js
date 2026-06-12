@@ -26,6 +26,14 @@ describe('slock inbox', () => {
     expect(script).toContain('offset=10');
   });
 
+  it('rejects invalid pagination before navigation', async () => {
+    const page = makePage({ kind: 'ok', rows: { items: [] } });
+    await expect(command.func(page, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(command.func(page, { limit: 101 })).rejects.toBeInstanceOf(ArgumentError);
+    await expect(command.func(page, { offset: -1 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
   it('flattens channel and thread items into a uniform row shape', async () => {
     const page = makePage({ kind: 'ok', rows: { items: [
       { kind: 'channel', channelId: 'c1', channelName: 'general', unreadCount: 3, hasMention: true, lastMessageAt: 't1', lastMessagePreview: 'hi' },

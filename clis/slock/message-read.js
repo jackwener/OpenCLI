@@ -4,7 +4,7 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import { authHeadersFragment, resolveShortIdFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
-import { UUID_RE, classifyThreadTarget } from './resolve.js';
+import { UUID_RE, classifyThreadTarget, parsePositiveInteger } from './resolve.js';
 
 function mapRow(m, threadsMap) {
   const info = threadsMap && typeof threadsMap === 'object' ? threadsMap[m.id ?? m.messageId] : undefined;
@@ -49,8 +49,12 @@ cli({
     if (after && !/^\d+$/.test(after) && !UUID_RE.test(after)) {
       throw new ArgumentError(`--after must be a seq number or messageId UUID (got "${after}")`);
     }
-    const limit = String(kwargs.limit ?? 50);
+    const limit = parsePositiveInteger(kwargs.limit, '--limit', { defaultValue: 50 });
     const before = kwargs.before !== undefined ? String(kwargs.before) : '';
+    if (before && !/^\d+$/.test(before)) {
+      throw new ArgumentError(`--before must be a seq number (got "${before}")`);
+    }
+    if (before) parsePositiveInteger(before, '--before');
     const noThreads = !!kwargs['no-threads'];
     // R1 — pass the raw override through to authHeadersFragment; it owns the
     // UUID-vs-slug resolution against /servers/ now.

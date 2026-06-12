@@ -4,6 +4,7 @@ import { UUID_RE } from './resolve.js';
 import { classifyThreadTarget } from './resolve.js';
 import { classifyTarget } from './resolve.js';
 import { assertMessageIdShape } from './resolve.js';
+import { parseNonNegativeInteger, parsePositiveInteger } from './resolve.js';
 
 describe('UUID_RE', () => {
   it('matches a v4-shaped uuid', () => {
@@ -71,5 +72,28 @@ describe('assertMessageIdShape', () => {
   it('throws ArgumentError (not raw Error) so unwrapped callers stay typed', () => {
     expect(() => assertMessageIdShape('8af3cbbb')).toThrow(ArgumentError);
     expect(() => classifyTarget('dm:')).toThrow(ArgumentError);
+  });
+});
+
+describe('integer boundary helpers', () => {
+  it('parsePositiveInteger accepts positive integers and defaults', () => {
+    expect(parsePositiveInteger(undefined, '--limit', { defaultValue: 50 })).toBe(50);
+    expect(parsePositiveInteger('3', '--limit')).toBe(3);
+    expect(parsePositiveInteger(3, '--limit')).toBe(3);
+  });
+
+  it('parsePositiveInteger rejects zero, negatives, fractions, and max overflow', () => {
+    expect(() => parsePositiveInteger(0, '--limit')).toThrow(ArgumentError);
+    expect(() => parsePositiveInteger(-1, '--limit')).toThrow(ArgumentError);
+    expect(() => parsePositiveInteger(1.5, '--limit')).toThrow(ArgumentError);
+    expect(() => parsePositiveInteger(101, '--limit', { max: 100 })).toThrow(ArgumentError);
+  });
+
+  it('parseNonNegativeInteger accepts zero but rejects negatives and fractions', () => {
+    expect(parseNonNegativeInteger(undefined, '--offset', { defaultValue: 0 })).toBe(0);
+    expect(parseNonNegativeInteger('0', '--offset')).toBe(0);
+    expect(parseNonNegativeInteger(2, '--offset')).toBe(2);
+    expect(() => parseNonNegativeInteger(-1, '--offset')).toThrow(ArgumentError);
+    expect(() => parseNonNegativeInteger(1.5, '--offset')).toThrow(ArgumentError);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './message-search.js';
 
@@ -23,6 +24,12 @@ describe('slock message-search', () => {
     expect(page.evaluate.mock.calls[0][0]).toContain('channelId=');
   });
 
+  it('rejects non-positive --limit before navigation', async () => {
+    const page = makePage({ kind: 'ok', rows: [] });
+    await expect(command.func(page, { query: 'hello', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
   // F2-b — qatester live dump: real shape is { results, hasMore }. If a future
   // refactor strips data.results out of the in-page unwrap chain, the command
   // silently returns [] even when matches exist. Pin the unwrap order so the
@@ -35,6 +42,11 @@ describe('slock message-search', () => {
     // shapes used data.messages and data.data, but the live server now
     // returns data.results and only data.results.
     expect(snippet).toMatch(/data\.results\s*\|\|\s*data\.messages\s*\|\|\s*data\.data/);
+  });
+
+  it('[anti-drift] non-array search rows throw typed instead of TypeError', async () => {
+    const page = makePage({ kind: 'ok', rows: { wrong: 'shape' } });
+    await expect(command.func(page, { query: 'hello' })).rejects.toBeInstanceOf(CommandExecutionError);
   });
 
   it('[red-line] a --channel name with a quote cannot break out of the snippet string', async () => {

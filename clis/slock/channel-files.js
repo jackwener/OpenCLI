@@ -4,6 +4,7 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import { buildChannelScopedSnippet } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';
+import { parsePositiveInteger } from './resolve.js';
 
 cli({
   site: SLOCK_SITE,
@@ -23,7 +24,7 @@ cli({
   func: async (page, kwargs) => {
     const channel = String(kwargs.channel ?? '').trim();
     if (!channel) throw new ArgumentError('channel required');
-    const limit = String(kwargs.limit ?? 50);
+    const limit = parsePositiveInteger(kwargs.limit, '--limit', { defaultValue: 50 });
     await page.goto(SLOCK_HOME_URL);
     const snippet = buildChannelScopedSnippet({
       channelInput: channel,

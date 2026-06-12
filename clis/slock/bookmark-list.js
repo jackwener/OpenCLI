@@ -4,6 +4,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
+import { parseNonNegativeInteger, parsePositiveInteger } from './resolve.js';
 
 cli({
   site: SLOCK_SITE,
@@ -21,8 +22,8 @@ cli({
   ],
   columns: ['id', 'messageId', 'content', 'savedAt'],
   func: async (page, kwargs) => {
-    const limit = String(kwargs.limit ?? 50);
-    const offset = String(kwargs.offset ?? 0);
+    const limit = parsePositiveInteger(kwargs.limit, '--limit', { defaultValue: 50 });
+    const offset = parseNonNegativeInteger(kwargs.offset, '--offset', { defaultValue: 0 });
     await page.goto(SLOCK_HOME_URL);
     const snippet = `
       ${authHeadersFragment({ serverScoped: true, serverIdOverride: kwargs.server })}
