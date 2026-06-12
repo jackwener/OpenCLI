@@ -155,20 +155,23 @@ export function buildDownloadExtractJs(noteId) {
               // (h264 + h265/hevc, occasionally h266/av1). The 1080p/2K
               // rendition is frequently carried ONLY by h265, so reading the
               // h264 list alone silently caps downloads at 720p. Pick the
-              // highest-resolution master across every codec (ties broken by
-              // bitrate, which keeps the more compatible h264 at equal size).
+              // highest-resolution master across every codec; at equal
+              // resolution prefer the most compatible codec (h264 > h265 >
+              // h266 > av1), and only then the higher bitrate.
               const codecStreams = video.media?.stream || {};
-              const allStreams = [
-                ...(codecStreams.h264 || []),
-                ...(codecStreams.h265 || []),
-                ...(codecStreams.h266 || []),
-                ...(codecStreams.av1 || []),
-              ].filter(s => s && s.masterUrl);
+              const codecPreference = ['h264', 'h265', 'h266', 'av1'];
+              const allStreams = [];
+              codecPreference.forEach((codec, rank) => {
+                (codecStreams[codec] || []).forEach(s => {
+                  if (s && s.masterUrl) allStreams.push({ stream: s, rank });
+                });
+              });
               if (allStreams.length) {
                 const best = allStreams.slice().sort((a, b) =>
-                  (b.height || 0) - (a.height || 0)
-                  || (b.videoBitrate || 0) - (a.videoBitrate || 0))[0];
-                if (best.masterUrl) pushMedia('video', best.masterUrl);
+                  (b.stream.height || 0) - (a.stream.height || 0)
+                  || a.rank - b.rank
+                  || (b.stream.videoBitrate || 0) - (a.stream.videoBitrate || 0))[0];
+                if (best.stream.masterUrl) pushMedia('video', best.stream.masterUrl);
               }
             }
           }

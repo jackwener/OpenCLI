@@ -362,7 +362,11 @@ describe('xiaohongshu download buildDownloadExtractJs carousel ordering (JSDOM)'
         expect(videos).toEqual(['https://sns-video-bd.xhscdn.com/only-h264.mp4']);
     });
 
-    it('prefers the more compatible h264 master when resolutions tie', () => {
+    it('prefers the more compatible h264 master at equal resolution, even when h265 has the higher bitrate', () => {
+        // Locks in explicit codec preference: at equal resolution the tie-break
+        // is codec rank (h264 > h265 > h266 > av1), NOT bitrate. Here h265
+        // carries the higher bitrate yet h264 must still win — this would fail
+        // under a bitrate-only tie-break.
         const initialState = {
             note: {
                 noteDetailMap: {
@@ -371,8 +375,8 @@ describe('xiaohongshu download buildDownloadExtractJs carousel ordering (JSDOM)'
                             video: {
                                 media: {
                                     stream: {
-                                        h264: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/h264-1080.mp4', height: 1920, width: 1080, videoBitrate: 2000000 }],
-                                        h265: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/h265-1080.mp4', height: 1920, width: 1080, videoBitrate: 1400000 }],
+                                        h264: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/h264-1080.mp4', height: 1920, width: 1080, videoBitrate: 1400000 }],
+                                        h265: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/h265-1080.mp4', height: 1920, width: 1080, videoBitrate: 2000000 }],
                                     },
                                 },
                             },
