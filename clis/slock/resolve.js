@@ -1,3 +1,5 @@
+import { ArgumentError } from '@jackwener/opencli/errors';
+
 export const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 // ThreadTarget shape: { parentTarget: string, parentMsgId: string }
@@ -16,13 +18,13 @@ export function classifyThreadTarget(raw) {
 //   { kind: 'thread', parentTarget, parentMsgId }
 export function classifyTarget(raw) {
   const v = String(raw ?? '').trim();
-  if (!v) throw new Error('target required: "#channel", "#channel:threadShortId", "dm:@name", "dm:<userId>", or channelId UUID.');
+  if (!v) throw new ArgumentError('target required: "#channel", "#channel:threadShortId", "dm:@name", "dm:<userId>", or channelId UUID.');
   if (v.startsWith('dm:')) {
     const rest = v.slice(3);
-    if (!rest) throw new Error('dm target must be "dm:<userId>" or "dm:@name".');
+    if (!rest) throw new ArgumentError('dm target must be "dm:<userId>" or "dm:@name".');
     if (UUID_RE.test(rest)) return { kind: 'dm-uuid', userId: rest };
     if (rest.startsWith('@')) return { kind: 'dm-name', name: rest.slice(1) };
-    throw new Error('dm target must be "dm:<userId-uuid>" or "dm:@name".');
+    throw new ArgumentError('dm target must be "dm:<userId-uuid>" or "dm:@name".');
   }
   const tt = classifyThreadTarget(v);
   if (tt) return { kind: 'thread', ...tt };
@@ -36,21 +38,9 @@ const SHORT_ID_HINT =
 
 export function assertMessageIdShape(messageId) {
   const v = String(messageId ?? '').trim();
-  if (!v) throw new Error('messageId required');
+  if (!v) throw new ArgumentError('messageId required');
   if (!UUID_RE.test(v)) {
-    throw new Error(`messageId "${v}" is not a full UUID. ${SHORT_ID_HINT}`);
+    throw new ArgumentError(`messageId "${v}" is not a full UUID. ${SHORT_ID_HINT}`);
   }
   return v;
-}
-
-// list items are { id, slug? }
-export function resolveServerOverride(input, list) {
-  const raw = String(input ?? '').trim();
-  if (!raw) throw new Error('--server requires a slug or id');
-  if (UUID_RE.test(raw)) return raw;
-  const slug = raw.replace(/^#/, '').toLowerCase();
-  const m = list.find((s) => (s.slug || '').toLowerCase() === slug);
-  if (m) return m.id;
-  const choices = list.map((s) => s.slug).filter(Boolean).join(', ');
-  throw new Error(`--server: no server matches "${raw}". Known slugs: ${choices}`);
 }
