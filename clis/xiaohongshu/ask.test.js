@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getRegistry, Strategy } from '@jackwener/opencli/registry';
 import {
     buildAskResult,
+    buildAskEvaluateJs,
     buildNoteUrl,
     normalizeAskSource,
     parseAskLimit,
@@ -19,7 +20,7 @@ function createPageMock(evaluateResult) {
 }
 
 describe('xiaohongshu ask', () => {
-    it('registers as a browser-backed write command with audit columns', () => {
+    it('registers as a browser-backed write command with clean audit columns', () => {
         const cmd = getRegistry().get('xiaohongshu/ask');
         expect(cmd).toMatchObject({
             site: 'xiaohongshu',
@@ -39,8 +40,6 @@ describe('xiaohongshu ask', () => {
             'warning',
             'message_id',
             'conversation_id',
-            'raw_sources',
-            'source_error',
         ]);
     });
 
@@ -86,7 +85,7 @@ describe('xiaohongshu ask', () => {
         const result = buildAskResult({
             query: '上海露营需要注意什么？',
             answer: '注意天气和营地规则。',
-            raw_sources: [],
+            sources: [],
             source_total_text: '',
             message_id: 'mid',
             conversation_id: 'cid',
@@ -111,7 +110,7 @@ describe('xiaohongshu ask', () => {
             query: '上海露营需要注意什么？',
             answer: '答案正文',
             source_total_text: 'ai总结54篇笔记生成',
-            raw_sources: [
+            sources: [
                 {
                     id: '69d6fc08000000001f007646',
                     title: '来源标题',
@@ -146,5 +145,16 @@ describe('xiaohongshu ask', () => {
             message_id: '7650435070293180448$prod',
             conversation_id: 'conversation-id',
         });
+        expect(result).not.toHaveProperty('raw_sources');
+        expect(result).not.toHaveProperty('source_error');
+    });
+
+    it('resets the 点点 scene before send so same-query retries are not rejected as duplicates', () => {
+        const script = buildAskEvaluateJs('上海露营需要注意什么？', 30, 10);
+        const resetIndex = script.indexOf('clearConversation');
+        const sendIndex = script.indexOf('store.sendMessage(conversationId');
+        expect(resetIndex).toBeGreaterThan(0);
+        expect(sendIndex).toBeGreaterThan(0);
+        expect(resetIndex).toBeLessThan(sendIndex);
     });
 });

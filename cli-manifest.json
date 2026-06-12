@@ -38892,9 +38892,7 @@
       "sources",
       "warning",
       "message_id",
-      "conversation_id",
-      "raw_sources",
-      "source_error"
+      "conversation_id"
     ],
     "type": "js",
     "modulePath": "xiaohongshu/ask.js",

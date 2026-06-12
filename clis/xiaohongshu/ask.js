@@ -20,8 +20,6 @@ const ASK_COLUMNS = [
     'warning',
     'message_id',
     'conversation_id',
-    'raw_sources',
-    'source_error',
 ];
 
 export function unwrapEvaluateResult(payload) {
@@ -146,12 +144,12 @@ function buildSourcesSummary(sources) {
 }
 
 export function buildAskResult(raw) {
-    const rawSources = Array.isArray(raw?.raw_sources) ? raw.raw_sources : [];
-    const sources = rawSources
+    const sourceItems = Array.isArray(raw?.sources) ? raw.sources : [];
+    const sources = sourceItems
         .map((source, index) => normalizeAskSource(source, index))
         .filter((source) => source.note_id || source.title || source.url);
     const answer = cleanText(raw?.answer || raw?.base_info?.text || '');
-    const sourceIssue = compactSingleLine(raw?.warning || raw?.source_error);
+    const sourceIssue = compactSingleLine(raw?.warning);
     const warning = sources.length === 0 && answer
         ? `Xiaohongshu 点点 returned an answer but no citation sources.${sourceIssue ? ` ${sourceIssue}` : ''}`
         : sourceIssue;
@@ -221,6 +219,7 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
             return { ok: false, error: 'conversation_api_missing', page_url: location.href };
           }
           if (typeof store.switchScene === 'function') store.switchScene(scenes.AiChat);
+          if (typeof store.clearConversation === 'function') store.clearConversation(scenes.AiChat);
           const conversationId = crypto.randomUUID();
           store.createConversation(conversationId, scenes.AiChat);
           const msgId = await store.sendMessage(conversationId, prompt, {
@@ -281,8 +280,8 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
             query: prompt,
             answer,
             source_total_text: detail?.baseInfo?.totalCnt || aiMessage?.querySource?.text || aiMessage?.querySource?.oneboxText || '',
-            raw_sources: rawSources,
-            source_error: sourceError || (finished ? '' : 'answer did not finish before timeout'),
+            sources: rawSources,
+            warning: sourceError || (finished ? '' : 'answer did not finish before timeout'),
             message_id: msgId,
             conversation_id: conversationId,
           };
