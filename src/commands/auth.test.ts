@@ -367,14 +367,14 @@ describe('auth refresh scheduled collection', () => {
     });
   });
 
-  it('skips sites before their scheduled due window', async () => {
+  it('skips sites already attempted in the current due window', async () => {
     registerWhoami('beta', { quick: true, quickLoggedIn: true });
     const { configPath, runStatePath } = await tempAppAuthRefreshPaths();
     await writeJson(configPath, { enabled: true, scheduleTime: '03:00', perSiteEnabled: {} });
     await writeJson(runStatePath, {
       schemaVersion: 1,
       perSite: {
-        beta: { lastAttempt: '@1780711200', status: 'touched', consecutiveFailures: 0 },
+        beta: { lastAttempt: '@1780718400', status: 'touched', consecutiveFailures: 0 },
       },
     });
 
