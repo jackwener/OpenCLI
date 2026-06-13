@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ElectronAppEntry } from './electron-apps.js';
-import { detectProcess, discoverAppPath, electronLaunchArgs, launchDetachedApp, launchElectronApp, probeCDP, resolveExecutableCandidates } from './launcher.js';
+import { detectProcess, discoverAppPath, electronLaunchArgs, launchDetachedApp, launchElectronApp, probeCDP, resolveElectronEndpoint, resolveExecutableCandidates } from './launcher.js';
 
 interface MockChildProcess {
   once: ReturnType<typeof vi.fn>;
@@ -31,12 +31,59 @@ vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
 }));
 
+vi.mock('./electron-apps.js', () => ({
+  getElectronApp: vi.fn(),
+}));
+
+vi.mock('./tui.js', () => ({
+  confirmPrompt: vi.fn(() => Promise.resolve(true)),
+}));
+
 const cp = vi.mocked(await import('node:child_process'));
+const electronApps = vi.mocked(await import('./electron-apps.js'));
 
 describe('probeCDP', () => {
   it('returns false when CDP endpoint is unreachable', async () => {
     const result = await probeCDP(59999, 500);
     expect(result).toBe(false);
+  });
+});
+
+describe('resolveElectronEndpoint', () => {
+  const originalPlatform = process.platform;
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    cp.execFileSync.mockReset();
+    electronApps.getElectronApp.mockReset();
+  });
+
+  it('degrades gracefully on non-darwin without killing the running app', async () => {
+    // Auto-launch (process detect → kill → discover → relaunch) is macOS-only:
+    // discoverAppPath resolves a path on darwin alone. On other platforms
+    // resolveElectronEndpoint must NOT enter the kill branch, which would
+    // pkill the user's app and then fail at discoverAppPath (returns null),
+    // leaving the app dead with a misleading "not installed" error.
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    // Port 59999 has no listener, so probeCDP resolves false (see above).
+    electronApps.getElectronApp.mockReturnValue({
+      port: 59999,
+      processName: 'TestApp',
+      displayName: 'TestApp',
+    } as ElectronAppEntry);
+
+    const err = await resolveElectronEndpoint('testapp').then(
+      () => { throw new Error('expected resolveElectronEndpoint to reject'); },
+      (e) => e as { message: string; hint?: string },
+    );
+    // Graceful degradation: the "not reachable" guard message + a linux
+    // auto-launch hint, NOT the destructive "Could not find ... on this
+    // machine" error that follows a kill.
+    expect(err.message).toMatch(/is not reachable on CDP port/);
+    expect(err.message).not.toMatch(/Could not find/);
+    expect(err.hint).toMatch(/Auto-launch is not yet supported on linux/);
+    // The destructive pkill path must never run on a non-darwin platform.
+    expect(cp.execFileSync).not.toHaveBeenCalledWith('pkill', expect.anything(), expect.anything());
   });
 });
 
