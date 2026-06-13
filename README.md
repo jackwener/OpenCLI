@@ -197,7 +197,7 @@ Curated highlights — **[→ see all 100+ supported sites & commands](./docs/ad
 
 Unified passthrough for your existing command-line tools. Run `opencli <tool> ...` for any of:
 
-`gh` · `docker` · `vercel` · `wrangler` · `obsidian` · `longbridge` · `lark-cli` · `ntn(notion)` · `dws(DingTalk Workspace)` · `wecom-cli(企业微信)` · `tg(tg-cli)` · `discord(discord-cli)` · `wx(wx-cli)`
+`gh` · `docker` · `vercel` · `wrangler` · `obsidian` · `longbridge` · `lark-cli` · `ntn(notion)` · `dws(DingTalk Workspace)` · `wecom-cli(企业微信)` · `tg(tg-cli)` · `discord(discord-cli)` · `wx(wx-cli)` · `zenodo(zenodo-cli)`
 
 Register your own with `opencli external register <name>`; list everything with `opencli external list`.
 

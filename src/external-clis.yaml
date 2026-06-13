@@ -100,6 +100,15 @@
   install:
     default: "npm install -g @jackwener/wx-cli"
 
+- name: zenodo
+  binary: zenodo
+  package: zenodo-cli
+  description: "Zenodo CLI — records, files, search, auth, raw API access for InvenioRDM for AI agents"
+  homepage: "https://github.com/thedavidweng/zenodo-cli"
+  tags: [zenodo, open-access, research, data, invenio, ai-agent]
+  install:
+    default: "go install github.com/thedavidweng/zenodo-cli/cmd/zenodo@latest"
+
 - name: wrangler
   binary: wrangler
   description: "Cloudflare Wrangler — deploy Workers, manage R2/D1/KV, publish Pages"
