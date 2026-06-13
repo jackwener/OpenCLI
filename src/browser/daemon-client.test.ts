@@ -222,6 +222,31 @@ describe('daemon-client', () => {
     expect(ids[0]).not.toBe(ids[1]);
   });
 
+  it('sendCommand surfaces a profile_required 409 immediately instead of retrying', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({
+        id: 'server',
+        ok: false,
+        errorCode: 'profile_required',
+        error: 'Multiple Browser Bridge profiles are connected; choose one with --profile.',
+        errorHint: 'Run opencli profile list, then use opencli --profile <name> ...',
+      }),
+    } as Response);
+
+    // The profile_required 409 is not a duplicate-id collision: it must throw
+    // the actionable error on the first attempt, not loop until "max retries
+    // exhausted".
+    await expect(sendCommand('exec', { code: '1 + 1' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'profile_required',
+      hint: 'Run opencli profile list, then use opencli --profile <name> ...',
+    } satisfies Partial<BrowserCommandError>);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('sendCommand does not retry command_result_unknown even when the message looks transient', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue({
