@@ -12,8 +12,11 @@
 | `opencli bloomberg industries` | Bloomberg Industries top stories from RSS |
 | `opencli bloomberg tech` | Bloomberg Tech top stories from RSS |
 | `opencli bloomberg politics` | Bloomberg Politics top stories from RSS |
-| `opencli bloomberg businessweek` | Bloomberg Businessweek top stories from RSS |
+| `opencli bloomberg businessweek` | Bloomberg Businessweek top stories from the section page |
 | `opencli bloomberg opinions` | Bloomberg Opinion top stories from RSS |
+| `opencli bloomberg green` | Bloomberg Green top stories from RSS |
+| `opencli bloomberg crypto` | Bloomberg Crypto top stories from RSS |
+| `opencli bloomberg pursuits` | Bloomberg Pursuits top stories from RSS |
 | `opencli bloomberg feeds` | List the RSS feed aliases used by the adapter |
 | `opencli bloomberg news <link>` | Read a standard Bloomberg story/article page and return title, summary, media links, and article text |
 
@@ -26,9 +29,12 @@
   - `industries`
   - `tech`
   - `politics`
-  - `businessweek`
   - `opinions`
+  - `green`
+  - `crypto`
+  - `pursuits`
   - `feeds`
+- `bloomberg businessweek` reads the live Businessweek section page through Browser Bridge because Bloomberg's legacy Businessweek RSS feed is currently empty.
 - `bloomberg news` works on standard Bloomberg story/article pages that expose `#__NEXT_DATA__` and are accessible to your current Chrome session.
 
 ## Current limitations
@@ -49,6 +55,9 @@ opencli bloomberg main --limit 5
 # Fetch a section feed as JSON
 opencli bloomberg tech --limit 3 -f json
 
+# Fetch Businessweek section stories
+opencli bloomberg businessweek --limit 5 -f json
+
 # Read a standard article page
 opencli bloomberg news https://www.bloomberg.com/news/articles/2026-03-19/example -f json
 
@@ -59,6 +68,7 @@ opencli bloomberg news /news/articles/2026-03-19/example
 ## Prerequisites
 
 - RSS commands do not require Chrome.
+- `bloomberg businessweek` requires Chrome and the [Browser Bridge extension](/guide/browser-bridge) because it reads the section page.
 - `bloomberg news` requires:
   - Chrome running
   - a Chrome session that can already access the target Bloomberg article page
@@ -66,5 +76,6 @@ opencli bloomberg news /news/articles/2026-03-19/example
 
 ## Notes
 
-- RSS commands support `--limit` with a maximum of 20 items.
+- Listing commands support `--limit` with a maximum of 20 items.
+- `bloomberg feeds` lists RSS-backed aliases only; `businessweek` is intentionally absent because it is section-page backed.
 - If `bloomberg news` fails on a page from RSS, try a different standard story/article link first; not every Bloomberg URL in feeds is a normal article page.

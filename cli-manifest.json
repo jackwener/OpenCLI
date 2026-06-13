@@ -343,7 +343,8 @@
     "type": "js",
     "modulePath": "12306/auth.js",
     "sourceFile": "12306/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "1688",
@@ -557,7 +558,8 @@
     "type": "js",
     "modulePath": "1688/auth.js",
     "sourceFile": "1688/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "1point3acres",
@@ -943,7 +945,8 @@
     "type": "js",
     "modulePath": "1point3acres/auth.js",
     "sourceFile": "1point3acres/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "36kr",
@@ -1645,7 +1648,8 @@
     "type": "js",
     "modulePath": "amazon/auth.js",
     "sourceFile": "amazon/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "antigravity",
@@ -2998,7 +3002,8 @@
     "type": "js",
     "modulePath": "band/auth.js",
     "sourceFile": "band/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "barchart",
@@ -3979,7 +3984,8 @@
     "type": "js",
     "modulePath": "bilibili/auth.js",
     "sourceFile": "bilibili/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "binance",
@@ -4331,7 +4337,34 @@
   {
     "site": "bloomberg",
     "name": "businessweek",
-    "description": "Bloomberg Businessweek top stories (RSS)",
+    "description": "Bloomberg Businessweek top stories",
+    "access": "read",
+    "domain": "www.bloomberg.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of stories to return (max 20)"
+      }
+    ],
+    "columns": [
+      "title",
+      "summary",
+      "link",
+      "mediaLinks"
+    ],
+    "type": "js",
+    "modulePath": "bloomberg/businessweek.js",
+    "sourceFile": "bloomberg/businessweek.js"
+  },
+  {
+    "site": "bloomberg",
+    "name": "crypto",
+    "description": "Bloomberg Crypto top stories (RSS)",
     "access": "read",
     "domain": "feeds.bloomberg.com",
     "strategy": "public",
@@ -4352,8 +4385,8 @@
       "mediaLinks"
     ],
     "type": "js",
-    "modulePath": "bloomberg/businessweek.js",
-    "sourceFile": "bloomberg/businessweek.js"
+    "modulePath": "bloomberg/crypto.js",
+    "sourceFile": "bloomberg/crypto.js"
   },
   {
     "site": "bloomberg",
@@ -4398,6 +4431,33 @@
     "type": "js",
     "modulePath": "bloomberg/feeds.js",
     "sourceFile": "bloomberg/feeds.js"
+  },
+  {
+    "site": "bloomberg",
+    "name": "green",
+    "description": "Bloomberg Green (climate & energy) top stories (RSS)",
+    "access": "read",
+    "domain": "feeds.bloomberg.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of feed items to return (max 20)"
+      }
+    ],
+    "columns": [
+      "title",
+      "summary",
+      "link",
+      "mediaLinks"
+    ],
+    "type": "js",
+    "modulePath": "bloomberg/green.js",
+    "sourceFile": "bloomberg/green.js"
   },
   {
     "site": "bloomberg",
@@ -4562,6 +4622,33 @@
     "type": "js",
     "modulePath": "bloomberg/politics.js",
     "sourceFile": "bloomberg/politics.js"
+  },
+  {
+    "site": "bloomberg",
+    "name": "pursuits",
+    "description": "Bloomberg Pursuits (lifestyle) top stories (RSS)",
+    "access": "read",
+    "domain": "feeds.bloomberg.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Number of feed items to return (max 20)"
+      }
+    ],
+    "columns": [
+      "title",
+      "summary",
+      "link",
+      "mediaLinks"
+    ],
+    "type": "js",
+    "modulePath": "bloomberg/pursuits.js",
+    "sourceFile": "bloomberg/pursuits.js"
   },
   {
     "site": "bloomberg",
@@ -5619,7 +5706,8 @@
     "type": "js",
     "modulePath": "boss/auth.js",
     "sourceFile": "boss/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "brave",
@@ -5824,7 +5912,8 @@
     "type": "js",
     "modulePath": "chaoxing/auth.js",
     "sourceFile": "chaoxing/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "chatgpt",
@@ -6227,7 +6316,8 @@
     "type": "js",
     "modulePath": "chatgpt/auth.js",
     "sourceFile": "chatgpt/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "chatgpt-app",
@@ -7016,7 +7106,8 @@
     "type": "js",
     "modulePath": "claude/auth.js",
     "sourceFile": "claude/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "cnki",
@@ -8267,7 +8358,8 @@
     "type": "js",
     "modulePath": "coupang/auth.js",
     "sourceFile": "coupang/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "crates",
@@ -8599,7 +8691,8 @@
     "type": "js",
     "modulePath": "ctrip/auth.js",
     "sourceFile": "ctrip/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "cursor",
@@ -9298,7 +9391,8 @@
     "type": "js",
     "modulePath": "deepseek/auth.js",
     "sourceFile": "deepseek/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "defillama",
@@ -9686,7 +9780,8 @@
     "type": "js",
     "modulePath": "dianping/auth.js",
     "sourceFile": "dianping/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "dictionary",
@@ -10457,7 +10552,8 @@
     "type": "js",
     "modulePath": "douban/auth.js",
     "sourceFile": "douban/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao",
@@ -10753,7 +10849,8 @@
     "type": "js",
     "modulePath": "doubao/auth.js",
     "sourceFile": "doubao/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "doubao-app",
@@ -11556,7 +11653,8 @@
     "type": "js",
     "modulePath": "douyin/auth.js",
     "sourceFile": "douyin/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "duckduckgo",
@@ -12646,7 +12744,8 @@
     "type": "js",
     "modulePath": "facebook/auth.js",
     "sourceFile": "facebook/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "flathub",
@@ -12818,7 +12917,8 @@
     "type": "js",
     "modulePath": "flomo/auth.js",
     "sourceFile": "flomo/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gemini",
@@ -13180,7 +13280,8 @@
     "type": "js",
     "modulePath": "gemini/auth.js",
     "sourceFile": "gemini/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "geogebra",
@@ -13592,7 +13693,8 @@
     "type": "js",
     "modulePath": "gitee/auth.js",
     "sourceFile": "gitee/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "github",
@@ -13647,7 +13749,8 @@
     "type": "js",
     "modulePath": "github/auth.js",
     "sourceFile": "github/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "google",
@@ -14637,7 +14740,8 @@
     "type": "js",
     "modulePath": "grok/auth.js",
     "sourceFile": "grok/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "hackernews",
@@ -15228,7 +15332,8 @@
     "type": "js",
     "modulePath": "hf/auth.js",
     "sourceFile": "hf/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "homebrew",
@@ -15340,6 +15445,79 @@
     "type": "js",
     "modulePath": "homebrew/popular.js",
     "sourceFile": "homebrew/popular.js"
+  },
+  {
+    "site": "huodongxing",
+    "name": "events",
+    "description": "活动行活动搜索（按标签、城市、日期、线上/线下、名称过滤）",
+    "access": "read",
+    "domain": "www.huodongxing.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "tag",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "活动标签，例如 AI"
+      },
+      {
+        "name": "city",
+        "type": "string",
+        "default": "全部",
+        "required": false,
+        "help": "城市名，例如 北京 / 上海 / 全部"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "开始日期，格式 YYYY-MM-DD"
+      },
+      {
+        "name": "dateTo",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "结束日期，格式 YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "int",
+        "required": false,
+        "help": "活动类型：1 线下，2 线上"
+      },
+      {
+        "name": "qs",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "按活动名称关键词过滤"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回条数（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "time",
+      "eventType",
+      "city",
+      "location",
+      "organizer",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "huodongxing/events.js",
+    "sourceFile": "huodongxing/events.js"
   },
   {
     "site": "hupu",
@@ -15687,7 +15865,8 @@
     "type": "js",
     "modulePath": "hupu/auth.js",
     "sourceFile": "hupu/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "imdb",
@@ -16735,7 +16914,8 @@
     "type": "js",
     "modulePath": "instagram/auth.js",
     "sourceFile": "instagram/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "jd",
@@ -16984,7 +17164,8 @@
     "type": "js",
     "modulePath": "jd/auth.js",
     "sourceFile": "jd/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "jianyu",
@@ -17117,7 +17298,8 @@
     "type": "js",
     "modulePath": "jianyu/auth.js",
     "sourceFile": "jianyu/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "jike",
@@ -17234,6 +17416,38 @@
     "modulePath": "jike/like.js",
     "sourceFile": "jike/like.js",
     "navigateBefore": true
+  },
+  {
+    "site": "jike",
+    "name": "login",
+    "description": "Open jike login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "web.okjike.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "jike/auth.js",
+    "sourceFile": "jike/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "jike",
@@ -17439,6 +17653,28 @@
     "navigateBefore": "https://m.okjike.com"
   },
   {
+    "site": "jike",
+    "name": "whoami",
+    "description": "Show the current logged-in jike account",
+    "access": "read",
+    "domain": "web.okjike.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "jike/auth.js",
+    "sourceFile": "jike/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "jimeng",
     "name": "generate",
     "description": "即梦AI 文生图 — 输入 prompt 生成图片",
@@ -17511,6 +17747,37 @@
   },
   {
     "site": "jimeng",
+    "name": "login",
+    "description": "Open jimeng login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "jimeng.jianying.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name"
+    ],
+    "type": "js",
+    "modulePath": "jimeng/auth.js",
+    "sourceFile": "jimeng/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "jimeng",
     "name": "new",
     "description": "即梦AI 新建会话（workspace）",
     "access": "write",
@@ -17526,6 +17793,27 @@
     "modulePath": "jimeng/new.js",
     "sourceFile": "jimeng/new.js",
     "navigateBefore": "https://jimeng.jianying.com"
+  },
+  {
+    "site": "jimeng",
+    "name": "whoami",
+    "description": "Show the current logged-in jimeng account",
+    "access": "read",
+    "domain": "jimeng.jianying.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "screen_name"
+    ],
+    "type": "js",
+    "modulePath": "jimeng/auth.js",
+    "sourceFile": "jimeng/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "jimeng",
@@ -17866,7 +18154,8 @@
     "type": "js",
     "modulePath": "ke/auth.js",
     "sourceFile": "ke/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "ke",
@@ -18935,7 +19224,8 @@
     "type": "js",
     "modulePath": "kimi/auth.js",
     "sourceFile": "kimi/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "lesswrong",
@@ -20423,7 +20713,8 @@
     "type": "js",
     "modulePath": "linkedin/auth.js",
     "sourceFile": "linkedin/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "linkedin-learning",
@@ -20582,7 +20873,8 @@
     "type": "js",
     "modulePath": "linkedin-learning/auth.js",
     "sourceFile": "linkedin-learning/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "linux-do",
@@ -20966,7 +21258,8 @@
     "type": "js",
     "modulePath": "linux-do/auth.js",
     "sourceFile": "linux-do/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "lobsters",
@@ -21200,6 +21493,38 @@
   },
   {
     "site": "maimai",
+    "name": "login",
+    "description": "Open maimai login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "maimai.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "company"
+    ],
+    "type": "js",
+    "modulePath": "maimai/auth.js",
+    "sourceFile": "maimai/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "maimai",
     "name": "search-talents",
     "description": "Search for candidates on Maimai with multi-dimensional filters",
     "access": "read",
@@ -21321,6 +21646,28 @@
     "modulePath": "maimai/search-talents.js",
     "sourceFile": "maimai/search-talents.js",
     "navigateBefore": "https://maimai.cn"
+  },
+  {
+    "site": "maimai",
+    "name": "whoami",
+    "description": "Show the current logged-in maimai account",
+    "access": "read",
+    "domain": "maimai.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "name",
+      "company"
+    ],
+    "type": "js",
+    "modulePath": "maimai/auth.js",
+    "sourceFile": "maimai/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "manus",
@@ -21523,7 +21870,8 @@
     "type": "js",
     "modulePath": "manus/auth.js",
     "sourceFile": "manus/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "maven",
@@ -22564,7 +22912,8 @@
     "type": "js",
     "modulePath": "notebooklm/auth.js",
     "sourceFile": "notebooklm/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "notebooklm",
@@ -22782,6 +23131,37 @@
     "type": "js",
     "modulePath": "nowcoder/jobs.js",
     "sourceFile": "nowcoder/jobs.js"
+  },
+  {
+    "site": "nowcoder",
+    "name": "login",
+    "description": "Open nowcoder login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "nowcoder.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "nowcoder/auth.js",
+    "sourceFile": "nowcoder/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "nowcoder",
@@ -23120,6 +23500,27 @@
     "type": "js",
     "modulePath": "nowcoder/trending.js",
     "sourceFile": "nowcoder/trending.js"
+  },
+  {
+    "site": "nowcoder",
+    "name": "whoami",
+    "description": "Show the current logged-in nowcoder account",
+    "access": "read",
+    "domain": "nowcoder.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "nickname"
+    ],
+    "type": "js",
+    "modulePath": "nowcoder/auth.js",
+    "sourceFile": "nowcoder/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "npm",
@@ -24732,7 +25133,8 @@
     "type": "js",
     "modulePath": "pixiv/auth.js",
     "sourceFile": "pixiv/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "powerchina",
@@ -24819,7 +25221,8 @@
     "type": "js",
     "modulePath": "powerchina/auth.js",
     "sourceFile": "powerchina/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "producthunt",
@@ -26335,7 +26738,8 @@
     "type": "js",
     "modulePath": "quark/auth.js",
     "sourceFile": "quark/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "qwen",
@@ -26684,7 +27088,8 @@
     "type": "js",
     "modulePath": "qwen/auth.js",
     "sourceFile": "qwen/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "reddit",
@@ -27762,7 +28167,8 @@
     "type": "js",
     "modulePath": "rednote/auth.js",
     "sourceFile": "rednote/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "rest-countries",
@@ -27986,7 +28392,8 @@
     "type": "js",
     "modulePath": "reuters/auth.js",
     "sourceFile": "reuters/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "rfc",
@@ -28360,6 +28767,1654 @@
     "modulePath": "sinafinance/stock-rank.js",
     "sourceFile": "sinafinance/stock-rank.js",
     "navigateBefore": false
+  },
+  {
+    "site": "slock",
+    "name": "attachment-download",
+    "description": "Download an attachment to a local file. Resolves a signed CDN URL in the page, then fetches bytes node-side (no CORS).",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "attachmentId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Attachment UUID"
+      },
+      {
+        "name": "out",
+        "type": "str",
+        "required": false,
+        "help": "Local path to write to. Defaults to ./<attachmentId>.bin"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server slug"
+      }
+    ],
+    "columns": [
+      "attachmentId",
+      "out",
+      "sizeBytes"
+    ],
+    "type": "js",
+    "modulePath": "slock/attachment-download.js",
+    "sourceFile": "slock/attachment-download.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "attachment-upload",
+    "description": "Upload a local file to Slock attachments. Prints the attachmentId for use with `message-send --attach`.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Local file path to upload (single file; max 50 MB)"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name — server requires the attachment be scoped to a channel"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server slug"
+      }
+    ],
+    "columns": [
+      "attachmentId",
+      "filename",
+      "mimeType",
+      "sizeBytes"
+    ],
+    "type": "js",
+    "modulePath": "slock/attachment-upload.js",
+    "sourceFile": "slock/attachment-upload.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "attachment-url",
+    "description": "Get a short-lived signed CDN URL for an attachment (does not download bytes).",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "attachmentId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Attachment UUID"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server slug"
+      }
+    ],
+    "columns": [
+      "attachmentId",
+      "url",
+      "expiresAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/attachment-url.js",
+    "sourceFile": "slock/attachment-url.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "bookmark-add",
+    "description": "Bookmark a message (POST /channels/saved). Requires full messageId UUID.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "saved"
+    ],
+    "type": "js",
+    "modulePath": "slock/bookmark-add.js",
+    "sourceFile": "slock/bookmark-add.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "bookmark-list",
+    "description": "List bookmarks (saved messages) in the active server",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max results"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Offset"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "messageId",
+      "content",
+      "savedAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/bookmark-list.js",
+    "sourceFile": "slock/bookmark-list.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "bookmark-remove",
+    "description": "Remove a bookmark (DELETE /channels/saved/:messageId). 404 is treated as already-removed.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "removed",
+      "note"
+    ],
+    "type": "js",
+    "modulePath": "slock/bookmark-remove.js",
+    "sourceFile": "slock/bookmark-remove.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-archive",
+    "description": "Archive a channel — admin only (POST /channels/:id/archive)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-archive.js",
+    "sourceFile": "slock/channel-archive.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-create",
+    "description": "Create a channel — admin only (POST /channels/). Public unless --private.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Channel name"
+      },
+      {
+        "name": "description",
+        "type": "str",
+        "required": false,
+        "help": "Channel description / topic (≤500 chars)"
+      },
+      {
+        "name": "private",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Create a private channel instead of public"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-create.js",
+    "sourceFile": "slock/channel-create.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-files",
+    "description": "List files shared in a channel (GET /channels/:id/files)",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max files"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "filename",
+      "mimeType",
+      "sizeBytes",
+      "messageId",
+      "createdAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-files.js",
+    "sourceFile": "slock/channel-files.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-info",
+    "description": "Show one channel's details (GET /channels/:id)",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "topic",
+      "joined",
+      "archivedAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-info.js",
+    "sourceFile": "slock/channel-info.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-join",
+    "description": "Join a public channel (POST /channels/:id/join)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-join.js",
+    "sourceFile": "slock/channel-join.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-leave",
+    "description": "Leave a channel (POST /channels/:id/leave)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-leave.js",
+    "sourceFile": "slock/channel-leave.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-list",
+    "description": "List channels in the active slock server",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id) for this call"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "topic"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-list.js",
+    "sourceFile": "slock/channel-list.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-mark",
+    "description": "Mark a channel read (default), read up to --seq, or --unread.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "seq",
+        "type": "int",
+        "required": false,
+        "help": "Mark read up to this seq (omit for read-all)"
+      },
+      {
+        "name": "unread",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Mark the channel unread instead of read"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "action",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-mark.js",
+    "sourceFile": "slock/channel-mark.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-members",
+    "description": "List members of a channel",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id)"
+      }
+    ],
+    "columns": [
+      "userId",
+      "name",
+      "kind",
+      "role"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-members.js",
+    "sourceFile": "slock/channel-members.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "channel-unarchive",
+    "description": "Unarchive a channel — admin only (POST /channels/:id/unarchive). #name lookups exclude archived channels; pass the channelId UUID for archived ones.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "id",
+      "archivedAt",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/channel-unarchive.js",
+    "sourceFile": "slock/channel-unarchive.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "dm-list",
+    "description": "List DM channels in the active server (GET /channels/dm)",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id)"
+      }
+    ],
+    "columns": [
+      "channelId",
+      "peerName",
+      "peerId",
+      "createdAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/dm-list.js",
+    "sourceFile": "slock/dm-list.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "inbox",
+    "description": "List unified inbox items (channels, DMs, followed threads) that need attention.",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "filter",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "all | unread | mentions"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max items (server caps at 100)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "kind",
+      "id",
+      "name",
+      "unreadCount",
+      "hasMention",
+      "lastActivityAt",
+      "preview"
+    ],
+    "type": "js",
+    "modulePath": "slock/inbox.js",
+    "sourceFile": "slock/inbox.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "inbox-done",
+    "description": "Mark one chat as done / clear it from the inbox (POST /channels/inbox/done)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "channel",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/inbox-done.js",
+    "sourceFile": "slock/inbox-done.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "inbox-read-all",
+    "description": "Mark the entire inbox as read (POST /channels/inbox/read-all)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "result",
+      "markedCount"
+    ],
+    "type": "js",
+    "modulePath": "slock/inbox-read-all.js",
+    "sourceFile": "slock/inbox-read-all.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "login",
+    "description": "Open slock login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "slock/whoami.js",
+    "sourceFile": "slock/whoami.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "slock",
+    "name": "message-read",
+    "description": "Read messages in a channel or thread. Thread form: \"#channel:msgIdOrShort\". Use --after seq|UUID for cursor.",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID, \"#name\", or \"#channel:msgIdOrShort\""
+      },
+      {
+        "name": "after",
+        "type": "str",
+        "required": false,
+        "help": "Cursor: seq number or messageId UUID (exclusive)"
+      },
+      {
+        "name": "before",
+        "type": "str",
+        "required": false,
+        "help": "seq to page before"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max messages"
+      },
+      {
+        "name": "no-threads",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Skip /threads enrichment"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "seq",
+      "createdAt",
+      "senderName",
+      "content",
+      "threadChannelId",
+      "replyCount",
+      "unreadCount",
+      "lastReplyAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/message-read.js",
+    "sourceFile": "slock/message-read.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "message-search",
+    "description": "Search messages",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search query"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Restrict to a channel (UUID or #name)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max results"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "channelId",
+      "createdAt",
+      "senderName",
+      "content"
+    ],
+    "type": "js",
+    "modulePath": "slock/message-search.js",
+    "sourceFile": "slock/message-search.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "message-send",
+    "description": "Send a message to a channel, DM, or thread (content sent verbatim)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "\"#channel\", \"#channel:msgIdOrShort\", \"dm:@name\", \"dm:<uuid>\", or channel UUID"
+      },
+      {
+        "name": "content",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Message body (sent verbatim, no marker)"
+      },
+      {
+        "name": "dry-run",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Print the planned payload without sending"
+      },
+      {
+        "name": "as-task",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Create the message as a task (asTask)"
+      },
+      {
+        "name": "attach",
+        "type": "str",
+        "required": false,
+        "help": "Comma-separated attachmentId UUIDs (upload separately first)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server (slug or id)"
+      }
+    ],
+    "columns": [
+      "target",
+      "channelId",
+      "content",
+      "result",
+      "messageId"
+    ],
+    "type": "js",
+    "modulePath": "slock/message-send.js",
+    "sourceFile": "slock/message-send.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "reaction-add",
+    "description": "Add an emoji reaction to a message (POST /messages/:id/reactions). Idempotent server-side.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "emoji",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "A single unicode emoji, e.g. 👍"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "emoji",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/reaction-add.js",
+    "sourceFile": "slock/reaction-add.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "reaction-remove",
+    "description": "Remove your emoji reaction from a message (DELETE /messages/:id/reactions).",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "emoji",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "The unicode emoji to remove, e.g. 👍"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "emoji",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/reaction-remove.js",
+    "sourceFile": "slock/reaction-remove.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "server-list",
+    "description": "List slock servers you belong to; marks active per localStorage slug",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "id",
+      "slug",
+      "name",
+      "active"
+    ],
+    "type": "js",
+    "modulePath": "slock/server-list.js",
+    "sourceFile": "slock/server-list.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "server-use",
+    "description": "Set the active slock server (writes localStorage.slock_last_server_slug)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "input",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "server slug, \"#slug\", or UUID id"
+      }
+    ],
+    "columns": [
+      "id",
+      "slug",
+      "name",
+      "written"
+    ],
+    "type": "js",
+    "modulePath": "slock/server-use.js",
+    "sourceFile": "slock/server-use.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-claim",
+    "description": "Claim a chat task (PATCH /tasks/:id/claim). Requires full task UUID (= message id).",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "taskStatus",
+      "assigneeId",
+      "taskNumber"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-claim.js",
+    "sourceFile": "slock/task-claim.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-convert",
+    "description": "Convert a message into a chat task (POST /tasks/convert-message). Accepts a message UUID or \"#channel:shortId\".",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "messageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full message UUID, or \"#channel:shortId\" (short id expanded via /messages/context)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "channelId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-convert.js",
+    "sourceFile": "slock/task-convert.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-create",
+    "description": "Create a task in a channel (single title; batch 1-50 is server-supported but client surface is single — see backlog R4).",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Task title (single; batch TODO via R4)"
+      },
+      {
+        "name": "desc",
+        "type": "str",
+        "required": false,
+        "help": "Optional description body for the task"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "channelId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-create.js",
+    "sourceFile": "slock/task-create.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-delete",
+    "description": "Delete a chat task (DELETE /tasks/:taskId). Requires --confirm — destructive, irreversible.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Required acknowledgement: deletion is irreversible"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-delete.js",
+    "sourceFile": "slock/task-delete.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-get",
+    "description": "Fetch a task by channel + taskNumber (GET /tasks/channel/:channelId/number/:taskNumber).",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "number",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "taskNumber (per-channel integer, as shown in \"task #N\")"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "assigneeId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-get.js",
+    "sourceFile": "slock/task-get.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-list",
+    "description": "List tasks (chat tasks = messages with task fields) attached to a channel. Optional --status filter.",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "channelId UUID or #name"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "Filter by status: todo|in_progress|in_review|done|closed"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "assigneeId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-list.js",
+    "sourceFile": "slock/task-list.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-list-server",
+    "description": "List tasks across all channels in the active server (GET /tasks/server). Optional --status filter.",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "Filter by status: todo|in_progress|in_review|done|closed"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "id",
+      "taskNumber",
+      "title",
+      "taskStatus",
+      "channelId",
+      "assigneeId"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-list-server.js",
+    "sourceFile": "slock/task-list-server.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-status",
+    "description": "Set a task's status (PATCH /tasks/:taskId/status, body {status}). One of todo|in_progress|in_review|done|closed.",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "One of: todo|in_progress|in_review|done|closed"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "taskStatus",
+      "assigneeId",
+      "taskNumber"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-status.js",
+    "sourceFile": "slock/task-status.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "task-unclaim",
+    "description": "Release ownership of a chat task (PATCH /tasks/:id/unclaim).",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "taskId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full task UUID (= message id; short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "taskId",
+      "taskStatus",
+      "assigneeId",
+      "taskNumber"
+    ],
+    "type": "js",
+    "modulePath": "slock/task-unclaim.js",
+    "sourceFile": "slock/task-unclaim.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "thread-done",
+    "description": "Mark a thread as done / hide it from the active list (POST /channels/threads/done)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "threadChannelId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Thread channel UUID (from thread-list / message-read)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-done.js",
+    "sourceFile": "slock/thread-done.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "thread-follow",
+    "description": "Follow the thread on a parent message (POST /channels/threads/follow)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "parentMessageId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full parent messageId UUID (short ids rejected)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "parentMessageId",
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-follow.js",
+    "sourceFile": "slock/thread-follow.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "thread-list",
+    "description": "List followed threads in the active server (GET /channels/threads/followed)",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "parentMessageId",
+      "parentChannelName",
+      "unreadCount",
+      "replyCount",
+      "lastReplyAt"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-list.js",
+    "sourceFile": "slock/thread-list.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "thread-undone",
+    "description": "Restore a done thread to the active list (POST /channels/threads/undone)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "threadChannelId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Thread channel UUID (from thread-list / message-read)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-undone.js",
+    "sourceFile": "slock/thread-undone.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "thread-unfollow",
+    "description": "Stop following a thread (POST /channels/threads/unfollow)",
+    "access": "write",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "threadChannelId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Thread channel UUID (from thread-list / message-read)"
+      },
+      {
+        "name": "server",
+        "type": "str",
+        "required": false,
+        "help": "Override active server"
+      }
+    ],
+    "columns": [
+      "threadChannelId",
+      "result"
+    ],
+    "type": "js",
+    "modulePath": "slock/thread-unfollow.js",
+    "sourceFile": "slock/thread-unfollow.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "unread-summary",
+    "description": "Global unread counts across every server you belong to.",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "serverId",
+      "slug",
+      "name",
+      "unreadCount"
+    ],
+    "type": "js",
+    "modulePath": "slock/unread-summary.js",
+    "sourceFile": "slock/unread-summary.js",
+    "navigateBefore": "https://app.slock.ai",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "slock",
+    "name": "whoami",
+    "description": "Show the current logged-in slock account",
+    "access": "read",
+    "domain": "app.slock.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "name",
+      "email"
+    ],
+    "type": "js",
+    "modulePath": "slock/whoami.js",
+    "sourceFile": "slock/whoami.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "smzdm",
@@ -29483,7 +31538,8 @@
     "type": "js",
     "modulePath": "suno/auth.js",
     "sourceFile": "suno/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "taobao",
@@ -29718,7 +31774,8 @@
     "type": "js",
     "modulePath": "taobao/auth.js",
     "sourceFile": "taobao/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "tdx",
@@ -30514,7 +32571,8 @@
     "type": "js",
     "modulePath": "tiktok/auth.js",
     "sourceFile": "tiktok/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "toutiao",
@@ -30627,7 +32685,8 @@
     "type": "js",
     "modulePath": "toutiao/auth.js",
     "sourceFile": "toutiao/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "trae-cn",
@@ -33700,7 +35759,8 @@
     "type": "js",
     "modulePath": "twitter/auth.js",
     "sourceFile": "twitter/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "uisdc",
@@ -34023,7 +36083,8 @@
     "type": "js",
     "modulePath": "upwork/auth.js",
     "sourceFile": "upwork/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "v2ex",
@@ -34386,7 +36447,8 @@
     "type": "js",
     "modulePath": "v2ex/auth.js",
     "sourceFile": "v2ex/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "wanfang",
@@ -34634,7 +36696,8 @@
     "type": "js",
     "modulePath": "wechat-channels/auth.js",
     "sourceFile": "wechat-channels/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weibo",
@@ -35070,7 +37133,8 @@
     "type": "js",
     "modulePath": "weibo/auth.js",
     "sourceFile": "weibo/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weixin",
@@ -35618,7 +37682,8 @@
     "type": "js",
     "modulePath": "weread/auth.js",
     "sourceFile": "weread/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "weread-official",
@@ -36729,7 +38794,8 @@
     "type": "js",
     "modulePath": "xianyu/auth.js",
     "sourceFile": "xianyu/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaoe",
@@ -36917,6 +38983,54 @@
     "type": "js",
     "modulePath": "xiaoe/auth.js",
     "sourceFile": "xiaoe/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "ask",
+    "description": "Ask 小红书点点 and return the answer with citation sources.",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Question for 点点"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Seconds to wait for the 点点 answer"
+      },
+      {
+        "name": "source-limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Maximum citation sources to return"
+      }
+    ],
+    "columns": [
+      "query",
+      "answer",
+      "source_count",
+      "source_total_text",
+      "sources_summary",
+      "sources",
+      "warning",
+      "message_id",
+      "conversation_id"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/ask.js",
+    "sourceFile": "xiaohongshu/ask.js",
     "navigateBefore": false
   },
   {
@@ -37495,17 +39609,17 @@
     "browser": true,
     "args": [
       {
-        "name": "title",
-        "type": "str",
-        "required": true,
-        "help": "笔记标题 (最多20字)"
-      },
-      {
         "name": "content",
         "type": "str",
         "required": true,
         "positional": true,
         "help": "笔记正文"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "help": "笔记标题 (最多20字)"
       },
       {
         "name": "images",
@@ -37654,7 +39768,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/auth.js",
     "sourceFile": "xiaohongshu/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaoyuzhou",
@@ -38274,7 +40389,8 @@
     "type": "js",
     "modulePath": "xueqiu/auth.js",
     "sourceFile": "xueqiu/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "yahoo",
@@ -39485,7 +41601,8 @@
     "type": "js",
     "modulePath": "youtube/auth.js",
     "sourceFile": "youtube/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "yuanbao",
@@ -39738,7 +41855,8 @@
     "type": "js",
     "modulePath": "yuanbao/auth.js",
     "sourceFile": "yuanbao/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "zhihu",
@@ -40374,7 +42492,8 @@
     "type": "js",
     "modulePath": "zhihu/auth.js",
     "sourceFile": "zhihu/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "zlibrary",
@@ -40678,6 +42797,7 @@
     "type": "js",
     "modulePath": "zsxq/auth.js",
     "sourceFile": "zsxq/auth.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   }
 ]

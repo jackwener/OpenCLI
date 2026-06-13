@@ -56,6 +56,7 @@ export function registerSiteAuthCommands(config) {
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [],
     columns: commandColumns(config),
     authStatus: {
