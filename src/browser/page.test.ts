@@ -72,6 +72,40 @@ describe('Page.getCurrentUrl', () => {
       page: 'page-1',
     }));
   });
+
+  it('rejects browser commands after closeWindow so timed-out work cannot recreate tabs', async () => {
+    sendCommandMock.mockResolvedValueOnce({ closed: true });
+
+    const page = new Page('site:taobao', undefined, undefined, undefined, 'adapter', 'ephemeral', 'existing-window');
+
+    await page.closeWindow();
+
+    await expect(page.evaluate('document.title')).rejects.toThrow('Browser page is closed');
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('close-window', expect.objectContaining({
+      session: 'site:taobao',
+      surface: 'adapter',
+      tabPlacement: 'existing-window',
+    }));
+  });
+
+  it('tracks the page created by network capture so trace pre-navigation reuses it', async () => {
+    sendCommandFullMock.mockResolvedValueOnce({ data: { started: true }, page: 'page-capture' });
+    sendCommandFullMock.mockResolvedValueOnce({ data: { url: 'https://item.upload.taobao.com/' }, page: 'page-capture' });
+    sendCommandMock.mockResolvedValueOnce(null);
+
+    const page = new Page('site:taobao', undefined, undefined, undefined, 'adapter', 'ephemeral', 'existing-window');
+
+    await expect(page.startNetworkCapture()).resolves.toBe(true);
+    expect(page.getActivePage()).toBe('page-capture');
+
+    await page.goto('https://item.upload.taobao.com/sell/v2/publish.htm?catId=50008406', { waitUntil: 'none' });
+
+    expect(sendCommandFullMock).toHaveBeenNthCalledWith(2, 'navigate', expect.objectContaining({
+      page: 'page-capture',
+      tabPlacement: 'existing-window',
+    }));
+  });
 });
 
 describe('Page.evaluate', () => {
@@ -141,17 +175,17 @@ describe('Page network capture compatibility', () => {
   });
 
   it('treats unknown network-capture-start as unsupported and memoizes it', async () => {
-    sendCommandMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-start'));
+    sendCommandFullMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-start'));
 
     const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
 
     await expect(page.startNetworkCapture()).resolves.toBe(false);
     await expect(page.startNetworkCapture()).resolves.toBe(false);
 
-    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledWith(expect.stringContaining('does not support network capture'));
-    expect(sendCommandMock).toHaveBeenCalledWith('network-capture-start', expect.objectContaining({
+    expect(sendCommandFullMock).toHaveBeenCalledWith('network-capture-start', expect.objectContaining({
       session: 'notebooklm',
       surface: 'adapter',
     }));
@@ -174,19 +208,18 @@ describe('Page network capture compatibility', () => {
   });
 
   it('rethrows unrelated network capture failures', async () => {
-    sendCommandMock.mockRejectedValueOnce(new Error('Extension disconnected'));
+    sendCommandFullMock.mockRejectedValueOnce(new Error('Extension disconnected'));
 
     const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
 
     await expect(page.startNetworkCapture()).rejects.toThrow('Extension disconnected');
-    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(1);
     expect(warnMock).not.toHaveBeenCalled();
   });
 
   it('warns only once even if both start and read hit the compatibility fallback', async () => {
-    sendCommandMock
-      .mockRejectedValueOnce(new Error('Unknown action: network-capture-start'))
-      .mockRejectedValueOnce(new Error('Unknown action: network-capture-read'));
+    sendCommandFullMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-start'));
+    sendCommandMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-read'));
 
     const page = new Page('notebooklm', undefined, undefined, undefined, 'adapter');
 

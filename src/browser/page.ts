@@ -58,11 +58,19 @@ export class Page extends BasePage {
 
   /** Active page identity (targetId), set after navigate and used in all subsequent commands */
   private _page: string | undefined;
+  private _closed = false;
   private _networkCaptureUnsupported = false;
   private _networkCaptureWarned = false;
 
+  private _assertOpen(): void {
+    if (this._closed) {
+      throw new Error('Browser page is closed');
+    }
+  }
+
   /** Helper: spread session into command params */
-  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; tabPlacement?: BrowserTabPlacement; siteSession?: 'ephemeral' | 'persistent' } {
+  private _sessionOpts(opts: { allowClosed?: boolean } = {}): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; tabPlacement?: BrowserTabPlacement; siteSession?: 'ephemeral' | 'persistent' } {
+    if (!opts.allowClosed) this._assertOpen();
     return {
       session: this.session,
       surface: this.surface,
@@ -76,6 +84,7 @@ export class Page extends BasePage {
 
   /** Helper: spread session + page identity into command params */
   private _cmdOpts(): Record<string, unknown> {
+    this._assertOpen();
     return {
       session: this.session,
       surface: this.surface,
@@ -191,11 +200,13 @@ export class Page extends BasePage {
 
   /** Release the current browser session lease in the extension */
   async closeWindow(): Promise<void> {
+    if (this._closed) return;
     try {
-      await sendCommand('close-window', { ...this._sessionOpts() });
+      await sendCommand('close-window', { ...this._sessionOpts({ allowClosed: true }) });
     } catch {
       // Window may already be closed or daemon may be down
     } finally {
+      this._closed = true;
       this._page = undefined;
       this._lastUrl = null;
       this._networkCaptureUnsupported = false;
@@ -266,10 +277,13 @@ export class Page extends BasePage {
   async startNetworkCapture(pattern: string = ''): Promise<boolean> {
     if (this._networkCaptureUnsupported) return false;
     try {
-      await sendCommand('network-capture-start', {
+      const result = await sendCommandFull('network-capture-start', {
         pattern,
         ...this._cmdOpts(),
       });
+      if (result?.page) {
+        this._page = result.page;
+      }
       return true;
     } catch (err) {
       if (!isUnsupportedNetworkCaptureError(err)) throw err;

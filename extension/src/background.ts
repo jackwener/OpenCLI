@@ -1210,11 +1210,16 @@ async function handleCommand(cmd: Command): Promise<Result> {
   const session = getSessionName(cmd.session);
   const surface = getCommandSurface(cmd);
   const leaseKey = getLeaseKey(session, surface);
+  const requestedExistingWindowPlacement = cmd.tabPlacement === 'existing-window';
   if (cmd.windowMode === 'foreground' || cmd.windowMode === 'background') {
     sessionWindowModeOverrides.set(leaseKey, cmd.windowMode);
   }
   if (cmd.tabPlacement === 'owned-container' || cmd.tabPlacement === 'existing-window') {
     sessionTabPlacementOverrides.set(leaseKey, cmd.tabPlacement);
+  }
+  if (requestedExistingWindowPlacement) {
+    await releaseOwnedContainerSessionsForSurface(surface, 'tab placement changed');
+    sessionTabPlacementOverrides.set(leaseKey, 'existing-window');
   }
   if (surface === 'adapter' && (cmd.siteSession === 'persistent' || cmd.siteSession === 'ephemeral')) {
     sessionLifecycleOverrides.set(leaseKey, cmd.siteSession);
@@ -1937,6 +1942,41 @@ async function handleWaitDownload(cmd: Command): Promise<Result> {
   }
 }
 
+async function releaseOwnedContainerSessionsForSurface(surface: BrowserSurface, reason: string): Promise<void> {
+  const staleLeaseKeys = [...automationSessions.entries()]
+    .filter(([, session]) => session.surface === surface && session.owned && session.tabPlacement === 'owned-container')
+    .map(([leaseKey]) => leaseKey);
+  for (const staleLeaseKey of staleLeaseKeys) {
+    sessionTabPlacementOverrides.set(staleLeaseKey, 'existing-window');
+    await releaseLease(staleLeaseKey, reason);
+  }
+  await closeEmptyOwnedContainerWindowForSurface(surface);
+}
+
+async function closeEmptyOwnedContainerWindowForSurface(surface: BrowserSurface): Promise<void> {
+  const role: OwnedWindowRole = surface === 'browser' ? 'interactive' : 'automation';
+  const container = ownedContainers[role];
+  const windowId = container.windowId;
+  if (windowId === null) return;
+  try {
+    const tabs = await chrome.tabs.query({ windowId });
+    const hasNonBlankTab = tabs.some((tab) => {
+      const url = tab.url ?? '';
+      return url !== '' && url !== BLANK_PAGE;
+    });
+    if (hasNonBlankTab) return;
+    await chrome.windows.remove(windowId);
+    container.windowId = null;
+    container.groupId = null;
+    await persistRuntimeState();
+    console.log(`[opencli] Closed empty ${role} owned-container window ${windowId} before existing-window command`);
+  } catch {
+    container.windowId = null;
+    container.groupId = null;
+    await persistRuntimeState();
+  }
+}
+
 async function releaseLease(leaseKey: string, reason: string = 'released'): Promise<void> {
   const session = automationSessions.get(leaseKey);
   if (!session) {
@@ -1951,6 +1991,10 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
 
   if (session.idleTimer) clearTimeout(session.idleTimer);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
+  const releaseTabPlacement = sessionTabPlacementOverrides.get(leaseKey) ?? session.tabPlacement;
+  const shouldRemoveOwnedTab = session.tabPlacement === 'existing-window'
+    || releaseTabPlacement === 'existing-window'
+    || reason === 'tab placement changed';
 
   if (session.owned) {
     const tabId = session.preferredTabId;
@@ -1966,13 +2010,13 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
       if (hasOtherOwnedLease) {
         await chrome.tabs.remove(tabId).catch(() => {});
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
-      } else if (session.tabPlacement === 'existing-window') {
+      } else if (shouldRemoveOwnedTab) {
         await chrome.tabs.remove(tabId).catch(() => {});
         console.log(`[opencli] Released existing-window tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
           const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          const group = session.tabPlacement === 'owned-container'
+          const group = releaseTabPlacement === 'owned-container'
             ? await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId])
             : null;
           if (group) session.windowId = group.windowId;

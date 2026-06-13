@@ -1323,6 +1323,100 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
+  it('removes stale owned-container tabs when commands switch to existing-window placement', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'), 'https://old.example');
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      tabPlacement: 'owned-container',
+    }));
+
+    vi.clearAllMocks();
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-close-stale',
+      action: 'close-window',
+      session: 'twitter',
+      surface: 'adapter',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(tabId);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(tabId, { url: 'about:blank', active: true });
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
+  });
+
+  it('purges stale adapter owned-container placeholders before existing-window commands', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const firstTabId = await mod.__test__.resolveTabId(undefined, adapterKey('stale-first'), 'https://first.example');
+    const secondTabId = await mod.__test__.resolveTabId(undefined, adapterKey('stale-second'), 'https://second.example');
+    expect(mod.__test__.getSession(adapterKey('stale-first'))).toEqual(expect.objectContaining({
+      tabPlacement: 'owned-container',
+    }));
+    expect(mod.__test__.getSession(adapterKey('stale-second'))).toEqual(expect.objectContaining({
+      tabPlacement: 'owned-container',
+    }));
+
+    vi.clearAllMocks();
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-new',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://new.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(firstTabId);
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(secondTabId);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(firstTabId, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(secondTabId, { url: 'about:blank', active: true });
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('stale-first'))).toBeNull();
+    expect(mod.__test__.getSession(adapterKey('stale-second'))).toBeNull();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      tabPlacement: 'existing-window',
+    }));
+  });
+
+  it('closes empty owned-container windows before existing-window commands', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs.push({ id: 77, windowId: 77, url: 'about:blank', title: 'blank', active: true, status: 'complete', groupId: -1 });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.ensureOwnedContainerGroup('automation', 77, [77]);
+
+    vi.clearAllMocks();
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-new',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://new.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.windows.remove).toHaveBeenCalledWith(77);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      tabPlacement: 'existing-window',
+    }));
+  });
+
   it('reuses the existing adapter tab group when adding another owned lease tab', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
