@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import {
     buildAskResult,
     buildAskEvaluateJs,
@@ -46,8 +47,12 @@ describe('xiaohongshu ask', () => {
     it('rejects invalid timeout and source-limit values', () => {
         expect(() => parseAskTimeout(0)).toThrow('--timeout');
         expect(() => parseAskTimeout(181)).toThrow('--timeout');
+        expect(() => parseAskTimeout('1e2')).toThrow('--timeout');
+        expect(() => parseAskTimeout(' 30 ')).toThrow('--timeout');
         expect(() => parseAskLimit(0)).toThrow('--source-limit');
         expect(() => parseAskLimit(51)).toThrow('--source-limit');
+        expect(() => parseAskLimit('1e1')).toThrow('--source-limit');
+        expect(() => parseAskLimit(' 10 ')).toThrow('--source-limit');
     });
 
     it('normalizes note sources while keeping xsec_token separate from terminal summary', () => {
@@ -79,6 +84,38 @@ describe('xiaohongshu ask', () => {
         expect(buildNoteUrl('69d6fc08000000001f007646', '')).toBe(
             'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646',
         );
+    });
+
+    it('does not project untrusted citation links into source URLs or deeplinks', () => {
+        const source = normalizeAskSource({
+            id: 'not-a-note-id',
+            title: '来源标题',
+            textLink: 'https://evil.example/explore/69d6fc08000000001f007646?xsec_token=leak',
+            url: 'javascript:alert(1)',
+        }, 0);
+
+        expect(source).toMatchObject({
+            note_id: '',
+            url: '',
+            xsec_token: '',
+            title: '来源标题',
+        });
+        expect(source).not.toHaveProperty('deeplink');
+    });
+
+    it('uses direct note identity while ignoring untrusted token links', () => {
+        const source = normalizeAskSource({
+            id: '69d6fc08000000001f007646',
+            title: '来源标题',
+            textLink: 'https://evil.example/explore/69d6fc08000000001f007646?xsec_token=leak',
+        }, 0);
+
+        expect(source).toMatchObject({
+            note_id: '69d6fc08000000001f007646',
+            url: 'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646',
+            xsec_token: '',
+        });
+        expect(source).not.toHaveProperty('deeplink');
     });
 
     it('keeps answer output successful when no citation sources are returned', () => {
@@ -147,6 +184,39 @@ describe('xiaohongshu ask', () => {
         });
         expect(result).not.toHaveProperty('raw_sources');
         expect(result).not.toHaveProperty('source_error');
+    });
+
+    it('fails closed when the page returns ok without answer identity', async () => {
+        const cmd = getRegistry().get('xiaohongshu/ask');
+        const page = createPageMock({
+            ok: true,
+            query: '上海露营需要注意什么？',
+            answer: '',
+            sources: [],
+            message_id: '',
+            conversation_id: 'conversation-id',
+        });
+
+        await expect(cmd.func(page, { query: '上海露营需要注意什么？', timeout: 30, 'source-limit': 10 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('maps unfinished answer polling to timeout instead of partial success', async () => {
+        const cmd = getRegistry().get('xiaohongshu/ask');
+        const page = createPageMock({
+            ok: false,
+            error: 'answer_timeout',
+            timeout_seconds: 1,
+            message_id: 'mid',
+            conversation_id: 'cid',
+        });
+
+        await expect(cmd.func(page, { query: '上海露营需要注意什么？', timeout: 1, 'source-limit': 10 }))
+            .rejects.toBeInstanceOf(TimeoutError);
+
+        const script = buildAskEvaluateJs('上海露营需要注意什么？', 1, 10);
+        expect(script).toContain('if (!finished || !answer)');
+        expect(script).not.toContain('answer did not finish before timeout');
     });
 
     it('resets the 点点 scene and only accepts the sent message id on retry', () => {

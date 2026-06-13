@@ -29,20 +29,28 @@ export function unwrapEvaluateResult(payload) {
     return payload;
 }
 
-export function parseAskTimeout(raw) {
-    const parsed = Number(raw ?? 90);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 180) {
-        throw new ArgumentError(`--timeout must be an integer between 1 and 180, got ${JSON.stringify(raw)}`);
+function parseBoundedInteger(raw, defaultValue, min, max, label) {
+    const value = raw ?? defaultValue;
+    let parsed;
+    if (typeof value === 'number') {
+        parsed = value;
+    } else if (typeof value === 'string' && /^\d+$/.test(value)) {
+        parsed = Number(value);
+    } else {
+        throw new ArgumentError(`${label} must be an integer between ${min} and ${max}, got ${JSON.stringify(raw)}`);
+    }
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+        throw new ArgumentError(`${label} must be an integer between ${min} and ${max}, got ${JSON.stringify(raw)}`);
     }
     return parsed;
 }
 
+export function parseAskTimeout(raw) {
+    return parseBoundedInteger(raw, 90, 1, 180, '--timeout');
+}
+
 export function parseAskLimit(raw) {
-    const parsed = Number(raw ?? 10);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 50) {
-        throw new ArgumentError(`--source-limit must be an integer between 1 and 50, got ${JSON.stringify(raw)}`);
-    }
-    return parsed;
+    return parseBoundedInteger(raw, 10, 1, 50, '--source-limit');
 }
 
 function cleanText(value) {
@@ -74,13 +82,38 @@ function parseUrlMaybe(value) {
     }
 }
 
-function extractXsecToken(...values) {
-    for (const value of values) {
-        const url = parseUrlMaybe(value);
-        const token = url?.searchParams.get('xsec_token') || url?.searchParams.get('xsecToken');
-        if (token) return token;
+function parseTrustedSourceLink(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const xhsDiscoverMatch = raw.match(/^xhsdiscover:\/\/item\/([0-9a-f]{24})(?=[?#/]|$)/i);
+    if (xhsDiscoverMatch) {
+        const url = parseUrlMaybe(raw);
+        return {
+            noteId: xhsDiscoverMatch[1],
+            xsecToken: url?.searchParams.get('xsec_token') || url?.searchParams.get('xsecToken') || '',
+            href: raw,
+        };
     }
-    return '';
+
+    let url = parseUrlMaybe(raw);
+    if (!url && raw.startsWith('/')) {
+        url = parseUrlMaybe(`https://${XHS_WEB_HOST}${raw}`);
+    }
+    const host = url?.hostname.toLowerCase();
+    if (
+        !url
+        || url.protocol !== 'https:'
+        || (host !== XHS_WEB_HOST && host !== 'xiaohongshu.com')
+    ) {
+        return null;
+    }
+    const match = url.pathname.match(/^\/(?:explore|search_result|note)\/([0-9a-f]{24})\/?$/i);
+    if (!match) return null;
+    return {
+        noteId: match[1],
+        xsecToken: url.searchParams.get('xsec_token') || url.searchParams.get('xsecToken') || '',
+        href: url.toString(),
+    };
 }
 
 function extractNoteId(source) {
@@ -88,15 +121,14 @@ function extractNoteId(source) {
     if (/^[0-9a-f]{24}$/i.test(directId)) return directId;
     const candidates = [source?.textLink, source?.link, source?.url];
     for (const candidate of candidates) {
-        const text = String(candidate || '');
-        const match = text.match(/(?:\/item\/|\/(?:explore|search_result|note)\/)([0-9a-f]{24})(?=[?#/]|$)/i);
-        if (match) return match[1];
+        const parsed = parseTrustedSourceLink(candidate);
+        if (parsed?.noteId) return parsed.noteId;
     }
-    return directId;
+    return '';
 }
 
 export function buildNoteUrl(noteId, xsecToken) {
-    if (!noteId) return '';
+    if (!/^[0-9a-f]{24}$/i.test(String(noteId || ''))) return '';
     const url = new URL(`https://${XHS_WEB_HOST}/explore/${noteId}`);
     if (xsecToken) {
         url.searchParams.set('xsec_token', xsecToken);
@@ -118,9 +150,11 @@ function extractQuote(source) {
 }
 
 export function normalizeAskSource(source, index) {
-    const textLink = firstNonEmpty(source?.textLink, source?.link, source?.url);
+    const trustedLink = [source?.textLink, source?.link, source?.url]
+        .map(parseTrustedSourceLink)
+        .find(Boolean);
     const noteId = extractNoteId(source);
-    const xsecToken = extractXsecToken(source?.url, source?.textLink, source?.link);
+    const xsecToken = trustedLink?.xsecToken || '';
     const normalized = {
         rank: index + 1,
         type: 'note',
@@ -132,7 +166,7 @@ export function normalizeAskSource(source, index) {
     };
     const quote = extractQuote(source);
     if (quote) normalized.quote = quote;
-    if (textLink) normalized.deeplink = textLink;
+    if (trustedLink?.href) normalized.deeplink = trustedLink.href;
     return normalized;
 }
 
@@ -247,7 +281,7 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
           const answer = aiMessage.text || (Array.isArray(aiMessage.dataFragments)
             ? aiMessage.dataFragments.map((fragment) => fragment?.text || '').join('')
             : '');
-          if (!answer) {
+          if (!finished || !answer) {
             return { ok: false, error: 'answer_timeout', timeout_seconds: ${Number(timeoutSeconds)}, message_id: msgId, conversation_id: conversationId };
           }
 
@@ -280,7 +314,7 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
             answer,
             source_total_text: detail?.baseInfo?.totalCnt || aiMessage?.querySource?.text || aiMessage?.querySource?.oneboxText || '',
             sources: rawSources,
-            warning: sourceError || (finished ? '' : 'answer did not finish before timeout'),
+            warning: sourceError,
             message_id: msgId,
             conversation_id: conversationId,
           };
@@ -316,6 +350,19 @@ function mapAskError(raw, timeoutSeconds) {
     );
 }
 
+function requireAskPayload(raw) {
+    if (!raw || typeof raw !== 'object') {
+        throw new CommandExecutionError('xiaohongshu ask returned a malformed page payload');
+    }
+    const answer = cleanText(raw.answer || raw.base_info?.text || '');
+    if (!answer) {
+        throw new CommandExecutionError('xiaohongshu ask returned a malformed page payload: missing answer');
+    }
+    if (!compactSingleLine(raw.message_id) || !compactSingleLine(raw.conversation_id)) {
+        throw new CommandExecutionError('xiaohongshu ask returned a malformed page payload: missing message identity');
+    }
+}
+
 export const command = cli({
     site: 'xiaohongshu',
     name: 'ask',
@@ -343,6 +390,7 @@ export const command = cli({
             throw new CommandExecutionError('xiaohongshu ask returned a malformed page payload');
         }
         if (raw.ok === false) mapAskError(raw, timeout);
+        requireAskPayload(raw);
         return buildAskResult(raw);
     },
 });
