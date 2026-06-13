@@ -86,6 +86,13 @@ cli({
           }
         } catch {}
 
+        // 播放门禁信号：会员专享（channel membership）/ 付费点播等视频 metadata 照常
+        // 可见，但视频流拿不到——playabilityStatus.status != 'OK'。reason 文本是本地化
+        // 的（中文 cookie 下是中文），所以 membersOnly 用 watch HTML 里 locale 无关的
+        // BADGE_STYLE_TYPE_MEMBERS_ONLY 徽标枚举判定，下游不要去 parse reason。
+        const ps = player.playabilityStatus || {};
+        const membersOnly = html.indexOf('BADGE_STYLE_TYPE_MEMBERS_ONLY') !== -1;
+
         return {
           title: details.title || '',
           channel: details.author || '',
@@ -101,6 +108,9 @@ cli({
           keywords: (details.keywords || []).join(', '),
           isLive: details.isLiveContent || false,
           thumbnail: details.thumbnail?.thumbnails?.slice(-1)?.[0]?.url || '',
+          playabilityStatus: ps.status || '',
+          playabilityReason: ps.reason || '',
+          membersOnly,
         };
       })()
     `);
