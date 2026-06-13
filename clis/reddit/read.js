@@ -173,7 +173,7 @@ cli({
         }
         function extractRedditMedia(d) {
           var post_hint = (d && d.post_hint) || '';
-          var url_overridden_by_dest = (d && d.url_overridden_by_dest) || '';
+          var url_overridden_by_dest = decodeHtml((d && d.url_overridden_by_dest) || '');
           var preview_image_url = decodeHtml(
             (d && d.preview && d.preview.images && d.preview.images[0] && d.preview.images[0].source && d.preview.images[0].source.url) || ''
           );
@@ -184,7 +184,7 @@ cli({
             for (var gi = 0; gi < items.length; gi++) {
               var it = items[gi];
               var m = it && meta[it.media_id];
-              var u = m && m.s && m.s.u;
+              var u = m && m.s && (m.s.u || m.s.gif || m.s.mp4);
               if (u) gallery_urls.push(decodeHtml(u));
             }
           }

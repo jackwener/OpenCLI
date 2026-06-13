@@ -11,7 +11,7 @@ function makePage(result) {
     };
 }
 
-function redditPostEnvelope(children) {
+function redditPostEnvelope(children, postOverrides = {}) {
     return [
         {
             data: {
@@ -22,6 +22,7 @@ function redditPostEnvelope(children) {
                         author: 'op',
                         score: 10,
                         is_self: true,
+                        ...postOverrides,
                     },
                 }],
             },
@@ -281,6 +282,52 @@ describe('reddit read adapter', () => {
                 body: expect.stringContaining('link_id=t3_abc123'),
             }),
         );
+    });
+
+    it('extracts post media columns from the Reddit listing payload in order', async () => {
+        const fetchMock = vi.fn(async (url) => {
+            if (String(url).startsWith('/comments/')) {
+                return jsonResponse(redditPostEnvelope([], {
+                    is_self: false,
+                    post_hint: 'image',
+                    url: 'https://reddit.com/r/pics/comments/abc123/media_post/',
+                    url_overridden_by_dest: 'https://i.redd.it/a&amp;b.jpg',
+                    preview: {
+                        images: [{
+                            source: { url: 'https://preview.redd.it/source.jpg?width=960&amp;format=pjpg' },
+                        }],
+                    },
+                    gallery_data: {
+                        items: [
+                            { media_id: 'second' },
+                            { media_id: 'first' },
+                            { media_id: 'animated' },
+                        ],
+                    },
+                    media_metadata: {
+                        first: { s: { u: 'https://preview.redd.it/first.jpg?width=640&amp;format=pjpg' } },
+                        second: { s: { u: 'https://preview.redd.it/second.jpg?width=640&amp;format=pjpg' } },
+                        animated: { s: { gif: 'https://preview.redd.it/animated.gif?format=mp4&amp;s=123' } },
+                    },
+                }));
+            }
+            throw new Error(`unexpected URL ${url}`);
+        });
+        const page = makeRuntimePage(fetchMock);
+
+        const result = await command.func(page, { 'post-id': 'abc123' });
+
+        expect(result[0]).toMatchObject({
+            type: 'POST',
+            post_hint: 'image',
+            url_overridden_by_dest: 'https://i.redd.it/a&b.jpg',
+            preview_image_url: 'https://preview.redd.it/source.jpg?width=960&format=pjpg',
+            gallery_urls: [
+                'https://preview.redd.it/second.jpg?width=640&format=pjpg',
+                'https://preview.redd.it/first.jpg?width=640&format=pjpg',
+                'https://preview.redd.it/animated.gif?format=mp4&s=123',
+            ],
+        });
     });
 
     it('fails expand-more when Reddit returns a child that cannot be placed in the requested tree', async () => {

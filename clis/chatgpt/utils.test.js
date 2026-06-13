@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, isGenerating, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages } from './utils.js';
+import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, isGenerating, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
 
 const tempDirs = [];
 
@@ -260,6 +260,148 @@ describe('chatgpt detail completion state', () => {
     });
 });
 
+describe('chatgpt ask response extraction boundary', () => {
+    function createResponseWaitPage(messageSets, { url = 'https://chatgpt.com/c/demo' } = {}) {
+        let messageIndex = 0;
+        return {
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve(url);
+                if (script.includes('Stop generating') || script.includes('Thinking')) {
+                    return Promise.resolve(false);
+                }
+                if (script.includes('data-message-author-role')) {
+                    const messages = messageSets[Math.min(messageIndex, messageSets.length - 1)] ?? [];
+                    messageIndex += 1;
+                    return Promise.resolve(messages.map((message) => ({
+                        role: message.Role,
+                        text: message.Text,
+                        html: message.Text,
+                    })));
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+    }
+
+    function mockAdvancingClock(stepMs = 1000) {
+        let now = 0;
+        vi.spyOn(Date, 'now').mockImplementation(() => {
+            now += stepMs;
+            return now;
+        });
+    }
+
+    it('does not return a stale baseline assistant pair for repeated prompts', async () => {
+        mockAdvancingClock();
+        const baselineMessages = [
+            { Role: 'User', Text: 'repeat this prompt' },
+            { Role: 'Assistant', Text: 'old answer' },
+        ];
+        const page = createResponseWaitPage([
+            baselineMessages,
+            baselineMessages,
+            baselineMessages,
+        ]);
+
+        await expect(waitForChatGPTResponse(page, baselineMessages.length, 'repeat this prompt', 4, {
+            baselinePairCounts: getChatGPTResponsePairCounts(baselineMessages, 'repeat this prompt'),
+            conversationUrl: 'https://chatgpt.com/c/demo',
+        })).rejects.toThrow(/chatgpt ask timed out/);
+    });
+
+    it('requires an exact normalized user prompt match instead of substring matching', async () => {
+        mockAdvancingClock();
+        const staleMessages = [
+            { Role: 'User', Text: 'write a short story' },
+            { Role: 'Assistant', Text: 'old answer' },
+        ];
+        const page = createResponseWaitPage([
+            staleMessages,
+            staleMessages,
+            staleMessages,
+        ]);
+
+        await expect(waitForChatGPTResponse(page, 0, 'short', 4, {
+            baselinePairKeys: new Set(),
+            conversationUrl: 'https://chatgpt.com/c/demo',
+        })).rejects.toThrow(/chatgpt ask timed out/);
+    });
+
+    it('does not collapse punctuation-distinct prompts into the requested prompt', async () => {
+        mockAdvancingClock();
+        const staleMessages = [
+            { Role: 'User', Text: 'what now?' },
+            { Role: 'Assistant', Text: 'old answer' },
+        ];
+        const page = createResponseWaitPage([
+            staleMessages,
+            staleMessages,
+            staleMessages,
+        ]);
+
+        await expect(waitForChatGPTResponse(page, 0, 'what now!', 4, {
+            baselinePairCounts: getChatGPTResponsePairCounts([], 'what now!'),
+            conversationUrl: 'https://chatgpt.com/c/demo',
+        })).rejects.toThrow(/chatgpt ask timed out/);
+    });
+
+    it('returns a stable assistant response for the new prompt pair', async () => {
+        mockAdvancingClock();
+        const baselineMessages = [
+            { Role: 'User', Text: 'repeat this prompt' },
+            { Role: 'Assistant', Text: 'old answer' },
+        ];
+        const newMessages = [
+            ...baselineMessages,
+            { Role: 'User', Text: 'repeat this prompt' },
+            { Role: 'Assistant', Text: 'new answer' },
+        ];
+        const page = createResponseWaitPage([
+            newMessages,
+            newMessages,
+            newMessages,
+        ]);
+
+        await expect(waitForChatGPTResponse(page, baselineMessages.length, 'repeat this prompt', 10, {
+            baselinePairCounts: getChatGPTResponsePairCounts(baselineMessages, 'repeat this prompt'),
+            conversationUrl: 'https://chatgpt.com/c/demo',
+        })).resolves.toBe('new answer');
+    });
+
+    it('accepts a repeated prompt when the new response text matches a visible baseline answer', async () => {
+        mockAdvancingClock();
+        const baselineMessages = [
+            { Role: 'User', Text: 'repeat this prompt' },
+            { Role: 'Assistant', Text: 'same answer' },
+        ];
+        const newMessages = [
+            ...baselineMessages,
+            { Role: 'User', Text: 'repeat this prompt' },
+            { Role: 'Assistant', Text: 'same answer' },
+        ];
+        const page = createResponseWaitPage([
+            newMessages,
+            newMessages,
+            newMessages,
+        ]);
+
+        await expect(waitForChatGPTResponse(page, baselineMessages.length, 'repeat this prompt', 10, {
+            baselinePairCounts: getChatGPTResponsePairCounts(baselineMessages, 'repeat this prompt'),
+            conversationUrl: 'https://chatgpt.com/c/demo',
+        })).resolves.toBe('same answer');
+    });
+
+    it('fails closed when the browser drifts to another conversation while waiting', async () => {
+        mockAdvancingClock();
+        const page = createResponseWaitPage([], { url: 'https://chatgpt.com/c/other' });
+
+        await expect(waitForChatGPTResponse(page, 0, 'hello', 4, {
+            conversationUrl: 'https://chatgpt.com/c/demo',
+        })).rejects.toThrow(/navigated away from the target conversation/);
+    });
+});
+
 describe('chatgpt generation state', () => {
     it('detects zh-CN thinking status text', async () => {
         const page = {
@@ -396,7 +538,7 @@ describe('chatgpt send selectors', () => {
 });
 
 describe('chatgpt generated image detection', () => {
-    function createDomPage(html, setup = () => {}) {
+    function createDomPage(html, setup = () => { }) {
         const dom = new JSDOM(html, {
             url: 'https://chatgpt.com/c/demo',
             runScripts: 'outside-only',

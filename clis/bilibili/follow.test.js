@@ -18,6 +18,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
 
 import { getRegistry } from '@jackwener/opencli/registry';
 import './follow.js';
+import './unfollow.js';
 
 describe('bilibili follow', () => {
     const command = getRegistry().get('bilibili/follow');
@@ -34,6 +35,7 @@ describe('bilibili follow', () => {
     it('follows a user by numeric uid', async () => {
         mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
         mockApiPost.mockResolvedValueOnce({ code: 0, data: {} });
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 2 } });
 
         const result = await command.func({}, { target: '9617619' });
 
@@ -50,6 +52,7 @@ describe('bilibili follow', () => {
     it('extracts uid from a space.bilibili.com URL without calling resolveUid', async () => {
         mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
         mockApiPost.mockResolvedValueOnce({ code: 0, data: {} });
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 2 } });
 
         await command.func({}, { target: 'https://space.bilibili.com/9617619' });
 
@@ -63,6 +66,7 @@ describe('bilibili follow', () => {
         mockResolveUid.mockResolvedValueOnce('555');
         mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
         mockApiPost.mockResolvedValueOnce({ code: 0, data: {} });
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 6 } });
 
         const result = await command.func({}, { target: '某up主' });
 
@@ -101,6 +105,12 @@ describe('bilibili follow', () => {
         expect(mockGetSelfUid).not.toHaveBeenCalled();
     });
 
+    it('rejects malformed Bilibili profile URLs instead of searching the whole URL', async () => {
+        await expect(command.func({}, { target: 'https://space.bilibili.com/not-a-uid' })).rejects.toBeInstanceOf(ArgumentError);
+        expect(mockResolveUid).not.toHaveBeenCalled();
+        expect(mockFetchJson).not.toHaveBeenCalled();
+    });
+
     it('propagates EmptyResultError when resolveUid finds no user', async () => {
         mockResolveUid.mockRejectedValueOnce(new EmptyResultError('bilibili user search'));
 
@@ -122,6 +132,21 @@ describe('bilibili follow', () => {
         await expect(command.func({}, { target: '9617619' })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
+    it('requires the relation to verify as following after modify succeeds', async () => {
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
+        mockApiPost.mockResolvedValueOnce({ code: 0, data: {} });
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
+
+        await expect(command.func({}, { target: '9617619' })).rejects.toThrow(/did not verify following/);
+    });
+
+    it('throws when relation query returns malformed attribute', async () => {
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: {} });
+
+        await expect(command.func({}, { target: '9617619' })).rejects.toThrow(/malformed attribute/);
+        expect(mockApiPost).not.toHaveBeenCalled();
+    });
+
     it('throws CommandExecutionError with the upstream code on non-auth modify failure', async () => {
         mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
         mockApiPost.mockResolvedValueOnce({ code: 22002, message: 'follow too fast' });
@@ -131,5 +156,48 @@ describe('bilibili follow', () => {
 
     it('throws when no browser session is provided', async () => {
         await expect(command.func(null, { target: '9617619' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+});
+
+describe('bilibili unfollow', () => {
+    const command = getRegistry().get('bilibili/unfollow');
+
+    beforeEach(() => {
+        mockApiPost.mockReset();
+        mockFetchJson.mockReset();
+        mockGetSelfUid.mockReset();
+        mockResolveUid.mockReset();
+        mockResolveUid.mockImplementation(async (_page, input) => String(input));
+        mockGetSelfUid.mockResolvedValue('11111111');
+    });
+
+    it('unfollows a followed user and verifies the relation flipped', async () => {
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 2 } });
+        mockApiPost.mockResolvedValueOnce({ code: 0, data: {} });
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
+
+        const result = await command.func({}, { target: '9617619' });
+
+        expect(mockApiPost).toHaveBeenCalledWith({}, '/x/relation/modify', {
+            params: { fid: '9617619', act: 2, re_src: 11 },
+        });
+        expect(result[0].status).toBe('unfollowed');
+    });
+
+    it('returns not-following without calling modify when already not following', async () => {
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 0 } });
+
+        const result = await command.func({}, { target: '9617619' });
+
+        expect(mockApiPost).not.toHaveBeenCalled();
+        expect(result[0].status).toBe('not-following');
+    });
+
+    it('requires the relation to verify as not-following after modify succeeds', async () => {
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 6 } });
+        mockApiPost.mockResolvedValueOnce({ code: 0, data: {} });
+        mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 6 } });
+
+        await expect(command.func({}, { target: '9617619' })).rejects.toThrow(/did not verify not following/);
     });
 });

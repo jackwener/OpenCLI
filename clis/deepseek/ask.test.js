@@ -302,10 +302,64 @@ describe('deepseek ask conversation resume', () => {
     })).rejects.toMatchObject(new CliError(
       'ARGUMENT',
       'DeepSeek vision mode does not support --search.',
-      'Run without --search, or use --model instant/expert for web search.',
+      'Run without --search, or use --model instant for web search.',
       EXIT_CODES.USAGE_ERROR,
     ));
 
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockEnsureOnDeepSeek).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSetFeature).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockSendWithFile).not.toHaveBeenCalled();
+  });
+
+  it('skips search toggle in expert mode when search is not requested', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(0);
+    mockWaitForResponse.mockResolvedValue('expert reply');
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+
+    const rows = await askCommand.func(page, {
+      prompt: 'analyze',
+      timeout: 120,
+      new: false,
+      model: 'expert',
+      think: false,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'expert reply' }]);
+    expect(mockSetFeature).toHaveBeenCalledTimes(1);
+    expect(mockSetFeature).toHaveBeenCalledWith(expect.anything(), 'DeepThink', false);
+  });
+
+  it('fails fast instead of silently ignoring --search in expert mode', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+
+    await expect(askCommand.func(page, {
+      prompt: 'analyze',
+      timeout: 120,
+      new: false,
+      model: 'expert',
+      think: false,
+      search: true,
+    })).rejects.toMatchObject(new CliError(
+      'ARGUMENT',
+      'DeepSeek expert mode does not support --search.',
+      'Run without --search, or use --model instant for web search.',
+      EXIT_CODES.USAGE_ERROR,
+    ));
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockEnsureOnDeepSeek).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSetFeature).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockSendWithFile).not.toHaveBeenCalled();
   });

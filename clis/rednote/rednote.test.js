@@ -77,6 +77,24 @@ describe('rednote note URL identity', () => {
         expect(page.goto).not.toHaveBeenCalled();
     });
 
+    it('does not leak the shared xiaohongshu authorHrefRaw transport field from comments rows', async () => {
+        const page = createPageMock({
+            loginWall: false,
+            results: [
+                { author: 'Alice', authorHrefRaw: '/user/profile/alice1', text: 'Nice', likes: 1, time: 'today', is_reply: false, reply_to: '' },
+            ],
+        });
+        const rows = await comments.func(page, {
+            'note-id': 'https://www.rednote.com/search_result/69aadbcb000000002202f131?xsec_token=abc',
+            limit: 20,
+        });
+
+        expect(rows).toEqual([
+            { rank: 1, author: 'Alice', text: 'Nice', likes: 1, time: 'today', is_reply: false, reply_to: '' },
+        ]);
+        expect(rows[0]).not.toHaveProperty('authorHrefRaw');
+    });
+
     it('uses URL-scoped rednote cookies when downloading media', async () => {
         const page = createPageMock({
             noteId: '69bc166f000000001a02069a',

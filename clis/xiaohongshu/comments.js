@@ -8,15 +8,32 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
-import { normalizeXhsUserId } from './user-helpers.js';
 
 const XHS_PROFILE_HREF_SELECTOR = '.author-wrapper a[href*="/user/profile/"], a.name[href*="/user/profile/"], a.user-name[href*="/user/profile/"], a[href*="/user/profile/"]';
 
-export function buildXhsProfileUrl(href, webHost = 'www.xiaohongshu.com') {
+export function parseXhsProfileHref(href, webHost = 'www.xiaohongshu.com') {
     const raw = typeof href === 'string' ? href.trim() : '';
     if (!raw)
         return '';
-    const userId = normalizeXhsUserId(raw);
+    const expectedHost = String(webHost || 'www.xiaohongshu.com').toLowerCase();
+    let parsed;
+    try {
+        parsed = new URL(raw, `https://${expectedHost}`);
+    }
+    catch {
+        return '';
+    }
+    if (parsed.protocol !== 'https:')
+        return '';
+    const host = parsed.hostname.toLowerCase();
+    if (host !== expectedHost)
+        return '';
+    const match = parsed.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]+)\/?$/);
+    return match?.[1] ?? '';
+}
+
+export function buildXhsProfileUrl(href, webHost = 'www.xiaohongshu.com') {
+    const userId = parseXhsProfileHref(href, webHost);
     if (!userId)
         return '';
     return `https://${webHost}/user/profile/${userId}`;
@@ -117,25 +134,25 @@ export function buildCommentsExtractJs(withReplies) {
           if (!item) continue
 
           const author = clean(item.querySelector('.author-wrapper .name, .user-name'))
-          const authorHref = extractAuthorHref(item)
+          const authorHrefRaw = extractAuthorHref(item)
           const text = clean(item.querySelector('.content, .note-text'))
           const likes = parseLikes(item.querySelector('.count'))
           const time = clean(item.querySelector('.date, .time'))
 
           if (!text) continue
-          results.push({ author, authorHref, text, likes, time, is_reply: false, reply_to: '' })
+          results.push({ author, authorHrefRaw, text, likes, time, is_reply: false, reply_to: '' })
 
           // Extract nested replies (楼中楼)
           if (withReplies) {
             await expandReplyThreads(p)
             p.querySelectorAll('.reply-container .comment-item-sub, .sub-comment-list .comment-item').forEach(sub => {
               const sAuthor = clean(sub.querySelector('.name, .user-name'))
-              const sAuthorHref = extractAuthorHref(sub)
+              const sAuthorHrefRaw = extractAuthorHref(sub)
               const sText = clean(sub.querySelector('.content, .note-text'))
               const sLikes = parseLikes(sub.querySelector('.count'))
               const sTime = clean(sub.querySelector('.date, .time'))
               if (!sText) return
-              results.push({ author: sAuthor, authorHref: sAuthorHref, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author })
+              results.push({ author: sAuthor, authorHrefRaw: sAuthorHrefRaw, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author })
             })
           }
         }
@@ -180,12 +197,19 @@ export const command = cli({
         // noteId currently unused after parsing — kept for symmetry with the note command
         void noteId;
         const all = data.results ?? [];
-        const enrich = (c, i) => {
-            const { authorHref, ...rest } = c;
-            const userId = authorHref ? normalizeXhsUserId(authorHref) : '';
-            const profileUrl = userId ? buildXhsProfileUrl(authorHref) : '';
-            return { rank: i + 1, author: rest.author, userId, profileUrl, text: rest.text, likes: rest.likes, time: rest.time, is_reply: rest.is_reply, reply_to: rest.reply_to };
-        };
+        // authorHrefRaw is a raw transport field from the extractor; it is consumed
+        // here into userId / profileUrl and intentionally not part of the row shape.
+        const enrich = (c, i) => ({
+            rank: i + 1,
+            author: c.author,
+            userId: c.authorHrefRaw ? parseXhsProfileHref(c.authorHrefRaw) : '',
+            profileUrl: c.authorHrefRaw ? buildXhsProfileUrl(c.authorHrefRaw) : '',
+            text: c.text,
+            likes: c.likes,
+            time: c.time,
+            is_reply: c.is_reply,
+            reply_to: c.reply_to,
+        });
         // When limiting, count only top-level comments; their replies are included for free
         if (withReplies) {
             const limited = [];
