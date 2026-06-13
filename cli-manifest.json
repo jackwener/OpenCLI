@@ -13172,7 +13172,7 @@
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "ephemeral"
   },
   {
     "site": "gemini",

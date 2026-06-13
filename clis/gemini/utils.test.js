@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, sendGeminiMessage, } from './utils.js';
+import { __test__, collectGeminiTranscriptAdditions, ensureGeminiConversation, getGeminiConversationList, getGeminiPageState, getGeminiVisibleImageUrls, getGeminiVisibleTurns, parseGeminiConversationId, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, sendGeminiMessage, waitForGeminiConversationId, } from './utils.js';
 function createPageMock() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -60,6 +60,58 @@ describe('collectGeminiTranscriptAdditions', () => {
         const before = ['baseline'];
         const current = ['baseline', '关于“请只回复：OK”，这里是解释。'];
         expect(collectGeminiTranscriptAdditions(before, current, prompt)).toBe('关于“请只回复：OK”，这里是解释。');
+    });
+});
+describe('gemini image chat-id anchoring', () => {
+    it('parseGeminiConversationId extracts the id only from a /app/<id> url', () => {
+        expect(parseGeminiConversationId('https://gemini.google.com/app/abc123')).toBe('abc123');
+        expect(parseGeminiConversationId('https://gemini.google.com/app/abc123/')).toBe('abc123');
+        expect(parseGeminiConversationId('https://gemini.google.com/app')).toBeNull();
+        expect(parseGeminiConversationId('https://example.com/app/abc123')).toBeNull();
+        expect(parseGeminiConversationId('')).toBeNull();
+    });
+    it('waitForGeminiConversationId polls the url until a conversation id is assigned', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce('https://gemini.google.com/app/conv-xyz');
+        const id = await waitForGeminiConversationId(page, 5);
+        expect(id).toBe('conv-xyz');
+    });
+    it('waitForGeminiConversationId returns null when no id appears before timeout', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        evaluate.mockResolvedValue('https://gemini.google.com/app');
+        const id = await waitForGeminiConversationId(page, 2);
+        expect(id).toBeNull();
+    });
+    it('ensureGeminiConversation navigates back when the page drifted to another chat', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const goto = vi.mocked(page.goto);
+        evaluate.mockResolvedValueOnce('https://gemini.google.com/app/other-chat');
+        await ensureGeminiConversation(page, 'mine');
+        expect(goto).toHaveBeenCalledWith('https://gemini.google.com/app/mine', expect.anything());
+    });
+    it('ensureGeminiConversation does not navigate when already on the target chat', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const goto = vi.mocked(page.goto);
+        evaluate.mockResolvedValueOnce('https://gemini.google.com/app/mine');
+        await ensureGeminiConversation(page, 'mine');
+        expect(goto).not.toHaveBeenCalled();
+    });
+    it('getGeminiVisibleImageUrls re-anchors to the owning conversation before scanning', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const goto = vi.mocked(page.goto);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app/other')
+            .mockResolvedValueOnce(['blob:img1']);
+        const urls = await getGeminiVisibleImageUrls(page, 'mine');
+        expect(goto).toHaveBeenCalledWith('https://gemini.google.com/app/mine', expect.anything());
+        expect(urls).toEqual(['blob:img1']);
     });
 });
 describe('gemini send strategy', () => {
