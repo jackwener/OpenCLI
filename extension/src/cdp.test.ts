@@ -63,6 +63,42 @@ describe('cdp attach recovery', () => {
     expect(scripting.executeScript).not.toHaveBeenCalled();
   });
 
+  it('enables page events after attaching so native dialogs can be observed', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await mod.evaluate(1, '1');
+
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Page.enable',
+    );
+  });
+
+  it('auto-accepts beforeunload dialogs from Chrome', async () => {
+    const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerListeners();
+
+    expect(debuggerEventListeners.length).toBeGreaterThanOrEqual(1);
+    for (const listener of debuggerEventListeners) {
+      await listener(
+        { tabId: 1 },
+        'Page.javascriptDialogOpening',
+        { type: 'beforeunload', message: 'Changes you made may not be saved.' },
+      );
+    }
+
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
+      { tabId: 1 },
+      'Page.handleJavaScriptDialog',
+      { accept: true },
+    );
+  });
+
   it('uses the default execution context for a frame when isolated worlds also exist', async () => {
     const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

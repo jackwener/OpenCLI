@@ -13,6 +13,7 @@ let frameTargetCleanupRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 const networkCaptures = /* @__PURE__ */ new Map();
+const autoHandledDialogs = /* @__PURE__ */ new Map();
 function isDebuggableUrl$1(url) {
   if (!url) return true;
   return url.startsWith("http://") || url.startsWith("https://") || url === "about:blank" || url.startsWith("data:");
@@ -87,6 +88,19 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
     await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
   } catch {
   }
+  try {
+    await chrome.debugger.sendCommand({ tabId }, "Page.enable");
+  } catch {
+  }
+}
+function rememberAutoHandledDialog(tabId, type, message) {
+  const existing = autoHandledDialogs.get(tabId);
+  autoHandledDialogs.set(tabId, {
+    count: (existing?.count ?? 0) + 1,
+    lastType: type,
+    lastMessage: message,
+    lastAt: Date.now()
+  });
 }
 async function evaluate(tabId, expression, aggressiveRetry = false) {
   const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
@@ -495,6 +509,7 @@ function registerListeners() {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    autoHandledDialogs.delete(tabId);
     clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
@@ -502,6 +517,7 @@ function registerListeners() {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      autoHandledDialogs.delete(source.tabId);
       clearFrameTargetsForTab(source.tabId);
       return;
     }
@@ -515,9 +531,23 @@ function registerListeners() {
   chrome.debugger.onEvent.addListener(async (source, method, params) => {
     const tabId = source.tabId;
     if (!tabId) return;
+    const eventParams = params;
+    if (method === "Page.javascriptDialogOpening") {
+      const type = String(eventParams?.type || "");
+      const message = String(eventParams?.message || "");
+      if (type === "beforeunload") {
+        try {
+          await chrome.debugger.sendCommand({ tabId }, "Page.handleJavaScriptDialog", { accept: true });
+          rememberAutoHandledDialog(tabId, type, message);
+          console.warn(`[opencli] auto-accepted beforeunload dialog for tab ${tabId}: ${message || "Leave site?"}`);
+        } catch (err) {
+          console.warn(`[opencli] failed to auto-accept beforeunload dialog for tab ${tabId}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      return;
+    }
     const state = networkCaptures.get(tabId);
     if (!state) return;
-    const eventParams = params;
     if (method === "Network.requestWillBeSent") {
       const requestId = String(eventParams?.requestId || "");
       const request = eventParams?.request;
