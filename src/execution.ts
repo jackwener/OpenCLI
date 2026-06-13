@@ -110,8 +110,12 @@ async function runCommand(
         const stat = fs.statSync(modulePath);
         const prevMtime = _moduleMtimes.get(modulePath);
         if (prevMtime !== undefined && stat.mtimeMs !== prevMtime) {
+          // Drop only the load promise — keep the mtime entry. The
+          // cache-buster gate below keys off `_moduleMtimes.has(...)`;
+          // deleting it here makes the re-import fall back to the bare
+          // URL, so Node's ESM loader returns the already-cached (stale)
+          // module instead of the edited one — defeating hot-reload.
           _loadedModules.delete(modulePath);
-          _moduleMtimes.delete(modulePath);
         }
       } catch { /* file may have been deleted; let import below handle it */ }
     }
