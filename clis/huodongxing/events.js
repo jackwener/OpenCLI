@@ -43,7 +43,43 @@ function dateOrdinal(year, month, day) {
 function parseYmd(value) {
   const match = cleanText(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
-  return dateOrdinal(Number(match[1]), Number(match[2]), Number(match[3]));
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return dateOrdinal(year, month, day);
+}
+
+function requireYmdArg(value, label) {
+  const text = cleanText(value);
+  if (!text) return '';
+  if (parseYmd(text) == null) {
+    throw new ArgumentError(`huodongxing ${label} must be a valid YYYY-MM-DD date`);
+  }
+  return text;
+}
+
+function requireDateRangeArgs(args = {}) {
+  const date = requireYmdArg(args.date, 'date');
+  const dateTo = requireYmdArg(args.dateTo, 'dateTo');
+  if (date && dateTo && parseYmd(date) > parseYmd(dateTo)) {
+    throw new ArgumentError('huodongxing date must be <= dateTo');
+  }
+  return { date, dateTo };
+}
+
+function unwrapEvaluateResult(payload) {
+  if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
+    return payload.data;
+  }
+  return payload;
 }
 
 function localDateOrdinal(date) {
@@ -97,6 +133,7 @@ function parseEventTimeRange(timeText, options = {}) {
 }
 
 export function filterRowsByDateRange(rows, options = {}) {
+  requireDateRangeArgs(options);
   const filterStart = parseYmd(options.date);
   const filterEnd = parseYmd(options.dateTo) ?? filterStart;
   if (filterStart == null && filterEnd == null) return rows;
@@ -111,11 +148,12 @@ export function filterRowsByDateRange(rows, options = {}) {
 }
 
 export function buildEventsUrl(args = {}) {
+  const dateRange = requireDateRangeArgs(args);
   const params = new URLSearchParams();
   params.set('orderby', 'o');
   params.set('d', 'ts');
-  appendIfPresent(params, 'date', args.date);
-  appendIfPresent(params, 'dateTo', args.dateTo);
+  appendIfPresent(params, 'date', dateRange.date);
+  appendIfPresent(params, 'dateTo', dateRange.dateTo);
   appendIfPresent(params, 'tag', args.tag);
   appendIfPresent(params, 'city', args.city);
   const eventType = cleanText(args.eventType);
@@ -203,6 +241,14 @@ export function extractEventRowsPayload(limit = 20) {
         hint: 'Wait a few minutes and retry from a real browser session.',
       };
     }
+    if (cards.length > 0) {
+      return {
+        ok: false,
+        code: 'MALFORMED_RESULT',
+        message: 'huodongxing events cards were found but no stable event rows could be extracted',
+        hint: 'Huodongxing card markup changed: expected event links with /event/<id> and non-empty titles.',
+      };
+    }
     return {
       ok: false,
       code: 'EMPTY_RESULT',
@@ -214,19 +260,32 @@ export function extractEventRowsPayload(limit = 20) {
 }
 
 function requireExtractionRows(result) {
-  if (result?.ok === true && Array.isArray(result.rows)) return result.rows;
-  if (result?.code === 'RATE_LIMIT') {
+  const payload = unwrapEvaluateResult(result);
+  if (payload?.ok === true && Array.isArray(payload.rows)) return payload.rows;
+  if (payload?.ok === true) {
     throw new CommandExecutionError(
-      result.message || 'huodongxing events was rate limited by www.huodongxing.com',
-      result.hint || 'Wait a few minutes and retry from a real browser session.',
+      'huodongxing events returned malformed extraction rows',
+      'Expected browser extraction payload rows to be an array.',
     );
   }
-  if (result?.code === 'INVALID_LIMIT') {
-    throw new ArgumentError(result.message || 'huodongxing limit must be a positive integer <= 50');
+  if (payload?.code === 'RATE_LIMIT') {
+    throw new CommandExecutionError(
+      payload.message || 'huodongxing events was rate limited by www.huodongxing.com',
+      payload.hint || 'Wait a few minutes and retry from a real browser session.',
+    );
   }
-  throw new EmptyResultError(
-    'huodongxing events',
-    result?.hint || 'No Huodongxing event cards were found. The page may be empty or the DOM structure may have changed.',
+  if (payload?.code === 'INVALID_LIMIT') {
+    throw new ArgumentError(payload.message || 'huodongxing limit must be a positive integer <= 50');
+  }
+  if (payload?.code === 'EMPTY_RESULT') {
+    throw new EmptyResultError(
+      'huodongxing events',
+      payload.hint || 'No Huodongxing event cards were found. The page may be empty.',
+    );
+  }
+  throw new CommandExecutionError(
+    payload?.message || 'huodongxing events returned malformed extraction data',
+    payload?.hint || 'Huodongxing extraction did not return the expected structured payload.',
   );
 }
 

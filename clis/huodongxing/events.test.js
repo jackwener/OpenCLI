@@ -79,6 +79,15 @@ const SAMPLE_HTML = `
   </body>
 </html>`;
 
+const MALFORMED_CARD_HTML = `
+<html>
+  <body>
+    <div class="search-tab-content-item-mesh">
+      <a class="item-title" href="/event/">missing stable id</a>
+    </div>
+  </body>
+</html>`;
+
 function withDocument(html, callback) {
   const dom = new JSDOM(html, { url: 'https://www.huodongxing.com/events' });
   const previousDocument = globalThis.document;
@@ -134,6 +143,12 @@ describe('huodongxing events adapter', () => {
     expect(() => requireLimit(0)).toThrow(ArgumentError);
     expect(() => requireLimit(51)).toThrow(ArgumentError);
     expect(() => buildEventsUrl({ eventType: 3 })).toThrow(ArgumentError);
+  });
+
+  it('validates date filters before navigation', () => {
+    expect(() => buildEventsUrl({ date: '2026-02-30' })).toThrow(ArgumentError);
+    expect(() => buildEventsUrl({ date: '2026/02/28' })).toThrow(ArgumentError);
+    expect(() => buildEventsUrl({ date: '2026-06-12', dateTo: '2026-06-09' })).toThrow(ArgumentError);
   });
 
   it('filters Huodongxing loose date results by parsed event date overlap', () => {
@@ -201,6 +216,11 @@ describe('huodongxing events adapter', () => {
       .toThrow(EmptyResultError);
   });
 
+  it('throws CommandExecutionError when event cards cannot produce stable rows', () => {
+    expect(() => withDocument(MALFORMED_CARD_HTML, () => extractEventRows(10)))
+      .toThrow(CommandExecutionError);
+  });
+
   it('classifies Huodongxing rate-limit pages separately from empty results', () => {
     expect(() => withDocument('<html><head><title>操作过于频繁</title></head><body>操作过于频繁</body></html>', () => extractEventRows(10)))
       .toThrow(CommandExecutionError);
@@ -217,6 +237,58 @@ describe('huodongxing events adapter', () => {
         message: 'huodongxing events was rate limited by www.huodongxing.com',
         hint: 'Wait a few minutes and retry from a real browser session.',
       }),
+    };
+
+    await expect(command.func(page, { limit: 5 })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('unwraps Browser Bridge evaluate envelopes before validating extraction rows', async () => {
+    const command = getRegistry().get('huodongxing/events');
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue({
+        session: 'adapter-window',
+        data: {
+          ok: true,
+          rows: [
+            {
+              rank: 1,
+              id: '7864377535500',
+              title: 'AI Meetup',
+              time: '06/24 周三 14:00',
+              eventType: 'offline',
+              city: '浙江杭州',
+              location: '浙江杭州',
+              organizer: 'Org',
+              url: 'https://www.huodongxing.com/event/7864377535500',
+            },
+          ],
+        },
+      }),
+    };
+
+    await expect(command.func(page, { limit: 5 })).resolves.toEqual([
+      {
+        rank: 1,
+        id: '7864377535500',
+        title: 'AI Meetup',
+        time: '06/24 周三 14:00',
+        eventType: 'offline',
+        city: '浙江杭州',
+        location: '浙江杭州',
+        organizer: 'Org',
+        url: 'https://www.huodongxing.com/event/7864377535500',
+      },
+    ]);
+  });
+
+  it('throws CommandExecutionError for malformed browser extraction payloads', async () => {
+    const command = getRegistry().get('huodongxing/events');
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue({ ok: true, rows: null }),
     };
 
     await expect(command.func(page, { limit: 5 })).rejects.toThrow(CommandExecutionError);
