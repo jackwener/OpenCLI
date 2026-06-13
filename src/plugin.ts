@@ -1044,7 +1044,12 @@ function updateStandaloneLockEntry(
  */
 export function uninstallPlugin(name: string): void {
   const targetDir = path.join(PLUGINS_DIR, name);
-  if (!fs.existsSync(targetDir)) {
+  // Use lstat (pathExistsSync), not existsSync: a monorepo sub-plugin whose
+  // symlink target was removed is a *dangling* link. existsSync follows the
+  // link and reports false, so uninstall would throw "not installed" and the
+  // user could never remove a plugin that `plugin list` still shows. The
+  // symlink branch below unlinks the dead link correctly.
+  if (!pathExistsSync(targetDir)) {
     throw new Error(`Plugin "${name}" is not installed.`);
   }
 
