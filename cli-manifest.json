@@ -3375,6 +3375,13 @@
         "default": "best",
         "required": false,
         "help": "Video quality (best, 1080p, 720p, 480p)"
+      },
+      {
+        "name": "force",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "跳过付费内容预检直接下载（已购买/已充电/已开通会员时用）"
       }
     ],
     "columns": [
