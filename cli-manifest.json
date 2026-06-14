@@ -9938,9 +9938,9 @@
       {
         "name": "timeout",
         "type": "str",
+        "default": "8",
         "required": false,
-        "help": "Seconds to wait for Discord to show the route (default: 8)",
-        "default": "8"
+        "help": "Seconds to wait for Discord to show the route (default: 8)"
       }
     ],
     "columns": [
@@ -9985,9 +9985,9 @@
       {
         "name": "count",
         "type": "str",
+        "default": "20",
         "required": false,
-        "help": "Number of messages to read (default: 20)",
-        "default": "20"
+        "help": "Number of messages to read (default: 20)"
       },
       {
         "name": "guild",
@@ -10129,9 +10129,9 @@
       {
         "name": "count",
         "type": "str",
+        "default": "20",
         "required": false,
-        "help": "Number of messages to read (default: 20)",
-        "default": "20"
+        "help": "Number of messages to read (default: 20)"
       },
       {
         "name": "guild",
@@ -10176,9 +10176,9 @@
       {
         "name": "limit",
         "type": "str",
+        "default": "30",
         "required": false,
-        "help": "Maximum thread/post cards to return (default: 30)",
-        "default": "30"
+        "help": "Maximum thread/post cards to return (default: 30)"
       },
       {
         "name": "guild",
