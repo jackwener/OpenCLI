@@ -9872,7 +9872,10 @@
     "columns": [
       "Index",
       "Channel",
-      "Type"
+      "Type",
+      "guild_id",
+      "channel_id",
+      "url"
     ],
     "type": "js",
     "modulePath": "discord-app/channels.js",
@@ -9907,6 +9910,52 @@
   },
   {
     "site": "discord-app",
+    "name": "goto",
+    "description": "Open a Discord channel by id/name/url without sending messages",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Guild/server id or visible name"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Channel id or visible name"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord channel URL"
+      },
+      {
+        "name": "timeout",
+        "type": "str",
+        "required": false,
+        "help": "Seconds to wait for Discord to show the route (default: 8)",
+        "default": "8"
+      }
+    ],
+    "columns": [
+      "Status",
+      "guild_id",
+      "channel_id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "discord-app/goto.js",
+    "sourceFile": "discord-app/goto.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "discord-app",
     "name": "members",
     "description": "List online members in the current Discord channel",
     "access": "read",
@@ -9927,7 +9976,7 @@
   {
     "site": "discord-app",
     "name": "read",
-    "description": "Read recent messages from the active Discord channel",
+    "description": "Read recent messages from the active or targeted Discord channel",
     "access": "read",
     "domain": "localhost",
     "strategy": "ui",
@@ -9936,15 +9985,35 @@
       {
         "name": "count",
         "type": "str",
-        "default": "20",
         "required": false,
-        "help": "Number of messages to read (default: 20)"
+        "help": "Number of messages to read (default: 20)",
+        "default": "20"
+      },
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Guild/server id or visible name for targeted reads"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Channel id or visible name for targeted reads"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord channel URL to open before reading"
       }
     ],
     "columns": [
       "Author",
       "Time",
-      "Message"
+      "Message",
+      "channel_id",
+      "message_id"
     ],
     "type": "js",
     "modulePath": "discord-app/read.js",
@@ -10014,7 +10083,9 @@
     "args": [],
     "columns": [
       "Index",
-      "Server"
+      "Server",
+      "guild_id",
+      "url"
     ],
     "type": "js",
     "modulePath": "discord-app/servers.js",
@@ -10038,6 +10109,110 @@
     "type": "js",
     "modulePath": "discord-app/status.js",
     "sourceFile": "discord-app/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "discord-app",
+    "name": "thread-read",
+    "description": "Read recent messages from a Discord thread/post by id or URL",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread",
+        "type": "str",
+        "required": false,
+        "help": "Thread/post id, or a full Discord thread/post URL"
+      },
+      {
+        "name": "count",
+        "type": "str",
+        "required": false,
+        "help": "Number of messages to read (default: 20)",
+        "default": "20"
+      },
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Parent guild/server id or visible name"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Parent forum/channel id or visible name"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord thread/post URL"
+      }
+    ],
+    "columns": [
+      "Author",
+      "Time",
+      "Message",
+      "channel_id",
+      "message_id"
+    ],
+    "type": "js",
+    "modulePath": "discord-app/thread-read.js",
+    "sourceFile": "discord-app/thread-read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "discord-app",
+    "name": "threads",
+    "description": "List visible Discord forum/thread posts in the active or targeted channel",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "str",
+        "required": false,
+        "help": "Maximum thread/post cards to return (default: 30)",
+        "default": "30"
+      },
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Guild/server id or visible name for targeted thread listing"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Forum/channel id or visible name for targeted thread listing"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord forum/channel URL to open before listing threads"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Thread",
+      "Author",
+      "Updated",
+      "Preview",
+      "guild_id",
+      "channel_id",
+      "thread_id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "discord-app/threads.js",
+    "sourceFile": "discord-app/threads.js",
     "navigateBefore": true
   },
   {
