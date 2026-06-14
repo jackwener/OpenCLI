@@ -17,9 +17,10 @@ import { render as renderOutput } from './output.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled, formatExternalCliLabel } from './external.js';
+import { listOpenCliSkills, readOpenCliSkill } from './skills.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
-import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
+import { EXIT_CODES, getErrorMessage, BrowserConnectError, CliError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
 import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type FindError, type SemanticFindOptions } from './browser/find.js';
@@ -795,6 +796,49 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       const r = await verifyClis({ builtinClis: BUILTIN_CLIS, userClis: USER_CLIS, target, smoke: opts.smoke });
       console.log(renderVerifyReport(r));
       process.exitCode = r.ok ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERIC_ERROR;
+    });
+
+  const skillsCmd = program
+    .command('skills')
+    .description('Read bundled OpenCLI skills');
+
+  skillsCmd
+    .command('list')
+    .description('List bundled opencli-* skills')
+    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+    .action((opts) => {
+      const rows = listOpenCliSkills();
+      renderOutput(rows, {
+        fmt: opts.format,
+        fmtExplicit: !!opts.format,
+        columns: ['name', 'description', 'version', 'path'],
+        title: 'opencli/skills/list',
+        source: 'opencli skills list',
+      });
+    });
+
+  skillsCmd
+    .command('read')
+    .description("Print an opencli-* skill's SKILL.md or reference file")
+    .argument('<skill>', 'Skill name, or skill/path like opencli-browser/references/foo.md')
+    .argument('[path]', 'Path under the skill directory')
+    .option('--json', 'Output a JSON envelope instead of raw markdown', false)
+    .action((skill: string, skillPath: string | undefined, opts) => {
+      let result: ReturnType<typeof readOpenCliSkill>;
+      try {
+        result = readOpenCliSkill(skill, skillPath ?? '');
+      } catch (err) {
+        console.error(`Error: ${getErrorMessage(err)}`);
+        if (err instanceof CliError && err.hint) console.error(`Hint: ${err.hint}`);
+        process.exitCode = err instanceof CliError ? err.exitCode : EXIT_CODES.GENERIC_ERROR;
+        return;
+      }
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      process.stdout.write(result.content);
+      if (!result.content.endsWith('\n')) process.stdout.write('\n');
     });
 
   const authCmd = registerAuthCommands(program);

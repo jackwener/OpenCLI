@@ -33,6 +33,7 @@
   "files": [
     "dist/src/",
     "clis/",
+    "skills/opencli-*/**",
     "cli-manifest.json",
     "scripts/",
     "README.md",
