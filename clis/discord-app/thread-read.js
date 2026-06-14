@@ -25,7 +25,7 @@ export const threadReadCommand = cli({
     func: async (page, kwargs) => {
         const count = parsePositiveInt(kwargs.count, 20, 'count');
         const target = await resolveDiscordThreadTarget(page, kwargs);
-        await navigateToDiscordTarget(page, target);
+        await navigateToDiscordTarget(page, target, { waitForContent: 'messages' });
         const rows = await readDiscordMessages(page, count);
         if (rows.length === 0) {
             return [{ Author: 'System', Time: '', Message: 'No messages found in the selected thread.', channel_id: target.channel_id, message_id: '' }];

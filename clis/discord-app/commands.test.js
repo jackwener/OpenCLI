@@ -159,6 +159,37 @@ describe('discord-app targeted reads', () => {
         expect(page.goto).toHaveBeenCalledWith('https://discord.com/channels/111/222', { waitUntil: 'none', settleMs: 1000 });
     });
 
+    it('read --url waits for the message list after route navigation', async () => {
+        const cmd = getRegistry().get('discord-app/read');
+        let routeStateCalls = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn(async (script) => {
+                if (script.includes('__opencliDiscordRouteState')) {
+                    routeStateCalls += 1;
+                    return {
+                        url: 'https://discord.com/channels/111/222',
+                        route: { guild_id: '111', channel_id: '222', thread_id: '' },
+                        has_messages: routeStateCalls >= 3,
+                        has_threads: false,
+                        has_header: true,
+                    };
+                }
+                if (script.includes('__opencliDiscordReadMessages')) {
+                    return [{ Author: 'Ada', Time: '', Message: 'hydrated', channel_id: '222', message_id: '999' }];
+                }
+                throw new Error(`unexpected evaluate script: ${script.slice(0, 80)}`);
+            }),
+        };
+
+        await expect(cmd.func(page, { url: 'https://discord.com/channels/111/222', count: '1' }))
+            .resolves.toEqual([{ Author: 'Ada', Time: '', Message: 'hydrated', channel_id: '222', message_id: '999' }]);
+
+        expect(page.wait).toHaveBeenCalledWith(0.5);
+        expect(routeStateCalls).toBeGreaterThanOrEqual(2);
+    });
+
     it('goto builds numeric guild/channel routes without reading channel DOM', async () => {
         const cmd = getRegistry().get('discord-app/goto');
         const page = createRoutePage({

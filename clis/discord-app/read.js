@@ -22,7 +22,7 @@ export const readCommand = cli({
     columns: ['Author', 'Time', 'Message', 'channel_id', 'message_id'],
     func: async (page, kwargs) => {
         const count = parsePositiveInt(kwargs.count, 20, 'count');
-        await maybeNavigateToDiscordChannel(page, kwargs);
+        await maybeNavigateToDiscordChannel(page, kwargs, { waitForContent: 'messages' });
         const messages = await readDiscordMessages(page, count);
         if (messages.length === 0) {
             return [{ Author: 'System', Time: '', Message: 'No messages found in the current channel.' }];

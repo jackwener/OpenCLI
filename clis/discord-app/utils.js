@@ -434,9 +434,32 @@ export async function waitForDiscordRoute(page, target, options = {}) {
     );
 }
 
+export async function waitForDiscordContent(page, kind = 'messages', options = {}) {
+    const timeoutMs = options.timeoutMs ?? 5000;
+    const intervalSeconds = options.intervalSeconds ?? 0.5;
+    const started = Date.now();
+    let lastState = null;
+
+    while (Date.now() - started <= timeoutMs) {
+        lastState = await page.evaluate(buildRouteStateScript());
+        if (kind === 'messages' && lastState?.has_messages) return lastState;
+        if (kind === 'threads' && lastState?.has_threads) return lastState;
+        await page.wait(intervalSeconds);
+    }
+
+    return lastState;
+}
+
 export async function navigateToDiscordTarget(page, target, options = {}) {
     await page.goto(target.url, { waitUntil: 'none', settleMs: options.settleMs ?? 1000 });
-    return waitForDiscordRoute(page, target, options);
+    const state = await waitForDiscordRoute(page, target, options);
+    if (options.waitForContent === 'messages' || options.waitForContent === 'threads') {
+        return waitForDiscordContent(page, options.waitForContent, {
+            timeoutMs: options.contentTimeoutMs ?? 5000,
+            intervalSeconds: options.intervalSeconds ?? 0.5,
+        });
+    }
+    return state;
 }
 
 export async function maybeNavigateToDiscordChannel(page, kwargs = {}, options = {}) {

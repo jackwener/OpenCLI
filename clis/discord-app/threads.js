@@ -22,7 +22,7 @@ export const threadsCommand = cli({
     columns: ['Index', 'Thread', 'Author', 'Updated', 'Preview', 'guild_id', 'channel_id', 'thread_id', 'url'],
     func: async (page, kwargs) => {
         const limit = parsePositiveInt(kwargs.limit, 30, 'limit');
-        await maybeNavigateToDiscordChannel(page, kwargs);
+        await maybeNavigateToDiscordChannel(page, kwargs, { waitForContent: 'threads', contentTimeoutMs: 3000 });
         const rows = await listDiscordThreads(page, limit);
         if (rows.length === 0) {
             return [{
