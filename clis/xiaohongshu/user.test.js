@@ -112,6 +112,17 @@ describe('xiaohongshu user command', () => {
         expect(rows[0].id).toBe('aaa');
     });
 
+    it('滚动续读时被重定向到登录墙 → 抛 AUTH_REQUIRED', async () => {
+        const page = createPageMock(vi
+            .fn()
+            .mockResolvedValueOnce(snap({ noteGroups: [[noteEntry('aaa')]] }))
+            .mockResolvedValueOnce(LOGIN_WALL_SNAP));
+        await expect(command.func(page, { id: 'someuser', limit: 5 })).rejects.toMatchObject({
+            code: 'AUTH_REQUIRED',
+        });
+        expect(page.autoScroll).toHaveBeenCalledTimes(1);
+    });
+
     it('真·空号 → 抛 EMPTY_RESULT', async () => {
         const page = createPageMock(vi.fn().mockResolvedValue(EMPTY_GROUPS_SNAP));
         await expect(command.func(page, { id: 'emptyuser', limit: 5 })).rejects.toMatchObject({
