@@ -1,7 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, extractQuotedTweet, normalizeTwitterGraphqlPayload, unwrapBrowserResult } from './shared.js';
-import { normalizeTwitterScreenName } from './shared.js';
+import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, extractQuotedTweet, normalizeTwitterGraphqlPayload, unwrapBrowserResult, normalizeTwitterScreenName, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
 const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';
@@ -227,7 +226,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max tweets to return' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the chronological ordering.' },
     ],
-    columns: ['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'quoted_tweet'],
+    columns: ['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet'],
     func: async (page, kwargs) => {
         const limit = Math.max(1, Math.min(200, kwargs.limit || 20));
         const rawUsername = String(kwargs.username ?? '').trim();
@@ -291,7 +290,7 @@ cli({
         return r.ok ? await r.json() : { error: r.status };
       }`));
             if (data?.error) {
-                if (all.length === 0) throw new CommandExecutionError(`HTTP ${data.error}: UserTweets fetch failed — queryId may have expired`);
+                if (all.length === 0) throw new CommandExecutionError(describeTwitterApiError('UserTweets', data.error));
                 break;
             }
             const { tweets, nextCursor } = parseUserTweets(data, seen);

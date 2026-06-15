@@ -67,7 +67,8 @@ function extractDoubanPublishYear(value) {
     const match = normalizeText(value).match(/\b(19|20)\d{2}\b/);
     return match?.[0] || '';
 }
-function splitDoubanTitle(fullTitle) {
+export function splitDoubanTitle(fullTitle) {
+    const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
     const normalized = normalizeText(fullTitle);
     if (!normalized)
         return { title: '', originalTitle: '' };

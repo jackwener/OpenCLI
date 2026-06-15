@@ -727,8 +727,8 @@ cli({
     browser: true,
     navigateBefore: false,
     args: [
-        { name: 'title', required: true, help: '笔记标题 (最多20字)' },
         { name: 'content', required: true, positional: true, help: '笔记正文' },
+        { name: 'title', required: true, help: '笔记标题 (最多20字)' },
         { name: 'images', required: true, help: '图片路径，逗号分隔，最多9张 (jpg/png/gif/webp)' },
         { name: 'topics', required: false, help: '话题标签，逗号分隔，不含 # 号' },
         { name: 'draft', type: 'bool', default: false, help: '保存为草稿，不直接发布' },
