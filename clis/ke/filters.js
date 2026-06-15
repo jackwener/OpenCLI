@@ -4,23 +4,25 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 export const ORIENTATION = {
   'south-north': 'f5', south: 'f2', east: 'f1', north: 'f4', west: 'f3',
 };
+// ⚠️ FLOOR codes are still unverified guesses (left blank during live verification).
 export const FLOOR = { low: 'lc1', mid: 'lc2', high: 'lc3' };
 export const AGE = { '5': 'y1', '10': 'y2', '15': 'y3', '20': 'y4', '20+': 'y5' };
+// de3 (rough/毛坯) verified; de1/de2 (精装/普通) still unverified guesses.
 export const DECORATION = { fine: 'de1', simple: 'de2', rough: 'de3' };
-export const ELEVATOR = { yes: 'ie1', no: 'ie2' };
+export const ELEVATOR = { yes: 'ie2', no: 'ie1' };
 // 房源特色 (multi-select). Iteration order here IS the emit order.
 export const FEATURES = {
-  'must-see': 'ng1',
+  'must-see': 'tt9',
   'five-years': 'mw1',
-  'two-years': 'mw2',
-  'near-subway': 'nb1',
-  vr: 'vr1',
-  'new-7d': 'nd1',
-  'anytime-view': 'av1',
+  'two-years': 'ty1',
+  'near-subway': 'su1',
+  vr: 'tt8',
+  'new-7d': 'tt2',
+  'anytime-view': 'tt4',
 };
 export const USAGE = {
   residential: 'sf1', commercial: 'sf2', villa: 'sf3',
-  courtyard: 'sf4', parking: 'sf5', other: 'sf6',
+  courtyard: 'sf4', parking: 'sf6', other: 'sf5',
 };
 export const SORT = {
   newest: 'co32',
@@ -28,8 +30,8 @@ export const SORT = {
   'total-price-desc': 'co22',
   'unit-price-asc': 'co41',
   'unit-price-desc': 'co42',
-  'area-asc': 'co51',
-  'area-desc': 'co52',
+  'area-asc': 'co11',
+  'area-desc': 'co12',
 };
 
 function lookup(table, key) {
@@ -72,7 +74,11 @@ function featuresCode(raw) {
   return Object.keys(FEATURES).filter((k) => requested.has(k)).map((k) => FEATURES[k]).join('');
 }
 
-// Canonical left-to-right order Beike concatenates prefixes in (confirmed in Task 1).
+// Canonical left-to-right order Beike concatenates prefixes in.
+// Verified anchors: co < features < elevator < area < rooms < price; co < decoration < rooms
+// (from co32de3l3, de3l3p1, co32mw1ie2ba79ea90l3). The relative positions of
+// orientation/floor/age/usage are inferred from the UI grouping and satisfy every
+// observed constraint; pin them with one more multi-filter URL if needed.
 const SEGMENT_PRODUCERS = [
   (k) => lookup(SORT, k.sort),
   (k) => featuresCode(k.features),
@@ -82,9 +88,9 @@ const SEGMENT_PRODUCERS = [
   (k) => lookup(DECORATION, k.decoration),
   (k) => lookup(ELEVATOR, k.elevator),
   (k) => lookup(USAGE, k.usage),
+  (k) => areaCode(k),
   (k) => roomsCode(k.rooms),
   (k) => priceCode(k),
-  (k) => areaCode(k),
 ];
 
 /**

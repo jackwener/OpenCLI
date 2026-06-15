@@ -53,4 +53,13 @@ describe('buildErshoufangFilterPath', () => {
     const out = buildErshoufangFilterPath({ rooms: 3, decoration: 'rough', sort: 'newest' });
     expect(out).toBe('co32de3l3');
   });
+
+  // Ground-truth URL captured from the live site (Task 1): proves area comes before rooms.
+  it('matches the verified live multi-filter URL (area before rooms)', () => {
+    const out = buildErshoufangFilterPath({
+      sort: 'newest', features: 'five-years', elevator: 'yes',
+      'min-area': 79, 'max-area': 90, rooms: 3,
+    });
+    expect(out).toBe('co32mw1ie2ba79ea90l3');
+  });
 });
