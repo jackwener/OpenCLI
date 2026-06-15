@@ -12,6 +12,9 @@ import {
     buildDiscordChannelUrl,
     buildListChannelsScript,
     buildListThreadsScript,
+    listDiscordChannels,
+    listDiscordServers,
+    listDiscordThreads,
     parseDiscordChannelUrl,
     resolveDiscordChannelTarget,
 } from './utils.js';
@@ -142,6 +145,32 @@ describe('discord-app command registration', () => {
             expect(cmd.browser).toBe(true);
             expect(cmd.domain).toBe('localhost');
         }
+    });
+});
+
+describe('discord-app list row validation', () => {
+    it('typed-fails channel rows missing stable channel identity', async () => {
+        const page = {
+            evaluate: vi.fn().mockResolvedValue([{ Channel: 'general', guild_id: '111', url: 'https://discord.com/channels/111/222' }]),
+        };
+
+        await expect(listDiscordChannels(page)).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('typed-fails server rows missing stable guild identity', async () => {
+        const page = {
+            evaluate: vi.fn().mockResolvedValue([{ Server: 'OpenCLI', url: 'https://discord.com/channels/111' }]),
+        };
+
+        await expect(listDiscordServers(page)).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('typed-fails thread rows missing stable thread identity', async () => {
+        const page = {
+            evaluate: vi.fn().mockResolvedValue([{ Thread: 'release', guild_id: '111', channel_id: '333', url: 'https://discord.com/channels/111/333/555' }]),
+        };
+
+        await expect(listDiscordThreads(page, 10)).rejects.toThrow(CommandExecutionError);
     });
 });
 

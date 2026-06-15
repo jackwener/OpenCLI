@@ -31,6 +31,24 @@ function requireArrayEvaluateResult(payload, context) {
     return value;
 }
 
+function requireNonEmptyRowField(row, field, context, index) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        throw new CommandExecutionError(`${context} returned malformed row ${index + 1}.`);
+    }
+    const value = String(row[field] || '').trim();
+    if (!value) {
+        throw new CommandExecutionError(`${context} row ${index + 1} is missing ${field}.`);
+    }
+    return value;
+}
+
+function requireRowsWithFields(rows, fields, context) {
+    rows.forEach((row, index) => {
+        fields.forEach((field) => requireNonEmptyRowField(row, field, context, index));
+    });
+    return rows;
+}
+
 export function isDiscordSnowflake(value) {
     return CHANNEL_ID_RE.test(String(value || '').trim());
 }
@@ -351,11 +369,19 @@ async function getCurrentDiscordRoute(page) {
 }
 
 export async function listDiscordChannels(page) {
-    return requireArrayEvaluateResult(await page.evaluate(buildListChannelsScript()), 'Discord channel list');
+    return requireRowsWithFields(
+        requireArrayEvaluateResult(await page.evaluate(buildListChannelsScript()), 'Discord channel list'),
+        ['Channel', 'guild_id', 'channel_id', 'url'],
+        'Discord channel list',
+    );
 }
 
 export async function listDiscordServers(page) {
-    return requireArrayEvaluateResult(await page.evaluate(buildListServersScript()), 'Discord server list');
+    return requireRowsWithFields(
+        requireArrayEvaluateResult(await page.evaluate(buildListServersScript()), 'Discord server list'),
+        ['Server', 'guild_id', 'url'],
+        'Discord server list',
+    );
 }
 
 function rowMatchesChannel(row, channel) {
@@ -495,7 +521,11 @@ export async function readDiscordMessages(page, count) {
 }
 
 export async function listDiscordThreads(page, limit) {
-    return requireArrayEvaluateResult(await page.evaluate(buildListThreadsScript(limit)), 'Discord thread list');
+    return requireRowsWithFields(
+        requireArrayEvaluateResult(await page.evaluate(buildListThreadsScript(limit)), 'Discord thread list'),
+        ['Thread', 'guild_id', 'channel_id', 'thread_id', 'url'],
+        'Discord thread list',
+    );
 }
 
 export function assertDiscordMessageRowsBelongToTarget(rows, target, context = 'Discord read') {
