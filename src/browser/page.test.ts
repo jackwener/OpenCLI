@@ -372,6 +372,19 @@ describe('Page active target tracking', () => {
     expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
   });
 
+  it('does not retry unrelated navigate errors that only mention Page not found in details', async () => {
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/first' }, page: 'page-1' })
+      .mockRejectedValueOnce(new Error('Navigation failed: upstream says Page not found: /missing'));
+
+    const page = new Page('site:youtube', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await page.goto('https://example.com/first', { waitUntil: 'none' });
+    await expect(page.goto('https://example.com/missing', { waitUntil: 'none' }))
+      .rejects.toThrow('Navigation failed');
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
+  });
+
   it('creates a new tab without changing the current active page binding', async () => {
     sendCommandFullMock
       .mockResolvedValueOnce({ data: { url: 'https://first.example' }, page: 'page-1' })
