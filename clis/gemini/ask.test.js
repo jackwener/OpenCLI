@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     startNewGeminiChat: vi.fn(),
     waitForGeminiSubmission: vi.fn(),
     waitForGeminiResponse: vi.fn(),
+    selectGeminiThinkingLevel: vi.fn(),
 }));
 vi.mock('./utils.js', async () => {
     const actual = await vi.importActual('./utils.js');
@@ -37,6 +38,7 @@ vi.mock('./utils.js', async () => {
         startNewGeminiChat: mocks.startNewGeminiChat,
         waitForGeminiSubmission: mocks.waitForGeminiSubmission,
         waitForGeminiResponse: mocks.waitForGeminiResponse,
+        selectGeminiThinkingLevel: mocks.selectGeminiThinkingLevel,
     };
 });
 import { askCommand } from './ask.js';
@@ -96,5 +98,26 @@ describe('gemini ask orchestration', () => {
         mocks.waitForGeminiResponse.mockResolvedValueOnce('');
         await askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' });
         expect(mocks.waitForGeminiResponse).toHaveBeenCalledWith(page, submission, '请只回复：OK', 0);
+    });
+    it('switches the thinking level to Extended before sending when --thinking is enabled', async () => {
+        const page = createPageMock();
+        mocks.readGeminiSnapshot.mockResolvedValueOnce(baseline);
+        mocks.sendGeminiMessage.mockResolvedValueOnce('button');
+        mocks.waitForGeminiSubmission.mockResolvedValueOnce(submission);
+        mocks.waitForGeminiResponse.mockResolvedValueOnce('OK');
+        await askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false', thinking: 'true' });
+        expect(mocks.selectGeminiThinkingLevel).toHaveBeenCalledWith(page, 'Extended');
+        const thinkingOrder = mocks.selectGeminiThinkingLevel.mock.invocationCallOrder[0];
+        const sendOrder = mocks.sendGeminiMessage.mock.invocationCallOrder[0];
+        expect(thinkingOrder).toBeLessThan(sendOrder);
+    });
+    it('does not touch the thinking level when --thinking is not set', async () => {
+        const page = createPageMock();
+        mocks.readGeminiSnapshot.mockResolvedValueOnce(baseline);
+        mocks.sendGeminiMessage.mockResolvedValueOnce('button');
+        mocks.waitForGeminiSubmission.mockResolvedValueOnce(submission);
+        mocks.waitForGeminiResponse.mockResolvedValueOnce('OK');
+        await askCommand.func(page, { prompt: '请只回复：OK', timeout: 20, new: 'false' });
+        expect(mocks.selectGeminiThinkingLevel).not.toHaveBeenCalled();
     });
 });

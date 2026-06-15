@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { GEMINI_DOMAIN, readGeminiSnapshot, sendGeminiMessage, startNewGeminiChat, waitForGeminiResponse, waitForGeminiSubmission } from './utils.js';
+import { GEMINI_DOMAIN, readGeminiSnapshot, selectGeminiThinkingLevel, sendGeminiMessage, startNewGeminiChat, waitForGeminiResponse, waitForGeminiSubmission } from './utils.js';
 function normalizeBooleanFlag(value) {
     if (typeof value === 'boolean')
         return value;
@@ -23,6 +23,7 @@ export const askCommand = cli({
         { name: 'prompt', required: true, positional: true, help: 'Prompt to send' },
         { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait (default: 60)', default: 60 },
         { name: 'new', required: false, help: 'Start a new chat first (true/false, default: false)', default: 'false' },
+        { name: 'thinking', required: false, help: 'Switch the thinking level to Extended before asking (true/false, default: false)', default: 'false' },
     ],
     columns: ['response'],
     func: async (page, kwargs) => {
@@ -34,6 +35,9 @@ export const askCommand = cli({
         const startFresh = normalizeBooleanFlag(kwargs.new);
         if (startFresh)
             await startNewGeminiChat(page);
+        const enableThinking = normalizeBooleanFlag(kwargs.thinking);
+        if (enableThinking)
+            await selectGeminiThinkingLevel(page, 'Extended');
         const before = await readGeminiSnapshot(page);
         await sendGeminiMessage(page, prompt);
         const submissionStartedAt = Date.now();
