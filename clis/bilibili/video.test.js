@@ -85,6 +85,22 @@ describe('bilibili video', () => {
     );
   });
 
+  it('unwraps Browser Bridge envelopes before reading view API data', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      session: 'browser:default',
+      data: {
+        code: 0,
+        data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: '', rights: { pay: 1 } },
+      },
+    });
+
+    const rows = await command.func(page, { bvid: 'BV1xx411c7mD' });
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+
+    expect(byField.requires_payment).toBe('true');
+    expect(byField.payment_type).toBe('vip');
+  });
+
   it('extracts BV ID from full bilibili.com URL input', async () => {
     mockApiGet.mockResolvedValueOnce({
       code: 0,

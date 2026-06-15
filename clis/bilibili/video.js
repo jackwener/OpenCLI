@@ -9,6 +9,13 @@ function requireObject(value, label) {
   return value;
 }
 
+function unwrapBrowserResult(value) {
+  if (value && typeof value === 'object' && typeof value.session === 'string' && Object.hasOwn(value, 'data')) {
+    return value.data;
+  }
+  return value;
+}
+
 function readOptionalFlag(value, label) {
   if (value == null) return false;
   if (typeof value === 'boolean') return value;
@@ -50,9 +57,9 @@ cli({
     // Navigate to video page first so subsequent api call shares a primed session.
     await page.goto(`https://www.bilibili.com/video/${bvid}/`);
 
-    const payload = await apiGet(page, '/x/web-interface/view', {
+    const payload = unwrapBrowserResult(await apiGet(page, '/x/web-interface/view', {
       params: { bvid },
-    });
+    }));
     requireObject(payload, 'Bilibili view API');
     if (payload.code !== 0) {
       throw new CommandExecutionError(`Bilibili view API failed: ${payload.message} (${payload.code})`);
