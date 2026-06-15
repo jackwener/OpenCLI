@@ -9,9 +9,13 @@ import { sleep } from '../utils.js';
 import { classifyBrowserError } from './errors.js';
 import { resolveProfileContextId } from './profile.js';
 
-const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
-const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
+
+function getDaemonUrl(): string {
+  const port = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+  const host = process.env.OPENCLI_DAEMON_HOST ?? '127.0.0.1';
+  return `http://${host}:${port}`;
+}
 
 let _idCounter = 0;
 
@@ -113,7 +117,7 @@ async function requestDaemon(pathname: string, init?: RequestInit & { timeout?: 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    return await fetch(`${DAEMON_URL}${pathname}`, {
+    return await fetch(`${getDaemonUrl()}${pathname}`, {
       ...rest,
       headers: { ...OPENCLI_HEADERS, ...headers },
       signal: controller.signal,

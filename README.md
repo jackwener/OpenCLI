@@ -160,6 +160,8 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
+| `OPENCLI_DAEMON_HOST` | `127.0.0.1` | Host the CLI uses to reach the daemon. Set to e.g. `host.docker.internal` to call a daemon running on the host from inside a container. |
+| `OPENCLI_DAEMON_BIND` | `127.0.0.1` | Interface the daemon binds to. Default is loopback; set to `0.0.0.0` to accept connections from other hosts. The daemon has no built-in authentication, so restrict access with a firewall when binding off-loopback. |
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW` | command default | Set to `foreground` or `background` to override Browser Bridge window placement. Browser-backed commands also accept `--window <foreground\|background>`. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
