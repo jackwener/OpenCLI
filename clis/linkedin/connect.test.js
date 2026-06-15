@@ -40,6 +40,25 @@ function makeSequentialFakePage(values) {
     };
 }
 
+// Like makeSequentialFakePage, but also answers the in-page "open connect dialog" script
+// (button/More-menu path) with a fixed result, without consuming a sequence slot. The
+// sequence therefore only feeds the profile probe and the sent-invitations probe(s).
+function makeMoreMenuFakePage(values, openResult = { ok: true, opened: 'dialog' }) {
+    let index = 0;
+    return {
+        goto: vi.fn(async () => undefined),
+        wait: vi.fn(async () => undefined),
+        evaluate: vi.fn(async (script) => {
+            const text = String(script);
+            if (text.includes('opened:')) return openResult;
+            if (text.includes('custom-message') || text.includes('invite_dialog_not_found')) return { ok: true, status: 'sent', reason: 'invitation_sent_without_note' };
+            const value = values[Math.min(index, values.length - 1)];
+            index += 1;
+            return value;
+        }),
+    };
+}
+
 describe('linkedin connect helpers', () => {
     it('normalizes names and profile URLs', () => {
         expect(normalizeName('Jane Doe • 2nd degree connection')).toBe('jane doe');
@@ -94,6 +113,18 @@ describe('linkedin connect helpers', () => {
     it('passes only when profile url, name, and connect affordance all match', () => {
         const result = assessProfileSafety({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/?mini=true', connectAvailable: true }, 'Jane Doe', 'https://www.linkedin.com/in/jane/');
         expect(result).toMatchObject({ ok: true, blockReason: 'verified', actualValue: 'Jane Doe', connectable: true });
+    });
+
+    it('treats a present "More" menu as connectable when there is no top-level Connect button', () => {
+        // Follow-primary profiles hide Connect inside the "More" actions menu. The probe
+        // reports moreAvailable; the send step opens the menu and confirms (or fails closed).
+        const result = assessProfileSafety({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: false, moreAvailable: true }, 'Jane Doe', 'https://www.linkedin.com/in/jane/');
+        expect(result).toMatchObject({ ok: true, blockReason: 'verified_via_more', connectable: true });
+    });
+
+    it('still blocks when neither a Connect button nor a More menu is present', () => {
+        const result = assessProfileSafety({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: false, moreAvailable: false }, 'Jane Doe', 'https://www.linkedin.com/in/jane/');
+        expect(result.blockReason).toBe('connect_button_not_found');
     });
 });
 
@@ -209,5 +240,34 @@ describe('linkedin connect command', () => {
         });
         expect(rows[0]).toMatchObject({ status: 'send_unverified', recipient: 'Jane Doe', reason: 'sent_invitation_not_found_after_retries', delivery_verified: false });
         expect(page.evaluate).toHaveBeenCalledTimes(5);
+    });
+
+    it('opens the invite dialog in-page when Connect has no anchor (button/More-menu path) and verifies delivery', async () => {
+        const command = getRegistry().get('linkedin/connect');
+        // Follow-primary profile: no connectHref anchor, but a "More" menu is present.
+        const page = makeMoreMenuFakePage([
+            { name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: false, moreAvailable: true, connectHref: '', buttonLabels: ['Follow', 'Message', 'More'] },
+            { found: true, matchedName: 'Jane Doe', matchedUrl: 'https://www.linkedin.com/in/jane/' },
+        ]);
+        const rows = await command.func(page, {
+            'profile-url': 'https://www.linkedin.com/in/jane/',
+            'expected-name': 'Jane Doe',
+            send: true,
+        });
+        expect(rows[0]).toMatchObject({ status: 'sent_verified', recipient: 'Jane Doe', reason: 'sent_invitation_verified', delivery_verified: true });
+        expect(page.goto).toHaveBeenCalledWith('https://www.linkedin.com/mynetwork/invitation-manager/sent/');
+    });
+
+    it('fails closed when the owner Connect control cannot be opened from the More menu', async () => {
+        const command = getRegistry().get('linkedin/connect');
+        const page = makeMoreMenuFakePage(
+            [{ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: false, moreAvailable: true, connectHref: '', buttonLabels: ['Follow', 'Message', 'More'] }],
+            { ok: false, reason: 'owner_action_bar_not_found' },
+        );
+        await expect(command.func(page, {
+            'profile-url': 'https://www.linkedin.com/in/jane/',
+            'expected-name': 'Jane Doe',
+            send: true,
+        })).rejects.toThrow('owner_action_bar_not_found');
     });
 });
