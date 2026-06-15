@@ -14178,6 +14178,51 @@
   },
   {
     "site": "github",
+    "name": "trending",
+    "description": "GitHub Trending repositories (public, no login). Filter by --language and --since.",
+    "access": "read",
+    "domain": "github.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "since",
+        "type": "string",
+        "default": "daily",
+        "required": false,
+        "help": "Time range: daily / weekly / monthly"
+      },
+      {
+        "name": "language",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by programming language slug, e.g. python, rust, \"c++\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of repositories to return (max 25)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "repo",
+      "description",
+      "language",
+      "stars",
+      "forks",
+      "starsSince",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "github/trending.js",
+    "sourceFile": "github/trending.js"
+  },
+  {
+    "site": "github",
     "name": "whoami",
     "description": "Show the current logged-in github account",
     "access": "read",
