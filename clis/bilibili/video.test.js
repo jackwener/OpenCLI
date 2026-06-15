@@ -39,6 +39,7 @@ describe('bilibili video', () => {
         videos: 1,
         pic: 'https://i1.hdslb.com/some.jpg',
         desc: 'Obsidian 教程',
+        rights: {},
         owner: { mid: 507578555, name: 'IOI科技' },
         stat: { view: 6128, danmaku: 0, reply: 21, like: 162, coin: 48, favorite: 564, share: 26 },
       },
@@ -87,7 +88,7 @@ describe('bilibili video', () => {
   it('extracts BV ID from full bilibili.com URL input', async () => {
     mockApiGet.mockResolvedValueOnce({
       code: 0,
-      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: '' },
+      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: '', rights: {} },
     });
 
     await command.func(page, { bvid: 'https://www.bilibili.com/video/BV1xx411c7mD/' });
@@ -99,7 +100,7 @@ describe('bilibili video', () => {
   it('extracts BV ID from bilibili URL with trailing query string', async () => {
     mockApiGet.mockResolvedValueOnce({
       code: 0,
-      data: { bvid: 'BV1Je9EBnEha', stat: {}, owner: {}, desc: '' },
+      data: { bvid: 'BV1Je9EBnEha', stat: {}, owner: {}, desc: '', rights: {} },
     });
 
     await command.func(page, {
@@ -112,7 +113,7 @@ describe('bilibili video', () => {
   it('extracts BV ID from m.bilibili.com mobile URL', async () => {
     mockApiGet.mockResolvedValueOnce({
       code: 0,
-      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: '' },
+      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: '', rights: {} },
     });
 
     await command.func(page, { bvid: 'https://m.bilibili.com/video/BV1xx411c7mD' });
@@ -175,11 +176,29 @@ describe('bilibili video', () => {
     expect(byField.payment_type).toBe('ugc_pay');
   });
 
+  it('typed-fails when paid marker source fields are missing', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      code: 0,
+      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: '' },
+    });
+
+    await expect(command.func(page, { bvid: 'BV1xx411c7mD' })).rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('typed-fails malformed paid marker flags instead of defaulting to free', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      code: 0,
+      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: '', rights: { pay: '0' } },
+    });
+
+    await expect(command.func(page, { bvid: 'BV1xx411c7mD' })).rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
   it('returns full description without truncation or whitespace collapse', async () => {
     const longDesc = '第一行描述\n\n第二段，有多个空格   和换行\n\n' + 'x'.repeat(500);
     mockApiGet.mockResolvedValueOnce({
       code: 0,
-      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: longDesc },
+      data: { bvid: 'BV1xx411c7mD', stat: {}, owner: {}, desc: longDesc, rights: {} },
     });
 
     const rows = await command.func(page, { bvid: 'BV1xx411c7mD' });
