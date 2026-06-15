@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { listDiscordChannels } from './utils.js';
 
 export const channelsCommand = cli({
@@ -14,7 +15,7 @@ export const channelsCommand = cli({
     func: async (page) => {
         const channels = await listDiscordChannels(page);
         if (channels.length === 0) {
-            return [{ Index: 0, Channel: 'No channels found', Type: '—', guild_id: '', channel_id: '', url: '' }];
+            throw new EmptyResultError('discord-app channels', 'No Discord channels were found in the current server sidebar.');
         }
         return channels;
     },

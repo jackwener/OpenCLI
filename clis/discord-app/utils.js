@@ -8,6 +8,29 @@ function stringArg(value) {
     return typeof value === 'string' && value.trim() ? value.trim() : '';
 }
 
+export function unwrapEvaluateResult(payload) {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload) && 'session' in payload && 'data' in payload) {
+        return payload.data;
+    }
+    return payload;
+}
+
+function requireObjectEvaluateResult(payload, context) {
+    const value = unwrapEvaluateResult(payload);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CommandExecutionError(`${context} returned malformed browser output.`);
+    }
+    return value;
+}
+
+function requireArrayEvaluateResult(payload, context) {
+    const value = unwrapEvaluateResult(payload);
+    if (!Array.isArray(value)) {
+        throw new CommandExecutionError(`${context} returned malformed browser output.`);
+    }
+    return value;
+}
+
 export function isDiscordSnowflake(value) {
     return CHANNEL_ID_RE.test(String(value || '').trim());
 }
@@ -321,20 +344,18 @@ export function buildRouteStateScript() {
 }
 
 async function getCurrentDiscordRoute(page) {
-    const state = await page.evaluate(buildRouteStateScript());
+    const state = requireObjectEvaluateResult(await page.evaluate(buildRouteStateScript()), 'Discord route state');
     if (state && state.route) return state.route;
     const url = typeof state?.url === 'string' ? state.url : '';
     return parseDiscordChannelUrl(url);
 }
 
 export async function listDiscordChannels(page) {
-    const rows = await page.evaluate(buildListChannelsScript());
-    return Array.isArray(rows) ? rows : [];
+    return requireArrayEvaluateResult(await page.evaluate(buildListChannelsScript()), 'Discord channel list');
 }
 
 export async function listDiscordServers(page) {
-    const rows = await page.evaluate(buildListServersScript());
-    return Array.isArray(rows) ? rows : [];
+    return requireArrayEvaluateResult(await page.evaluate(buildListServersScript()), 'Discord server list');
 }
 
 function rowMatchesChannel(row, channel) {
@@ -418,7 +439,7 @@ export async function waitForDiscordRoute(page, target, options = {}) {
     let lastState = null;
 
     while (Date.now() - started <= timeoutMs) {
-        lastState = await page.evaluate(buildRouteStateScript());
+        lastState = requireObjectEvaluateResult(await page.evaluate(buildRouteStateScript()), 'Discord route state');
         const route = lastState?.route;
         if (route && String(route.guild_id) === String(target.guild_id) && String(route.channel_id) === String(target.channel_id)) {
             if (!target.thread_id || String(route.thread_id || '') === String(target.thread_id)) {
@@ -441,7 +462,7 @@ export async function waitForDiscordContent(page, kind = 'messages', options = {
     let lastState = null;
 
     while (Date.now() - started <= timeoutMs) {
-        lastState = await page.evaluate(buildRouteStateScript());
+        lastState = requireObjectEvaluateResult(await page.evaluate(buildRouteStateScript()), 'Discord route state');
         if (kind === 'messages' && lastState?.has_messages) return lastState;
         if (kind === 'threads' && lastState?.has_threads) return lastState;
         await page.wait(intervalSeconds);
@@ -470,13 +491,38 @@ export async function maybeNavigateToDiscordChannel(page, kwargs = {}, options =
 }
 
 export async function readDiscordMessages(page, count) {
-    const rows = await page.evaluate(buildReadMessagesScript(count));
-    return Array.isArray(rows) ? rows : [];
+    return requireArrayEvaluateResult(await page.evaluate(buildReadMessagesScript(count)), 'Discord message list');
 }
 
 export async function listDiscordThreads(page, limit) {
-    const rows = await page.evaluate(buildListThreadsScript(limit));
-    return Array.isArray(rows) ? rows : [];
+    return requireArrayEvaluateResult(await page.evaluate(buildListThreadsScript(limit)), 'Discord thread list');
+}
+
+export function assertDiscordMessageRowsBelongToTarget(rows, target, context = 'Discord read') {
+    if (!target) return rows;
+    const expectedChannelId = String(target.thread_id || target.channel_id || '');
+    if (!expectedChannelId) {
+        throw new CommandExecutionError(`${context} target is missing a stable channel/thread id.`);
+    }
+    for (const row of rows) {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) {
+            throw new CommandExecutionError(`${context} returned malformed message rows.`);
+        }
+        const actualChannelId = row.channel_id == null || row.channel_id === '' ? '' : String(row.channel_id);
+        if (!actualChannelId) {
+            throw new CommandExecutionError(
+                `${context} could not verify returned message target.`,
+                `Expected channel/thread id ${expectedChannelId}, but the message row did not include channel_id.`,
+            );
+        }
+        if (actualChannelId && actualChannelId !== expectedChannelId) {
+            throw new CommandExecutionError(
+                `${context} returned messages from the wrong Discord target.`,
+                `Expected channel/thread id ${expectedChannelId}, saw ${actualChannelId}.`,
+            );
+        }
+    }
+    return rows;
 }
 
 export async function resolveDiscordThreadTarget(page, kwargs = {}) {

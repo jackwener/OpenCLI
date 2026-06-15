@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { listDiscordServers } from './utils.js';
 
 export const serversCommand = cli({
@@ -14,7 +15,7 @@ export const serversCommand = cli({
     func: async (page) => {
         const servers = await listDiscordServers(page);
         if (servers.length === 0) {
-            return [{ Index: 0, Server: 'No servers found', guild_id: '', url: '' }];
+            throw new EmptyResultError('discord-app servers', 'No Discord servers were found in the sidebar.');
         }
         return servers;
     },

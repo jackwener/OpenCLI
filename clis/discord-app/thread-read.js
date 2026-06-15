@@ -1,5 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
+    assertDiscordMessageRowsBelongToTarget,
     navigateToDiscordTarget,
     parsePositiveInt,
     readDiscordMessages,
@@ -26,9 +28,13 @@ export const threadReadCommand = cli({
         const count = parsePositiveInt(kwargs.count, 20, 'count');
         const target = await resolveDiscordThreadTarget(page, kwargs);
         await navigateToDiscordTarget(page, target, { waitForContent: 'messages' });
-        const rows = await readDiscordMessages(page, count);
+        const rows = assertDiscordMessageRowsBelongToTarget(
+            await readDiscordMessages(page, count),
+            target,
+            'Discord thread read',
+        );
         if (rows.length === 0) {
-            return [{ Author: 'System', Time: '', Message: 'No messages found in the selected thread.', channel_id: target.channel_id, message_id: '' }];
+            throw new EmptyResultError('discord-app thread-read', 'No messages were found in the selected Discord thread.');
         }
         return rows;
     },

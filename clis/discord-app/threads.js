@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
     listDiscordThreads,
     maybeNavigateToDiscordChannel,
@@ -25,17 +26,7 @@ export const threadsCommand = cli({
         await maybeNavigateToDiscordChannel(page, kwargs, { waitForContent: 'threads', contentTimeoutMs: 3000 });
         const rows = await listDiscordThreads(page, limit);
         if (rows.length === 0) {
-            return [{
-                Index: 0,
-                Thread: 'No visible forum/thread posts found',
-                Author: '',
-                Updated: '',
-                Preview: 'Open a Forum channel or pass --url/--guild/--channel for one.',
-                guild_id: '',
-                channel_id: '',
-                thread_id: '',
-                url: '',
-            }];
+            throw new EmptyResultError('discord-app threads', 'No visible forum/thread posts were found in the selected Discord channel.');
         }
         return rows;
     },

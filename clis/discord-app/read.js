@@ -1,5 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
+    assertDiscordMessageRowsBelongToTarget,
     maybeNavigateToDiscordChannel,
     parsePositiveInt,
     readDiscordMessages,
@@ -22,10 +24,14 @@ export const readCommand = cli({
     columns: ['Author', 'Time', 'Message', 'channel_id', 'message_id'],
     func: async (page, kwargs) => {
         const count = parsePositiveInt(kwargs.count, 20, 'count');
-        await maybeNavigateToDiscordChannel(page, kwargs, { waitForContent: 'messages' });
-        const messages = await readDiscordMessages(page, count);
+        const target = await maybeNavigateToDiscordChannel(page, kwargs, { waitForContent: 'messages' });
+        const messages = assertDiscordMessageRowsBelongToTarget(
+            await readDiscordMessages(page, count),
+            target,
+            'Discord channel read',
+        );
         if (messages.length === 0) {
-            return [{ Author: 'System', Time: '', Message: 'No messages found in the current channel.' }];
+            throw new EmptyResultError('discord-app read', 'No messages were found in the selected Discord channel.');
         }
         return messages;
     },

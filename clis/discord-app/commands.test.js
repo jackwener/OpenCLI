@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './channels.js';
 import './goto.js';
@@ -159,6 +160,83 @@ describe('discord-app targeted reads', () => {
         expect(page.goto).toHaveBeenCalledWith('https://discord.com/channels/111/222', { waitUntil: 'none', settleMs: 1000 });
     });
 
+    it('read --url rejects stale messages from another channel after navigation', async () => {
+        const cmd = getRegistry().get('discord-app/read');
+        const page = createRoutePage({
+            route: { guild_id: '111', channel_id: '222', url: 'https://discord.com/channels/111/222' },
+            rows: [{ Author: 'Ada', Time: '', Message: 'stale', channel_id: '999', message_id: '123' }],
+        });
+
+        await expect(cmd.func(page, { url: 'https://discord.com/channels/111/222', count: '1' }))
+            .rejects.toThrow(CommandExecutionError);
+    });
+
+    it('read --url rejects message rows without channel_id proof after navigation', async () => {
+        const cmd = getRegistry().get('discord-app/read');
+        const page = createRoutePage({
+            route: { guild_id: '111', channel_id: '222', url: 'https://discord.com/channels/111/222' },
+            rows: [{ Author: 'Ada', Time: '', Message: 'unbound', message_id: '123' }],
+        });
+
+        await expect(cmd.func(page, { url: 'https://discord.com/channels/111/222', count: '1' }))
+            .rejects.toThrow(CommandExecutionError);
+    });
+
+    it('read --url throws EmptyResultError instead of a success-shaped empty row', async () => {
+        const cmd = getRegistry().get('discord-app/read');
+        const page = createRoutePage({
+            route: { guild_id: '111', channel_id: '222', url: 'https://discord.com/channels/111/222' },
+            rows: [],
+        });
+
+        await expect(cmd.func(page, { url: 'https://discord.com/channels/111/222', count: '1' }))
+            .rejects.toThrow(EmptyResultError);
+    });
+
+    it('read fails typed when browser extraction returns malformed message rows', async () => {
+        const cmd = getRegistry().get('discord-app/read');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn(async (script) => {
+                if (script.includes('__opencliDiscordRouteState')) {
+                    return { url: 'https://discord.com/channels/111/222', route: { guild_id: '111', channel_id: '222', thread_id: '' }, has_messages: true };
+                }
+                if (script.includes('__opencliDiscordReadMessages')) return { rows: [] };
+                throw new Error(`unexpected evaluate script: ${script.slice(0, 80)}`);
+            }),
+        };
+
+        await expect(cmd.func(page, { url: 'https://discord.com/channels/111/222', count: '1' }))
+            .rejects.toThrow(CommandExecutionError);
+    });
+
+    it('read unwraps Browser Bridge evaluate envelopes before shape validation', async () => {
+        const cmd = getRegistry().get('discord-app/read');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn(async (script) => {
+                if (script.includes('__opencliDiscordRouteState')) {
+                    return {
+                        session: 'site:discord-app',
+                        data: { url: 'https://discord.com/channels/111/222', route: { guild_id: '111', channel_id: '222', thread_id: '' }, has_messages: true },
+                    };
+                }
+                if (script.includes('__opencliDiscordReadMessages')) {
+                    return {
+                        session: 'site:discord-app',
+                        data: [{ Author: 'Ada', Time: '', Message: 'wrapped', channel_id: '222', message_id: '999' }],
+                    };
+                }
+                throw new Error(`unexpected evaluate script: ${script.slice(0, 80)}`);
+            }),
+        };
+
+        await expect(cmd.func(page, { url: 'https://discord.com/channels/111/222', count: '1' }))
+            .resolves.toEqual([{ Author: 'Ada', Time: '', Message: 'wrapped', channel_id: '222', message_id: '999' }]);
+    });
+
     it('read --url waits for the message list after route navigation', async () => {
         const cmd = getRegistry().get('discord-app/read');
         let routeStateCalls = 0;
@@ -232,5 +310,16 @@ describe('discord-app targeted reads', () => {
         await expect(cmd.func(page, { url: 'https://discord.com/channels/111/333/555', count: '1' }))
             .resolves.toEqual([{ Author: 'Grace', Time: '', Message: 'thread message', channel_id: '555', message_id: '777' }]);
         expect(page.goto).toHaveBeenCalledWith('https://discord.com/channels/111/333/555', { waitUntil: 'none', settleMs: 1000 });
+    });
+
+    it('thread-read rejects messages from the parent channel instead of the requested thread', async () => {
+        const cmd = getRegistry().get('discord-app/thread-read');
+        const page = createRoutePage({
+            route: { guild_id: '111', channel_id: '333', thread_id: '555', url: 'https://discord.com/channels/111/333/555' },
+            rows: [{ Author: 'Grace', Time: '', Message: 'parent message', channel_id: '333', message_id: '777' }],
+        });
+
+        await expect(cmd.func(page, { url: 'https://discord.com/channels/111/333/555', count: '1' }))
+            .rejects.toThrow(CommandExecutionError);
     });
 });
