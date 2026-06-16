@@ -126,10 +126,10 @@ function validateImagePaths(filePaths) {
     return filePaths.map((filePath) => {
         const absPath = path.resolve(filePath);
         if (!fs.existsSync(absPath))
-            throw new Error(`Image file not found: ${absPath}`);
+            throw new ArgumentError(`Image file not found: ${absPath}`);
         const ext = path.extname(absPath).toLowerCase();
         if (!SUPPORTED_EXTENSIONS[ext]) {
-            throw new Error(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
+            throw new ArgumentError(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
         }
         return absPath;
     });

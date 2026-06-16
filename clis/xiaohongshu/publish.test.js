@@ -47,6 +47,8 @@ describe('xiaohongshu publish', () => {
             'content',
             'title',
             'images',
+            'card-text',
+            'card-style',
             'topics',
             'draft',
         ]);
@@ -868,6 +870,27 @@ describe('xiaohongshu publish 文字配图 validation', () => {
         ).rejects.toThrow(/gif/i);
         await expect(
             cmd.func(page, { title: 't', content: 'c', 'card-text': '文字', images: gifPath })
+        ).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws ArgumentError for invalid image paths before navigating', async () => {
+        const cmd = getCmd();
+        const page = createPageMock([]);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', images: '/tmp/opencli-xhs-missing.jpg' })
+        ).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws ArgumentError for unsupported image extensions before navigating', async () => {
+        const cmd = getCmd();
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-badext-'));
+        const txtPath = path.join(tempDir, 'a.txt');
+        fs.writeFileSync(txtPath, 'not an image');
+        const page = createPageMock([]);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', images: txtPath })
         ).rejects.toThrow(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
     });
