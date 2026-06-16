@@ -34,12 +34,16 @@ describe('xiaohongshu search', () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
-            // First evaluate: MutationObserver wait (login wall detected)
+            // Each search URL: MutationObserver wait — all hosts show login wall
+            'login_wall',
+            'login_wall',
             'login_wall',
         ]);
-        await expect(cmd.func(page, { query: '特斯拉', limit: 5 })).rejects.toThrow('Xiaohongshu search results are blocked behind a login wall');
+        await expect(cmd.func(page, { query: '特斯拉', limit: 5 })).rejects.toThrow(/Xiaohongshu search results are blocked behind a login wall/);
         // autoScroll must NOT be called when a login wall is detected early
         expect(page.autoScroll).not.toHaveBeenCalled();
+        // Tries xiaohongshu then rednote URLs before giving up
+        expect(page.goto).toHaveBeenCalledTimes(3);
     });
     it('returns ranked results with search_result url and author_url preserved', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
@@ -61,7 +65,7 @@ describe('xiaohongshu search', () => {
             ],
         ]);
         const result = await cmd.func(page, { query: '特斯拉', limit: 1 });
-        // Should only do one goto (the search page itself), no per-note detail navigation
+        // First search URL succeeds — single navigation
         expect(page.goto.mock.calls).toHaveLength(1);
         expect(result).toEqual([
             {
@@ -111,6 +115,30 @@ describe('xiaohongshu search', () => {
         expect(result).toHaveLength(1);
         expect(result[0]).toMatchObject({ rank: 1, title: 'Result A' });
     });
+    it('falls back to rednote.com when xiaohongshu.com shows a login wall', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        expect(cmd?.func).toBeTypeOf('function');
+        const page = createPageMock([
+            'login_wall',
+            'content',
+            [
+                {
+                    title: 'Rednote result',
+                    author: 'Author',
+                    likes: '1',
+                    url: 'https://www.rednote.com/search_result/68e90be80000000004022e66?xsec_token=t',
+                    author_url: 'https://www.rednote.com/user/profile/u1',
+                },
+            ],
+        ]);
+        const result = await cmd.func(page, { query: '美食', limit: 1 });
+        expect(page.goto).toHaveBeenCalledTimes(2);
+        expect(page.goto.mock.calls[0][0]).toContain('www.xiaohongshu.com');
+        expect(page.goto.mock.calls[1][0]).toContain('www.rednote.com');
+        expect(result[0]?.title).toBe('Rednote result');
+        // wait (login_wall) + wait (content) + DOM extraction
+        expect(page.evaluate).toHaveBeenCalledTimes(3);
+    });
     it('waits for content via MutationObserver before extracting', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
@@ -145,6 +173,9 @@ describe('noteIdToDate (ObjectID timestamp parsing)', () => {
     });
     it('handles URL with query parameters', () => {
         expect(noteIdToDate('https://www.xiaohongshu.com/search_result/697f6c74000000002103de17?xsec_token=abc')).toBe('2026-02-01');
+    });
+    it('parses note IDs on rednote.com host', () => {
+        expect(noteIdToDate('https://www.rednote.com/search_result/697f6c74000000002103de17')).toBe('2026-02-01');
     });
     it('returns empty string for non-matching URLs', () => {
         expect(noteIdToDate('https://www.xiaohongshu.com/user/profile/635a9c720000000018028b40')).toBe('');

@@ -12,6 +12,18 @@ import { AuthRequiredError } from '@jackwener/opencli/errors';
  * Returns 'content' if note items appeared, 'login_wall' if login gate
  * detected, or 'timeout' if neither appeared within the deadline.
  */
+/**
+ * Search entry points: XHS may keep logged-in sessions on www.rednote.com while
+ * www.xiaohongshu.com still shows a login wall — try both hosts + source params.
+ */
+function buildSearchUrlVariants(keywordEncoded) {
+    return [
+        `https://www.xiaohongshu.com/search_result?keyword=${keywordEncoded}&source=web_search_result_notes`,
+        `https://www.rednote.com/search_result?keyword=${keywordEncoded}&source=web_explore_feed`,
+        `https://www.rednote.com/search_result?keyword=${keywordEncoded}&source=web_search_result_notes`,
+    ];
+}
+
 const WAIT_FOR_CONTENT_JS = `
   new Promise((resolve) => {
     const detect = () => {
@@ -61,13 +73,19 @@ cli({
     columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
     func: async (page, kwargs) => {
         const keyword = encodeURIComponent(kwargs.query);
-        await page.goto(`https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
-        // Wait for search results to render (or login wall to appear).
-        // Uses MutationObserver to resolve as soon as content appears,
-        // instead of a fixed delay + blind retry.
-        const waitResult = await page.evaluate(WAIT_FOR_CONTENT_JS);
+        const urls = buildSearchUrlVariants(keyword);
+        let waitResult = 'login_wall';
+        for (const searchUrl of urls) {
+            await page.goto(searchUrl);
+            // Wait for search results to render (or login wall to appear).
+            // Uses MutationObserver to resolve as soon as content appears,
+            // instead of a fixed delay + blind retry.
+            waitResult = await page.evaluate(WAIT_FOR_CONTENT_JS);
+            if (waitResult !== 'login_wall')
+                break;
+        }
         if (waitResult === 'login_wall') {
-            throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+            throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall (tried xiaohongshu.com and rednote.com — log in on the same host in Chrome or use a session that applies to both)');
         }
         // Scroll a couple of times to load more results
         await page.autoScroll({ times: 2 });
@@ -76,7 +94,7 @@ cli({
         const normalizeUrl = (href) => {
           if (!href) return '';
           if (href.startsWith('http://') || href.startsWith('https://')) return href;
-          if (href.startsWith('/')) return 'https://www.xiaohongshu.com' + href;
+          if (href.startsWith('/')) return window.location.origin + href;
           return '';
         };
 
