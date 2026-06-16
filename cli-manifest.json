@@ -18458,13 +18458,54 @@
         "type": "str",
         "default": "bj",
         "required": false,
-        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)"
       },
       {
         "name": "district",
         "type": "str",
         "required": false,
-        "help": "区域拼音，如 chaoyang, haidian"
+        "help": "区域拼音，如 chaoyang, haidian, tianhe, xuhui"
+      },
+      {
+        "name": "min-price",
+        "type": "int",
+        "required": false,
+        "help": "最低均价（万/㎡）"
+      },
+      {
+        "name": "max-price",
+        "type": "int",
+        "required": false,
+        "help": "最高均价（万/㎡）"
+      },
+      {
+        "name": "age",
+        "type": "str",
+        "required": false,
+        "help": "楼龄：5/10/15/20 年以内，20+ 为 20 年以上",
+        "choices": [
+          "5",
+          "10",
+          "15",
+          "20",
+          "20+"
+        ]
+      },
+      {
+        "name": "near-subway",
+        "type": "boolean",
+        "required": false,
+        "help": "仅看近地铁小区"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "required": false,
+        "help": "排序：avg-price-asc|desc(小区均价)；不传为默认排序",
+        "choices": [
+          "avg-price-asc",
+          "avg-price-desc"
+        ]
       },
       {
         "name": "limit",
