@@ -954,6 +954,10 @@ describe('xiaohongshu publish 文字配图 flow', () => {
         expect(capture.clicks).toContain('文字配图');
         expect(capture.clicks).toContain('生成图片');
         expect(capture.clicks).toContain('下一步');
+        const mediaCountCode = page.evaluate.mock.calls.map((args) => String(args[0]))
+            .find((code) => code.includes('__opencli_xhs_composer_media_count'));
+        expect(mediaCountCode).toContain('.find((el) => visibleBox(el))');
+        expect(mediaCountCode).toContain('if (!visibleMedia(el)) continue');
         expect(rows[0].status).toContain('发布成功');
     });
 

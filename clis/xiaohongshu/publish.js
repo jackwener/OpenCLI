@@ -974,8 +974,13 @@ async function currentComposerMediaCount(page) {
     const result = await page.evaluate(`
     (() => {
       const __opencli_xhs_composer_media_count = true;
-      const visible = (el) => {
+      const visibleBox = (el) => {
         if (!el || el.offsetParent === null) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      const visibleMedia = (el) => {
+        if (!visibleBox(el)) return false;
         const r = el.getBoundingClientRect();
         return r.width >= 48 && r.height >= 48;
       };
@@ -983,12 +988,12 @@ async function currentComposerMediaCount(page) {
       const titleEl = titleSelectors
         .map((sel) => Array.from(document.querySelectorAll(sel)))
         .flat()
-        .find((el) => visible(el));
+        .find((el) => visibleBox(el));
       const root = titleEl?.closest('form, [class*="publish"], [class*="editor"], [class*="note"]') || document.body;
       const seen = new Set();
       let count = 0;
       for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
-        if (!visible(el)) continue;
+        if (!visibleMedia(el)) continue;
         const rect = el.getBoundingClientRect();
         const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
         const key = src || String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
