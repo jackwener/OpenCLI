@@ -35,7 +35,12 @@ describe('xiaohongshu saved', () => {
         const evaluate = vi.fn()
             .mockResolvedValueOnce(false)
             .mockResolvedValueOnce('self-user')
-            .mockResolvedValueOnce(false);
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce({
+                hostname: 'www.xiaohongshu.com',
+                pathname: '/user/profile/self-user',
+                href: 'https://www.xiaohongshu.com/user/profile/self-user?tab=fav&subTab=note',
+            });
         const getInterceptedRequests = vi.fn()
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce(intercepted);
@@ -44,7 +49,7 @@ describe('xiaohongshu saved', () => {
             getInterceptedRequests,
         });
 
-        const result = await command.func(page, { limit: 5 });
+        const result = await command.func(page, { limit: 1 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -75,12 +80,62 @@ describe('xiaohongshu saved', () => {
         await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
+    it('maps collection login redirects to AuthRequiredError', async () => {
+        const page = createPageMock([], {
+            evaluate: vi.fn()
+                .mockResolvedValueOnce(false)
+                .mockResolvedValueOnce({
+                    hostname: 'www.xiaohongshu.com',
+                    pathname: '/login',
+                    href: 'https://www.xiaohongshu.com/login',
+                }),
+        });
+
+        await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('fails closed when navigation lands on another profile', async () => {
+        const page = createPageMock([], {
+            evaluate: vi.fn()
+                .mockResolvedValueOnce(false)
+                .mockResolvedValueOnce({
+                    hostname: 'www.xiaohongshu.com',
+                    pathname: '/user/profile/other-user',
+                    href: 'https://www.xiaohongshu.com/user/profile/other-user?tab=fav&subTab=note',
+                }),
+        });
+
+        await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(page.getInterceptedRequests).not.toHaveBeenCalled();
+    });
+
     it('fails closed when collection API rows lack signed note identity', async () => {
         const page = createPageMock([], {
-            evaluate: vi.fn().mockResolvedValueOnce(false),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce(false)
+                .mockResolvedValueOnce({
+                    hostname: 'www.xiaohongshu.com',
+                    pathname: '/user/profile/self-user',
+                    href: 'https://www.xiaohongshu.com/user/profile/self-user?tab=fav&subTab=note',
+                }),
             getInterceptedRequests: vi.fn().mockResolvedValueOnce([{
                 data: { notes: [{ note_id: '662908190000000001007366' }] },
             }]),
+        });
+
+        await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('fails closed when interceptor captures are malformed', async () => {
+        const page = createPageMock([], {
+            evaluate: vi.fn()
+                .mockResolvedValueOnce(false)
+                .mockResolvedValueOnce({
+                    hostname: 'www.xiaohongshu.com',
+                    pathname: '/user/profile/self-user',
+                    href: 'https://www.xiaohongshu.com/user/profile/self-user?tab=fav&subTab=note',
+                }),
+            getInterceptedRequests: vi.fn().mockResolvedValueOnce({ data: { notes: [] } }),
         });
 
         await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);

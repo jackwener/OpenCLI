@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { createPageMock } from '../test-utils.js';
 import './liked.js';
@@ -34,7 +35,12 @@ describe('xiaohongshu liked', () => {
         const evaluate = vi.fn()
             .mockResolvedValueOnce(false)
             .mockResolvedValueOnce('self-user')
-            .mockResolvedValueOnce(false);
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce({
+                hostname: 'www.xiaohongshu.com',
+                pathname: '/user/profile/self-user',
+                href: 'https://www.xiaohongshu.com/user/profile/self-user?tab=liked&subTab=note',
+            });
         const getInterceptedRequests = vi.fn()
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce(intercepted);
@@ -43,7 +49,7 @@ describe('xiaohongshu liked', () => {
             getInterceptedRequests,
         });
 
-        const result = await command.func(page, { limit: 5 });
+        const result = await command.func(page, { limit: 1 });
         expect(result).toEqual([
             {
                 rank: 1,
@@ -57,5 +63,20 @@ describe('xiaohongshu liked', () => {
         ]);
         expect(page.installInterceptor).toHaveBeenCalledWith('note/like/page');
         expect(page.goto.mock.calls.at(-1)[0]).toBe('https://www.xiaohongshu.com/user/profile/self-user?tab=liked&subTab=note');
+    });
+
+    it('fails closed when navigation lands on another profile', async () => {
+        const page = createPageMock([], {
+            evaluate: vi.fn()
+                .mockResolvedValueOnce(false)
+                .mockResolvedValueOnce({
+                    hostname: 'www.xiaohongshu.com',
+                    pathname: '/user/profile/other-user',
+                    href: 'https://www.xiaohongshu.com/user/profile/other-user?tab=liked&subTab=note',
+                }),
+        });
+
+        await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(page.getInterceptedRequests).not.toHaveBeenCalled();
     });
 });

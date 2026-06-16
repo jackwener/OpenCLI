@@ -168,6 +168,14 @@ const LOGIN_WALL_JS = `
   })()
 `;
 
+const CURRENT_LOCATION_JS = `
+  (() => ({
+    href: location.href,
+    hostname: location.hostname,
+    pathname: location.pathname,
+  }))()
+`;
+
 async function throwIfLoginWall(page) {
     const payload = unwrapBrowserResult(await page.evaluate(LOGIN_WALL_JS));
     if (payload === true) {
@@ -175,8 +183,28 @@ async function throwIfLoginWall(page) {
     }
 }
 
+export async function assertOnCollectionProfile(page, userId) {
+    await throwIfLoginWall(page);
+    const payload = unwrapBrowserResult(await page.evaluate(CURRENT_LOCATION_JS));
+    if (!isObject(payload)) {
+        throw new CommandExecutionError('xiaohongshu collection page returned malformed location');
+    }
+    const hostname = toCleanString(payload.hostname).toLowerCase();
+    const pathname = toCleanString(payload.pathname);
+    if (hostname === 'www.xiaohongshu.com' && pathname === '/login') {
+        throw new AuthRequiredError('xiaohongshu collection page requires login');
+    }
+    const expectedPath = `/user/profile/${toCleanString(userId)}`;
+    if (hostname !== 'www.xiaohongshu.com' || pathname !== expectedPath) {
+        throw new CommandExecutionError(`xiaohongshu collection landed on unexpected page: ${toCleanString(payload.href) || `${hostname}${pathname}`}`);
+    }
+}
+
 async function accumulateInterceptedNotes(page, bucket, fallbackUserId) {
     const reqs = await page.getInterceptedRequests();
+    if (!Array.isArray(reqs)) {
+        throw new CommandExecutionError('xiaohongshu collection interceptor returned malformed captures');
+    }
     if (Array.isArray(reqs) && reqs.length > 0)
         bucket.push(...reqs);
     return extractNotesFromResponses(bucket, fallbackUserId);
@@ -202,7 +230,10 @@ export async function resolveXhsUserId(page, rawId) {
 
 export async function extractNotesFromDom(page) {
     const payload = unwrapBrowserResult(await page.evaluate(EXTRACT_COLLECTION_DOM_JS));
-    return Array.isArray(payload) ? payload.filter((item) => item?.id) : [];
+    if (!Array.isArray(payload)) {
+        throw new CommandExecutionError('xiaohongshu collection DOM extraction returned malformed rows');
+    }
+    return payload.filter((item) => item?.id);
 }
 
 export async function fetchXhsCollectionNotes(page, {
@@ -216,7 +247,7 @@ export async function fetchXhsCollectionNotes(page, {
     await page.installInterceptor(apiPattern);
     await page.goto(buildProfileCollectionUrl(userId, profileTab));
     await page.wait(2);
-    await throwIfLoginWall(page);
+    await assertOnCollectionProfile(page, userId);
     let notes = [];
     for (let i = 0; i < 16; i++) {
         await page.wait(0.5);
@@ -228,7 +259,7 @@ export async function fetchXhsCollectionNotes(page, {
     for (let i = 0; notes.length < limit && i < 4; i += 1) {
         await page.autoScroll({ times: 1, delayMs: 1500 });
         await page.wait(1);
-        await throwIfLoginWall(page);
+        await assertOnCollectionProfile(page, userId);
         const nextNotes = await accumulateInterceptedNotes(page, capturedRequests, userId);
         if (nextNotes.length > previousCount) {
             notes = nextNotes;
