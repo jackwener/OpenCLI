@@ -25,6 +25,16 @@ describe('buildErshoufangFilterPath', () => {
   it('encodes area range as ba{min}ea{max}', () => {
     expect(buildErshoufangFilterPath({ 'min-area': 70, 'max-area': 120 })).toBe('ba70ea120');
   });
+  it('keeps a literal 0 lower bound instead of dropping it', () => {
+    expect(buildErshoufangFilterPath({ 'min-area': 0, 'max-area': 90 })).toBe('ba0ea90');
+  });
+  it('encodes a lower-bound-only area as ba{min}ea (live: 70平以上)', () => {
+    expect(buildErshoufangFilterPath({ 'min-area': 70 })).toBe('ba70ea');
+  });
+  it('defaults min to 0 for an upper-bound-only area (live: ba0ea120 = 120平以下)', () => {
+    // Beike ignores `baea120`; an explicit min is required.
+    expect(buildErshoufangFilterPath({ 'max-area': 120 })).toBe('ba0ea120');
+  });
 
   // ── Parametric tests: derive expected from the tables (robust to verified codes) ──
   it('maps each single-value enum through its own table', () => {

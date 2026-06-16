@@ -34,8 +34,12 @@ export const SORT = {
   'area-desc': 'co12',
 };
 
+function present(v) {
+  return v !== undefined && v !== null && v !== '';
+}
+
 function lookup(table, key) {
-  if (key === undefined || key === null || key === '') return '';
+  if (!present(key)) return '';
   return table[String(key)] || '';
 }
 
@@ -53,8 +57,12 @@ function priceCode(kwargs) {
 function areaCode(kwargs) {
   const min = kwargs['min-area'];
   const max = kwargs['max-area'];
-  if (!min && !max) return '';
-  return `ba${min || ''}ea${max || ''}`;
+  if (!present(min) && !present(max)) return '';
+  // Live-verified shapes: ba70ea (=70平以上), ba0ea120 (=120平以下), ba79ea90.
+  // An upper-bound-only query needs an explicit min — `baea120` is ignored by Beike,
+  // so default the lower bound to 0 when only --max-area is given.
+  const lo = present(min) ? min : 0;
+  return `ba${lo}ea${present(max) ? max : ''}`;
 }
 
 function featuresCode(raw) {
