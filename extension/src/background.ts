@@ -845,6 +845,11 @@ async function ensureOwnedContainerWindowUnlocked(
     await focusOwnedWindowIfRequested(existingGroup.windowId, mode);
     const initialTabId = await findReusableOwnedContainerTab(existingGroup.windowId, existingGroup.id);
     await persistRuntimeState();
+    // Trace: window reuse (pairs with the "Created owned … window" log below so the
+    // browser-op trace analyzer can compute the new-window-vs-reuse ratio — the core
+    // "开窗 vs 复用" waste signal). console.log is forwarded to the daemon trace file
+    // only when OPENCLI_BROWSER_TRACE_FILE is set; otherwise just normal logging.
+    console.log(`[opencli] Reused owned ${role} window ${existingGroup.windowId} (initialTab=${initialTabId ?? 'none'})`);
     return {
       windowId: existingGroup.windowId,
       initialTabId,
