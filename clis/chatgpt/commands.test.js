@@ -75,7 +75,7 @@ describe('chatgpt browser command registration', () => {
                 name: 'model',
                 positional: true,
                 required: true,
-                choices: ['instant', 'thinking', 'pro'],
+                choices: ['instant', 'medium', 'high', 'extra-high', 'pro', 'thinking'],
             }),
         ]);
         expect(model.columns).toEqual(['Status', 'Model']);

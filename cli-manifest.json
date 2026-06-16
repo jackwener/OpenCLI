@@ -6169,7 +6169,7 @@
   {
     "site": "chatgpt",
     "name": "model",
-    "description": "Switch ChatGPT web model/mode (instant, thinking, pro)",
+    "description": "Switch ChatGPT web intelligence level (instant, medium, high, extra-high, pro; thinking aliases high)",
     "access": "write",
     "domain": "chatgpt.com",
     "strategy": "cookie",
@@ -6180,11 +6180,14 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Model/mode to switch to",
+        "help": "Intelligence level to switch to; thinking is a backward-compatible alias for high",
         "choices": [
           "instant",
-          "thinking",
-          "pro"
+          "medium",
+          "high",
+          "extra-high",
+          "pro",
+          "thinking"
         ]
       }
     ],

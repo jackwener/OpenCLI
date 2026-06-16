@@ -9,12 +9,50 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError }
 export const CHATGPT_DOMAIN = 'chatgpt.com';
 export const CHATGPT_URL = 'https://chatgpt.com';
 
-const CHATGPT_MODEL_OPTIONS = {
-    instant: { label: 'Instant', labels: ['Instant', '即时'], testId: 'model-switcher-gpt-5-5' },
-    thinking: { label: 'Thinking', labels: ['Thinking', '思考'], testId: 'model-switcher-gpt-5-5-thinking' },
-    pro: { label: 'Pro', labels: ['Pro', '进阶专业'], testId: 'model-switcher-gpt-5-5-pro' },
+const CHATGPT_MODEL_TARGETS = {
+    instant: {
+        label: 'Instant',
+        labels: ['Instant', '即时', '极速'],
+        optionLabels: ['Instant', '极速', '即时'],
+        testIds: ['model-switcher-gpt-5-5'],
+        intelligenceOrder: 0,
+    },
+    medium: {
+        label: 'Medium',
+        labels: ['Medium', '均衡'],
+        optionLabels: ['Medium', '均衡'],
+        testIds: [],
+        intelligenceOrder: 1,
+    },
+    high: {
+        label: 'High',
+        labels: ['High', '高级', 'Thinking', '思考'],
+        optionLabels: ['High', '高级', 'Thinking', '思考'],
+        testIds: ['model-switcher-gpt-5-5-thinking'],
+        intelligenceOrder: 2,
+    },
+    'extra-high': {
+        label: 'Extra High',
+        labels: ['Extra High', '超高'],
+        optionLabels: ['Extra High', '超高'],
+        testIds: [],
+        intelligenceOrder: 3,
+    },
+    pro: {
+        label: 'Pro',
+        labels: ['Pro', '进阶专业', '专业'],
+        optionLabels: ['专业', 'Pro', '进阶专业'],
+        testIds: ['model-switcher-gpt-5-5-pro'],
+        intelligenceOrder: 4,
+    },
 };
-export const CHATGPT_MODEL_CHOICES = Object.keys(CHATGPT_MODEL_OPTIONS);
+const CHATGPT_MODEL_ALIASES = {
+    thinking: 'high',
+};
+export const CHATGPT_MODEL_CHOICES = [
+    ...Object.keys(CHATGPT_MODEL_TARGETS),
+    ...Object.keys(CHATGPT_MODEL_ALIASES),
+];
 
 const CHATGPT_TOOL_OPTIONS = {
     'deep-research': { label: 'Deep Research', labels: ['深度研究', 'Deep Research'] },
@@ -300,14 +338,15 @@ export async function ensureChatGPTComposer(page, message = 'ChatGPT composer is
 
 function requireKnownChatGPTModel(model) {
     const key = String(model ?? '').trim().toLowerCase();
-    const option = CHATGPT_MODEL_OPTIONS[key];
+    const targetKey = CHATGPT_MODEL_ALIASES[key] || key;
+    const option = CHATGPT_MODEL_TARGETS[targetKey];
     if (!option) {
         throw new ArgumentError(
             `Unknown ChatGPT model "${model}"`,
             `Choose one of: ${CHATGPT_MODEL_CHOICES.join(', ')}`,
         );
     }
-    return { key, ...option };
+    return { key: targetKey, alias: key !== targetKey ? key : null, ...option };
 }
 
 function requireKnownChatGPTTool(tool) {
@@ -332,17 +371,56 @@ export async function getCurrentChatGPTModel(page) {
             return rect.width > 0 && rect.height > 0;
         };
         const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-        const labels = ${JSON.stringify(CHATGPT_MODEL_OPTIONS)};
-        const button = Array.from(document.querySelectorAll('form button')).find((node) => {
+        const escapeRegExp = (value) => String(value).replace(/[|\\\\{}()[\\]^$+*?.]/g, '\\\\$&');
+        const textMatchesLabel = (text, label) => {
+            const normalizedText = normalize(text);
+            const normalizedLabel = normalize(label);
+            if (!normalizedText || !normalizedLabel) return false;
+            if (normalizedText === normalizedLabel) return true;
+            if (/^[\\x00-\\x7F]+$/.test(normalizedLabel)) {
+                return new RegExp('(^|\\\\b)' + escapeRegExp(normalizedLabel) + '(\\\\b|$)', 'i').test(normalizedText);
+            }
+            return normalizedText.replace(/\\s+/g, '').includes(normalizedLabel.replace(/\\s+/g, ''));
+        };
+        const labels = ${JSON.stringify(CHATGPT_MODEL_TARGETS)};
+        const findEntryForText = (text) => {
+            const matches = [];
+            for (const [key, value] of Object.entries(labels)) {
+                for (const item of value.labels || []) {
+                    if (textMatchesLabel(text, item)) {
+                        matches.push({ key, value, length: normalize(item).length });
+                    }
+                }
+            }
+            matches.sort((a, b) => b.length - a.length);
+            return matches[0] || null;
+        };
+        const form = Array.from(document.querySelectorAll('form')).find((node) => node instanceof HTMLElement && isVisible(node));
+        const testIdNode = form
+            ? Array.from(form.querySelectorAll('[data-testid]')).find((node) => {
+                if (!(node instanceof HTMLElement) || !isVisible(node)) return false;
+                const testId = node.getAttribute('data-testid');
+                return Object.values(labels).some((entry) => (entry.testIds || []).includes(testId));
+            })
+            : null;
+        const testId = testIdNode?.getAttribute('data-testid') || '';
+        const testIdEntry = Object.entries(labels).find(([, value]) => (value.testIds || []).includes(testId));
+        if (testIdEntry) {
+            return {
+                model: testIdEntry[0],
+                label: testIdEntry[1].label,
+            };
+        }
+        const button = Array.from((form || document).querySelectorAll('button')).find((node) => {
             if (!isVisible(node)) return false;
             const text = normalize(node.textContent);
-            return Object.values(labels).some((entry) => entry.labels.includes(text));
+            return Object.values(labels).some((entry) => entry.labels.some((label) => textMatchesLabel(text, label)));
         });
         const label = normalize(button?.textContent || '');
-        const entry = Object.entries(labels).find(([, value]) => value.labels.includes(label));
+        const entry = findEntryForText(label);
         return {
-            model: entry?.[0] ?? null,
-            label: entry?.[1]?.label ?? null,
+            model: entry?.key ?? null,
+            label: entry?.value?.label ?? null,
         };
     })()`)), 'chatgpt current model');
 }
@@ -369,10 +447,32 @@ export async function selectChatGPTModel(page, model) {
             return rect.width > 0 && rect.height > 0;
         };
         const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-        const labels = ${JSON.stringify(Object.values(CHATGPT_MODEL_OPTIONS).flatMap((entry) => entry.labels))};
-        const button = Array.from(document.querySelectorAll('form button')).find((node) =>
-            isVisible(node) && labels.includes(normalize(node.textContent))
+        const escapeRegExp = (value) => String(value).replace(/[|\\\\{}()[\\]^$+*?.]/g, '\\\\$&');
+        const textMatchesLabel = (text, label) => {
+            const normalizedText = normalize(text);
+            const normalizedLabel = normalize(label);
+            if (!normalizedText || !normalizedLabel) return false;
+            if (normalizedText === normalizedLabel) return true;
+            if (/^[\\x00-\\x7F]+$/.test(normalizedLabel)) {
+                return new RegExp('(^|\\\\b)' + escapeRegExp(normalizedLabel) + '(\\\\b|$)', 'i').test(normalizedText);
+            }
+            return normalizedText.replace(/\\s+/g, '').includes(normalizedLabel.replace(/\\s+/g, ''));
+        };
+        const labels = ${JSON.stringify(Object.values(CHATGPT_MODEL_TARGETS).flatMap((entry) => entry.labels))};
+        const menuButtonSelectors = [
+            'button[data-testid="model-switcher-dropdown-button"]',
+            'button[aria-label*="model" i]',
+            'button[aria-label*="模型"]',
+            'button[aria-label*="智能"]',
+        ];
+        let button = Array.from(document.querySelectorAll('form button')).find((node) =>
+            isVisible(node) && labels.some((label) => textMatchesLabel(node.textContent, label))
         );
+        if (!button) {
+            button = menuButtonSelectors
+                .map((selector) => document.querySelector(selector))
+                .find((node) => node instanceof HTMLElement && isVisible(node));
+        }
         if (!button) return { found: false };
         button.scrollIntoView({ block: 'center', inline: 'center' });
         const rect = button.getBoundingClientRect();
@@ -398,7 +498,56 @@ export async function selectChatGPTModel(page, model) {
                 const rect = el.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
             };
-            const option = document.querySelector(${JSON.stringify(`[data-testid="${target.testId}"]`)});
+            const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+            const escapeRegExp = (value) => String(value).replace(/[|\\\\{}()[\\]^$+*?.]/g, '\\\\$&');
+            const textMatchesLabel = (text, label) => {
+                const normalizedText = normalize(text);
+                const normalizedLabel = normalize(label);
+                if (!normalizedText || !normalizedLabel) return false;
+                if (normalizedText === normalizedLabel) return true;
+                if (/^[\\x00-\\x7F]+$/.test(normalizedLabel)) {
+                    return new RegExp('(^|\\\\b)' + escapeRegExp(normalizedLabel) + '(\\\\b|$)', 'i').test(normalizedText);
+                }
+                return normalizedText.replace(/\\s+/g, '').includes(normalizedLabel.replace(/\\s+/g, ''));
+            };
+            const target = ${JSON.stringify(target)};
+            const clickableSelector = '[role="menuitemradio"], [role="menuitem"], [role="option"], button, [data-testid^="model-switcher"]';
+            const intelligenceContent = document.querySelector('[data-testid="composer-intelligence-picker-content"]');
+            const intelligenceOptions = intelligenceContent
+                ? Array.from(intelligenceContent.querySelectorAll('[role="menuitemradio"]')).filter(isVisible)
+                : [];
+            let option = null;
+            for (const testId of target.testIds || []) {
+                option = Array.from(document.querySelectorAll('[data-testid]')).find((candidate) =>
+                    candidate instanceof HTMLElement && candidate.getAttribute('data-testid') === testId
+                ) || null;
+                if (option instanceof HTMLElement && isVisible(option)) break;
+                option = null;
+            }
+            const clickables = intelligenceOptions.length ? intelligenceOptions : Array.from(document.querySelectorAll(clickableSelector));
+            for (const label of target.optionLabels || target.labels || []) {
+                option = clickables.find((candidate) =>
+                    candidate instanceof HTMLElement
+                    && isVisible(candidate)
+                    && textMatchesLabel(candidate.textContent, label)
+                ) || null;
+                if (option) break;
+
+                const labelRoot = intelligenceContent || document;
+                const labelNode = Array.from(labelRoot.querySelectorAll('span, div, p')).find((candidate) =>
+                    candidate instanceof HTMLElement
+                    && isVisible(candidate)
+                    && textMatchesLabel(candidate.textContent, label)
+                );
+                option = labelNode?.closest(clickableSelector) || null;
+                if (option instanceof HTMLElement && isVisible(option)) break;
+                option = null;
+            }
+            if (!option && Number.isInteger(target.intelligenceOrder)) {
+                if (intelligenceOptions.length === 5) {
+                    option = intelligenceOptions[target.intelligenceOrder] || null;
+                }
+            }
             if (!(option instanceof HTMLElement) || !isVisible(option)) return { found: false };
             option.scrollIntoView({ block: 'center', inline: 'center' });
             const rect = option.getBoundingClientRect();
@@ -419,6 +568,32 @@ export async function selectChatGPTModel(page, model) {
     await page.wait(0.5);
     const after = await getCurrentChatGPTModel(page);
     if (after.model !== target.key) {
+        await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
+        await page.wait(0.5);
+        const checked = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+            const isVisible = (el) => {
+                if (!(el instanceof HTMLElement)) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            };
+            const target = ${JSON.stringify(target)};
+            const intelligenceContent = document.querySelector('[data-testid="composer-intelligence-picker-content"]');
+            const options = intelligenceContent
+                ? Array.from(intelligenceContent.querySelectorAll('[role="menuitemradio"]')).filter(isVisible)
+                : [];
+            const checkedIndex = options.findIndex((node) => node.getAttribute('aria-checked') === 'true');
+            return {
+                recognized: options.length === 5 && Number.isInteger(target.intelligenceOrder),
+                checkedIndex,
+            };
+        })()`)), 'chatgpt model checked intelligence option');
+        if (checked.recognized && checked.checkedIndex === target.intelligenceOrder) {
+            await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
+            return { Status: 'Success', Model: target.label };
+        }
+        await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
         throw new CommandExecutionError(`ChatGPT model did not switch to ${target.label}.`);
     }
     return { Status: 'Success', Model: target.label };
