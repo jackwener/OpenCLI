@@ -885,6 +885,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
 Examples:
   $ opencli browser work open https://x.com
+  $ opencli browser work open https://x.com --window background
   $ opencli browser work click 12
   $ opencli browser work state
   $ opencli browser work bind
