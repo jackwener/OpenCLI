@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { fetchXhsCollectionNotes, LIKE_API_PATTERN, LIKED_PROFILE_TAB, resolveXhsUserId } from './collection-helpers.js';
+import { fetchXhsCollectionNotes, LIKE_API_PATTERN, LIKED_PROFILE_TAB, parseCollectionLimit, resolveXhsUserId } from './collection-helpers.js';
 
 cli({
     site: 'xiaohongshu',
@@ -16,8 +16,8 @@ cli({
     ],
     columns: ['rank', 'id', 'title', 'author', 'likes', 'type', 'url'],
     func: async (page, kwargs) => {
+        const limit = parseCollectionLimit(kwargs.limit);
         const userId = await resolveXhsUserId(page, kwargs.id);
-        const limit = Math.max(1, Number(kwargs.limit ?? 20));
         return fetchXhsCollectionNotes(page, {
             userId,
             profileTab: LIKED_PROFILE_TAB,

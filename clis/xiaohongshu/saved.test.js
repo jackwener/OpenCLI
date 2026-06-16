@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { createPageMock } from '../test-utils.js';
 import './saved.js';
@@ -31,7 +32,10 @@ describe('xiaohongshu saved', () => {
                 },
             },
         ];
-        const evaluate = vi.fn().mockResolvedValueOnce('self-user');
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce('self-user')
+            .mockResolvedValueOnce(false);
         const getInterceptedRequests = vi.fn()
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce(intercepted);
@@ -54,5 +58,31 @@ describe('xiaohongshu saved', () => {
         ]);
         expect(page.installInterceptor).toHaveBeenCalledWith('note/collect/page');
         expect(page.goto.mock.calls.at(-1)[0]).toBe('https://www.xiaohongshu.com/user/profile/self-user?tab=fav&subTab=note');
+    });
+
+    it('rejects invalid --limit before browser navigation', async () => {
+        const page = createPageMock();
+
+        await expect(command.func(page, { limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('maps collection login wall to AuthRequiredError', async () => {
+        const page = createPageMock([], {
+            evaluate: vi.fn().mockResolvedValueOnce(true),
+        });
+
+        await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('fails closed when collection API rows lack signed note identity', async () => {
+        const page = createPageMock([], {
+            evaluate: vi.fn().mockResolvedValueOnce(false),
+            getInterceptedRequests: vi.fn().mockResolvedValueOnce([{
+                data: { notes: [{ note_id: '662908190000000001007366' }] },
+            }]),
+        });
+
+        await expect(command.func(page, { id: 'self-user', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

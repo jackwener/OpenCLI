@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     COLLECT_API_PATTERN,
     LIKE_API_PATTERN,
@@ -7,6 +8,7 @@ import {
     buildProfileCollectionUrl,
     extractNotesFromResponses,
     mapCollectionNote,
+    parseCollectionLimit,
     readSelfUserIdFromState,
 } from './collection-helpers.js';
 
@@ -19,6 +21,24 @@ describe('xiaohongshu collection helpers', () => {
                 },
             },
         })).toBe('abc123');
+    });
+
+    it('unwraps Browser Bridge envelopes when reading logged-in user id', () => {
+        expect(readSelfUserIdFromState({
+            session: 's1',
+            data: {
+                user: {
+                    userInfo: { userId: 'self-user' },
+                },
+            },
+        })).toBe('self-user');
+    });
+
+    it('validates collection limits instead of silently clamping', () => {
+        expect(parseCollectionLimit('20')).toBe(20);
+        expect(() => parseCollectionLimit(0)).toThrow(/between 1 and 100/);
+        expect(() => parseCollectionLimit(101)).toThrow(/between 1 and 100/);
+        expect(() => parseCollectionLimit('1.5')).toThrow(/integer/);
     });
 
     it('maps collect API notes with xsec_token into profile URLs', () => {
@@ -49,6 +69,7 @@ describe('xiaohongshu collection helpers', () => {
                     notes: [
                         {
                             note_id: 'note-1',
+                            xsec_token: 'tok-1',
                             title: 'First',
                             user: { nickname: 'A' },
                             interact_info: { liked_count: '1' },
@@ -61,12 +82,14 @@ describe('xiaohongshu collection helpers', () => {
                     notes: [
                         {
                             note_id: 'note-1',
+                            xsec_token: 'tok-1b',
                             title: 'First duplicate',
                             user: { nickname: 'A' },
                             interact_info: { liked_count: '1' },
                         },
                         {
                             note_id: 'note-2',
+                            xsec_token: 'tok-2',
                             title: 'Second',
                             user: { nickname: 'B' },
                             interact_info: { liked_count: '2' },
@@ -78,6 +101,13 @@ describe('xiaohongshu collection helpers', () => {
         const rows = extractNotesFromResponses(requests, 'self');
         expect(rows).toHaveLength(2);
         expect(rows.map((row) => row.id)).toEqual(['note-1', 'note-2']);
+    });
+
+    it('fails closed when intercepted collection payload shape is malformed', () => {
+        expect(() => extractNotesFromResponses([{ data: { notes: null } }], 'self'))
+            .toThrow(CommandExecutionError);
+        expect(() => extractNotesFromResponses([{ data: { notes: [{ note_id: 'note-1' }] } }], 'self'))
+            .toThrow(/stable id\/xsec token/);
     });
 
     it('uses the expected API patterns', () => {

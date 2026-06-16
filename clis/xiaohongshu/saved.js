@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { COLLECT_API_PATTERN, fetchXhsCollectionNotes, resolveXhsUserId, SAVED_PROFILE_TAB } from './collection-helpers.js';
+import { COLLECT_API_PATTERN, fetchXhsCollectionNotes, parseCollectionLimit, resolveXhsUserId, SAVED_PROFILE_TAB } from './collection-helpers.js';
 
 cli({
     site: 'xiaohongshu',
@@ -16,8 +16,8 @@ cli({
     ],
     columns: ['rank', 'id', 'title', 'author', 'likes', 'type', 'url'],
     func: async (page, kwargs) => {
+        const limit = parseCollectionLimit(kwargs.limit);
         const userId = await resolveXhsUserId(page, kwargs.id);
-        const limit = Math.max(1, Number(kwargs.limit ?? 20));
         return fetchXhsCollectionNotes(page, {
             userId,
             profileTab: SAVED_PROFILE_TAB,

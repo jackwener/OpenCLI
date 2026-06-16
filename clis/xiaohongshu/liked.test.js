@@ -31,7 +31,10 @@ describe('xiaohongshu liked', () => {
                 },
             },
         ];
-        const evaluate = vi.fn().mockResolvedValueOnce('self-user');
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce('self-user')
+            .mockResolvedValueOnce(false);
         const getInterceptedRequests = vi.fn()
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce(intercepted);

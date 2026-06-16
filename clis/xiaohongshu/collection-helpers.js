@@ -1,4 +1,4 @@
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { buildXhsNoteUrl, normalizeXhsUserId } from './user-helpers.js';
 
 export const COLLECT_API_PATTERN = 'note/collect/page';
@@ -19,14 +19,37 @@ function toCleanString(value) {
     return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
 }
 
+function isObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function unwrapBrowserResult(payload) {
+    if (isObject(payload) && 'session' in payload && 'data' in payload) {
+        return payload.data;
+    }
+    return payload;
+}
+
+export function parseCollectionLimit(raw) {
+    const parsed = Number(raw ?? 20);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be an integer between 1 and 100, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < 1 || parsed > 100) {
+        throw new ArgumentError(`--limit must be between 1 and 100, got ${parsed}`);
+    }
+    return parsed;
+}
+
 export function readSelfUserIdFromState(state) {
-    const user = state?.user?.userInfo;
+    const unwrapped = unwrapBrowserResult(state);
+    const user = unwrapped?.user?.userInfo;
     const info = user?._value ?? user ?? {};
     return toCleanString(info.user_id ?? info.userId ?? info.userID ?? '');
 }
 
 export function mapCollectionNote(entry, options = {}) {
-    if (!entry || typeof entry !== 'object')
+    if (!isObject(entry))
         return null;
     const noteCard = entry.note_card ?? entry.noteCard ?? entry;
     const noteId = toCleanString(entry.note_id
@@ -38,16 +61,17 @@ export function mapCollectionNote(entry, options = {}) {
     if (!noteId)
         return null;
     const user = noteCard.user ?? entry.user ?? {};
-    const userId = toCleanString(user.user_id ?? user.userId ?? options.fallbackUserId);
+    const userId = toCleanString(user.user_id ?? user.userId ?? '');
     const xsecToken = toCleanString(entry.xsec_token
         ?? entry.xsecToken
         ?? noteCard.xsec_token
         ?? noteCard.xsecToken);
+    if (!xsecToken)
+        return null;
     const interact = noteCard.interact_info ?? noteCard.interactInfo ?? entry.interact_info ?? entry.interactInfo ?? {};
-    const url = buildXhsNoteUrl(userId, noteId, xsecToken)
-        || (xsecToken
-            ? `https://www.xiaohongshu.com/explore/${noteId}?xsec_token=${encodeURIComponent(xsecToken)}&xsec_source=pc_user`
-            : `https://www.xiaohongshu.com/explore/${noteId}`);
+    const url = userId
+        ? buildXhsNoteUrl(userId, noteId, xsecToken)
+        : `https://www.xiaohongshu.com/explore/${encodeURIComponent(noteId)}?xsec_token=${encodeURIComponent(xsecToken)}&xsec_source=pc_user`;
     return {
         id: noteId,
         title: toCleanString(noteCard.display_title ?? noteCard.displayTitle ?? noteCard.title ?? entry.title ?? entry.display_title),
@@ -62,12 +86,23 @@ export function extractNotesFromResponses(requests, fallbackUserId) {
     const rows = [];
     const seen = new Set();
     for (const req of requests ?? []) {
-        const notes = req?.data?.notes ?? req?.data?.note_list ?? [];
+        const payload = unwrapBrowserResult(req);
+        if (!isObject(payload)) {
+            throw new CommandExecutionError('xiaohongshu collection API returned a malformed payload');
+        }
+        const data = payload.data;
+        if (!isObject(data)) {
+            throw new CommandExecutionError('xiaohongshu collection API returned malformed data');
+        }
+        const notes = data.notes ?? data.note_list;
         if (!Array.isArray(notes))
-            continue;
+            throw new CommandExecutionError('xiaohongshu collection API returned malformed notes');
         for (const entry of notes) {
             const row = mapCollectionNote(entry, { fallbackUserId });
-            if (!row?.id || seen.has(row.id))
+            if (!row?.id || !row.url.includes('xsec_token=')) {
+                throw new CommandExecutionError('xiaohongshu collection API returned a note without stable id/xsec token');
+            }
+            if (seen.has(row.id))
                 continue;
             seen.add(row.id);
             rows.push(row);
@@ -80,9 +115,15 @@ export const EXTRACT_COLLECTION_DOM_JS = `
   (() => {
     const normalizeUrl = (href) => {
       if (!href) return '';
-      if (href.startsWith('http://') || href.startsWith('https://')) return href;
-      if (href.startsWith('/')) return 'https://www.xiaohongshu.com' + href;
-      return '';
+      let url;
+      try {
+        url = new URL(href, 'https://www.xiaohongshu.com');
+      } catch {
+        return '';
+      }
+      if (url.protocol !== 'https:' || url.hostname !== 'www.xiaohongshu.com') return '';
+      if (!url.searchParams.get('xsec_token')) return '';
+      return url.toString();
     };
     const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
     const results = [];
@@ -117,6 +158,23 @@ export const EXTRACT_COLLECTION_DOM_JS = `
   })()
 `;
 
+const LOGIN_WALL_JS = `
+  (() => {
+    const pathName = (typeof location !== 'undefined' && location.pathname) ? location.pathname : '';
+    const userStore = window.__INITIAL_STATE__?.user;
+    const loggedInVal = userStore ? (userStore.loggedIn?._value ?? userStore.loggedIn) : undefined;
+    const bodyText = document.body?.innerText || '';
+    return Boolean(pathName.indexOf('/login') === 0 || loggedInVal === false || /登录后|请先登录|登录后查看/.test(bodyText));
+  })()
+`;
+
+async function throwIfLoginWall(page) {
+    const payload = unwrapBrowserResult(await page.evaluate(LOGIN_WALL_JS));
+    if (payload === true) {
+        throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu collection page requires login; re-login to xiaohongshu.com and retry.');
+    }
+}
+
 async function accumulateInterceptedNotes(page, bucket, fallbackUserId) {
     const reqs = await page.getInterceptedRequests();
     if (Array.isArray(reqs) && reqs.length > 0)
@@ -129,11 +187,12 @@ export async function resolveXhsUserId(page, rawId) {
         return normalizeXhsUserId(String(rawId));
     await page.goto('https://www.xiaohongshu.com/explore');
     await page.wait(2);
-    const userId = await page.evaluate(`() => {
+    await throwIfLoginWall(page);
+    const userId = unwrapBrowserResult(await page.evaluate(`() => {
       const user = window.__INITIAL_STATE__?.user?.userInfo;
       const info = user?._value ?? user ?? {};
       return info.user_id || info.userId || info.userID || '';
-    }`);
+    }`));
     const clean = toCleanString(userId);
     if (!clean) {
         throw new AuthRequiredError('www.xiaohongshu.com', 'Not logged into Xiaohongshu (could not resolve current user id)');
@@ -142,7 +201,7 @@ export async function resolveXhsUserId(page, rawId) {
 }
 
 export async function extractNotesFromDom(page) {
-    const payload = await page.evaluate(EXTRACT_COLLECTION_DOM_JS);
+    const payload = unwrapBrowserResult(await page.evaluate(EXTRACT_COLLECTION_DOM_JS));
     return Array.isArray(payload) ? payload.filter((item) => item?.id) : [];
 }
 
@@ -157,6 +216,7 @@ export async function fetchXhsCollectionNotes(page, {
     await page.installInterceptor(apiPattern);
     await page.goto(buildProfileCollectionUrl(userId, profileTab));
     await page.wait(2);
+    await throwIfLoginWall(page);
     let notes = [];
     for (let i = 0; i < 16; i++) {
         await page.wait(0.5);
@@ -168,6 +228,7 @@ export async function fetchXhsCollectionNotes(page, {
     for (let i = 0; notes.length < limit && i < 4; i += 1) {
         await page.autoScroll({ times: 1, delayMs: 1500 });
         await page.wait(1);
+        await throwIfLoginWall(page);
         const nextNotes = await accumulateInterceptedNotes(page, capturedRequests, userId);
         if (nextNotes.length > previousCount) {
             notes = nextNotes;
