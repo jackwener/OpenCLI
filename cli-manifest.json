@@ -2627,6 +2627,170 @@
     "sourceFile": "apple-podcasts/top.js"
   },
   {
+    "site": "archive",
+    "name": "item",
+    "description": "Fetch metadata for a single Internet Archive item by identifier.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "identifier",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Archive item identifier (e.g. \"open-syllabus\", \"FinalFantasy2_356\")."
+      }
+    ],
+    "columns": [
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "collection",
+      "description",
+      "file_count",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/item.js",
+    "sourceFile": "archive/item.js"
+  },
+  {
+    "site": "archive",
+    "name": "search",
+    "description": "Search Internet Archive items across books, movies, audio, software, and web.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full-text query (matches title, description, creator, subject)."
+      },
+      {
+        "name": "mediatype",
+        "type": "string",
+        "required": false,
+        "help": "Restrict to mediatype: texts, movies, audio, software, image, web, data, collection"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "downloads",
+        "required": false,
+        "help": "Sort key: downloads, date, addeddate, week, title"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max items (max 100; one API page)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "downloads",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/search.js",
+    "sourceFile": "archive/search.js"
+  },
+  {
+    "site": "archive",
+    "name": "snapshots",
+    "description": "List Wayback Machine snapshots over time for a URL via the CDX API.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "help": "Earliest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": false,
+        "help": "Latest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max snapshots to return (max 1000)."
+      }
+    ],
+    "columns": [
+      "timestamp",
+      "snapshot_url",
+      "status",
+      "mimetype",
+      "original_url"
+    ],
+    "type": "js",
+    "modulePath": "archive/snapshots.js",
+    "sourceFile": "archive/snapshots.js"
+  },
+  {
+    "site": "archive",
+    "name": "wayback",
+    "description": "Look up the closest Wayback Machine snapshot for a URL.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "timestamp",
+        "type": "string",
+        "required": false,
+        "help": "Target timestamp (YYYY[MM[DD[hh[mm[ss]]]]] or ISO date). Defaults to most recent snapshot."
+      }
+    ],
+    "columns": [
+      "original_url",
+      "requested_timestamp",
+      "snapshot_timestamp",
+      "snapshot_url",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "archive/wayback.js",
+    "sourceFile": "archive/wayback.js"
+  },
+  {
     "site": "arxiv",
     "name": "author",
     "description": "List arXiv papers by a given author (newest first)",
