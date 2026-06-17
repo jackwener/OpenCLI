@@ -1,5 +1,6 @@
 import { JSDOM } from 'jsdom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { smzdmSearchCommand, __test__ } from './search.js';
 
 function runBrowserScript(html, script, url = 'https://search.smzdm.com/?c=home&s=test&v=b') {
@@ -76,5 +77,29 @@ describe('smzdm/search', () => {
         const rows = runBrowserScript(`<ul>${li.repeat(5)}</ul>`, __test__.buildSmzdmSearchJs(2));
         expect(rows).toHaveLength(2);
         expect(rows.map((r) => r.rank)).toEqual([1, 2]);
+    });
+
+    it('validates --limit before browser navigation', async () => {
+        const page = {
+            goto: vi.fn(),
+            evaluate: vi.fn(),
+        };
+        await expect(smzdmSearchCommand.func(page, { query: 'test', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(smzdmSearchCommand.func(page, { query: 'test', limit: 101 })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('unwraps Browser Bridge evaluate envelopes', () => {
+        const rows = [{ rank: 1, title: 'Deal' }];
+        expect(__test__.requireSearchRows({ session: 'site:smzdm', data: rows })).toBe(rows);
+    });
+
+    it('fails closed on malformed extraction payloads', async () => {
+        expect(() => __test__.requireSearchRows({ ok: true })).toThrow(CommandExecutionError);
+        const page = {
+            goto: vi.fn(),
+            evaluate: vi.fn().mockResolvedValue({ ok: true }),
+        };
+        await expect(smzdmSearchCommand.func(page, { query: 'test', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

@@ -6,6 +6,33 @@
  * and scrape the rendered DOM directly.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+
+function unwrapEvaluateResult(payload) {
+    if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
+        return payload.data;
+    }
+    return payload;
+}
+
+function requireSearchRows(payload) {
+    const rows = unwrapEvaluateResult(payload);
+    if (!Array.isArray(rows)) {
+        throw new CommandExecutionError('Unexpected SMZDM search extraction payload shape; expected an array of rows.');
+    }
+    return rows;
+}
+
+function parseLimit(raw) {
+    const parsed = Number(raw ?? 20);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be an integer between 1 and 100, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < 1 || parsed > 100) {
+        throw new ArgumentError(`--limit must be between 1 and 100, got ${parsed}`);
+    }
+    return parsed;
+}
 
 /**
  * Build the in-page extraction script. Every result row carries the full
@@ -72,14 +99,11 @@ export const smzdmSearchCommand = cli({
     columns: ['rank', 'title', 'price', 'mall', 'updated_at', 'zhi_count', 'buzhi_count', 'favorite_count', 'comments', 'url'],
     func: async (page, kwargs) => {
         const q = encodeURIComponent(kwargs.query);
-        const limit = kwargs.limit || 20;
+        const limit = parseLimit(kwargs.limit);
         // Navigate directly to search results page
         await page.goto(`https://search.smzdm.com/?c=home&s=${q}&v=b`);
-        const data = await page.evaluate(buildSmzdmSearchJs(limit));
-        if (!Array.isArray(data))
-            return [];
-        return data;
+        return requireSearchRows(await page.evaluate(buildSmzdmSearchJs(limit)));
     },
 });
 
-export const __test__ = { buildSmzdmSearchJs };
+export const __test__ = { buildSmzdmSearchJs, parseLimit, requireSearchRows, unwrapEvaluateResult };
