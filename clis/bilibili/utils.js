@@ -120,6 +120,31 @@ export async function fetchJson(page, url) {
   `);
 }
 /**
+ * Bilibili write APIs return a JSON envelope `{ code, message, data }`. A non-zero
+ * `code` carries either an auth/permission failure (login expired, CSRF rejected,
+ * forbidden) or an application-level error (rate limit, validation, etc.). These
+ * two helpers route the envelope to the right typed error so every write adapter
+ * surfaces login problems as `AuthRequiredError`, not a generic execution error.
+ */
+export function isAuthLikeBilibiliError(code, message) {
+    return code === -101 || code === -111 || code === -403 || /csrf|登录|账号|权限|forbidden|permission|login/i.test(String(message ?? ''));
+}
+
+export function requireOkPayload(payload, label) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.hasOwn(payload, 'code')) {
+        throw new CommandExecutionError(`Bilibili ${label} API returned a malformed payload`);
+    }
+    if (payload.code !== 0) {
+        const message = payload.message ?? 'unknown error';
+        if (isAuthLikeBilibiliError(payload.code, message)) {
+            throw new AuthRequiredError('bilibili.com', `Bilibili ${label} API requires login or permission: ${message} (${payload.code})`);
+        }
+        throw new CommandExecutionError(`Bilibili ${label} API failed: ${message} (${payload.code})`);
+    }
+    return payload.data;
+}
+
+/**
  * POST form-encoded params to a Bilibili API endpoint.
  * Runs inside the logged-in browser context and auto-attaches the bili_jct CSRF token,
  * which Bilibili requires on every authenticated write request.

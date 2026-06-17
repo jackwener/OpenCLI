@@ -46,6 +46,7 @@ registerSiteAuthCommands({
   domain: 'instagram.com',
   loginUrl: 'https://www.instagram.com/accounts/login/',
   columns: ['user_id', 'username', 'full_name'],
+  quickCheck: hasInstagramSessionCookie,
   verify: verifyInstagramIdentity,
   poll: async (page) => {
     if (!await hasInstagramSessionCookie(page)) {

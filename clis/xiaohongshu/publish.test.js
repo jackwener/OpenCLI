@@ -2,9 +2,10 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, ArgumentError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './publish.js';
+const IMAGE_INPUT_SELECTOR_RESULT = 'input[type="file"][accept*="image"]';
 function createPageMock(evaluateResults, overrides = {}) {
     const evaluate = vi.fn();
     for (const result of evaluateResults) {
@@ -40,6 +41,19 @@ function createConditionalPageMock(evaluateImpl, overrides = {}) {
     return page;
 }
 describe('xiaohongshu publish', () => {
+    it('keeps the positional content argument before named options', () => {
+        const cmd = getRegistry().get('xiaohongshu/publish');
+        expect(cmd?.args.map((arg) => arg.name)).toEqual([
+            'content',
+            'title',
+            'images',
+            'card-text',
+            'card-style',
+            'topics',
+            'draft',
+        ]);
+    });
+
     it('uses native insertText for contenteditable title fields when available', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
         expect(cmd?.func).toBeTypeOf('function');
@@ -554,7 +568,7 @@ describe('xiaohongshu publish', () => {
             },
         ]);
     });
-    it('does not treat 保存成功 alone as a publish success signal', async () => {
+    it('fails when publish success cannot be verified', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
         expect(cmd?.func).toBeTypeOf('function');
         const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-publish-'));
@@ -592,19 +606,13 @@ describe('xiaohongshu publish', () => {
             }
             throw new Error(`Unhandled evaluate call: ${code.slice(0, 120)}`);
         });
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             title: '发布成功提示',
             content: '发布提示不该复用草稿成功',
             images: imagePath,
             topics: '',
             draft: false,
-        });
-        expect(result).toEqual([
-            {
-                status: '⚠️ 操作完成，请在浏览器中确认',
-                detail: '"发布成功提示" · 1张图片 · https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=image',
-            },
-        ]);
+        })).rejects.toThrow(CommandExecutionError);
     });
     it('attaches topics via Enter to accept the inline suggestion (shadow-DOM dropdown)', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
@@ -827,5 +835,307 @@ describe('xiaohongshu publish', () => {
             topics: 'AI',
             draft: false,
         })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+});
+
+describe('xiaohongshu publish 文字配图 validation', () => {
+    const getCmd = () => getRegistry().get('xiaohongshu/publish');
+
+    it('throws ArgumentError when neither --images nor --card-text is given', async () => {
+        const cmd = getCmd();
+        const page = createPageMock([]);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c' })
+        ).rejects.toThrow(/--images.*--card-text|--card-text.*--images/);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c' })
+        ).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('rejects .gif appended images in text-image mode', async () => {
+        const cmd = getCmd();
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-cardgif-'));
+        const gifPath = path.join(tempDir, 'a.gif');
+        fs.writeFileSync(gifPath, Buffer.from([0x47, 0x49, 0x46]));
+        const page = createPageMock([]);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', 'card-text': '文字', images: gifPath })
+        ).rejects.toThrow(/gif/i);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', 'card-text': '文字', images: gifPath })
+        ).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws ArgumentError for invalid image paths before navigating', async () => {
+        const cmd = getCmd();
+        const page = createPageMock([]);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', images: '/tmp/opencli-xhs-missing.jpg' })
+        ).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws ArgumentError for unsupported image extensions before navigating', async () => {
+        const cmd = getCmd();
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-badext-'));
+        const txtPath = path.join(tempDir, 'a.txt');
+        fs.writeFileSync(txtPath, 'not an image');
+        const page = createPageMock([]);
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', images: txtPath })
+        ).rejects.toThrow(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+});
+
+describe('xiaohongshu publish 文字配图 flow', () => {
+    const getCmd = () => getRegistry().get('xiaohongshu/publish');
+
+    // Build a page mock that walks the full text-image happy path.
+    function createTextImagePage({ insertText, capture }) {
+        return createConditionalPageMock((code) => {
+            if (code.includes('location.href'))
+                return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']"))
+                return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'image_surface', hasTitleInput: false, hasImageInput: true, hasVideoSurface: false };
+            // text-image entry click
+            if (code.includes('__opencli_xhs_click_label')) {
+                capture.clicks.push(code.match(/wantLabel:\s*"([^"]+)"/)?.[1] ?? 'unknown');
+                return { ok: true };
+            }
+            // focus active card
+            if (code.includes('__opencli_xhs_focus_card'))
+                return { ok: true };
+            // new-card render poll after 再写一张
+            if (code.includes('__opencli_xhs_card_count'))
+                return { ok: true, count: 9, activeEmpty: true };
+            // 预览图片 step readiness poll after 生成图片
+            if (code.includes('__opencli_xhs_preview_ready'))
+                return { ok: true };
+            // verify a card is non-empty
+            if (code.includes('__opencli_xhs_card_text'))
+                return { ok: true, text: 'non-empty' };
+            // preview style options present — `found` mirrors the live reader,
+            // which reports whether the requested style is among the on-page options.
+            if (code.includes('__opencli_xhs_card_styles')) {
+                const styles = ['基础', '插图', '美漫', '备忘', '边框', '清新'];
+                const want = code.match(/const want = "([^"]+)"/)?.[1] ?? '';
+                return { ok: true, styles, found: styles.includes(want) };
+            }
+            if (code.includes('__opencli_xhs_composer_media_count'))
+                return { ok: true, count: 9 };
+            // wait-for-edit-form poll
+            if (code.includes('const sels =') && code.includes('for (const sel of sels)'))
+                return true;
+            // fill title/content locate+apply
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"'))
+                return { ok: true, sel: 'x', kind: 'input' };
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"apply"'))
+                return { ok: true, actual: code.includes('标题') ? 't' : 'c' };
+            if (code.includes('xhs-publish-btn'))
+                return { ok: true, via: 'method', name: '_onPublish' };
+            if (code.includes('successMarkers') || code.includes('发布成功'))
+                return '发布成功';
+            return null;
+        }, { insertText });
+    }
+
+    it('types one card, generates, and lands on the editor', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createTextImagePage({ insertText, capture });
+        const rows = await cmd.func(page, { title: 't', content: 'c', 'card-text': '第一段卡片文字' });
+        expect(insertText).toHaveBeenCalledWith('第一段卡片文字');
+        expect(capture.clicks).toContain('文字配图');
+        expect(capture.clicks).toContain('生成图片');
+        expect(capture.clicks).toContain('下一步');
+        const mediaCountCode = page.evaluate.mock.calls.map((args) => String(args[0]))
+            .find((code) => code.includes('__opencli_xhs_composer_media_count'));
+        expect(mediaCountCode).toContain('.find((el) => visibleBox(el))');
+        expect(mediaCountCode).toContain('if (!visibleMedia(el)) continue');
+        expect(rows[0].status).toContain('发布成功');
+    });
+
+    it('types multiple cards split by ||| and clicks 再写一张 between them', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createTextImagePage({ insertText, capture });
+        await cmd.func(page, { title: 't', content: 'c', 'card-text': '卡片一|||卡片二|||卡片三' });
+        expect(insertText.mock.calls.map((c) => c[0])).toEqual(['卡片一', '卡片二', '卡片三']);
+        expect(capture.clicks.filter((c) => c === '再写一张')).toHaveLength(2);
+    });
+
+    it('splits a multi-line card on \\n and presses Enter between lines', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createTextImagePage({ insertText, capture });
+        await cmd.func(page, { title: 't', content: 'c', 'card-text': '第一行\n第二行\n第三行' });
+        // Each line is inserted separately, not as one "\n"-joined blob.
+        expect(insertText.mock.calls.map((c) => c[0])).toEqual(['第一行', '第二行', '第三行']);
+        // Two line breaks → two Enter presses inside the card editor.
+        const enterCount = page.pressKey.mock.calls.filter((args) => args[0] === 'Enter').length;
+        expect(enterCount).toBe(2);
+    });
+
+    it('treats a literal "\\n" (backslash-n from the shell) as a line break', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createTextImagePage({ insertText, capture });
+        // Single-quoted shell args deliver the two chars backslash + n, not a real LF.
+        await cmd.func(page, { title: 't', content: 'c', 'card-text': '第一行\\n第二行\\n第三行' });
+        expect(insertText.mock.calls.map((c) => c[0])).toEqual(['第一行', '第二行', '第三行']);
+        const enterCount = page.pressKey.mock.calls.filter((args) => args[0] === 'Enter').length;
+        expect(enterCount).toBe(2);
+    });
+
+    it('keeps a single-line card on one insertText call (no Enter)', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createTextImagePage({ insertText, capture });
+        await cmd.func(page, { title: 't', content: 'c', 'card-text': '只有一行' });
+        expect(insertText.mock.calls.map((c) => c[0])).toEqual(['只有一行']);
+        expect(page.pressKey.mock.calls.filter((args) => args[0] === 'Enter')).toHaveLength(0);
+    });
+
+    it('appends uploaded images after generating cards (text-image + images)', async () => {
+        const cmd = getCmd();
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const setFileInput = vi.fn().mockResolvedValue(undefined);
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-xhs-cardimg-'));
+        const jpg = path.join(tempDir, 'extra.jpg');
+        fs.writeFileSync(jpg, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+        // base page walker + a file-input selector probe for uploadImages()
+        const page = createConditionalPageMock((code) => {
+            if (code.includes('location.href'))
+                return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']"))
+                return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'image_surface', hasTitleInput: false, hasImageInput: true, hasVideoSurface: false };
+            if (code.includes('__opencli_xhs_click_label')) return { ok: true };
+            if (code.includes('__opencli_xhs_focus_card')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_count')) return { ok: true, count: 9, activeEmpty: true };
+            if (code.includes('__opencli_xhs_preview_ready')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_text')) return { ok: true, text: 'x' };
+            if (code.includes('__opencli_xhs_composer_media_count')) return { ok: true, count: 2 };
+            if (code.includes('document.querySelector(sels)') && code.includes('return el ? sels : null')) return IMAGE_INPUT_SELECTOR_RESULT;
+            if (code.includes('[class*="upload"][class*="progress"]')) return false;
+            if (code.includes('const sels =') && code.includes('for (const sel of sels)')) return true;
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) return { ok: true, sel: 'x', kind: 'input' };
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"apply"')) return { ok: true, actual: code.includes('标题') ? 't' : 'c' };
+            if (code.includes('xhs-publish-btn')) return { ok: true, via: 'method', name: '_onPublish' };
+            if (code.includes('successMarkers') || code.includes('发布成功')) return '发布成功';
+            return null;
+        }, { insertText, setFileInput });
+        const rows = await cmd.func(page, { title: 't', content: 'c', 'card-text': '一段卡片', images: jpg });
+        expect(setFileInput).toHaveBeenCalledTimes(1);
+        expect(setFileInput.mock.calls[0][0]).toEqual([jpg]);
+        expect(setFileInput.mock.calls[0][1]).toEqual(IMAGE_INPUT_SELECTOR_RESULT);
+        expect(rows[0].detail).toContain('1张图片');
+    });
+
+    it('fails when a card stays empty after typing', async () => {
+        const cmd = getCmd();
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createConditionalPageMock((code) => {
+            if (code.includes('location.href')) return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']")) return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'image_surface', hasTitleInput: false, hasImageInput: true, hasVideoSurface: false };
+            if (code.includes('__opencli_xhs_click_label')) return { ok: true };
+            if (code.includes('__opencli_xhs_focus_card')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_count')) return { ok: true, count: 9, activeEmpty: true };
+            if (code.includes('__opencli_xhs_preview_ready')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_text')) return { ok: false, text: '' }; // stays empty
+            return null;
+        }, { insertText });
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', 'card-text': '内容' })
+        ).rejects.toThrow(/empty after typing/);
+    });
+
+    it('selects a non-default card style on the preview step', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createConditionalPageMock((code) => {
+            if (code.includes('location.href'))
+                return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']"))
+                return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'image_surface', hasTitleInput: false, hasImageInput: true, hasVideoSurface: false };
+            if (code.includes('__opencli_xhs_click_label')) {
+                capture.clicks.push(code.match(/wantLabel:\s*"([^"]+)"/)?.[1] ?? 'unknown');
+                return { ok: true };
+            }
+            if (code.includes('__opencli_xhs_focus_card')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_count')) return { ok: true, count: 9, activeEmpty: true };
+            if (code.includes('__opencli_xhs_preview_ready')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_text')) return { ok: true, text: 'x' };
+            if (code.includes('__opencli_xhs_card_styles')) {
+                const styles = ['基础', '插图', '美漫', '备忘', '边框', '清新'];
+                const want = code.match(/const want = "([^"]+)"/)?.[1] ?? '';
+                return { ok: true, styles, found: styles.includes(want) };
+            }
+            if (code.includes('__opencli_xhs_composer_media_count')) return { ok: true, count: 1 };
+            if (code.includes('const sels =') && code.includes('for (const sel of sels)')) return true;
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"locate"')) return { ok: true, sel: 'x', kind: 'input' };
+            if (code.includes('__opencli_xhs_fill_phase') && code.includes('"apply"')) return { ok: true, actual: code.includes('标题') ? 't' : 'c' };
+            if (code.includes('xhs-publish-btn')) return { ok: true, via: 'method', name: '_onPublish' };
+            if (code.includes('successMarkers') || code.includes('发布成功')) return '发布成功';
+            return null;
+        }, { insertText });
+        const rows = await cmd.func(page, { title: 't', content: 'c', 'card-text': '卡片', 'card-style': '边框' });
+        expect(capture.clicks).toContain('边框');
+        expect(rows[0].detail).toContain('(边框)');
+    });
+
+    it('fails when the requested style is not on the page', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        // createTextImagePage reports styles 基础/插图/美漫/备忘/边框/清新 — "霓虹" is absent.
+        const page = createTextImagePage({ insertText, capture });
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', 'card-text': '卡片', 'card-style': '霓虹' })
+        ).rejects.toThrow(CommandExecutionError);
+        expect(capture.clicks).not.toContain('霓虹');
+    });
+
+    it('fails when generated cards do not appear as composer media', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createConditionalPageMock((code) => {
+            if (code.includes('location.href')) return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']")) return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'image_surface', hasTitleInput: false, hasImageInput: true, hasVideoSurface: false };
+            if (code.includes('__opencli_xhs_click_label')) {
+                capture.clicks.push(code.match(/wantLabel:\s*"([^"]+)"/)?.[1] ?? 'unknown');
+                return { ok: true };
+            }
+            if (code.includes('__opencli_xhs_focus_card')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_count')) return { ok: true, count: 9, activeEmpty: true };
+            if (code.includes('__opencli_xhs_preview_ready')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_text')) return { ok: true, text: 'x' };
+            if (code.includes('__opencli_xhs_composer_media_count')) return { ok: true, count: 0 };
+            if (code.includes('const sels =') && code.includes('for (const sel of sels)')) return true;
+            return null;
+        }, { insertText });
+
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', 'card-text': '卡片' })
+        ).rejects.toThrow(/generated images/);
     });
 });

@@ -51,6 +51,7 @@ registerSiteAuthCommands({
   domain: 'linkedin.com',
   loginUrl: 'https://www.linkedin.com/login?session_redirect=%2Flearning%2F',
   columns: ['public_id', 'plain_id', 'name'],
+  quickCheck: hasLinkedinSessionCookie,
   verify: verifyLinkedinLearningIdentity,
   poll: async (page) => {
     if (!await hasLinkedinSessionCookie(page)) {

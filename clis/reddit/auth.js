@@ -41,6 +41,7 @@ registerSiteAuthCommands({
   domain: 'reddit.com',
   loginUrl: 'https://www.reddit.com/login',
   columns: ['username', 'id'],
+  quickCheck: hasRedditSessionCookie,
   verify: verifyRedditIdentity,
   poll: async (page) => {
     if (!await hasRedditSessionCookie(page)) {

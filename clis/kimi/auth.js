@@ -46,6 +46,7 @@ registerSiteAuthCommands({
   domain: 'kimi.com',
   loginUrl: 'https://www.kimi.com/',
   columns: ['user_id', 'name'],
+  quickCheck: hasKimiSessionCookie,
   verify: verifyKimiIdentity,
   poll: async (page) => {
     if (!await hasKimiSessionCookie(page)) {

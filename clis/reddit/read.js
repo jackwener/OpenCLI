@@ -125,7 +125,7 @@ cli({
             help: `Max expansion passes when --expand-more is on (${REDDIT_EXPAND_ROUNDS_MIN}–${REDDIT_EXPAND_ROUNDS_MAX}; each round can fan out new "more" stubs)`,
         },
     ],
-    columns: ['type', 'author', 'score', 'text'],
+    columns: ['type', 'author', 'score', 'text', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
     func: async (page, kwargs) => {
         // Note: --limit / --depth / --replies / --max-length keep their original
         // Math.max-style behaviour for backward compatibility (grandfathered in
@@ -161,6 +161,40 @@ cli({
         // `text`) to sidestep the silent-column-drop audit (PR #1329).
         const result = await page.evaluate(`
       (async function() {
+        function decodeHtml(s) {
+          if (typeof s !== 'string' || !s) return '';
+          return s
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#x27;/gi, "'")
+            .replace(/&#39;/g, "'");
+        }
+        function extractRedditMedia(d) {
+          var post_hint = (d && d.post_hint) || '';
+          var url_overridden_by_dest = decodeHtml((d && d.url_overridden_by_dest) || '');
+          var preview_image_url = decodeHtml(
+            (d && d.preview && d.preview.images && d.preview.images[0] && d.preview.images[0].source && d.preview.images[0].source.url) || ''
+          );
+          var gallery_urls = [];
+          var items = d && d.gallery_data && d.gallery_data.items;
+          var meta = d && d.media_metadata;
+          if (Array.isArray(items) && meta) {
+            for (var gi = 0; gi < items.length; gi++) {
+              var it = items[gi];
+              var m = it && meta[it.media_id];
+              var u = m && m.s && (m.s.u || m.s.gif || m.s.mp4);
+              if (u) gallery_urls.push(decodeHtml(u));
+            }
+          }
+          return {
+            post_hint: post_hint,
+            url_overridden_by_dest: url_overridden_by_dest,
+            preview_image_url: preview_image_url,
+            gallery_urls: gallery_urls,
+          };
+        }
         var postId = ${JSON.stringify(postId)};
         var linkFullname = 't3_' + postId;
 
@@ -392,11 +426,16 @@ cli({
         // Post header row.
         var body = post.selftext || '';
         if (body.length > maxLength) body = body.slice(0, maxLength) + '\\n... [truncated]';
+        var postMedia = extractRedditMedia(post);
         rows.push({
           type: 'POST',
           author: post.author || '[deleted]',
           score: post.score || 0,
           text: post.title + (body ? '\\n\\n' + body : '') + (post.url && !post.is_self ? '\\n' + post.url : ''),
+          post_hint: postMedia.post_hint,
+          url_overridden_by_dest: postMedia.url_overridden_by_dest,
+          preview_image_url: postMedia.preview_image_url,
+          gallery_urls: postMedia.gallery_urls,
         });
 
         // Recursive comment walker.
@@ -418,6 +457,10 @@ cli({
             author: d.author || '[deleted]',
             score: d.score || 0,
             text: indentedBody,
+            post_hint: '',
+            url_overridden_by_dest: '',
+            preview_image_url: '',
+            gallery_urls: [],
           });
 
           var t1Children = [];
@@ -443,6 +486,10 @@ cli({
                 author: '',
                 score: '',
                 text: cutoffIndent + '[+' + totalHidden + ' more replies]',
+                post_hint: '',
+                url_overridden_by_dest: '',
+                preview_image_url: '',
+                gallery_urls: [],
               });
             }
             return;
@@ -463,6 +510,10 @@ cli({
               author: '',
               score: '',
               text: moreIndent + '[+' + hidden + ' more replies]',
+              post_hint: '',
+              url_overridden_by_dest: '',
+              preview_image_url: '',
+              gallery_urls: [],
             });
           }
         }
@@ -489,6 +540,10 @@ cli({
             author: '',
             score: '',
             text: '[+' + hiddenTopLevel + ' more top-level comments]',
+            post_hint: '',
+            url_overridden_by_dest: '',
+            preview_image_url: '',
+            gallery_urls: [],
           });
         }
 

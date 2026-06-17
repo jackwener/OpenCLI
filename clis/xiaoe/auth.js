@@ -44,6 +44,7 @@ registerSiteAuthCommands({
   domain: 'xiaoe-tech.com',
   loginUrl: 'https://admin.xiaoe-tech.com/',
   columns: ['user_id', 'nickname'],
+  quickCheck: hasXiaoeAdminCookie,
   verify: verifyXiaoeIdentity,
   poll: async (page) => {
     if (!await hasXiaoeAdminCookie(page)) {

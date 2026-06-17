@@ -52,6 +52,7 @@ registerSiteAuthCommands({
   domain: 'suno.com',
   loginUrl: 'https://suno.com/?sign-in=true',
   columns: ['user_id', 'name'],
+  quickCheck: hasSunoClerkCookie,
   verify: verifySunoIdentity,
   poll: async (page) => {
     if (!await hasSunoClerkCookie(page)) {

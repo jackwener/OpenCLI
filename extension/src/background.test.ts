@@ -923,7 +923,7 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
-  it('reconciles an owned container with no stored leases without closing it', async () => {
+  it('reconciles an owned adapter container with no stored leases without closing it or grouping new tabs', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
@@ -949,7 +949,8 @@ describe('background tab isolation', () => {
     expect(tabs.find((tab) => tab.id === 1)?.url).toBe('https://automation.example');
     expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(-1);
     expect(tabs.find((tab) => tab.id === tabId)?.url).toBe('https://after.example');
-    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(groups[0]?.id);
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(-1);
+    expect(groups).toEqual([]);
   });
 
   it('restores owned and borrowed leases from the registry', async () => {
@@ -1072,7 +1073,7 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).toHaveBeenCalledTimes(1);
   });
 
-  it('marks a newly created owned automation window with an OpenCLI Adapter tab group', async () => {
+  it('does not create a visible tab group for adapter automation windows', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -1080,20 +1081,13 @@ describe('background tab isolation', () => {
     const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
 
     expect(tabId).toBe(1);
-    expect(tabs[0].groupId).toBe(100);
-    expect(groups).toEqual([
-      expect.objectContaining({
-        id: 100,
-        windowId: 1,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: false,
-      }),
-    ]);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ tabIds: [1], createProperties: { windowId: 1 } });
+    expect(tabs[0].groupId).toBe(-1);
+    expect(groups).toEqual([]);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
-  it('uses separate owned windows for browser and adapter sessions', async () => {
+  it('keeps browser groups while adapter sessions stay ungrouped in separate owned windows', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     let nextWindowId = 20;
     let nextTabId = 200;
@@ -1121,10 +1115,10 @@ describe('background tab isolation', () => {
     expect(tabs.find((tab) => tab.id === adapterTabId)?.windowId).toBe(21);
     expect(chrome.windows.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ focused: true }));
     expect(chrome.windows.create).toHaveBeenNthCalledWith(2, expect.objectContaining({ focused: false }));
-    expect(groups).toEqual(expect.arrayContaining([
+    expect(groups).toEqual([
       expect.objectContaining({ windowId: 20, title: 'OpenCLI Browser' }),
-      expect.objectContaining({ windowId: 21, title: 'OpenCLI Adapter' }),
-    ]));
+    ]);
+    expect(tabs.find((tab) => tab.id === adapterTabId)?.groupId).toBe(-1);
   });
 
   it('lets adapters explicitly request a foreground automation window', async () => {
@@ -1161,7 +1155,7 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).toHaveBeenCalledWith(expect.objectContaining({ focused: true }));
   });
 
-  it('reuses the existing adapter tab group when adding another owned lease tab', async () => {
+  it('creates additional adapter lease tabs in the owned window without grouping them', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -1170,85 +1164,13 @@ describe('background tab isolation', () => {
     const secondTabId = await mod.__test__.resolveTabId(undefined, adapterKey('second'));
 
     expect(secondTabId).toBe(10);
-    expect(groups).toHaveLength(1);
-    expect(tabs.find((tab) => tab.id === 10)?.groupId).toBe(100);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [10] });
+    expect(tabs.find((tab) => tab.id === 10)?.windowId).toBe(1);
+    expect(tabs.find((tab) => tab.id === 10)?.groupId).toBe(-1);
+    expect(groups).toEqual([]);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
   });
 
-  it('converges duplicate OpenCLI Adapter groups in the same window', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    tabs.push(
-      { id: 77, windowId: 7, url: 'about:blank', title: 'blank', active: true, status: 'complete', groupId: 201 },
-      { id: 78, windowId: 7, url: 'about:blank', title: 'blank', active: false, status: 'complete', groupId: 202 },
-    );
-    groups.push(
-      { id: 201, windowId: 7, title: 'OpenCLI Adapter', color: 'orange', collapsed: false },
-      { id: 202, windowId: 7, title: 'OpenCLI Adapter', color: 'orange', collapsed: false },
-    );
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(77);
-    expect(groups).toEqual([
-      expect.objectContaining({ id: 201, windowId: 7, title: 'OpenCLI Adapter' }),
-    ]);
-    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(201);
-    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(201);
-    expect(chrome.tabs.move).not.toHaveBeenCalledWith(78, expect.anything());
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 201, tabIds: [78] });
-  });
-
-  it('converges duplicate OpenCLI Adapter groups across windows by moving tabs to the canonical window', async () => {
-    const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
-    setLastFocusedWindowId(2);
-    tabs.push(
-      { id: 77, windowId: 7, url: 'about:blank', title: 'blank', active: true, status: 'complete', groupId: 201 },
-      { id: 78, windowId: 8, url: 'about:blank', title: 'blank', active: false, status: 'complete', groupId: 202 },
-    );
-    groups.push(
-      { id: 201, windowId: 7, title: 'OpenCLI Adapter', color: 'orange', collapsed: false },
-      { id: 202, windowId: 8, title: 'OpenCLI Adapter', color: 'orange', collapsed: false },
-    );
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(77);
-    expect(groups).toEqual([
-      expect.objectContaining({ id: 201, windowId: 7, title: 'OpenCLI Adapter' }),
-    ]);
-    expect(tabs.find((tab) => tab.id === 78)).toEqual(expect.objectContaining({ windowId: 7, groupId: 201 }));
-    expect(chrome.tabs.move).toHaveBeenCalledWith(78, { windowId: 7, index: -1 });
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 201, tabIds: [78] });
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(7);
-  });
-
-  it('keeps the group and persisted groupId when setting the canonical title fails so the next ensure cycle self-heals', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    chrome.tabGroups.update = vi.fn(async () => {
-      throw new Error('title update failed');
-    });
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    await expect(mod.__test__.resolveTabId(undefined, adapterKey('twitter'))).rejects.toThrow('title update failed');
-
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ tabIds: [1], createProperties: { windowId: 1 } });
-    // Group stays grouped; persisted groupId continues to point at it so
-    // ensureCanonicalGroupTitle can repair the title on a later ensure cycle.
-    expect(chrome.tabs.ungroup).not.toHaveBeenCalled();
-    expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(100);
-    expect(groups).toHaveLength(1);
-  });
-
-  it('reuses the persisted owned window after a worker restart so the next ensure does not spawn a second window', async () => {
-    // Fix 2 regression: simulate SW dying between `windows.create()` returning
-    // and a subsequent owned-group create. The next reconcile sees a persisted
-    // windowId but no persisted groupId. ensureOwnedContainerWindowUnlocked
-    // must reuse window 1 instead of calling chrome.windows.create again.
+  it('reuses a persisted adapter window after worker restart without recreating an adapter group', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
@@ -1271,180 +1193,50 @@ describe('background tab isolation', () => {
 
     expect(chrome.windows.create).not.toHaveBeenCalled();
     expect(tabs.find((tab) => tab.id === tabId)?.windowId).toBe(1);
-    expect(groups).toHaveLength(1);
-    expect(groups[0]).toEqual(expect.objectContaining({ windowId: 1, title: 'OpenCLI Adapter' }));
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(-1);
+    expect(groups).toEqual([]);
   });
 
-  it('adopts an empty-title orphan group that holds an owned session tab via the ownership-tab signal', async () => {
-    // Fix 3 positive: simulate SW dying between `chrome.tabs.group()` returning
-    // and the title/color `tabGroups.update` landing. The orphan group has no
-    // title and the persisted ownedContainers pointers are stale, but an
-    // owned automationSession still records the orphan's preferredTabId.
-    // The 4th-layer scan must recover the orphan via that tab signal and
-    // rename it to the canonical title on the next ensure cycle.
+  it('reuses a restored adapter preferred tab when no adapter group exists after worker restart', async () => {
     const { chrome, tabs, groups } = createChromeMock();
-    tabs.push(
-      { id: 77, windowId: 7, url: 'about:blank', title: 'blank', active: false, status: 'complete', groupId: 301 },
-    );
-    groups.push(
-      { id: 301, windowId: 7, title: '', color: 'grey', collapsed: false },
-    );
+    const deadline = Date.now() + 30_000;
     vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v2: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1, groupId: 99 } },
+        leases: {
+          [adapterKey('twitter')]: {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            windowRole: 'automation',
+            idleDeadlineAt: deadline,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+    });
 
     const mod = await import('./background');
-    mod.__test__.setSession(adapterKey('twitter'), { windowId: 7, owned: true, preferredTabId: 77 });
+    await mod.__test__.reconcileTargetLeaseRegistry();
+    chrome.windows.create.mockClear();
 
-    const recovered = await mod.__test__.ensureOwnedContainerGroup('automation', null, []);
-
-    expect(recovered).toEqual(expect.objectContaining({ id: 301, windowId: 7, title: 'OpenCLI Adapter' }));
-    expect(groups).toEqual([
-      expect.objectContaining({ id: 301, windowId: 7, title: 'OpenCLI Adapter' }),
-    ]);
-    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(301);
-  });
-
-  it('does not adopt an empty-title group with no owned-tab signal so user-created groups stay untouched', async () => {
-    // Fix 3 hijack defense (regression guard for the #1794/#1816 boundary):
-    // an empty-title group containing only a user tab carries no ownership
-    // signal. The 4th-layer scan must not adopt it. The owned session here
-    // has a preferredTabId outside the group, so the group must remain user
-    // property and a fresh canonical group must be created elsewhere.
-    const { chrome, tabs, groups } = createChromeMock();
-    tabs.push(
-      { id: 88, windowId: 9, url: 'https://user.example/page', title: 'user', active: true, status: 'complete', groupId: 401 },
-    );
-    groups.push(
-      { id: 401, windowId: 9, title: '', color: 'grey', collapsed: false },
-    );
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).not.toBe(88);
-    expect(tabs.find((tab) => tab.id === 88)?.groupId).toBe(401);
-    expect(groups).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 401, title: '' }),
-    ]));
-    const canonicalGroups = groups.filter((group) => group.title === 'OpenCLI Adapter');
-    expect(canonicalGroups).toHaveLength(1);
-    expect(canonicalGroups[0]?.id).not.toBe(401);
-  });
-
-  it('serializes concurrent owned tab grouping so duplicate adapter groups are not created', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    const releaseFirstGroupCreate = deferred<void>();
-    const originalGroup = chrome.tabs.group;
-    let createGroupCalls = 0;
-    chrome.tabs.group = vi.fn(async (options: { tabIds?: number | number[]; groupId?: number; createProperties?: { windowId?: number } }) => {
-      if (options.groupId === undefined) {
-        createGroupCalls += 1;
-        if (createGroupCalls === 1) await releaseFirstGroupCreate.promise;
-      }
-      return originalGroup(options);
-    });
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    mod.__test__.setSession(adapterKey('first'), { windowId: 1, owned: true, preferredTabId: 1 });
-    mod.__test__.setSession(adapterKey('second'), { windowId: 1, owned: true, preferredTabId: null });
-
-    const first = mod.__test__.handleTabs({ id: 'new-first', action: 'tabs', op: 'new', session: adapterKey('first'), url: 'https://first.example' }, adapterKey('first'));
-    const second = mod.__test__.handleTabs({ id: 'new-second', action: 'tabs', op: 'new', session: adapterKey('second'), url: 'https://second.example' }, adapterKey('second'));
-
-    await vi.waitFor(() => {
-      expect(chrome.tabs.group).toHaveBeenCalledWith({ tabIds: [10], createProperties: { windowId: 1 } });
-    });
-    releaseFirstGroupCreate.resolve();
-
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      expect.objectContaining({ ok: true }),
-      expect.objectContaining({ ok: true }),
-    ]);
-    expect(groups).toHaveLength(1);
-    expect(tabs.find((tab) => tab.id === 10)?.groupId).toBe(100);
-    expect(tabs.find((tab) => tab.id === 11)?.groupId).toBe(100);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [11] });
-  });
-
-  it('keeps queued owned tab grouping serialized after a transient group creation failure', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    const releaseFirstFailure = deferred<void>();
-    const releaseSecondGroupCreate = deferred<void>();
-    const originalGroup = chrome.tabs.group;
-    let createGroupCalls = 0;
-    chrome.tabs.group = vi.fn(async (options: { tabIds?: number | number[]; groupId?: number; createProperties?: { windowId?: number } }) => {
-      if (options.groupId === undefined) {
-        createGroupCalls += 1;
-        if (createGroupCalls === 1) {
-          await releaseFirstFailure.promise;
-          throw new Error('transient group creation failure');
-        }
-        if (createGroupCalls === 2) await releaseSecondGroupCreate.promise;
-      }
-      return originalGroup(options);
-    });
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    mod.__test__.setSession(adapterKey('first'), { windowId: 1, owned: true, preferredTabId: 1 });
-    mod.__test__.setSession(adapterKey('second'), { windowId: 1, owned: true, preferredTabId: null });
-    mod.__test__.setSession(adapterKey('third'), { windowId: 1, owned: true, preferredTabId: null });
-
-    const first = mod.__test__.handleTabs({ id: 'new-first', action: 'tabs', op: 'new', session: adapterKey('first'), url: 'https://first.example' }, adapterKey('first'))
-      .then((result) => ({ status: 'fulfilled' as const, result }), (error) => ({ status: 'rejected' as const, error }));
-    const second = mod.__test__.handleTabs({ id: 'new-second', action: 'tabs', op: 'new', session: adapterKey('second'), url: 'https://second.example' }, adapterKey('second'));
-    const third = mod.__test__.handleTabs({ id: 'new-third', action: 'tabs', op: 'new', session: adapterKey('third'), url: 'https://third.example' }, adapterKey('third'));
-
-    await vi.waitFor(() => {
-      expect(createGroupCalls).toBe(1);
-    });
-    releaseFirstFailure.resolve();
-    await vi.waitFor(() => {
-      expect(createGroupCalls).toBe(2);
-    });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(createGroupCalls).toBe(2);
-    releaseSecondGroupCreate.resolve();
-
-    await expect(first).resolves.toEqual(expect.objectContaining({
-      status: 'rejected',
-      error: expect.objectContaining({ message: 'transient group creation failure' }),
-    }));
-    await expect(Promise.all([second, third])).resolves.toEqual([
-      expect.objectContaining({ ok: true }),
-      expect.objectContaining({ ok: true }),
-    ]);
-    expect(createGroupCalls).toBe(2);
-    expect(groups).toHaveLength(1);
-    expect(tabs.find((tab) => tab.id === 11)?.groupId).toBe(100);
-    expect(tabs.find((tab) => tab.id === 12)?.groupId).toBe(100);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 100, tabIds: [12] });
-  });
-
-  it('discovers and reuses an existing OpenCLI Adapter group after service worker restart', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    tabs[0].groupId = 99;
-    groups.push({
-      id: 99,
-      windowId: 1,
-      title: 'OpenCLI Adapter',
-      color: 'orange',
-      collapsed: true,
-    });
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
     const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
 
     expect(tabId).toBe(1);
-    expect(tabs[0].groupId).toBe(99);
-    expect(groups).toHaveLength(1);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(tabs[0].groupId).toBe(-1);
+    expect(groups).toEqual([]);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
-  it('discovers and reuses an existing OpenCLI Adapter group in another window before creating one', async () => {
+  it('ignores legacy OpenCLI Adapter groups when choosing an adapter container', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     tabs.push({
       id: 77,
@@ -1453,38 +1245,7 @@ describe('background tab isolation', () => {
       title: 'blank',
       active: true,
       status: 'complete',
-      groupId: -1,
-    });
-    groups.push({
-      id: 99,
-      windowId: 7,
-      title: 'OpenCLI Adapter',
-      color: 'orange',
-      collapsed: true,
-    });
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(77);
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(7);
-    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(99);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [77] });
-    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
-  });
-
-  it('does not reuse a user http tab outside the canonical group when the group has converged into a user window', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    tabs.push({
-      id: 77,
-      windowId: 7,
-      url: 'https://example.com/user-page',
-      title: 'user-page',
-      active: true,
-      status: 'complete',
-      groupId: -1,
+      groupId: 99,
     });
     groups.push({
       id: 99,
@@ -1499,13 +1260,15 @@ describe('background tab isolation', () => {
     const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
 
     expect(tabId).not.toBe(77);
-    expect(tabs.find((tab) => tab.id === 77)?.url).toBe('https://example.com/user-page');
-    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(-1);
-    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(99);
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).not.toBe(7);
+    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(99);
+    expect(groups).toHaveLength(1);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
-  it('does not recreate a missing owned group from a user http tab in the persisted window', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
+  it('does not reuse a user http tab from an adapter-owned window without an owned lease signal', async () => {
+    const { chrome, tabs } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
       opencli_target_lease_registry_v2: {
@@ -1525,351 +1288,8 @@ describe('background tab isolation', () => {
     expect(tabId).not.toBe(1);
     expect(chrome.windows.create).not.toHaveBeenCalled();
     expect(tabs.find((tab) => tab.id === 1)?.url).toBe('https://automation.example');
-    expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(-1);
     expect(tabs.find((tab) => tab.id === tabId)?.url).toBe('https://after.example');
-    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(groups[0]?.id);
-  });
-
-  it('prefers a discovered OpenCLI Adapter group over a stale stored window hint', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    tabs.push({
-      id: 77,
-      windowId: 7,
-      url: 'about:blank',
-      title: 'blank',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    groups.push({
-      id: 99,
-      windowId: 7,
-      title: 'OpenCLI Adapter',
-      color: 'orange',
-      collapsed: true,
-    });
-    vi.stubGlobal('chrome', chrome);
-    await chrome.storage.local.set({
-      opencli_target_lease_registry_v2: {
-        version: 2,
-        contextId: 'user-default',
-        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1 } },
-        leases: {},
-      },
-    });
-
-    const mod = await import('./background');
-    await mod.__test__.reconcileTargetLeaseRegistry();
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(77);
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(7);
-    expect(tabs.find((tab) => tab.id === 1)?.windowId).toBe(1);
-    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(99);
-    expect(chrome.tabs.move).not.toHaveBeenCalledWith(1, expect.anything());
-  });
-
-  it('prefers a focused OpenCLI Adapter group when multiple matching groups exist', async () => {
-    const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
-    setLastFocusedWindowId(8);
-    tabs.push({
-      id: 77,
-      windowId: 7,
-      url: 'about:blank',
-      title: 'blank',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    tabs.push({
-      id: 78,
-      windowId: 8,
-      url: 'about:blank',
-      title: 'blank',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    groups.push(
-      {
-        id: 99,
-        windowId: 7,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: true,
-      },
-      {
-        id: 98,
-        windowId: 8,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: true,
-      },
-    );
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(78);
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
-    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
-  });
-
-  it('prefers an OpenCLI Adapter group with a reusable debuggable tab when none are focused', async () => {
-    const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
-    setLastFocusedWindowId(2);
-    tabs.push({
-      id: 77,
-      windowId: 7,
-      url: 'chrome://settings',
-      title: 'settings',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    tabs.push({
-      id: 78,
-      windowId: 8,
-      url: 'about:blank',
-      title: 'blank',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    groups.push(
-      {
-        id: 97,
-        windowId: 7,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: true,
-      },
-      {
-        id: 98,
-        windowId: 8,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: true,
-      },
-    );
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(78);
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
-    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
-  });
-
-  it('uses the lowest group id as the final OpenCLI Adapter group tiebreaker', async () => {
-    const { chrome, tabs, groups, setLastFocusedWindowId } = createChromeMock();
-    setLastFocusedWindowId(2);
-    tabs.push({
-      id: 77,
-      windowId: 7,
-      url: 'about:blank',
-      title: 'blank',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    tabs.push({
-      id: 78,
-      windowId: 7,
-      url: 'about:blank',
-      title: 'blank',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    groups.push(
-      {
-        id: 99,
-        windowId: 7,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: true,
-      },
-      {
-        id: 98,
-        windowId: 7,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: true,
-      },
-    );
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(77);
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(7);
-    expect(tabs.find((tab) => tab.id === 77)?.groupId).toBe(98);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [77] });
-  });
-
-  it('discovers and reuses a legacy OpenCLI automation group before creating a duplicate', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    tabs.push({
-      id: 78,
-      windowId: 8,
-      url: 'about:blank',
-      title: 'blank',
-      active: true,
-      status: 'complete',
-      groupId: -1,
-    });
-    groups.push({
-      id: 98,
-      windowId: 8,
-      title: 'OpenCLI',
-      color: 'orange',
-      collapsed: true,
-    });
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
-
-    expect(tabId).toBe(78);
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
-    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
-    expect(chrome.tabGroups.update).toHaveBeenCalledWith(98, {
-      title: 'OpenCLI Adapter',
-      color: 'orange',
-    });
-  });
-
-  it('reuses a persisted automation group id after service worker restart even if the user renamed it', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    groups.push({
-      id: 99,
-      windowId: 1,
-      title: 'My Automation',
-      color: 'cyan',
-      collapsed: true,
-    });
-    vi.stubGlobal('chrome', chrome);
-    await chrome.storage.local.set({
-      opencli_target_lease_registry_v2: {
-        version: 2,
-        contextId: 'user-default',
-        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1, groupId: 99 } },
-        leases: {
-          [adapterKey('twitter')]: {
-            windowId: 1,
-            owned: true,
-            preferredTabId: 1,
-            contextId: 'user-default',
-            ownership: 'owned',
-            lifecycle: 'ephemeral',
-            windowRole: 'automation',
-            idleDeadlineAt: Date.now() + 30_000,
-            updatedAt: Date.now(),
-          },
-        },
-      },
-    });
-
-    const mod = await import('./background');
-    await mod.__test__.reconcileTargetLeaseRegistry();
-
-    expect(tabs[0].groupId).toBe(99);
-    expect(groups).toEqual([
-      expect.objectContaining({
-        id: 99,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-        collapsed: true,
-      }),
-    ]);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [1] });
-    expect(chrome.tabGroups.update).toHaveBeenCalledWith(99, {
-      title: 'OpenCLI Adapter',
-      color: 'orange',
-    });
-  });
-
-  it('recovers an owned session tab group even when title and stored group hints are missing', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    tabs[0].groupId = 99;
-    groups.push({
-      id: 99,
-      windowId: 1,
-      title: 'Renamed Container',
-      color: 'cyan',
-      collapsed: true,
-    });
-    vi.stubGlobal('chrome', chrome);
-
-    const mod = await import('./background');
-    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 1 });
-    await mod.__test__.ensureOwnedContainerGroup('automation', 1, [1]);
-
-    expect(groups).toEqual([
-      expect.objectContaining({
-        id: 99,
-        title: 'OpenCLI Adapter',
-        color: 'orange',
-      }),
-    ]);
-    expect(tabs[0].groupId).toBe(99);
-    expect(chrome.tabs.group).not.toHaveBeenCalledWith({ tabIds: [1], createProperties: { windowId: 1 } });
-    expect(chrome.tabGroups.update).toHaveBeenCalledWith(99, {
-      title: 'OpenCLI Adapter',
-      color: 'orange',
-    });
-  });
-
-  it('falls back to title discovery when a persisted automation group id is stale', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
-    groups.push({
-      id: 99,
-      windowId: 1,
-      title: 'OpenCLI Adapter',
-      color: 'orange',
-      collapsed: true,
-    });
-    vi.stubGlobal('chrome', chrome);
-    await chrome.storage.local.set({
-      opencli_target_lease_registry_v2: {
-        version: 2,
-        contextId: 'user-default',
-        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1, groupId: 404 } },
-        leases: {
-          [adapterKey('twitter')]: {
-            windowId: 1,
-            owned: true,
-            preferredTabId: 1,
-            contextId: 'user-default',
-            ownership: 'owned',
-            lifecycle: 'ephemeral',
-            windowRole: 'automation',
-            idleDeadlineAt: Date.now() + 30_000,
-            updatedAt: Date.now(),
-          },
-        },
-      },
-    });
-
-    const mod = await import('./background');
-    await mod.__test__.reconcileTargetLeaseRegistry();
-
-    expect(tabs[0].groupId).toBe(99);
-    expect(groups).toHaveLength(1);
-    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 99, tabIds: [1] });
-    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(-1);
   });
 
   it('does not group borrowed user tabs for bound sessions', async () => {
@@ -1940,7 +1360,7 @@ describe('background tab isolation', () => {
   });
 
   it('does not fall back from an owned session to a user http tab in the same window', async () => {
-    const { chrome, tabs, groups } = createChromeMock();
+    const { chrome, tabs } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./background');
@@ -1952,7 +1372,7 @@ describe('background tab isolation', () => {
     expect(tabs.find((tab) => tab.id === 1)?.url).toBe('https://automation.example');
     expect(tabs.find((tab) => tab.id === 1)?.groupId).toBe(-1);
     expect(tabs.find((tab) => tab.id === tabId)?.url).toBe('about:blank');
-    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(groups[0]?.id);
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(-1);
   });
 
   it('idle timeout releases the automation lease for adapter:notebooklm', async () => {

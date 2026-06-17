@@ -44,6 +44,7 @@ registerSiteAuthCommands({
   domain: 'claude.ai',
   loginUrl: 'https://claude.ai/login',
   columns: ['user_id', 'org_name', 'org_uuid'],
+  quickCheck: hasClaudeSessionCookie,
   verify: verifyClaudeIdentity,
   poll: async (page) => {
     if (!await hasClaudeSessionCookie(page)) {

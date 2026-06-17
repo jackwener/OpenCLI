@@ -30,6 +30,7 @@ registerSiteAuthCommands({
   domain: 'x.com',
   loginUrl: 'https://x.com/i/flow/login',
   columns: ['username', 'url'],
+  quickCheck: hasTwitterSessionCookies,
   verify: verifyTwitterIdentity,
   poll: async (page) => {
     if (!await hasTwitterSessionCookies(page)) {

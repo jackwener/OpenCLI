@@ -48,6 +48,7 @@ registerSiteAuthCommands({
   domain: 'weread.qq.com',
   loginUrl: 'https://weread.qq.com/',
   columns: ['user_id', 'name'],
+  quickCheck: hasWereadSessionCookie,
   verify: verifyWereadIdentity,
   poll: async (page) => {
     if (!await hasWereadSessionCookie(page)) {

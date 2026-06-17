@@ -59,6 +59,7 @@ registerSiteAuthCommands({
   domain: 'toutiao.com',
   loginUrl: 'https://mp.toutiao.com/auth/page/login',
   columns: ['user_id', 'nickname'],
+  quickCheck: hasToutiaoSessionCookie,
   verify: verifyToutiaoIdentity,
   poll: async (page) => {
     if (!await hasToutiaoSessionCookie(page)) {

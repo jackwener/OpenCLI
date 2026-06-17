@@ -44,6 +44,7 @@ registerSiteAuthCommands({
   domain: 'google.com',
   loginUrl: 'https://accounts.google.com/ServiceLogin?service=lso&continue=https%3A%2F%2Fnotebooklm.google.com%2F',
   columns: ['name', 'authuser'],
+  quickCheck: hasNotebookLmSsoCookies,
   verify: verifyNotebookLmIdentity,
   poll: async (page) => {
     if (!await hasNotebookLmSsoCookies(page)) {

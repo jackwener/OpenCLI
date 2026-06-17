@@ -48,6 +48,7 @@ registerSiteAuthCommands({
   domain: 'www.zhihu.com',
   loginUrl: 'https://www.zhihu.com/signin',
   columns: ['url_token', 'name', 'uid'],
+  quickCheck: hasZhihuAuthCookie,
   verify: verifyZhihuIdentity,
   poll: async (page) => {
     if (!await hasZhihuAuthCookie(page)) {

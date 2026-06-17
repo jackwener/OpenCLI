@@ -1,0 +1,84 @@
+# OpenCLI
+
+> Make any website or Electron app your CLI. Zero setup. AI-powered.
+> Convert any website into a deterministic CLI command. Reuse your Chrome login — no tokens, no API keys.
+
+## What OpenCLI does
+
+OpenCLI gives you one surface for three kinds of automation:
+
+1. **Built-in adapters** — 100+ sites pre-built with deterministic commands (Twitter/X, Xiaohongshu, Bilibili, Zhihu, LinkedIn, YouTube, Reddit, HackerNews, and more)
+2. **Browser automation for AI agents** — AI agents (Claude Code, Cursor, etc.) can navigate, click, type, fill, extract, and screenshot any page via `opencli browser` primitives and your logged-in Chrome session
+3. **Adapter authoring** — Write new site adapters end-to-end using `opencli-adapter-author` skill + `opencli browser recon/init/verify` workflow
+
+Also works as a CLI hub for local tools: `gh`, `docker`, `vercel`, `wrangler`, `notion`, `discord`, `telegram`, and more.
+
+## Install
+
+```bash
+npm install -g @jackwener/opencli
+# Install Browser Bridge extension from Chrome Web Store
+# Run: opencli doctor
+```
+
+Requires Node.js >= 20.
+
+## Key capabilities
+
+- **Zero LLM cost at runtime** — no tokens consumed, runs deterministically
+- **Account safe** — reuses Chrome's logged-in state, credentials never leave the browser
+- **Deterministic** — same command, same output schema, every time. Pipeable, CI-friendly
+- **Desktop app control** — drive Electron apps (Cursor, Codex, ChatGPT App, Discord) via CDP
+- **Plugin system** — `opencli plugin install github:user/repo`
+- **Multiple output formats** — JSON, CSV, Markdown, YAML, table
+
+## Skills for AI agents
+
+Install with: `npx skills add jackwener/opencli`
+
+- `opencli-browser` — give AI agents direct browser control (click, type, extract, screenshot)
+- `opencli-adapter-author` — write new adapters from recon to verification
+- `opencli-autofix` — repair broken adapters
+- `opencli-usage` — command and site reference
+
+## Built-in sites (selected)
+
+Twitter/X, Xiaohongshu, Bilibili, Zhihu, LinkedIn, YouTube, Reddit, HackerNews, Weibo, Amazon, Bloomberg, V2EX, Boss直聘, Douyin, Spotify, WeChat, Xiaoyuzhou, NotebookLM, Claude, Gemini, GeoGebra, xueqiu, zlibrary, upwork, 1688, pixiv, and 80+ more.
+
+Full list: https://github.com/jackwener/opencli/blob/main/docs/adapters/index.md
+
+## Desktop app adapters
+
+Cursor, Trae CN, Codex, Antigravity, ChatGPT App, ChatWise, Discord, Doubao, Trae SOLO — controlled via Chrome DevTools Protocol (CDP).
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a browser command |
+| `OPENCLI_PROFILE` | — | Browser Bridge profile alias for multi-profile setups |
+| `OPENCLI_VERBOSE` | `false` | Enable verbose logging |
+
+## Exit codes
+
+`0` success · `66` empty result · `69` Browser Bridge down · `75` timeout · `77` auth required · `78` config error · `130` Ctrl-C
+
+## Key links
+
+- Website: https://opencli.info
+- GitHub: https://github.com/jackwener/opencli
+- npm: https://www.npmjs.com/package/@jackwener/opencli
+- Chrome Extension: https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk
+- Docs: https://opencli.info
+- Plugins: https://opencli.info/plugins
+
+## Author
+
+jackwener — https://github.com/jackwener
+
+## Related resources
+
+- Website llms.txt: https://opencli.info/llms.txt
+- Full adapter docs: https://github.com/jackwener/opencli/blob/main/docs/adapters/index.md
+- Extending guide: https://github.com/jackwener/opencli/blob/main/docs/guide/extending-opencli.md
+- Plugin guide: https://github.com/jackwener/opencli/blob/main/docs/guide/plugins.md

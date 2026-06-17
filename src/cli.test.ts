@@ -66,11 +66,45 @@ describe('createProgram root help descriptions', () => {
     expect(descriptionFor(program, 'browser')).toContain('type');
     expect(descriptionFor(program, 'browser')).toContain('verify');
     expect(descriptionFor(program, 'browser')).not.toContain('Browser control');
+    expect(descriptionFor(program, 'auth')).toBe('refresh, status');
     expect(descriptionFor(program, 'plugin')).toBe('create, install, list, uninstall, update');
     expect(descriptionFor(program, 'adapter')).toBe('eject, reset, status');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
     expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
     expect(descriptionFor(program, 'external')).toBe('install, list, register');
+  });
+
+  it('renders auth namespace structured help', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const auth = program.commands.find(cmd => cmd.name() === 'auth')!;
+      expect(auth).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'auth', '--help', '-f', 'yaml'];
+      const data = yaml.load(auth.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'auth',
+        description: 'Inspect website login status',
+        command_count: 2,
+      });
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['refresh', 'status']);
+      const status = auth.commands.find(cmd => cmd.name() === 'status')!;
+      process.argv = ['node', 'opencli', 'auth', 'status', '--help', '-f', 'yaml'];
+      const statusData = yaml.load(status.helpInformation()) as any;
+      expect(statusData.command).toBe('opencli auth status');
+      expect(statusData.command_options.map((option: any) => option.name)).toEqual(expect.arrayContaining([
+        'site',
+        'full',
+        'concurrency',
+        'timeout',
+        'only',
+        'format',
+      ]));
+    } finally {
+      process.argv = argv;
+    }
   });
 
   it('keeps leaf command descriptions unchanged', () => {

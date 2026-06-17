@@ -36,6 +36,7 @@ registerSiteAuthCommands({
   domain: 'hupu.com',
   loginUrl: 'https://passport.hupu.com/pc/login',
   columns: ['user_id', 'username'],
+  quickCheck: hasHupuUserCookie,
   verify: verifyHupuIdentity,
   poll: async (page) => {
     if (!await hasHupuUserCookie(page)) {

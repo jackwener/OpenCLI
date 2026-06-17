@@ -45,6 +45,7 @@ registerSiteAuthCommands({
   domain: 'qwen.ai',
   loginUrl: 'https://chat.qwen.ai/auth?action=login',
   columns: ['user_id', 'name'],
+  quickCheck: hasQwenSessionCookie,
   verify: verifyQwenIdentity,
   poll: async (page) => {
     if (!await hasQwenSessionCookie(page)) {

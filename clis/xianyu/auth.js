@@ -57,6 +57,7 @@ registerSiteAuthCommands({
   domain: 'goofish.com',
   loginUrl: 'https://www.goofish.com/login',
   columns: ['user_id', 'nickname'],
+  quickCheck: hasXianyuIdentityCookie,
   verify: verifyXianyuIdentity,
   poll: async (page) => {
     if (!await hasXianyuIdentityCookie(page)) {

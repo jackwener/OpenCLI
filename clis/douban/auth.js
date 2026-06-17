@@ -39,6 +39,7 @@ registerSiteAuthCommands({
   domain: 'douban.com',
   loginUrl: 'https://accounts.douban.com/passport/login',
   columns: ['user_id', 'name'],
+  quickCheck: hasDoubanSessionCookie,
   verify: verifyDoubanIdentity,
   poll: async (page) => {
     if (!await hasDoubanSessionCookie(page)) {

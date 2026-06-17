@@ -51,6 +51,7 @@ registerSiteAuthCommands({
   domain: 'jianyu360.cn',
   loginUrl: 'https://www.jianyu360.cn/',
   columns: ['user_id', 'name'],
+  quickCheck: hasJianyuUserCookie,
   verify: verifyJianyuIdentity,
   poll: async (page) => {
     if (!await hasJianyuUserCookie(page)) {

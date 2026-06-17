@@ -35,6 +35,7 @@ registerSiteAuthCommands({
   domain: 'jd.com',
   loginUrl: 'https://passport.jd.com/new/login.aspx',
   columns: ['pin', 'nickname'],
+  quickCheck: hasJdSessionCookie,
   verify: verifyJdIdentity,
   poll: async (page) => {
     if (!await hasJdSessionCookie(page)) {

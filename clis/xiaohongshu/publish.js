@@ -17,12 +17,50 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, ArgumentError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=image';
 const MAX_IMAGES = 9;
 const MAX_TITLE_LEN = 20;
 const UPLOAD_SETTLE_MS = 3000;
+const CARD_TEXT_DELIM = '|||';
+const DEFAULT_CARD_STYLE = '基础';
+// Example styles for help text only — the real options are read live from the
+// (virtualized, content-dependent) 预览图片 strip at runtime, so this list is NOT
+// used to validate input; an unavailable requested style fails before submit.
+// 文字配图 --card-style catalog: each style name → the content it suits.
+// Styles are read live from the page at runtime (see selectCardStyle); this list
+// only powers --help, and an unmatched requested style is a typed failure.
+const CARD_STYLE_GUIDE = [
+    ['基础', '默认兜底，万能'],
+    ['边框', '金句/要点卡'],
+    ['备忘', '提醒/随手记'],
+    ['清新', '日常/清单贴士'],
+    ['涂写', '随笔/碎碎念'],
+    ['便签', '笔记/提醒'],
+    ['光影', '情绪/文艺'],
+    ['涂鸦', '趣味/童话'],
+    ['简约', '干货/观点'],
+    ['手写', '日记/情感'],
+    ['插图', '生活方式/轻松话题'],
+    ['美漫', '活力/趣味/故事感'],
+    ['弥散', '弥散光氛围'],
+    ['柔和', '柔和/温柔金句'],
+    ['印刷', '印刷海报/排版'],
+    ['科技', '科技/产品'],
+    ['贺卡', '节日祝福'],
+    ['札记', '艺术/水彩氛围'],
+    ['书摘', '书摘/引用'],
+    ['手帐', '手帐拼贴'],
+    ['几何', '醒目/有力主张'],
+];
+const CARD_STYLES = CARD_STYLE_GUIDE.map(([name]) => name);
+const TEXT_IMAGE_ENTRY_LABEL = '文字配图';
+const ADD_CARD_LABEL = '再写一张';
+const GENERATE_LABEL = '生成图片';
+const PREVIEW_NEXT_LABEL = '下一步';
+/** tiptap/ProseMirror card editor inside the 写文字 swiper. */
+const CARD_EDITOR_SELECTOR = '.tiptap.ProseMirror';
 /**
  * XHS creator center wraps the publish/save button in an `<xhs-publish-btn>`
  * web component backed by a CLOSED shadow root. Host-level `.click()` does
@@ -88,10 +126,10 @@ function validateImagePaths(filePaths) {
     return filePaths.map((filePath) => {
         const absPath = path.resolve(filePath);
         if (!fs.existsSync(absPath))
-            throw new Error(`Image file not found: ${absPath}`);
+            throw new ArgumentError(`Image file not found: ${absPath}`);
         const ext = path.extname(absPath).toLowerCase();
         if (!SUPPORTED_EXTENSIONS[ext]) {
-            throw new Error(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
+            throw new ArgumentError(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
         }
         return absPath;
     });
@@ -645,6 +683,383 @@ async function selectImageTextTab(page) {
     }
     return result;
 }
+/**
+ * Click the first visible element whose trimmed text equals `label`.
+ * Marker constant `__opencli_xhs_click_label` lets the test mock branch on it.
+ */
+async function clickByText(page, label, maxWaitMs = 7_000) {
+    const pollMs = 500;
+    const maxAttempts = Math.max(1, Math.ceil(maxWaitMs / pollMs));
+    let result = { ok: false };
+    // Retry until the control appears: 生成图片 → 下一步 advances through async
+    // render/generation steps, so the target may not exist on the first probe.
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        result = unwrapBrowserResult(await page.evaluate(`
+    ((cfg) => {
+      const __opencli_xhs_click_label = { wantLabel: ${JSON.stringify(label)} };
+      const wantLabel = ${JSON.stringify(label)};
+      const isVisible = (el) => {
+        if (!el || el.offsetParent === null) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      const norm = (v) => (v || '').replace(/\\s+/g, ' ').trim();
+      const clickable = (el) => el.closest('button, [role="button"], a, label') || el;
+      const enabled = (el) =>
+        !(el.getAttribute && el.getAttribute('aria-disabled') === 'true')
+        && !el.disabled
+        && !(el.className && String(el.className).split(/\\s+/).includes('disabled'));
+      // Exact-text matches, innermost first. The real click handler usually lives on
+      // an inner control (.edit-text-button 生成图片, .add-text-item-button-text 再写一张);
+      // an outer wrapper that merely *contains* the label is a no-op, so prefer the
+      // deepest matching node and let the event bubble up to the handler.
+      const nodes = Array.from(document.querySelectorAll('button, [role="button"], div, span, a, label, li'));
+      const exact = nodes.filter((n) => isVisible(n) && norm(n.innerText || n.textContent) === wantLabel);
+      const innermost = exact.filter((n) => !exact.some((o) => o !== n && n.contains(o)));
+      const contains = nodes.filter((n) => {
+        if (!isVisible(n)) return false;
+        const t = norm(n.innerText || n.textContent);
+        return t && t.length <= wantLabel.length + 4 && t.includes(wantLabel);
+      });
+      for (const node of [...(innermost.length ? innermost : exact), ...contains]) {
+        const c = clickable(node);
+        if (!enabled(c)) continue;
+        c.click();
+        return { ok: true, text: norm(node.innerText || node.textContent) || wantLabel };
+      }
+      return { ok: false };
+    })()
+  `));
+        if (result?.ok)
+            return result;
+        await page.wait({ time: pollMs / 1_000 });
+    }
+    return result;
+}
+/**
+ * Focus the currently-active 写文字 card editor (tiptap/ProseMirror) and move the
+ * caret to the end so insertText appends into it.
+ */
+async function focusActiveCard(page) {
+    const result = await page.evaluate(`
+    (() => {
+      const __opencli_xhs_focus_card = true;
+      const sel = ${JSON.stringify(CARD_EDITOR_SELECTOR)};
+      const editors = Array.from(document.querySelectorAll(sel)).filter((el) => el.offsetParent !== null);
+      // Prefer the editor inside the active swiper slide if present.
+      const active = editors.find((el) => el.closest('.swiper-slide-active')) || editors[editors.length - 1];
+      if (!active) return { ok: false };
+      active.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(active);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      return { ok: true };
+    })()
+  `);
+    return unwrapBrowserResult(result);
+}
+/** Confirm the active card editor holds non-empty text (guards against empty cards). */
+async function activeCardText(page) {
+    const result = await page.evaluate(`
+    (() => {
+      const __opencli_xhs_card_text = true;
+      const sel = ${JSON.stringify(CARD_EDITOR_SELECTOR)};
+      const editors = Array.from(document.querySelectorAll(sel)).filter((el) => el.offsetParent !== null);
+      const active = editors.find((el) => el.closest('.swiper-slide-active')) || editors[editors.length - 1];
+      const text = active ? (active.innerText || active.textContent || '').trim() : '';
+      return { ok: !!text, text };
+    })()
+  `);
+    return unwrapBrowserResult(result);
+}
+/**
+ * Count visible card editors and report whether the active one is still empty.
+ * Used to wait out the swiper render lag after clicking 再写一张.
+ */
+async function cardEditorState(page) {
+    const result = await page.evaluate(`
+    (() => {
+      const __opencli_xhs_card_count = true;
+      const sel = ${JSON.stringify(CARD_EDITOR_SELECTOR)};
+      const editors = Array.from(document.querySelectorAll(sel)).filter((el) => el.offsetParent !== null);
+      const active = editors.find((el) => el.closest('.swiper-slide-active')) || editors[editors.length - 1];
+      const activeText = active ? (active.innerText || active.textContent || '').trim() : '';
+      return { ok: true, count: editors.length, activeEmpty: !activeText };
+    })()
+  `);
+    return unwrapBrowserResult(result);
+}
+/** Poll until at least one card editor has rendered (after entering 文字配图). */
+async function waitForFirstCard(page, maxWaitMs = 8_000) {
+    const pollMs = 300;
+    const maxAttempts = Math.ceil(maxWaitMs / pollMs);
+    for (let i = 0; i < maxAttempts; i++) {
+        const state = await cardEditorState(page);
+        if (state?.count >= 1)
+            return true;
+        await page.wait({ time: pollMs / 1_000 });
+    }
+    return false;
+}
+/**
+ * After clicking 再写一张, the new card editor renders asynchronously and only
+ * then becomes the active swiper slide. Wait for the fresh empty card to be
+ * active before typing — otherwise the text lands in the previous card and the
+ * cards get merged.
+ */
+async function waitForNewCard(page, expectedCount, maxWaitMs = 6_000) {
+    const pollMs = 300;
+    const maxAttempts = Math.ceil(maxWaitMs / pollMs);
+    for (let i = 0; i < maxAttempts; i++) {
+        const state = await cardEditorState(page);
+        if (state?.count >= expectedCount && state?.activeEmpty)
+            return true;
+        await page.wait({ time: pollMs / 1_000 });
+    }
+    return false;
+}
+/**
+ * Click 再写一张 and wait for the new card to render. Retries the click because
+ * 再写一张 only adds a card once the current card's text has registered in the
+ * editor model — a click fired too early no-ops. Re-clicking is safe: once the
+ * fresh empty card is active, 再写一张 no-ops, so this never over-adds.
+ */
+async function addCard(page, expectedCount, maxAttempts = 4) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const clicked = await clickByText(page, ADD_CARD_LABEL);
+        if (!clicked?.ok)
+            return false;
+        if (await waitForNewCard(page, expectedCount, 2_500))
+            return true;
+    }
+    return false;
+}
+/** True once the 预览图片 step has rendered (its 下一步 button is present). */
+async function previewStepReady(page) {
+    const result = await page.evaluate(`
+    (() => {
+      const __opencli_xhs_preview_ready = true;
+      const ready = Array.from(document.querySelectorAll('button'))
+        .some((b) => b.offsetParent !== null && (b.innerText || '').replace(/\\s+/g, '') === '下一步');
+      return { ok: ready };
+    })()
+  `);
+    return unwrapBrowserResult(result);
+}
+/**
+ * Click 生成图片 and wait for the 预览图片 step. Retries the click because 生成图片
+ * no-ops until the card text has registered in the editor model (same timing quirk as
+ * 再写一张). Re-clicking is safe: once the preview step is showing, 生成图片 is gone.
+ */
+async function clickGenerate(page, maxAttempts = 6) {
+    const pollMs = 400;
+    const polls = Math.ceil(3_000 / pollMs);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const clicked = await clickByText(page, GENERATE_LABEL);
+        if (!clicked?.ok && attempt === 0)
+            return false; // 生成图片 not on the page at all
+        for (let i = 0; i < polls; i++) {
+            if ((await previewStepReady(page))?.ok)
+                return true;
+            await page.wait({ time: pollMs / 1_000 });
+        }
+    }
+    return false;
+}
+/**
+ * Type one card's text into the active card editor, then verify it stuck.
+ *
+ * tiptap/ProseMirror swallows a "\n" embedded in a single insertText call, so a
+ * multi-line card would collapse onto one line. Split the text on "\n" and press
+ * Enter between segments to produce real line breaks (same Enter mechanism
+ * addTopics relies on). An empty segment (consecutive "\n") yields a blank line.
+ *
+ * Single-quoted shell args (the most natural way to pass `--card-text`) deliver a
+ * literal backslash + "n", not a real LF, so we normalize those to real newlines
+ * first — both `$'a\nb'` and `'a\nb'` then break lines identically.
+ */
+async function fillCard(page, text, index) {
+    text = String(text).replace(/\\n/g, '\n');
+    const focused = await focusActiveCard(page);
+    if (!focused?.ok)
+        throw new CommandExecutionError(`文字配图: could not focus card editor #${index + 1}`);
+    if (typeof page.insertText === 'function') {
+        const lines = text.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            if (i > 0 && typeof page.pressKey === 'function')
+                await page.pressKey('Enter');
+            if (lines[i])
+                await page.insertText(lines[i]);
+        }
+    }
+    else {
+        await page.evaluate(`(t => document.execCommand('insertText', false, t))(${JSON.stringify(text)})`);
+    }
+    await page.wait({ time: 0.4 });
+    const state = await activeCardText(page);
+    if (!state?.ok)
+        throw new CommandExecutionError(`文字配图: card editor #${index + 1} is empty after typing`);
+}
+/**
+ * On the 预览图片 step, optionally pick a style. The style picker is a
+ * scrollable strip whose options are loaded lazily, so we scroll it to the end
+ * to surface every option, then read the real on-page labels (no hard-coded
+ * whitelist — XHS adds/removes styles over time). The strip is located by
+ * anchoring on a known seed label (e.g. 基础) rather than a volatile class name.
+ *
+ * If the caller requested a style, it is a write-side postcondition: either
+ * that style is available and clicked, or publishing fails before submit.
+ */
+async function selectCardStyle(page, styleName) {
+    if (!styleName || styleName === DEFAULT_CARD_STYLE)
+        return DEFAULT_CARD_STYLE; // default 基础 is preselected — nothing to do.
+    // The style strip (".cover-list-container") is VIRTUALIZED: only the items
+    // near the viewport are in the DOM, so a single read sees ~10 of ~20 options
+    // and an option scrolled out of view cannot be clicked. Step-scroll the strip
+    // (".cover-list-container-wrapper"), accumulating every label seen; stop as
+    // soon as the requested style appears and scroll it into view so the
+    // subsequent click lands. XHS also shows a content-dependent subset, so the
+    // real options vary per note — hence no static whitelist.
+    const available = unwrapBrowserResult(await page.evaluate(`
+    (async () => {
+      const __opencli_xhs_card_styles = true;
+      const want = ${JSON.stringify(styleName)};
+      const norm = (el) => ((el && (el.innerText || el.textContent)) || '').trim();
+      const names = () => Array.from(document.querySelectorAll('.cover-list-container .cover-name'));
+      const seen = [];
+      const readAll = () => { for (const el of names()) { const t = norm(el); if (t && !seen.includes(t)) seen.push(t); } };
+      const target = () => names().find((el) => norm(el) === want);
+      const reveal = (el) => { el.scrollIntoView({ block: 'center' }); };
+      readAll();
+      let hit = target();
+      if (hit) { reveal(hit); return { ok: true, styles: seen, found: true }; }
+      const scroller = document.querySelector('.cover-list-container-wrapper')
+        || document.querySelector('.cover-list-container');
+      if (scroller) {
+        const ch = scroller.clientHeight || 200;
+        const sh = scroller.scrollHeight;
+        for (let y = 0; y <= sh + ch; y += Math.max(60, Math.floor(ch / 2))) {
+          scroller.scrollTop = y;
+          await new Promise((r) => setTimeout(r, 180));
+          readAll();
+          hit = target();
+          if (hit) { reveal(hit); await new Promise((r) => setTimeout(r, 150)); return { ok: true, styles: seen, found: true }; }
+        }
+        scroller.scrollTop = 0;
+      }
+      return { ok: seen.length > 0, styles: seen, found: false };
+    })()
+  `));
+    if (!available?.found) {
+        throw new CommandExecutionError(`文字配图: requested style "${styleName}" is not available for this content `
+            + `(options: ${(available?.styles || []).join(' / ') || 'none'}). `
+            + `Choose an available style or omit --card-style to use ${DEFAULT_CARD_STYLE}.`);
+    }
+    const clicked = await clickByText(page, styleName);
+    if (!clicked?.ok) {
+        throw new CommandExecutionError(`文字配图: could not click requested style "${styleName}".`);
+    }
+    await page.wait({ time: 0.6 });
+    return styleName;
+}
+/**
+ * Count visible media in the current editor/composer. Text-image generation must
+ * produce real image cards before we fill title/body or submit; otherwise a
+ * no-op 生成图片 / 下一步 sequence can publish the wrong draft surface.
+ */
+async function currentComposerMediaCount(page) {
+    const result = await page.evaluate(`
+    (() => {
+      const __opencli_xhs_composer_media_count = true;
+      const visibleBox = (el) => {
+        if (!el || el.offsetParent === null) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      const visibleMedia = (el) => {
+        if (!visibleBox(el)) return false;
+        const r = el.getBoundingClientRect();
+        return r.width >= 48 && r.height >= 48;
+      };
+      const titleSelectors = ${JSON.stringify(TITLE_SELECTORS)};
+      const titleEl = titleSelectors
+        .map((sel) => Array.from(document.querySelectorAll(sel)))
+        .flat()
+        .find((el) => visibleBox(el));
+      const root = titleEl?.closest('form, [class*="publish"], [class*="editor"], [class*="note"]') || document.body;
+      const seen = new Set();
+      let count = 0;
+      for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
+        if (!visibleMedia(el)) continue;
+        const rect = el.getBoundingClientRect();
+        const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
+        const key = src || String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
+        if (seen.has(key)) continue;
+        seen.add(key);
+        count += 1;
+      }
+      return { ok: true, count };
+    })()
+  `);
+    return unwrapBrowserResult(result);
+}
+async function assertComposerMediaCount(page, expectedCount, label) {
+    const state = await currentComposerMediaCount(page);
+    if (!state || typeof state.count !== 'number') {
+        throw new CommandExecutionError(`${label}: could not verify current composer media count`);
+    }
+    if (state.count < expectedCount) {
+        await page.screenshot({ path: '/tmp/xhs_publish_media_debug.png' });
+        throw new CommandExecutionError(`${label}: expected at least ${expectedCount} visible media item(s), got ${state.count}. ` +
+            'Debug screenshot: /tmp/xhs_publish_media_debug.png');
+    }
+}
+/**
+ * Drive the full 文字配图 sub-flow: entry → type cards → 生成图片 → pick style → 下一步.
+ * Leaves the page on the standard editor (caller then runs waitForEditForm).
+ */
+async function runTextImageFlow(page, cards, cardStyle) {
+    const entry = await clickByText(page, TEXT_IMAGE_ENTRY_LABEL);
+    if (!entry?.ok) {
+        await page.screenshot({ path: '/tmp/xhs_publish_textimage_debug.png' });
+        throw new CommandExecutionError(`文字配图: could not click "${TEXT_IMAGE_ENTRY_LABEL}" entry. ` +
+            'Debug: /tmp/xhs_publish_textimage_debug.png');
+    }
+    if (!(await waitForFirstCard(page))) {
+        await page.screenshot({ path: '/tmp/xhs_publish_textimage_debug.png' });
+        throw new CommandExecutionError(`文字配图: 写文字 card editor did not appear after clicking "${TEXT_IMAGE_ENTRY_LABEL}". ` +
+            'Debug: /tmp/xhs_publish_textimage_debug.png');
+    }
+    for (let i = 0; i < cards.length; i++) {
+        if (i > 0) {
+            const added = await addCard(page, i + 1);
+            if (!added) {
+                await page.screenshot({ path: '/tmp/xhs_publish_addcard_debug.png' });
+                throw new CommandExecutionError(`文字配图: new card editor #${i + 1} did not render after "${ADD_CARD_LABEL}". ` +
+                    'Debug: /tmp/xhs_publish_addcard_debug.png');
+            }
+        }
+        await fillCard(page, cards[i], i);
+    }
+    const generated = await clickGenerate(page);
+    if (!generated) {
+        await page.screenshot({ path: '/tmp/xhs_publish_generate_debug.png' });
+        throw new CommandExecutionError(`文字配图: "${GENERATE_LABEL}" did not advance to the 预览图片 step. ` +
+            'Debug: /tmp/xhs_publish_generate_debug.png');
+    }
+    const appliedStyle = await selectCardStyle(page, cardStyle);
+    const next = await clickByText(page, PREVIEW_NEXT_LABEL);
+    if (!next?.ok) {
+        await page.screenshot({ path: '/tmp/xhs_publish_next_debug.png' });
+        throw new CommandExecutionError(`文字配图: could not click "${PREVIEW_NEXT_LABEL}". ` +
+            'Debug: /tmp/xhs_publish_next_debug.png');
+    }
+    await page.wait({ time: 2 }); // editor render
+    return appliedStyle;
+}
 async function inspectPublishSurfaceState(page) {
     return page.evaluate(`
     () => {
@@ -727,9 +1142,11 @@ cli({
     browser: true,
     navigateBefore: false,
     args: [
-        { name: 'title', required: true, help: '笔记标题 (最多20字)' },
         { name: 'content', required: true, positional: true, help: '笔记正文' },
-        { name: 'images', required: true, help: '图片路径，逗号分隔，最多9张 (jpg/png/gif/webp)' },
+        { name: 'title', required: true, help: '笔记标题 (最多20字)' },
+        { name: 'images', required: false, help: '图片路径，逗号分隔，最多9张 (jpg/png/gif/webp)' },
+        { name: 'card-text', required: false, help: `文字配图卡片文字，多张卡片用 ${CARD_TEXT_DELIM} 分隔，卡内换行用 \\n` },
+        { name: 'card-style', required: false, help: `文字配图卡片样式，运行时按页面实际选项匹配；找不到会失败。省略时使用${DEFAULT_CARD_STYLE}。可选: ${CARD_STYLE_GUIDE.map(([n, s]) => `${n}(${s})`).join(' ')}` },
         { name: 'topics', required: false, help: '话题标签，逗号分隔，不含 # 号' },
         { name: 'draft', type: 'bool', default: false, help: '保存为草稿，不直接发布' },
     ],
@@ -746,17 +1163,26 @@ cli({
             ? String(kwargs.topics).split(',').map((s) => s.trim()).filter(Boolean)
             : [];
         const isDraft = Boolean(kwargs.draft);
+        const cardText = kwargs['card-text'] ? String(kwargs['card-text']) : '';
+        const cards = cardText
+            ? cardText.split(CARD_TEXT_DELIM).map((s) => s.trim()).filter(Boolean)
+            : [];
+        const cardStyle = kwargs['card-style'] ? String(kwargs['card-style']).trim() : '';
+        const isTextImage = cards.length > 0;
         // ── Validate inputs ────────────────────────────────────────────────────────
         if (!title)
-            throw new Error('--title is required');
+            throw new ArgumentError('--title is required');
         if (title.length > MAX_TITLE_LEN)
-            throw new Error(`Title is ${title.length} chars — must be ≤ ${MAX_TITLE_LEN}`);
+            throw new ArgumentError(`Title is ${title.length} chars — must be ≤ ${MAX_TITLE_LEN}`);
         if (!content)
-            throw new Error('Positional argument <content> is required');
-        if (imagePaths.length === 0)
-            throw new Error('At least one --images path is required. The creator center now requires images before showing the editor.');
+            throw new ArgumentError('Positional argument <content> is required');
+        if (!isTextImage && imagePaths.length === 0)
+            throw new ArgumentError('Provide --card-text (text-image mode) or --images (upload mode); neither was given.');
         if (imagePaths.length > MAX_IMAGES)
-            throw new Error(`Too many images: ${imagePaths.length} (max ${MAX_IMAGES})`);
+            throw new ArgumentError(`Too many images: ${imagePaths.length} (max ${MAX_IMAGES})`);
+        // The editor-page image input (text-image append) rejects gif.
+        if (isTextImage && imagePaths.some((p) => path.extname(p).toLowerCase() === '.gif'))
+            throw new ArgumentError('文字配图模式追加的图片不支持 .gif（编辑器图片入口只接受 jpg/jpeg/png/webp）');
         // Validate image paths before navigating (fast-fail on bad paths / unsupported formats)
         const absImagePaths = validateImagePaths(imagePaths);
         // ── Step 1: Navigate to publish page ──────────────────────────────────────
@@ -779,22 +1205,43 @@ cli({
             throw new Error('Still on the video publish page after trying to select 图文. ' +
                 `Details: ${detail}. Debug screenshot: /tmp/xhs_publish_tab_debug.png`);
         }
-        // ── Step 3: Upload images ──────────────────────────────────────────────────
-        const upload = await uploadImages(page, absImagePaths);
-        if (!upload.ok) {
-            await page.screenshot({ path: '/tmp/xhs_publish_upload_debug.png' });
-            throw new Error(`Image injection failed: ${upload.error ?? 'unknown'}. ` +
-                'Debug screenshot: /tmp/xhs_publish_upload_debug.png');
+        // ── Step 3: Acquire images — text-image generation and/or upload ──────────
+        let appliedCardStyle = cardStyle;
+        if (isTextImage) {
+            // Drive 文字配图: type cards → 生成图片 → pick style → 下一步 → standard editor.
+            appliedCardStyle = await runTextImageFlow(page, cards, cardStyle);
         }
-        // Allow XHS to process and upload images to its CDN
-        await page.wait({ time: UPLOAD_SETTLE_MS / 1_000 });
-        await waitForUploads(page);
+        else {
+            const upload = await uploadImages(page, absImagePaths);
+            if (!upload.ok) {
+                await page.screenshot({ path: '/tmp/xhs_publish_upload_debug.png' });
+                throw new CommandExecutionError(`Image injection failed: ${upload.error ?? 'unknown'}. ` +
+                    'Debug screenshot: /tmp/xhs_publish_upload_debug.png');
+            }
+            await page.wait({ time: UPLOAD_SETTLE_MS / 1_000 });
+            await waitForUploads(page);
+        }
         // ── Step 3b: Wait for editor form to render ───────────────────────────────
         const formReady = await waitForEditForm(page);
         if (!formReady) {
             await page.screenshot({ path: '/tmp/xhs_publish_form_debug.png' });
-            throw new Error('Editing form did not appear after image upload. The page layout may have changed. ' +
+            throw new CommandExecutionError('Editing form did not appear after image acquisition. The page layout may have changed. ' +
                 'Debug screenshot: /tmp/xhs_publish_form_debug.png');
+        }
+        if (isTextImage) {
+            await assertComposerMediaCount(page, cards.length, '文字配图 generated images');
+        }
+        // ── Step 3c: In text-image mode, optionally append uploaded images ────────
+        if (isTextImage && absImagePaths.length > 0) {
+            const upload = await uploadImages(page, absImagePaths);
+            if (!upload.ok) {
+                await page.screenshot({ path: '/tmp/xhs_publish_append_debug.png' });
+                throw new CommandExecutionError(`Appending images failed: ${upload.error ?? 'unknown'}. ` +
+                    'Debug screenshot: /tmp/xhs_publish_append_debug.png');
+            }
+            await page.wait({ time: UPLOAD_SETTLE_MS / 1_000 });
+            await waitForUploads(page);
+            await assertComposerMediaCount(page, cards.length + absImagePaths.length, '文字配图 appended images');
         }
         // ── Step 4: Fill title ─────────────────────────────────────────────────────
         await fillField(page, TITLE_SELECTORS, title, 'title');
@@ -953,12 +1400,18 @@ cli({
         const navigatedAway = !finalUrl.includes('/publish/publish');
         const isSuccess = successMsg.length > 0 || navigatedAway;
         const verb = isDraft ? '暂存成功' : '发布成功';
+        if (!isSuccess) {
+            throw new CommandExecutionError(`${verb} could not be verified: no success marker or post-submit navigation was observed. ` +
+                (finalUrl ? `Current URL: ${finalUrl}` : 'Current URL was empty.'));
+        }
         return [
             {
-                status: isSuccess ? `✅ ${verb}` : '⚠️ 操作完成，请在浏览器中确认',
+                status: `✅ ${verb}`,
                 detail: [
                     `"${title}"`,
-                    `${absImagePaths.length}张图片`,
+                    isTextImage
+                        ? `${cards.length}张文字配图${absImagePaths.length ? ` + ${absImagePaths.length}张图片` : ''}${appliedCardStyle && appliedCardStyle !== DEFAULT_CARD_STYLE ? ` (${appliedCardStyle})` : ''}`
+                        : `${absImagePaths.length}张图片`,
                     addedTopics.length ? `话题: ${addedTopics.join(' ')}` : '',
                     successMsg || finalUrl || '',
                 ]

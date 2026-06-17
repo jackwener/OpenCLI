@@ -41,6 +41,7 @@ registerSiteAuthCommands({
   domain: 'rednote.com',
   loginUrl: 'https://www.rednote.com/explore',
   columns: ['user_id', 'nickname'],
+  quickCheck: hasRednoteSessionCookie,
   verify: verifyRednoteIdentity,
   poll: async (page) => {
     if (!await hasRednoteSessionCookie(page)) {

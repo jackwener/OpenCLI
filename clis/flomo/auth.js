@@ -44,6 +44,7 @@ registerSiteAuthCommands({
   domain: 'flomoapp.com',
   loginUrl: 'https://v.flomoapp.com/login',
   columns: ['user_id'],
+  quickCheck: hasFlomoSessionCookie,
   verify: verifyFlomoIdentity,
   poll: async (page) => {
     if (!await hasFlomoSessionCookie(page)) {

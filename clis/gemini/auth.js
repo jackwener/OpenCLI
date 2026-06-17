@@ -37,6 +37,7 @@ registerSiteAuthCommands({
   domain: 'gemini.google.com',
   loginUrl: 'https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fgemini.google.com%2F',
   columns: ['name'],
+  quickCheck: hasGoogleSessionCookie,
   verify: verifyGeminiIdentity,
   poll: async (page) => {
     if (!await hasGoogleSessionCookie(page)) {

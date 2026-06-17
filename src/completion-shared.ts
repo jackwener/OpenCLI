@@ -12,6 +12,7 @@ export const BUILTIN_COMMANDS = [
   'list',
   'validate',
   'verify',
+  'auth',
   'browser',
   'tab',
   'doctor',

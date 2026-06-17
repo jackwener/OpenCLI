@@ -41,6 +41,7 @@ registerSiteAuthCommands({
   domain: 'grok.com',
   loginUrl: 'https://grok.com/auth/sign-in',
   columns: ['user_id', 'name'],
+  quickCheck: hasGrokSessionCookie,
   verify: verifyGrokIdentity,
   poll: async (page) => {
     if (!await hasGrokSessionCookie(page)) {

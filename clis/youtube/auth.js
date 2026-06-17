@@ -43,6 +43,7 @@ registerSiteAuthCommands({
   domain: 'www.youtube.com',
   loginUrl: 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F',
   columns: ['name'],
+  quickCheck: hasGoogleSessionCookie,
   verify: verifyYoutubeIdentity,
   poll: async (page) => {
     if (!await hasGoogleSessionCookie(page)) {

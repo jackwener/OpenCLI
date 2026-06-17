@@ -11,6 +11,7 @@ import {
     promoteDoubanPhotoUrl,
     resolveDoubanPhotoAssetUrl,
     searchDouban,
+    splitDoubanTitle,
 } from './utils.js';
 
 function createFakeNode(text = '', attrs = {}) {
@@ -434,5 +435,54 @@ describe('inferDoubanSearchResultType', () => {
             moreUrl: '',
             labels: [{ text: '图书' }],
         })).toBe('book');
+    });
+});
+
+// Regression for #1851: splitDoubanTitle must be self-contained so its
+// .toString()-injected form runs inside page.evaluate, where the module scope
+// (and therefore the module-level normalizeText) is unavailable. Pre-fix the
+// injected copy threw `ReferenceError: normalizeText is not defined`.
+describe('splitDoubanTitle — page.evaluate injection (#1851)', () => {
+    // Rebuild the function from its source in a fresh scope that, like the
+    // browser page context, has no access to the module-level normalizeText.
+    function injectViaToString(fn) {
+        // eslint-disable-next-line no-new-func
+        return new Function(`return (${fn.toString()})`)();
+    }
+
+    it('does not throw when injected into page.evaluate (normalizeText is not defined there)', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        expect(() => injected('盗梦空间 Inception')).not.toThrow();
+    });
+
+    it('splits a CJK + Latin title correctly when injected', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        expect(injected('盗梦空间 Inception')).toEqual({
+            title: '盗梦空间',
+            originalTitle: 'Inception',
+        });
+    });
+
+    it('returns the same result whether called directly or via injection', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        const samples = [
+            '盗梦空间 Inception',
+            '千与千寻 千と千尋の神隠し',
+            "哈尔的移动城堡 Howl's Moving Castle",
+            '无名之辈',
+            '',
+            '   ',
+        ];
+        for (const input of samples) {
+            expect(injected(input)).toEqual(splitDoubanTitle(input));
+        }
+    });
+
+    it('collapses internal whitespace in the injected copy', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        expect(injected('  流浪地球   The   Wandering   Earth  ')).toEqual({
+            title: '流浪地球',
+            originalTitle: 'The Wandering Earth',
+        });
     });
 });

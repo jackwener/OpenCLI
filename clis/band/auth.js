@@ -51,6 +51,7 @@ registerSiteAuthCommands({
   domain: 'band.us',
   loginUrl: 'https://auth.band.us/login',
   columns: ['user_id'],
+  quickCheck: hasBandSessionCookie,
   verify: verifyBandIdentity,
   poll: async (page) => {
     if (!await hasBandSessionCookie(page)) {

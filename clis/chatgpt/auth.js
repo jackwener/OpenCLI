@@ -41,6 +41,7 @@ registerSiteAuthCommands({
   domain: 'chatgpt.com',
   loginUrl: 'https://auth.openai.com/log-in',
   columns: ['user_id', 'name'],
+  quickCheck: hasChatgptSessionCookie,
   verify: verifyChatgptIdentity,
   poll: async (page) => {
     if (!await hasChatgptSessionCookie(page)) {
