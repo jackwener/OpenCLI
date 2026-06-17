@@ -74,6 +74,53 @@ describe('Page.getCurrentUrl', () => {
   });
 });
 
+describe('Page.getCookies', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('returns validated browser cookies from the daemon', async () => {
+    sendCommandMock.mockResolvedValueOnce([
+      { name: 'session', value: 'abc', domain: '.example.com', httpOnly: true },
+    ]);
+
+    const page = new Page('default');
+    const cookies = await page.getCookies({ url: 'https://example.com/' });
+
+    expect(cookies).toEqual([
+      { name: 'session', value: 'abc', domain: '.example.com', httpOnly: true },
+    ]);
+    expect(sendCommandMock).toHaveBeenCalledWith('cookies', expect.objectContaining({
+      session: 'default',
+      surface: 'browser',
+      url: 'https://example.com/',
+    }));
+  });
+
+  it('rejects malformed daemon cookie envelopes instead of silently returning empty', async () => {
+    sendCommandMock.mockResolvedValueOnce({ cookies: [] });
+
+    const page = new Page('default');
+
+    await expect(page.getCookies({ url: 'https://example.com/' }))
+      .rejects.toThrow('expected an array');
+  });
+
+  it('rejects malformed daemon cookie records instead of dropping them', async () => {
+    sendCommandMock.mockResolvedValueOnce([
+      { name: 'session', value: 'abc', domain: '.example.com' },
+      { name: 'broken', value: 'abc' },
+    ]);
+
+    const page = new Page('default');
+
+    await expect(page.getCookies({ url: 'https://example.com/' }))
+      .rejects.toThrow('malformed cookie at index 1');
+  });
+});
+
 describe('Page.evaluate', () => {
   beforeEach(() => {
     sendCommandMock.mockReset();
