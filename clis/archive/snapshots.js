@@ -29,7 +29,10 @@ cli({
     func: async (args) => {
         const target = String(args.url ?? '').trim();
         if (!target) {
-            throw new ArgumentError('archive snapshots url must not be empty');
+            throw new ArgumentError(
+                'archive snapshots url cannot be empty',
+                'Example: opencli archive snapshots wikipedia.org',
+            );
         }
         const limit = Number(args.limit ?? 20);
         if (!Number.isInteger(limit) || limit <= 0) {

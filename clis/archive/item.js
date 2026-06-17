@@ -21,10 +21,16 @@ cli({
     func: async (args) => {
         const identifier = String(args.identifier ?? '').trim();
         if (!identifier) {
-            throw new ArgumentError('archive item identifier must not be empty');
+            throw new ArgumentError(
+                'archive item identifier cannot be empty',
+                'Example: opencli archive item open-syllabus',
+            );
         }
         if (!/^[A-Za-z0-9._-]+$/.test(identifier)) {
-            throw new ArgumentError('archive item identifier may only contain letters, digits, ".", "_", "-"');
+            throw new ArgumentError(
+                `archive item identifier "${args.identifier}" is not valid`,
+                'Archive item identifiers may only contain letters, digits, ".", "_", "-".',
+            );
         }
 
         const url = `https://archive.org/metadata/${encodeURIComponent(identifier)}`;

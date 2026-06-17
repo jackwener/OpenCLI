@@ -32,7 +32,10 @@ cli({
     func: async (args) => {
         const target = String(args.url ?? '').trim();
         if (!target) {
-            throw new ArgumentError('archive wayback url must not be empty');
+            throw new ArgumentError(
+                'archive wayback url cannot be empty',
+                'Example: opencli archive wayback wikipedia.org',
+            );
         }
         const timestamp = args.timestamp ? normalizeTimestamp(args.timestamp) : '';
 
