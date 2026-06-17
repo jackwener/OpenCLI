@@ -23,7 +23,7 @@ describe('smzdm/search', () => {
           <span class="z-highlight">4015.44元（需用券）</span>
           <div class="z-feed-foot-l">
             <span class="feed-btn-group price-btn-hover">
-              <span class="J_zhi_like_fav price-btn-up" data-type="zhi" data-zhi-type="1"><span class="unvoted-wrap"><span>11</span></span></span>
+              <span class="J_zhi_like_fav price-btn-up" data-type="zhi" data-zhi-type="1"><span class="unvoted-wrap"><span>1.2万</span></span></span>
               <span class="J_zhi_like_fav price-btn-down" data-type="zhi" data-zhi-type="-1"><span class="unvoted-wrap"><span>3</span></span></span>
             </span>
             <span class="J_zhi_like_fav z-group-data feed-btn-fav"><span>40</span></span>
@@ -42,7 +42,7 @@ describe('smzdm/search', () => {
                 price: '4015.44元（需用券）',
                 mall: '天猫精选',
                 updated_at: '05-23 00:28',
-                zhi_count: 11,
+                zhi_count: 12000,
                 buzhi_count: 3,
                 favorite_count: 40,
                 comments: 24,
@@ -67,9 +67,17 @@ describe('smzdm/search', () => {
                 buzhi_count: 0,
                 favorite_count: 0,
                 comments: 0,
-                url: '/p/1/',
+                url: 'https://www.smzdm.com/p/1/',
             },
         ]);
+    });
+
+    it('drops untrusted result URLs before output', () => {
+        const html = `<ul><li class="feed-row-wide">
+          <h5 class="feed-block-title"><a href="https://evil.example/p/1/" title="Bad deal">Bad deal</a></h5>
+        </li></ul>`;
+        const rows = runBrowserScript(html, __test__.buildSmzdmSearchJs(20));
+        expect(rows).toEqual([]);
     });
 
     it('respects the limit argument', () => {
@@ -86,6 +94,7 @@ describe('smzdm/search', () => {
         };
         await expect(smzdmSearchCommand.func(page, { query: 'test', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
         await expect(smzdmSearchCommand.func(page, { query: 'test', limit: 101 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(smzdmSearchCommand.func(page, { query: 'test', limit: '1e2' })).rejects.toBeInstanceOf(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
     });
 

@@ -24,7 +24,19 @@ function requireSearchRows(payload) {
 }
 
 function parseLimit(raw) {
-    const parsed = Number(raw ?? 20);
+    let parsed;
+    if (raw == null) {
+        parsed = 20;
+    }
+    else if (typeof raw === 'number') {
+        parsed = raw;
+    }
+    else if (typeof raw === 'string' && /^[0-9]+$/.test(raw)) {
+        parsed = Number(raw);
+    }
+    else {
+        parsed = NaN;
+    }
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
         throw new ArgumentError(`--limit must be an integer between 1 and 100, got ${JSON.stringify(raw)}`);
     }
@@ -45,10 +57,37 @@ function buildSmzdmSearchJs(limit) {
         const limit = ${limit};
         const items = document.querySelectorAll('li.feed-row-wide');
         const results = [];
+        const normalizeCount = (text) => {
+          const raw = (text || '').replace(/,/g, '').trim();
+          const match = raw.match(/(\\d+(?:\\.\\d+)?)\\s*([万kK]?)/);
+          if (!match) return 0;
+          const base = Number(match[1]);
+          if (!Number.isFinite(base)) return 0;
+          const unit = match[2];
+          if (unit === '万') return Math.round(base * 10000);
+          if (unit === 'k' || unit === 'K') return Math.round(base * 1000);
+          return Math.round(base);
+        };
         const intFrom = (el) => {
           if (!el) return 0;
-          const n = parseInt((el.textContent || '').trim(), 10);
-          return Number.isNaN(n) ? 0 : n;
+          return normalizeCount(el.textContent || '');
+        };
+        const trustedSmzdmUrl = (raw) => {
+          const text = (raw || '').trim();
+          if (!text) return '';
+          let url;
+          try {
+            url = text.startsWith('/')
+              ? new URL(text, 'https://www.smzdm.com')
+              : new URL(text, location.href);
+          } catch {
+            return '';
+          }
+          const hostname = url.hostname.toLowerCase();
+          if (url.protocol !== 'https:' || (hostname !== 'www.smzdm.com' && hostname !== 'post.smzdm.com')) {
+            return '';
+          }
+          return url.toString();
         };
         items.forEach((li) => {
           if (results.length >= limit) return;
@@ -56,7 +95,8 @@ function buildSmzdmSearchJs(limit) {
                        || li.querySelector('h5 > a');
           if (!titleEl) return;
           const title = (titleEl.getAttribute('title') || titleEl.textContent || '').trim();
-          const url = titleEl.getAttribute('href') || titleEl.href || '';
+          const url = trustedSmzdmUrl(titleEl.getAttribute('href') || titleEl.href || '');
+          if (!title || !url) return;
           const priceEl = li.querySelector('.z-highlight');
           const price = priceEl ? priceEl.textContent.trim() : '';
           let mall = '';
