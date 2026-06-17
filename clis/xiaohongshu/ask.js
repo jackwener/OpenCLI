@@ -75,14 +75,22 @@ function firstNonEmpty(...values) {
 
 function parseCount(value) {
     if (value === null || value === undefined || value === '') return null;
-    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const toSafeCount = (number) => (
+        Number.isSafeInteger(number) && number >= 0 ? number : null
+    );
+    if (typeof value === 'number') return toSafeCount(value);
     const text = String(value).trim();
-    const wan = text.match(/^([\d.]+)\s*(?:万|w|W)\+?$/);
-    if (wan) return Math.round(parseFloat(wan[1]) * 1e4);
-    const yi = text.match(/^([\d.]+)\s*亿\+?$/);
-    if (yi) return Math.round(parseFloat(yi[1]) * 1e8);
-    const n = Number(text.replace(/[,+\s]/g, ''));
-    return Number.isFinite(n) ? n : null;
+    const compact = text.match(/^(\d+(?:\.\d+)?)\s*(万|[wW]|亿)\+?$/);
+    if (compact) {
+        const number = Number(compact[1]);
+        const multiplier = compact[2] === '亿' ? 1e8 : 1e4;
+        return Number.isFinite(number) ? toSafeCount(Math.round(number * multiplier)) : null;
+    }
+    const plain = text.replace(/,/g, '').replace(/\+$/, '');
+    if (/^\d+$/.test(plain) && (text === plain || text === `${plain}+` || /^\d{1,3}(?:,\d{3})+\+?$/.test(text))) {
+        return toSafeCount(Number(plain));
+    }
+    return null;
 }
 
 function parseUrlMaybe(value) {

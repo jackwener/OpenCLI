@@ -104,8 +104,18 @@ describe('xiaohongshu ask', () => {
 
     it('parses 万 / 亿 like strings into integers and drops empty engagement', () => {
         expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: '1.2万' }, 0).like_count).toBe(12000);
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: '1,234+' }, 0).like_count).toBe(1234);
         expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: '' }, 0)).not.toHaveProperty('like_count');
         expect(normalizeAskSource({ id: '69d6fc08000000001f007646' }, 0)).not.toHaveProperty('user_id');
+    });
+
+    it('does not coerce malformed like counts into source metadata', () => {
+        const malformedLikes = ['1e2', '0x10', '-1', '1.5', '1..2万', '1,23'];
+        for (const like of malformedLikes) {
+            expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like }, 0)).not.toHaveProperty('like_count');
+        }
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: -1 }, 0)).not.toHaveProperty('like_count');
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: 1.5 }, 0)).not.toHaveProperty('like_count');
     });
 
     it('builds a bare note URL when 点点 source data has no xsec token', () => {
