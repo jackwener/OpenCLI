@@ -30627,6 +30627,10 @@
       "title",
       "price",
       "mall",
+      "updated_at",
+      "zhi_count",
+      "buzhi_count",
+      "favorite_count",
       "comments",
       "url"
     ],
