@@ -31,7 +31,6 @@ cli({
     ],
     columns: ['id', 'title', 'subreddit', 'author', 'score', 'comments', 'url', 'created_utc', 'selftext', 'post_hint', 'url_overridden_by_dest', 'preview_image_url', 'gallery_urls'],
     pipeline: [
-        { navigate: 'https://www.reddit.com' },
         { evaluate: `(async () => {
   function decodeHtml(s) {
     if (typeof s !== 'string' || !s) return '';
