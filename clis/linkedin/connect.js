@@ -126,9 +126,19 @@ function assessProfileSafety(probe, expectedName, expectedProfileUrl) {
     return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'connect_button_not_found', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
 }
 
-function buildProfileProbeScript() {
+function buildProfileProbeScript(expectedName = '') {
     return String.raw`(() => {
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
+    const expectedName = ${JSON.stringify(expectedName)};
+    const normalizeName = (s) => clean(s)
+      .replace(/\s*[•·]\s*(?:1st|2nd|3rd\+?|degree connection).*$/i, '')
+      .replace(/\s+LinkedIn.*$/i, '')
+      .replace(/\b(p\.?eng\.?|cpa|mba|ph\.?d\.?)\b/ig, '')
+      .replace(/[^\p{L}\p{N}\s.'-]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    const tokens = (s) => normalizeName(s).replace(/[.'-]+/g, ' ').split(/\s+/).map((t) => t.trim()).filter((t) => t.length >= 2);
     const text = document.body ? (document.body.innerText || '') : '';
     const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
       || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
@@ -143,28 +153,50 @@ function buildProfileProbeScript() {
     const name = clean(heading?.innerText || heading?.textContent || '') || titleName;
     const buttons = Array.from(document.querySelectorAll('button, [role="button"], a')).filter((el) => el.offsetParent !== null);
     const buttonLabels = buttons.map((button) => clean(button.innerText || button.textContent || button.getAttribute('aria-label'))).filter(Boolean);
-    const lowerLabels = buttonLabels.map((label) => label.toLowerCase());
-    const pending = lowerLabels.some((label) => label === 'pending' || label.includes('pending'));
-    const connectAvailable = lowerLabels.some((label) => label === 'connect' || label.startsWith('connect ') || label.includes(' invite '));
+    const expectedTokens = tokens(expectedName || name);
+    const ariaLabel = (el) => clean(el?.getAttribute('aria-label') || '');
+    const textLabel = (el) => clean(el?.innerText || el?.textContent || '');
+    const labelOf = (el) => clean(textLabel(el) || ariaLabel(el));
+    const namesOwner = (el) => {
+      const label = ariaLabel(el).toLowerCase();
+      return expectedTokens.length >= 1 && expectedTokens.every((token) => label.includes(token));
+    };
+    const topCard = main?.querySelector('.pv-top-card, [class*="top-card"]')
+      || heading?.closest?.('section, .ph5, [class*="top-card"]')
+      || main;
+    const ownerAction = buttons.find((el) => namesOwner(el) && /^(invite|connect|follow|message|more|pending)\b/i.test(ariaLabel(el)));
+    const ownerScope = ownerAction
+      ? (ownerAction.closest('[class*="profile-actions"], [class*="pvs-profile-actions"], .pv-top-card, .ph5, section') || ownerAction.parentElement || topCard)
+      : topCard;
+    const scopedButtons = Array.from(ownerScope?.querySelectorAll?.('button, [role="button"], a') || []).filter((el) => el.offsetParent !== null);
+    const ownerButtons = Array.from(new Set([...buttons.filter(namesOwner), ...scopedButtons]));
+    const lowerOwnerLabels = ownerButtons.map((button) => labelOf(button).toLowerCase()).filter(Boolean);
+    const pending = lowerOwnerLabels.some((label) => label === 'pending' || label.includes('pending'));
+    const connectAvailable = ownerButtons.some((el) => {
+      const label = labelOf(el).toLowerCase();
+      const aria = ariaLabel(el).toLowerCase();
+      return label === 'connect'
+        || label.startsWith('connect ')
+        || (/invite .* to connect/i.test(aria) && namesOwner(el));
+    });
     // When "Follow" is the primary action, Connect is tucked inside the "More" actions
     // menu rather than shown as a top-level button. Note the menu's presence so the safety
     // check can treat the profile as connectable; the send step opens the menu and confirms.
-    const moreAvailable = lowerLabels.some((label) => label === 'more' || label.startsWith('more '));
+    const moreAvailable = lowerOwnerLabels.some((label) => label === 'more' || label.startsWith('more '));
     // A visible "Message" button is NOT proof of an existing connection: LinkedIn shows
     // Message on many 2nd/3rd-degree profiles (open profiles, Premium, recruiter) right
     // next to a real "Connect" button. The reliable signal for a 1st-degree connection is
     // the degree badge ("1st degree connection") in the top card. Scope to the top card so
     // the "People also viewed" sidebar (which lists other members' degrees) cannot bleed in,
     // and never call it connected when a Connect affordance is present.
-    const topCard = main?.querySelector('.pv-top-card, [class*="top-card"], section') || main;
     const topCardRaw = clean(topCard?.textContent || '');
     const firstDegreeBadge = /\b1st degree connection\b/i.test(topCardRaw);
     const alreadyConnected = !connectAvailable && firstDegreeBadge;
     // The Connect control is an <a> linking to LinkedIn's invitation route
     // (/preload/custom-invite/?vanityName=...). Capture it so the sender can
     // navigate straight to the invite dialog.
-    const connectAnchor = buttons.find((el) => el.tagName === 'A'
-      && /^connect$/i.test(clean(el.innerText || el.textContent || el.getAttribute('aria-label'))));
+    const connectAnchor = ownerButtons.find((el) => el.tagName === 'A'
+      && (/^connect$/i.test(labelOf(el)) || (/invite .* to connect/i.test(ariaLabel(el)) && namesOwner(el))));
     const connectHref = connectAnchor ? (connectAnchor.getAttribute('href') || '') : '';
     return {
       url: location.href,
@@ -363,8 +395,8 @@ function buildOpenConnectDialogScript(expectedName) {
   })()`;
 }
 
-async function probeProfile(page) {
-    return unwrapEvaluateResult(await page.evaluate(buildProfileProbeScript()));
+async function probeProfile(page, expectedName = '') {
+    return unwrapEvaluateResult(await page.evaluate(buildProfileProbeScript(expectedName)));
 }
 
 cli({
@@ -390,7 +422,7 @@ cli({
 
         await page.goto(profileUrl);
         await page.wait(6);
-        let probe = await probeProfile(page);
+        let probe = await probeProfile(page, expectedName);
         // The name resolves early (from document.title), but the profile action
         // buttons (Connect / Message / Pending) render later. Keep probing until
         // the action state has resolved, not merely until the name is visible.
@@ -399,7 +431,7 @@ cli({
                 && (probe.connectAvailable || probe.alreadyConnected || probe.pending || probe.moreAvailable);
             if (resolved) break;
             await page.wait(2);
-            probe = await probeProfile(page);
+            probe = await probeProfile(page, expectedName);
         }
         const safety = assessProfileSafety(probe, expectedName, profileUrl);
         if (safety.blockReason === 'auth_required') {
@@ -487,5 +519,6 @@ export const __test__ = {
     unwrapEvaluateResult,
     clampNote,
     assessProfileSafety,
+    buildProfileProbeScript,
     buildSentInvitationsProbeScript,
 };

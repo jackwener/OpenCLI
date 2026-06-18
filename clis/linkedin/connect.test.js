@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './connect.js';
@@ -11,6 +12,7 @@ const {
     unwrapEvaluateResult,
     clampNote,
     assessProfileSafety,
+    buildProfileProbeScript,
 } = await import('./connect.js').then((m) => m.__test__);
 
 function makeFakePage(probe, sendResult = { ok: true, status: 'sent', reason: 'connection_request_sent' }) {
@@ -57,6 +59,20 @@ function makeMoreMenuFakePage(values, openResult = { ok: true, opened: 'dialog' 
             return value;
         }),
     };
+}
+
+function evaluateProfileProbe(html, expectedName = 'Jane Doe') {
+    const dom = new JSDOM(html, {
+        url: 'https://www.linkedin.com/in/jane/',
+        runScripts: 'outside-only',
+    });
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'offsetParent', {
+        configurable: true,
+        get() {
+            return this.dataset.hidden === 'true' ? null : dom.window.document.body;
+        },
+    });
+    return dom.window.eval(buildProfileProbeScript(expectedName));
 }
 
 describe('linkedin connect helpers', () => {
@@ -125,6 +141,45 @@ describe('linkedin connect helpers', () => {
     it('still blocks when neither a Connect button nor a More menu is present', () => {
         const result = assessProfileSafety({ name: 'Jane Doe', url: 'https://www.linkedin.com/in/jane/', connectAvailable: false, moreAvailable: false }, 'Jane Doe', 'https://www.linkedin.com/in/jane/');
         expect(result.blockReason).toBe('connect_button_not_found');
+    });
+
+    it('scopes profile action probing to the profile owner instead of sidebar cards', () => {
+        const probe = evaluateProfileProbe(`
+          <main>
+            <section class="pv-top-card">
+              <h1>Jane Doe</h1>
+              <div class="pvs-profile-actions">
+                <button aria-label="Follow Jane Doe">Follow</button>
+                <button aria-label="More actions">More</button>
+              </div>
+            </section>
+            <aside>
+              <a href="/preload/custom-invite/?vanityName=other">Connect</a>
+              <button>More</button>
+            </aside>
+          </main>
+        `);
+        expect(probe.name).toBe('Jane Doe');
+        expect(probe.moreAvailable).toBe(true);
+        expect(probe.connectAvailable).toBe(false);
+        expect(probe.connectHref).toBe('');
+    });
+
+    it('does not treat sidebar Connect as profile-owner connectable when the owner has no action menu', () => {
+        const probe = evaluateProfileProbe(`
+          <main>
+            <section class="pv-top-card">
+              <h1>Jane Doe</h1>
+            </section>
+            <aside>
+              <a href="/preload/custom-invite/?vanityName=other">Connect</a>
+              <button>More</button>
+            </aside>
+          </main>
+        `);
+        expect(probe.connectAvailable).toBe(false);
+        expect(probe.moreAvailable).toBe(false);
+        expect(probe.connectHref).toBe('');
     });
 });
 
