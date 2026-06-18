@@ -65,8 +65,11 @@ cli({
         }
 
         const snap = data?.archived_snapshots?.closest;
-        if (!snap || !snap.available || !snap.url) {
+        if (!snap || !snap.available) {
             throw new EmptyResultError('archive wayback', `No Wayback snapshot for "${target}".`);
+        }
+        if (typeof snap.url !== 'string' || !snap.url || !/^\d{14}$/.test(String(snap.timestamp ?? ''))) {
+            throw new CommandExecutionError('archive wayback returned malformed payload: closest snapshot is missing url/timestamp');
         }
 
         return [{

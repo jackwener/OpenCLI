@@ -6,6 +6,8 @@ import {
     EmptyResultError,
 } from '@jackwener/opencli/errors';
 
+const IDENTIFIER_RE = /^[A-Za-z0-9._-]+$/;
+
 cli({
     site: 'archive',
     name: 'item',
@@ -26,7 +28,7 @@ cli({
                 'Example: opencli archive item open-syllabus',
             );
         }
-        if (!/^[A-Za-z0-9._-]+$/.test(identifier)) {
+        if (!IDENTIFIER_RE.test(identifier)) {
             throw new ArgumentError(
                 `archive item identifier "${args.identifier}" is not valid`,
                 'Archive item identifiers may only contain letters, digits, ".", "_", "-".',
@@ -60,22 +62,31 @@ cli({
         if (!meta || typeof meta !== 'object' || !meta.identifier) {
             throw new EmptyResultError('archive item', `No public metadata for "${identifier}" on archive.org.`);
         }
+        const responseIdentifier = String(meta.identifier);
+        if (!IDENTIFIER_RE.test(responseIdentifier)) {
+            throw new CommandExecutionError('archive item returned malformed payload: metadata.identifier is not stable');
+        }
+        if (responseIdentifier !== identifier) {
+            throw new CommandExecutionError(`archive item returned metadata for "${responseIdentifier}" instead of "${identifier}"`);
+        }
 
         const creator = Array.isArray(meta.creator) ? meta.creator.join(', ') : String(meta.creator ?? '');
         const collection = Array.isArray(meta.collection) ? meta.collection.join(', ') : String(meta.collection ?? '');
         const description = Array.isArray(meta.description) ? meta.description.join(' ') : String(meta.description ?? '');
-        const files = Array.isArray(data.files) ? data.files : [];
+        if (!Array.isArray(data.files)) {
+            throw new CommandExecutionError('archive item returned malformed payload: files must be an array');
+        }
 
         return [{
-            identifier: String(meta.identifier),
+            identifier: responseIdentifier,
             title: String(meta.title ?? ''),
             creator,
             date: meta.date ? String(meta.date).slice(0, 10) : '',
             mediatype: String(meta.mediatype ?? ''),
             collection,
             description,
-            file_count: files.length,
-            url: `https://archive.org/details/${meta.identifier}`,
+            file_count: data.files.length,
+            url: `https://archive.org/details/${responseIdentifier}`,
         }];
     },
 });

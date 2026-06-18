@@ -11,6 +11,14 @@ function buildWaybackUrl(timestamp, original) {
     return `https://web.archive.org/web/${timestamp}/${original}`;
 }
 
+function requireCdxColumn(cols, name) {
+    const index = cols[name];
+    if (!Number.isInteger(index)) {
+        throw new CommandExecutionError(`archive snapshots returned malformed CDX payload: missing "${name}" column`);
+    }
+    return index;
+}
+
 cli({
     site: 'archive',
     name: 'snapshots',
@@ -82,17 +90,30 @@ cli({
             throw new EmptyResultError('archive snapshots', `No Wayback snapshots for "${target}".`);
         }
         const [header, ...rows] = data;
+        if (!Array.isArray(header)) {
+            throw new CommandExecutionError('archive snapshots returned malformed CDX payload: header row must be an array');
+        }
         const cols = {};
         header.forEach((name, i) => { cols[name] = i; });
+        const timestampCol = requireCdxColumn(cols, 'timestamp');
+        const originalCol = requireCdxColumn(cols, 'original');
+        const statusCol = requireCdxColumn(cols, 'statuscode');
+        const mimetypeCol = requireCdxColumn(cols, 'mimetype');
 
         return rows.slice(0, limit).map(row => {
-            const timestamp = String(row[cols.timestamp] ?? '');
-            const original = String(row[cols.original] ?? '');
+            if (!Array.isArray(row)) {
+                throw new CommandExecutionError('archive snapshots returned malformed CDX payload: snapshot row must be an array');
+            }
+            const timestamp = String(row[timestampCol] ?? '');
+            const original = String(row[originalCol] ?? '');
+            if (!/^\d{14}$/.test(timestamp) || !original) {
+                throw new CommandExecutionError('archive snapshots returned malformed CDX payload: snapshot row is missing timestamp/original URL');
+            }
             return {
                 timestamp,
                 snapshot_url: buildWaybackUrl(timestamp, original),
-                status: String(row[cols.statuscode] ?? ''),
-                mimetype: String(row[cols.mimetype] ?? ''),
+                status: String(row[statusCol] ?? ''),
+                mimetype: String(row[mimetypeCol] ?? ''),
                 original_url: original,
             };
         });

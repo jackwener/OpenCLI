@@ -9,6 +9,7 @@ import {
 const SORT_OPTIONS = ['downloads', 'date', 'addeddate', 'week', 'title'];
 const SORT_ALIAS = { added: 'addeddate', published: 'date' };
 const MEDIATYPES = ['texts', 'movies', 'audio', 'software', 'image', 'web', 'data', 'collection'];
+const IDENTIFIER_RE = /^[A-Za-z0-9._-]+$/;
 
 cli({
     site: 'archive',
@@ -82,12 +83,22 @@ cli({
         }
 
         const docs = data?.response?.docs;
-        if (!Array.isArray(docs) || docs.length === 0) {
+        if (!Array.isArray(docs)) {
+            throw new CommandExecutionError('archive search returned malformed payload: response.docs must be an array');
+        }
+        if (docs.length === 0) {
             throw new EmptyResultError('archive search', `No items match "${query}" on archive.org.`);
         }
 
         return docs.slice(0, limit).map((d, i) => {
             const id = String(d.identifier ?? '');
+            if (!IDENTIFIER_RE.test(id)) {
+                throw new CommandExecutionError('archive search returned malformed payload: result row is missing a stable identifier');
+            }
+            const downloads = Number(d.downloads ?? 0);
+            if (!Number.isFinite(downloads)) {
+                throw new CommandExecutionError(`archive search returned malformed payload for "${id}": downloads must be numeric`);
+            }
             const creator = Array.isArray(d.creator) ? d.creator.join(', ') : String(d.creator ?? '');
             return {
                 rank: i + 1,
@@ -96,7 +107,7 @@ cli({
                 creator,
                 date: d.date ? String(d.date).slice(0, 10) : '',
                 mediatype: String(d.mediatype ?? ''),
-                downloads: Number(d.downloads ?? 0),
+                downloads,
                 url: id ? `https://archive.org/details/${id}` : '',
             };
         });
