@@ -86,7 +86,10 @@ cli({
         }
 
         // CDX returns an array of arrays; the first row is the header.
-        if (!Array.isArray(data) || data.length < 2) {
+        if (!Array.isArray(data)) {
+            throw new CommandExecutionError('archive snapshots returned malformed CDX payload: top-level payload must be an array');
+        }
+        if (data.length < 2) {
             throw new EmptyResultError('archive snapshots', `No Wayback snapshots for "${target}".`);
         }
         const [header, ...rows] = data;
@@ -106,14 +109,19 @@ cli({
             }
             const timestamp = String(row[timestampCol] ?? '');
             const original = String(row[originalCol] ?? '');
+            const status = row[statusCol];
+            const mimetype = row[mimetypeCol];
             if (!/^\d{14}$/.test(timestamp) || !original) {
                 throw new CommandExecutionError('archive snapshots returned malformed CDX payload: snapshot row is missing timestamp/original URL');
+            }
+            if (status == null || mimetype == null || String(status) === '' || String(mimetype) === '') {
+                throw new CommandExecutionError('archive snapshots returned malformed CDX payload: snapshot row is missing statuscode/mimetype');
             }
             return {
                 timestamp,
                 snapshot_url: buildWaybackUrl(timestamp, original),
-                status: String(row[statusCol] ?? ''),
-                mimetype: String(row[mimetypeCol] ?? ''),
+                status: String(status),
+                mimetype: String(mimetype),
                 original_url: original,
             };
         });

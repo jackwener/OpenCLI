@@ -250,8 +250,12 @@ describe('archive snapshots command', () => {
     it('typed-fails malformed CDX headers and rows', async () => {
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce(jsonResponse([['timestamp', 'original'], ['20200102030405', 'https://example.com/']]))
-            .mockResolvedValueOnce(jsonResponse([['timestamp', 'original', 'statuscode', 'mimetype'], ['', 'https://example.com/', '200', 'text/html']])));
+            .mockResolvedValueOnce(jsonResponse([['timestamp', 'original', 'statuscode', 'mimetype'], ['', 'https://example.com/', '200', 'text/html']]))
+            .mockResolvedValueOnce(jsonResponse({ timestamp: '20200102030405' }))
+            .mockResolvedValueOnce(jsonResponse([['timestamp', 'original', 'statuscode', 'mimetype'], ['20200102030405', 'https://example.com/']])));
 
+        await expect(command.func({ url: 'example.com', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(command.func({ url: 'example.com', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
         await expect(command.func({ url: 'example.com', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
         await expect(command.func({ url: 'example.com', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
