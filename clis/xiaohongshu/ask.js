@@ -73,6 +73,26 @@ function firstNonEmpty(...values) {
     return '';
 }
 
+function parseCount(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const toSafeCount = (number) => (
+        Number.isSafeInteger(number) && number >= 0 ? number : null
+    );
+    if (typeof value === 'number') return toSafeCount(value);
+    const text = String(value).trim();
+    const compact = text.match(/^(\d+(?:\.\d+)?)\s*(万|[wW]|亿)\+?$/);
+    if (compact) {
+        const number = Number(compact[1]);
+        const multiplier = compact[2] === '亿' ? 1e8 : 1e4;
+        return Number.isFinite(number) ? toSafeCount(Math.round(number * multiplier)) : null;
+    }
+    const plain = text.replace(/,/g, '').replace(/\+$/, '');
+    if (/^\d+$/.test(plain) && (text === plain || text === `${plain}+` || /^\d{1,3}(?:,\d{3})+\+?$/.test(text))) {
+        return toSafeCount(Number(plain));
+    }
+    return null;
+}
+
 function parseUrlMaybe(value) {
     if (!value) return null;
     try {
@@ -164,6 +184,14 @@ export function normalizeAskSource(source, index) {
         xsec_token: xsecToken,
         author: firstNonEmpty(source?.nickName, source?.nickname, source?.author, source?.userName),
     };
+    const noteType = firstNonEmpty(source?.noteType);
+    if (noteType) normalized.note_type = noteType;
+    const likeCount = parseCount(source?.like);
+    if (likeCount !== null) normalized.like_count = likeCount;
+    const userId = compactSingleLine(source?.userId);
+    if (userId) normalized.user_id = userId;
+    const publishedAt = compactSingleLine(source?.time);
+    if (publishedAt) normalized.published_at = publishedAt;
     const quote = extractQuote(source);
     if (quote) normalized.quote = quote;
     if (trustedLink?.href) normalized.deeplink = trustedLink.href;
@@ -231,6 +259,8 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
           textLink: item?.textLink || '',
           link: item?.link || item?.imageList?.[0]?.link || '',
           url: item?.url || '',
+          like: item?.like ?? null,
+          time: item?.time || '',
         });
         try {
           if (!window.webpackChunkxhs_pc_web) {

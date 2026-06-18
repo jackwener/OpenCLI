@@ -116,6 +116,108 @@ describe('rewriteBrowserArgv', () => {
     ]);
   });
 
+  it('hoists a trailing browser --window option to the namespace slot', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', 'open', 'https://x.com', '--window', 'background'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      '--window',
+      'background',
+      'open',
+      'https://x.com',
+    ]);
+    expect(rewriteBrowserArgv(['browser', 'work', 'state', '--window', 'foreground'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      '--window',
+      'foreground',
+      'state',
+    ]);
+  });
+
+  it('hoists trailing browser --window after leading root options', () => {
+    expect(rewriteBrowserArgv(['--profile', 'sandbox', 'browser', 'work', 'state', '--window', 'background'])).toEqual([
+      '--profile',
+      'sandbox',
+      'browser',
+      '--session',
+      'work',
+      '--window',
+      'background',
+      'state',
+    ]);
+  });
+
+  it('hoists a trailing browser --window=<mode> option', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', 'open', 'https://x.com', '--window=background'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      '--window=background',
+      'open',
+      'https://x.com',
+    ]);
+  });
+
+  it('hoists browser --window after nested browser leaf commands', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', 'get', 'url', '--window', 'background'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      '--window',
+      'background',
+      'get',
+      'url',
+    ]);
+    expect(rewriteBrowserArgv(['browser', 'work', 'tab', 'close', 'abc123', '--window', 'background'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      '--window',
+      'background',
+      'tab',
+      'close',
+      'abc123',
+    ]);
+  });
+
+  it('leaves an already parent-slot browser --window option untouched', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', '--window', 'background', 'open', 'https://x.com'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      '--window',
+      'background',
+      'open',
+      'https://x.com',
+    ]);
+  });
+
+  it('does not hoist browser --window after a literal -- separator', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', 'eval', 'console.log(1)', '--', '--window', 'background'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      'eval',
+      'console.log(1)',
+      '--',
+      '--window',
+      'background',
+    ]);
+  });
+
+  it('does not hoist a bare trailing browser --window without a value', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', 'open', 'https://x.com', '--window'])).toEqual([
+      'browser',
+      '--session',
+      'work',
+      'open',
+      'https://x.com',
+      '--window',
+    ]);
+  });
+
   it('leaves argv alone when the root command is not `browser`, even if `browser` appears later', () => {
     // The first browser keyword does NOT win — it must be at the root.
     expect(rewriteBrowserArgv(['twitter', 'browser', 'work', 'state'])).toEqual([

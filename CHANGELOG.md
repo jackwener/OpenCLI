@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.8.4](https://github.com/jackwener/opencli/compare/v1.8.3...v1.8.4) (2026-06-15)
+
+Patch release surfacing the bundled skills directory, expanding the auth subsystem across 50+ adapters, refactoring the extension's tab-group model, and adding ten or so new adapter capabilities.
+
+### Features
+
+* **skills** — new `opencli skills list` and `opencli skills read <skill> [path]` commands expose the bundled `skills/opencli-*` directories as a canonical, version-bound source of agent-facing guidance. Skills are now published as part of the npm package (`skills/opencli-*/**`), so the Browser Bridge App's bundled OpenCLI carries the same skills the CLI version itself documents. Non-opencli skills, `../` path traversal, and unknown skill names are rejected with friendly error messages. ([#1948](https://github.com/jackwener/opencli/pull/1948))
+* **auth** — `opencli auth status` aggregate command lists per-adapter session health; `quickCheck` wired into 50 adapters so the aggregate is fast; `auth refresh` maintenance command extends the daily auth-refresh model; first auth coverage for `nowcoder`, `jike`, `maimai`, `jimeng` and another batch of sites. ([#1878](https://github.com/jackwener/opencli/pull/1878), [#1879](https://github.com/jackwener/opencli/pull/1879), [#1880](https://github.com/jackwener/opencli/pull/1880), [#1881](https://github.com/jackwener/opencli/pull/1881))
+* **extension 1.0.20** — `refactor(extension): remove visible adapter tab group` drops the visible Adapter tab-group surface; OpenCLI no longer creates a user-visible group for adapter tabs. ([#1925](https://github.com/jackwener/opencli/pull/1925))
+* **xiaohongshu** — `ask` adapter with citations; `follow` / `unfollow` commands; commenter user-identity columns on `read`.
+* **bilibili** — `follow` / `unfollow` commands.
+* **twitter** — expose media poster URLs in tweet output; harden SearchTimeline metadata and API error paths.
+* **reddit** — media columns surfaced in `read` output.
+* **discord-app** — targeted `read` navigation.
+* **huodongxing** — new `events` adapter.
+* **slock** — new collaboration adapter.
+* **manus** / **gemini** — Patch release backports (carried in from 1.8.3 timeline coverage gap).
+* **llms.txt** — generated for AI visibility / GEO. ([#1889](https://github.com/jackwener/opencli/pull/1889))
+
+### Bug Fixes
+
+* **douban** — `title` splitting is now self-contained for the `page.evaluate` call (was depending on outer scope under chunked extraction).
+* **bloomberg** — Businessweek reads now traverse from the section page instead of the legacy article landing.
+* **deepseek** — reject search with incompatible models pre-navigation (saves a wasted page load).
+* **chatgpt** — response extraction stabilized under virtual scrolling.
+
 ## [1.8.3](https://github.com/jackwener/opencli/compare/v1.8.2...v1.8.3) (2026-06-06)
 
 Patch release focused on two architectural fixes around extension and daemon lifecycle, plus the first wave of the new site auth subsystem.
