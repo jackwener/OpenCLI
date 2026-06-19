@@ -115,11 +115,31 @@ describe('cli() registration', () => {
     expect(getRegistry().get('test-registry/validated')?.validateArgs).toBe(validateArgs);
   });
 
-  it('rejects commands without explicit access metadata', () => {
-    expect(() => cli({
+  it('defaults access to read when not explicitly declared', () => {
+    cli({
       site: 'test-registry',
       name: 'missing-access',
-    } as any)).toThrow("Command test-registry/missing-access must declare access: 'read' | 'write'");
+    } as any);
+    const cmd = getRegistry().get('test-registry/missing-access');
+    expect(cmd?.access).toBe('read');
+  });
+
+  it('defaults access to read when explicitly null', () => {
+    cli({
+      site: 'test-registry',
+      name: 'null-access',
+      access: null,
+    } as any);
+    const cmd = getRegistry().get('test-registry/null-access');
+    expect(cmd?.access).toBe('read');
+  });
+
+  it('rejects commands with invalid access metadata', () => {
+    expect(() => cli({
+      site: 'test-registry',
+      name: 'invalid-access',
+      access: 'execute',
+    } as any)).toThrow("Command test-registry/invalid-access must declare access: 'read' | 'write'");
   });
 });
 

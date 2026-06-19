@@ -207,6 +207,10 @@ function normalizeCommand(cmd: RawCliCommand): CliCommand {
 
 function assertCommandAccess(cmd: Pick<RawCliCommand, 'site' | 'name'> & { access?: unknown }): asserts cmd is RawCliCommand {
   if (cmd.access === 'read' || cmd.access === 'write') return;
+  if (cmd.access === undefined || cmd.access === null) {
+    (cmd as any).access = 'read';
+    return;
+  }
   const key = `${cmd.site}/${cmd.name}`;
   throw new Error(`Command ${key} must declare access: 'read' | 'write'`);
 }
