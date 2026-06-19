@@ -14178,7 +14178,30 @@
   },
   {
     "site": "github",
-    "name": "trending",
+    "name": "whoami",
+    "description": "Show the current logged-in github account",
+    "access": "read",
+    "domain": "github.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "id",
+      "username",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "github/auth.js",
+    "sourceFile": "github/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "github-trending",
+    "name": "repos",
     "description": "GitHub Trending repositories (public, no login). Filter by --language and --since.",
     "access": "read",
     "domain": "github.com",
@@ -14218,31 +14241,8 @@
       "url"
     ],
     "type": "js",
-    "modulePath": "github/trending.js",
-    "sourceFile": "github/trending.js"
-  },
-  {
-    "site": "github",
-    "name": "whoami",
-    "description": "Show the current logged-in github account",
-    "access": "read",
-    "domain": "github.com",
-    "strategy": "cookie",
-    "browser": true,
-    "args": [],
-    "columns": [
-      "logged_in",
-      "site",
-      "id",
-      "username",
-      "name",
-      "url"
-    ],
-    "type": "js",
-    "modulePath": "github/auth.js",
-    "sourceFile": "github/auth.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
+    "modulePath": "github-trending/repos.js",
+    "sourceFile": "github-trending/repos.js"
   },
   {
     "site": "google",

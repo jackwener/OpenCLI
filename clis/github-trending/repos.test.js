@@ -1,10 +1,10 @@
 import { getRegistry } from '@jackwener/opencli/registry';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import './trending.js';
+import './repos.js';
 
 function loadCommand() {
-    const cmd = getRegistry().get('github/trending');
-    if (!cmd?.func) throw new Error('github/trending not found or has no func');
+    const cmd = getRegistry().get('github-trending/repos');
+    if (!cmd?.func) throw new Error('github-trending/repos not found or has no func');
     return cmd;
 }
 
@@ -45,7 +45,7 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe('github/trending', () => {
+describe('github-trending/repos', () => {
     it('parses repos, stars, forks, language, description and url', async () => {
         const html = pageHtml([
             article({ repo: 'owner-a/repo-a', desc: 'Tools &amp; toys for the web', lang: 'Rust', stars: '1,234', forks: '56', since: '78' }),

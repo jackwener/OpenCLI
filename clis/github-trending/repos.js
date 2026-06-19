@@ -1,4 +1,4 @@
-// github trending — repositories from https://github.com/trending (public HTML, no auth).
+// github-trending — repositories from https://github.com/trending (public HTML, no auth).
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
@@ -68,8 +68,8 @@ function parseTrendingHtml(html, limit) {
 }
 
 cli({
-    site: 'github',
-    name: 'trending',
+    site: 'github-trending',
+    name: 'repos',
     access: 'read',
     description: 'GitHub Trending repositories (public, no login). Filter by --language and --since.',
     domain: 'github.com',
@@ -111,16 +111,16 @@ cli({
                 },
             });
         } catch (error) {
-            throw new CommandExecutionError(`github trending request failed: ${error?.message || error}`);
+            throw new CommandExecutionError(`github-trending request failed: ${error?.message || error}`);
         }
         if (!resp.ok) {
-            throw new CommandExecutionError(`github trending request failed: HTTP ${resp.status}`);
+            throw new CommandExecutionError(`github-trending request failed: HTTP ${resp.status}`);
         }
 
         const html = await resp.text();
         const rows = parseTrendingHtml(html, limit);
         if (rows.length === 0) {
-            throw new EmptyResultError('github trending', language
+            throw new EmptyResultError('github-trending', language
                 ? `no trending repositories for language "${language}" (${since})`
                 : `no trending repositories (${since})`);
         }
