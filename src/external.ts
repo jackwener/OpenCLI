@@ -6,6 +6,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import yaml from 'js-yaml';
 import { log } from './logger.js';
 import { EXIT_CODES, getErrorMessage } from './errors.js';
+import { enforceRateLimit } from './rate-limit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -185,6 +186,8 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
   if (!cli) {
     throw new Error(`External CLI '${name}' not found in registry.`);
   }
+
+  enforceRateLimit(name);
 
   // 1. Check if installed
   if (!isBinaryInstalled(cli.binary)) {

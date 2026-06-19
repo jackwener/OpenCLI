@@ -16,6 +16,7 @@ import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
+import { enforceRateLimit } from './rate-limit.js';
 import {
   commandHelpData,
   formatCommandHelpText,
@@ -108,6 +109,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         rawKwargs.__opencliOptionSources = optionSources;
       }
       const kwargs = prepareCommandArgs(cmd, rawKwargs);
+      enforceRateLimit(fullName(cmd));
 
       const verbose = optionsRecord.verbose === true;
       let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
