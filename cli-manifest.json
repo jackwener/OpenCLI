@@ -42716,6 +42716,80 @@
   },
   {
     "site": "zhihu",
+    "name": "followers",
+    "description": "知乎某用户的粉丝列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of followers to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "url_token",
+      "headline",
+      "followers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/followers.js",
+    "sourceFile": "zhihu/followers.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "following",
+    "description": "知乎某用户关注的人列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of followees to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "url_token",
+      "headline",
+      "followers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/following.js",
+    "sourceFile": "zhihu/following.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "hot",
     "description": "知乎热榜",
     "access": "read",
@@ -42808,6 +42882,45 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "zhihu",
+    "name": "pins",
+    "description": "知乎某用户的想法（短内容）列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of pins to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "excerpt",
+      "type",
+      "likes",
+      "comments",
+      "reposts",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/pins.js",
+    "sourceFile": "zhihu/pins.js",
+    "navigateBefore": "https://www.zhihu.com"
   },
   {
     "site": "zhihu",
@@ -42935,6 +43048,113 @@
     "type": "js",
     "modulePath": "zhihu/search.js",
     "sourceFile": "zhihu/search.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user",
+    "description": "知乎用户主页资料（粉丝/关注/回答/文章/获赞数）",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL, e.g. wen-jie-16-47"
+      }
+    ],
+    "columns": [
+      "url_token",
+      "name",
+      "headline",
+      "followers",
+      "following",
+      "answers",
+      "articles",
+      "voteup",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user.js",
+    "sourceFile": "zhihu/user.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user-answers",
+    "description": "知乎某用户的回答列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of answers to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "question",
+      "votes",
+      "comments",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user-answers.js",
+    "sourceFile": "zhihu/user-answers.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user-articles",
+    "description": "知乎某用户的文章/专栏列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of articles to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "votes",
+      "comments",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user-articles.js",
+    "sourceFile": "zhihu/user-articles.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {
