@@ -1093,7 +1093,13 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'foreground' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({
+      timeout: 30,
+      session: 'test',
+      surface: 'browser',
+      windowMode: 'foreground',
+      tabPlacement: 'existing-window',
+    });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 
@@ -1102,7 +1108,13 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', '--window', 'background', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'background' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({
+      timeout: 30,
+      session: 'test',
+      surface: 'browser',
+      windowMode: 'background',
+      tabPlacement: 'existing-window',
+    });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 

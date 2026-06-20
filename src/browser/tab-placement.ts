@@ -9,5 +9,5 @@ export function normalizeBrowserTabPlacement(name: string, raw: unknown): Browse
 }
 
 export function resolveBrowserTabPlacementFromEnv(): BrowserTabPlacement | undefined {
-  return normalizeBrowserTabPlacement('OPENCLI_TAB_PLACEMENT', process.env.OPENCLI_TAB_PLACEMENT) ?? undefined;
+  return normalizeBrowserTabPlacement('OPENCLI_TAB_PLACEMENT', process.env.OPENCLI_TAB_PLACEMENT) ?? 'existing-window';
 }
