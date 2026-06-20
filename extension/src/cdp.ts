@@ -101,6 +101,15 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   const RETRY_DELAY_MS = aggressiveRetry ? 1500 : 500;
   let lastError = '';
 
+  // The forced detach below fires chrome.debugger.onDetach, whose handler wipes
+  // this tab's armed network-capture state; detaching also disables the CDP
+  // Network domain. Snapshot the capture so we can restore it after a successful
+  // re-attach instead of silently dropping in-flight capture — otherwise any
+  // non-navigate command that triggers a re-attach (a stale-attach health-check
+  // failure during SPA navigation or third-party debugger interference) leaves
+  // network-capture-read returning [] even though requests fired.
+  const preservedNetworkCapture = networkCaptures.get(tabId);
+
   for (let attempt = 1; attempt <= MAX_ATTACH_RETRIES; attempt++) {
     try {
       // Force detach first to clear any stale state from other extensions
@@ -152,6 +161,21 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
     await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable');
   } catch {
     // Some pages may not need explicit enable
+  }
+
+  // Restore network capture that the re-attach (detach + onDetach) tore down.
+  // The detach always disables the CDP Network domain, so re-enable it and put
+  // the accumulated capture state back unconditionally. Done last (after the
+  // awaits above) so it wins over the onDetach handler's delete, which fires
+  // while those awaits yield to the event loop.
+  if (preservedNetworkCapture) {
+    try {
+      await chrome.debugger.sendCommand({ tabId }, 'Network.enable');
+      networkCaptures.set(tabId, preservedNetworkCapture);
+    } catch {
+      // Leave capture cleared rather than arm a half-attached Network domain;
+      // the next start-capture re-arms cleanly.
+    }
   }
 }
 

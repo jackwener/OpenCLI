@@ -41,6 +41,7 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   const MAX_ATTACH_RETRIES = aggressiveRetry ? 5 : 2;
   const RETRY_DELAY_MS = aggressiveRetry ? 1500 : 500;
   let lastError = "";
+  const preservedNetworkCapture = networkCaptures.get(tabId);
   for (let attempt = 1; attempt <= MAX_ATTACH_RETRIES; attempt++) {
     try {
       try {
@@ -84,6 +85,13 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   try {
     await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
   } catch {
+  }
+  if (preservedNetworkCapture) {
+    try {
+      await chrome.debugger.sendCommand({ tabId }, "Network.enable");
+      networkCaptures.set(tabId, preservedNetworkCapture);
+    } catch {
+    }
   }
 }
 async function evaluate(tabId, expression, aggressiveRetry = false) {

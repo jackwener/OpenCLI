@@ -393,3 +393,75 @@ describe('cdp download waits', () => {
     });
   });
 });
+
+describe('cdp network capture survives forced re-attach', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function createReattachMock() {
+    const onDetachListeners: Array<(source: { tabId?: number }) => void> = [];
+    let failNextHealthCheck = false;
+    let networkEnableCount = 0;
+    const debuggerApi = {
+      attach: vi.fn(async () => {}),
+      detach: vi.fn(async ({ tabId }: { tabId?: number }) => {
+        // Chrome fires onDetach whenever the debugger detaches from a tab.
+        for (const fn of onDetachListeners) fn({ tabId });
+      }),
+      sendCommand: vi.fn(async (_target: unknown, method: string, params?: any) => {
+        if (method === 'Runtime.evaluate' && params?.expression === '1') {
+          if (failNextHealthCheck) {
+            failNextHealthCheck = false;
+            throw new Error('Inspected target navigated or closed');
+          }
+          return { result: { value: '1' } };
+        }
+        if (method === 'Network.enable') {
+          networkEnableCount += 1;
+          return {};
+        }
+        return {};
+      }),
+      onDetach: { addListener: vi.fn((fn: (s: { tabId?: number }) => void) => { onDetachListeners.push(fn); }) },
+      onEvent: { addListener: vi.fn() },
+    };
+    const tabs = {
+      get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://x.com/home' })),
+      onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn() },
+    };
+    return {
+      chrome: { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } },
+      debuggerApi,
+      failNextHealthCheck: () => { failNextHealthCheck = true; },
+      networkEnableCount: () => networkEnableCount,
+    };
+  }
+
+  it('preserves armed network capture and re-enables Network across a forced re-attach', async () => {
+    const mock = createReattachMock();
+    vi.stubGlobal('chrome', mock.chrome);
+
+    const mod = await import('./cdp');
+    // Wire the onDetach handler that wipes networkCaptures on detach.
+    mod.registerListeners();
+
+    await mod.startNetworkCapture(1);
+    expect(mod.hasActiveNetworkCapture(1)).toBe(true);
+    const enablesAfterStart = mock.networkEnableCount();
+
+    // The next ensureAttached health-check throws, forcing a detach + re-attach.
+    // The detach fires onDetach (which deletes the capture) and disables the
+    // Network domain — the capture must be restored, not silently dropped.
+    mock.failNextHealthCheck();
+    await mod.ensureAttached(1);
+
+    expect(mod.hasActiveNetworkCapture(1)).toBe(true);
+    expect(mock.networkEnableCount()).toBeGreaterThan(enablesAfterStart);
+  });
+});
