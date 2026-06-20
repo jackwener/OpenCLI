@@ -2,7 +2,10 @@
 // Reads the four dashboard cards from https://www.kimi.com/code/console
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import {
+    CommandExecutionError,
+    EmptyResultError,
+} from '@jackwener/opencli/errors';
 
 const KIMI_DOMAIN = 'kimi.com';
 const KIMI_URL = 'https://www.kimi.com/';
@@ -26,13 +29,33 @@ function parsePct(value) {
     return m ? Number(m[1]) : null;
 }
 
+function requireCard(cards, name) {
+    const values = cards[name];
+    if (!Array.isArray(values) || values.length === 0) {
+        throw new CommandExecutionError(`kimi usage returned malformed payload: missing "${name}" card`);
+    }
+    const normalized = values.map((value) => String(value || '').trim()).filter(Boolean);
+    if (normalized.length === 0) {
+        throw new CommandExecutionError(`kimi usage returned malformed payload: missing "${name}" card`);
+    }
+    return normalized;
+}
+
+function requirePct(values, name) {
+    const pct = parsePct(values[0]);
+    if (!Number.isFinite(pct)) {
+        throw new CommandExecutionError(`kimi usage returned malformed payload: "${name}" card is missing a percentage`);
+    }
+    return pct;
+}
+
 cli({
     site: 'kimi',
     name: 'usage',
     access: 'read',
     description: 'Read Kimi Code console usage cards: weekly quota, rate limit, membership, and model permission.',
     domain: KIMI_DOMAIN,
-    strategy: Strategy.UI,
+    strategy: Strategy.COOKIE,
     browser: true,
     siteSession: 'persistent',
     navigateBefore: true,
@@ -94,19 +117,24 @@ cli({
             return cards;
         })()`);
 
-        if (!cards || Object.keys(cards).length === 0) {
+        if (!cards || typeof cards !== 'object' || Array.isArray(cards)) {
+            throw new CommandExecutionError('kimi usage returned malformed payload: usage cards must be an object');
+        }
+        if (Object.keys(cards).length === 0) {
             throw new EmptyResultError('kimi usage', 'No usage cards found on the console page');
         }
 
-        const weekly = cards['本周用量'] || [];
-        const rate = cards['频限明细'] || [];
-        const member = cards['我的权益'] || [];
-        const model = cards['模型权限'] || [];
+        const weekly = requireCard(cards, '本周用量');
+        const rate = requireCard(cards, '频限明细');
+        const member = requireCard(cards, '我的权益');
+        const model = requireCard(cards, '模型权限');
+        const weeklyUsagePct = requirePct(weekly, '本周用量');
+        const rateLimitPct = requirePct(rate, '频限明细');
 
         return [{
-            weeklyUsagePct: parsePct(weekly[0]),
+            weeklyUsagePct,
             weeklyResetIn: weekly.find((t) => /重置/.test(t)) || null,
-            rateLimitPct: parsePct(rate[0]),
+            rateLimitPct,
             rateLimitResetIn: rate.find((t) => /重置/.test(t)) || null,
             membershipName: member[0] || null,
             membershipTier: member.find((t) => t !== member[0]) || null,

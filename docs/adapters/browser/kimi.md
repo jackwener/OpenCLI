@@ -10,6 +10,7 @@ Drive **Kimi** (`kimi.com`) from the terminal through your existing browser sess
 |---------|-------------|--------|
 | `opencli kimi status` | Check page connection, login state, and current URL | read |
 | `opencli kimi account` | Read sidebar account labels | read |
+| `opencli kimi usage` | Read Kimi Code console usage, rate limit, membership, and model permission cards | read |
 | `opencli kimi history` | List visible sidebar conversations | read |
 | `opencli kimi detail <id>` | Open a chat by ID or trusted `/chat/<id>` URL and read messages | read |
 | `opencli kimi read` | Read messages in the current or selected chat | read |
@@ -40,6 +41,9 @@ Drive **Kimi** (`kimi.com`) from the terminal through your existing browser sess
 ```bash
 # Check the current Kimi tab
 opencli kimi status
+
+# Read Kimi Code usage cards
+opencli kimi usage
 
 # Start a new chat and ask a question
 opencli kimi new
@@ -77,6 +81,7 @@ opencli kimi history-rename <chat-id> "New title" --yes true
 ## Behavior
 
 - Kimi commands use a persistent browser site session and operate on the live `kimi.com` UI.
+- `usage` navigates to the Kimi Code console and reads the visible dashboard cards without writing account state.
 - Chat ids accept bare ids, exact relative `/chat/<id>` paths, or `https://kimi.com/chat/<id>` / `https://www.kimi.com/chat/<id>` URLs only.
 - `send` / `ask` verify that a new user turn containing the prompt appears after clicking Send.
 - `ask` waits for an assistant turn to appear and stabilize; timeout is reported as a typed timeout instead of a successful row.

@@ -19532,6 +19532,31 @@
   },
   {
     "site": "kimi",
+    "name": "usage",
+    "description": "Read Kimi Code console usage cards: weekly quota, rate limit, membership, and model permission.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "weeklyUsagePct",
+      "weeklyResetIn",
+      "rateLimitPct",
+      "rateLimitResetIn",
+      "membershipName",
+      "membershipTier",
+      "modelPermission",
+      "modelCost"
+    ],
+    "type": "js",
+    "modulePath": "kimi/usage.js",
+    "sourceFile": "kimi/usage.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
     "name": "view-all-history",
     "description": "Navigate to /chat/history (full conversation list page).",
     "access": "write",
