@@ -4,7 +4,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     CommandExecutionError,
-    EmptyResultError,
 } from '@jackwener/opencli/errors';
 
 const KIMI_DOMAIN = 'kimi.com';
@@ -121,7 +120,7 @@ cli({
             throw new CommandExecutionError('kimi usage returned malformed payload: usage cards must be an object');
         }
         if (Object.keys(cards).length === 0) {
-            throw new EmptyResultError('kimi usage', 'No usage cards found on the console page');
+            throw new CommandExecutionError('kimi usage returned malformed payload: no usage cards found on the console page');
         }
 
         const weekly = requireCard(cards, '本周用量');

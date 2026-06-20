@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { isKimiUrl, parseChatId } from './_utils.js';
 import './chat.js';
 import './ui.js';
@@ -70,10 +70,10 @@ describe('kimi usage command', () => {
         expect(page.goto).toHaveBeenCalledWith('https://www.kimi.com/code/console');
     });
 
-    it('maps no visible usage cards to EmptyResultError', async () => {
+    it('typed-fails when the usage console exposes no dashboard cards', async () => {
         const page = makePage([{}]);
 
-        await expect(usageCommand.func(page)).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(usageCommand.func(page)).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('typed-fails malformed usage payloads instead of returning null success rows', async () => {
