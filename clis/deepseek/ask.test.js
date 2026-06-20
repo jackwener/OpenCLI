@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
 
 const {
   mockEnsureOnDeepSeek,
@@ -362,5 +362,38 @@ describe('deepseek ask conversation resume', () => {
     expect(mockSetFeature).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockSendWithFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('deepseek ask timeout surfaces TimeoutError (not a silent sentinel row)', () => {
+  const page = {
+    wait: vi.fn().mockResolvedValue(undefined),
+    goto: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue('https://chat.deepseek.com/'),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockSendWithFile.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(3);
+    // No reply within the window.
+    mockWaitForResponse.mockResolvedValue(null);
+  });
+
+  it('throws TimeoutError on the normal send path when no reply arrives', async () => {
+    await expect(askCommand.func(page, {
+      prompt: 'hello', timeout: 30, new: false, model: 'default', think: false, search: false,
+    })).rejects.toThrow(TimeoutError);
+  });
+
+  it('throws TimeoutError on the --file path when no reply arrives', async () => {
+    await expect(askCommand.func(page, {
+      prompt: 'summarize', timeout: 30, file: './report.pdf', new: false, model: 'instant', think: false, search: false,
+    })).rejects.toThrow(TimeoutError);
   });
 });
