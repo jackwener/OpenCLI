@@ -534,23 +534,31 @@ async function removeLeaseSession(leaseKey: string): Promise<void> {
   await persistRuntimeState();
 }
 
-function resetWindowIdleTimer(leaseKey: string): void {
+// `remainingMs` lets the caller honor an already-elapsed deadline (e.g. after a
+// service-worker restart) instead of granting a fresh full timeout. When given,
+// the timer/alarm fire after the clamped remaining lifetime; when omitted, a
+// full idle timeout is started.
+function resetWindowIdleTimer(leaseKey: string, remainingMs?: number): void {
   const session = automationSessions.get(leaseKey);
   if (!session) return;
   if (session.idleTimer) clearTimeout(session.idleTimer);
   const timeout = getIdleTimeout(leaseKey);
-  scheduleIdleAlarm(leaseKey, timeout);
   if (timeout <= 0) {
+    scheduleIdleAlarm(leaseKey, timeout);
     session.idleTimer = null;
     session.idleDeadlineAt = 0;
     void persistRuntimeState();
     return;
   }
-  session.idleDeadlineAt = Date.now() + timeout;
+  const interval = remainingMs === undefined
+    ? timeout
+    : Math.max(0, Math.min(remainingMs, timeout));
+  scheduleIdleAlarm(leaseKey, interval);
+  session.idleDeadlineAt = Date.now() + interval;
   void persistRuntimeState();
   session.idleTimer = setTimeout(async () => {
     await releaseLease(leaseKey, 'idle timeout');
-  }, timeout);
+  }, interval);
 }
 
 function getOwnedContainerGroupTitles(role: OwnedWindowRole): string[] {
@@ -1993,7 +2001,9 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
         if (remaining <= 0) {
           await releaseLease(leaseKey, 'reconciled idle expiry');
         } else {
-          resetWindowIdleTimer(leaseKey);
+          // Honor the persisted remaining lifetime — not a fresh full timeout —
+          // so a lease cannot dodge idle expiry by riding repeated SW restarts.
+          resetWindowIdleTimer(leaseKey, remaining);
         }
       }
     } catch {

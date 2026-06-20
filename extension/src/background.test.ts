@@ -1055,6 +1055,49 @@ describe('background tab isolation', () => {
     expect(chrome.windows.remove).not.toHaveBeenCalled();
   });
 
+  it('honors the persisted remaining idle lifetime on reconcile instead of granting a fresh full timeout', async () => {
+    const { chrome } = createChromeMock();
+    const now = Date.now();
+    // 5s left of a 30s adapter idle timeout when the service worker restarts.
+    const deadline = now + 5_000;
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v2: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1 } },
+        leases: {
+          [adapterKey('twitter')]: {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            windowRole: 'automation',
+            idleDeadlineAt: deadline,
+            updatedAt: now,
+          },
+        },
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    const alarmName = `opencli:lease-idle:${encodeURIComponent(adapterKey('twitter'))}`;
+    const createCalls = chrome.alarms.create.mock.calls.filter((c: unknown[]) => c[0] === alarmName);
+    expect(createCalls.length).toBeGreaterThan(0);
+    const scheduledWhen = (createCalls.at(-1)![1] as { when: number }).when;
+
+    // The alarm must fire after the ~5s remaining, NOT after a fresh 30s timeout.
+    // Without honoring `remaining`, the lease keeps getting a full 30s on every
+    // SW restart and can dodge idle expiry indefinitely.
+    expect(scheduledWhen).toBeLessThan(now + 15_000);
+    expect(scheduledWhen).toBeGreaterThan(now + 1_000);
+    expect(mod.__test__.getSession(adapterKey('twitter')).idleDeadlineAt).toBeLessThan(now + 15_000);
+  });
+
   it('releases owned leases from the idle alarm path', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
