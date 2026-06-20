@@ -594,7 +594,7 @@ function submitComposerScript() {
       }
 
       const excludedPattern = /main menu|主菜单|microphone|麦克风|upload|上传|mode|模式|tools|工具|settings|临时对话|new chat|新对话/i;
-      const submitPattern = /send|发送|submit|提交/i;
+      const submitPattern = /send|发送|傳送|submit|提交/i;
       let bestButton = null;
       let bestScore = -1;
 

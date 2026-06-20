@@ -323,6 +323,28 @@ describe('Page active target tracking', () => {
     expect(retryCall[1]).not.toHaveProperty('page');
   });
 
+  it('retries on a bare "Page not found:" error without the stale-identity suffix', async () => {
+    // Under concurrent adapter calls the extension can reject with just
+    // "Page not found: <id>" (no "— stale page identity" suffix) when the cached
+    // targetId was evicted. That still means the identity is dead, so goto() must
+    // drop it and retry once instead of cascading failures.
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/first' }, page: 'page-1' })
+      .mockRejectedValueOnce(new Error('Page not found: deadbeef'))
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/second' }, page: 'page-2' });
+
+    const page = new Page('site:youtube', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await page.goto('https://example.com/first', { waitUntil: 'none' });
+    await page.goto('https://example.com/second', { waitUntil: 'none' });
+    expect(page.getActivePage()).toBe('page-2');
+
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(3);
+    const retryCall = sendCommandFullMock.mock.calls[2];
+    expect(retryCall[0]).toBe('navigate');
+    expect(retryCall[1]).not.toHaveProperty('page');
+  });
+
   it('does not retry stale page errors when no identity was cached', async () => {
     // _page is undefined on a fresh Page — there's nothing to drop, so propagate the
     // error instead of silently retrying with the same params.
@@ -347,6 +369,19 @@ describe('Page active target tracking', () => {
     await expect(page.goto('https://example.com/second', { waitUntil: 'none' }))
       .rejects.toThrow('Extension disconnected');
     // No retry for unrelated errors — exactly two navigate calls total.
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry unrelated navigate errors that only mention Page not found in details', async () => {
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/first' }, page: 'page-1' })
+      .mockRejectedValueOnce(new Error('Navigation failed: upstream says Page not found: /missing'));
+
+    const page = new Page('site:youtube', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await page.goto('https://example.com/first', { waitUntil: 'none' });
+    await expect(page.goto('https://example.com/missing', { waitUntil: 'none' }))
+      .rejects.toThrow('Navigation failed');
     expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
   });
 

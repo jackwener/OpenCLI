@@ -1,6 +1,6 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "publishConfig": {
     "access": "public"
   },
@@ -33,6 +33,7 @@
   "files": [
     "dist/src/",
     "clis/",
+    "skills/opencli-*/**",
     "cli-manifest.json",
     "scripts/",
     "README.md",

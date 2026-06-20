@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const { mockApiGet, mockDownloadMedia, mockCheckYtdlp } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
@@ -87,6 +87,17 @@ describe('bilibili download paid-content pre-check', () => {
     ).rejects.toSatisfy((err) => err instanceof CliError && err.code === 'PAID_CONTENT');
     // upower 没有权益查询端点，不应再打 nav API
     expect(mockApiGet).toHaveBeenCalledTimes(1);
+    expect(mockDownloadMedia).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when successful view payload lacks paid-content metadata', async () => {
+    mockApiGet.mockResolvedValueOnce({ code: 0, data: { bvid: 'BV1xx411c7mD' } });
+
+    await expect(
+      command.func(page, { bvid: 'BV1xx411c7mD', output: './o', quality: 'best', force: false }),
+    ).rejects.toSatisfy(
+      (err) => err instanceof CommandExecutionError && /paid-content metadata/.test(err.message),
+    );
     expect(mockDownloadMedia).not.toHaveBeenCalled();
   });
 

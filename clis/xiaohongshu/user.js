@@ -64,6 +64,9 @@ export function countFlatNotes(snapshot) {
 export function isLoginWallSnapshot(snapshot) {
     return Boolean(snapshot && typeof snapshot === 'object' && snapshot.loginWall === true);
 }
+function throwLoginWallAuthRequired() {
+    throw new AuthRequiredError('xiaohongshu.com', 'Xiaohongshu profile requires login (page redirected to /login or session expired); re-login to xiaohongshu.com and retry.');
+}
 /**
  * 读取 user 快照，带 hydration 等待 + 重试。修两个真实坑：
  *  1) 慢加载竞态：`__INITIAL_STATE__.user` 由 SSR/client bootstrap 异步注入，`page.goto` 后
@@ -107,7 +110,7 @@ export const command = cli({
             // EMPTY_RESULT —— 那会让下游（ml-scout 等）把登录失效当解析失败 / 空号，白等
             // rate-limit cooldown（实测 2026-06-09：风控把 profile 浏览态降级 → 整批 seed
             // 重定向到 /login）。抛 AUTH_REQUIRED，让 caller 提示用户重登 xiaohongshu.com。
-            throw new AuthRequiredError('xiaohongshu.com', 'Xiaohongshu profile requires login (page redirected to /login or session expired); re-login to xiaohongshu.com and retry.');
+            throwLoginWallAuthRequired();
         }
         assertReadableUserSnapshot(snapshot);
         let results = extractXhsUserNotes(snapshot ?? {}, userId);
@@ -116,6 +119,9 @@ export const command = cli({
             await page.autoScroll({ times: 1, delayMs: 1500 });
             await page.wait(1);
             snapshot = await readUserSnapshot(page);
+            if (isLoginWallSnapshot(snapshot)) {
+                throwLoginWallAuthRequired();
+            }
             assertReadableUserSnapshot(snapshot);
             const nextResults = extractXhsUserNotes(snapshot ?? {}, userId);
             if (nextResults.length <= previousCount)

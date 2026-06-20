@@ -33,7 +33,7 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
 // to the session lease (or create a fresh tab).
 function isStalePageIdentityError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
-  return message.includes('stale page identity') || message.includes('Page not found:');
+  return message.includes('stale page identity') || /^Page not found:\s*\S+\s*$/.test(message);
 }
 
 /**
