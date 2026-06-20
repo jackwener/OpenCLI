@@ -284,12 +284,11 @@ function stripNoise(text) {
         .trim();
 }
 
-export async function waitForAnswer(page, prompt, timeoutSeconds) {
+export async function waitForAnswer(page, prompt, timeoutSeconds, baselineLastAssistantId) {
     const startTime = Date.now();
     let previousText = '';
     let stableCount = 0;
     let lastCandidate = '';
-    let seenAssistantId = '';
 
     while (Date.now() - startTime < timeoutSeconds * 1000) {
         await page.wait(POLL_INTERVAL_SECONDS);
@@ -302,10 +301,15 @@ export async function waitForAnswer(page, prompt, timeoutSeconds) {
         const lastAssistant = [...bubbles].reverse().find((b) => b.role === 'Assistant');
         if (!lastAssistant) continue;
 
+        // Skip the stale assistant turn that existed before our send. For a
+        // follow-up ask in an existing conversation, getMessageBubbles returns
+        // the previous (already-complete, already-stable) answer; without this
+        // guard the stability check returns it as if it were the new reply.
+        if (baselineLastAssistantId && lastAssistant.id === baselineLastAssistantId) continue;
+
         const text = stripNoise(lastAssistant.text);
         if (!text || text === prompt) continue;
 
-        if (!seenAssistantId) seenAssistantId = lastAssistant.id;
         lastCandidate = text;
 
         const waitedLongEnough = Date.now() - startTime >= MIN_WAIT_MS;

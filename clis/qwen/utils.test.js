@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { parseQianwenSessionId } from './utils.js';
+import { parseQianwenSessionId, waitForAnswer } from './utils.js';
+
+describe('qwen waitForAnswer baseline anchoring', () => {
+    // page.evaluate serves both getMessageBubbles (data-chat-question-wrap) and
+    // hasLoginGate (alert-biz-modal); route by inspecting the injected JS.
+    const fakePage = (bubbles) => ({
+        wait: () => new Promise((r) => setTimeout(r, 5)),
+        evaluate: (js) => Promise.resolve(
+            String(js).includes('alert-biz-modal') ? false : bubbles,
+        ),
+    });
+
+    it('does not return the pre-send assistant turn (it is skipped via baseline id)', async () => {
+        // Only the previous, already-complete answer is present. With the
+        // baseline anchored to its id, waitForAnswer must skip it and time out
+        // rather than return the stale answer as the new reply.
+        const bubbles = [{ id: 'a1', role: 'Assistant', text: 'old answer', html: '' }];
+        const result = await waitForAnswer(fakePage(bubbles), 'new question', 0.05, 'a1');
+        expect(result.status).toBe('timeout');
+        expect(result.assistant).toBeUndefined();
+    });
+});
 
 describe('qwen parseQianwenSessionId', () => {
     const id = 'abcd1234ef567890abcd1234ef567890';
