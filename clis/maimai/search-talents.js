@@ -3,6 +3,7 @@
  * Reuses Chrome login session to search for candidates on maimai.cn
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'maimai',
@@ -127,7 +128,7 @@ cli({
     const talentList = data.data?.list || data.data?.talent_list || data.list || data.talent_list || [];
 
     if (!talentList || talentList.length === 0) {
-      return [{ error: '未找到匹配的候选人', query: query }];
+      throw new EmptyResultError('maimai search-talents', `未找到匹配 "${query}" 的候选人`);
     }
 
     // Map to output format

@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 export const searchCommand = cli({
     site: 'discord-app',
     name: 'search',
@@ -50,7 +51,7 @@ export const searchCommand = cli({
         // Close search
         await page.pressKey('Escape');
         if (results.length === 0) {
-            return [{ Index: 0, Author: 'System', Message: `No results for "${query}"` }];
+            throw new EmptyResultError('discord-app search', `No results for "${query}".`);
         }
         return results;
     },

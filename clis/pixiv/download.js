@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader, httpDownload } from '@jackwener/opencli/download';
 import { formatBytes } from '@jackwener/opencli/download/progress';
-import { CommandExecutionError, getErrorMessage } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError, getErrorMessage } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
 cli({
     site: 'pixiv',
@@ -34,7 +34,7 @@ cli({
             notFoundMsg: `Illustration not found: ${illustId}`,
         }) || [];
         if (pages.length === 0) {
-            return [{ index: 0, type: '-', status: 'failed', size: 'No images found' }];
+            throw new EmptyResultError('pixiv download', `No images found for illustration ${illustId}.`);
         }
         // Extract cookies for authenticated downloads
         const cookies = formatCookieHeader(await page.getCookies({ domain: 'pixiv.net' }));

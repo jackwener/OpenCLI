@@ -9,7 +9,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { buildNoteUrl, parseNoteId } from './note-helpers.js';
 /**
  * Build the media-extraction IIFE. The note id is interpolated as a default
@@ -228,7 +228,7 @@ export const command = cli({
                 : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }
         if (!data || !data.media || data.media.length === 0) {
-            return [{ index: 0, type: '-', status: 'failed', size: 'No media found' }];
+            throw new EmptyResultError('xiaohongshu download', 'No downloadable media found on this note.');
         }
         // Extract cookies for authenticated downloads
         const cookies = formatCookieHeader(await page.getCookies({ domain: 'xiaohongshu.com' }));
