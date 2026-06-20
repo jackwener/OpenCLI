@@ -2627,6 +2627,170 @@
     "sourceFile": "apple-podcasts/top.js"
   },
   {
+    "site": "archive",
+    "name": "item",
+    "description": "Fetch metadata for a single Internet Archive item by identifier.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "identifier",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Archive item identifier (e.g. \"open-syllabus\", \"FinalFantasy2_356\")."
+      }
+    ],
+    "columns": [
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "collection",
+      "description",
+      "file_count",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/item.js",
+    "sourceFile": "archive/item.js"
+  },
+  {
+    "site": "archive",
+    "name": "search",
+    "description": "Search Internet Archive items across books, movies, audio, software, and web.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full-text query (matches title, description, creator, subject)."
+      },
+      {
+        "name": "mediatype",
+        "type": "string",
+        "required": false,
+        "help": "Restrict to mediatype: texts, movies, audio, software, image, web, data, collection"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "downloads",
+        "required": false,
+        "help": "Sort key: downloads, date, addeddate, week, title"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max items (max 100; one API page)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "downloads",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/search.js",
+    "sourceFile": "archive/search.js"
+  },
+  {
+    "site": "archive",
+    "name": "snapshots",
+    "description": "List Wayback Machine snapshots over time for a URL via the CDX API.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "help": "Earliest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": false,
+        "help": "Latest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max snapshots to return (max 1000)."
+      }
+    ],
+    "columns": [
+      "timestamp",
+      "snapshot_url",
+      "status",
+      "mimetype",
+      "original_url"
+    ],
+    "type": "js",
+    "modulePath": "archive/snapshots.js",
+    "sourceFile": "archive/snapshots.js"
+  },
+  {
+    "site": "archive",
+    "name": "wayback",
+    "description": "Look up the closest Wayback Machine snapshot for a URL.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "timestamp",
+        "type": "string",
+        "required": false,
+        "help": "Target timestamp (YYYY[MM[DD[hh[mm[ss]]]]] or ISO date). Defaults to most recent snapshot."
+      }
+    ],
+    "columns": [
+      "original_url",
+      "requested_timestamp",
+      "snapshot_timestamp",
+      "snapshot_url",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "archive/wayback.js",
+    "sourceFile": "archive/wayback.js"
+  },
+  {
     "site": "arxiv",
     "name": "author",
     "description": "List arXiv papers by a given author (newest first)",
@@ -3375,6 +3539,13 @@
         "default": "best",
         "required": false,
         "help": "Video quality (best, 1080p, 720p, 480p)"
+      },
+      {
+        "name": "force",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "跳过付费内容预检直接下载（已购买/已充电/已开通会员时用）"
       }
     ],
     "columns": [
@@ -6162,7 +6333,7 @@
   {
     "site": "chatgpt",
     "name": "model",
-    "description": "Switch ChatGPT web model/mode (instant, thinking, pro)",
+    "description": "Switch ChatGPT web intelligence level (instant, medium, high, extra-high, pro; thinking aliases high)",
     "access": "write",
     "domain": "chatgpt.com",
     "strategy": "cookie",
@@ -6173,11 +6344,14 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Model/mode to switch to",
+        "help": "Intelligence level to switch to; thinking is a backward-compatible alias for high",
         "choices": [
           "instant",
-          "thinking",
-          "pro"
+          "medium",
+          "high",
+          "extra-high",
+          "pro",
+          "thinking"
         ]
       }
     ],
@@ -9872,7 +10046,10 @@
     "columns": [
       "Index",
       "Channel",
-      "Type"
+      "Type",
+      "guild_id",
+      "channel_id",
+      "url"
     ],
     "type": "js",
     "modulePath": "discord-app/channels.js",
@@ -9907,6 +10084,52 @@
   },
   {
     "site": "discord-app",
+    "name": "goto",
+    "description": "Open a Discord channel by id/name/url without sending messages",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Guild/server id or visible name"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Channel id or visible name"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord channel URL"
+      },
+      {
+        "name": "timeout",
+        "type": "str",
+        "default": "8",
+        "required": false,
+        "help": "Seconds to wait for Discord to show the route (default: 8)"
+      }
+    ],
+    "columns": [
+      "Status",
+      "guild_id",
+      "channel_id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "discord-app/goto.js",
+    "sourceFile": "discord-app/goto.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "discord-app",
     "name": "members",
     "description": "List online members in the current Discord channel",
     "access": "read",
@@ -9927,7 +10150,7 @@
   {
     "site": "discord-app",
     "name": "read",
-    "description": "Read recent messages from the active Discord channel",
+    "description": "Read recent messages from the active or targeted Discord channel",
     "access": "read",
     "domain": "localhost",
     "strategy": "ui",
@@ -9939,12 +10162,32 @@
         "default": "20",
         "required": false,
         "help": "Number of messages to read (default: 20)"
+      },
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Guild/server id or visible name for targeted reads"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Channel id or visible name for targeted reads"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord channel URL to open before reading"
       }
     ],
     "columns": [
       "Author",
       "Time",
-      "Message"
+      "Message",
+      "channel_id",
+      "message_id"
     ],
     "type": "js",
     "modulePath": "discord-app/read.js",
@@ -10014,7 +10257,9 @@
     "args": [],
     "columns": [
       "Index",
-      "Server"
+      "Server",
+      "guild_id",
+      "url"
     ],
     "type": "js",
     "modulePath": "discord-app/servers.js",
@@ -10038,6 +10283,110 @@
     "type": "js",
     "modulePath": "discord-app/status.js",
     "sourceFile": "discord-app/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "discord-app",
+    "name": "thread-read",
+    "description": "Read recent messages from a Discord thread/post by id or URL",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread",
+        "type": "str",
+        "required": false,
+        "help": "Thread/post id, or a full Discord thread/post URL"
+      },
+      {
+        "name": "count",
+        "type": "str",
+        "default": "20",
+        "required": false,
+        "help": "Number of messages to read (default: 20)"
+      },
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Parent guild/server id or visible name"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Parent forum/channel id or visible name"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord thread/post URL"
+      }
+    ],
+    "columns": [
+      "Author",
+      "Time",
+      "Message",
+      "channel_id",
+      "message_id"
+    ],
+    "type": "js",
+    "modulePath": "discord-app/thread-read.js",
+    "sourceFile": "discord-app/thread-read.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "discord-app",
+    "name": "threads",
+    "description": "List visible Discord forum/thread posts in the active or targeted channel",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "str",
+        "default": "30",
+        "required": false,
+        "help": "Maximum thread/post cards to return (default: 30)"
+      },
+      {
+        "name": "guild",
+        "type": "str",
+        "required": false,
+        "help": "Guild/server id or visible name for targeted thread listing"
+      },
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "help": "Forum/channel id or visible name for targeted thread listing"
+      },
+      {
+        "name": "url",
+        "type": "str",
+        "required": false,
+        "help": "Discord forum/channel URL to open before listing threads"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Thread",
+      "Author",
+      "Updated",
+      "Preview",
+      "guild_id",
+      "channel_id",
+      "thread_id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "discord-app/threads.js",
+    "sourceFile": "discord-app/threads.js",
     "navigateBefore": true
   },
   {
@@ -19179,6 +19528,31 @@
     "modulePath": "kimi/audit-extras.js",
     "sourceFile": "kimi/audit-extras.js",
     "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "usage",
+    "description": "Read Kimi Code console usage cards: weekly quota, rate limit, membership, and model permission.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "weeklyUsagePct",
+      "weeklyResetIn",
+      "rateLimitPct",
+      "rateLimitResetIn",
+      "membershipName",
+      "membershipTier",
+      "modelPermission",
+      "modelCost"
+    ],
+    "type": "js",
+    "modulePath": "kimi/usage.js",
+    "sourceFile": "kimi/usage.js",
+    "navigateBefore": true,
     "siteSession": "persistent"
   },
   {
@@ -30445,6 +30819,10 @@
       "title",
       "price",
       "mall",
+      "updated_at",
+      "zhi_count",
+      "buzhi_count",
+      "favorite_count",
       "comments",
       "url"
     ],
@@ -39507,6 +39885,43 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "liked",
+    "description": "小红书赞过笔记列表",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": false,
+        "help": "User id or profile URL (defaults to current logged-in user)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/liked.js",
+    "sourceFile": "xiaohongshu/liked.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "login",
     "description": "Open xiaohongshu login and wait until the browser session is authenticated",
     "access": "write",
@@ -39624,8 +40039,20 @@
       {
         "name": "images",
         "type": "str",
-        "required": true,
+        "required": false,
         "help": "图片路径，逗号分隔，最多9张 (jpg/png/gif/webp)"
+      },
+      {
+        "name": "card-text",
+        "type": "str",
+        "required": false,
+        "help": "文字配图卡片文字，多张卡片用 ||| 分隔，卡内换行用 \\n"
+      },
+      {
+        "name": "card-style",
+        "type": "str",
+        "required": false,
+        "help": "文字配图卡片样式，运行时按页面实际选项匹配；找不到会失败。省略时使用基础。可选: 基础(默认兜底，万能) 边框(金句/要点卡) 备忘(提醒/随手记) 清新(日常/清单贴士) 涂写(随笔/碎碎念) 便签(笔记/提醒) 光影(情绪/文艺) 涂鸦(趣味/童话) 简约(干货/观点) 手写(日记/情感) 插图(生活方式/轻松话题) 美漫(活力/趣味/故事感) 弥散(弥散光氛围) 柔和(柔和/温柔金句) 印刷(印刷海报/排版) 科技(科技/产品) 贺卡(节日祝福) 札记(艺术/水彩氛围) 书摘(书摘/引用) 手帐(手帐拼贴) 几何(醒目/有力主张)"
       },
       {
         "name": "topics",
@@ -39648,6 +40075,43 @@
     "type": "js",
     "modulePath": "xiaohongshu/publish.js",
     "sourceFile": "xiaohongshu/publish.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "saved",
+    "description": "小红书收藏笔记列表",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": false,
+        "help": "User id or profile URL (defaults to current logged-in user)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/saved.js",
+    "sourceFile": "xiaohongshu/saved.js",
     "navigateBefore": false
   },
   {

@@ -151,6 +151,9 @@ describe('gemini send strategy', () => {
     it('keeps a button submit path in the generated submit script', () => {
         expect(__test__.submitComposerScript()).toContain('.click()');
     });
+    it('matches the Traditional Chinese send label in the generated submit script', () => {
+        expect(__test__.submitComposerScript()).toContain('傳送');
+    });
     it('supports localized new chat labels in the generated new-chat script', () => {
         expect(__test__.clickNewChatScript()).toContain('发起新对话');
     });

@@ -75,9 +75,47 @@ describe('xiaohongshu ask', () => {
             note_id: '69d6fc08000000001f007646',
             xsec_token: 'tok 123',
             author: '郑小喜',
+            note_type: 'normal',
             quote: '第一次露营踩了不少坑',
             deeplink: 'xhsdiscover://item/69d6fc08000000001f007646?xsec_token=tok%20123',
         });
+    });
+
+    it('forwards 点点 engagement metadata (like_count, user_id, published_at, note_type)', () => {
+        const source = normalizeAskSource({
+            id: '69d6fc08000000001f007646',
+            title: '国产猫粮怎么选',
+            nickName: '杨Sir宠物圈',
+            noteType: 'video',
+            userId: '589a982f3460',
+            time: '04-22',
+            like: 132,
+            textLink: 'xhsdiscover://item/69d6fc08000000001f007646',
+        }, 0);
+
+        expect(source).toMatchObject({
+            note_id: '69d6fc08000000001f007646',
+            note_type: 'video',
+            like_count: 132,
+            user_id: '589a982f3460',
+            published_at: '04-22',
+        });
+    });
+
+    it('parses 万 / 亿 like strings into integers and drops empty engagement', () => {
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: '1.2万' }, 0).like_count).toBe(12000);
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: '1,234+' }, 0).like_count).toBe(1234);
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: '' }, 0)).not.toHaveProperty('like_count');
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646' }, 0)).not.toHaveProperty('user_id');
+    });
+
+    it('does not coerce malformed like counts into source metadata', () => {
+        const malformedLikes = ['1e2', '0x10', '-1', '1.5', '1..2万', '1,23'];
+        for (const like of malformedLikes) {
+            expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like }, 0)).not.toHaveProperty('like_count');
+        }
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: -1 }, 0)).not.toHaveProperty('like_count');
+        expect(normalizeAskSource({ id: '69d6fc08000000001f007646', like: 1.5 }, 0)).not.toHaveProperty('like_count');
     });
 
     it('builds a bare note URL when 点点 source data has no xsec token', () => {

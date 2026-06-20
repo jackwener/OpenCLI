@@ -4,6 +4,34 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+
+function unwrapBrowserResult(value) {
+    if (value && typeof value === 'object' && 'session' in value && 'data' in value) {
+        return value.data;
+    }
+    return value;
+}
+
+function requireVideoPayload(value) {
+    const payload = unwrapBrowserResult(value);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new CommandExecutionError('Failed to extract video metadata from page');
+    }
+    if (payload.error) {
+        throw new CommandExecutionError(String(payload.error));
+    }
+    if (typeof payload.playabilityStatus !== 'string') {
+        throw new CommandExecutionError('YouTube video metadata is missing playabilityStatus');
+    }
+    if (typeof payload.playabilityReason !== 'string') {
+        throw new CommandExecutionError('YouTube video metadata is missing playabilityReason');
+    }
+    if (typeof payload.membersOnly !== 'boolean') {
+        throw new CommandExecutionError('YouTube video metadata is missing membersOnly');
+    }
+    return payload;
+}
+
 cli({
     site: 'youtube',
     name: 'video',
@@ -114,12 +142,9 @@ cli({
         };
       })()
     `);
-        if (!data || typeof data !== 'object')
-            throw new CommandExecutionError('Failed to extract video metadata from page');
-        if (data.error)
-            throw new CommandExecutionError(data.error);
+        const payload = requireVideoPayload(data);
         // Return as field/value pairs for table display
-        return Object.entries(data).map(([field, value]) => ({
+        return Object.entries(payload).map(([field, value]) => ({
             field,
             value: String(value),
         }));

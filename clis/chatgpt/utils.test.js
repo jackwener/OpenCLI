@@ -43,10 +43,12 @@ function createDomEvaluatePage(html) {
         url: 'https://chatgpt.com/',
         runScripts: 'outside-only',
     });
-    for (const node of dom.window.document.querySelectorAll('button')) {
+    for (const node of dom.window.document.querySelectorAll('form, button, [role="menuitemradio"], [role="menuitem"], [role="option"], #prompt-textarea, [data-testid]')) {
         node.getBoundingClientRect = () => ({ width: 120, height: 36 });
+        node.scrollIntoView = () => {};
     }
     return {
+        dom,
         evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(script))),
     };
 }
@@ -160,6 +162,259 @@ describe('chatgpt model selection validation', () => {
         await expect(selectChatGPTModel(page, 'pro')).resolves.toEqual({ Status: 'Success', Model: 'Pro' });
         expect(page.nativeClick).toHaveBeenNthCalledWith(1, 10, 20);
         expect(page.nativeClick).toHaveBeenNthCalledWith(2, 30, 40);
+    });
+
+    it('selects current Chinese intelligence options by exact visible menu text', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">GPT-5.5 均衡</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu">
+              <div role="menuitemradio">极速</div>
+              <div role="menuitemradio">均衡</div>
+              <div role="menuitemradio">高级</div>
+              <div role="menuitemradio">超高</div>
+              <div role="menuitemradio">专业</div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 2) {
+                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'GPT-5.5 高级'`);
+            }
+        });
+
+        await expect(selectChatGPTModel(page, 'high')).resolves.toEqual({ Status: 'Success', Model: 'High' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('verifies selection from stable model test id when the current visible label is unknown', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Mode rapide</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu">
+              <div role="menuitemradio">高级</div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 2) {
+                await page.evaluate(`
+                    const button = document.querySelector('[data-testid="model-switcher-dropdown-button"]');
+                    button.innerHTML = '<span data-testid="model-switcher-gpt-5-5-thinking">Mode raisonnement</span>';
+                `);
+                for (const node of page.dom.window.document.querySelectorAll('[data-testid]')) {
+                    node.getBoundingClientRect = () => ({ width: 120, height: 36 });
+                    node.scrollIntoView = () => {};
+                }
+            }
+        });
+
+        await expect(selectChatGPTModel(page, 'thinking')).resolves.toEqual({ Status: 'Success', Model: 'High' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('selects actual English intelligence options by visible menu text', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Instant</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu" data-testid="composer-intelligence-picker-content">
+              <div role="group">
+                <div role="menuitemradio">Instant</div>
+                <div role="menuitemradio">Medium</div>
+                <div role="menuitemradio">High</div>
+                <div role="menuitemradio">Extra High</div>
+                <div role="menuitemradio">Pro</div>
+              </div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 2) {
+                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'Extra High'`);
+            }
+        });
+
+        await expect(selectChatGPTModel(page, 'extra-high')).resolves.toEqual({ Status: 'Success', Model: 'Extra High' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('selects Instant when the current precise level is Medium', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Medium</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu" data-testid="composer-intelligence-picker-content">
+              <div role="group">
+                <div role="menuitemradio">Instant</div>
+                <div role="menuitemradio">Medium</div>
+                <div role="menuitemradio">High</div>
+                <div role="menuitemradio">Extra High</div>
+                <div role="menuitemradio">Pro</div>
+              </div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 2) {
+                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'Instant'`);
+            }
+        });
+
+        await expect(selectChatGPTModel(page, 'instant')).resolves.toEqual({ Status: 'Success', Model: 'Instant' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('selects High when the current precise level is Extra High', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Extra High</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu" data-testid="composer-intelligence-picker-content">
+              <div role="group">
+                <div role="menuitemradio">Instant</div>
+                <div role="menuitemradio">Medium</div>
+                <div role="menuitemradio">High</div>
+                <div role="menuitemradio">Extra High</div>
+                <div role="menuitemradio">Pro</div>
+              </div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 2) {
+                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'High'`);
+            }
+        });
+
+        await expect(selectChatGPTModel(page, 'high')).resolves.toEqual({ Status: 'Success', Model: 'High' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('thinking alias selects the High intelligence level', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Instant</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu" data-testid="composer-intelligence-picker-content">
+              <div role="group">
+                <div role="menuitemradio">Instant</div>
+                <div role="menuitemradio">Medium</div>
+                <div role="menuitemradio">High</div>
+                <div role="menuitemradio">Extra High</div>
+                <div role="menuitemradio">Pro</div>
+              </div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 2) {
+                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'High'`);
+            }
+        });
+
+        await expect(selectChatGPTModel(page, 'thinking')).resolves.toEqual({ Status: 'Success', Model: 'High' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('uses guarded intelligence menu order for unknown localized labels', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Mode rapide</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu" data-testid="composer-intelligence-picker-content">
+              <div role="group">
+                <div role="menuitemradio" aria-checked="false">L0</div>
+                <div role="menuitemradio" aria-checked="false">L1</div>
+                <div role="menuitemradio" aria-checked="false">L2</div>
+                <div role="menuitemradio" aria-checked="false">L3</div>
+                <div role="menuitemradio" aria-checked="false">L4</div>
+              </div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 2) {
+                const options = page.dom.window.document.querySelectorAll('[role="menuitemradio"]');
+                for (const option of options) option.setAttribute('aria-checked', 'false');
+                options[3].setAttribute('aria-checked', 'true');
+            }
+        });
+
+        await expect(selectChatGPTModel(page, 'extra-high')).resolves.toEqual({ Status: 'Success', Model: 'Extra High' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(4);
+    });
+
+    it('does not use order fallback outside the guarded five-option intelligence picker', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Mode rapide</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu">
+              <div role="group">
+                <div role="menuitemradio">L0</div>
+                <div role="menuitemradio">L1</div>
+                <div role="menuitemradio">L2</div>
+                <div role="menuitemradio">L3</div>
+                <div role="menuitemradio">L4</div>
+              </div>
+            </div>
+        `);
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockResolvedValue(undefined);
+
+        await expect(selectChatGPTModel(page, 'extra-high')).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Could not click the ChatGPT Extra High model option'),
+        });
+    });
+
+    it('does not use order fallback when the intelligence picker does not expose exactly five options', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="model-switcher-dropdown-button">Mode rapide</button>
+              <div id="prompt-textarea" contenteditable="true"></div>
+            </form>
+            <div role="menu" data-testid="composer-intelligence-picker-content">
+              <div role="group">
+                <div role="menuitemradio">L0</div>
+                <div role="menuitemradio">L1</div>
+                <div role="menuitemradio">L2</div>
+                <div role="menuitemradio">L3</div>
+              </div>
+            </div>
+        `);
+        page.wait = vi.fn().mockResolvedValue(undefined);
+        page.nativeClick = vi.fn().mockResolvedValue(undefined);
+
+        await expect(selectChatGPTModel(page, 'pro')).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('Could not click the ChatGPT Pro model option'),
+        });
     });
 
     it('fails closed when the postcondition does not prove the requested model', async () => {
@@ -418,13 +673,33 @@ describe('chatgpt generation state', () => {
 describe('chatgpt current model detection', () => {
     it.each([
         ['Instant', { model: 'instant', label: 'Instant' }],
-        ['Thinking', { model: 'thinking', label: 'Thinking' }],
+        ['Medium', { model: 'medium', label: 'Medium' }],
+        ['Thinking', { model: 'high', label: 'High' }],
+        ['High', { model: 'high', label: 'High' }],
+        ['Extra High', { model: 'extra-high', label: 'Extra High' }],
         ['Pro', { model: 'pro', label: 'Pro' }],
+        ['GPT-5.5 极速', { model: 'instant', label: 'Instant' }],
+        ['GPT-5.5 均衡', { model: 'medium', label: 'Medium' }],
+        ['智能水平 高级', { model: 'high', label: 'High' }],
+        ['GPT-5.5 超高', { model: 'extra-high', label: 'Extra High' }],
+        ['GPT-5.5 专业', { model: 'pro', label: 'Pro' }],
         ['进阶专业', { model: 'pro', label: 'Pro' }],
     ])('detects the visible %s model label', async (label, expected) => {
         const page = createDomEvaluatePage(`<form><button>${label}</button></form>`);
 
         await expect(getCurrentChatGPTModel(page)).resolves.toEqual(expected);
+    });
+
+    it('uses model-specific test ids before visible text labels', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button">
+                <span data-testid="model-switcher-gpt-5-5-pro">Niveau inconnu</span>
+              </button>
+            </form>
+        `);
+
+        await expect(getCurrentChatGPTModel(page)).resolves.toEqual({ model: 'pro', label: 'Pro' });
     });
 
     it('returns null fields when the model selector is missing', async () => {

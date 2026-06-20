@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 const { mockPrepare } = vi.hoisted(() => ({
   mockPrepare: vi.fn(),
@@ -69,5 +70,42 @@ describe('youtube video row mapping', () => {
 
     expect(byField.playabilityStatus).toBe('OK');
     expect(byField.membersOnly).toBe('false');
+  });
+
+  it('unwraps Browser Bridge envelopes before row mapping', async () => {
+    page.evaluate.mockResolvedValueOnce({
+      session: 'browser:default',
+      data: {
+        title: 'normal',
+        playabilityStatus: 'OK',
+        playabilityReason: '',
+        membersOnly: false,
+      },
+    });
+
+    const rows = await command.func(page, { url: 'dQw4w9WgXcQ' });
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+
+    expect(byField.title).toBe('normal');
+    expect(byField.playabilityStatus).toBe('OK');
+  });
+
+  it('typed-fails when playability marker fields are missing', async () => {
+    page.evaluate.mockResolvedValueOnce({
+      title: 'unknown',
+    });
+
+    await expect(command.func(page, { url: 'dQw4w9WgXcQ' })).rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('typed-fails malformed membersOnly instead of defaulting to false', async () => {
+    page.evaluate.mockResolvedValueOnce({
+      title: 'unknown',
+      playabilityStatus: 'OK',
+      playabilityReason: '',
+      membersOnly: 'false',
+    });
+
+    await expect(command.func(page, { url: 'dQw4w9WgXcQ' })).rejects.toBeInstanceOf(CommandExecutionError);
   });
 });

@@ -6,6 +6,7 @@ import './chat.js';
 import './ui.js';
 import './storage.js';
 import './audit-extras.js';
+import './usage.js';
 
 function makePage(evaluateResults = []) {
     const queue = [...evaluateResults];
@@ -33,6 +34,7 @@ describe('kimi adapter registration', () => {
             model: 'write',
             'history-rename': 'write',
             'sign-out': 'write',
+            usage: 'read',
         };
         for (const [name, access] of Object.entries(expected)) {
             const cmd = getRegistry().get(`kimi/${name}`);
@@ -41,6 +43,52 @@ describe('kimi adapter registration', () => {
             expect(cmd.domain).toBe('kimi.com');
             expect(cmd.siteSession).toBe('persistent');
         }
+    });
+});
+
+describe('kimi usage command', () => {
+    const usageCommand = getRegistry().get('kimi/usage');
+
+    it('returns Kimi Code console usage cards as a single read row', async () => {
+        const page = makePage([{
+            '本周用量': ['12.5%', '3 天后重置'],
+            '频限明细': ['45%', '1 小时后重置'],
+            '我的权益': ['Kimi Pro', '会员权益'],
+            '模型权限': ['K2.6', '高级模型消耗 2x'],
+        }]);
+
+        await expect(usageCommand.func(page)).resolves.toEqual([{
+            weeklyUsagePct: 12.5,
+            weeklyResetIn: '3 天后重置',
+            rateLimitPct: 45,
+            rateLimitResetIn: '1 小时后重置',
+            membershipName: 'Kimi Pro',
+            membershipTier: '会员权益',
+            modelPermission: 'K2.6',
+            modelCost: '高级模型消耗 2x',
+        }]);
+        expect(page.goto).toHaveBeenCalledWith('https://www.kimi.com/code/console');
+    });
+
+    it('typed-fails when the usage console exposes no dashboard cards', async () => {
+        const page = makePage([{}]);
+
+        await expect(usageCommand.func(page)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('typed-fails malformed usage payloads instead of returning null success rows', async () => {
+        await expect(usageCommand.func(makePage([[]]))).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(usageCommand.func(makePage([{
+            '本周用量': ['12%'],
+            '频限明细': ['45%'],
+            '我的权益': ['Kimi Pro'],
+        }]))).rejects.toBeInstanceOf(CommandExecutionError);
+        await expect(usageCommand.func(makePage([{
+            '本周用量': ['not a percent'],
+            '频限明细': ['45%'],
+            '我的权益': ['Kimi Pro'],
+            '模型权限': ['K2.6'],
+        }]))).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
 

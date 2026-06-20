@@ -8,7 +8,7 @@
  *   - yt-dlp must be installed: pip install yt-dlp
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
 import { checkYtdlp, sanitizeFilename } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
 import { apiGet, resolveBvid } from './utils.js';
@@ -18,6 +18,10 @@ const PAYMENT_LABELS = {
     ugc_pay: 'UGC 单点付费',
     upower: '充电专属',
 };
+
+function isObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value);
+}
 
 /**
  * 下载前付费预检：付费/会员视频 yt-dlp 只能拿到试看流或直接失败，
@@ -31,14 +35,23 @@ async function assertNotPaidContent(page, bvid) {
     let d;
     try {
         const payload = await apiGet(page, '/x/web-interface/view', { params: { bvid } });
+        if (!isObject(payload) || !Object.hasOwn(payload, 'code')) {
+            throw new CommandExecutionError('Bilibili view API returned a malformed payload during paid-content pre-check');
+        }
         if (payload.code !== 0)
             return;
-        d = payload.data || {};
+        if (!isObject(payload.data) || !isObject(payload.data.rights)) {
+            throw new CommandExecutionError('Bilibili view API returned malformed paid-content metadata');
+        }
+        d = payload.data;
     }
-    catch {
+    catch (error) {
+        if (error instanceof CommandExecutionError) {
+            throw error;
+        }
         return;
     }
-    const rights = d.rights || {};
+    const rights = d.rights;
     const paymentType = rights.pay
         ? 'vip'
         : (rights.ugc_pay || rights.arc_pay)
