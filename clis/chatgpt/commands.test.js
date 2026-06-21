@@ -119,16 +119,35 @@ describe('chatgpt browser command registration', () => {
         expect(detail.columns).toEqual(['Index', 'Role', 'Text', 'Generating', 'StableSeconds']);
     });
 
+    it('registers project routing on chat-starting commands', () => {
+        for (const name of ['new', 'image', 'model']) {
+            const cmd = getRegistry().get(`chatgpt/${name}`);
+            expect(cmd.args).toEqual(expect.arrayContaining([
+                expect.objectContaining({ name: 'project', valueRequired: true }),
+            ]));
+        }
+    });
+
+    it('starts a new chat inside a project when new receives project routing', async () => {
+        const cmd = getRegistry().get('chatgpt/new');
+        const page = createProjectUploadPageMock();
+
+        await expect(cmd.func(page, { project: '12345678' }))
+            .resolves.toEqual([{ Status: 'New chat started' }]);
+        expect(page.goto).toHaveBeenCalledWith('https://chatgpt.com/g/g-p-12345678', { settleMs: 2000 });
+    });
+
     it('registers chatgpt model with web model choices', () => {
         const model = getRegistry().get('chatgpt/model');
-        expect(model.args).toEqual([
+        expect(model.args).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 name: 'model',
                 positional: true,
                 required: true,
                 choices: ['instant', 'medium', 'high', 'extra-high', 'pro', 'thinking'],
             }),
-        ]);
+            expect.objectContaining({ name: 'project', valueRequired: true }),
+        ]));
         expect(model.columns).toEqual(['Status', 'Model']);
     });
 

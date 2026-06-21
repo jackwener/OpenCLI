@@ -6274,6 +6274,13 @@
         "help": "Local image path to attach before prompting; comma-separated paths are supported"
       },
       {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start image generation inside a ChatGPT project ID or /g/g-p-<id> URL"
+      },
+      {
         "name": "op",
         "type": "str",
         "required": false,
@@ -6360,6 +6367,13 @@
           "pro",
           "thinking"
         ]
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Open a ChatGPT project ID or /g/g-p-<id> URL before switching intelligence level"
       }
     ],
     "columns": [
@@ -6380,7 +6394,15 @@
     "domain": "chatgpt.com",
     "strategy": "cookie",
     "browser": true,
-    "args": [],
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
+      }
+    ],
     "columns": [
       "Status"
     ],
