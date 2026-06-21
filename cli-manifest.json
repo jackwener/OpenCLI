@@ -22720,6 +22720,295 @@
     "navigateBefore": "https://mubu.com"
   },
   {
+    "site": "nodeseek",
+    "name": "categories",
+    "description": "NodeSeek boards (slug + name)",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "slug",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/categories.js",
+    "sourceFile": "nodeseek/categories.js"
+  },
+  {
+    "site": "nodeseek",
+    "name": "latest",
+    "description": "NodeSeek newest posts (home or --category board; no login)",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "category",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Browse a board: daily, tech, info, review, trade, carpool, promotion, life, dev, photo-share, expose, inside, sandbox"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of posts, paging as needed (1-100)"
+      }
+    ],
+    "columns": [
+      "post_id",
+      "title",
+      "category",
+      "author",
+      "time",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/latest.js",
+    "sourceFile": "nodeseek/latest.js"
+  },
+  {
+    "site": "nodeseek",
+    "name": "login",
+    "description": "Open nodeseek login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "nodeseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "member_id",
+      "member_name",
+      "rank"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/auth.js",
+    "sourceFile": "nodeseek/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "nodeseek",
+    "name": "me",
+    "description": "Full profile of the logged-in NodeSeek account (rank/coin/post counts)",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "member_id",
+      "member_name",
+      "rank",
+      "coin",
+      "stardust",
+      "nPost",
+      "nComment",
+      "follows",
+      "fans",
+      "collectionCount",
+      "bio",
+      "created_at"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/me.js",
+    "sourceFile": "nodeseek/me.js",
+    "navigateBefore": "https://nodeseek.com"
+  },
+  {
+    "site": "nodeseek",
+    "name": "notifications",
+    "description": "NodeSeek @-me notifications (requires login)",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "unread",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only show unread"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notifications"
+      }
+    ],
+    "columns": [
+      "viewed",
+      "commenter_name",
+      "title",
+      "post_id",
+      "floor_id",
+      "created_at",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/notifications.js",
+    "sourceFile": "nodeseek/notifications.js",
+    "navigateBefore": "https://nodeseek.com"
+  },
+  {
+    "site": "nodeseek",
+    "name": "post",
+    "description": "NodeSeek thread body + comment floors (captures replies, not just the first post)",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Post id (779413, post-779413-1, or a full link)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of floors incl. body, paging as needed (1-500)"
+      },
+      {
+        "name": "full",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Emit full content (default truncates each floor to 200 chars)"
+      }
+    ],
+    "columns": [
+      "floor",
+      "author",
+      "time",
+      "content",
+      "comment_id"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/post.js",
+    "sourceFile": "nodeseek/post.js",
+    "navigateBefore": "https://nodeseek.com"
+  },
+  {
+    "site": "nodeseek",
+    "name": "search",
+    "description": "Full-text search over NodeSeek posts (requires login)",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "post_id",
+      "title",
+      "category",
+      "author",
+      "time",
+      "link"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/search.js",
+    "sourceFile": "nodeseek/search.js",
+    "navigateBefore": "https://nodeseek.com"
+  },
+  {
+    "site": "nodeseek",
+    "name": "user",
+    "description": "Profile of a NodeSeek member by id (requires login)",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "NodeSeek member id (numeric; see latest author / space links)"
+      }
+    ],
+    "columns": [
+      "member_id",
+      "member_name",
+      "rank",
+      "coin",
+      "nPost",
+      "nComment",
+      "follows",
+      "fans",
+      "bio",
+      "created_at",
+      "profile"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/user.js",
+    "sourceFile": "nodeseek/user.js",
+    "navigateBefore": "https://nodeseek.com"
+  },
+  {
+    "site": "nodeseek",
+    "name": "whoami",
+    "description": "Show the current logged-in nodeseek account",
+    "access": "read",
+    "domain": "nodeseek.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "member_id",
+      "member_name",
+      "rank"
+    ],
+    "type": "js",
+    "modulePath": "nodeseek/auth.js",
+    "sourceFile": "nodeseek/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "notebooklm",
     "name": "add-source",
     "description": "Add a URL, text, or local file source to an existing NotebookLM notebook",
