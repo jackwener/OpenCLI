@@ -54,6 +54,21 @@ describe('qwen waitForAnswer baseline anchoring', () => {
         expect(result.assistant).toBeUndefined();
     });
 
+    it('does not scan the visible transcript when a non-empty baseline anchor is missing', async () => {
+        const bubbles = [
+            { id: 'u1-new-visible-id', role: 'User', text: 'same prompt', html: '' },
+            { id: 'a1-new-visible-id', role: 'Assistant', text: 'old answer', html: '' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'same prompt',
+            0.05,
+            { lastBubbleId: 'a-anchor-missing', lastAssistantId: 'a-anchor-missing' },
+        );
+        expect(result.status).toBe('timeout');
+        expect(result.assistant).toBeUndefined();
+    });
+
     it('supports a fresh chat with no baseline anchor', async () => {
         const bubbles = [
             { id: 'u1', role: 'User', text: 'fresh question', html: '' },

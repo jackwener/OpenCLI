@@ -301,14 +301,23 @@ function normalizeWaitAnchor(anchor) {
 function findAssistantAfterPrompt(bubbles, prompt, anchor) {
     const normalizedPrompt = normalizePromptText(prompt);
     let startIndex = -1;
+    const hasAnchor = Boolean(anchor.lastBubbleId || anchor.lastAssistantId);
+    let foundAnchor = false;
     if (anchor.lastBubbleId) {
         const lastBubbleIndex = bubbles.findIndex((bubble) => bubble.id === anchor.lastBubbleId);
-        if (lastBubbleIndex >= 0) startIndex = lastBubbleIndex;
+        if (lastBubbleIndex >= 0) {
+            startIndex = lastBubbleIndex;
+            foundAnchor = true;
+        }
     }
     if (anchor.lastAssistantId) {
         const lastAssistantIndex = bubbles.findIndex((bubble) => bubble.id === anchor.lastAssistantId);
-        if (lastAssistantIndex >= 0) startIndex = Math.max(startIndex, lastAssistantIndex);
+        if (lastAssistantIndex >= 0) {
+            startIndex = Math.max(startIndex, lastAssistantIndex);
+            foundAnchor = true;
+        }
     }
+    if (hasAnchor && !foundAnchor) return null;
 
     let promptIndex = -1;
     for (let i = startIndex + 1; i < bubbles.length; i += 1) {
