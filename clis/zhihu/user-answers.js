@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { parseZhihuUser } from './user-arg.js';
 import { fetchZhihuList, validateLimit } from './paginate.js';
 
@@ -24,6 +25,9 @@ cli({
         const items = await fetchZhihuList(page, first, limit, 'user answers');
         return items.map((a, i) => {
             const q = a.question || {};
+            if (!a.id || !q.id || !q.title) {
+                throw new CommandExecutionError('Zhihu user answers returned malformed row identity');
+            }
             return {
                 rank: i + 1,
                 question: String(q.title || ''),

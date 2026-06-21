@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './user-articles.js';
 
 describe('zhihu user-articles', () => {
@@ -27,6 +27,12 @@ describe('zhihu user-articles', () => {
         const cmd = getRegistry().get('zhihu/user-articles');
         const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate: vi.fn().mockResolvedValue({ __httpError: 403 }) };
         await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('fails typed on malformed article identity rows', async () => {
+        const cmd = getRegistry().get('zhihu/user-articles');
+        const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate: vi.fn().mockResolvedValue({ data: [{ id: 'p1' }], paging: { is_end: true } }) };
+        await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('rejects invalid limits before navigation', async () => {

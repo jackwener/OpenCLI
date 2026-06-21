@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { parseZhihuUser } from './user-arg.js';
 import { fetchZhihuList, validateLimit } from './paginate.js';
 
@@ -22,13 +23,18 @@ cli({
         await page.goto('https://www.zhihu.com');
         const first = `https://www.zhihu.com/api/v4/members/${encodeURIComponent(slug)}/articles?limit=20&offset=0&include=${encodeURIComponent(INCLUDE)}`;
         const items = await fetchZhihuList(page, first, limit, 'user articles');
-        return items.map((a, i) => ({
-            rank: i + 1,
-            title: String(a.title || ''),
-            votes: a.voteup_count ?? 0,
-            comments: a.comment_count ?? 0,
-            created: a.created ?? a.updated ?? 0,
-            url: a.id ? `https://zhuanlan.zhihu.com/p/${a.id}` : '',
-        }));
+        return items.map((a, i) => {
+            if (!a.id || !a.title) {
+                throw new CommandExecutionError('Zhihu user articles returned malformed row identity');
+            }
+            return {
+                rank: i + 1,
+                title: String(a.title || ''),
+                votes: a.voteup_count ?? 0,
+                comments: a.comment_count ?? 0,
+                created: a.created ?? a.updated ?? 0,
+                url: `https://zhuanlan.zhihu.com/p/${a.id}`,
+            };
+        });
     },
 });

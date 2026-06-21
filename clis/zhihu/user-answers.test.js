@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './user-answers.js';
 
 describe('zhihu user-answers', () => {
@@ -29,10 +29,26 @@ describe('zhihu user-answers', () => {
         await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
+    it('unwraps Browser Bridge envelopes and fails typed on malformed answer identity', async () => {
+        const cmd = getRegistry().get('zhihu/user-answers');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({ session: {}, data: { data: [{ id: 'a1', question: { title: 'missing id' } }], paging: { is_end: true } } }),
+        };
+        await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('throws EmptyResultError for valid empty answer lists', async () => {
+        const cmd = getRegistry().get('zhihu/user-answers');
+        const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate: vi.fn().mockResolvedValue({ data: [], paging: { is_end: true } }) };
+        await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
     it('rejects invalid limits before navigation', async () => {
         const cmd = getRegistry().get('zhihu/user-answers');
         const page = { goto: vi.fn(), evaluate: vi.fn() };
         await expect(cmd.func(page, { user: 'foo', limit: 0 })).rejects.toBeInstanceOf(CliError);
+        await expect(cmd.func(page, { user: 'foo', limit: '1e2' })).rejects.toBeInstanceOf(CliError);
         expect(page.goto).not.toHaveBeenCalled();
     });
 });

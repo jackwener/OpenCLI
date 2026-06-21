@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './user.js';
 
 describe('zhihu user', () => {
@@ -41,7 +41,7 @@ describe('zhihu user', () => {
 
     it('accepts a full people URL', async () => {
         const cmd = getRegistry().get('zhihu/user');
-        const evaluate = vi.fn().mockResolvedValue({ url_token: 'foo', id: '1', name: 'Foo' });
+        const evaluate = vi.fn().mockResolvedValue({ session: {}, data: { url_token: 'foo', id: '1', name: 'Foo' } });
         await cmd.func({ goto: vi.fn().mockResolvedValue(undefined), evaluate }, { user: 'https://www.zhihu.com/people/foo' });
         expect(evaluate.mock.calls[0][0]).toContain('/api/v4/members/foo');
     });
@@ -52,10 +52,16 @@ describe('zhihu user', () => {
         await expect(cmd.func(page, { user: 'foo' })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
-    it('maps 404 to a NOT_FOUND CliError', async () => {
+    it('maps 404 to EmptyResultError', async () => {
         const cmd = getRegistry().get('zhihu/user');
         const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate: vi.fn().mockResolvedValue({ __httpError: 404 }) };
-        await expect(cmd.func(page, { user: 'ghost' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        await expect(cmd.func(page, { user: 'ghost' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('fails typed on malformed user payloads', async () => {
+        const cmd = getRegistry().get('zhihu/user');
+        const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate: vi.fn().mockResolvedValue({ url_token: 'foo', id: '1' }) };
+        await expect(cmd.func(page, { user: 'foo' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('rejects an invalid user before navigation', async () => {

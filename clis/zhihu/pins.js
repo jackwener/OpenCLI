@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { parseZhihuUser } from './user-arg.js';
 import { fetchZhihuList, validateLimit } from './paginate.js';
 
@@ -22,6 +23,9 @@ cli({
         const items = await fetchZhihuList(page, first, limit, 'pins');
         return items.map((p, i) => {
             const firstContent = Array.isArray(p.content) ? p.content[0] : null;
+            if (!p.id || !p.excerpt_title) {
+                throw new CommandExecutionError('Zhihu pins returned malformed row identity');
+            }
             return {
                 rank: i + 1,
                 excerpt: String(p.excerpt_title || ''),
@@ -30,7 +34,7 @@ cli({
                 comments: p.comment_count ?? 0,
                 reposts: p.repin_count ?? 0,
                 created: p.created ?? p.updated ?? 0,
-                url: p.id ? `https://www.zhihu.com/pin/${p.id}` : '',
+                url: `https://www.zhihu.com/pin/${p.id}`,
             };
         });
     },

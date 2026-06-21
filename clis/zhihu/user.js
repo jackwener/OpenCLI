@@ -1,6 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseZhihuUser } from './user-arg.js';
+import { unwrapEvaluateResult } from './paginate.js';
 
 const INCLUDE = 'follower_count,following_count,answer_count,articles_count,question_count,voteup_count,thanked_count,favorited_count,headline,gender';
 
@@ -19,25 +20,29 @@ cli({
         const slug = parseZhihuUser(kwargs.user);
         await page.goto('https://www.zhihu.com');
         const apiUrl = `https://www.zhihu.com/api/v4/members/${encodeURIComponent(slug)}?include=${encodeURIComponent(INCLUDE)}`;
-        const data = await page.evaluate(`
+        const data = unwrapEvaluateResult(await page.evaluate(`
       (async () => {
-        const r = await fetch(${JSON.stringify(apiUrl)}, { credentials: 'include' });
-        if (!r.ok) return { __httpError: r.status };
-        return await r.json();
+        try {
+          const r = await fetch(${JSON.stringify(apiUrl)}, { credentials: 'include' });
+          if (!r.ok) return { __httpError: r.status };
+          return await r.json();
+        } catch (err) {
+          return { __fetchError: err?.message || String(err) };
+        }
       })()
-    `);
-        if (!data || data.__httpError) {
+    `));
+        if (!data || typeof data !== 'object' || Array.isArray(data) || data.__httpError || data.__fetchError) {
             const status = data?.__httpError;
             if (status === 401 || status === 403) {
                 throw new AuthRequiredError('www.zhihu.com', 'Failed to fetch Zhihu user profile');
             }
             if (status === 404) {
-                throw new CliError('NOT_FOUND', `Zhihu user not found: ${slug}`, 'Check the url_token');
+                throw new EmptyResultError('zhihu user', `No Zhihu user was found for ${slug}.`);
             }
-            throw new CliError('FETCH_ERROR', status ? `Zhihu user request failed (HTTP ${status})` : 'Zhihu user request failed', 'Try again later or rerun with -v');
+            throw new CommandExecutionError(status ? `Zhihu user request failed (HTTP ${status})` : 'Zhihu user request failed', data?.__fetchError ? String(data.__fetchError) : 'Try again later or rerun with -v');
         }
-        if (!data.url_token && !data.id) {
-            throw new CliError('FETCH_ERROR', 'Zhihu user response missing identity fields', 'Zhihu may have changed its API shape');
+        if (!data.url_token || !data.id || !data.name) {
+            throw new CommandExecutionError('Zhihu user response missing identity fields', 'Zhihu may have changed its API shape');
         }
         return [{
             url_token: String(data.url_token || ''),

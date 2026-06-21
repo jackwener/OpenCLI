@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './pins.js';
 
 describe('zhihu pins', () => {
@@ -27,6 +27,12 @@ describe('zhihu pins', () => {
         const cmd = getRegistry().get('zhihu/pins');
         const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate: vi.fn().mockResolvedValue({ __httpError: 403 }) };
         await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('fails typed on malformed pin identity rows', async () => {
+        const cmd = getRegistry().get('zhihu/pins');
+        const page = { goto: vi.fn().mockResolvedValue(undefined), evaluate: vi.fn().mockResolvedValue({ data: [{ id: 'pin1' }], paging: { is_end: true } }) };
+        await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('rejects invalid limits before navigation', async () => {
