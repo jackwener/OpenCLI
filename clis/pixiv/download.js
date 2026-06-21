@@ -32,7 +32,7 @@ cli({
         // pixivFetch handles navigate + error checking; returns the response body directly
         const pages = await pixivFetch(page, `/ajax/illust/${illustId}/pages`, {
             notFoundMsg: `Illustration not found: ${illustId}`,
-        }) || [];
+        });
         if (!Array.isArray(pages)) {
             throw new CommandExecutionError('Pixiv pages API returned malformed payload');
         }
