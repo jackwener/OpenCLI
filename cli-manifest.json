@@ -6124,6 +6124,13 @@
         "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
       },
       {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
+      },
+      {
         "name": "wait",
         "type": "boolean",
         "default": true,
@@ -6502,6 +6509,13 @@
         "required": false,
         "valueRequired": true,
         "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
       }
     ],
     "columns": [

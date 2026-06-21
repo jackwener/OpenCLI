@@ -96,7 +96,9 @@ describe('chatgpt conversation id parsing', () => {
         expect(__test__.parseChatGPTConversationId('abc_123-def')).toBe('abc_123-def');
         expect(__test__.parseChatGPTConversationId('https://chatgpt.com/c/abc_123-def?model=gpt-5')).toBe('abc_123-def');
         expect(__test__.parseChatGPTConversationId('https://chat.openai.chatgpt.com/c/abc_123-def')).toBe('abc_123-def');
+        expect(__test__.parseChatGPTConversationId('https://chatgpt.com/g/g-p-12345678-demo/c/abc_123-def')).toBe('abc_123-def');
         expect(__test__.parseChatGPTConversationId('/c/abc_123-def')).toBe('abc_123-def');
+        expect(__test__.parseChatGPTConversationId('/g/g-p-12345678-demo/c/abc_123-def')).toBe('abc_123-def');
     });
 
     it('rejects invalid detail ids', () => {

@@ -10,6 +10,7 @@ import {
     requireNonEmptyPrompt,
     sendChatGPTMessage,
     startNewChat,
+    navigateToProject,
 } from './utils.js';
 
 export const sendCommand = cli({
@@ -26,6 +27,7 @@ export const sendCommand = cli({
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
         { name: 'conversation', valueRequired: true, help: 'Continue an existing ChatGPT conversation ID or /c/<id> URL' },
+        { name: 'project', valueRequired: true, help: 'Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL' },
     ],
     columns: ['Status', 'InjectedText'],
     func: async (page, kwargs) => {
@@ -37,9 +39,17 @@ export const sendCommand = cli({
                 'Choose either a new chat or an existing conversation.',
             );
         }
+        if (kwargs.project && kwargs.conversation) {
+            throw new ArgumentError(
+                'chatgpt send cannot use --project and --conversation together',
+                'Choose either a project new chat or an existing conversation.',
+            );
+        }
 
         if (kwargs.conversation) {
             await openChatGPTConversation(page, kwargs.conversation);
+        } else if (kwargs.project) {
+            await navigateToProject(page, kwargs.project);
         } else if (normalizeBooleanFlag(kwargs.new)) {
             await startNewChat(page);
         } else {
