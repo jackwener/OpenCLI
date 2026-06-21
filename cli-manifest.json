@@ -6385,6 +6385,68 @@
   },
   {
     "site": "chatgpt",
+    "name": "project-file-add",
+    "description": "Upload files to a ChatGPT project as project knowledge (not just conversation attachments)",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Local file path(s) to upload; comma-separated paths are supported"
+      },
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "help": "Project ID or /g/g-p-<id> URL"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/project-file-add.js",
+    "sourceFile": "chatgpt/project-file-add.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "project-list",
+    "description": "List visible ChatGPT projects from the sidebar",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max projects to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/project-list.js",
+    "sourceFile": "chatgpt/project-list.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
     "name": "read",
     "description": "Read messages in the current ChatGPT web conversation",
     "access": "read",

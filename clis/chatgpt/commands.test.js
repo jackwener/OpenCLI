@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './ask.js';
 import './send.js';
@@ -9,6 +12,35 @@ import './new.js';
 import './status.js';
 import './image.js';
 import './model.js';
+import './project-list.js';
+import './project-file-add.js';
+
+const tempDirs = [];
+
+afterEach(() => {
+    vi.restoreAllMocks();
+    while (tempDirs.length) {
+        fs.rmSync(tempDirs.pop(), { recursive: true, force: true });
+    }
+});
+
+function createProjectUploadPageMock() {
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        setFileInput: vi.fn().mockResolvedValue(undefined),
+        evaluate: vi.fn((script) => {
+            const s = String(script);
+            if (s.includes('isVisible') && s.includes('hasComposer') && s.includes('isLoggedIn')) {
+                return Promise.resolve({ session: 'test', data: { url: 'https://chatgpt.com/g/g-p-12345678', title: 'Project', hasComposer: true, isLoggedIn: true, hasLoginGate: false } });
+            }
+            if (s.includes('expectedFileNames')) return Promise.resolve({ ok: true });
+            if (s.includes('Add files')) return Promise.resolve(true);
+            if (s.includes('role="dialog"')) return Promise.resolve(true);
+            return Promise.resolve(undefined);
+        }),
+    };
+}
 
 describe('chatgpt browser command registration', () => {
     it('registers the baseline web chat commands with persistent site sessions', () => {
@@ -22,6 +54,8 @@ describe('chatgpt browser command registration', () => {
             status: 'read',
             image: 'write',
             model: 'write',
+            'project-list': 'read',
+            'project-file-add': 'write',
         };
 
         for (const [name, access] of Object.entries(expectedAccess)) {
@@ -94,5 +128,41 @@ describe('chatgpt browser command registration', () => {
             .rejects.toMatchObject({ code: 'ARGUMENT' });
         await expect(send.func(page, { prompt: 'hello', conversation: 'https://evil.test/c/abc_123-def' }))
             .rejects.toMatchObject({ code: 'ARGUMENT' });
+    });
+
+    it('does not expose command-level system proxy mutation for project-file-add', () => {
+        const cmd = getRegistry().get('chatgpt/project-file-add');
+        expect(cmd.args.map(arg => arg.name)).toEqual(['file', 'id']);
+    });
+
+    it('rejects empty project-file-add file input', async () => {
+        const cmd = getRegistry().get('chatgpt/project-file-add');
+        await expect(cmd.func(createProjectUploadPageMock(), { file: ' , ', id: '12345678' }))
+            .rejects.toMatchObject({ code: 'ARGUMENT' });
+    });
+
+    it('maps successful project-file-add uploads to table rows', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'report.pdf');
+        fs.writeFileSync(filePath, 'fake-pdf');
+
+        const cmd = getRegistry().get('chatgpt/project-file-add');
+        await expect(cmd.func(createProjectUploadPageMock(), { file: filePath, id: '12345678' }))
+            .resolves.toEqual([
+                {
+                    Status: '📄 uploaded to project knowledge',
+                    File: filePath,
+                },
+            ]);
+    });
+
+    it('wraps project-file-add upload failures as command execution errors', async () => {
+        const cmd = getRegistry().get('chatgpt/project-file-add');
+        await expect(cmd.func(createProjectUploadPageMock(), { file: '/no/such/report.pdf', id: '12345678' }))
+            .rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('File not found'),
+            });
     });
 });
