@@ -21,6 +21,53 @@ describe('qwen waitForAnswer baseline anchoring', () => {
         expect(result.status).toBe('timeout');
         expect(result.assistant).toBeUndefined();
     });
+
+    it('returns only an assistant turn after the newly sent prompt', async () => {
+        const bubbles = [
+            { id: 'u1', role: 'User', text: 'old question', html: '' },
+            { id: 'a1', role: 'Assistant', text: 'old answer', html: '' },
+            { id: 'u2', role: 'User', text: 'new question', html: '' },
+            { id: 'a2', role: 'Assistant', text: 'new answer', html: '<p>new answer</p>' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'new question',
+            0.2,
+            { lastBubbleId: 'a1', lastAssistantId: 'a1' },
+        );
+        expect(result.status).toBe('partial');
+        expect(result.assistant).toEqual(bubbles[3]);
+    });
+
+    it('does not match a repeated prompt that existed before the pre-send anchor', async () => {
+        const bubbles = [
+            { id: 'u1', role: 'User', text: 'same prompt', html: '' },
+            { id: 'a1', role: 'Assistant', text: 'old answer', html: '' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'same prompt',
+            0.05,
+            { lastBubbleId: 'a1', lastAssistantId: 'a1' },
+        );
+        expect(result.status).toBe('timeout');
+        expect(result.assistant).toBeUndefined();
+    });
+
+    it('supports a fresh chat with no baseline anchor', async () => {
+        const bubbles = [
+            { id: 'u1', role: 'User', text: 'fresh question', html: '' },
+            { id: 'a1', role: 'Assistant', text: 'fresh answer', html: '' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'fresh question',
+            0.2,
+            { lastBubbleId: '', lastAssistantId: '' },
+        );
+        expect(result.status).toBe('partial');
+        expect(result.assistant).toEqual(bubbles[1]);
+    });
 });
 
 describe('qwen parseQianwenSessionId', () => {

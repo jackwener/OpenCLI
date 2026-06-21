@@ -59,9 +59,9 @@ cli({
         if (useThink) await setFeatureToggle(page, 'think', true);
         if (useResearch) await setFeatureToggle(page, 'research', true);
 
-        // Anchor on the last assistant turn BEFORE sending so waitForAnswer can
-        // skip it — otherwise a follow-up ask returns the previous answer.
-        const baselineLastAssistantId = await getBaselineLastAssistantId(page);
+        // Anchor on the visible transcript BEFORE sending so waitForAnswer can
+        // bind the reply to the newly sent prompt instead of an older answer.
+        const baselineAnchor = await getBaselineChatAnchor(page);
 
         const send = await sendMessage(page, prompt);
         if (!send?.ok) {
@@ -69,7 +69,7 @@ cli({
             throw new CommandExecutionError(send?.reason || 'Failed to send Qianwen prompt');
         }
 
-        const result = await waitForAnswer(page, prompt, timeout, baselineLastAssistantId);
+        const result = await waitForAnswer(page, prompt, timeout, baselineAnchor);
         if (result.status === 'auth_required') throw authRequired();
         if (result.status === 'timeout') {
             throw new TimeoutError('qianwen ask', timeout, 'No Qianwen reply observed before timeout. Retry with --timeout increased.');
@@ -88,12 +88,17 @@ cli({
     },
 });
 
-async function getBaselineLastAssistantId(page) {
+async function getBaselineChatAnchor(page) {
     const bubbles = await getMessageBubbles(page);
+    const lastBubbleId = bubbles.length ? bubbles[bubbles.length - 1].id : '';
+    let lastAssistantId = '';
     for (let i = bubbles.length - 1; i >= 0; i -= 1) {
-        if (bubbles[i].role === 'Assistant') return bubbles[i].id;
+        if (bubbles[i].role === 'Assistant') {
+            lastAssistantId = bubbles[i].id;
+            break;
+        }
     }
-    return '';
+    return { lastBubbleId, lastAssistantId };
 }
 
-export const __test__ = { getBaselineLastAssistantId };
+export const __test__ = { getBaselineChatAnchor };
