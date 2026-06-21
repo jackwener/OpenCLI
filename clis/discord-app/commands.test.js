@@ -5,6 +5,7 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import './channels.js';
 import './goto.js';
 import './read.js';
+import './search.js';
 import './servers.js';
 import './thread-read.js';
 import './threads.js';
@@ -145,6 +146,46 @@ describe('discord-app command registration', () => {
             expect(cmd.browser).toBe(true);
             expect(cmd.domain).toBe('localhost');
         }
+    });
+});
+
+describe('discord-app search', () => {
+    function createSearchPage(bodyText = '', resultRows = []) {
+        return {
+            pressKey: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn(async (script) => {
+                if (script.includes('const input = document.querySelector')) return undefined;
+                if (script.includes('const items = []')) {
+                    const rowsHtml = resultRows.map((row, index) => `
+                      <div class="searchResult_${index}" id="search-result-${index}">
+                        <span class="username">${row.author}</span>
+                        <div id="message-content-${index}">${row.message}</div>
+                      </div>
+                    `).join('');
+                    const dom = new JSDOM(`<!doctype html><body>${bodyText}${rowsHtml}</body>`, {
+                        url: 'https://discord.com/channels/111/222',
+                        runScripts: 'outside-only',
+                    });
+                    return dom.window.eval(script);
+                }
+                throw new Error(`unexpected evaluate script: ${script.slice(0, 80)}`);
+            }),
+        };
+    }
+
+    it('throws EmptyResultError when Discord shows an explicit no-results state', async () => {
+        const cmd = getRegistry().get('discord-app/search');
+        const page = createSearchPage('<div>No results found</div>');
+
+        await expect(cmd.func(page, { query: 'missing' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('throws CommandExecutionError when result selectors return no rows and no empty-state marker', async () => {
+        const cmd = getRegistry().get('discord-app/search');
+        const page = createSearchPage('<main>search panel changed</main>');
+
+        await expect(cmd.func(page, { query: 'missing' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
 

@@ -47,6 +47,11 @@ describe('pixiv download', () => {
         await expect(cmd.func(page, { 'illust-id': '12345', output: '/tmp/test' }))
             .rejects.toThrow(EmptyResultError);
     });
+    it('throws CommandExecutionError when pages payload is malformed', async () => {
+        const page = createPageMock([{ body: { pages: [] } }]);
+        await expect(cmd.func(page, { 'illust-id': '12345', output: '/tmp/test' }))
+            .rejects.toThrow(CommandExecutionError);
+    });
     it('downloads images with Referer header', async () => {
         mockHttpDownload.mockResolvedValue({ success: true, size: 1024000 });
         const page = createPageMock([

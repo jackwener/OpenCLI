@@ -33,6 +33,9 @@ cli({
         const pages = await pixivFetch(page, `/ajax/illust/${illustId}/pages`, {
             notFoundMsg: `Illustration not found: ${illustId}`,
         }) || [];
+        if (!Array.isArray(pages)) {
+            throw new CommandExecutionError('Pixiv pages API returned malformed payload');
+        }
         if (pages.length === 0) {
             throw new EmptyResultError('pixiv download', `No images found for illustration ${illustId}.`);
         }
