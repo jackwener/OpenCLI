@@ -44,6 +44,21 @@ describe('zhihu user-answers', () => {
         await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(EmptyResultError);
     });
 
+    it('rejects pagination next URLs that drift to another member endpoint', async () => {
+        const cmd = getRegistry().get('zhihu/user-answers');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                data: [{ id: 'a1', question: { id: 'q1', title: 'Q1' } }],
+                paging: {
+                    is_end: false,
+                    next: 'https://www.zhihu.com/api/v4/members/foo/articles?offset=20',
+                },
+            }),
+        };
+        await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('rejects invalid limits before navigation', async () => {
         const cmd = getRegistry().get('zhihu/user-answers');
         const page = { goto: vi.fn(), evaluate: vi.fn() };

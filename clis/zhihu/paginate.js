@@ -71,6 +71,15 @@ function normalizeZhihuApiUrl(value) {
     return '';
 }
 
+function sameZhihuApiPath(a, b) {
+    try {
+        return new URL(a).pathname === new URL(b).pathname;
+    }
+    catch {
+        return false;
+    }
+}
+
 /**
  * Fetch a paginated Zhihu /api/v4 list endpoint (credentialed) and collect up
  * to `limit` raw items, following `paging.next`. `label` is used in error
@@ -99,7 +108,7 @@ export async function fetchZhihuList(page, firstUrl, limit, label) {
         }
         if (data.paging?.is_end) break;
         const next = normalizeZhihuApiUrl(data.paging?.next);
-        if (!next) {
+        if (!next || !sameZhihuApiPath(next, firstUrl)) {
             throw new CommandExecutionError(`Zhihu ${label} pagination returned malformed next URL`);
         }
         if (visited.has(next)) {
@@ -115,4 +124,5 @@ export async function fetchZhihuList(page, firstUrl, limit, label) {
 
 export const __test__ = {
     normalizeZhihuApiUrl,
+    sameZhihuApiPath,
 };
