@@ -28878,6 +28878,160 @@
     "sourceFile": "rubygems/search.js"
   },
   {
+    "site": "semanticscholar",
+    "name": "citations",
+    "description": "List papers that cite a Semantic Scholar paper (paginated)",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max citing papers (1-1000, single Semantic Scholar page)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Page offset (0-based)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/citations.js",
+    "sourceFile": "semanticscholar/citations.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "paper",
+    "description": "Semantic Scholar paper detail (citation graph + AI tldr) by paperId, DOI, or arXiv id",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id (e.g. \"ARXIV:1706.03762\", \"PMID:12345\")"
+      }
+    ],
+    "columns": [
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "influentialCitationCount",
+      "referenceCount",
+      "tldr",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/paper.js",
+    "sourceFile": "semanticscholar/paper.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "recommendations",
+    "description": "Semantic Scholar AI-curated related papers for a paperId, DOI, or arXiv id",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max recommendations (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/recommendations.js",
+    "sourceFile": "semanticscholar/recommendations.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "search",
+    "description": "Search Semantic Scholar papers by free text",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text (e.g. \"attention is all you need\", \"diffusion model\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max papers (1-100, single Semantic Scholar page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/search.js",
+    "sourceFile": "semanticscholar/search.js"
+  },
+  {
     "site": "sinablog",
     "name": "article",
     "description": "获取新浪博客单篇文章详情",
