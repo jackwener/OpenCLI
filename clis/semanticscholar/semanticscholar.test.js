@@ -103,10 +103,20 @@ describe('semanticscholar paper command', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('maps a missing paper to EmptyResultError', async () => {
+    it('typed-fails malformed paper detail rows instead of treating parser drift as empty', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({})));
 
-        await expect(command.func({ id: '10.0/missing' })).rejects.toBeInstanceOf(EmptyResultError);
+        await expect(command.func({ id: '10.0/missing' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('typed-fails non-numeric metric fields instead of returning NaN', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+            paperId: 'df2b0e26d0599ce3e70df8a9da02e51594e0e992',
+            title: 'Bad Metrics',
+            citationCount: 'many',
+        })));
+
+        await expect(command.func({ id: '10.0/bad-metrics' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
 
@@ -148,6 +158,22 @@ describe('semanticscholar citations command', () => {
 
         await expect(command.func({ id: '10.0/x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
+
+    it('typed-fails malformed citation rows without a citing paper identity', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+            data: [{ citingPaper: { title: 'Missing identity' } }],
+        })));
+
+        await expect(command.func({ id: '10.0/x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('typed-fails citation entries missing citingPaper instead of emitting blank rows', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+            data: [{ contexts: ['missing citing paper'] }],
+        })));
+
+        await expect(command.func({ id: '10.0/x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
 });
 
 describe('semanticscholar recommendations command', () => {
@@ -173,6 +199,14 @@ describe('semanticscholar recommendations command', () => {
 
     it('typed-fails when the payload is missing recommendedPapers entirely', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ wrong: 'shape' })));
+
+        await expect(command.func({ id: '10.0/x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('typed-fails malformed recommendation rows without a stable paper identity', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+            recommendedPapers: [{ title: 'Missing id' }],
+        })));
 
         await expect(command.func({ id: '10.0/x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
@@ -233,5 +267,13 @@ describe('semanticscholar search command', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: [] })));
 
         await expect(command.func({ query: 'zz-no-hit', limit: 5 })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('typed-fails malformed search rows without a stable paper identity', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+            data: [{ title: 'Missing id' }],
+        })));
+
+        await expect(command.func({ query: 'broken row', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

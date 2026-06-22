@@ -7,8 +7,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     S2_REC_BASE,
-    firstAuthorName,
-    pickDoi,
+    normalizePaperRow,
     requireBoundedInt,
     requirePaperRef,
     s2Fetch,
@@ -43,15 +42,6 @@ cli({
             throw new EmptyResultError('semanticscholar recommendations', `No Semantic Scholar recommendations for "${args.id}".`);
         }
 
-        return recommended.slice(0, limit).map((p, i) => ({
-            rank: i + 1,
-            paperId: String(p.paperId ?? ''),
-            doi: pickDoi(p.externalIds),
-            title: String(p.title ?? '').trim(),
-            year: p.year != null ? Number(p.year) : null,
-            firstAuthor: firstAuthorName(p.authors),
-            citationCount: p.citationCount != null ? Number(p.citationCount) : null,
-            url: p.paperId ? `https://www.semanticscholar.org/paper/${p.paperId}` : '',
-        }));
+        return recommended.slice(0, limit).map((p, i) => normalizePaperRow(p, 'recommendations', { rank: i + 1 }));
     },
 });

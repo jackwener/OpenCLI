@@ -151,6 +151,42 @@ export function firstAuthorName(authors) {
     return '';
 }
 
+export function optionalNumber(value, label) {
+    if (value == null) return null;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new CommandExecutionError(`semanticscholar ${label} must be a number when present`);
+    }
+    return value;
+}
+
+export function normalizePaperRow(paper, label, { rank } = {}) {
+    if (!paper || typeof paper !== 'object') {
+        throw new CommandExecutionError(`semanticscholar ${label} row is not an object`);
+    }
+    if (typeof paper.paperId !== 'string' || !paper.paperId.trim()) {
+        throw new CommandExecutionError(`semanticscholar ${label} row is missing paperId`);
+    }
+    if (typeof paper.title !== 'string' || !paper.title.trim()) {
+        throw new CommandExecutionError(`semanticscholar ${label} row is missing title`);
+    }
+    if (paper.authors != null && !Array.isArray(paper.authors)) {
+        throw new CommandExecutionError(`semanticscholar ${label} row has malformed authors`);
+    }
+    const row = {
+        paperId: paper.paperId.trim(),
+        doi: pickDoi(paper.externalIds),
+        title: paper.title.trim(),
+        year: optionalNumber(paper.year, `${label} year`),
+        firstAuthor: firstAuthorName(paper.authors),
+        citationCount: optionalNumber(paper.citationCount, `${label} citationCount`),
+        url: typeof paper.url === 'string' && paper.url.trim()
+            ? paper.url.trim()
+            : `https://www.semanticscholar.org/paper/${paper.paperId.trim()}`,
+    };
+    if (rank != null) return { rank, ...row };
+    return row;
+}
+
 /** Strip the typed prefix from `externalIds.DOI` and similar. */
 export function pickDoi(externalIds) {
     if (externalIds && typeof externalIds === 'object' && typeof externalIds.DOI === 'string') {

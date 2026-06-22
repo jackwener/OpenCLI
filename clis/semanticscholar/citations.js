@@ -7,8 +7,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     S2_GRAPH_BASE,
-    firstAuthorName,
-    pickDoi,
+    normalizePaperRow,
     requireBoundedInt,
     requirePaperRef,
     s2Fetch,
@@ -53,17 +52,10 @@ cli({
         }
 
         return data.slice(0, limit).map((entry, i) => {
-            const p = entry?.citingPaper ?? {};
-            return {
-                rank: offset + i + 1,
-                paperId: String(p.paperId ?? ''),
-                doi: pickDoi(p.externalIds),
-                title: String(p.title ?? '').trim(),
-                year: p.year != null ? Number(p.year) : null,
-                firstAuthor: firstAuthorName(p.authors),
-                citationCount: p.citationCount != null ? Number(p.citationCount) : null,
-                url: p.paperId ? `https://www.semanticscholar.org/paper/${p.paperId}` : '',
-            };
+            if (!entry || typeof entry !== 'object' || !('citingPaper' in entry)) {
+                throw new CommandExecutionError('semanticscholar citations row is missing citingPaper');
+            }
+            return normalizePaperRow(entry.citingPaper, 'citations', { rank: offset + i + 1 });
         });
     },
 });

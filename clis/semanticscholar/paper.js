@@ -5,11 +5,11 @@
 // `influentialCitationCount` (their gated "important" count) and `tldr.text`
 // (LLM-generated one-line summary).
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     S2_GRAPH_BASE,
-    firstAuthorName,
-    pickDoi,
+    normalizePaperRow,
+    optionalNumber,
     requirePaperRef,
     s2Fetch,
     tldrText,
@@ -37,21 +37,16 @@ cli({
         const url = `${S2_GRAPH_BASE}/paper/${encodeURIComponent(ref)}?fields=${FIELDS}`;
         const body = await s2Fetch(url, 'semanticscholar paper');
 
-        if (!body || typeof body !== 'object' || !body.paperId) {
-            throw new EmptyResultError('semanticscholar paper', `No Semantic Scholar record for "${args.id}".`);
+        if (!body || typeof body !== 'object') {
+            throw new CommandExecutionError('semanticscholar paper returned an unexpected payload shape');
         }
+        const row = normalizePaperRow(body, 'paper');
 
         return [{
-            paperId: String(body.paperId),
-            doi: pickDoi(body.externalIds),
-            title: String(body.title ?? '').trim(),
-            year: body.year != null ? Number(body.year) : null,
-            firstAuthor: firstAuthorName(body.authors),
-            citationCount: body.citationCount != null ? Number(body.citationCount) : null,
-            influentialCitationCount: body.influentialCitationCount != null ? Number(body.influentialCitationCount) : null,
-            referenceCount: body.referenceCount != null ? Number(body.referenceCount) : null,
+            ...row,
+            influentialCitationCount: optionalNumber(body.influentialCitationCount, 'paper influentialCitationCount'),
+            referenceCount: optionalNumber(body.referenceCount, 'paper referenceCount'),
             tldr: tldrText(body.tldr),
-            url: typeof body.url === 'string' ? body.url : `https://www.semanticscholar.org/paper/${body.paperId}`,
         }];
     },
 });

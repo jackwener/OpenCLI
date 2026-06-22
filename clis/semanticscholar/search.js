@@ -8,8 +8,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     S2_GRAPH_BASE,
-    firstAuthorName,
-    pickDoi,
+    normalizePaperRow,
     requireBoundedInt,
     requireString,
     s2Fetch,
@@ -44,15 +43,6 @@ cli({
             throw new EmptyResultError('semanticscholar search', `No Semantic Scholar papers matched "${query}".`);
         }
 
-        return data.slice(0, limit).map((p, i) => ({
-            rank: i + 1,
-            paperId: String(p.paperId ?? ''),
-            doi: pickDoi(p.externalIds),
-            title: String(p.title ?? '').trim(),
-            year: p.year != null ? Number(p.year) : null,
-            firstAuthor: firstAuthorName(p.authors),
-            citationCount: p.citationCount != null ? Number(p.citationCount) : null,
-            url: p.paperId ? `https://www.semanticscholar.org/paper/${p.paperId}` : '',
-        }));
+        return data.slice(0, limit).map((p, i) => normalizePaperRow(p, 'search', { rank: i + 1 }));
     },
 });
