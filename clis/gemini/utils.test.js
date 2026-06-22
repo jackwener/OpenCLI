@@ -207,6 +207,38 @@ describe('gemini evaluate result boundaries', () => {
             { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
         ]);
     });
+    it('expands collapsed Recents and retries conversation extraction', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const wait = vi.mocked(page.wait);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce([
+            { title: 'Recovered Chat', url: 'https://gemini.google.com/app/recovered123' },
+        ]);
+        await expect(getGeminiConversationList(page)).resolves.toEqual([
+            { Title: 'Recovered Chat', Url: 'https://gemini.google.com/app/recovered123' },
+        ]);
+        expect(evaluate).toHaveBeenCalledTimes(4);
+        expect(wait).toHaveBeenCalledWith(1.2);
+    });
+    it('does not expand Recents when visible conversation links already exist', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const wait = vi.mocked(page.wait);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([
+            { title: 'Chat A', url: 'https://gemini.google.com/app/abc123' },
+        ]);
+        await expect(getGeminiConversationList(page)).resolves.toEqual([
+            { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
+        ]);
+        expect(evaluate).toHaveBeenCalledTimes(2);
+        expect(wait).not.toHaveBeenCalled();
+    });
     it('typed-fails malformed Browser Bridge envelopes instead of treating them as empty', async () => {
         const page = createPageMock();
         const evaluate = vi.mocked(page.evaluate);
