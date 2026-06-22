@@ -211,7 +211,7 @@ function isTrustedChatGPTHost(hostname) {
 }
 
 function projectIdFromPathname(pathname) {
-    const match = String(pathname || '').match(/^\/g\/g-p-([a-f0-9]+)(?:[-/]|$)/i);
+    const match = String(pathname || '').match(/^\/g\/g-p-([a-f0-9]{8,})(?:[-/]|$)/i);
     return match ? match[1].toLowerCase() : '';
 }
 
@@ -772,7 +772,7 @@ export function parseChatGPTProjectId(value) {
         );
     }
     // Accept project slug pattern: g-p-{hex_id}-{slug} or just hex id
-    const slugMatch = raw.match(/^g-p-([a-f0-9]+)/i);
+    const slugMatch = raw.match(/^g-p-([a-f0-9]{8,})/i);
     if (slugMatch) return slugMatch[1].toLowerCase();
     if (/^[a-f0-9]{8,}$/i.test(raw)) return raw.toLowerCase();
     throw new ArgumentError(
@@ -1641,7 +1641,7 @@ async function extractProjectLinks(page) {
         const cleanText = (value) => String(value || '').replace(new RegExp('\\\\s+', 'g'), ' ').trim();
         const trustedHost = (hostname) => hostname === '${CHATGPT_DOMAIN}' || hostname.endsWith('.${CHATGPT_DOMAIN}');
         const projectIdFromPathname = (pathname) => {
-            const match = String(pathname || '').match(new RegExp('^/g/g-p-([a-f0-9]+)(?:[-/]|$)', 'i'));
+            const match = String(pathname || '').match(new RegExp('^/g/g-p-([a-f0-9]{8,})(?:[-/]|$)', 'i'));
             return match ? match[1].toLowerCase() : '';
         };
         const parseProjectId = (value) => {
@@ -1655,7 +1655,7 @@ async function extractProjectLinks(page) {
                     return '';
                 }
             }
-            const slugMatch = raw.match(new RegExp('^g-p-([a-f0-9]+)', 'i'));
+            const slugMatch = raw.match(new RegExp('^g-p-([a-f0-9]{8,})', 'i'));
             if (slugMatch) return slugMatch[1].toLowerCase();
             if (new RegExp('^[a-f0-9]{8,}$', 'i').test(raw)) return raw.toLowerCase();
             return '';
@@ -1723,8 +1723,9 @@ async function extractProjectLinks(page) {
                     if (props && props.gizmo) {
                         var g = props.gizmo;
                         var gId = g.gizmo && g.gizmo.id ? g.gizmo.id : g.id;
-                        if (gId) {
-                            projectId = String(gId).replace(/^g-p-/, '').toLowerCase();
+                        var gIdMatch = String(gId || '').match(new RegExp('^g-p-([a-f0-9]{8,})(?:-|$)', 'i'));
+                        if (gIdMatch) {
+                            projectId = gIdMatch[1].toLowerCase();
                             shortUrl = String(g.short_url || g.gizmo && g.gizmo.short_url || '');
                             break;
                         }

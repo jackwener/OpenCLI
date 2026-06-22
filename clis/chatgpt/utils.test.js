@@ -1149,6 +1149,8 @@ describe('chatgpt project id parsing', () => {
         expect(() => __test__.parseChatGPTProjectId('https://chatgpt.com/')).toThrow(/project/);
         expect(() => __test__.parseChatGPTProjectId('https://evil.test/g/g-p-12345678')).toThrow(/project/);
         expect(() => __test__.parseChatGPTProjectId('http://chatgpt.com/g/g-p-12345678')).toThrow(/project/);
+        expect(() => __test__.parseChatGPTProjectId('g-p-a-short')).toThrow(/project/);
+        expect(() => __test__.parseChatGPTProjectId('https://chatgpt.com/g/g-p-a-short')).toThrow(/project/);
     });
 });
 
@@ -1237,6 +1239,10 @@ describe('chatgpt project file upload helper', () => {
             <a data-sidebar-item="true" href="https://evil.test/g/g-p-badbadbad">
               <span data-testid="project-folder-icon"></span>
               Evil Project
+            </a>
+            <a data-sidebar-item="true" href="/g/g-p-a-short">
+              <span data-testid="project-folder-icon"></span>
+              Short Bait
             </a>
         `, {
             url: 'https://chatgpt.com/',
