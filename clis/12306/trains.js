@@ -37,11 +37,27 @@ async function queryLeftTickets(cookieHeader, fromCode, toCode, date) {
     };
     const queryParams = `leftTicketDTO.train_date=${date}&leftTicketDTO.from_station=${fromCode}&leftTicketDTO.to_station=${toCode}&purpose_codes=ADULT`;
     let lastResponseText = '';
-    for (const endpoint of QUERY_ENDPOINTS) {
+    const queue = [...QUERY_ENDPOINTS];
+    const tried = new Set();
+    while (queue.length > 0) {
+        const endpoint = queue.shift();
+        if (tried.has(endpoint)) continue;
+        tried.add(endpoint);
         const url = `https://kyfw.12306.cn/otn/leftTicket/${endpoint}?${queryParams}`;
-        const resp = await fetch(url, { headers });
+        const resp = await fetch(url, { headers, redirect: 'manual' });
         if (!resp.ok) {
-            if (resp.status === 302) continue;
+            if (resp.status === 302) {
+                const body = await resp.text();
+                let json;
+                try { json = JSON.parse(body); } catch { /* ignore */ }
+                if (json?.c_url && typeof json.c_url === 'string') {
+                    const rotated = json.c_url.replace('leftTicket/', '').trim();
+                    if (rotated && !tried.has(rotated)) {
+                        queue.unshift(rotated);
+                    }
+                }
+                continue;
+            }
             throw new CommandExecutionError(`12306 ${endpoint} returned HTTP ${resp.status}`);
         }
         const text = await resp.text();
@@ -52,8 +68,8 @@ async function queryLeftTickets(cookieHeader, fromCode, toCode, date) {
         }
         if (json?.c_url && typeof json.c_url === 'string') {
             const rotated = json.c_url.replace('leftTicket/', '').trim();
-            if (rotated && !QUERY_ENDPOINTS.includes(rotated)) {
-                QUERY_ENDPOINTS.unshift(rotated);
+            if (rotated && !tried.has(rotated)) {
+                queue.unshift(rotated);
             }
             continue;
         }
