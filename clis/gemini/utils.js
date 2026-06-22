@@ -1006,11 +1006,21 @@ function expandGeminiRecentScript() {
       // 2. Expand the "最近" / "Recents" toggle if it is currently collapsed.
       const recentToggle = buttons.find((b) => {
         const label = normalize(b.getAttribute('aria-label') || '');
-        return /最近|recent/i.test(label) && /展开|收起|expand|collapse|toggle|show|hide/i.test(label);
+        const expanded = (b.getAttribute('aria-expanded') || '').toLowerCase();
+        return /最近|recent/i.test(label) && (
+          /展开|收起|expand|collapse|toggle|show|hide/i.test(label)
+          || expanded === 'false'
+          || expanded === 'true'
+        );
       });
       if (recentToggle) {
+        const label = normalize(recentToggle.getAttribute('aria-label') || '');
         const expanded = (recentToggle.getAttribute('aria-expanded') || '').toLowerCase();
-        if (expanded !== 'true') { recentToggle.click(); changed = true; }
+        const explicitExpandLabel = /展开|显示|expand|show/i.test(label) && !/收起|collapse|hide/i.test(label);
+        if (expanded === 'false' || (expanded !== 'true' && explicitExpandLabel)) {
+          recentToggle.click();
+          changed = true;
+        }
       }
 
       return changed;
@@ -1842,6 +1852,7 @@ export const __test__ = {
     hasGeminiTurnPrefix,
     readGeminiSnapshot,
     readGeminiSnapshotScript,
+    expandGeminiRecentScript,
     submitComposerScript,
     insertComposerTextFallbackScript,
 };
