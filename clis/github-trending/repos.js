@@ -30,16 +30,44 @@ function parseCount(value) {
     return Number(digits);
 }
 
-function parseTrendingHtml(html, limit) {
-    const blocks = html.split('<article class="Box-row">').slice(1);
-    const rows = [];
-    for (const raw of blocks) {
-        const block = raw.split('</article>')[0];
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-        const nameMatch = block.match(/<h2\b[\s\S]*?href="\/([^"?#]+)"/);
-        if (!nameMatch) continue;
+function assertCount(value, field, repo) {
+    const count = parseCount(value);
+    if (count == null) {
+        throw new CommandExecutionError(`github-trending parser drift: missing ${field} for ${repo}`);
+    }
+    return count;
+}
+
+function hasExplicitEmptyTrending(html) {
+    return /don.t have any trending repositories/i.test(stripTags(html))
+        || /no trending repositories/i.test(stripTags(html));
+}
+
+function parseTrendingHtml(html, limit) {
+    const blocks = Array.from(String(html ?? '').matchAll(/<article\b[^>]*class="[^"]*\bBox-row\b[^"]*"[^>]*>([\s\S]*?)<\/article>/g))
+        .map((match) => match[1]);
+    const rows = [];
+
+    if (blocks.length === 0) {
+        if (hasExplicitEmptyTrending(html)) return rows;
+        throw new CommandExecutionError('github-trending parser drift: no repository rows found');
+    }
+
+    for (const raw of blocks) {
+        const block = raw;
+
+        const nameMatch = block.match(/<h2\b[\s\S]*?href="\/([^"/?#]+\/[^"/?#]+)"/);
+        if (!nameMatch) {
+            throw new CommandExecutionError('github-trending parser drift: missing repository link');
+        }
         const repo = decodeHtmlEntities(nameMatch[1]).trim();
-        if (!repo.includes('/')) continue;
+        if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+            throw new CommandExecutionError(`github-trending parser drift: invalid repository identity "${repo}"`);
+        }
 
         const descMatch = block.match(/<p class="col-9 color-fg-muted[^"]*">([\s\S]*?)<\/p>/);
         const description = descMatch
@@ -49,17 +77,18 @@ function parseTrendingHtml(html, limit) {
         const langMatch = block.match(/<span itemprop="programmingLanguage">([\s\S]*?)<\/span>/);
         const language = langMatch ? decodeHtmlEntities(stripTags(langMatch[1])).trim() : null;
 
-        const starsMatch = block.match(/\/stargazers"[\s\S]*?>\s*([\d,]+)\s*<\/a>/);
-        const forksMatch = block.match(/\/forks"[\s\S]*?>\s*([\d,]+)\s*<\/a>/);
+        const escapedRepo = escapeRegExp(repo);
+        const starsMatch = block.match(new RegExp(`<a\\b[^>]*href="/${escapedRepo}/stargazers"[^>]*>([\\s\\S]*?)</a>`));
+        const forksMatch = block.match(new RegExp(`<a\\b[^>]*href="/${escapedRepo}/forks"[^>]*>([\\s\\S]*?)</a>`));
         const sinceMatch = block.match(/([\d,]+)\s+stars\s+(?:today|this week|this month)/i);
 
         rows.push({
             repo,
             description,
             language,
-            stars: parseCount(starsMatch?.[1]),
-            forks: parseCount(forksMatch?.[1]),
-            starsSince: parseCount(sinceMatch?.[1]),
+            stars: assertCount(starsMatch ? stripTags(starsMatch[1]) : null, 'stars', repo),
+            forks: assertCount(forksMatch ? stripTags(forksMatch[1]) : null, 'forks', repo),
+            starsSince: assertCount(sinceMatch?.[1], 'period stars', repo),
             url: `https://github.com/${repo}`,
         });
         if (rows.length >= limit) break;

@@ -1,4 +1,5 @@
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import './repos.js';
 
@@ -105,9 +106,39 @@ describe('github-trending/repos', () => {
     });
 
     it('throws EmptyResultError when no repositories are present', async () => {
-        mockHtmlOnce(pageHtml([]));
+        mockHtmlOnce('<main><h2>It looks like we don’t have any trending repositories for your choices.</h2></main>');
         await expect(loadCommand().func({ since: 'daily', language: '', limit: 25 }))
-            .rejects.toThrow(/no data|empty/i);
+            .rejects.toThrow(EmptyResultError);
+    });
+
+    it('fails closed when GitHub row selectors drift without an explicit empty marker', async () => {
+        mockHtmlOnce('<main><div class="Box">Trending repositories</div></main>');
+        await expect(loadCommand().func({ since: 'daily', language: '', limit: 25 }))
+            .rejects.toThrow(CommandExecutionError);
+    });
+
+    it('fails closed when a repository row has no repo identity', async () => {
+        mockHtmlOnce(pageHtml([article({ repo: 'owner-a/repo-a', desc: 'x', lang: 'Rust', stars: '1', forks: '2', since: '3' })
+            .replace('href="/owner-a/repo-a"', 'href="https://evil.example/owner-a/repo-a"')]));
+
+        await expect(loadCommand().func({ since: 'daily', language: '', limit: 25 }))
+            .rejects.toThrow(CommandExecutionError);
+    });
+
+    it('fails closed when stars, forks, or period stars stop parsing', async () => {
+        const valid = article({ repo: 'owner-a/repo-a', desc: 'x', lang: 'Rust', stars: '1', forks: '2', since: '3' });
+
+        mockHtmlOnce(pageHtml([valid.replace('1</a>', 'many</a>')]));
+        await expect(loadCommand().func({ since: 'daily', language: '', limit: 25 }))
+            .rejects.toThrow(CommandExecutionError);
+
+        mockHtmlOnce(pageHtml([valid.replace('2</a>', 'some</a>')]));
+        await expect(loadCommand().func({ since: 'daily', language: '', limit: 25 }))
+            .rejects.toThrow(CommandExecutionError);
+
+        mockHtmlOnce(pageHtml([valid.replace('3 stars today', 'several stars today')]));
+        await expect(loadCommand().func({ since: 'daily', language: '', limit: 25 }))
+            .rejects.toThrow(CommandExecutionError);
     });
 
     it('throws on a non-ok HTTP response', async () => {
