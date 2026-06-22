@@ -779,7 +779,8 @@ function openGeminiToolsMenuScript() {
 function selectGeminiToolScript(labels) {
     const labelsJson = JSON.stringify(labels);
     return `
-    ((targetLabels) => {
+    (async () => {
+      const targetLabels = ${labelsJson};
       const isDisabled = (el) => {
         if (!(el instanceof HTMLElement)) return true;
         if ('disabled' in el && el.disabled) return true;
@@ -810,39 +811,69 @@ function selectGeminiToolScript(labels) {
       const lowered = normalized.map((label) => label.toLowerCase());
       if (lowered.length === 0) return '';
 
-      const menuSelectors = [
-        '[role="menu"]',
-        '[role="listbox"]',
-        '[aria-label*="tool" i]',
-        '[aria-label*="mode" i]',
-        '[aria-modal="true"]',
-      ];
-      const menuRoots = Array.from(document.querySelectorAll(menuSelectors.join(','))).filter(isVisible);
-      if (menuRoots.length === 0) return '';
-      const seen = new Set();
+      const findAndClickInVisibleMenus = () => {
+        const menuSelectors = [
+          '[role="menu"]',
+          '[role="listbox"]',
+          '[aria-label*="tool" i]',
+          '[aria-label*="mode" i]',
+          '[aria-modal="true"]',
+        ];
+        const menuRoots = Array.from(document.querySelectorAll(menuSelectors.join(','))).filter(isVisible);
+        if (menuRoots.length === 0) return '';
+        const seen = new Set();
 
-      for (const root of menuRoots) {
-        const candidates = Array.from(root.querySelectorAll('button, [role="menuitem"], [role="option"], [role="button"], a, li'));
-        for (const node of candidates) {
-          if (seen.has(node)) continue;
-          seen.add(node);
-          if (!isInteractable(node)) continue;
-          const text = (node.textContent || '').trim().toLowerCase();
-          const aria = (node.getAttribute('aria-label') || '').trim().toLowerCase();
-          if (!text && !aria) continue;
-          const combined = \`\${text} \${aria}\`.trim();
-          for (let index = 0; index < lowered.length; index += 1) {
-            const label = lowered[index];
-            if (label && combined.includes(label)) {
-              if (node instanceof HTMLElement) node.click();
-              return normalized[index];
+        for (const root of menuRoots) {
+          const candidates = Array.from(root.querySelectorAll('button, [role="menuitem"], [role="option"], [role="button"], a, li'));
+          for (const node of candidates) {
+            if (seen.has(node)) continue;
+            seen.add(node);
+            if (!isInteractable(node)) continue;
+            const text = (node.textContent || '').trim().toLowerCase();
+            const aria = (node.getAttribute('aria-label') || '').trim().toLowerCase();
+            if (!text && !aria) continue;
+            const combined = \`\${text} \${aria}\`.trim();
+            for (let index = 0; index < lowered.length; index += 1) {
+              const label = lowered[index];
+              if (label && combined.includes(label)) {
+                if (node instanceof HTMLElement) node.click();
+                return normalized[index];
+              }
             }
           }
         }
+        return '';
+      };
+
+      let match = findAndClickInVisibleMenus();
+      if (match) return match;
+
+      // Gemini hides some tools (e.g. Deep Research) behind a "More tools" / "更多工具"
+      // submenu. Expand any such expander inside an already-open menu and retry once.
+      const moreToolsTokens = ['more tools', '更多工具'];
+      const openMenus = Array.from(document.querySelectorAll('[role="menu"], [role="listbox"], [aria-modal="true"]')).filter(isVisible);
+      let expanded = false;
+      for (const menu of openMenus) {
+        const expandables = Array.from(menu.querySelectorAll('button, [role="button"], [role="menuitem"]')).filter(isInteractable);
+        const more = expandables.find((node) => {
+          const text = (node.textContent || '').trim().toLowerCase();
+          const aria = (node.getAttribute('aria-label') || '').trim().toLowerCase();
+          return moreToolsTokens.some((token) => (text && text.includes(token)) || (aria && aria.includes(token)));
+        });
+        if (more instanceof HTMLElement) {
+          more.click();
+          expanded = true;
+          break;
+        }
+      }
+      if (expanded) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        match = findAndClickInVisibleMenus();
+        if (match) return match;
       }
 
       return '';
-    })(${labelsJson})
+    })()
   `;
 }
 function clickGeminiConfirmButtonScript(labels) {
