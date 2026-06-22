@@ -206,6 +206,25 @@ export function requireBooleanEvaluateResult(payload, label) {
     return payload;
 }
 
+function isTrustedChatGPTHost(hostname) {
+    return hostname === CHATGPT_DOMAIN || hostname.endsWith(`.${CHATGPT_DOMAIN}`);
+}
+
+function projectIdFromPathname(pathname) {
+    const match = String(pathname || '').match(/^\/g\/g-p-([a-f0-9]+)(?:[-/]|$)/i);
+    return match ? match[1].toLowerCase() : '';
+}
+
+function projectIdFromUrl(value) {
+    try {
+        const url = new URL(String(value || ''), CHATGPT_URL);
+        if (url.protocol !== 'https:' || !isTrustedChatGPTHost(url.hostname)) return '';
+        return projectIdFromPathname(url.pathname);
+    } catch {
+        return '';
+    }
+}
+
 export function parseChatGPTConversationId(value) {
     const raw = String(value ?? '').trim();
     if (/^https?:\/\//i.test(raw)) {
@@ -744,11 +763,17 @@ export async function clearChatGPTDraft(page) {
 
 export function parseChatGPTProjectId(value) {
     const raw = String(value ?? '').trim();
-    const match = raw.match(/(?:^|\/g\/g-p-)([a-f0-9]+)(?:[-\/?#]|$)/i);
-    if (match) return match[1];
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) {
+        const id = projectIdFromUrl(raw);
+        if (id) return id;
+        throw new ArgumentError(
+            'chatgpt project commands require a chatgpt.com project id or /g/g-p-<id> URL',
+            'Example: opencli chatgpt project-file-add report.pdf --id 12345678',
+        );
+    }
     // Accept project slug pattern: g-p-{hex_id}-{slug} or just hex id
     const slugMatch = raw.match(/^g-p-([a-f0-9]+)/i);
-    if (slugMatch) return slugMatch[1];
+    if (slugMatch) return slugMatch[1].toLowerCase();
     if (/^[a-f0-9]{8,}$/i.test(raw)) return raw.toLowerCase();
     throw new ArgumentError(
         'chatgpt project commands require a project id or /g/g-p-<id> URL',
@@ -1614,10 +1639,22 @@ async function extractProjectLinks(page) {
             return rect.width > 0 && rect.height > 0;
         };
         const cleanText = (value) => String(value || '').replace(new RegExp('\\\\s+', 'g'), ' ').trim();
+        const trustedHost = (hostname) => hostname === '${CHATGPT_DOMAIN}' || hostname.endsWith('.${CHATGPT_DOMAIN}');
+        const projectIdFromPathname = (pathname) => {
+            const match = String(pathname || '').match(new RegExp('^/g/g-p-([a-f0-9]+)(?:[-/]|$)', 'i'));
+            return match ? match[1].toLowerCase() : '';
+        };
         const parseProjectId = (value) => {
             const raw = String(value || '').trim();
-            const match = raw.match(new RegExp('(?:^|/g/g-p-)([a-f0-9]+)(?:[-/?#]|$)', 'i'));
-            if (match) return match[1].toLowerCase();
+            if (new RegExp('^https?://', 'i').test(raw) || raw.startsWith('/')) {
+                try {
+                    const url = new URL(raw, '${CHATGPT_URL}');
+                    if (url.protocol !== 'https:' || !trustedHost(url.hostname)) return '';
+                    return projectIdFromPathname(url.pathname);
+                } catch {
+                    return '';
+                }
+            }
             const slugMatch = raw.match(new RegExp('^g-p-([a-f0-9]+)', 'i'));
             if (slugMatch) return slugMatch[1].toLowerCase();
             if (new RegExp('^[a-f0-9]{8,}$', 'i').test(raw)) return raw.toLowerCase();
@@ -1626,6 +1663,8 @@ async function extractProjectLinks(page) {
         const normalizeProjectUrl = (href, projectId) => {
             try {
                 const url = new URL(href, '${CHATGPT_URL}');
+                if (url.protocol !== 'https:' || !trustedHost(url.hostname)) return '';
+                if (projectIdFromPathname(url.pathname) !== projectId) return '';
                 url.search = '';
                 url.hash = '';
                 return url.href.endsWith('/') ? url.href.slice(0, -1) : url.href;
@@ -1740,6 +1779,15 @@ export async function navigateToProject(page, projectId) {
     } catch {
         // Composer may not mount if project requires login; downstream ensureChatGPTLogin handles it.
     }
+    const state = await getPageState(page);
+    if (projectIdFromUrl(state.url) === id) return id;
+    if (state.hasLoginGate || !state.isLoggedIn) {
+        throw new AuthRequiredError(CHATGPT_DOMAIN, 'ChatGPT project requires a logged-in ChatGPT session.');
+    }
+    throw new CommandExecutionError(
+        `ChatGPT did not open the requested project ${id}.`,
+        `Current URL: ${state.url || '(unknown)'}`,
+    );
 }
 
 /**
@@ -1865,7 +1913,7 @@ export async function uploadChatGPTProjectFiles(page, projectId, filePaths) {
     const path = await import('node:path');
 
     const prepared = await prepareChatGPTFilePaths(filePaths);
-    if (!prepared.ok) return prepared;
+    if (!prepared.ok) return { ...prepared, inputError: true };
     const absPaths = prepared.paths;
 
     // Navigate to project and open knowledge dialog
@@ -1914,15 +1962,15 @@ export async function uploadChatGPTProjectFiles(page, projectId, filePaths) {
                     input = document.querySelector(sel);
                     if (input instanceof HTMLInputElement) break;
                 }
-                // Last resort: any file input not inside the composer area (exclude #upload-files, #upload-photos, #upload-camera)
+                // Last resort: stay scoped to project knowledge containers. Do
+                // not fall back to arbitrary page inputs, because the composer
+                // attachment input can also accept files but uploads them to
+                // the conversation instead of project knowledge.
                 if (!(input instanceof HTMLInputElement)) {
-                    const allFileInputs = document.querySelectorAll('input[type="file"]');
+                    const allFileInputs = document.querySelectorAll('[data-project-home-sources-surface="true"] input[type="file"], [role="dialog"] input[type="file"], [data-testid*="project"] input[type="file"]');
                     for (const fi of allFileInputs) {
-                        const id = fi.id || '';
-                        if (id !== 'upload-files' && id !== 'upload-photos' && id !== 'upload-camera') {
-                            input = fi;
-                            break;
-                        }
+                        input = fi;
+                        break;
                     }
                 }
                 if (!(input instanceof HTMLInputElement)) {
@@ -1977,7 +2025,12 @@ async function waitForChatGPTProjectUploadConfirmation(page, fileNames) {
             (() => {
                 const expectedFileNames = ${JSON.stringify(expectedFileNames)};
                 const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-                const root = document.querySelector('[role="dialog"]') || document.body;
+                const root = document.querySelector('[role="dialog"]')
+                    || document.querySelector('[data-project-home-sources-surface="true"]')
+                    || document.querySelector('[role="tabpanel"][data-state="active"]');
+                if (!root) {
+                    return { ok: false, pending: true, reason: 'project knowledge surface was not visible after upload' };
+                }
                 const text = normalize(root?.innerText || root?.textContent || '');
                 const errorNode = Array.from((root || document).querySelectorAll('[role="alert"], [data-testid*="error"], [class*="error"]')).find((node) => {
                     const label = normalize(node.innerText || node.textContent || node.getAttribute('aria-label') || '');

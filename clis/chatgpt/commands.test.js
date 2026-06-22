@@ -193,11 +193,11 @@ describe('chatgpt browser command registration', () => {
             ]);
     });
 
-    it('wraps project-file-add upload failures as command execution errors', async () => {
+    it('maps project-file-add local file validation failures to argument errors', async () => {
         const cmd = getRegistry().get('chatgpt/project-file-add');
         await expect(cmd.func(createProjectUploadPageMock(), { file: '/no/such/report.pdf', id: '12345678' }))
             .rejects.toMatchObject({
-                code: 'COMMAND_EXEC',
+                code: 'ARGUMENT',
                 message: expect.stringContaining('File not found'),
             });
     });

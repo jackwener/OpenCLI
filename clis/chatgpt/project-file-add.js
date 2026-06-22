@@ -52,6 +52,13 @@ export const projectFileAddCommand = cli({
             );
         }
 
+        if (upload?.inputError) {
+            throw new ArgumentError(
+                upload.reason || 'Invalid project file path',
+                'Provide an existing local file path that ChatGPT project knowledge can upload.',
+            );
+        }
+
         if (!upload?.ok) {
             throw new CommandExecutionError(
                 upload?.reason || 'Failed to upload file to ChatGPT project knowledge',
