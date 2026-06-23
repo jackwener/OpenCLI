@@ -13611,6 +13611,100 @@
   },
   {
     "site": "garmin",
+    "name": "follow",
+    "description": "Follow a Garmin athlete (requires --execute)",
+    "access": "write",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete display id (from `garmin search`) or profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually follow (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "display_name"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "followers",
+    "description": "Athletes who follow you",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "display_name",
+      "location",
+      "follow_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "following",
+    "description": "Athletes you follow",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "display_name",
+      "location",
+      "follow_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
     "name": "gear",
     "description": "Your registered Garmin gear (shoes, bikes, …)",
     "access": "read",
@@ -13785,6 +13879,43 @@
   },
   {
     "site": "garmin",
+    "name": "search",
+    "description": "Search Garmin Connect athletes by name",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Name to search"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "display_name",
+      "location",
+      "follow_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
     "name": "sleep",
     "description": "Sleep breakdown for a night (deep / light / rem / awake)",
     "access": "read",
@@ -13897,6 +14028,40 @@
     "type": "js",
     "modulePath": "garmin/health.js",
     "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "unfollow",
+    "description": "Unfollow a Garmin athlete (requires --execute)",
+    "access": "write",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete display id or profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually unfollow (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "display_name"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
     "navigateBefore": "https://connect.garmin.com"
   },
   {

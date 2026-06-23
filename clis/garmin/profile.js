@@ -126,7 +126,7 @@ cli({
         const limit = kwargs.limit || 30;
         await ensureGarmin(page);
         const sp = await getProfile(page);
-        const data = await garminApi(page, `/gc-api/userprofile-service/connection/connections/${sp.displayName}?start=0&limit=${limit}`);
+        const data = await garminApi(page, `/gc-api/connection-service/connection/v2/connections/pagination/${sp.displayName}?start=0&limit=${limit}`);
         const list = (data && data.userConnections) || [];
         if (!list.length)
             throw new EmptyResultError('garmin connections', 'No connections found.');
