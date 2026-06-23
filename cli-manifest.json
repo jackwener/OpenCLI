@@ -13754,6 +13754,64 @@
   },
   {
     "site": "garmin",
+    "name": "hrv",
+    "description": "Heart-rate variability summary for a night",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "last_night_avg",
+      "last_night_5min_high",
+      "weekly_avg",
+      "status",
+      "feedback"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "hydration",
+    "description": "Daily hydration — water intake vs goal, sweat loss",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "intake_ml",
+      "goal_ml",
+      "sweat_loss_ml",
+      "activity_intake_ml",
+      "unit"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
     "name": "load",
     "description": "Training load: acute (short-term), chronic and load focus",
     "access": "read",
@@ -13879,6 +13937,34 @@
   },
   {
     "site": "garmin",
+    "name": "respiration",
+    "description": "Daily respiration rate (breaths per minute)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "avg_waking",
+      "avg_sleep",
+      "highest",
+      "lowest"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
     "name": "search",
     "description": "Search Garmin Connect athletes by name",
     "access": "read",
@@ -13941,6 +14027,34 @@
     "type": "js",
     "modulePath": "garmin/health.js",
     "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "spo2",
+    "description": "Daily blood-oxygen (pulse ox) summary",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "avg_spo2",
+      "lowest_spo2",
+      "latest_spo2",
+      "seven_day_avg"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
     "navigateBefore": "https://connect.garmin.com"
   },
   {
