@@ -82,6 +82,8 @@ const STAT_LABELS = {
     'speed': 'speed',
     'calories': 'calories',
     'energy output': 'energy_output',
+    'weighted avg power': 'weighted_avg_power',
+    'total work': 'total_work',
 };
 
 // The activity page renders stats as <li><strong>59.39 km</strong>Distance</li>.
@@ -98,6 +100,49 @@ export function parseInlineStats(items) {
         const key = STAT_LABELS[label.toLowerCase()];
         if (key && !out[key])
             out[key] = value;
+    }
+    return out;
+}
+
+// Strava's "More Stats" table on an activity page renders one metric per row:
+//   <tr><th>Speed</th><td>28.8 km/h</td><td>53.9 km/h</td></tr>   (avg | max)
+//   <tr><th>Heart Rate</th><td>146 bpm</td><td>180 bpm</td></tr>
+//   <tr><th>Calories</th><td colspan=2>941</td></tr>              (single value)
+// page.evaluate() hands us [{ label, avg, max }] (max '' for single-valued rows,
+// where the lone <td> lands in the `avg` slot). Flatten paired metrics into
+// avg_<key> / max_<key> and single metrics into a flat key. Unknown labels are
+// dropped rather than guessed — see the adapter's no-silently-wrong-data rule.
+const PAIRED_STAT_LABELS = {
+    'speed': 'speed',
+    'pace': 'pace',
+    'heart rate': 'hr',
+    'cadence': 'cadence',
+    'power': 'power',
+};
+const SINGLE_STAT_LABELS = {
+    'calories': 'calories',
+    'temperature': 'temperature',
+    'elapsed time': 'elapsed_time',
+};
+export function parseMoreStats(rows) {
+    const out = {};
+    for (const row of rows || []) {
+        const label = cleanText(row && row.label).toLowerCase();
+        const avg = cleanText(row && row.avg);
+        const max = cleanText(row && row.max);
+        if (!label)
+            continue;
+        const paired = PAIRED_STAT_LABELS[label];
+        if (paired) {
+            if (avg && !out['avg_' + paired])
+                out['avg_' + paired] = avg;
+            if (max && !out['max_' + paired])
+                out['max_' + paired] = max;
+            continue;
+        }
+        const single = SINGLE_STAT_LABELS[label];
+        if (single && avg && !out[single])
+            out[single] = avg;
     }
     return out;
 }

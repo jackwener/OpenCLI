@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cleanText, normalizeActivityId, normalizeAthleteId, parseActivityId, parseInlineStats, pickFollowCount, sportFromIcon, } from './utils.js';
+import { cleanText, normalizeActivityId, normalizeAthleteId, parseActivityId, parseInlineStats, parseMoreStats, pickFollowCount, sportFromIcon, } from './utils.js';
 // ── CLI definition ────────────────────────────────────────────────────
 //
 // Strava serves authenticated athlete/activity pages as server-rendered HTML —
@@ -116,14 +116,21 @@ cli({
     site: 'strava',
     name: 'activity',
     access: 'read',
-    description: 'Single Strava activity detail (distance, time, elevation, date)',
+    description: 'Single Strava activity detail (distance, time, speed, HR, power, cadence, calories)',
     domain: 'www.strava.com',
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
         { name: 'id', type: 'str', positional: true, required: true, help: 'Activity ID or activity URL' },
     ],
-    columns: ['id', 'name', 'type', 'distance', 'moving_time', 'elevation', 'date', 'url'],
+    columns: [
+        'id', 'name', 'type', 'date',
+        'distance', 'moving_time', 'elapsed_time', 'elevation',
+        'avg_speed', 'max_speed', 'avg_pace', 'max_pace',
+        'avg_hr', 'max_hr', 'avg_cadence', 'max_cadence',
+        'avg_power', 'max_power', 'weighted_avg_power', 'total_work',
+        'calories', 'temperature', 'device', 'gear', 'url',
+    ],
     func: async (page, kwargs) => {
         const id = normalizeActivityId(kwargs.id);
         if (!id)
@@ -133,17 +140,30 @@ cli({
         await page.wait(2);
         await ensureLoggedIn(page);
         const data = await page.evaluate(`(() => {
-      const ul = document.querySelector('ul.inline-stats');
-      const stats = ul ? [...ul.querySelectorAll('li')].map((li) => ({
-        strong: li.querySelector('strong')?.textContent?.replace(/\\s+/g, ' ').trim() || '',
-        full: li.textContent.replace(/\\s+/g, ' ').trim(),
-      })) : [];
+      const clean = (el) => el ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+      // Both inline-stats blocks: the primary (distance/time/elevation) and the
+      // ride-only "secondary-stats" (weighted avg power / total work).
+      const stats = [...document.querySelectorAll('ul.inline-stats li')].map((li) => ({
+        strong: clean(li.querySelector('strong')),
+        full: clean(li),
+      }));
+      // The "More Stats" table: <th>label</th><td>avg</td><td>max</td>, identified
+      // by its Avg/Max header so we never grab some other unstyled table.
+      const table = [...document.querySelectorAll('table.unstyled')]
+        .find((t) => /Avg/.test(clean(t.querySelector('thead'))));
+      const moreStats = table ? [...table.querySelectorAll('tbody tr')].map((tr) => {
+        const tds = [...tr.querySelectorAll('td')];
+        return { label: clean(tr.querySelector('th')), avg: clean(tds[0]), max: clean(tds[1]) };
+      }).filter((r) => r.label && r.avg) : [];
       const time = document.querySelector('time');
       return {
         title: document.title || '',
         name: document.querySelector('.activity-name')?.textContent?.trim() || '',
         stats,
-        date: time ? time.textContent.replace(/\\s+/g, ' ').trim() : '',
+        moreStats,
+        device: clean(document.querySelector('.device')),
+        gear: clean(document.querySelector('.gear-name')),
+        date: time ? clean(time) : '',
       };
     })()`);
         if (!data || !Array.isArray(data.stats) || data.stats.length === 0) {
@@ -153,15 +173,34 @@ cli({
         const titleParts = (data.title || '').split('|').map((part) => part.trim());
         const name = data.name || titleParts[0] || '';
         const type = (titleParts[1] || '').toLowerCase();
-        const stats = parseInlineStats(data.stats);
+        const inline = parseInlineStats(data.stats);
+        const more = parseMoreStats(data.moreStats);
         return [{
                 id,
                 name: cleanText(name, 80),
                 type,
-                distance: stats.distance || '',
-                moving_time: stats.moving_time || '',
-                elevation: stats.elevation || '',
                 date: cleanText(data.date, 60),
+                distance: inline.distance || '',
+                moving_time: inline.moving_time || '',
+                elapsed_time: more.elapsed_time || inline.elapsed_time || '',
+                elevation: inline.elevation || '',
+                avg_speed: more.avg_speed || inline.speed || '',
+                max_speed: more.max_speed || '',
+                avg_pace: more.avg_pace || inline.pace || '',
+                max_pace: more.max_pace || '',
+                avg_hr: more.avg_hr || '',
+                max_hr: more.max_hr || '',
+                avg_cadence: more.avg_cadence || '',
+                max_cadence: more.max_cadence || '',
+                avg_power: more.avg_power || '',
+                max_power: more.max_power || '',
+                weighted_avg_power: inline.weighted_avg_power || '',
+                total_work: inline.total_work || '',
+                calories: more.calories || inline.calories || '',
+                temperature: more.temperature || '',
+                device: cleanText(data.device, 60),
+                // Strava renders a lone em/en dash when no gear is assigned — treat as empty.
+                gear: /^[—–-]?$/.test(cleanText(data.gear)) ? '' : cleanText(data.gear, 60),
                 url,
             }];
     },

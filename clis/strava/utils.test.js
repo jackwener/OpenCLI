@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanText, normalizeActivityId, normalizeAthleteId, normalizeClubId, normalizeSegmentId, parseActivityId, parseInlineStats, pickFollowCount, sportFromIcon, } from './utils.js';
+import { cleanText, normalizeActivityId, normalizeAthleteId, normalizeClubId, normalizeSegmentId, parseActivityId, parseInlineStats, parseMoreStats, pickFollowCount, sportFromIcon, } from './utils.js';
 describe('strava utils', () => {
     it('extracts the activity id from every link shape', () => {
         expect(parseActivityId('/activities/19010729205')).toBe('19010729205');
@@ -56,6 +56,44 @@ describe('strava utils', () => {
             { strong: '125 W', full: '125 W Avg Watts' },
         ]);
         expect(stats).toEqual({});
+    });
+    it('maps the ride secondary inline-stats (weighted avg power / total work)', () => {
+        const stats = parseInlineStats([
+            { strong: '171 W', full: '171 W Weighted Avg Power' },
+            { strong: '809 kJ', full: '809 kJ Total Work' },
+        ]);
+        expect(stats).toEqual({
+            weighted_avg_power: '171 W',
+            total_work: '809 kJ',
+        });
+    });
+    it('flattens the More Stats table into avg_/max_ and single keys', () => {
+        const stats = parseMoreStats([
+            { label: 'Speed', avg: '28.8 km/h', max: '53.9 km/h' },
+            { label: 'Heart Rate', avg: '146 bpm', max: '180 bpm' },
+            { label: 'Cadence', avg: '84', max: '118' },
+            { label: 'Power', avg: '148 W', max: '878 W' },
+            { label: 'Calories', avg: '941', max: '' },
+            { label: 'Temperature', avg: '31 ℃', max: '' },
+            { label: 'Elapsed Time', avg: '1:34:50', max: '' },
+        ]);
+        expect(stats).toEqual({
+            avg_speed: '28.8 km/h', max_speed: '53.9 km/h',
+            avg_hr: '146 bpm', max_hr: '180 bpm',
+            avg_cadence: '84', max_cadence: '118',
+            avg_power: '148 W', max_power: '878 W',
+            calories: '941',
+            temperature: '31 ℃',
+            elapsed_time: '1:34:50',
+        });
+    });
+    it('handles run pace rows and drops unknown labels', () => {
+        const stats = parseMoreStats([
+            { label: 'Pace', avg: '5:12 /km', max: '4:01 /km' },
+            { label: 'Relative Effort', avg: '72', max: '' },
+            { label: '', avg: '99', max: '' },
+        ]);
+        expect(stats).toEqual({ avg_pace: '5:12 /km', max_pace: '4:01 /km' });
     });
     it('picks the follower/following count off the link that carries digits', () => {
         const links = [
