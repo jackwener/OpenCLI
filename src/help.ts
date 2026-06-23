@@ -132,7 +132,7 @@ export function wrapCommaList(
  *
  * - `site`: web site adapter (real DNS-style domain, e.g. `www.bilibili.com`)
  * - `app`: desktop app adapter (Electron/osascript, signaled by `domain: 'localhost'`
- *   or other non-DNS string like `'doubao-app'`)
+ *   or other non-DNS/local endpoint string like `'127.0.0.1'` / `'doubao-app'`)
  *
  * Classification is derived from the adapter's `domain` field — no new schema
  * required. Adapters without a `domain` field default to `site` (most are
@@ -140,8 +140,17 @@ export function wrapCommaList(
  */
 export type AdapterKind = 'site' | 'app';
 
+function isLocalIpDomain(domain: string): boolean {
+  if (domain === '::1' || domain === '[::1]') return true;
+  const parts = domain.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(part => /^\d+$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
+    && Number(parts[0]) === 127;
+}
+
 export function classifyAdapter(domain: string | undefined): AdapterKind {
   if (!domain) return 'site';
+  if (isLocalIpDomain(domain)) return 'app';
   return domain.includes('.') ? 'site' : 'app';
 }
 

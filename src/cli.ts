@@ -737,8 +737,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       }
 
       // Table (default) — grouped by adapter kind (app vs site), then by site name.
-      // classifyAdapter() reads the `domain` field: DNS-style domains (containing
-      // a dot) are sites; everything else (localhost, IPs, bare names) is an app.
+      // classifyAdapter() reads the `domain` field: DNS-style domains are sites;
+      // localhost/loopback endpoints and bare app names are apps.
       const appsBySite = new Map<string, CliCommand[]>();
       const sitesBySite = new Map<string, CliCommand[]>();
       for (const cmd of commands) {
