@@ -31822,6 +31822,104 @@
     "sourceFile": "steam/top-sellers.js"
   },
   {
+    "site": "strava",
+    "name": "activities",
+    "description": "Recent activities on a Strava athlete profile",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete ID or profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of activities"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "name",
+      "id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/strava.js",
+    "sourceFile": "strava/strava.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "activity",
+    "description": "Single Strava activity detail (distance, time, elevation, date)",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "distance",
+      "moving_time",
+      "elevation",
+      "date",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/strava.js",
+    "sourceFile": "strava/strava.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "profile",
+    "description": "Strava athlete profile (name, location, follower counts)",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete ID or profile URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "location",
+      "following",
+      "followers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/strava.js",
+    "sourceFile": "strava/strava.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
     "site": "substack",
     "name": "feed",
     "description": "Substack 热门文章 Feed",

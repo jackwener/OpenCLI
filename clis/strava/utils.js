@@ -1,0 +1,99 @@
+// Pure helpers for the Strava adapter.
+// Kept side-effect free (no DOM, no network) so they can be unit-tested in isolation
+// from the raw shapes returned by page.evaluate().
+
+// Strava profile/activity links look like:
+//   /activities/19010729205
+//   /activities/18785265067#3497639849450753438
+//   /activities/9981932437/best-efforts
+// Pull the numeric activity id out of any of these.
+export function parseActivityId(href) {
+    if (!href)
+        return null;
+    const match = String(href).match(/\/activities\/(\d+)/);
+    return match ? match[1] : null;
+}
+
+// Accept a bare id, an /activities/<id> path, or a full activity URL and return the id.
+export function normalizeActivityId(input) {
+    if (input == null)
+        return '';
+    const fromPath = parseActivityId(input);
+    if (fromPath)
+        return fromPath;
+    const digits = String(input).match(/(\d+)/);
+    return digits ? digits[1] : '';
+}
+
+// Accept a bare id, an /athletes/<id> path, or a full profile URL and return the id.
+export function normalizeAthleteId(input) {
+    if (input == null)
+        return '';
+    const fromPath = String(input).match(/\/athletes\/(\d+)/);
+    if (fromPath)
+        return fromPath[1];
+    const digits = String(input).match(/(\d+)/);
+    return digits ? digits[1] : '';
+}
+
+// The recent-activities widget tags each row with an icon class such as
+// "icon-ride" / "icon-run" / "icon-workout". Strip the "icon-" prefix to get the sport.
+// Falls back to the icon's visible text ("Ride", "Run") when no class is present.
+export function sportFromIcon(iconClass, fallbackText) {
+    if (iconClass) {
+        const match = String(iconClass).match(/icon-([a-z0-9]+)/i);
+        if (match)
+            return match[1].toLowerCase();
+    }
+    const text = (fallbackText || '').trim().toLowerCase();
+    return text || '';
+}
+
+// Map a Strava inline-stats label to a stable column key.
+const STAT_LABELS = {
+    'distance': 'distance',
+    'moving time': 'moving_time',
+    'elapsed time': 'elapsed_time',
+    'elevation': 'elevation',
+    'pace': 'pace',
+    'speed': 'speed',
+    'calories': 'calories',
+    'energy output': 'energy_output',
+};
+
+// The activity page renders stats as <li><strong>59.39 km</strong>Distance</li>.
+// page.evaluate() hands us [{ strong: '59.39 km', full: '59.39 km Distance' }, ...];
+// recover a { distance, moving_time, elevation, ... } object keyed by the label.
+export function parseInlineStats(items) {
+    const out = {};
+    for (const item of items || []) {
+        const value = cleanText(item && item.strong);
+        const full = cleanText(item && item.full);
+        if (!value)
+            continue;
+        const label = (full.startsWith(value) ? full.slice(value.length) : full.replace(value, '')).trim();
+        const key = STAT_LABELS[label.toLowerCase()];
+        if (key && !out[key])
+            out[key] = value;
+    }
+    return out;
+}
+
+// The first <a href*="follows?type=following"> is a bare "Following" label; the count
+// lives on the next link. Return the first link text for that type that carries digits.
+export function pickFollowCount(links, type) {
+    for (const link of links || []) {
+        const href = (link && link.href) || '';
+        if (!href.includes('type=' + type))
+            continue;
+        const digits = String((link && link.text) || '').replace(/[^0-9]/g, '');
+        if (digits)
+            return digits;
+    }
+    return '';
+}
+
+export function cleanText(value, max) {
+    const text = (value == null ? '' : String(value)).replace(/\s+/g, ' ').trim();
+    return max ? text.slice(0, max) : text;
+}
