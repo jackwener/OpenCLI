@@ -31891,6 +31891,73 @@
   },
   {
     "site": "strava",
+    "name": "club",
+    "description": "Strava club details (name, sport, location, members)",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "club",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Club ID or club URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "sport",
+      "location",
+      "members",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/club.js",
+    "sourceFile": "strava/club.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "club-activities",
+    "description": "Recent member activities in a Strava club",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "club",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Club ID or club URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of activities"
+      }
+    ],
+    "columns": [
+      "rank",
+      "athlete",
+      "athlete_id",
+      "activity_id",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/club.js",
+    "sourceFile": "strava/club.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
     "name": "clubs",
     "description": "Clubs an athlete belongs to",
     "access": "read",
@@ -31926,6 +31993,127 @@
   },
   {
     "site": "strava",
+    "name": "comment",
+    "description": "Comment on a Strava activity (requires --execute)",
+    "access": "write",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "activity",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment text (@ to mention)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually post the comment (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "activity_id",
+      "comment_text"
+    ],
+    "type": "js",
+    "modulePath": "strava/comment.js",
+    "sourceFile": "strava/comment.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "comment-delete",
+    "description": "Delete one of your comments on a Strava activity (requires --execute)",
+    "access": "write",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "activity",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      },
+      {
+        "name": "comment-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Comment ID (from `strava comments`)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete the comment (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "activity_id",
+      "comment_id"
+    ],
+    "type": "js",
+    "modulePath": "strava/comment.js",
+    "sourceFile": "strava/comment.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "comments",
+    "description": "Comments on a Strava activity",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "activity",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of comments"
+      }
+    ],
+    "columns": [
+      "rank",
+      "comment_id",
+      "author",
+      "athlete_id",
+      "text",
+      "time"
+    ],
+    "type": "js",
+    "modulePath": "strava/comment.js",
+    "sourceFile": "strava/comment.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
     "name": "feed",
     "description": "Your Strava dashboard (following) activity feed",
     "access": "read",
@@ -31951,6 +32139,75 @@
     "type": "js",
     "modulePath": "strava/feed.js",
     "sourceFile": "strava/feed.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "join",
+    "description": "Join a Strava club (requires --execute)",
+    "access": "write",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "club",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Club ID or club URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually join the club (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "club_id"
+    ],
+    "type": "js",
+    "modulePath": "strava/club.js",
+    "sourceFile": "strava/club.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "kudo",
+    "description": "Give kudos to a Strava activity (requires --execute)",
+    "access": "write",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "activity",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually give the kudos (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "activity_id",
+      "kudos_count"
+    ],
+    "type": "js",
+    "modulePath": "strava/kudo.js",
+    "sourceFile": "strava/kudo.js",
     "navigateBefore": "https://www.strava.com"
   },
   {
@@ -32017,6 +32274,36 @@
   },
   {
     "site": "strava",
+    "name": "map",
+    "description": "Route / map resources (GPX export URLs) for a Strava activity",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "activity",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      }
+    ],
+    "columns": [
+      "activity_id",
+      "has_map",
+      "gpx_url",
+      "original_url",
+      "exportable",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/map.js",
+    "sourceFile": "strava/map.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
     "name": "profile",
     "description": "Strava athlete profile (name, location, follower counts)",
     "access": "read",
@@ -32043,6 +32330,42 @@
     "type": "js",
     "modulePath": "strava/strava.js",
     "sourceFile": "strava/strava.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "prs",
+    "description": "An athlete's personal records / best efforts",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete ID or profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of records"
+      }
+    ],
+    "columns": [
+      "rank",
+      "label",
+      "value",
+      "activity_id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/prs.js",
+    "sourceFile": "strava/prs.js",
     "navigateBefore": "https://www.strava.com"
   },
   {

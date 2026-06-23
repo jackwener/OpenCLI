@@ -8,37 +8,30 @@ import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 async function verifyStravaIdentity(page) {
     await page.goto('https://www.strava.com/dashboard');
     await page.wait(2);
-    const result = await page.evaluate(`(() => {
-    if (location.pathname.startsWith('/login')) {
-      return { authError: true };
-    }
-    const out = { id: '', name: '' };
+    const base = await page.evaluate(`(() => {
+    if (location.pathname.startsWith('/login')) return { authError: true };
+    let id = '';
     const current = (typeof window !== 'undefined' && window.currentAthlete) || null;
-    if (current) {
-      out.id = String(current.id || current.athleteId || '');
-      out.name = (current.display_name || current.name || [current.firstname, current.lastname].filter(Boolean).join(' ') || '').trim();
-    }
-    if (!out.id) {
+    if (current && current.id) id = String(current.id);
+    if (!id) {
       const link = [...document.querySelectorAll('a[href*="/athletes/"]')]
         .map((a) => (a.getAttribute('href') || '').match(/\\/athletes\\/(\\d+)(?:$|[/?])/))
         .find(Boolean);
-      if (link) out.id = link[1];
+      if (link) id = link[1];
     }
-    if (!out.name) {
-      const avatar = document.querySelector('[data-react-class="AvatarWrapper"]');
-      if (avatar) {
-        try { out.name = (JSON.parse(avatar.getAttribute('data-react-props') || '{}').name || '').trim(); } catch (e) { /* ignore */ }
-      }
-    }
-    return out;
+    return { id };
   })()`);
-    if (!result || result.authError || !result.id) {
+    if (!base || base.authError || !base.id) {
         throw new AuthRequiredError('strava.com', 'Not logged into strava.com. Sign in via the bound Chrome tab, then retry.');
     }
+    // window.currentAthlete only carries the id, so read the full name off the profile h1.
+    await page.goto(`https://www.strava.com/athletes/${base.id}`);
+    await page.wait(1);
+    const name = await page.evaluate(`(() => (document.querySelector('h1')?.textContent || '').replace(/\\s+/g, ' ').trim())()`);
     return {
-        athlete_id: result.id,
-        name: result.name || '',
-        url: `https://www.strava.com/athletes/${result.id}`,
+        athlete_id: base.id,
+        name: name || '',
+        url: `https://www.strava.com/athletes/${base.id}`,
     };
 }
 registerSiteAuthCommands({

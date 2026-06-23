@@ -1,6 +1,7 @@
 // Pure helpers for the Strava adapter.
 // Kept side-effect free (no DOM, no network) so they can be unit-tested in isolation
 // from the raw shapes returned by page.evaluate().
+import { ArgumentError } from '@jackwener/opencli/errors';
 
 // Strava profile/activity links look like:
 //   /activities/19010729205
@@ -118,4 +119,12 @@ export function pickFollowCount(links, type) {
 export function cleanText(value, max) {
     const text = (value == null ? '' : String(value)).replace(/\s+/g, ' ').trim();
     return max ? text.slice(0, max) : text;
+}
+
+// Write commands have real side effects (they notify other athletes / mutate clubs),
+// so they refuse to run unless the caller passes --execute. Returns nothing; throws on guard.
+export function requireExecute(kwargs, action) {
+    if (!kwargs || kwargs.execute !== true) {
+        throw new ArgumentError(`Refusing to ${action} without --execute. Re-run with --execute to actually perform this write.`);
+    }
 }
