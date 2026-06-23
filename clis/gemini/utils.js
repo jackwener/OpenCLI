@@ -126,6 +126,21 @@ export function parseGeminiConversationUrl(value) {
         return null;
     }
 }
+export function parseGeminiConversationId(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw)
+        return null;
+    try {
+        const url = new URL(raw);
+        if (url.hostname !== GEMINI_DOMAIN && !url.hostname.endsWith(`.${GEMINI_DOMAIN}`))
+            return null;
+        const match = url.pathname.match(/^\/app\/([^/]+)\/?$/);
+        return match ? match[1] : null;
+    }
+    catch {
+        return null;
+    }
+}
 export function normalizeGeminiTitle(value) {
     return value.replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -1095,6 +1110,26 @@ export async function getCurrentGeminiUrl(page) {
         return url;
     return GEMINI_APP_URL;
 }
+export async function waitForGeminiConversationId(page, timeoutSeconds) {
+    const maxPolls = Math.max(1, Math.ceil(timeoutSeconds));
+    for (let index = 0; index < maxPolls; index += 1) {
+        const url = await page.evaluate(currentUrlScript()).catch(() => '');
+        const id = parseGeminiConversationId(url);
+        if (id)
+            return id;
+        await page.wait(1);
+    }
+    return null;
+}
+export async function ensureGeminiConversation(page, conversationId) {
+    if (!conversationId)
+        return;
+    const url = await page.evaluate(currentUrlScript()).catch(() => '');
+    if (parseGeminiConversationId(url) === conversationId)
+        return;
+    await page.goto(`${GEMINI_APP_URL}/${conversationId}`, { waitUntil: 'load', settleMs: 2500 });
+    await page.wait(1);
+}
 export async function openGeminiToolsMenu(page) {
     await ensureGeminiPage(page);
     const opened = await page.evaluate(openGeminiToolsMenuScript());
@@ -1856,8 +1891,11 @@ export const __test__ = {
     submitComposerScript,
     insertComposerTextFallbackScript,
 };
-export async function getGeminiVisibleImageUrls(page) {
-    await ensureGeminiPage(page);
+export async function getGeminiVisibleImageUrls(page, conversationId) {
+    if (conversationId)
+        await ensureGeminiConversation(page, conversationId);
+    else
+        await ensureGeminiPage(page);
     return await page.evaluate(`
     (() => {
       const isVisible = (el) => {
@@ -1868,7 +1906,28 @@ export async function getGeminiVisibleImageUrls(page) {
         return rect.width > 32 && rect.height > 32;
       };
 
-      const imgs = Array.from(document.querySelectorAll('main img')).filter((img) => img instanceof HTMLImageElement && isVisible(img));
+      const collect = (root) => Array.from(root.querySelectorAll('img'))
+        .filter((img) => img instanceof HTMLImageElement && isVisible(img));
+
+      // Prefer the latest response turn so we don't pick up images from an
+      // earlier turn. Gemini's DOM varies, so fall back to the whole main
+      // region whenever the scoped turn yields nothing (never regress to zero).
+      const main = document.querySelector('main') || document.body;
+      const turnSelectors = [
+        '[class*="conversation-turn"]',
+        '[class*="response-container"]',
+        '[class*="model-response"]',
+        '[class*="message"]',
+      ];
+      let imgs = [];
+      for (const selector of turnSelectors) {
+        const nodes = Array.from(document.querySelectorAll('main ' + selector)).filter(isVisible);
+        if (nodes.length) {
+          const scoped = collect(nodes[nodes.length - 1]);
+          if (scoped.length) { imgs = scoped; break; }
+        }
+      }
+      if (!imgs.length) imgs = collect(main);
       const urls = [];
       const seen = new Set();
 
@@ -1888,7 +1947,7 @@ export async function getGeminiVisibleImageUrls(page) {
     })()
   `);
 }
-export async function waitForGeminiImages(page, beforeUrls, timeoutSeconds) {
+export async function waitForGeminiImages(page, beforeUrls, timeoutSeconds, conversationId) {
     const beforeSet = new Set(beforeUrls);
     const pollIntervalSeconds = 3;
     const maxPolls = Math.max(1, Math.ceil(timeoutSeconds / pollIntervalSeconds));
@@ -1896,7 +1955,7 @@ export async function waitForGeminiImages(page, beforeUrls, timeoutSeconds) {
     let stableCount = 0;
     for (let index = 0; index < maxPolls; index += 1) {
         await page.wait(index === 0 ? 2 : pollIntervalSeconds);
-        const urls = (await getGeminiVisibleImageUrls(page)).filter((url) => !beforeSet.has(url));
+        const urls = (await getGeminiVisibleImageUrls(page, conversationId)).filter((url) => !beforeSet.has(url));
         if (urls.length === 0)
             continue;
         const key = urls.join('\n');
@@ -1912,8 +1971,11 @@ export async function waitForGeminiImages(page, beforeUrls, timeoutSeconds) {
     }
     return lastUrls;
 }
-export async function exportGeminiImages(page, urls) {
-    await ensureGeminiPage(page);
+export async function exportGeminiImages(page, urls, conversationId) {
+    if (conversationId)
+        await ensureGeminiConversation(page, conversationId);
+    else
+        await ensureGeminiPage(page);
     const urlsJson = JSON.stringify(urls);
     return await page.evaluate(`
     (async (targetUrls) => {

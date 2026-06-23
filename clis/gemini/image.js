@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { GEMINI_DOMAIN, exportGeminiImages, getGeminiVisibleImageUrls, sendGeminiMessage, startNewGeminiChat, waitForGeminiImages } from './utils.js';
+import { GEMINI_APP_URL, GEMINI_DOMAIN, exportGeminiImages, getGeminiVisibleImageUrls, sendGeminiMessage, startNewGeminiChat, waitForGeminiConversationId, waitForGeminiImages } from './utils.js';
 function extFromMime(mime) {
     if (mime.includes('png'))
         return '.png';
@@ -18,6 +18,14 @@ function normalizeBooleanFlag(value) {
         return value;
     const normalized = String(value ?? '').trim().toLowerCase();
     return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+}
+function expandHome(value) {
+    const raw = String(value ?? '');
+    if (raw === '~')
+        return os.homedir();
+    if (raw.startsWith('~/'))
+        return path.join(os.homedir(), raw.slice(2));
+    return raw;
 }
 function displayPath(filePath) {
     const home = os.homedir();
@@ -52,7 +60,13 @@ export const imageCommand = cli({
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
+    // Ephemeral so concurrent `gemini image` processes each get an isolated
+    // tab/chat instead of fighting over one shared `site:gemini` tab. Combined
+    // with the chat-id anchoring below, every run grabs the image from its own
+    // conversation. Note: Gemini's backend serializes image generation per
+    // account, so truly simultaneous launches still collide (one stalls) —
+    // stagger concurrent runs by ~20-30s to let each generation land cleanly.
+    siteSession: 'ephemeral',
     navigateBefore: false,
     defaultFormat: 'plain',
     args: [
@@ -68,31 +82,33 @@ export const imageCommand = cli({
         const prompt = kwargs.prompt;
         const ratio = normalizeRatio(String(kwargs.rt ?? '1:1'));
         const style = String(kwargs.st ?? '').trim();
-        const outputDir = kwargs.op || path.join(os.homedir(), 'tmp', 'gemini-images');
+        const outputDir = expandHome(kwargs.op || path.join(os.homedir(), 'tmp', 'gemini-images'));
         const timeout = kwargs.timeout;
         if (!Number.isInteger(timeout) || timeout < 1) {
             throw new ArgumentError('--timeout must be a positive integer (seconds)');
         }
-        const startFresh = true;
         const skipDownloadRaw = kwargs.sd;
         const skipDownload = skipDownloadRaw === '' || skipDownloadRaw === true || normalizeBooleanFlag(skipDownloadRaw);
         const effectivePrompt = buildImagePrompt(prompt, {
             ratio,
             style: style || undefined,
         });
-        if (startFresh)
-            await startNewGeminiChat(page);
+        await startNewGeminiChat(page);
         const beforeUrls = await getGeminiVisibleImageUrls(page);
         await sendGeminiMessage(page, effectivePrompt);
-        const urls = await waitForGeminiImages(page, beforeUrls, timeout);
-        const link = await currentGeminiLink(page);
+        // Anchor every subsequent image scan to the chat this generation created
+        // so a concurrent `gemini image` run can't swap the visible chat out from
+        // under us and make us grab its image.
+        const conversationId = await waitForGeminiConversationId(page, Math.min(30, timeout));
+        const urls = await waitForGeminiImages(page, beforeUrls, timeout, conversationId);
+        const link = conversationId ? `${GEMINI_APP_URL}/${conversationId}` : await currentGeminiLink(page);
         if (!urls.length) {
             return [{ status: '⚠️ no-images', file: '📁 -', link: `🔗 ${link}` }];
         }
         if (skipDownload) {
             return [{ status: '🎨 generated', file: '📁 -', link: `🔗 ${link}` }];
         }
-        const assets = await exportGeminiImages(page, urls);
+        const assets = await exportGeminiImages(page, urls, conversationId);
         if (!assets.length) {
             return [{ status: '⚠️ export-failed', file: '📁 -', link: `🔗 ${link}` }];
         }
@@ -109,3 +125,4 @@ export const imageCommand = cli({
         return results;
     },
 });
+export const __test__ = { expandHome };
