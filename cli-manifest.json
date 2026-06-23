@@ -3546,6 +3546,12 @@
         "default": false,
         "required": false,
         "help": "跳过付费内容预检直接下载（已购买/已充电/已开通会员时用）"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频下载该集；缺省下载默认 P1"
       }
     ],
     "columns": [
@@ -3993,6 +3999,12 @@
         "type": "str",
         "required": false,
         "help": "字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频取该集字幕；缺省取默认 P1"
       }
     ],
     "columns": [
@@ -4125,6 +4137,12 @@
         "required": true,
         "positional": true,
         "help": "BV ID, video URL, or b23.tv short link"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频指定某一集，title/cid 返回该集；缺省取整集默认（P1）"
       }
     ],
     "columns": [

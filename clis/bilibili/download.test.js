@@ -117,4 +117,27 @@ describe('bilibili download paid-content pre-check', () => {
     expect(rows[0].status).toBe('success');
     expect(mockDownloadMedia).toHaveBeenCalledTimes(1);
   });
+
+  it('targets the selected 分P part URL (?p=N) when --page is given', async () => {
+    mockApiGet.mockResolvedValueOnce(viewPayload());
+
+    await command.func(page, { bvid: 'BV1h6V16SEpg', output: './o', quality: 'best', force: false, page: '3' });
+
+    // goto 与 yt-dlp 下载 URL 都应带 ?p=3
+    expect(page.goto).toHaveBeenCalledWith('https://www.bilibili.com/video/BV1h6V16SEpg?p=3');
+    const job = mockDownloadMedia.mock.calls[0][0][0];
+    expect(job.url).toBe('https://www.bilibili.com/video/BV1h6V16SEpg?p=3');
+    expect(job.filename).toContain('_p3_');
+  });
+
+  it('downloads default P1 (no ?p=) when --page is omitted', async () => {
+    mockApiGet.mockResolvedValueOnce(viewPayload());
+
+    await command.func(page, { bvid: 'BV1xx411c7mD', output: './o', quality: 'best', force: false });
+
+    expect(page.goto).toHaveBeenCalledWith('https://www.bilibili.com/video/BV1xx411c7mD');
+    const job = mockDownloadMedia.mock.calls[0][0][0];
+    expect(job.url).toBe('https://www.bilibili.com/video/BV1xx411c7mD');
+    expect(job.filename).not.toContain('_p');
+  });
 });

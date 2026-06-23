@@ -47,6 +47,35 @@ export function resolveBvid(input) {
         req.setTimeout(4000, () => { req.destroy(); reject(new Error(`Timeout resolving short URL: ${trimmed}`)); });
     });
 }
+/**
+ * 解析 --page 选集序号（分P / 视频选集）。
+ * 缺省/空串 → null（不下钻，保持整集默认 P1 旧行为）。
+ * 非正整数 → 抛 CommandExecutionError（结构化报错，不静默吞）。
+ */
+export function parsePageArg(value) {
+    if (value == null || String(value).trim() === '') return null;
+    const n = Number(String(value).trim());
+    if (!Number.isInteger(n) || n < 1) {
+        throw new CommandExecutionError(`--page 必须是从 1 开始的正整数，收到：${value}`);
+    }
+    return n;
+}
+
+/**
+ * 从 view API 的 data.pages 数组取第 N 集（1-based）。
+ * 优先按 page 字段匹配，回退到下标 N-1。越界抛 CommandExecutionError。
+ * 返回该集 raw 对象（含 cid / part(分集标题) / page / duration）。
+ */
+export function selectVideoPart(viewData, pageNum) {
+    const pages = Array.isArray(viewData?.pages) ? viewData.pages : [];
+    const part = pages.find((p) => Number(p?.page) === pageNum) ?? pages[pageNum - 1];
+    if (!part || part.cid == null) {
+        const total = pages.length || viewData?.videos || 1;
+        throw new CommandExecutionError(`分P 序号超出范围：p=${pageNum}（该视频共 ${total} 集）`);
+    }
+    return part;
+}
+
 const MIXIN_KEY_ENC_TAB = [
     46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
     33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40,
