@@ -1,0 +1,116 @@
+{
+ "baseData": {
+  "seriesname": "宝马X5",
+  "brandName": "宝马",
+  "levelname": "中大型SUV",
+  "pricerange": "59.80-74.80",
+  "average": "4.41",
+  "seriesAverage": "4.41",
+  "seriesScoreList": [
+   {
+    "typeName": "空间",
+    "typeKey": 3,
+    "score": 4.91,
+    "rank": 0
+   },
+   {
+    "typeName": "驾驶感受",
+    "typeKey": 4,
+    "score": 4.75,
+    "rank": 0
+   },
+   {
+    "typeName": "油耗",
+    "typeKey": 6,
+    "score": 4.02,
+    "rank": 0
+   },
+   {
+    "typeName": "外观",
+    "typeKey": 8,
+    "score": 4.75,
+    "rank": 0
+   },
+   {
+    "typeName": "内饰",
+    "typeKey": 9,
+    "score": 4.17,
+    "rank": 0
+   },
+   {
+    "typeName": "性价比",
+    "typeKey": 15,
+    "score": 4.22,
+    "rank": 0
+   },
+   {
+    "typeName": "配置",
+    "typeKey": 40,
+    "score": 4.02,
+    "rank": 0
+   }
+  ],
+  "cmpSeriesScore": [
+   {
+    "seriesId": 8449,
+    "newCarPPH": 0,
+    "newCarPPHUserCount": 0,
+    "seriesName": "奥迪E7X",
+    "score": "4.59",
+    "maxItemScore": "4.90",
+    "maxItemName": "动力",
+    "reliabilityPPH": 0,
+    "reliabilityPPHUserCount": 0
+   },
+   {
+    "seriesId": 8529,
+    "newCarPPH": 0,
+    "newCarPPHUserCount": 0,
+    "seriesName": "问界M6",
+    "score": "4.58",
+    "maxItemScore": "4.80",
+    "maxItemName": "空间",
+    "reliabilityPPH": 0,
+    "reliabilityPPHUserCount": 0
+   },
+   {
+    "seriesId": 8183,
+    "newCarPPH": 42,
+    "newCarPPHUserCount": 33,
+    "seriesName": "理想i6",
+    "score": "4.57",
+    "maxItemScore": "4.82",
+    "maxItemName": "空间",
+    "reliabilityPPH": 0,
+    "reliabilityPPHUserCount": 0
+   },
+   {
+    "seriesId": 8171,
+    "newCarPPH": 123,
+    "newCarPPHUserCount": 84,
+    "seriesName": "钛7",
+    "score": "4.52",
+    "maxItemScore": "4.70",
+    "maxItemName": "空间",
+    "reliabilityPPH": 0,
+    "reliabilityPPHUserCount": 0
+   },
+   {
+    "seriesId": 6643,
+    "newCarPPH": 47,
+    "newCarPPHUserCount": 53,
+    "seriesName": "问界M7",
+    "score": "4.51",
+    "maxItemScore": "4.68",
+    "maxItemName": "空间",
+    "reliabilityPPH": 0,
+    "reliabilityPPHUserCount": 0
+   }
+  ],
+  "seriesid": 6548
+ },
+ "qualityData": {
+  "pph": 136,
+  "userCount": 53
+ }
+}
