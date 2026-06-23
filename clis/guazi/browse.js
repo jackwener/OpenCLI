@@ -11,7 +11,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     BROWSE_COLUMNS,
-    EmptyResultError,
+    CommandExecutionError,
     GUAZI_M_BASE,
     clean,
     guaziFetch,
@@ -85,9 +85,9 @@ cli({
         const html = await guaziFetch(`/${code}/buy/`, `browse ${code}`);
         const rows = parseListings(html, limit);
         if (rows.length === 0) {
-            throw new EmptyResultError(
+            throw new CommandExecutionError(
                 `guazi browse ${code}`,
-                'No SSR listings found — Guazi may have changed its mobile layout, or the city code is wrong.',
+                'No SSR listing anchors found on a successful Guazi mobile page; the mobile layout may have changed.',
             );
         }
         return rows;
