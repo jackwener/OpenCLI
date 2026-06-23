@@ -15,6 +15,8 @@ import {
     GUAZI_M_BASE,
     clean,
     guaziFetch,
+    requireStableId,
+    requireText,
     requireLimit,
     resolveCityCode,
 } from './utils.js';
@@ -32,13 +34,12 @@ export function parseListings(html, limit) {
     for (const a of anchors) {
         const idM = a.match(/car-detail\/c(\d+)\.html/);
         if (!idM) continue;
-        const clueId = idM[1];
+        const clueId = requireStableId(idM[1], `guazi listing row ${rows.length + 1}`);
         if (seen.has(clueId)) continue;
         seen.add(clueId);
 
         const altM = a.match(/<img[^>]+alt="([^"]+)"/);
-        const title = clean(altM && altM[1]);
-        if (!title) continue;
+        const title = requireText(altM && altM[1], `guazi listing ${clueId} title`);
 
         const text = clean(a.replace(/<[^>]+>/g, ' '));
         const priceM = text.match(/(\d+(?:\.\d+)?)\s*万\s*首付/);

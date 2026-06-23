@@ -17,6 +17,9 @@ import {
     dcdFetchPageProps,
     normalizeSeriesId,
     parseScore,
+    requireArray,
+    requireStableId,
+    requireText,
     requireLimit,
     snippet,
 } from './utils.js';
@@ -26,23 +29,23 @@ import {
  */
 export function parseKoubei(reviewListData, limit) {
     const list = reviewListData?.review_list;
-    if (!Array.isArray(list)) return [];
+    requireArray(list, 'dongchedi reviewListData.review_list');
     const rows = [];
-    for (const it of list) {
+    for (const [index, it] of list.entries()) {
         const buy = it?.buy_car_info || {};
         const carName = clean(buy.car_name || it?.car_name);
         const year = buy.year || it?.year;
         const car = [year ? String(year) : '', carName].filter(Boolean).join(' ');
-        const gid = it?.gid_str || it?.gid;
+        const gid = requireStableId(it?.gid_str || it?.gid, `dongchedi koubei row ${index + 1}`);
         rows.push({
             rank: rows.length + 1,
-            user: clean(it?.user_info?.name),
+            user: requireText(it?.user_info?.name, `dongchedi koubei row ${index + 1} user`),
             car,
             score: parseScore(it?.score_info?.score),
             likes: Number.isFinite(Number(it?.digg_count_en)) ? Number(it.digg_count_en) : 0,
             comments: Number.isFinite(Number(it?.comment_count_en)) ? Number(it.comment_count_en) : 0,
-            content: snippet(it?.content, 180),
-            url: gid ? `${DCD_BASE}/ugc/article/${gid}` : '',
+            content: snippet(requireText(it?.content, `dongchedi koubei row ${index + 1} content`), 180),
+            url: `${DCD_BASE}/ugc/article/${gid}`,
         });
         if (rows.length >= limit) break;
     }

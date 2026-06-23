@@ -80,6 +80,11 @@ describe('guazi adapter — parsers against frozen fixtures', () => {
         expect(parseListings('<html>nothing</html>', 40)).toEqual([]);
     });
 
+    it('parseListings rejects malformed listing cards instead of silently dropping them', () => {
+        expect(() => parseListings('<a href="/car-detail/c123.html"><span>6.8 万 首付 1 万</span></a>', 40))
+            .toThrow(/stable text value/);
+    });
+
     it('parseCarDetail builds a field/value sheet with price + specs', () => {
         const rows = parseCarDetail(DETAIL, '162563585115789');
         const map = Object.fromEntries(rows.map((r) => [r.field, r.value]));

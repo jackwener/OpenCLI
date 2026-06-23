@@ -14,7 +14,9 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     AH_KOUBEI_BASE,
     SCORE_COLUMNS,
+    CommandExecutionError,
     EmptyResultError,
+    assertPlainObject,
     ahFetch,
     clean,
     extractPageProps,
@@ -31,7 +33,7 @@ function num(v) {
  * Pure parser: koubei pageProps → field/value rows. Exported for unit tests.
  */
 export function parseScore(pp, seriesId) {
-    const bd = (pp && pp.baseData) || {};
+    const bd = assertPlainObject(pp?.baseData, 'autohome baseData');
     const qd = (pp && pp.qualityData) || {};
 
     const competitors = (Array.isArray(bd.cmpSeriesScore) ? bd.cmpSeriesScore : [])
@@ -83,7 +85,7 @@ cli({
         const html = await ahFetch(`${AH_KOUBEI_BASE}/${seriesId}`, `score ${seriesId}`);
         const pp = extractPageProps(html);
         if (!pp) {
-            throw new EmptyResultError(
+            throw new CommandExecutionError(
                 `autohome score ${seriesId}`,
                 'No koubei data found — the series id may be wrong, or Autohome changed its page.',
             );

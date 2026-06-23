@@ -15,9 +15,13 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     AH_BASE,
     BRAND_COLUMNS,
+    CommandExecutionError,
     EmptyResultError,
     ahFetch,
     clean,
+    requireLimit,
+    requireStableId,
+    requireText,
     resolveBrandInitial,
 } from './utils.js';
 
@@ -25,13 +29,17 @@ import {
  * Pure parser: catalog HTML + brand name → series rows. Exported for tests.
  */
 export function parseBrandSeries(html, brandName, limit) {
+    const source = String(html || '');
+    const blocks = source.match(/<dl[^>]*>[\s\S]*?<\/dl>/g);
+    if (!blocks) {
+        throw new CommandExecutionError('autohome brand catalog returned an unexpected HTML shape; expected brand <dl> blocks.');
+    }
     const want = String(brandName || '').replace(/[·\s]/g, '');
 
     // No brand name (single-letter catalog mode): scan the whole page.
     // Otherwise isolate the <dl> block whose <dt> names the brand.
     let block = html;
     if (want) {
-        const blocks = String(html || '').match(/<dl[^>]*>[\s\S]*?<\/dl>/g) || [];
         block = null;
         for (const b of blocks) {
             const nameM = b.match(/<dt>[\s\S]*?<div>\s*<a[^>]*>([^<]+)<\/a>/);
@@ -48,11 +56,10 @@ export function parseBrandSeries(html, brandName, limit) {
     const liRe = /<li id="s(\d+)">([\s\S]*?)<\/li>/g;
     let m;
     while ((m = liRe.exec(block)) !== null) {
-        const seriesId = m[1];
+        const seriesId = requireStableId(m[1], `autohome brand row ${rows.length + 1}`);
         const li = m[2];
         const nameM = li.match(/<h4>\s*<a[^>]*>([^<]+)<\/a>/) || li.match(/<a[^>]*>([^<]+)<\/a>/);
-        const name = clean(nameM && nameM[1]);
-        if (!name) continue;
+        const name = requireText(nameM && nameM[1], `autohome brand row ${rows.length + 1} name`);
         const priceM = li.match(/指导价[：:]\s*<[^>]*>([^<]+)</) || li.match(/指导价[：:]\s*([^<]+)</);
         let price = clean(priceM && priceM[1]);
         if (/暂无|未上市|停售/.test(price)) price = '';
@@ -83,8 +90,7 @@ cli({
     func: async (args) => {
         const brand = String(args.brand || '').trim();
         const initial = resolveBrandInitial(brand);
-        const limitRaw = args.limit == null ? 60 : Number(args.limit);
-        const limit = Number.isInteger(limitRaw) && limitRaw > 0 && limitRaw <= 120 ? limitRaw : 60;
+        const limit = requireLimit(args.limit, 60, 120);
 
         const html = await ahFetch(
             `${AH_BASE}/grade/carhtml/${initial}.html`,

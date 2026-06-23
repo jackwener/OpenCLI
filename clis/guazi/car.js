@@ -15,6 +15,7 @@ import {
     clean,
     guaziFetch,
     normalizeClueId,
+    requireText,
 } from './utils.js';
 
 /** Spec/condition labels worth surfacing, in display order. */
@@ -54,7 +55,7 @@ export function parseCarDetail(html, clueId) {
 
     const fields = [
         ['clue_id', String(clueId)],
-        ['title', cleanTitle(rawTitle)],
+        ['title', rawTitle ? cleanTitle(rawTitle) : ''],
         ['tag', tagM ? tagM[1] : ''],
         ['price', price],
         ['reg_date', labels['首次上牌'] || ''],
@@ -101,6 +102,9 @@ cli({
                 'No listing detail found — the car may have been sold/removed, or the id is wrong.',
             );
         }
+        const map = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+        requireText(map.title, `guazi car ${clueId} title`);
+        requireText(map.price, `guazi car ${clueId} price`);
         return rows;
     },
 });

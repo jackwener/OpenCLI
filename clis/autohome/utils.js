@@ -94,6 +94,34 @@ export function clean(s) {
     return String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 }
 
+export function requireLimit(value, def, max) {
+    const raw = value == null || value === '' ? def : value;
+    const n = typeof raw === 'number' ? raw : Number(String(raw).trim());
+    if (!Number.isInteger(n) || n < 1 || n > max) {
+        throw new ArgumentError(`limit must be an integer between 1 and ${max}`);
+    }
+    return n;
+}
+
+export function requireStableId(value, label) {
+    const id = String(value ?? '').trim();
+    if (!/^\d+$/.test(id)) throw new CommandExecutionError(`${label} did not include a stable numeric id.`);
+    return id;
+}
+
+export function requireText(value, label) {
+    const text = clean(value);
+    if (!text) throw new CommandExecutionError(`${label} did not include a stable text value.`);
+    return text;
+}
+
+export function assertPlainObject(value, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CommandExecutionError(`${label} returned an unexpected payload shape; expected an object.`);
+    }
+    return value;
+}
+
 /** Fetch an Autohome page as text. The grade + koubei pages are UTF-8. */
 export async function ahFetch(url, contextHint) {
     let resp;

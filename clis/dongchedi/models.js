@@ -7,12 +7,15 @@
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     MODELS_COLUMNS,
     clean,
     dcdFetchPageProps,
     normalizeSeriesId,
+    requireArray,
+    requireStableId,
+    requireText,
 } from './utils.js';
 
 /** Normalize a price field that may be a number (59.8) or a string ("51.00万"). */
@@ -28,21 +31,23 @@ function priceStr(v) {
  */
 export function parseModels(carModelsData, status) {
     const tabs = carModelsData?.tab_list;
-    if (!Array.isArray(tabs) || tabs.length === 0) return [];
+    requireArray(tabs, 'dongchedi carModelsData.tab_list');
+    if (tabs.length === 0) return [];
     const wantKey = status === 'offline' ? 'offline' : 'online_all';
     const tab = tabs.find((t) => t?.tab_key === wantKey)
         || (status === 'offline' ? tabs.find((t) => /停售/.test(t?.tab_text || '')) : tabs[0]);
+    if (!tab) return [];
     const data = tab?.data;
-    if (!Array.isArray(data)) return [];
+    requireArray(data, `dongchedi models ${status} data`);
 
     const rows = [];
-    for (const d of data) {
+    for (const [index, d] of data.entries()) {
         const info = d?.info || {};
         const carId = info.car_id ?? info.id;
         if (!carId) continue; // skip model-year header rows
         rows.push({
-            car_id: String(carId),
-            name: clean(info.name || info.car_name),
+            car_id: requireStableId(carId, `dongchedi models row ${index + 1}`),
+            name: requireText(info.name || info.car_name, `dongchedi models row ${index + 1} name`),
             year: info.year != null ? String(info.year) : '',
             official_price: priceStr(info.official_price),
             dealer_price: priceStr(info.dealer_price),
@@ -74,9 +79,11 @@ cli({
         const pp = await dcdFetchPageProps(`/auto/series/${seriesId}`, `models ${seriesId}`);
         const rows = parseModels(pp.carModelsData, status);
         if (rows.length === 0) {
-            throw new EmptyResultError(
+            const message = status === 'offline' ? 'No discontinued trims listed for this series.' : 'No on-sale trims listed for this series.';
+            const ErrorCtor = status === 'offline' ? EmptyResultError : CommandExecutionError;
+            throw new ErrorCtor(
                 `dongchedi models ${seriesId} (${status})`,
-                status === 'offline' ? 'No discontinued trims listed for this series.' : 'No on-sale trims listed for this series.',
+                message,
             );
         }
         return rows;

@@ -8,9 +8,10 @@
  */
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     SPECS_COLUMNS,
+    assertPlainObject,
     clean,
     dcdFetchPageProps,
     normalizeSeriesId,
@@ -54,7 +55,7 @@ function summarizeAirbags(airbagArr) {
  * Pure parser: overviewData → field/value rows. Exported for unit tests.
  */
 export function parseSpecs(overviewData, seriesId) {
-    const ov = overviewData || {};
+    const ov = assertPlainObject(overviewData, 'dongchedi overviewData');
     const space0 = (Array.isArray(ov.space) && ov.space[0]) || {};
     const power = ov.power || {};
     const powerItems = power.power_item || [];
@@ -104,7 +105,7 @@ cli({
         // Every series has at least dimensions/power; an all-empty sheet means
         // the overview block was absent (layout drift) — don't emit a blank sheet.
         if (rows.every((r) => r.field === 'series_id' || !r.value)) {
-            throw new EmptyResultError(
+            throw new CommandExecutionError(
                 `dongchedi specs ${seriesId}`,
                 'No spec overview found for this series (layout may have changed).',
             );

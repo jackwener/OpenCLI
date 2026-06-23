@@ -11,10 +11,12 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import {
     DCD_BASE,
     SERIES_COLUMNS,
+    assertPlainObject,
     clean,
     dcdFetchPageProps,
     normalizeSeriesId,
     parseScore,
+    requireText,
 } from './utils.js';
 
 /** Count on-sale trims (info.car_id present) in the carModelsData tabs. */
@@ -39,7 +41,7 @@ function formatRank(section) {
  * Pure parser: series pageProps → field/value rows. Exported for unit tests.
  */
 export function parseSeries(pp, seriesId) {
-    const head = pp.seriesHomeHead || {};
+    const head = assertPlainObject(pp?.seriesHomeHead, 'dongchedi seriesHomeHead');
     const score = pp.scoreSimpleInfo || {};
     const rank = pp.rankData || {};
 
@@ -49,8 +51,8 @@ export function parseSeries(pp, seriesId) {
 
     const fields = [
         ['series_id', seriesId],
-        ['name', clean(head.series_name)],
-        ['brand', clean(head.brand_name)],
+        ['name', requireText(head.series_name, 'dongchedi series name')],
+        ['brand', requireText(head.brand_name, 'dongchedi series brand')],
         ['sub_brand', clean(head.sub_brand_name)],
         ['official_price', head.has_official_price ? clean(head.official_price) : ''],
         ['dealer_price', head.has_dealer_price ? clean(head.dealer_price) : ''],

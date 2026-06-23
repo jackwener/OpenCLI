@@ -14,6 +14,7 @@ import {
     dcdFetchPageProps,
     normalizeSeriesId,
     parseScore,
+    requireArray,
 } from './utils.js';
 
 /** Dongchedi's 8 rating axes, in display order: [field, 中文 label]. */
@@ -32,6 +33,12 @@ const AXES = [
  * Pure parser: scoreSimpleInfo + same-level average → rows. Exported for tests.
  */
 export function parseScoreBreakdown(scoreSimpleInfo, sameLevelAvg) {
+    if (!scoreSimpleInfo || typeof scoreSimpleInfo !== 'object' || Array.isArray(scoreSimpleInfo)) {
+        throw new EmptyResultError(
+            'dongchedi score',
+            'This series has no 懂车分 rating yet (too few owner reviews).',
+        );
+    }
     const ssi = scoreSimpleInfo || {};
     const avg = sameLevelAvg || {};
     return AXES.map(([key, label]) => ({
@@ -44,7 +51,8 @@ export function parseScoreBreakdown(scoreSimpleInfo, sameLevelAvg) {
 /** Pick the "同级车均值" row out of reviewData.same_level_review. */
 function sameLevelAverage(reviewData) {
     const list = reviewData?.same_level_review;
-    if (!Array.isArray(list)) return reviewData?.average_series_review || {};
+    if (list == null) return reviewData?.average_series_review || {};
+    requireArray(list, 'dongchedi same_level_review');
     return list.find((r) => String(r?.series_id) === '0') || list[0] || {};
 }
 

@@ -97,12 +97,42 @@ export async function dcdFetchPageProps(path, contextHint) {
         );
     }
     if (isFallbackShell(pp)) {
-        throw new EmptyResultError(
+        throw new CommandExecutionError(
             `dongchedi ${contextHint}`,
             'Dongchedi served its empty fallback shell — the id may not exist or the URL form changed.',
         );
     }
     return pp;
+}
+
+export function assertPlainObject(value, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CommandExecutionError(`${label} returned an unexpected payload shape; expected an object.`);
+    }
+    return value;
+}
+
+export function requireArray(value, label) {
+    if (!Array.isArray(value)) {
+        throw new CommandExecutionError(`${label} returned an unexpected payload shape; expected an array.`);
+    }
+    return value;
+}
+
+export function requireStableId(value, label) {
+    const id = String(value ?? '').trim();
+    if (!/^\d+$/.test(id) || id === '0') {
+        throw new CommandExecutionError(`${label} did not include a stable numeric id.`);
+    }
+    return id;
+}
+
+export function requireText(value, label) {
+    const text = clean(value);
+    if (!text) {
+        throw new CommandExecutionError(`${label} did not include a stable text value.`);
+    }
+    return text;
 }
 
 /** Rescale a Dongchedi x100 score int (422) to a /5 float (4.22). */

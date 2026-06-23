@@ -169,11 +169,23 @@ describe('dongchedi adapter — parsers against frozen fixtures', () => {
         expect(r.url).toContain('/ugc/article/');
     });
 
-    it('parsers tolerate missing/empty input without throwing', () => {
-        expect(parseSearchRows({}, 5)).toEqual([]);
-        expect(parseSearchRows(null, 5)).toEqual([]);
-        expect(parseModels({}, 'online')).toEqual([]);
-        expect(parseKoubei({}, 5)).toEqual([]);
-        expect(parseSpecs(null, '1').every((r) => r.field === 'series_id' || !r.value)).toBe(true);
+    it('parsers fail closed on malformed source payloads', () => {
+        expect(() => parseSearchRows({}, 5)).toThrow(/unexpected payload shape/);
+        expect(() => parseSearchRows(null, 5)).toThrow(/unexpected payload shape/);
+        expect(() => parseModels({}, 'online')).toThrow(/unexpected payload shape/);
+        expect(() => parseKoubei({}, 5)).toThrow(/unexpected payload shape/);
+        expect(() => parseSpecs(null, '1')).toThrow(/unexpected payload shape/);
+        expect(() => parseSeries({}, '1')).toThrow(/unexpected payload shape/);
+    });
+
+    it('row parsers reject malformed identities and required text', () => {
+        expect(() => parseSearchRows({ data: [{ cell_type: 26, series_id: 0, display: { series_name: '坏行' } }] }, 5))
+            .toThrow(/stable numeric id/);
+        expect(() => parseSearchRows({ data: [{ cell_type: 26, series_id: 1, display: {} }] }, 5))
+            .toThrow(/stable text value/);
+        expect(() => parseModels({ tab_list: [{ tab_key: 'online_all', data: [{ info: { car_id: 1 } }] }] }, 'online'))
+            .toThrow(/stable text value/);
+        expect(() => parseKoubei({ review_list: [{ user_info: { name: 'u' }, content: 'body' }] }, 5))
+            .toThrow(/stable numeric id/);
     });
 });

@@ -90,6 +90,18 @@ export function clean(s) {
     return String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 }
 
+export function requireText(value, label) {
+    const text = clean(value);
+    if (!text) throw new CommandExecutionError(`${label} did not include a stable text value.`);
+    return text;
+}
+
+export function requireStableId(value, label) {
+    const id = String(value ?? '').trim();
+    if (!/^\d+$/.test(id)) throw new CommandExecutionError(`${label} did not include a stable numeric id.`);
+    return id;
+}
+
 /** Fetch a Guazi mobile page as HTML text, throwing typed errors. */
 export async function guaziFetch(path, contextHint) {
     let resp;

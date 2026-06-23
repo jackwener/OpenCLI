@@ -17,6 +17,7 @@ import {
     resolveBrandInitial,
     normalizeSeriesId,
     extractPageProps,
+    requireLimit,
 } from './utils.js';
 import { parseBrandSeries } from './brand.js';
 import { parseScore } from './score.js';
@@ -55,6 +56,12 @@ describe('autohome adapter — utils', () => {
         expect(normalizeSeriesId('s6548')).toBe('6548');
         expect(() => normalizeSeriesId('宝马')).toThrow();
     });
+    it('requireLimit rejects invalid limits instead of silently falling back', () => {
+        expect(requireLimit(undefined, 60, 120)).toBe(60);
+        expect(requireLimit('5', 60, 120)).toBe(5);
+        expect(() => requireLimit('abc', 60, 120)).toThrow(/integer/);
+        expect(() => requireLimit(121, 60, 120)).toThrow(/integer/);
+    });
     it('extractPageProps returns null on missing blob', () => {
         expect(extractPageProps('<html>no</html>')).toBeNull();
     });
@@ -75,7 +82,15 @@ describe('autohome adapter — parsers against frozen fixtures', () => {
 
     it('parseBrandSeries returns [] for a brand not on the page', () => {
         expect(parseBrandSeries(CATALOG, '丰田', 60)).toEqual([]);
-        expect(parseBrandSeries('<html></html>', '宝马', 60)).toEqual([]);
+    });
+
+    it('parseBrandSeries rejects catalog pages without brand blocks', () => {
+        expect(() => parseBrandSeries('<html></html>', '宝马', 60)).toThrow(/unexpected HTML shape/);
+    });
+
+    it('parseBrandSeries rejects malformed series cards', () => {
+        expect(() => parseBrandSeries('<dl><dt><div><a>宝马</a></div></dt><li id="s6548"></li></dl>', '宝马', 60))
+            .toThrow(/stable text value/);
     });
 
     it('parseScore builds a rating sheet with overall + axes + pph', () => {
@@ -92,5 +107,9 @@ describe('autohome adapter — parsers against frozen fixtures', () => {
         expect(typeof map['空间']).toBe('number');
         expect(typeof map.pph_每百车故障).toBe('number');
         expect(map.url).toContain('/6548');
+    });
+
+    it('parseScore rejects malformed koubei payloads', () => {
+        expect(() => parseScore({}, '6548')).toThrow(/unexpected payload shape/);
     });
 });

@@ -13,6 +13,9 @@ import {
     DCD_BASE,
     SEARCH_COLUMNS,
     clean,
+    requireArray,
+    requireStableId,
+    requireText,
     dcdFetchPageProps,
     requireLimit,
 } from './utils.js';
@@ -25,15 +28,13 @@ const SERIES_CELL_TYPE = 26;
  * the frozen fixture so shape drift is caught without a live fetch.
  */
 export function parseSearchRows(searchData, limit) {
-    const data = (searchData && Array.isArray(searchData.data)) ? searchData.data : [];
+    const data = requireArray(searchData?.data, 'dongchedi searchData.data');
     const rows = [];
-    for (const item of data) {
-        const seriesId = String(item?.series_id ?? '').trim();
-        if (!seriesId || seriesId === '0') continue;
+    for (const [index, item] of data.entries()) {
         if (item?.cell_type !== SERIES_CELL_TYPE) continue;
+        const seriesId = requireStableId(item?.series_id, `dongchedi search row ${index + 1}`);
         const d = item.display || {};
-        const name = clean(d.series_name || d.title);
-        if (!name) continue;
+        const name = requireText(d.series_name || d.title, `dongchedi search row ${index + 1} name`);
         rows.push({
             rank: rows.length + 1,
             series_id: seriesId,
