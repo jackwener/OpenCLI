@@ -18565,7 +18565,9 @@
       "comments",
       "author",
       "tags",
-      "url"
+      "url",
+      "next_cursor",
+      "has_more"
     ],
     "type": "js",
     "modulePath": "juejin/recommend.js",

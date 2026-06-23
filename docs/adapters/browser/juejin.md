@@ -21,7 +21,7 @@ opencli juejin recommend --cursor "1718900000000000000" --limit 10
 # Hot ranking, default backend category
 opencli juejin hot --limit 20
 
-# Hot ranking scoped to AI / Frontend / Android / iOS / iOS
+# Hot ranking scoped to AI / frontend
 opencli juejin hot --category ai --limit 10
 opencli juejin hot --category frontend --limit 10
 
@@ -39,7 +39,7 @@ opencli juejin hot -f json
 | `--limit` | Max articles (1-100, default 20) |
 | `--cursor` | Pagination cursor; pass back the previous response's cursor to keep scrolling (default "0") |
 
-Returns rows with `rank, article_id, title, brief, views, likes, comments, author, tags, url`. The `article_id` round-trips into `https://juejin.cn/post/<id>`.
+Returns rows with `rank, article_id, title, brief, views, likes, comments, author, tags, url, next_cursor, has_more`. The `article_id` round-trips into `https://juejin.cn/post/<id>`. Use `next_cursor` as the next `--cursor` value when `has_more` is `true`.
 
 ### `hot` Options
 

@@ -45,6 +45,8 @@ describe('juejin recommend command', () => {
     it('returns feed rows whose article_id round-trips into a juejin.cn post URL', async () => {
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
             err_no: 0,
+            cursor: '20',
+            has_more: true,
             data: [{
                 item_info: {
                     article_info: {
@@ -73,6 +75,8 @@ describe('juejin recommend command', () => {
             author: '神奇小汤圆',
             tags: '后端, AI',
             url: 'https://juejin.cn/post/7650882103059939337',
+            next_cursor: '20',
+            has_more: 'true',
         }]);
         const init = fetchMock.mock.calls[0][1];
         expect(init.method).toBe('POST');
@@ -102,6 +106,22 @@ describe('juejin recommend command', () => {
     it('fails closed when recommend payload lacks a data array', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ err_no: 0 })));
 
+        await expect(command.func({ limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('fails closed on malformed pagination metadata', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+            err_no: 0,
+            cursor: '1e2',
+            data: [{ item_info: { article_info: { article_id: '7650882103059939337', title: 'ok' } } }],
+        })));
+        await expect(command.func({ limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
+
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+            err_no: 0,
+            has_more: 'yes',
+            data: [{ item_info: { article_info: { article_id: '7650882103059939337', title: 'ok' } } }],
+        })));
         await expect(command.func({ limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
