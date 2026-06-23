@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanText, normalizeActivityId, normalizeAthleteId, parseActivityId, parseInlineStats, pickFollowCount, sportFromIcon, } from './utils.js';
+import { cleanText, normalizeActivityId, normalizeAthleteId, normalizeClubId, normalizeSegmentId, parseActivityId, parseInlineStats, pickFollowCount, sportFromIcon, } from './utils.js';
 describe('strava utils', () => {
     it('extracts the activity id from every link shape', () => {
         expect(parseActivityId('/activities/19010729205')).toBe('19010729205');
@@ -19,6 +19,18 @@ describe('strava utils', () => {
         expect(normalizeAthleteId('/athletes/101963811')).toBe('101963811');
         expect(normalizeAthleteId('https://www.strava.com/athletes/101963811?num_entries=10')).toBe('101963811');
         expect(normalizeAthleteId(null)).toBe('');
+    });
+    it('normalizes club ids from bare ids, paths, and urls', () => {
+        expect(normalizeClubId('919984')).toBe('919984');
+        expect(normalizeClubId('/clubs/1006535')).toBe('1006535');
+        expect(normalizeClubId('https://www.strava.com/clubs/537051')).toBe('537051');
+        expect(normalizeClubId(null)).toBe('');
+    });
+    it('normalizes segment ids from bare ids, paths, and urls', () => {
+        expect(normalizeSegmentId('35556162')).toBe('35556162');
+        expect(normalizeSegmentId('/segments/11162359')).toBe('11162359');
+        expect(normalizeSegmentId('https://www.strava.com/segments/612665')).toBe('612665');
+        expect(normalizeSegmentId('')).toBe('');
     });
     it('derives the sport from the icon class, falling back to the icon text', () => {
         expect(sportFromIcon('icon-ride', 'Ride')).toBe('ride');

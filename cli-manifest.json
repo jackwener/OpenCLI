@@ -31891,6 +31891,132 @@
   },
   {
     "site": "strava",
+    "name": "clubs",
+    "description": "Clubs an athlete belongs to",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete ID or profile URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of clubs"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/clubs.js",
+    "sourceFile": "strava/clubs.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "feed",
+    "description": "Your Strava dashboard (following) activity feed",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of feed entries"
+      }
+    ],
+    "columns": [
+      "rank",
+      "athlete_id",
+      "activity_id",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/feed.js",
+    "sourceFile": "strava/feed.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "kudos",
+    "description": "Kudos and comment counts for a Strava activity",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "activity",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      }
+    ],
+    "columns": [
+      "activity_id",
+      "kudos_count",
+      "comments_count",
+      "can_kudo",
+      "owner",
+      "owner_athlete_id"
+    ],
+    "type": "js",
+    "modulePath": "strava/social.js",
+    "sourceFile": "strava/social.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "login",
+    "description": "Log into Strava in the bound browser (run once)",
+    "access": "write",
+    "domain": "strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "athlete_id",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/auth.js",
+    "sourceFile": "strava/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "strava",
     "name": "profile",
     "description": "Strava athlete profile (name, location, follower counts)",
     "access": "read",
@@ -31918,6 +32044,59 @@
     "modulePath": "strava/strava.js",
     "sourceFile": "strava/strava.js",
     "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "segments",
+    "description": "Your starred Strava segments",
+    "access": "read",
+    "domain": "www.strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of segments"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "name",
+      "distance",
+      "elevation",
+      "id",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/segments.js",
+    "sourceFile": "strava/segments.js",
+    "navigateBefore": "https://www.strava.com"
+  },
+  {
+    "site": "strava",
+    "name": "whoami",
+    "description": "Show the currently logged-in Strava athlete",
+    "access": "read",
+    "domain": "strava.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "athlete_id",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "strava/auth.js",
+    "sourceFile": "strava/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "substack",

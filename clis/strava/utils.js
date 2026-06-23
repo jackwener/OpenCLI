@@ -36,6 +36,28 @@ export function normalizeAthleteId(input) {
     return digits ? digits[1] : '';
 }
 
+// Accept a bare id, a /clubs/<id> path, or a full club URL and return the id.
+export function normalizeClubId(input) {
+    if (input == null)
+        return '';
+    const fromPath = String(input).match(/\/clubs\/(\d+)/);
+    if (fromPath)
+        return fromPath[1];
+    const digits = String(input).match(/(\d+)/);
+    return digits ? digits[1] : '';
+}
+
+// Accept a bare id, a /segments/<id> path, or a full segment URL and return the id.
+export function normalizeSegmentId(input) {
+    if (input == null)
+        return '';
+    const fromPath = String(input).match(/\/segments\/(\d+)/);
+    if (fromPath)
+        return fromPath[1];
+    const digits = String(input).match(/(\d+)/);
+    return digits ? digits[1] : '';
+}
+
 // The recent-activities widget tags each row with an icon class such as
 // "icon-ride" / "icon-run" / "icon-workout". Strip the "icon-" prefix to get the sport.
 // Falls back to the icon's visible text ("Ride", "Run") when no class is present.
