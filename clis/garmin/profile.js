@@ -81,3 +81,60 @@ cli({
         }));
     },
 });
+// ── garmin badges ───────────────────────────────────────────────────────
+cli({
+    site: 'garmin',
+    name: 'badges',
+    access: 'read',
+    description: 'Badges you have earned',
+    domain: 'connect.garmin.com',
+    strategy: Strategy.COOKIE,
+    browser: true,
+    args: [
+        { name: 'limit', type: 'int', default: 30, help: 'Number of badges' },
+    ],
+    columns: ['rank', 'name', 'points', 'category_id', 'earned_date'],
+    func: async (page, kwargs) => {
+        const limit = kwargs.limit || 30;
+        await ensureGarmin(page);
+        const data = await garminApi(page, '/gc-api/badge-service/badge/earned');
+        if (!Array.isArray(data) || data.length === 0)
+            throw new EmptyResultError('garmin badges', 'No earned badges found.');
+        return data.slice(0, limit).map((b, i) => ({
+            rank: i + 1,
+            name: b.badgeName || '',
+            points: b.badgePoints != null ? b.badgePoints : '',
+            category_id: b.badgeCategoryId != null ? String(b.badgeCategoryId) : '',
+            earned_date: b.badgeEarnedDate || b.badgeAwardedDate || '',
+        }));
+    },
+});
+// ── garmin connections ──────────────────────────────────────────────────
+cli({
+    site: 'garmin',
+    name: 'connections',
+    access: 'read',
+    description: 'Your Garmin Connect connections (friends)',
+    domain: 'connect.garmin.com',
+    strategy: Strategy.COOKIE,
+    browser: true,
+    args: [
+        { name: 'limit', type: 'int', default: 30, help: 'Number of connections' },
+    ],
+    columns: ['rank', 'name', 'display_name', 'location'],
+    func: async (page, kwargs) => {
+        const limit = kwargs.limit || 30;
+        await ensureGarmin(page);
+        const sp = await getProfile(page);
+        const data = await garminApi(page, `/gc-api/userprofile-service/connection/connections/${sp.displayName}?start=0&limit=${limit}`);
+        const list = (data && data.userConnections) || [];
+        if (!list.length)
+            throw new EmptyResultError('garmin connections', 'No connections found.');
+        return list.map((c, i) => ({
+            rank: i + 1,
+            name: c.fullName || '',
+            display_name: c.displayName || '',
+            location: c.location || '',
+        }));
+    },
+});

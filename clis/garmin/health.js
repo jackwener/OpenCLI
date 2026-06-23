@@ -1,6 +1,10 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
 import { ensureGarmin, garminApi, getProfile, isoDate, metersToKm, secondsToHms } from './utils.js';
+function startDateFromDays(days) {
+    const sd = new Date(Date.now() - (days || 30) * 86400000);
+    return `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, '0')}-${String(sd.getDate()).padStart(2, '0')}`;
+}
 // ── garmin stats (daily summary) ────────────────────────────────────────
 cli({
     site: 'garmin',
@@ -92,5 +96,92 @@ cli({
                 min_hr: d.minHeartRate != null ? d.minHeartRate : '',
                 seven_day_avg_resting: d.lastSevenDaysAvgRestingHeartRate != null ? d.lastSevenDaysAvgRestingHeartRate : '',
             }];
+    },
+});
+// ── garmin bodybattery ──────────────────────────────────────────────────
+cli({
+    site: 'garmin',
+    name: 'bodybattery',
+    access: 'read',
+    description: 'Body Battery energy for a day (charged / drained / current)',
+    domain: 'connect.garmin.com',
+    strategy: Strategy.COOKIE,
+    browser: true,
+    args: [
+        { name: 'date', type: 'str', help: 'Date YYYY-MM-DD (default: today)' },
+    ],
+    columns: ['date', 'charged', 'drained', 'current'],
+    func: async (page, kwargs) => {
+        const date = isoDate(kwargs.date);
+        await ensureGarmin(page);
+        const data = await garminApi(page, `/gc-api/wellness-service/wellness/bodyBattery/reports/daily?startDate=${date}&endDate=${date}`);
+        const day = Array.isArray(data) ? data[0] : null;
+        const values = (day && day.bodyBatteryValuesArray) || [];
+        const levels = values.map((v) => (Array.isArray(v) ? v[v.length - 1] : null)).filter((n) => n != null);
+        if (!day || (day.charged == null && levels.length === 0))
+            throw new EmptyResultError('garmin bodybattery', `No Body Battery data for ${date}.`);
+        return [{
+                date,
+                charged: day.charged != null ? day.charged : '',
+                drained: day.drained != null ? day.drained : '',
+                current: levels.length ? levels[levels.length - 1] : '',
+            }];
+    },
+});
+// ── garmin stress ───────────────────────────────────────────────────────
+cli({
+    site: 'garmin',
+    name: 'stress',
+    access: 'read',
+    description: 'Daily stress level (average / max)',
+    domain: 'connect.garmin.com',
+    strategy: Strategy.COOKIE,
+    browser: true,
+    args: [
+        { name: 'date', type: 'str', help: 'Date YYYY-MM-DD (default: today)' },
+    ],
+    columns: ['date', 'avg_stress', 'max_stress'],
+    func: async (page, kwargs) => {
+        const date = isoDate(kwargs.date);
+        await ensureGarmin(page);
+        const d = await garminApi(page, `/gc-api/wellness-service/wellness/dailyStress/${date}`);
+        // Garmin reports -1 / -2 when there is no measured stress for the day.
+        if (!d || d.avgStressLevel == null || d.avgStressLevel < 0)
+            throw new EmptyResultError('garmin stress', `No stress data for ${date}.`);
+        return [{
+                date,
+                avg_stress: d.avgStressLevel,
+                max_stress: d.maxStressLevel != null && d.maxStressLevel >= 0 ? d.maxStressLevel : '',
+            }];
+    },
+});
+// ── garmin weight ───────────────────────────────────────────────────────
+cli({
+    site: 'garmin',
+    name: 'weight',
+    access: 'read',
+    description: 'Body weight log over the last N days',
+    domain: 'connect.garmin.com',
+    strategy: Strategy.COOKIE,
+    browser: true,
+    args: [
+        { name: 'days', type: 'int', default: 90, help: 'Look back this many days' },
+        { name: 'limit', type: 'int', default: 30, help: 'Max rows' },
+    ],
+    columns: ['rank', 'date', 'weight_kg', 'bmi'],
+    func: async (page, kwargs) => {
+        const days = kwargs.days || 90;
+        const limit = kwargs.limit || 30;
+        await ensureGarmin(page);
+        const data = await garminApi(page, `/gc-api/weight-service/weight/dateRange?startDate=${startDateFromDays(days)}&endDate=${isoDate()}`);
+        const list = (data && data.dateWeightList) || [];
+        if (!list.length)
+            throw new EmptyResultError('garmin weight', 'No weight entries logged.');
+        return list.slice(0, limit).map((w, i) => ({
+            rank: i + 1,
+            date: w.calendarDate || '',
+            weight_kg: w.weight != null ? (Number(w.weight) / 1000).toFixed(1) : '',
+            bmi: w.bmi != null ? Number(w.bmi).toFixed(1) : '',
+        }));
     },
 });
