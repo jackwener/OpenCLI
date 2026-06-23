@@ -115,11 +115,18 @@ describe('juejin recommend command', () => {
             cursor: '1e2',
             data: [{ item_info: { article_info: { article_id: '7650882103059939337', title: 'ok' } } }],
         })));
-        await expect(command.func({ limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
 
         vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
             err_no: 0,
             has_more: 'yes',
+            data: [{ item_info: { article_info: { article_id: '7650882103059939337', title: 'ok' } } }],
+        })));
+        await expect(command.func({ limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({
+            err_no: 0,
+            has_more: true,
             data: [{ item_info: { article_info: { article_id: '7650882103059939337', title: 'ok' } } }],
         })));
         await expect(command.func({ limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);

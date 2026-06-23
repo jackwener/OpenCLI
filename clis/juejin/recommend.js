@@ -12,6 +12,16 @@ import {
     requireCursor,
 } from './utils.js';
 
+function readResponseCursor(value) {
+    if (value == null || value === '') return '';
+    try {
+        return requireCursor(value);
+    }
+    catch {
+        throw new CommandExecutionError('juejin recommend returned a malformed cursor');
+    }
+}
+
 cli({
     site: 'juejin',
     name: 'recommend',
@@ -34,11 +44,14 @@ cli({
             'juejin recommend',
         );
         const data = readDataArray(payload, 'juejin recommend');
-        const nextCursor = payload.cursor == null || payload.cursor === '' ? '' : requireCursor(payload.cursor);
+        const nextCursor = readResponseCursor(payload.cursor);
         if (payload.has_more != null && typeof payload.has_more !== 'boolean') {
             throw new CommandExecutionError('juejin recommend returned a malformed has_more flag');
         }
         const hasMore = payload.has_more == null ? '' : String(payload.has_more);
+        if (payload.has_more === true && !nextCursor) {
+            throw new CommandExecutionError('juejin recommend returned has_more without a next cursor');
+        }
         return data.slice(0, limit).map((row, i) => ({
             ...mapFeedItem(row, i + 1),
             next_cursor: nextCursor,
