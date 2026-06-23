@@ -101,6 +101,7 @@ Run `opencli list` for the live registry.
 | **[hackernews](./browser/hackernews.md)**         | `top` `new` `best` `ask` `show` `jobs` `search` `user`                                                                                         | 🌐 Public    |
 | **[bbc](./browser/bbc.md)**                       | `news`                                                                                                                                         | 🌐 Public    |
 | **[devto](./browser/devto.md)**                   | `top` `tag` `user`                                                                                                                             | 🌐 Public    |
+| **[juejin](./browser/juejin.md)**                 | `recommend` `hot`                                                                                                                              | 🌐 Public    |
 | **[dictionary](./browser/dictionary.md)**         | `search` `synonyms` `examples`                                                                                                                 | 🌐 Public    |
 | **[apple-podcasts](./browser/apple-podcasts.md)** | `search` `episodes` `top`                                                                                                                      | 🌐 Public    |
 | **[xiaoyuzhou](./browser/xiaoyuzhou.md)**         | `podcast` `podcast-episodes` `episode` `download` `transcript` (local credentials required)                                                   | 🔑 Local API |

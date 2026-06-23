@@ -18493,6 +18493,85 @@
     "sourceFile": "jira/search.js"
   },
   {
+    "site": "juejin",
+    "name": "hot",
+    "description": "Juejin (掘金) hot article ranking, optionally scoped to a category",
+    "access": "read",
+    "domain": "api.juejin.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "string",
+        "required": false,
+        "help": "Category slug or numeric id. Slugs: backend, frontend, android, ios, ai. Defaults to \"backend\"."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max articles (1-50)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "article_id",
+      "title",
+      "brief",
+      "views",
+      "likes",
+      "comments",
+      "hot_rank",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "juejin/hot.js",
+    "sourceFile": "juejin/hot.js"
+  },
+  {
+    "site": "juejin",
+    "name": "recommend",
+    "description": "Juejin (掘金) homepage recommended article feed",
+    "access": "read",
+    "domain": "api.juejin.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max articles (1-100, single page)."
+      },
+      {
+        "name": "cursor",
+        "type": "string",
+        "default": "0",
+        "required": false,
+        "help": "Pagination cursor; pass back the previous response's next-page cursor to keep scrolling."
+      }
+    ],
+    "columns": [
+      "rank",
+      "article_id",
+      "title",
+      "brief",
+      "views",
+      "likes",
+      "comments",
+      "author",
+      "tags",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "juejin/recommend.js",
+    "sourceFile": "juejin/recommend.js"
+  },
+  {
     "site": "ke",
     "name": "chengjiao",
     "description": "贝壳找房成交记录",
