@@ -1,0 +1,1396 @@
+{
+ "scoreSimpleInfo": {
+  "score": 422,
+  "comfort_score": 410,
+  "appearance_score": 457,
+  "configuration_score": 401,
+  "control_score": 410,
+  "power_score": 408,
+  "space_score": 466,
+  "interiors_score": 402,
+  "series_id": 5273,
+  "total_review_count": 470
+ },
+ "seriesKoubeiHead": {
+  "same_level_average_review": {
+   "score": 415,
+   "comfort_score": 407,
+   "appearance_score": 448,
+   "configuration_score": 396,
+   "control_score": 405,
+   "power_score": 408,
+   "space_score": 429,
+   "interiors_score": 410
+  },
+  "same_price_level_average_review": {
+   "score": 410,
+   "comfort_score": 405,
+   "appearance_score": 437,
+   "configuration_score": 401,
+   "control_score": 405,
+   "power_score": 415,
+   "space_score": 400,
+   "interiors_score": 407
+  },
+  "same_level_review": [
+   {
+    "score": 422,
+    "comfort_score": 410,
+    "appearance_score": 457,
+    "configuration_score": 401,
+    "control_score": 410,
+    "power_score": 408,
+    "space_score": 466,
+    "interiors_score": 402,
+    "series_name": "宝马X5",
+    "series_id": "5273",
+    "highest_score": 466,
+    "highest_content": "空间"
+   },
+   {
+    "score": 417,
+    "comfort_score": 393,
+    "appearance_score": 454,
+    "configuration_score": 380,
+    "control_score": 389,
+    "power_score": 391,
+    "space_score": 443,
+    "interiors_score": 468,
+    "series_name": "奔驰GLE(进口)",
+    "series_id": "228",
+    "highest_score": 468,
+    "highest_content": "内饰"
+   },
+   {
+    "score": 416,
+    "comfort_score": 420,
+    "appearance_score": 442,
+    "configuration_score": 395,
+    "control_score": 417,
+    "power_score": 417,
+    "space_score": 432,
+    "interiors_score": 391,
+    "series_name": "沃尔沃XC90",
+    "series_id": "1277",
+    "highest_score": 442,
+    "highest_content": "外观"
+   },
+   {
+    "score": 414,
+    "comfort_score": 410,
+    "appearance_score": 422,
+    "configuration_score": 410,
+    "control_score": 411,
+    "power_score": 410,
+    "space_score": 432,
+    "interiors_score": 402,
+    "series_name": "奥迪Q7",
+    "series_id": "87",
+    "highest_score": 432,
+    "highest_content": "空间"
+   },
+   {
+    "score": 414,
+    "comfort_score": 406,
+    "appearance_score": 476,
+    "configuration_score": 402,
+    "control_score": 403,
+    "power_score": 417,
+    "space_score": 412,
+    "interiors_score": 381,
+    "series_name": "卫士",
+    "series_id": "986",
+    "highest_score": 476,
+    "highest_content": "外观"
+   }
+  ],
+  "review": {
+   "score": 422,
+   "comfort_score": 410,
+   "appearance_score": 457,
+   "configuration_score": 401,
+   "control_score": 410,
+   "power_score": 408,
+   "space_score": 466,
+   "interiors_score": 402,
+   "series_name": "宝马X5",
+   "series_id": "5273",
+   "highest_score": 466,
+   "highest_content": "空间"
+  },
+  "dealer_price": "51.00-68.00万",
+  "has_dealer_price": true,
+  "official_price": "59.80-74.80万",
+  "has_official_price": false,
+  "img_url": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1~tplv-f042mdwyw7-original:480:0.image?psm=motor.pc_car.api",
+  "score_description": "优秀",
+  "score": 422,
+  "car_score_video": {
+   "vid": "v02a0eg10000c1o0ep1cpds8jlh5ohh0",
+   "cover_url": "https://p3-dcd.byteimg.com/img/tos-cn-i-dcdx/d6c36057b91a02ffe0f0039d4ed327da~960x540.png"
+  },
+  "review_people_count": 470,
+  "rank_info": {
+   "rank_type": "35万以上SUV总榜",
+   "rank": 18,
+   "rank_rate_info": "超过82%的同价位车系",
+   "outter_detail_type": "10,11,12,13,14",
+   "new_energy_type": "",
+   "price_range": "35,-1"
+  },
+  "series_review_user_avatar_list": [
+   {
+    "avatar_url": "https://p9-passport.byteacctimg.com/img/mosaic-legacy/3797/2889309425~120x256.image",
+    "avatar_user_id": 3848753529757534,
+    "avatar_user_id_str": "3848753529757534",
+    "avatar_user_name": "用户330744249549",
+    "motor_auth_show_info": null
+   },
+   {
+    "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/ef0993f6782260d64f4044e0cb2402d5~300x300.image",
+    "avatar_user_id": 4001814999210136,
+    "avatar_user_id_str": "4001814999210136",
+    "avatar_user_name": "TNTGGDD",
+    "motor_auth_show_info": null
+   },
+   {
+    "avatar_url": "https://p6-passport.byteacctimg.com/img/user-avatar/61342c64533b661a4b6d018ec992cb93~300x300.image",
+    "avatar_user_id": 4098572996841581,
+    "avatar_user_id_str": "4098572996841581",
+    "avatar_user_name": "83小",
+    "motor_auth_show_info": null
+   },
+   {
+    "avatar_url": "https://p6-passport.byteacctimg.com/img/user-avatar/ed1646b880218df29ce4332727a01ea1~300x300.image",
+    "avatar_user_id": 4288878951,
+    "avatar_user_id_str": "4288878951",
+    "avatar_user_name": "Michael37602263",
+    "motor_auth_show_info": null
+   },
+   {
+    "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/1e5ca5301f571345ebf59bb5a045e248~300x300.image",
+    "avatar_user_id": 93866877742,
+    "avatar_user_id_str": "93866877742",
+    "avatar_user_name": "A李涵涵涵涵",
+    "motor_auth_show_info": null
+   }
+  ]
+ },
+ "seriesName": "宝马X5",
+ "seriesId": 5273,
+ "reviewListData": {
+  "has_more": true,
+  "total_count": 470,
+  "count": 15,
+  "review_list": [
+   {
+    "car_review_type": 2,
+    "gid": 7584766846675456000,
+    "gid_str": "7584766846675456025",
+    "buy_car_info": {
+     "bought_time": "2025-12",
+     "location": "天津",
+     "price": "62.30万",
+     "series_name": "宝马X5",
+     "car_name": "xDrive40Li M运动曜夜套装",
+     "consumption": "12.00L",
+     "year": 2026,
+     "continuation": ""
+    },
+    "score_info": {
+     "score": 460,
+     "comfort_score": 0,
+     "appearance_score": 500,
+     "configuration_score": 400,
+     "control_score": 0,
+     "power_score": 0,
+     "space_score": 500,
+     "interiors_score": 400,
+     "assist_driving_score": 0,
+     "smart_cockpit_score": 0,
+     "power_control_score": 0,
+     "oil_consumption_score": 500,
+     "continuation_score": 0,
+     "driving_score": 0
+    },
+    "image_urls": [
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/25444810ffd143a1bc4c095e74b3398f~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=M%2BoAUbuaJm5H1Gic6d4QJ2U7XIY%3D&psm=motor.mp.car_review",
+      "width": 1377,
+      "height": 640
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-article-img/9524d32225694d358e1b0d92a567a295~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=jw6CnavlWfbrB15H7juNdINcGdY%3D&psm=motor.mp.car_review",
+      "width": 1377,
+      "height": 640
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-article-img/80c88a883b3c48898b0c4ea4a21a3abb~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=jidrjnZWy8bF0jgI%2BePKAya2%2BX8%3D&psm=motor.mp.car_review",
+      "width": 1290,
+      "height": 2796
+     }
+    ],
+    "user_info": {
+     "user_id": 2377599718531756,
+     "user_id_str": "2377599718531756",
+     "name": "高贵小猫uzp",
+     "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/e4ed53073e5c79ca33fb6d3b04bd2804~300x300.image",
+     "motor_auth_show_info": {
+      "auth_v_type": 0,
+      "auth_v_desc": "宝马X5车主·新提车"
+     },
+     "medal_list": [
+      {
+       "desc": "车评创作力LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/5dca4359462c211ae53ac967efc56334",
+       "type": "medal_11"
+      },
+      {
+       "desc": "登录大师LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/f56a231e9cfe85f56b6bfdaf8f982023",
+       "type": "medal_13"
+      },
+      {
+       "desc": "懂车评论员LV1",
+       "desc_color": "#5D439A",
+       "desc_bg_color": "#136734E1",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/2b354f854cfe85ae431e98d4c47a0f36",
+       "type": "medal_15"
+      },
+      {
+       "desc": "持之以恒LV1",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/0314d72b056ab95cc1318d3b2a9b63e5",
+       "type": "medal_21"
+      },
+      {
+       "desc": "懂车智多星LV2",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8df87c4245bc9f603ba612da36349e65",
+       "type": "medal_22"
+      },
+      {
+       "desc": "内容鉴赏官LV3",
+       "desc_color": "#436657",
+       "desc_bg_color": "#1000A860",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8edcc30c4fbcb6b41f9672d9243886f8",
+       "type": "medal_28"
+      }
+     ],
+     "is_following": false,
+     "tag": "宝马X5车主·新提车"
+    },
+    "content": "一直很喜欢，最终下手了，非常帅气的公路之王。\n\n【购车经历】\n     本人90后，之前的车是大众的1.8T，八年了，所以一直想更换新车。一直比较纠结，中间看了很多个车型：毛豆Y（内饰太low），路虎卫士110（考虑到不经常越野），奔驰gle（等我40以后再看奔驰）。最终跟家人商量了一下，还是决定购买3.0的X5，因为为了家庭和睦（老婆喜欢这个X5）。\n    11月中旬，下定了26款（官网刚更新就赶上了，很幸运）。黑色中网，黑色排气，蓝色卡钳，白蜡木内饰。外观宝石青，内饰火山红。还是很喜欢这个配色。显得年轻一些，大宽带，确实很霸气。\n    其实对于我个人而言，我更喜欢M2，只没有办法，家用车，只能兼顾一家四口。\n\n【空间表现】\n空间很大，感觉后排坐四个人也不会觉得挤。但是后排的座椅角度比较直，坐久了确实会有不舒服。后备箱也空间很大，平时出门带孩子的玩具和行李，非常够用了。配置看着挺高的，但是细节比较抠门，比如后排座椅通风没有，前排腿托也没有，后排也不支持调节角度，车内塑料感也比较强。\n【动力表现】\n3.0的动力，5.5秒破百，动力随叫随到，目前没有上过高速，在高架桥上超车，没有一点点压力，游刃有余，这个动力可以给120分。真的很爽。等过了一千公里以后，准备跑跑极限速度，去体验一下高速驾驶的快乐。\n【操控】\n之前没有开过太好的车，感觉非常棒。运动模式下，比正常模式动力还要猛，行驶中感觉底盘贴地了，抓的很严实。\n【油耗】\n目前市区形式了200公里，综合油耗12，后面跑下高速看看，这个油耗我还是很满意的，跟我之前大众的1.8T差不多了。\n【最不满意】\n1，驾驶座椅感觉不太舒服，坐久了有点累。2，前排只有一个水杯架，副驾咖啡没有地方放。3，前面没有车载点烟器，无线充电充不进去，而且占用了很大的面积。4，刹车有点点头。\n【提车价格】\n一直在关注车价，11月20下定，12月2号付款，车生产日期11月22日，12月10号出差回来办理的临牌，裸车价是62.3万，车款是官方67.8万（3.0低配）车型，保险1.4万，购置税预估5.5万（计划上26年车牌，还未交纳购置税，所以没有政府补贴）。上牌费加会员费4500元，还有车内脚垫，后备箱垫，车膜车衣，送了一个行车记录仪，总共是70落地，感觉比25款贵一些，不过早买早享受吧。",
+    "create_time": 1765966250,
+    "digg_count_en": "76",
+    "comment_count_en": "46",
+    "user_digg": 0,
+    "user_bury": 0,
+    "comment_data": [
+     {
+      "comment_id": 7641117198308541000,
+      "comment_id_str": "7641117198308541208",
+      "user_info": {
+       "user_id": 151109500673258,
+       "user_id_str": "151109500673258",
+       "name": "Kevin2406",
+       "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/112d5f5d642b7621045574a85de3a8c6~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "0",
+      "is_author": false,
+      "text": "宝马X5,2026款 xDrive40Li M运动曜夜套装，落地693000元，送威固膜，车衣，电动踏板，选装空悬，742轮毂，贵吗？",
+      "reply_data": [
+       {
+        "reply_comment_id": 7641117198308541000,
+        "reply_comment_id_str": "7641117198308541208",
+        "user_info": {
+         "user_id": 2377599718531756,
+         "user_id_str": "2377599718531756",
+         "name": "高贵小猫uzp",
+         "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/e4ed53073e5c79ca33fb6d3b04bd2804~300x300.image",
+         "motor_auth_show_info": null,
+         "medal_list": null,
+         "is_following": false,
+         "tag": ""
+        },
+        "to_user_info": null,
+        "user_digg": 0,
+        "digg_count_en": "0",
+        "is_author": true,
+        "text": "不贵",
+        "create_time": 1779989544,
+        "user_bury": 0
+       }
+      ],
+      "create_time": 1779089134,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7587066855643907000,
+      "comment_id_str": "7587066855643906859",
+      "user_info": {
+       "user_id": 2277821873657598,
+       "user_id_str": "2277821873657598",
+       "name": "风姿卓越艺术家uze",
+       "avatar_url": "https://p9-passport.byteacctimg.com/img/mosaic-legacy/3795/3047680722~120x256.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "3",
+      "is_author": false,
+      "text": "成都裸车价59.3W",
+      "reply_data": [
+       {
+        "reply_comment_id": 7587066855643907000,
+        "reply_comment_id_str": "7587066855643906859",
+        "user_info": {
+         "user_id": 2377599718531756,
+         "user_id_str": "2377599718531756",
+         "name": "高贵小猫uzp",
+         "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/e4ed53073e5c79ca33fb6d3b04bd2804~300x300.image",
+         "motor_auth_show_info": null,
+         "medal_list": null,
+         "is_following": false,
+         "tag": ""
+        },
+        "to_user_info": null,
+        "user_digg": 0,
+        "digg_count_en": "1",
+        "is_author": true,
+        "text": "好的，[呲牙][呲牙]",
+        "create_time": 1766574176,
+        "user_bury": 0
+       }
+      ],
+      "create_time": 1766501667,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7585173648399828000,
+      "comment_id_str": "7585173648399827763",
+      "user_info": {
+       "user_id": 96697268564,
+       "user_id_str": "96697268564",
+       "name": "¥",
+       "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/b053daa1853d791ba3f5842696bc6034~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "8",
+      "is_author": false,
+      "text": "全款吗？在天津哪家店买的？",
+      "reply_data": [
+       {
+        "reply_comment_id": 7585173648399828000,
+        "reply_comment_id_str": "7585173648399827763",
+        "user_info": {
+         "user_id": 2377599718531756,
+         "user_id_str": "2377599718531756",
+         "name": "高贵小猫uzp",
+         "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/e4ed53073e5c79ca33fb6d3b04bd2804~300x300.image",
+         "motor_auth_show_info": null,
+         "medal_list": null,
+         "is_following": false,
+         "tag": ""
+        },
+        "to_user_info": null,
+        "user_digg": 0,
+        "digg_count_en": "0",
+        "is_author": true,
+        "text": "中顺",
+        "create_time": 1766117151,
+        "user_bury": 0
+       }
+      ],
+      "create_time": 1766060868,
+      "user_bury": 0,
+      "has_pic": false
+     }
+    ],
+    "article_type": 14,
+    "series_name": "宝马X5",
+    "car_name": "xDrive40Li M运动曜夜套装",
+    "series_id": 5273,
+    "car_id": 253999,
+    "year": 2026,
+    "fuel_form": 13,
+    "excellent_icon_type_light": "https://p9-dcd.byteimg.com/tos-cn-i-dcdx/3265b8d8911f494183a924621242a1ac~tplv-resize:0:0.image?psm=motor.mp.car_review",
+    "excellent_icon_type_dark": "https://p3-dcd.byteimg.com/tos-cn-i-dcdx/55a01058960c4fc7875b1ff2efa23591~tplv-resize:0:0.image?psm=motor.mp.car_review"
+   },
+   {
+    "car_review_type": 2,
+    "gid": 7587641650348839000,
+    "gid_str": "7587641650348838936",
+    "buy_car_info": {
+     "bought_time": "2025-11",
+     "location": "深圳",
+     "price": "58.00万",
+     "series_name": "宝马X5",
+     "car_name": "xDrive40Li M运动曜夜套装",
+     "consumption": "11.00L",
+     "year": 2026,
+     "continuation": ""
+    },
+    "score_info": {
+     "score": 470,
+     "comfort_score": 0,
+     "appearance_score": 500,
+     "configuration_score": 500,
+     "control_score": 0,
+     "power_score": 0,
+     "space_score": 500,
+     "interiors_score": 500,
+     "assist_driving_score": 0,
+     "smart_cockpit_score": 0,
+     "power_control_score": 0,
+     "oil_consumption_score": 350,
+     "continuation_score": 0,
+     "driving_score": 0
+    },
+    "image_urls": [
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/4c3ed31ecd7841b383aae5201178765b~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=OLu%2BWtq6MB%2B6uBkbniMZuRZDoaI%3D&psm=motor.mp.car_review",
+      "width": 4096,
+      "height": 3072
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-img/cee9fe7892104316833640bbe6bef9f7~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=3XbTIEjXIPG5leMgCOBBWvGHCFU%3D&psm=motor.mp.car_review",
+      "width": 3072,
+      "height": 4096
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-article-img/d40ecb051862439690c2a44d4f696584~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=bgNrC5xOpKE139BPL5EWVNddXPM%3D&psm=motor.mp.car_review",
+      "width": 3072,
+      "height": 4096
+     }
+    ],
+    "user_info": {
+     "user_id": 3402364591287491,
+     "user_id_str": "3402364591287491",
+     "name": "蜀黍我呀537",
+     "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/0f000f1df8eb5f22615648506afd62b5~300x300.image",
+     "motor_auth_show_info": {
+      "auth_v_type": 0,
+      "auth_v_desc": "宝马X5车主·车龄半年"
+     },
+     "medal_list": [
+      {
+       "desc": "车评创作力LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/5dca4359462c211ae53ac967efc56334",
+       "type": "medal_11"
+      },
+      {
+       "desc": "登录大师LV2",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p9-dcd.byteimg.com/obj/tos-cn-i-dcdx/ec9315e663cb90b0e2ebfaef41d4e081",
+       "type": "medal_13"
+      },
+      {
+       "desc": "内容鉴赏官LV1",
+       "desc_color": "#436657",
+       "desc_bg_color": "#1000A860",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8edcc30c4fbcb6b41f9672d9243886f8",
+       "type": "medal_28"
+      }
+     ],
+     "is_following": false,
+     "tag": "宝马X5车主·车龄半年"
+    },
+    "content": "原来想搞一台m2来开的，家里人不太赞同就果断买了x540li，开起来还不错，优点挺多，在油车里面算是智能程度挺高的，乘坐体验也不错。\n【提车价格】\n11月提的67.8w二五款，本来想买二六款，但是着急用车没办法等就买了二五款，二六太香了\n\n【最不满意】\n个人感觉异味挺重，皮革刺激性气味很大，新车开起来比较难受，花了好多钱除异味还是很重，只能夏天开窗通风去除了\n【空间表现】\n后排挺大，但是后备箱小了点，可以装的东西偏少，两个行李箱几瓶茅子就满了，没我xc90大\n【油耗】\n3.0t还可以，新车十个油左右，但是运动模式可以干到二十个\n【操控】\n跑高速140感觉和100差不多，转向灵敏，过弯顺滑\n【动力表现】\n加速很快，高速开起来很丝滑，开辅助驾驶都犯困。",
+    "create_time": 1766636574,
+    "digg_count_en": "72",
+    "comment_count_en": "46",
+    "user_digg": 0,
+    "user_bury": 0,
+    "comment_data": [
+     {
+      "comment_id": 7587839307902109000,
+      "comment_id_str": "7587839307902108443",
+      "user_info": {
+       "user_id": 3852282239923731,
+       "user_id_str": "3852282239923731",
+       "name": "yanwuyifan",
+       "avatar_url": "https://p26-passport.byteacctimg.com/img/user-avatar/57f40fee2178503ee0d4c4b6071cfd50~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "3",
+      "is_author": false,
+      "text": "也是xc90换过来？我在纠结x5还是gle450 品牌价格都无所谓，差不了多少。就对比产品力",
+      "reply_data": [
+       {
+        "reply_comment_id": 7587839307902109000,
+        "reply_comment_id_str": "7587839307902108443",
+        "user_info": {
+         "user_id": 3402364591287491,
+         "user_id_str": "3402364591287491",
+         "name": "蜀黍我呀537",
+         "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/0f000f1df8eb5f22615648506afd62b5~300x300.image",
+         "motor_auth_show_info": null,
+         "medal_list": null,
+         "is_following": false,
+         "tag": ""
+        },
+        "to_user_info": null,
+        "user_digg": 0,
+        "digg_count_en": "1",
+        "is_author": true,
+        "text": "看年龄",
+        "create_time": 1768354969,
+        "user_bury": 0
+       }
+      ],
+      "create_time": 1766681527,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7614157080823973000,
+      "comment_id_str": "7614157080823972635",
+      "user_info": {
+       "user_id": 1538961071151055,
+       "user_id_str": "1538961071151055",
+       "name": "用户6308722145987",
+       "avatar_url": "https://p9-passport.byteacctimg.com/img/mosaic-legacy/3793/3114521287~120x256.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "0",
+      "is_author": false,
+      "text": "老哥你们做啥工作的呀，这么多钱",
+      "reply_data": [
+       {
+        "reply_comment_id": 7614157080823973000,
+        "reply_comment_id_str": "7614157080823972635",
+        "user_info": {
+         "user_id": 3402364591287491,
+         "user_id_str": "3402364591287491",
+         "name": "蜀黍我呀537",
+         "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/0f000f1df8eb5f22615648506afd62b5~300x300.image",
+         "motor_auth_show_info": null,
+         "medal_list": null,
+         "is_following": false,
+         "tag": ""
+        },
+        "to_user_info": null,
+        "user_digg": 0,
+        "digg_count_en": "0",
+        "is_author": true,
+        "text": "当保安[呲牙]",
+        "create_time": 1772855370,
+        "user_bury": 0
+       }
+      ],
+      "create_time": 1772809103,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7604107836583036000,
+      "comment_id_str": "7604107836583035691",
+      "user_info": {
+       "user_id": 96570551551,
+       "user_id_str": "96570551551",
+       "name": "无双原野jcT",
+       "avatar_url": "https://p26-passport.byteacctimg.com/img/user-avatar/ae2ab41c3deec69c1690443eb5525361~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "0",
+      "is_author": false,
+      "text": "总体感觉奔驰gle全进口的品质更好，看看底盘就知道。",
+      "reply_data": [
+       {
+        "reply_comment_id": 7604107836583036000,
+        "reply_comment_id_str": "7604107836583035691",
+        "user_info": {
+         "user_id": 3402364591287491,
+         "user_id_str": "3402364591287491",
+         "name": "蜀黍我呀537",
+         "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/0f000f1df8eb5f22615648506afd62b5~300x300.image",
+         "motor_auth_show_info": null,
+         "medal_list": null,
+         "is_following": false,
+         "tag": ""
+        },
+        "to_user_info": null,
+        "user_digg": 0,
+        "digg_count_en": "0",
+        "is_author": true,
+        "text": "还行，开到200多很稳",
+        "create_time": 1772855509,
+        "user_bury": 0
+       }
+      ],
+      "create_time": 1770469329,
+      "user_bury": 0,
+      "has_pic": false
+     }
+    ],
+    "article_type": 14,
+    "series_name": "宝马X5",
+    "car_name": "xDrive40Li M运动曜夜套装",
+    "series_id": 5273,
+    "car_id": 253999,
+    "year": 2026,
+    "fuel_form": 13,
+    "excellent_icon_type_light": "https://p9-dcd.byteimg.com/tos-cn-i-dcdx/3265b8d8911f494183a924621242a1ac~tplv-resize:0:0.image?psm=motor.mp.car_review",
+    "excellent_icon_type_dark": "https://p9-dcd.byteimg.com/tos-cn-i-dcdx/55a01058960c4fc7875b1ff2efa23591~tplv-resize:0:0.image?psm=motor.mp.car_review"
+   },
+   {
+    "car_review_type": 2,
+    "gid": 7112372486347428000,
+    "gid_str": "7112372486347427854",
+    "buy_car_info": {
+     "bought_time": "2022-05",
+     "location": "深圳",
+     "price": "72.85万",
+     "series_name": "宝马X5",
+     "car_name": "xDrive 40Li M运动套装",
+     "consumption": "12.50L",
+     "year": 2022,
+     "continuation": ""
+    },
+    "score_info": {
+     "score": 470,
+     "comfort_score": 0,
+     "appearance_score": 500,
+     "configuration_score": 400,
+     "control_score": 0,
+     "power_score": 0,
+     "space_score": 500,
+     "interiors_score": 450,
+     "assist_driving_score": 0,
+     "smart_cockpit_score": 0,
+     "power_control_score": 0,
+     "oil_consumption_score": 0,
+     "continuation_score": 0,
+     "driving_score": 500
+    },
+    "image_urls": [
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/74f5e18aa63846399982f2c699bc9219~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=45cV0uwSdnFe9slRBo05t4oBDk8%3D&psm=motor.mp.car_review",
+      "width": 1172,
+      "height": 724
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-img/5479c997a775423a991c38be2ef9304c~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=6xN6lpw4njKY6VHy9xenbSPn1gQ%3D&psm=motor.mp.car_review",
+      "width": 1166,
+      "height": 874
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/d94b083b352f4aeab8ba0b49617ddcc3~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=ITPhORK5U%2BT1gzUcU7OYXW7aKlU%3D&psm=motor.mp.car_review",
+      "width": 1170,
+      "height": 1560
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-article-img/45d312b6ba534f8f949baa874be84543~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=UiVyq7NKiaAOav2ToqY8ivxxk%2BI%3D&psm=motor.mp.car_review",
+      "width": 1162,
+      "height": 712
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/4199525dd7e94dc98301b19cd67784db~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=3D2umC%2FwStPH6nzxEO0fXX%2FQSZM%3D&psm=motor.mp.car_review",
+      "width": 1170,
+      "height": 1560
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/cca65ac85eb24e0391ed5410b63ffd86~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=l%2B9iFNXrhWj1asIogIeA3WOFSBg%3D&psm=motor.mp.car_review",
+      "width": 1166,
+      "height": 874
+     }
+    ],
+    "user_info": {
+     "user_id": 1094746519909917,
+     "user_id_str": "1094746519909917",
+     "name": "酒还不简单",
+     "avatar_url": "https://p6-passport.byteacctimg.com/img/user-avatar/d2e0c13fe72b86a7df66e6f0aab6e347~300x300.image",
+     "motor_auth_show_info": {
+      "auth_v_type": 0,
+      "auth_v_desc": "宝马X5车主·车龄4年"
+     },
+     "medal_list": [
+      {
+       "desc": "懂车帝5周年",
+       "desc_color": "#1F2129",
+       "desc_bg_color": "#12FFCC32",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/56c9a3b06568b9155f2916f3b3e741f6",
+       "type": "medal_47"
+      },
+      {
+       "desc": "车评创作力LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/5dca4359462c211ae53ac967efc56334",
+       "type": "medal_11"
+      },
+      {
+       "desc": "精英创作者LV1",
+       "desc_color": "#5D439A",
+       "desc_bg_color": "#136734E1",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/0dc02b87036ec2b83293a272b7333cd6",
+       "type": "medal_7"
+      },
+      {
+       "desc": "懂车评论员LV3",
+       "desc_color": "#5D439A",
+       "desc_bg_color": "#136734E1",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/2b354f854cfe85ae431e98d4c47a0f36",
+       "type": "medal_15"
+      },
+      {
+       "desc": "持之以恒LV4",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/0314d72b056ab95cc1318d3b2a9b63e5",
+       "type": "medal_21"
+      },
+      {
+       "desc": "懂车智多星LV4",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8df87c4245bc9f603ba612da36349e65",
+       "type": "medal_22"
+      },
+      {
+       "desc": "图文爆款大师LV3",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p9-dcd.byteimg.com/obj/tos-cn-i-dcdx/05e6e4554b6fb28740a52f0a4feb0814",
+       "type": "medal_24"
+      },
+      {
+       "desc": "车圈万人迷LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p9-dcd.byteimg.com/obj/tos-cn-i-dcdx/3effa952bf445a3cdf55497d53ca5897",
+       "type": "medal_27"
+      },
+      {
+       "desc": "内容鉴赏官LV5",
+       "desc_color": "#436657",
+       "desc_bg_color": "#1000A860",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8edcc30c4fbcb6b41f9672d9243886f8",
+       "type": "medal_28"
+      },
+      {
+       "desc": "超级车友节",
+       "desc_color": "#1F2129",
+       "desc_bg_color": "#12FFCC32",
+       "schema": "",
+       "icon": "https://p9-dcd.byteimg.com/obj/tos-cn-i-dcdx/936d37439f0b04cc3067cd343c5915dd",
+       "type": "medal_45"
+      }
+     ],
+     "is_following": false,
+     "tag": "宝马X5车主·车龄4年"
+    },
+    "content": "X5L首批3.0运动版2500公里综合体验\n【外观】5分\n这一代X5的外观在中大型SUV中绝对属于无死角审美，在这一点几乎没有啥争议，而且尺寸的加长并没有违和感，并且具备一定气场加成效果。\n颜色推荐：宝石青≥碳黑＞摩天灰＞神秘灰＞白色＞量子蓝\n深色车一定要去贴车衣，增加光亮度，防小擦碰。\n摩天灰、白色切记选装亮黑饰条。\n【内饰】4.5分\n内饰是一个见仁见智的问题，尽管大部分人觉得GLE的大连屏和氛围灯可以亮瞎妹子的双眼，但我仍然觉得X5的细节控制是超越GLE的。\n为什么给4.5，因为我觉得同级别能达到5分的只有卡宴（对比纬度为中大型车，当然卡宴品牌比X5要高一个档次）。\n内饰推荐：摩卡色配白杨木饰条；火山红配亮色细纹饰条，质感拉满。\n【配置】4分\nBBA三家同最高配置，指导价官降了5w的情况下，配置比进口的配置还高出一截，70.5标配直接堆上了HUD、空调座椅、Acantara顶棚、激光大灯、741轮毂、液晶钥匙等等一堆进口要选配才有的配置，这些不说好不好用，但七算八算选装价格都要6w+了，所以3.0一直供不应求。\n此外，额外选装的Accpro和M卡钳我觉得值回票价了。\n打4分的原因是居然没有把Accpro作为标配，其实我更愿意牺牲hud和Acantara顶棚两项配置换取一个Accpro。\n【空间】5分\n加长后的X5在同级别车型上空间无敌，不需要争议。\n后排腿部随便摆放，而且中间地台的高度很低，乘坐3个大汉一点问题都没有！\n【驾驶感受】5分\nBMW的看家本领，根据不同模式匹配不同驾驶需要，感受不同动力和操控。\nSport运动模式：非常激进，油门和变速箱换挡响应快，这个模式嘣到160以上可以玩一玩，普通道路完全用不上；\nComfort舒适模式，各种路况百搭，提速够用，能耗表现不错，转速控制合理，一脚下去各个部件都会让你有很舒服的驾驶感受。\nECO节能模式，适用于低速行驶和拥堵路段，换挡最平顺，滑行模式下超级省油，而且感觉不到发动机启停切换。\n【油耗】\n出厂2000公里平均12.3L/km（平均时速26），对于一台需要带动重达2.3吨车体的6缸机+48v，表现非常理想。高速行驶时，油耗可以控制到8个左右（非sport模式，平均时速50+）。\n敲黑板：使用Accpro在智能跟车模式下，动力输出和油耗控制非常精准，油耗绝对是小低于人工模式的。\n【亮点配置】\n1、激光大灯，HUD，空调座椅作为标配是不错的加分项；\n2、3.0一定，一定要选运动卡钳，6500这个配置很划算；\n3、我选了Accpro，这个可以算L2+辅助驾驶了，在拥堵路段和高速巡航期间还是很给力的，基本可以放开双脚；\n4、水晶3件套\n【动力表现】\n可以干掉路上95%的燃油车，B58的强悍之处在于高速行驶，就是轻轻松松踩下去，感受那种源源不断的线性动力输出。\n有时候遇到特斯拉，比亚迪串来串去，就笑一笑好了。\n【不喜欢的几点】\n1、无线充电，这完全是块鸡骨头，充电又充不进去，还烫得不行，并占用了储物格，还要增加成本，完全是为了装B而装B；\n2、3.0没有启停切换，目前不知道48v的优点体现在哪里，经常红绿灯等到60秒左右，48v输出空调能量不足了，就来个发动机启动抖一下！\n3、打方向盘轻微异响，不过我的车只在冷启动的时候打方向，像早上出库会有一点，跑起来就没事了，这个看运气。\n【购买建议】\n重点来了！！！\n3.0运动版目前是X5全系最紧俏的一款，配额有限，现车或者在途车很少。\n1、BMW是可以提全国的，所以本地及周边城市的的4S可以多跑几家，综合对比下订；\n2、在合同里一定要敲订配额月，最好写下生产编号（不是车架号），避免撬单；\n3、3.0目前行情无优惠，而且也极有可能长期无优惠，所以记得多谈赠品，赠品以大小保养最有价值，贴膜和车衣其次，行李箱雨伞那些都是渣渣；\n4、按揭坑太多，能全款就不要按揭。",
+    "create_time": 1657586210,
+    "digg_count_en": "176",
+    "comment_count_en": "290",
+    "user_digg": 0,
+    "user_bury": 0,
+    "comment_data": [
+     {
+      "comment_id": 7123353859896280000,
+      "comment_id_str": "7123353859896279819",
+      "user_info": {
+       "user_id": 76080859145,
+       "user_id_str": "76080859145",
+       "name": "半天云1123",
+       "avatar_url": "https://p6-passport.byteacctimg.com/img/user-avatar/348eda4f48314eb54cc14b3b3535c7af~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "37",
+      "is_author": false,
+      "text": "无线充能否拆除，换成杯架啊，还不如杯架实用，增加个冷热杯架多实用。",
+      "reply_data": null,
+      "create_time": 1658535178,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7122818511952561000,
+      "comment_id_str": "7122818511952560907",
+      "user_info": {
+       "user_id": 106846499739,
+       "user_id_str": "106846499739",
+       "name": "AA烂好人",
+       "avatar_url": "https://p9-passport.byteacctimg.com/img/mosaic-legacy/3793/3131589739~120x256.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "14",
+      "is_author": false,
+      "text": "gle后排坐着难受的太直啦",
+      "reply_data": null,
+      "create_time": 1658410493,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7129906822160778000,
+      "comment_id_str": "7129906822160778015",
+      "user_info": {
+       "user_id": 4450453353930368,
+       "user_id_str": "4450453353930368",
+       "name": "tt丶281",
+       "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/b7ba0835bc1bd795ae7f5f8642679eb6~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "9",
+      "is_author": false,
+      "text": "我得努力努力以后把x后面的3变成5[耶]",
+      "reply_data": null,
+      "create_time": 1660060980,
+      "user_bury": 0,
+      "has_pic": false
+     }
+    ],
+    "article_type": 14,
+    "series_name": "宝马X5",
+    "car_name": "xDrive 40Li M运动套装",
+    "series_id": 5273,
+    "car_id": 72138,
+    "year": 2022,
+    "fuel_form": 13,
+    "excellent_icon_type_light": "https://p3-dcd.byteimg.com/tos-cn-i-dcdx/194f8349d3fe5d9a8099f7d0a7ad49da~tplv-resize:0:0.image?psm=motor.mp.car_review",
+    "excellent_icon_type_dark": "https://p3-dcd.byteimg.com/tos-cn-i-dcdx/308d4037dbcdc76c96dd8edfc6d27c4c~tplv-resize:0:0.image?psm=motor.mp.car_review"
+   },
+   {
+    "car_review_type": 2,
+    "gid": 7114842314358395000,
+    "gid_str": "7114842314358394895",
+    "buy_car_info": {
+     "bought_time": "2022-06",
+     "location": "南京",
+     "price": "63.50万",
+     "series_name": "宝马X5",
+     "car_name": "xDrive 30Li 尊享型M运动套装",
+     "consumption": "9.50L",
+     "year": 2022,
+     "continuation": ""
+    },
+    "score_info": {
+     "score": 440,
+     "comfort_score": 0,
+     "appearance_score": 450,
+     "configuration_score": 400,
+     "control_score": 0,
+     "power_score": 0,
+     "space_score": 500,
+     "interiors_score": 450,
+     "assist_driving_score": 0,
+     "smart_cockpit_score": 0,
+     "power_control_score": 0,
+     "oil_consumption_score": 0,
+     "continuation_score": 0,
+     "driving_score": 400
+    },
+    "image_urls": [
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-img/95c50b81e36d4df296091a2ab6f2cab1~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=vbFMvhnA10zx2%2FIzTXyEmk3YvBI%3D&psm=motor.mp.car_review",
+      "width": 1284,
+      "height": 962
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/0b8ef07552bf41e189156e3a9e2b56a3~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=upE6WUFWnyjVZmqn9%2B4BtyHeZsk%3D&psm=motor.mp.car_review",
+      "width": 1280,
+      "height": 960
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-article-img/7f1dc7b96e9e4981a6af7c88ba67f2d2~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=XraiTP8jdul9bGcK0FIlePJGeE8%3D&psm=motor.mp.car_review",
+      "width": 1379,
+      "height": 1034
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/ccac91303df34bd99ebe19b1a9c57c01~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=wJtin0KK0ey0XcYUdMCyir1i5o4%3D&psm=motor.mp.car_review",
+      "width": 1284,
+      "height": 645
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-article-img/7726899382ab47a09cbc0c18907ce0e8~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=wbtj%2BKyV2HTx26jF4QRTL3StcAg%3D&psm=motor.mp.car_review",
+      "width": 1193,
+      "height": 895
+     }
+    ],
+    "user_info": {
+     "user_id": 2577707923941047,
+     "user_id_str": "2577707923941047",
+     "name": "走路的约翰927",
+     "avatar_url": "https://p26-passport.byteacctimg.com/img/user-avatar/18143faf22ff518df0c9fb1b3f9234ed~300x300.image",
+     "motor_auth_show_info": {
+      "auth_v_type": 0,
+      "auth_v_desc": ""
+     },
+     "medal_list": [
+      {
+       "desc": "内容鉴赏官LV3",
+       "desc_color": "#436657",
+       "desc_bg_color": "#1000A860",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8edcc30c4fbcb6b41f9672d9243886f8",
+       "type": "medal_28"
+      },
+      {
+       "desc": "车评创作力LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/5dca4359462c211ae53ac967efc56334",
+       "type": "medal_11"
+      },
+      {
+       "desc": "持之以恒LV3",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/0314d72b056ab95cc1318d3b2a9b63e5",
+       "type": "medal_21"
+      },
+      {
+       "desc": "懂车智多星LV1",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8df87c4245bc9f603ba612da36349e65",
+       "type": "medal_22"
+      },
+      {
+       "desc": "车圈万人迷LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p9-dcd.byteimg.com/obj/tos-cn-i-dcdx/3effa952bf445a3cdf55497d53ca5897",
+       "type": "medal_27"
+      },
+      {
+       "desc": "懂车帝5周年",
+       "desc_color": "#1F2129",
+       "desc_bg_color": "#12FFCC32",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/56c9a3b06568b9155f2916f3b3e741f6",
+       "type": "medal_47"
+      }
+     ],
+     "is_following": false,
+     "tag": ""
+    },
+    "content": "【购车背景】\n15年奔赴美国留学，在那里有了自己的第一辆车，一辆5.0T福特野马，在国外基本所有油车都有过体验，体验过大马力的我反而对动力没什么追求了，留学时期我经常和我一个朋友的雷克萨斯RX300h换着开（让他来当那辆油老虎的冤大头），21年12月份回国后就开始看车，受够了野马的空间（野马的后备箱连一个大号的行李箱都塞不进去），所以一开始定位就是SUV，从x3、Q5L开始看，后来找到了份薪水不错的工作就提了点预算，正值X5L临近上市，就果断等了一个多月，然后敲定了X5L，目前看来等等还是挺值得的。\n我知道有一部分人肯定会说美国X5那么便宜不在国外买X5，回国了再买不是铁冤大头吗？西方的价格固然香，但是我想说车子价格不是由成本决定的，而是市场决定的，在中国，X5就值这么多钱，宝马是车企又不是慈善机构，国外的可乐还2.5美金呢，这种东西没有什么好比较的。\n【提车价格】\n我走的是留学生渠道，免去购置税并且跳过4s店直接和总部订车，总部不捆绑销售任何东西，所以落地价格就是63.5w+保险9500=64.45w，后来自己出去搞了隐形车衣+脚垫+行车记录仪=1w，所以就勉强算65.5w落地吧，顺便提一嘴我应该是江苏留学生X5首提。\n【动力方面】\n2.0T的X5给我的动力反馈整体比我预想的要好很多，平时开起来完全没有小马拉大车的感觉，但是和3.0TX5对比的话，还是有一些差距的，特别明显的地方就在于3.0T后半段动力储备相当充足，2.0T在100码以上的时候提速就显得稍微有些力不从心。\n【缺点不足】\n1.无线充电板太鸡肋，充电龟速，实测30分钟充5%的电，发热很严重，并且不是很灵敏，充不充的上电完全看X5心情。\n2.刹车时常有异响，目前还不清楚原因，可能是因为新车缘故，等再开一段时间看看会不会好一些。\n3.高速超车时发动机顿挫明显，不过这个我也能理解吧，毕竟2.0T的发动机拉2.3吨的车。\n4.2.0尊享的标配木饰板太丑。\n【油耗部分】\n我离公司还比较远，路上市区路段和高速路段正好一半一半，目前开了800公里，油耗综合在9.5个油左右，不过新车可能会高一些，这个你们就当个参考吧。\n【配置参数】\n1.空间真的给力，特别是后排，我1米8在前排调整好座椅的情况下坐后面随便跷二郎腿，稍微矮一点的女生坐副驾腿能伸直。\n2.HUD香是香，就是导航只支持苹果和宝马自带，不支持百度、高德地图，希望新的carplay宝马能尽快跟进吧。\n3.自动泊车挺垃圾的，稍微紧一点的车位就连检测都检测不到，还得靠自己，如果想依赖这个停车的女生我劝你们慎重考虑。\n4.哈曼卡顿音响还可以，找朋友调试了以后音质挺美妙的。\n5.对液晶钥匙有点失望，功能和普通钥匙几乎没有区别，除了相亲时候能撑撑场子外没啥卵用，我现在绑定了数字钥匙基本都不带液晶钥匙出门了。\n【总体评价】\n总体相当满意，瑕不掩瑜吧，不后悔，将来也不会后悔。提车过程也相当满意，因为是在4s店提车的，4s店也没为难我搞任何装潢啊什么的（他们通知我去提车的时候我还挺紧张的）。第二辆估计考虑一辆电车了，给以后对象开开。也在这借这个机会祝各位大佬早日提到自己的dream car！",
+    "create_time": 1657382185,
+    "digg_count_en": "120",
+    "comment_count_en": "138",
+    "user_digg": 0,
+    "user_bury": 0,
+    "comment_data": [
+     {
+      "comment_id": 7118676330975790000,
+      "comment_id_str": "7118676330975789862",
+      "user_info": {
+       "user_id": 65699700489,
+       "user_id_str": "65699700489",
+       "name": "Flyukku",
+       "avatar_url": "https://p6-passport.byteacctimg.com/img/user-avatar/5dbf4e44ed735c3ee00cedd542bcc9b8~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "26",
+      "is_author": false,
+      "text": "2.0动力够了没有",
+      "reply_data": null,
+      "create_time": 1657446112,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7123630445106873000,
+      "comment_id_str": "7123630445106873095",
+      "user_info": {
+       "user_id": 2902324623447821,
+       "user_id_str": "2902324623447821",
+       "name": "茂名锦杨",
+       "avatar_url": "https://p6-passport.byteacctimg.com/img/user-avatar/538d53614d2faf6c271d57bf291f51e1~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "13",
+      "is_author": false,
+      "text": "不用购置税，我羡慕了[我想静静]",
+      "reply_data": null,
+      "create_time": 1658599701,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7122112452686415000,
+      "comment_id_str": "7122112452686414622",
+      "user_info": {
+       "user_id": 85698226681,
+       "user_id_str": "85698226681",
+       "name": "水牛视野",
+       "avatar_url": "https://p6-passport.byteacctimg.com/img/user-avatar/179e0dee7cc56421b3ba4c663f9eb8a5~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "12",
+      "is_author": false,
+      "text": "好羡慕呀，我啥时候才能开上x5",
+      "reply_data": null,
+      "create_time": 1658246173,
+      "user_bury": 0,
+      "has_pic": false
+     }
+    ],
+    "article_type": 14,
+    "series_name": "宝马X5",
+    "car_name": "xDrive 30Li 尊享型M运动套装",
+    "series_id": 5273,
+    "car_id": 59198,
+    "year": 2022,
+    "fuel_form": 1,
+    "excellent_icon_type_light": "https://p3-dcd.byteimg.com/tos-cn-i-dcdx/194f8349d3fe5d9a8099f7d0a7ad49da~tplv-resize:0:0.image?psm=motor.mp.car_review",
+    "excellent_icon_type_dark": "https://p3-dcd.byteimg.com/tos-cn-i-dcdx/308d4037dbcdc76c96dd8edfc6d27c4c~tplv-resize:0:0.image?psm=motor.mp.car_review"
+   },
+   {
+    "car_review_type": 2,
+    "gid": 7101694197773636000,
+    "gid_str": "7101694197773635584",
+    "buy_car_info": {
+     "bought_time": "2022-05",
+     "location": "南京",
+     "price": "63.50万",
+     "series_name": "宝马X5",
+     "car_name": "xDrive 30Li 尊享型M运动套装",
+     "consumption": "10.00L",
+     "year": 2022,
+     "continuation": ""
+    },
+    "score_info": {
+     "score": 460,
+     "comfort_score": 0,
+     "appearance_score": 500,
+     "configuration_score": 400,
+     "control_score": 0,
+     "power_score": 0,
+     "space_score": 500,
+     "interiors_score": 400,
+     "assist_driving_score": 0,
+     "smart_cockpit_score": 0,
+     "power_control_score": 0,
+     "oil_consumption_score": 0,
+     "continuation_score": 0,
+     "driving_score": 500
+    },
+    "image_urls": [
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/1483c405b5bf4852948916ba8f84bb14~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=Qnjkk0XdYtZphTQwiWFI8Z2gKyA%3D&psm=motor.mp.car_review",
+      "width": 3024,
+      "height": 4032
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/cd9418779ec3410b934116a9051cb76b~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=A0P3DM9GXTb%2BD6LgfQDtjIg0cLY%3D&psm=motor.mp.car_review",
+      "width": 750,
+      "height": 1000
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/581d7ad1adae43f99345f9565f84d647~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=zcKPBKJLmxnInLsa8Z32hbWbLQc%3D&psm=motor.mp.car_review",
+      "width": 750,
+      "height": 1334
+     },
+     {
+      "img_type": 1,
+      "url": "https://p9-dcd-sign.byteimg.com/motor-article-img/a561597ad3eb460dacd58f82418a0c5c~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=LcVnPGJx6iK%2FFwCyzpm09CDGl7U%3D&psm=motor.mp.car_review",
+      "width": 750,
+      "height": 1332
+     },
+     {
+      "img_type": 1,
+      "url": "https://p3-dcd-sign.byteimg.com/motor-article-img/f506bb3e8f3545e8b75f6843dc22f0fe~tplv-resize:0:2048.image?lk3s=4326c8aa&x-expires=1784830047&x-signature=snN%2FJi2sEIAcPLp7zCGd%2FQtXGq4%3D&psm=motor.mp.car_review",
+      "width": 750,
+      "height": 1332
+     }
+    ],
+    "user_info": {
+     "user_id": 356666782522878,
+     "user_id_str": "356666782522878",
+     "name": "nj工具车人",
+     "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/0825d27e6a4a5a4ffaa0cccf69696b05~300x300.image",
+     "motor_auth_show_info": {
+      "auth_v_type": 0,
+      "auth_v_desc": "宝马X5车主·车龄4年"
+     },
+     "medal_list": [
+      {
+       "desc": "内容鉴赏官LV5",
+       "desc_color": "#436657",
+       "desc_bg_color": "#1000A860",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8edcc30c4fbcb6b41f9672d9243886f8",
+       "type": "medal_28"
+      },
+      {
+       "desc": "车评创作力LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/5dca4359462c211ae53ac967efc56334",
+       "type": "medal_11"
+      },
+      {
+       "desc": "精英创作者LV1",
+       "desc_color": "#5D439A",
+       "desc_bg_color": "#136734E1",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/0dc02b87036ec2b83293a272b7333cd6",
+       "type": "medal_7"
+      },
+      {
+       "desc": "懂车评论员LV4",
+       "desc_color": "#5D439A",
+       "desc_bg_color": "#136734E1",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/2b354f854cfe85ae431e98d4c47a0f36",
+       "type": "medal_15"
+      },
+      {
+       "desc": "持之以恒LV4",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/0314d72b056ab95cc1318d3b2a9b63e5",
+       "type": "medal_21"
+      },
+      {
+       "desc": "懂车智多星LV4",
+       "desc_color": "#C9603F",
+       "desc_bg_color": "#30FFD5A4",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/8df87c4245bc9f603ba612da36349e65",
+       "type": "medal_22"
+      },
+      {
+       "desc": "车圈万人迷LV1",
+       "desc_color": "#375CD1",
+       "desc_bg_color": "#2090AAFD",
+       "schema": "",
+       "icon": "https://p9-dcd.byteimg.com/obj/tos-cn-i-dcdx/3effa952bf445a3cdf55497d53ca5897",
+       "type": "medal_27"
+      },
+      {
+       "desc": "2022虎虎生威",
+       "desc_color": "#1F2129",
+       "desc_bg_color": "#12FFCC32",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/150805b938b1f2cd4f2a79c381959f92",
+       "type": "medal_46"
+      },
+      {
+       "desc": "懂车帝5周年",
+       "desc_color": "#1F2129",
+       "desc_bg_color": "#12FFCC32",
+       "schema": "",
+       "icon": "https://p3-dcd.byteimg.com/obj/tos-cn-i-dcdx/56c9a3b06568b9155f2916f3b3e741f6",
+       "type": "medal_47"
+      }
+     ],
+     "is_following": false,
+     "tag": "宝马X5车主·车龄4年"
+    },
+    "content": "高速油耗7左右，市区油耗12左右，综合我就写的10左右。关于价格63.5裸车价，1.68装潢，0.35上牌，自己主动购买的0.32巴尔扎克车衣，0.97三大件延保。\n——\n目前发现X5L的问题和不足：\n1、单杯架对我而言不是问题，但杯架前方X5 LOGO能不能做个凹槽；哪怕比较浅，放点小东西也好；\n\n2、无线充电放液晶钥匙容易滑下来，液晶钥匙在充电面板下方又冲不进电，多么尴尬，对手机倒是挺友好，没毛病；\n\n3、头枕无法拔下，想放个那种需要插入的挂钩就做不到了；\n\n4、手套箱高度还可以（cd包可以竖起来放），但纵深并不足，cd包倒下来放就关不上，挺奇葩，另外，没有CD机了；\n\n5、前排貌似没有点烟器，就后排一个，所以前排想用点烟器12V充电，也是个比较反人类的操作，虽然前排扶手箱内不算小，但就等于是一个无隔断的长方形立体空间，小杂物一多就挺杂乱无章，另外扶手内一个usb一个typeC接口放满东西后就不太容易操作了，如果这个用来给手机充电，线出来后关盖子又比较尴尬；\n\n6、后备箱无挂钩无220V电源，差评！（相比进口据说是减配掉了），后备箱下方空间不小，但有弧形，并不规整（我之前的16款新X1下方空间也挺好，盖板还比较轻松，拉手也厚实不少）但拉钩略显单薄，盖板又比较沉重，真不知道哪天会断，所以底下尽量放不怎么用到的东西算了，远不及X1实用；\n\n7、和其他车友了解到，急救包多年前已经减配了，我后悔没把x1的急救包带走，虽然基本用不着；\n\n8、倒车灯不是太亮堂，至少还不如我2016款x1的亮堂，如果在某些视线一般的停车场或者夜晚，对倒车不是很友好（纯个人感官）\n\n9、comfort舒适模式和sports运动模式在市区里差异不算大（仅仅说的2.0t，不包括3.0t），主要是没我x1 2016款2.0t的 comfort舒适模式和sports运动模式差异大，我不清楚是我不会设置还是咋滴（这一条还需要再斟酌，毕竟我才开了几天）高速上差异还算比较明显。驾驶感受完全满足我的需求。\n\n10、最后，不满意的地方还是要吐槽，腿托减配（虽然我长途少，基本用不着），座椅后背小包弄个收纳网兜更实用，后排扶手low了（虽然我一般不放下来），座椅虽然舒适柔软没毛病，但我还是喜欢真皮的；也没有x1那样可以前后移动，更别说后排电动调节座椅和放倒，便利性一般，这个价位没有标配通风，没有标配后排独立空调，也说不过去。\n\n总结：虽然吐槽的条数很多，但我其实是硬凑的10条，总的来说满意度90分，和我2016年x1改款第一年就提车一样，因为完全符合我当时的需求（上一代x1 2.0最后半年都是清仓甩卖，20w多一点，我也没动心，结果我花了38.5买的x1 s20（其实38.5完全可以买老款x3乞丐了，但也没买，因为这两款车虽然便宜，但是完全不符合我的用车需求），除了家里人都比较高大对空间有要求外，后备箱电动+一脚踢+后排座椅可以前后移动+放倒，对我这些年的帮助太大了。\n\n其实肯定会有很多人说，你x1 2.0换到x5L 2.0完全没必要如何如何，不如3.0，不如买进口如何如何，我觉得这还是看我自己的需求，x5国产我等了两年，后排空间是最终pass进口的唯一理由，3.0其实可以上，不过销售怂恿了好久（因为3.0配额少，他肯定想卖车源多的型号），加上提车周期太久（结果我2.0我从订车到提车也等了三个半月也是醉了），加上自己觉得平时开车的方式根本就不需要3.0（我x1 sport模式开五年多总共也没用超过十次），最终还是选的2.0尊享，我不会后悔的，放心吧",
+    "create_time": 1653725552,
+    "digg_count_en": "60",
+    "comment_count_en": "391",
+    "user_digg": 0,
+    "user_bury": 0,
+    "comment_data": [
+     {
+      "comment_id": 7104096346445153000,
+      "comment_id_str": "7104096346445153063",
+      "user_info": {
+       "user_id": 3518861430752792,
+       "user_id_str": "3518861430752792",
+       "name": "88章鱼弟",
+       "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/7ff32874d91c824a63b549d985dfea0d~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "134",
+      "is_author": false,
+      "text": "大哥你是真的狠，尾箱贴M标也就算了，你好歹把30i撕了啊[我想静静]",
+      "reply_data": [
+       {
+        "reply_comment_id": 7104096346445153000,
+        "reply_comment_id_str": "7104096346445153063",
+        "user_info": {
+         "user_id": 356666782522878,
+         "user_id_str": "356666782522878",
+         "name": "nj工具车人",
+         "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/0825d27e6a4a5a4ffaa0cccf69696b05~300x300.image",
+         "motor_auth_show_info": null,
+         "medal_list": null,
+         "is_following": false,
+         "tag": ""
+        },
+        "to_user_info": null,
+        "user_digg": 0,
+        "digg_count_en": "17",
+        "is_author": true,
+        "text": "实话实说m标还是之前x1时买的，在角落里，卖车才翻出来，感觉大小正合适，就贴上了。华晨四个字ssss交车时就没有了，就好看一点罢了当m外观套件行不[我想静静][我想静静]也不自欺欺人了，所以30li懒得扣",
+        "create_time": 1655007349,
+        "user_bury": 0
+       }
+      ],
+      "create_time": 1654051426,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7106034805502412000,
+      "comment_id_str": "7106034805502411557",
+      "user_info": {
+       "user_id": 2409747927541294,
+       "user_id_str": "2409747927541294",
+       "name": "jjjdhhdhieidh",
+       "avatar_url": "https://p9-passport.byteacctimg.com/img/user-avatar/089ba5ac5467a595e0f90be7ef494b58~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "7",
+      "is_author": false,
+      "text": "说白了 2.0X5 就是给那些 钱吧不多 但也不少 咬牙那种的 但凡懂点车的都知道全世界 豪车就tm没有2.0 4缸概念 所谓马力动力 不过是用涡轮带动增压 所以悬挂会硬后排容易晕车 长时间小马拉大车 问题也就多了",
+      "reply_data": null,
+      "create_time": 1654502775,
+      "user_bury": 0,
+      "has_pic": false
+     },
+     {
+      "comment_id": 7114982438887458000,
+      "comment_id_str": "7114982438887457567",
+      "user_info": {
+       "user_id": 4147012725914392,
+       "user_id_str": "4147012725914392",
+       "name": "又赖又逗",
+       "avatar_url": "https://p3-passport.byteacctimg.com/img/user-avatar/73d82650b181faf5dcb62ce4e52c0e48~300x300.image",
+       "motor_auth_show_info": null,
+       "medal_list": null,
+       "is_following": false,
+       "tag": ""
+      },
+      "user_digg": 0,
+      "digg_count_en": "10",
+      "is_author": false,
+      "text": "说实话现在的路况 城市开2.0足够 你就是买3.0也开不出来3.0的感觉 高速限速 其实动力吧 2.0够用 只是大家都觉得花这个价格买个4杠2.0的有点亏 其实还是看自己需求 如果是我 我也是首选2.0的 当然这只是如果 目前我的咖位只能开个途观[惊呆]",
+      "reply_data": null,
+      "create_time": 1656586045,
+      "user_bury": 0,
+      "has_pic": false
+     }
+    ],
+    "article_type": 14,
+    "series_name": "宝马X5",
+    "car_name": "xDrive 30Li 尊享型M运动套装",
+    "series_id": 5273,
+    "car_id": 59198,
+    "year": 2022,
+    "fuel_form": 1,
+    "excellent_icon_type_light": "https://p3-dcd.byteimg.com/tos-cn-i-dcdx/194f8349d3fe5d9a8099f7d0a7ad49da~tplv-resize:0:0.image?psm=motor.mp.car_review",
+    "excellent_icon_type_dark": "https://p3-dcd.byteimg.com/tos-cn-i-dcdx/308d4037dbcdc76c96dd8edfc6d27c4c~tplv-resize:0:0.image?psm=motor.mp.car_review"
+   }
+  ]
+ }
+}

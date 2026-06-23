@@ -10558,6 +10558,203 @@
     "sourceFile": "dockerhub/search.js"
   },
   {
+    "site": "dongchedi",
+    "name": "koubei",
+    "aliases": [
+      "reviews"
+    ],
+    "description": "懂车帝车系口碑/车主评价（评分 / 购车款型 / 点赞 / 评论 / 正文摘要）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回的口碑条数（最多 15，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "user",
+      "car",
+      "score",
+      "likes",
+      "comments",
+      "content",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/koubei.js",
+    "sourceFile": "dongchedi/koubei.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "models",
+    "aliases": [
+      "trims"
+    ],
+    "description": "懂车帝车系款型列表（car_id / 名称 / 年款 / 指导价 / 经销商价 / 车主成交价）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "default": "online",
+        "required": false,
+        "help": "在售 online（默认）或停售 offline"
+      }
+    ],
+    "columns": [
+      "car_id",
+      "name",
+      "year",
+      "official_price",
+      "dealer_price",
+      "owner_price"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/models.js",
+    "sourceFile": "dongchedi/models.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "score",
+    "aliases": [
+      "rating"
+    ],
+    "description": "懂车帝车系评分（懂车分 8 维度 + 同级车均值对比）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "dimension",
+      "score",
+      "same_level_avg"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/score.js",
+    "sourceFile": "dongchedi/score.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "search",
+    "description": "懂车帝车系搜索（按关键词，返回车系 + 指导价/经销商价）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词，例如 \"宝马X5\" 或 \"汉兰达\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "返回的车系数量（最多 30）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "series_id",
+      "name",
+      "brand",
+      "official_price",
+      "dealer_price",
+      "pictures",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/search.js",
+    "sourceFile": "dongchedi/search.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "series",
+    "aliases": [
+      "detail"
+    ],
+    "description": "懂车帝车系概览（品牌 / 指导价 / 二手价 / 懂车分 / 销量排名 / 在售款型数）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/series.js",
+    "sourceFile": "dongchedi/series.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "specs",
+    "aliases": [
+      "config"
+    ],
+    "description": "懂车帝车系配置概览（尺寸 / 动力 / 发动机 / 变速箱 / 四驱 / 悬挂 / 气囊）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/specs.js",
+    "sourceFile": "dongchedi/specs.js"
+  },
+  {
     "site": "douban",
     "name": "book-hot",
     "description": "豆瓣图书热门榜单",
@@ -15234,6 +15431,74 @@
     "sourceFile": "grok/auth.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "guazi",
+    "name": "browse",
+    "aliases": [
+      "list"
+    ],
+    "description": "瓜子二手车在售车源列表（按城市，含售价/首付/里程/年份）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "城市名（北京/上海/...）或瓜子城市码（bj/sh/...）。默认 bj 北京"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的车源数量（最多 40，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "clue_id",
+      "title",
+      "price",
+      "down_payment",
+      "mileage",
+      "year",
+      "city",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "guazi/browse.js",
+    "sourceFile": "guazi/browse.js"
+  },
+  {
+    "site": "guazi",
+    "name": "car",
+    "aliases": [
+      "detail"
+    ],
+    "description": "瓜子二手车车源详情（售价 / 上牌 / 里程 / 过户 / 配置 / 车况）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "clue_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车源 ID（来自 browse 的 clue_id，或 /car-detail/c<id>.html URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "guazi/car.js",
+    "sourceFile": "guazi/car.js"
   },
   {
     "site": "hackernews",
