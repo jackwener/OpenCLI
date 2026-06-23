@@ -24,8 +24,11 @@
 | `opencli twitter lists` | |
 | `opencli twitter list-tweets` | |
 | `opencli twitter list-create` | Create a Twitter/X list via GraphQL and return the created list id |
+| `opencli twitter list-delete` | Delete a Twitter/X list you own after explicit confirmation |
 | `opencli twitter list-add` | |
+| `opencli twitter list-add-batch` | Add multiple users to a Twitter/X list you own from a comma-separated username list |
 | `opencli twitter list-remove` | |
+| `opencli twitter list-remove-batch` | Remove multiple users from a Twitter/X list you own from a comma-separated username list |
 | `opencli twitter article` | |
 | `opencli twitter follow` | |
 | `opencli twitter unfollow` | |
@@ -66,8 +69,11 @@ opencli twitter download --tweet-url https://x.com/jack/status/20 --output ./twi
 
 # Create a list and then manage members (requires login)
 opencli twitter list-create "AI research" --description "Papers and labs" --mode private
+opencli twitter list-delete 123456789 --confirm true
 opencli twitter list-add 123456789 alice
+opencli twitter list-add-batch 123456789 "@alice,@bob" --interval 5
 opencli twitter list-remove 123456789 alice
+opencli twitter list-remove-batch 123456789 "@alice,@bob" --interval 5
 
 # Write actions (require login). Idempotent — calling twice is safe.
 opencli twitter like https://x.com/jack/status/20

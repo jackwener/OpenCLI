@@ -46,6 +46,26 @@ const VIDEO_PLATFORM_DOMAINS = [
   'x.com', 'tiktok.com', 'vimeo.com', 'twitch.tv',
 ];
 
+/**
+ * Whether a URL's host is a known video platform.
+ *
+ * Matches on the parsed hostname with a domain boundary (exact host or a
+ * subdomain) rather than a raw substring of the whole URL. A plain
+ * `url.includes('x.com')` wrongly classifies `netflix.com`, `max.com`, etc.
+ * (and any URL whose path merely contains a token like `youtu.be`) as a
+ * video platform, routing ordinary files to yt-dlp and mislabelling content
+ * types. Mirrors the host-boundary check used in execution.ts.
+ */
+function isVideoPlatformUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return VIDEO_PLATFORM_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.bmp', '.avif']);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.avi', '.mov', '.mkv', '.flv', '.m3u8', '.ts']);
 const DOC_EXTENSIONS = new Set(['.html', '.htm', '.json', '.xml', '.txt', '.md', '.markdown']);
@@ -60,12 +80,11 @@ export function detectContentType(url: string, contentType?: string): 'image' | 
     if (contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('xml')) return 'document';
   }
 
-  const urlLower = url.toLowerCase();
   const ext = path.extname(new URL(url).pathname).toLowerCase();
 
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (VIDEO_EXTENSIONS.has(ext)) return 'video';
-  if (VIDEO_PLATFORM_DOMAINS.some(d => urlLower.includes(d))) return 'video';
+  if (isVideoPlatformUrl(url)) return 'video';
   if (DOC_EXTENSIONS.has(ext)) return 'document';
   return 'binary';
 }
@@ -74,8 +93,7 @@ export function detectContentType(url: string, contentType?: string): 'image' | 
  * Check if URL requires yt-dlp for download.
  */
 export function requiresYtdlp(url: string): boolean {
-  const urlLower = url.toLowerCase();
-  return VIDEO_PLATFORM_DOMAINS.some(d => urlLower.includes(d));
+  return isVideoPlatformUrl(url);
 }
 
 /**

@@ -21,6 +21,8 @@
 | `opencli bilibili dynamic` | |
 | `opencli bilibili ranking` | |
 | `opencli bilibili following` | |
+| `opencli bilibili follow` | Follow a user by UID, profile URL, or resolvable name; verifies the relation after modify |
+| `opencli bilibili unfollow` | Unfollow a user by UID, profile URL, or resolvable name; verifies the relation after modify |
 | `opencli bilibili user-videos` | |
 | `opencli bilibili download` | |
 
@@ -35,6 +37,10 @@ opencli bilibili search 黑神话 --limit 10
 
 # Read one creator's videos
 opencli bilibili user-videos 2 --limit 10
+
+# Follow / unfollow a creator
+opencli bilibili follow 9617619
+opencli bilibili unfollow https://space.bilibili.com/9617619
 
 # Read your first favorite folder
 opencli bilibili favorite --limit 10
@@ -95,3 +101,5 @@ opencli bilibili hot -v
 - `comments --limit` accepts `1..50`; empty comment lists raise `EmptyResultError`
 - `comment` is a write command and refuses to post unless `--execute` is passed
 - `comment --parent` expects the top-level/root `rpid`; nested reply-to-reply targeting is not inferred
+- `follow` and `unfollow` are write commands; they no-op when the current relation already matches the requested state and otherwise re-read `/x/relation` after modify before reporting success
+- `follow` and `unfollow` accept numeric UID, exact `space.bilibili.com/<uid>` profile URL, or a name that resolves through Bilibili search

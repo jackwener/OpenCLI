@@ -4,26 +4,8 @@
  * @username mentions in the message are resolved to real mentions (at_name_to_mid).
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { apiGet, apiPost, resolveBvid, resolveUid } from './utils.js';
-
-function isAuthLikeBilibiliError(code, message) {
-    return code === -101 || code === -111 || code === -403 || /csrf|登录|账号|权限|forbidden|permission|login/i.test(String(message ?? ''));
-}
-
-function requireOkPayload(payload, label) {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.hasOwn(payload, 'code')) {
-        throw new CommandExecutionError(`Bilibili ${label} API returned a malformed payload`);
-    }
-    if (payload.code !== 0) {
-        const message = payload.message ?? 'unknown error';
-        if (isAuthLikeBilibiliError(payload.code, message)) {
-            throw new AuthRequiredError('bilibili.com', `Bilibili ${label} API requires login or permission: ${message} (${payload.code})`);
-        }
-        throw new CommandExecutionError(`Bilibili ${label} API failed: ${message} (${payload.code})`);
-    }
-    return payload.data;
-}
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { apiGet, apiPost, requireOkPayload, resolveBvid, resolveUid } from './utils.js';
 
 function readPositiveInteger(value, label) {
     const n = Number(value);

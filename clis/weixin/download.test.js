@@ -1,182 +1,106 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { describe, expect, it } from 'vitest';
+import { normalizeWechatUrl } from './download.js';
 
-const { mockDownloadArticle } = vi.hoisted(() => ({
-    mockDownloadArticle: vi.fn(),
-}));
+describe('normalizeWechatUrl', () => {
+    const canonical = 'https://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw';
 
-vi.mock('@jackwener/opencli/download/article-download', () => ({
-    downloadArticle: mockDownloadArticle,
-}));
-
-// Import side-effect — registers `weixin/download` in the registry.
-await import('./download.js');
-
-describe('weixin download command', () => {
-    const command = getRegistry().get('weixin/download');
-
-    const extractedArticle = {
-        title: '测试文章',
-        author: '某公众号',
-        publishTime: '2026-05-27',
-        errorHint: '',
-        contentHtml: '<p>正文内容</p>',
-        codeBlocks: [],
-        imageUrls: ['https://example.com/img.jpg'],
-    };
-
-    const verificationGatePayload = {
-        title: '',
-        author: '',
-        publishTime: '',
-        errorHint: 'environment verification required',
-        contentHtml: '',
-        codeBlocks: [],
-        imageUrls: [],
-    };
-
-    let page;
-
-    beforeEach(() => {
-        vi.restoreAllMocks();
-        mockDownloadArticle.mockReset();
-        mockDownloadArticle.mockResolvedValue([{
-            title: '测试文章',
-            author: '某公众号',
-            publish_time: '2026-05-27',
-            status: 'success',
-            size: '1 KB',
-            saved: '/tmp/out/测试文章/测试文章.md',
-        }]);
-        page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            wait: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue(extractedArticle),
-        };
+    it('returns the input unchanged when already canonical', () => {
+        expect(normalizeWechatUrl(canonical)).toBe(canonical);
     });
 
-    it('registers as a cookie-strategy browser command for mp.weixin.qq.com', () => {
-        expect(command).toBeDefined();
-        expect(command.site).toBe('weixin');
-        expect(command.name).toBe('download');
-        expect(command.strategy).toBe('cookie');
-        expect(command.domain).toBe('mp.weixin.qq.com');
+    it('returns empty string for empty / nullish input', () => {
+        expect(normalizeWechatUrl('')).toBe('');
+        expect(normalizeWechatUrl(null)).toBe('');
+        expect(normalizeWechatUrl(undefined)).toBe('');
     });
 
-    it('exposes a boolean --stdout flag defaulting to false', () => {
-        const stdoutArg = command.args.find((a) => a.name === 'stdout');
-        expect(stdoutArg).toBeDefined();
-        expect(stdoutArg.type).toBe('boolean');
-        expect(stdoutArg.default).toBe(false);
+    it('strips ASCII straight double quotes', () => {
+        expect(normalizeWechatUrl(`"${canonical}"`)).toBe(canonical);
     });
 
-    it('rejects non-mp.weixin.qq.com URLs before any browser navigation', async () => {
-        const result = await command.func(page, {
-            url: 'https://example.com/article',
-            output: '/tmp/out',
-            'download-images': false,
-            stdout: false,
-        });
-        expect(result).toEqual([
-            expect.objectContaining({ status: 'invalid URL' }),
-        ]);
-        expect(page.goto).not.toHaveBeenCalled();
+    it('strips ASCII straight single quotes', () => {
+        expect(normalizeWechatUrl(`'${canonical}'`)).toBe(canonical);
     });
 
-    describe('--stdout=true behavior', () => {
-        it('passes stdout:true through to downloadArticle and returns null to suppress row output', async () => {
-            const result = await command.func(page, {
-                url: 'https://mp.weixin.qq.com/s/abc123',
-                output: '/tmp/out',
-                'download-images': true,
-                stdout: true,
-            });
-
-            expect(result).toBeNull();
-            expect(mockDownloadArticle).toHaveBeenCalledTimes(1);
-            const [data, options] = mockDownloadArticle.mock.calls[0];
-            expect(data).toEqual(expect.objectContaining({
-                title: '测试文章',
-                author: '某公众号',
-                publishTime: '2026-05-27',
-                sourceUrl: 'https://mp.weixin.qq.com/s/abc123',
-                contentHtml: '<p>正文内容</p>',
-            }));
-            expect(options).toEqual(expect.objectContaining({
-                output: '/tmp/out',
-                downloadImages: true,
-                stdout: true,
-                imageHeaders: { Referer: 'https://mp.weixin.qq.com/' },
-                frontmatterLabels: { author: '公众号' },
-            }));
-        });
-
-        it('takes the errorHint early-return path BEFORE downloadArticle, even when --stdout=true', async () => {
-            // Lock the §5 semantic: errorHint detection runs in-page (line 242 of download.js)
-            // and short-circuits the cli func at line 294, never reaching downloadArticle().
-            // --stdout has zero effect on this branch — it must return the structured
-            // verification-required row regardless, so omnireach can read row.status
-            // and surface captcha_suspected.
-            page.evaluate.mockResolvedValue(verificationGatePayload);
-
-            const result = await command.func(page, {
-                url: 'https://mp.weixin.qq.com/s/blocked',
-                output: '/tmp/out',
-                'download-images': true,
-                stdout: true,
-            });
-
-            expect(mockDownloadArticle).not.toHaveBeenCalled();
-            expect(result).toEqual([
-                expect.objectContaining({
-                    title: 'Error',
-                    status: expect.stringContaining('verification required'),
-                }),
-            ]);
-        });
+    it('strips CJK curly double quotes (U+201C / U+201D)', () => {
+        // Wrap the URL in left/right curly double quotes — common when
+        // copy-pasting from WeChat / macOS smart-quote substitution.
+        expect(normalizeWechatUrl(`“${canonical}”`)).toBe(canonical);
     });
 
-    describe('--stdout=false (default) behavior', () => {
-        it('passes stdout:false through to downloadArticle and returns the row payload unchanged', async () => {
-            const savedRows = [{
-                title: '测试文章',
-                author: '某公众号',
-                publish_time: '2026-05-27',
-                status: 'success',
-                size: '2 KB',
-                saved: '/tmp/out/测试文章/测试文章.md',
-            }];
-            mockDownloadArticle.mockResolvedValue(savedRows);
+    it('strips CJK curly single quotes (U+2018 / U+2019)', () => {
+        expect(normalizeWechatUrl(`‘${canonical}’`)).toBe(canonical);
+    });
 
-            const result = await command.func(page, {
-                url: 'https://mp.weixin.qq.com/s/abc123',
-                output: '/tmp/out',
-                'download-images': true,
-                stdout: false,
-            });
+    it('strips CJK corner brackets 「 」 (U+300C / U+300D)', () => {
+        expect(normalizeWechatUrl(`「${canonical}」`)).toBe(canonical);
+    });
 
-            expect(result).toBe(savedRows);
-            const [, options] = mockDownloadArticle.mock.calls[0];
-            expect(options.stdout).toBe(false);
-        });
+    it('strips CJK white corner brackets 『 』 (U+300E / U+300F)', () => {
+        expect(normalizeWechatUrl(`『${canonical}』`)).toBe(canonical);
+    });
 
-        it('returns the verification-required row when errorHint is set (no --stdout)', async () => {
-            page.evaluate.mockResolvedValue(verificationGatePayload);
+    it('strips German-style double quotes „ ‟ (U+201E / U+201F)', () => {
+        expect(normalizeWechatUrl(`„${canonical}‟`)).toBe(canonical);
+    });
 
-            const result = await command.func(page, {
-                url: 'https://mp.weixin.qq.com/s/blocked',
-                output: '/tmp/out',
-                'download-images': true,
-                stdout: false,
-            });
+    it('strips single guillemets ‹ › (U+2039 / U+203A)', () => {
+        expect(normalizeWechatUrl(`‹${canonical}›`)).toBe(canonical);
+    });
 
-            expect(mockDownloadArticle).not.toHaveBeenCalled();
-            expect(result).toEqual([
-                expect.objectContaining({
-                    title: 'Error',
-                    status: expect.stringContaining('verification required'),
-                }),
-            ]);
-        });
+    it('strips double guillemets « » (U+00AB / U+00BB)', () => {
+        expect(normalizeWechatUrl(`«${canonical}»`)).toBe(canonical);
+    });
+
+    it('strips wrapping angle brackets < >', () => {
+        expect(normalizeWechatUrl(`<${canonical}>`)).toBe(canonical);
+    });
+
+    it('handles whitespace around the wrapping quotes', () => {
+        expect(normalizeWechatUrl(`   “${canonical}”   `)).toBe(canonical);
+    });
+
+    it('strips one-sided trailing smart quotes from pasted URL text', () => {
+        expect(normalizeWechatUrl(`${canonical}”`)).toBe(canonical);
+        expect(normalizeWechatUrl(`${canonical}」`)).toBe(canonical);
+        expect(normalizeWechatUrl(`${canonical}>`)).toBe(canonical);
+    });
+
+    it('strips one-sided leading smart quotes from pasted URL text', () => {
+        expect(normalizeWechatUrl(`“${canonical}`)).toBe(canonical);
+        expect(normalizeWechatUrl(`「${canonical}`)).toBe(canonical);
+        expect(normalizeWechatUrl(`<${canonical}`)).toBe(canonical);
+    });
+
+    it('strips asymmetric boundary quote punctuation without touching the URL body', () => {
+        expect(normalizeWechatUrl(`“${canonical}"`)).toBe(canonical);
+    });
+
+    it('does not strip encoded quote-like characters inside the URL', () => {
+        const withEncodedQuote = 'https://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw?note=%E2%80%9D#frag';
+        expect(normalizeWechatUrl(withEncodedQuote)).toBe(withEncodedQuote);
+    });
+
+    it('removes backslash escapes inserted by some shells', () => {
+        const escaped = 'https\\://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw';
+        expect(normalizeWechatUrl(escaped)).toBe(canonical);
+    });
+
+    it('decodes &amp; HTML entity', () => {
+        const html = 'https://mp.weixin.qq.com/s?foo=1&amp;bar=2';
+        expect(normalizeWechatUrl(html)).toBe('https://mp.weixin.qq.com/s?foo=1&bar=2');
+    });
+
+    it('handles bare mp.weixin.qq.com hostname (no protocol)', () => {
+        expect(normalizeWechatUrl('mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw')).toBe(canonical);
+    });
+
+    it('handles //mp.weixin.qq.com/... protocol-relative URL', () => {
+        expect(normalizeWechatUrl('//mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw')).toBe(canonical);
+    });
+
+    it('forces https:// for mp.weixin.qq.com http:// links', () => {
+        const http = 'http://mp.weixin.qq.com/s/oBz-oik0i9YM2Uia_aadjw';
+        expect(normalizeWechatUrl(http)).toBe(canonical);
     });
 });

@@ -256,12 +256,18 @@ cli({
             hashtags.push({ name, id: 0, start: idx, end: idx + name.length + 1 });
             searchFrom = idx + name.length + 1;
         }
-        const textExtraArr = parseTextExtra(caption, hashtags);
+        const publishText = caption ? `${title} ${caption}` : title;
+        const captionOffset = caption ? title.length + 1 : 0;
+        const textExtraArr = parseTextExtra(publishText, hashtags.map((hashtag) => ({
+            ...hashtag,
+            start: hashtag.start + captionOffset,
+            end: hashtag.end + captionOffset,
+        })));
         const publishBody = {
             item: {
                 common: {
-                    text: caption,
-                    caption: '',
+                    text: publishText,
+                    caption: caption,
                     item_title: title,
                     activity: JSON.stringify(kwargs.activity ? [kwargs.activity] : []),
                     text_extra: JSON.stringify(textExtraArr),

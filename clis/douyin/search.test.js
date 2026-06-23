@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import {
+    extractDouyinVideoId,
     MAX_SEARCH_LIMIT,
     normalizeDouyinVideoUrl,
     parseDouyinCount,
     parseSearchLimit,
     projectCard,
+    projectSearchCards,
 } from './search.js';
 
 function createPageMock({ evaluateResult } = {}) {
@@ -117,11 +119,19 @@ describe('douyin search', () => {
         });
     });
 
-    it('maps the timeout/empty state to AuthRequiredError (anonymous sessions get a silent empty page)', async () => {
+    it('maps explicit empty search state to EmptyResultError', async () => {
+        const cmd = getRegistry().get('douyin/search');
+        const page = createPageMock({ evaluateResult: { state: 'empty' } });
+        await expect(cmd.func(page, { query: 'x', limit: 1 })).rejects.toMatchObject({
+            code: 'EMPTY_RESULT',
+        });
+    });
+
+    it('maps timeout state to CommandExecutionError instead of treating parser drift as auth or empty', async () => {
         const cmd = getRegistry().get('douyin/search');
         const page = createPageMock({ evaluateResult: { state: 'timeout' } });
         await expect(cmd.func(page, { query: 'x', limit: 1 })).rejects.toMatchObject({
-            code: 'AUTH_REQUIRED',
+            code: 'COMMAND_EXEC',
         });
     });
 
@@ -141,6 +151,45 @@ describe('douyin search', () => {
     it('throws CommandExecutionError on malformed evaluator payload', async () => {
         const cmd = getRegistry().get('douyin/search');
         const page = createPageMock({ evaluateResult: 'not-an-object' });
+        await expect(cmd.func(page, { query: 'x', limit: 1 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+        });
+    });
+
+    it('throws CommandExecutionError on malformed cards payload', async () => {
+        const cmd = getRegistry().get('douyin/search');
+        const page = createPageMock({ evaluateResult: { state: 'rendered', cards: { bad: true } } });
+        await expect(cmd.func(page, { query: 'x', limit: 1 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+        });
+    });
+
+    it('fails closed instead of partially returning cards missing stable url or desc', async () => {
+        const cmd = getRegistry().get('douyin/search');
+        const page = createPageMock({
+            evaluateResult: {
+                state: 'rendered',
+                cards: [
+                    { url: '/video/123', leafTexts: ['03:00', 'valid desc'] },
+                    { url: 'https://evil.test/video/456', leafTexts: ['03:00', 'invalid url'] },
+                ],
+            },
+        });
+        await expect(cmd.func(page, { query: 'x', limit: 2 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+        });
+    });
+
+    it('fails closed when a card only has metadata text and no stable desc', async () => {
+        const cmd = getRegistry().get('douyin/search');
+        const page = createPageMock({
+            evaluateResult: {
+                state: 'rendered',
+                cards: [
+                    { url: '/video/123', leafTexts: ['合集', '03:00', '1.2万', '@', '作者名', '5月前'] },
+                ],
+            },
+        });
         await expect(cmd.func(page, { query: 'x', limit: 1 })).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
         });
@@ -168,10 +217,18 @@ describe('normalizeDouyinVideoUrl', () => {
         ['//www.douyin.com/video/123', 'https://www.douyin.com/video/123'],
         ['/video/123?foo=bar', 'https://www.douyin.com/video/123'],
         ['https://www.douyin.com/video/123?something', 'https://www.douyin.com/video/123'],
+        ['https://evil.test/video/123', ''],
+        ['https://www.douyin.com/user/video/123', ''],
         ['', ''],
         [null, ''],
     ])('normalizes %j → %j', (input, expected) => {
         expect(normalizeDouyinVideoUrl(input)).toBe(expected);
+    });
+
+    it('extracts only stable Douyin video ids', () => {
+        expect(extractDouyinVideoId('https://www.douyin.com/video/123')).toBe('123');
+        expect(extractDouyinVideoId('//www.douyin.com/video/456')).toBe('456');
+        expect(extractDouyinVideoId('https://evil.test/video/123')).toBe('');
     });
 });
 
@@ -228,5 +285,23 @@ describe('projectCard', () => {
     it('returns rank=index+1 regardless of input', () => {
         const row = projectCard({ url: '/video/1', leafTexts: ['x'] }, 9);
         expect(row.rank).toBe(10);
+    });
+
+    it('projects cards and reports malformed rows in the returned window', () => {
+        const result = projectSearchCards([
+            { url: '/video/1', leafTexts: ['caption'] },
+            { url: '/video/not-numeric', leafTexts: ['bad'] },
+            { url: '/video/3', leafTexts: [] },
+        ], 3);
+        expect(result.rows).toHaveLength(1);
+        expect(result.invalidCount).toBe(2);
+    });
+
+    it('does not treat metadata-only leaf text as a stable desc', () => {
+        const result = projectSearchCards([
+            { url: '/video/1', leafTexts: ['合集', '03:55', '1.9万', '@', '校长', '5月前'] },
+        ], 1);
+        expect(result.rows).toHaveLength(0);
+        expect(result.invalidCount).toBe(1);
     });
 });

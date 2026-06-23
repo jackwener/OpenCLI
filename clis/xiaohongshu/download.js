@@ -9,7 +9,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { buildNoteUrl, parseNoteId } from './note-helpers.js';
 /**
  * Build the media-extraction IIFE. The note id is interpolated as a default
@@ -227,8 +227,11 @@ export const command = cli({
                 ? 'The page may be temporarily restricted. Try again later or from a different session.'
                 : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }
-        if (!data || !data.media || data.media.length === 0) {
-            return [{ index: 0, type: '-', status: 'failed', size: 'No media found' }];
+        if (!data || typeof data !== 'object' || !Array.isArray(data.media)) {
+            throw new CommandExecutionError('Xiaohongshu media extraction returned malformed payload.');
+        }
+        if (data.media.length === 0) {
+            throw new EmptyResultError('xiaohongshu download', 'No downloadable media found on this note.');
         }
         // Extract cookies for authenticated downloads
         const cookies = formatCookieHeader(await page.getCookies({ domain: 'xiaohongshu.com' }));

@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader, httpDownload } from '@jackwener/opencli/download';
 import { formatBytes } from '@jackwener/opencli/download/progress';
-import { CommandExecutionError, getErrorMessage } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError, getErrorMessage } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
 cli({
     site: 'pixiv',
@@ -32,9 +32,12 @@ cli({
         // pixivFetch handles navigate + error checking; returns the response body directly
         const pages = await pixivFetch(page, `/ajax/illust/${illustId}/pages`, {
             notFoundMsg: `Illustration not found: ${illustId}`,
-        }) || [];
+        });
+        if (!Array.isArray(pages)) {
+            throw new CommandExecutionError('Pixiv pages API returned malformed payload');
+        }
         if (pages.length === 0) {
-            return [{ index: 0, type: '-', status: 'failed', size: 'No images found' }];
+            throw new EmptyResultError('pixiv download', `No images found for illustration ${illustId}.`);
         }
         // Extract cookies for authenticated downloads
         const cookies = formatCookieHeader(await page.getCookies({ domain: 'pixiv.net' }));

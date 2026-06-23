@@ -10,6 +10,7 @@ vi.mock('@jackwener/opencli/download', () => ({
     formatCookieHeader: mockFormatCookieHeader,
 }));
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { JSDOM } from 'jsdom';
 import './download.js';
 import { buildDownloadExtractJs } from './download.js';
@@ -112,6 +113,28 @@ describe('xiaohongshu download', () => {
             code: 'SECURITY_BLOCK',
             hint: expect.stringContaining('Try again later'),
         });
+        expect(mockDownloadMedia).not.toHaveBeenCalled();
+    });
+    it('throws EmptyResultError when extraction returns an explicit empty media array', async () => {
+        const page = createPageMock({
+            noteId: '69bc166f000000001a02069a',
+            media: [],
+        });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/explore/69bc166f000000001a02069a?xsec_token=abc',
+            output: './out',
+        })).rejects.toBeInstanceOf(EmptyResultError);
+        expect(mockDownloadMedia).not.toHaveBeenCalled();
+    });
+    it('throws CommandExecutionError when extraction media shape is malformed', async () => {
+        const page = createPageMock({
+            noteId: '69bc166f000000001a02069a',
+            media: { url: 'https://ci.xiaohongshu.com/example.jpg' },
+        });
+        await expect(command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/explore/69bc166f000000001a02069a?xsec_token=abc',
+            output: './out',
+        })).rejects.toBeInstanceOf(CommandExecutionError);
         expect(mockDownloadMedia).not.toHaveBeenCalled();
     });
 });

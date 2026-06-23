@@ -52,7 +52,7 @@ vi.mock('node:child_process', async () => {
   };
 });
 
-import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation, selectFreshByTimestamp } from './cli.js';
+import { createProgram, findPackageRoot, normalizeVerifyRows, renderVerifyPreview, resolveBrowserVerifyInvocation, resolveSitemapAvailabilityForUrl, selectFreshByTimestamp } from './cli.js';
 
 describe('createProgram root help descriptions', () => {
   function descriptionFor(program: ReturnType<typeof createProgram>, name: string): string | undefined {
@@ -66,11 +66,45 @@ describe('createProgram root help descriptions', () => {
     expect(descriptionFor(program, 'browser')).toContain('type');
     expect(descriptionFor(program, 'browser')).toContain('verify');
     expect(descriptionFor(program, 'browser')).not.toContain('Browser control');
+    expect(descriptionFor(program, 'auth')).toBe('refresh, status');
     expect(descriptionFor(program, 'plugin')).toBe('create, install, list, uninstall, update');
     expect(descriptionFor(program, 'adapter')).toBe('eject, reset, status');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
     expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
     expect(descriptionFor(program, 'external')).toBe('install, list, register');
+  });
+
+  it('renders auth namespace structured help', () => {
+    const argv = process.argv;
+    try {
+      const program = createProgram('', '');
+      const auth = program.commands.find(cmd => cmd.name() === 'auth')!;
+      expect(auth).toBeTruthy();
+
+      process.argv = ['node', 'opencli', 'auth', '--help', '-f', 'yaml'];
+      const data = yaml.load(auth.helpInformation()) as any;
+
+      expect(data).toMatchObject({
+        namespace: 'auth',
+        description: 'Inspect website login status',
+        command_count: 2,
+      });
+      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['refresh', 'status']);
+      const status = auth.commands.find(cmd => cmd.name() === 'status')!;
+      process.argv = ['node', 'opencli', 'auth', 'status', '--help', '-f', 'yaml'];
+      const statusData = yaml.load(status.helpInformation()) as any;
+      expect(statusData.command).toBe('opencli auth status');
+      expect(statusData.command_options.map((option: any) => option.name)).toEqual(expect.arrayContaining([
+        'site',
+        'full',
+        'concurrency',
+        'timeout',
+        'only',
+        'format',
+      ]));
+    } finally {
+      process.argv = argv;
+    }
   });
 
   it('keeps leaf command descriptions unchanged', () => {
@@ -706,6 +740,74 @@ describe('selectFreshByTimestamp', () => {
   });
 });
 
+describe('resolveSitemapAvailabilityForUrl', () => {
+  function registryFor(site: string, domain: string): Map<string, any> {
+    return new Map([[`${site}:read`, {
+      site,
+      name: 'read',
+      access: 'read',
+      description: 'read',
+      domain,
+      browser: false,
+      args: [],
+    }]]);
+  }
+
+  it('detects local sitemap overlays using adapter registry domain matches', () => {
+    const homeDir = path.join(os.tmpdir(), 'opencli-sitemap-home');
+    const packageRoot = path.join(os.tmpdir(), 'opencli-sitemap-package');
+    const localSitemap = path.join(homeDir, '.opencli', 'sites', 'hackernews', 'sitemap');
+    const exists = new Set([localSitemap]);
+
+    const report = resolveSitemapAvailabilityForUrl('https://news.ycombinator.com/item?id=1', {
+      homeDir,
+      packageRoot,
+      registry: registryFor('hackernews', 'news.ycombinator.com'),
+      fileExists: (candidate) => exists.has(candidate),
+    });
+
+    expect(report).toMatchObject({
+      site: 'hackernews',
+      available: true,
+      source: 'local',
+      paths: { local: localSitemap },
+    });
+    expect(report?.hint).toContain('opencli-browser-sitemap');
+  });
+
+  it('reports global+local when both sitemap layers exist', () => {
+    const homeDir = path.join(os.tmpdir(), 'opencli-sitemap-home');
+    const packageRoot = path.join(os.tmpdir(), 'opencli-sitemap-package');
+    const localSitemap = path.join(homeDir, '.opencli', 'sites', 'twitter', 'sitemap.md');
+    const globalSitemap = path.join(packageRoot, 'sitemaps', 'twitter');
+    const exists = new Set([localSitemap, globalSitemap]);
+
+    const report = resolveSitemapAvailabilityForUrl('https://x.com/opencli', {
+      homeDir,
+      packageRoot,
+      registry: registryFor('twitter', 'x.com'),
+      fileExists: (candidate) => exists.has(candidate),
+    });
+
+    expect(report).toMatchObject({
+      site: 'twitter',
+      source: 'local+global',
+      paths: { local: localSitemap, global: globalSitemap },
+    });
+  });
+
+  it('returns null when no sitemap layer exists', () => {
+    const report = resolveSitemapAvailabilityForUrl('https://example.com/', {
+      homeDir: path.join(os.tmpdir(), 'opencli-sitemap-home'),
+      packageRoot: path.join(os.tmpdir(), 'opencli-sitemap-package'),
+      registry: new Map(),
+      fileExists: () => false,
+    });
+
+    expect(report).toBeNull();
+  });
+});
+
 describe('browser verify', () => {
   beforeEach(() => {
     process.exitCode = undefined;
@@ -1332,11 +1434,11 @@ describe('browser tab targeting commands', () => {
         ])
         .mockResolvedValueOnce([
           {
-            url: 'https://target.example/waf',
+            url: 'https://target.example/api/items',
             method: 'GET',
-            responseStatus: 403,
-            responseContentType: 'text/html',
-            responsePreview: 'Cloudflare Ray ID',
+            responseStatus: 200,
+            responseContentType: 'application/json',
+            responsePreview: '{"items":[{"title":"A","id":"1"}]}',
           },
         ]),
     } as unknown as IPage;
@@ -1346,7 +1448,9 @@ describe('browser tab targeting commands', () => {
 
     const out = lastJsonLog();
     expect(browserState.page?.readNetworkCapture).toHaveBeenCalledTimes(2);
-    expect(out.anti_bot.vendor).toBe('cloudflare');
+    expect(out.pattern.pattern).toBe('A');
+    expect(out.api_candidates[0].url).toBe('https://target.example/api/items');
+    expect(out.api_candidates[0].verdict).toBe('likely_data');
     expect(out.anti_bot.evidence).toContain('cookie:cf_clearance');
   });
 

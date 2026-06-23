@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 export const searchCommand = cli({
     site: 'discord-app',
     name: 'search',
@@ -29,7 +30,7 @@ export const searchCommand = cli({
         await page.pressKey('Enter');
         await page.wait(2);
         // Scrape search results
-        const results = await page.evaluate(`
+        const searchState = await page.evaluate(`
       (function() {
         const items = [];
         const resultNodes = document.querySelectorAll('[class*="searchResult_"], [id*="search-result"]');
@@ -44,13 +45,22 @@ export const searchCommand = cli({
           });
         });
         
-        return items;
+        const bodyText = document.body?.innerText || document.body?.textContent || '';
+        const empty = /no results|no messages match|没有结果|无结果/i.test(bodyText);
+        return { items, empty };
       })()
     `);
+        if (!searchState || !Array.isArray(searchState.items)) {
+            throw new CommandExecutionError('Discord search returned malformed browser payload.');
+        }
+        const results = searchState.items;
         // Close search
         await page.pressKey('Escape');
         if (results.length === 0) {
-            return [{ Index: 0, Author: 'System', Message: `No results for "${query}"` }];
+            if (!searchState.empty) {
+                throw new CommandExecutionError('Discord search result selector returned no rows and no explicit empty-state marker.');
+            }
+            throw new EmptyResultError('discord-app search', `No results for "${query}".`);
         }
         return results;
     },

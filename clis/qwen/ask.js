@@ -59,13 +59,17 @@ cli({
         if (useThink) await setFeatureToggle(page, 'think', true);
         if (useResearch) await setFeatureToggle(page, 'research', true);
 
+        // Anchor on the visible transcript BEFORE sending so waitForAnswer can
+        // bind the reply to the newly sent prompt instead of an older answer.
+        const baselineAnchor = await getBaselineChatAnchor(page);
+
         const send = await sendMessage(page, prompt);
         if (!send?.ok) {
             if (await hasLoginGate(page)) throw authRequired();
             throw new CommandExecutionError(send?.reason || 'Failed to send Qianwen prompt');
         }
 
-        const result = await waitForAnswer(page, prompt, timeout);
+        const result = await waitForAnswer(page, prompt, timeout, baselineAnchor);
         if (result.status === 'auth_required') throw authRequired();
         if (result.status === 'timeout') {
             throw new TimeoutError('qianwen ask', timeout, 'No Qianwen reply observed before timeout. Retry with --timeout increased.');
@@ -83,3 +87,18 @@ cli({
         ];
     },
 });
+
+async function getBaselineChatAnchor(page) {
+    const bubbles = await getMessageBubbles(page);
+    const lastBubbleId = bubbles.length ? bubbles[bubbles.length - 1].id : '';
+    let lastAssistantId = '';
+    for (let i = bubbles.length - 1; i >= 0; i -= 1) {
+        if (bubbles[i].role === 'Assistant') {
+            lastAssistantId = bubbles[i].id;
+            break;
+        }
+    }
+    return { lastBubbleId, lastAssistantId };
+}
+
+export const __test__ = { getBaselineChatAnchor };

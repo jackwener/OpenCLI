@@ -16,6 +16,7 @@ import { fetchStationBundle, mintSession, resolveStation, validateDate, parseTra
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36';
 const QUERY_ENDPOINTS = ['queryG', 'queryO', 'queryZ', 'queryA'];
 const MAX_LIMIT = 100;
+const QUERY_ENDPOINT_RE = /^query[A-Z]$/;
 
 function normalizeLimit(value, defaultValue, max) {
     if (value === undefined || value === null || value === '') return defaultValue;
@@ -29,6 +30,40 @@ function normalizeLimit(value, defaultValue, max) {
     return n;
 }
 
+function extractQueryEndpoint(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const direct = raw.replace(/^leftTicket\//, '').trim();
+    if (QUERY_ENDPOINT_RE.test(direct)) return direct;
+    try {
+        const url = new URL(raw, 'https://kyfw.12306.cn');
+        if (url.hostname !== 'kyfw.12306.cn') return '';
+        const match = url.pathname.match(/\/leftTicket\/(query[A-Z])$/);
+        return match ? match[1] : '';
+    }
+    catch {
+        return '';
+    }
+}
+
+async function parseRotationEndpoint(resp, endpoint, bodyText) {
+    let json;
+    if (bodyText) {
+        try { json = JSON.parse(bodyText); } catch { /* body may be HTML on non-rotation redirects */ }
+    }
+    const bodyEndpoint = extractQueryEndpoint(json?.c_url);
+    if (bodyEndpoint) return bodyEndpoint;
+    const locationEndpoint = extractQueryEndpoint(resp.headers?.get?.('location'));
+    if (locationEndpoint) return locationEndpoint;
+    if (resp.status === 302) {
+        throw new CommandExecutionError(`12306 ${endpoint} redirected without a leftTicket query endpoint`);
+    }
+    if (json?.c_url) {
+        throw new CommandExecutionError(`12306 ${endpoint} returned an invalid rotation endpoint`);
+    }
+    return '';
+}
+
 async function queryLeftTickets(cookieHeader, fromCode, toCode, date) {
     const headers = {
         'User-Agent': UA,
@@ -37,11 +72,23 @@ async function queryLeftTickets(cookieHeader, fromCode, toCode, date) {
     };
     const queryParams = `leftTicketDTO.train_date=${date}&leftTicketDTO.from_station=${fromCode}&leftTicketDTO.to_station=${toCode}&purpose_codes=ADULT`;
     let lastResponseText = '';
-    for (const endpoint of QUERY_ENDPOINTS) {
+    const queue = [...QUERY_ENDPOINTS];
+    const tried = new Set();
+    while (queue.length > 0) {
+        const endpoint = queue.shift();
+        if (tried.has(endpoint)) continue;
+        tried.add(endpoint);
         const url = `https://kyfw.12306.cn/otn/leftTicket/${endpoint}?${queryParams}`;
-        const resp = await fetch(url, { headers });
+        const resp = await fetch(url, { headers, redirect: 'manual' });
         if (!resp.ok) {
-            if (resp.status === 302) continue;
+            if (resp.status === 302) {
+                const body = await resp.text();
+                const rotated = await parseRotationEndpoint(resp, endpoint, body);
+                if (rotated && !tried.has(rotated)) {
+                    queue.unshift(rotated);
+                }
+                continue;
+            }
             throw new CommandExecutionError(`12306 ${endpoint} returned HTTP ${resp.status}`);
         }
         const text = await resp.text();
@@ -51,9 +98,9 @@ async function queryLeftTickets(cookieHeader, fromCode, toCode, date) {
             throw new CommandExecutionError(`12306 ${endpoint} returned non-JSON body`);
         }
         if (json?.c_url && typeof json.c_url === 'string') {
-            const rotated = json.c_url.replace('leftTicket/', '').trim();
-            if (rotated && !QUERY_ENDPOINTS.includes(rotated)) {
-                QUERY_ENDPOINTS.unshift(rotated);
+            const rotated = await parseRotationEndpoint(resp, endpoint, text);
+            if (rotated && !tried.has(rotated)) {
+                queue.unshift(rotated);
             }
             continue;
         }
@@ -116,4 +163,4 @@ cli({
     },
 });
 
-export const __test__ = { normalizeLimit, queryLeftTickets };
+export const __test__ = { normalizeLimit, extractQueryEndpoint, queryLeftTickets };

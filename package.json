@@ -1,6 +1,6 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.8.0",
+  "version": "1.8.4",
   "publishConfig": {
     "access": "public"
   },
@@ -33,6 +33,7 @@
   "files": [
     "dist/src/",
     "clis/",
+    "skills/opencli-*/**",
     "cli-manifest.json",
     "scripts/",
     "README.md",
@@ -84,7 +85,7 @@
     "js-yaml": "^4.1.0",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
-    "undici": "^6.25.0",
+    "undici": "^6.27.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

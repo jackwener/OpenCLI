@@ -3,7 +3,21 @@ import { JSDOM } from 'jsdom';
 import { __test__ } from './shared.js';
 import { ArgumentError } from '@jackwener/opencli/errors';
 
-const { extractMedia, extractCard, extractQuotedTweet, parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult, normalizeTwitterGraphqlPayload, normalizeTwitterScreenName, sanitizeTwitterOperationMetadata, looksLikePrivateTwitterTimeline } = __test__;
+const {
+    extractMedia,
+    extractCard,
+    extractQuotedTweet,
+    parseTweetUrl,
+    buildTwitterArticleScopeSource,
+    unwrapBrowserResult,
+    normalizeTwitterGraphqlPayload,
+    normalizeTwitterScreenName,
+    normalizeTwitterOperationFlags,
+    sanitizeTwitterOperationMetadata,
+    looksLikePrivateTwitterTimeline,
+    parseOperationFromBundleText,
+    describeTwitterApiError,
+} = __test__;
 
 function makeCardTweet({ name, bindings, expandedUrl, urls }) {
     const tweet = {
@@ -48,12 +62,6 @@ describe('twitter browser result helpers', () => {
     });
 
     it('falls back to baked features / fieldToggles when the bundle parser returns empty maps', () => {
-        // Regression guard: resolveTwitterOperationMetadata's bundle parser can
-        // find a queryId but miss `featureSwitches:[...]` (e.g. minification
-        // change, or the 2500-char snippet window truncating before the array).
-        // In that case keysToFlags(undefined) returns {}; if sanitize kept the
-        // empty map, Twitter would receive a request with no features and reply
-        // 400, surfacing a misleading "queryId expired" error.
         const result = sanitizeTwitterOperationMetadata({
             queryId: 'newQueryId',
             features: {},
@@ -84,6 +92,48 @@ describe('twitter browser result helpers', () => {
         expect(result.fieldToggles).toEqual({ fallback_field: true });
     });
 
+    it('normalizes operation feature arrays and boolean maps without losing false flags', () => {
+        expect(normalizeTwitterOperationFlags(['feature_a', 'feature_b'])).toEqual({
+            feature_a: true,
+            feature_b: true,
+        });
+        expect(normalizeTwitterOperationFlags({
+            rweb_video_screen_enabled: false,
+            responsive_web_graphql_timeline_navigation_enabled: true,
+            ignored_non_boolean: 'true',
+        })).toEqual({
+            rweb_video_screen_enabled: false,
+            responsive_web_graphql_timeline_navigation_enabled: true,
+        });
+    });
+
+    it('keeps GitHub placeholder-style features boolean maps instead of falling back', () => {
+        const result = sanitizeTwitterOperationMetadata({
+            queryId: 'newQueryId',
+            features: {
+                rweb_video_screen_enabled: false,
+                responsive_web_graphql_timeline_navigation_enabled: true,
+            },
+            fieldToggles: {
+                withArticlePlainText: true,
+            },
+        }, {
+            queryId: 'fallback',
+            features: { fallback_feature: true },
+            fieldToggles: { fallback_field: true },
+        });
+        expect(result).toEqual({
+            queryId: 'newQueryId',
+            features: {
+                rweb_video_screen_enabled: false,
+                responsive_web_graphql_timeline_navigation_enabled: true,
+            },
+            fieldToggles: {
+                withArticlePlainText: true,
+            },
+        });
+    });
+
     it('normalizes GraphQL payloads when the bridge strips the top-level data key', () => {
         expect(normalizeTwitterGraphqlPayload({ user: { result: {} } })).toEqual({
             data: { user: { result: {} } },
@@ -92,6 +142,76 @@ describe('twitter browser result helpers', () => {
             data: { search_by_raw_query: { search_timeline: {} } },
         });
         expect(normalizeTwitterGraphqlPayload({ data: { user: {} } })).toEqual({ data: { user: {} } });
+    });
+});
+
+describe('parseOperationFromBundleText (bundle queryId resolver)', () => {
+    it('extracts queryId + featureSwitches + fieldToggles when queryId precedes operationName', () => {
+        const bundle = 'something={queryId:"FRESH_ID_AAA",operationName:"SearchTimeline",metadata:{featureSwitches:["feat_one","feat_two"],fieldToggles:["ft_one"]}};other';
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result).toEqual({
+            queryId: 'FRESH_ID_AAA',
+            features: { feat_one: true, feat_two: true },
+            fieldToggles: { ft_one: true },
+        });
+    });
+
+    it('extracts queryId when operationName precedes queryId (reverse order)', () => {
+        const bundle = 'mod={operationName:"SearchTimeline",queryId:"REVERSED_ID_BBB",metadata:{featureSwitches:["x"],fieldToggles:[]}};tail';
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result?.queryId).toBe('REVERSED_ID_BBB');
+        expect(result?.features).toEqual({ x: true });
+    });
+
+    it("does not return another operation's queryId from a neighboring module (cross-module pollution)", () => {
+        // Regression guard: the previous resolver cut a snippet via lastIndexOf('e.exports=')
+        // / indexOf('}}}') around the operationName marker, then ran /queryId:"..."/
+        // unanchored. That returned the first queryId in the snippet — often
+        // belonging to a different operation in the same chunk. Twitter then
+        // rejected the request as a stale queryId, surfacing as "queryId expired".
+        const bundle = [
+            'e.exports={queryId:"OTHER_QID_AAA",operationName:"UserTweets",metadata:{}};',
+            'e.exports={queryId:"SEARCH_QID_BBB",operationName:"SearchTimeline",metadata:{featureSwitches:["f1"],fieldToggles:[]}};',
+        ].join('');
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result?.queryId).toBe('SEARCH_QID_BBB');
+        expect(result?.queryId).not.toBe('OTHER_QID_AAA');
+    });
+
+    it('returns null when operationName is absent from the bundle', () => {
+        const bundle = 'no operation here, just queryId:"STRAY_QID" floating around';
+        expect(parseOperationFromBundleText(bundle, 'SearchTimeline')).toBeNull();
+    });
+
+    it('returns null when queryId is too far from operationName (cross-object)', () => {
+        // The [^}]{0,400} separator prevents matches that cross object boundaries
+        // (a `}` between queryId and operationName means they belong to different
+        // objects/modules).
+        const bundle = 'e.exports={queryId:"WRONG_QID"};lots_of_other_code={};e.exports={operationName:"SearchTimeline",noQueryIdHere:true};';
+        expect(parseOperationFromBundleText(bundle, 'SearchTimeline')).toBeNull();
+    });
+
+    it('falls back to empty features when featureSwitches array is not in the window', () => {
+        // sanitizeTwitterOperationMetadata then uses the baked fallback features.
+        const bundle = 'e.exports={queryId:"BARE_QID",operationName:"SearchTimeline"};';
+        const result = parseOperationFromBundleText(bundle, 'SearchTimeline');
+        expect(result?.queryId).toBe('BARE_QID');
+        expect(result?.features).toEqual({});
+        expect(result?.fieldToggles).toEqual({});
+    });
+
+    it('escapes regex metacharacters in operationName', () => {
+        // Defensive — operationName values are controlled by callers but escaping
+        // protects against future operation names with special chars.
+        const bundle = 'queryId:"ESCAPED_QID"___operationName:"Foo.Bar"___';
+        const result = parseOperationFromBundleText(bundle, 'Foo.Bar');
+        expect(result?.queryId).toBe('ESCAPED_QID');
+    });
+
+    it('returns null for empty / invalid input', () => {
+        expect(parseOperationFromBundleText('', 'SearchTimeline')).toBeNull();
+        expect(parseOperationFromBundleText('text', '')).toBeNull();
+        expect(parseOperationFromBundleText(null, 'SearchTimeline')).toBeNull();
     });
 });
 
@@ -259,11 +379,12 @@ describe('twitter buildTwitterArticleScopeSource', () => {
 
 describe('twitter extractMedia', () => {
     it('returns false + empty list when legacy has no media', () => {
-        expect(extractMedia({})).toEqual({ has_media: false, media_urls: [] });
-        expect(extractMedia(undefined)).toEqual({ has_media: false, media_urls: [] });
+        expect(extractMedia({})).toEqual({ has_media: false, media_urls: [], media_posters: [] });
+        expect(extractMedia(undefined)).toEqual({ has_media: false, media_urls: [], media_posters: [] });
         expect(extractMedia({ extended_entities: { media: [] } })).toEqual({
             has_media: false,
             media_urls: [],
+            media_posters: [],
         });
     });
 
@@ -278,6 +399,11 @@ describe('twitter extractMedia', () => {
         });
         expect(result.has_media).toBe(true);
         expect(result.media_urls).toEqual([
+            'https://pbs.twimg.com/media/a.jpg',
+            'https://pbs.twimg.com/media/b.jpg',
+        ]);
+        // For photos the poster equals the photo URL itself.
+        expect(result.media_posters).toEqual([
             'https://pbs.twimg.com/media/a.jpg',
             'https://pbs.twimg.com/media/b.jpg',
         ]);
@@ -314,6 +440,14 @@ describe('twitter extractMedia', () => {
             'https://video.twimg.com/x.mp4',
             'https://video.twimg.com/g.mp4',
         ]);
+        // The previously-discarded video_info thumbnails are now exposed as
+        // posters, index-aligned with media_urls and distinct from the mp4 URLs.
+        expect(result.media_posters).toEqual([
+            'https://pbs.twimg.com/media/thumb.jpg',
+            'https://pbs.twimg.com/tweet_video_thumb/g.jpg',
+        ]);
+        expect(result.media_posters[0]).not.toBe(result.media_urls[0]);
+        expect(result.media_posters[1]).not.toBe(result.media_urls[1]);
     });
 
     it('falls back to media_url_https when no mp4 variant is available', () => {
@@ -331,6 +465,7 @@ describe('twitter extractMedia', () => {
         expect(result).toEqual({
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/thumb.jpg'],
+            media_posters: ['https://pbs.twimg.com/media/thumb.jpg'],
         });
     });
 
@@ -345,6 +480,7 @@ describe('twitter extractMedia', () => {
         expect(result).toEqual({
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/c.jpg'],
+            media_posters: ['https://pbs.twimg.com/media/c.jpg'],
         });
     });
 });
@@ -626,6 +762,7 @@ describe('twitter extractQuotedTweet', () => {
             url: 'https://x.com/alice/status/2040254679301718161',
             has_media: false,
             media_urls: [],
+            media_posters: [],
         });
     });
 
@@ -651,6 +788,10 @@ describe('twitter extractQuotedTweet', () => {
         const q = extractQuotedTweet(tweet);
         expect(q.has_media).toBe(true);
         expect(q.media_urls).toEqual([
+            'https://pbs.twimg.com/media/a.jpg',
+            'https://pbs.twimg.com/media/b.jpg',
+        ]);
+        expect(q.media_posters).toEqual([
             'https://pbs.twimg.com/media/a.jpg',
             'https://pbs.twimg.com/media/b.jpg',
         ]);
@@ -790,5 +931,82 @@ describe('looksLikePrivateTwitterTimeline', () => {
         expect(looksLikePrivateTwitterTimeline({
             data: { user: { result: { timeline_v2: { timeline: {} } } } },
         })).toBe(true);
+    });
+});
+
+describe('describeTwitterApiError', () => {
+    it('429 -> rate-limited language so callers cool down instead of treating as queryId expiry', () => {
+        const msg = describeTwitterApiError('SearchTimeline', 429);
+        expect(msg).toContain('HTTP 429');
+        expect(msg).toContain('SearchTimeline');
+        expect(msg).toContain('rate-limited');
+        expect(msg).toContain('cooldown');
+        expect(msg).not.toContain('queryId');
+    });
+
+    it('401 -> auth-failed language so callers trigger re-login instead of retrying', () => {
+        const msg = describeTwitterApiError('TweetDetail', 401);
+        expect(msg).toContain('HTTP 401');
+        expect(msg).toContain('auth failed');
+        expect(msg).toContain('re-login');
+    });
+
+    it('403 -> forbidden language with cookie-scope hint', () => {
+        const msg = describeTwitterApiError('Likes', 403);
+        expect(msg).toContain('HTTP 403');
+        expect(msg).toContain('forbidden');
+    });
+
+    it('404 -> not-found language so callers map to empty/missing', () => {
+        const msg = describeTwitterApiError('UserByScreenName', 404);
+        expect(msg).toContain('HTTP 404');
+        expect(msg).toContain('not found');
+    });
+
+    it('5xx (500) -> server-error language so callers retry later', () => {
+        const msg = describeTwitterApiError('Bookmarks', 500);
+        expect(msg).toContain('HTTP 500');
+        expect(msg).toContain('server error');
+    });
+
+    it('5xx (503) -> server-error language', () => {
+        const msg = describeTwitterApiError('UserTweets', 503);
+        expect(msg).toContain('HTTP 503');
+        expect(msg).toContain('server error');
+    });
+
+    it('unknown code -> falls back to queryId/schema-change hint (the original guess, now scoped)', () => {
+        const msg = describeTwitterApiError('SearchTimeline', 999);
+        expect(msg).toContain('HTTP 999');
+        expect(msg).toContain('queryId');
+        expect(msg).toContain('schema change');
+    });
+
+    it('numeric-string status (e.g. "429" from JSON) still routes to rate-limited branch', () => {
+        const msg = describeTwitterApiError('SearchTimeline', '429');
+        expect(msg).toContain('rate-limited');
+    });
+
+    it('appends adapter-specific extraHint in parentheses after the generic suffix', () => {
+        const msg = describeTwitterApiError('ListLatestTweetsTimeline', 404, 'list may be private');
+        expect(msg).toContain('not found');
+        expect(msg).toContain('(list may be private)');
+    });
+
+    it('runtime-interpolated extraHint (e.g. folder id) is preserved verbatim', () => {
+        const msg = describeTwitterApiError('BookmarkFolderTimeline', 404, 'folder=abc123');
+        expect(msg).toContain('(folder=abc123)');
+    });
+
+    it('preserves "HTTP <status>:" prefix for backward-compat string matching by downstream pipelines', () => {
+        // Downstream callers (ml-scout, ad-hoc scripts) may regex-match
+        // /HTTP (\d+):/ to extract status code. The refactor must keep
+        // that prefix verbatim so existing log parsers don't break.
+        const cases = [400, 401, 403, 404, 429, 500, 503, 999];
+        for (const code of cases) {
+            const msg = describeTwitterApiError('SearchTimeline', code);
+            expect(msg).toMatch(/^HTTP \d+: /);
+            expect(msg).toContain(`HTTP ${code}:`);
+        }
     });
 });

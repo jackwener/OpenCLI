@@ -8,6 +8,36 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
+
+const XHS_PROFILE_HREF_SELECTOR = '.author-wrapper a[href*="/user/profile/"], a.name[href*="/user/profile/"], a.user-name[href*="/user/profile/"], a[href*="/user/profile/"]';
+
+export function parseXhsProfileHref(href, webHost = 'www.xiaohongshu.com') {
+    const raw = typeof href === 'string' ? href.trim() : '';
+    if (!raw)
+        return '';
+    const expectedHost = String(webHost || 'www.xiaohongshu.com').toLowerCase();
+    let parsed;
+    try {
+        parsed = new URL(raw, `https://${expectedHost}`);
+    }
+    catch {
+        return '';
+    }
+    if (parsed.protocol !== 'https:')
+        return '';
+    const host = parsed.hostname.toLowerCase();
+    if (host !== expectedHost)
+        return '';
+    const match = parsed.pathname.match(/^\/user\/profile\/([a-zA-Z0-9]+)\/?$/);
+    return match?.[1] ?? '';
+}
+
+export function buildXhsProfileUrl(href, webHost = 'www.xiaohongshu.com') {
+    const userId = parseXhsProfileHref(href, webHost);
+    if (!userId)
+        return '';
+    return `https://${webHost}/user/profile/${userId}`;
+}
 export function parseCommentLimit(raw, fallback = 20) {
     const n = Number(raw);
     if (!Number.isFinite(n))
@@ -69,6 +99,12 @@ export function buildCommentsExtractJs(withReplies) {
         const parseLikes = (el) => {
           return parseLikeCountText(clean(el))
         }
+        const HREF_SELECTOR = ${JSON.stringify(XHS_PROFILE_HREF_SELECTOR)}
+        const extractAuthorHref = (el) => {
+          if (!el) return ''
+          const anchor = el.querySelector(HREF_SELECTOR)
+          return anchor ? (anchor.getAttribute('href') || '') : ''
+        }
         const expandReplyThreads = async (root) => {
           if (!withReplies || !root) return
           const clickedTexts = new Set()
@@ -98,23 +134,25 @@ export function buildCommentsExtractJs(withReplies) {
           if (!item) continue
 
           const author = clean(item.querySelector('.author-wrapper .name, .user-name'))
+          const authorHrefRaw = extractAuthorHref(item)
           const text = clean(item.querySelector('.content, .note-text'))
           const likes = parseLikes(item.querySelector('.count'))
           const time = clean(item.querySelector('.date, .time'))
 
           if (!text) continue
-          results.push({ author, text, likes, time, is_reply: false, reply_to: '' })
+          results.push({ author, authorHrefRaw, text, likes, time, is_reply: false, reply_to: '' })
 
           // Extract nested replies (楼中楼)
           if (withReplies) {
             await expandReplyThreads(p)
             p.querySelectorAll('.reply-container .comment-item-sub, .sub-comment-list .comment-item').forEach(sub => {
               const sAuthor = clean(sub.querySelector('.name, .user-name'))
+              const sAuthorHrefRaw = extractAuthorHref(sub)
               const sText = clean(sub.querySelector('.content, .note-text'))
               const sLikes = parseLikes(sub.querySelector('.count'))
               const sTime = clean(sub.querySelector('.date, .time'))
               if (!sText) return
-              results.push({ author: sAuthor, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author })
+              results.push({ author: sAuthor, authorHrefRaw: sAuthorHrefRaw, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author })
             })
           }
         }
@@ -136,7 +174,7 @@ export const command = cli({
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
         { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
     ],
-    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
+    columns: ['rank', 'author', 'userId', 'profileUrl', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
     func: async (page, kwargs) => {
         const limit = parseCommentLimit(kwargs.limit);
         const withReplies = Boolean(kwargs['with-replies']);
@@ -159,6 +197,19 @@ export const command = cli({
         // noteId currently unused after parsing — kept for symmetry with the note command
         void noteId;
         const all = data.results ?? [];
+        // authorHrefRaw is a raw transport field from the extractor; it is consumed
+        // here into userId / profileUrl and intentionally not part of the row shape.
+        const enrich = (c, i) => ({
+            rank: i + 1,
+            author: c.author,
+            userId: c.authorHrefRaw ? parseXhsProfileHref(c.authorHrefRaw) : '',
+            profileUrl: c.authorHrefRaw ? buildXhsProfileUrl(c.authorHrefRaw) : '',
+            text: c.text,
+            likes: c.likes,
+            time: c.time,
+            is_reply: c.is_reply,
+            reply_to: c.reply_to,
+        });
         // When limiting, count only top-level comments; their replies are included for free
         if (withReplies) {
             const limited = [];
@@ -170,8 +221,8 @@ export const command = cli({
                     break;
                 limited.push(c);
             }
-            return limited.map((c, i) => ({ rank: i + 1, ...c }));
+            return limited.map(enrich);
         }
-        return all.slice(0, limit).map((c, i) => ({ rank: i + 1, ...c }));
+        return all.slice(0, limit).map(enrich);
     },
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { parseCreatorNoteIdsFromHtml, parseCreatorNotesText } from './creator-notes.js';
+import { __test__, parseCreatorNoteIdsFromHtml, parseCreatorNotesText } from './creator-notes.js';
 import './creator-notes.js';
 function createPageMock(evaluateResult, interceptedRequests = []) {
     const evaluate = Array.isArray(evaluateResult)
@@ -189,6 +189,83 @@ describe('xiaohongshu creator-notes', () => {
             'aaaaaaaaaaaaaaaaaaaaaaaa',
             'dddddddddddddddddddddddd',
         ]);
+    });
+    it('harvests captured analyze pages in page order and dedupes note ids', () => {
+        const captureMap = {
+            '/api/galaxy/creator/datacenter/note/analyze/list?type=0&page_size=10&page_num=2': {
+                ok: true,
+                body: JSON.stringify({
+                    data: {
+                        total: 3,
+                        note_infos: [
+                            { id: 'bbbbbbbbbbbbbbbbbbbbbbbb', title: 'page 2' },
+                            { id: 'aaaaaaaaaaaaaaaaaaaaaaaa', title: 'duplicate from page 2' },
+                        ],
+                    },
+                }),
+            },
+            '/api/galaxy/creator/datacenter/note/analyze/list?type=0&page_size=10&page_num=1': {
+                ok: true,
+                body: JSON.stringify({
+                    data: {
+                        total: 3,
+                        note_infos: [
+                            { id: 'aaaaaaaaaaaaaaaaaaaaaaaa', title: 'page 1' },
+                        ],
+                    },
+                }),
+            },
+        };
+        expect(__test__.harvestAnalyzeListCaptures(captureMap)).toEqual({
+            total: 3,
+            items: [
+                { id: 'aaaaaaaaaaaaaaaaaaaaaaaa', title: 'page 1' },
+                { id: 'bbbbbbbbbbbbbbbbbbbbbbbb', title: 'page 2' },
+            ],
+        });
+    });
+    it('treats incomplete captured pagination as fallback-needed instead of partial success', () => {
+        const firstPageItems = Array.from({ length: 10 }, (_, index) => ({
+            id: String(index).padStart(24, '0'),
+        }));
+        expect(__test__.isAnalyzeCaptureComplete(firstPageItems, 25, 20)).toBe(false);
+        expect(__test__.isAnalyzeCaptureComplete(firstPageItems, 25, 10)).toBe(true);
+        expect(__test__.isAnalyzeCaptureComplete(firstPageItems, 0, 20)).toBe(true);
+    });
+    it('unwraps browser bridge capture-map envelopes', () => {
+        const captureMap = {
+            '/api/galaxy/creator/datacenter/note/analyze/list?page_num=1': {
+                ok: true,
+                body: '{"data":{"total":0,"note_infos":[]}}',
+            },
+        };
+        expect(__test__.parseCaptureMapPayload({ session: 'site:xiaohongshu', data: JSON.stringify(captureMap) })).toEqual(captureMap);
+        expect(__test__.parseCaptureMapPayload({ session: 'site:xiaohongshu', data: captureMap })).toEqual(captureMap);
+    });
+    it('does not fall back to partial DOM rows when captured total proves pagination is incomplete', async () => {
+        const cmd = getRegistry().get('xiaohongshu/creator-notes');
+        const captureMap = {
+            '/api/galaxy/creator/datacenter/note/analyze/list?type=0&page_size=10&page_num=1': {
+                ok: true,
+                body: JSON.stringify({
+                    data: {
+                        total: 25,
+                        note_infos: Array.from({ length: 10 }, (_, index) => ({
+                            id: String(index).padStart(24, '0'),
+                            title: `note ${index}`,
+                        })),
+                    },
+                }),
+            },
+        };
+        const page = createPageMock(undefined);
+        page.evaluate = vi.fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(JSON.stringify(captureMap))
+            .mockResolvedValueOnce(false);
+
+        await expect(cmd.func(page, { limit: 20 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
     it('throws EmptyResultError when the creator account has no notes', async () => {
         const cmd = getRegistry().get('xiaohongshu/creator-notes');

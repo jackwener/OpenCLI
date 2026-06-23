@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
-import { resolveTwitterQueryId } from './shared.js';
+import { resolveTwitterQueryId, describeTwitterApiError } from './shared.js';
 
 // X surfaces user-created bookmark folders through a GraphQL slice query.
 // We mirror the patterns used in bookmarks.js / lists.js: a literal
@@ -101,7 +101,7 @@ cli({
             return r.ok ? await r.json() : { error: r.status };
         }`);
         if (data?.error) {
-            throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch bookmark folders. queryId may have expired, or your account may not have folder access.`);
+            throw new CommandExecutionError(describeTwitterApiError('bookmarkFoldersSlice', data.error, 'account may not have folder access'));
         }
         const seen = new Set();
         return parseBookmarkFolders(data, seen);

@@ -3,6 +3,7 @@
  * Reuses Chrome login session to search for candidates on maimai.cn
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'maimai',
@@ -123,11 +124,25 @@ cli({
       return result;
     }`);
 
-    // Extract talent list from response
-    const talentList = data.data?.list || data.data?.talent_list || data.list || data.talent_list || [];
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new CommandExecutionError('Maimai search returned malformed API payload');
+    }
 
-    if (!talentList || talentList.length === 0) {
-      return [{ error: '未找到匹配的候选人', query: query }];
+    // Extract talent list from response. Missing list fields mean the API
+    // shape drifted; only an explicit empty array is a true empty result.
+    const talentListCandidates = [
+      data.data?.list,
+      data.data?.talent_list,
+      data.list,
+      data.talent_list,
+    ];
+    const talentList = talentListCandidates.find((value) => Array.isArray(value));
+    if (!talentList) {
+      throw new CommandExecutionError('Maimai search API payload missing talent list');
+    }
+
+    if (talentList.length === 0) {
+      throw new EmptyResultError('maimai search-talents', `未找到匹配 "${query}" 的候选人`);
     }
 
     // Map to output format

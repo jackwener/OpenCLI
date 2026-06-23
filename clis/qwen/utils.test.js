@@ -1,6 +1,89 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { parseQianwenSessionId } from './utils.js';
+import { parseQianwenSessionId, waitForAnswer } from './utils.js';
+
+describe('qwen waitForAnswer baseline anchoring', () => {
+    // page.evaluate serves both getMessageBubbles (data-chat-question-wrap) and
+    // hasLoginGate (alert-biz-modal); route by inspecting the injected JS.
+    const fakePage = (bubbles) => ({
+        wait: () => new Promise((r) => setTimeout(r, 5)),
+        evaluate: (js) => Promise.resolve(
+            String(js).includes('alert-biz-modal') ? false : bubbles,
+        ),
+    });
+
+    it('does not return the pre-send assistant turn (it is skipped via baseline id)', async () => {
+        // Only the previous, already-complete answer is present. With the
+        // baseline anchored to its id, waitForAnswer must skip it and time out
+        // rather than return the stale answer as the new reply.
+        const bubbles = [{ id: 'a1', role: 'Assistant', text: 'old answer', html: '' }];
+        const result = await waitForAnswer(fakePage(bubbles), 'new question', 0.05, 'a1');
+        expect(result.status).toBe('timeout');
+        expect(result.assistant).toBeUndefined();
+    });
+
+    it('returns only an assistant turn after the newly sent prompt', async () => {
+        const bubbles = [
+            { id: 'u1', role: 'User', text: 'old question', html: '' },
+            { id: 'a1', role: 'Assistant', text: 'old answer', html: '' },
+            { id: 'u2', role: 'User', text: 'new question', html: '' },
+            { id: 'a2', role: 'Assistant', text: 'new answer', html: '<p>new answer</p>' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'new question',
+            0.2,
+            { lastBubbleId: 'a1', lastAssistantId: 'a1' },
+        );
+        expect(result.status).toBe('partial');
+        expect(result.assistant).toEqual(bubbles[3]);
+    });
+
+    it('does not match a repeated prompt that existed before the pre-send anchor', async () => {
+        const bubbles = [
+            { id: 'u1', role: 'User', text: 'same prompt', html: '' },
+            { id: 'a1', role: 'Assistant', text: 'old answer', html: '' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'same prompt',
+            0.05,
+            { lastBubbleId: 'a1', lastAssistantId: 'a1' },
+        );
+        expect(result.status).toBe('timeout');
+        expect(result.assistant).toBeUndefined();
+    });
+
+    it('does not scan the visible transcript when a non-empty baseline anchor is missing', async () => {
+        const bubbles = [
+            { id: 'u1-new-visible-id', role: 'User', text: 'same prompt', html: '' },
+            { id: 'a1-new-visible-id', role: 'Assistant', text: 'old answer', html: '' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'same prompt',
+            0.05,
+            { lastBubbleId: 'a-anchor-missing', lastAssistantId: 'a-anchor-missing' },
+        );
+        expect(result.status).toBe('timeout');
+        expect(result.assistant).toBeUndefined();
+    });
+
+    it('supports a fresh chat with no baseline anchor', async () => {
+        const bubbles = [
+            { id: 'u1', role: 'User', text: 'fresh question', html: '' },
+            { id: 'a1', role: 'Assistant', text: 'fresh answer', html: '' },
+        ];
+        const result = await waitForAnswer(
+            fakePage(bubbles),
+            'fresh question',
+            0.2,
+            { lastBubbleId: '', lastAssistantId: '' },
+        );
+        expect(result.status).toBe('partial');
+        expect(result.assistant).toEqual(bubbles[1]);
+    });
+});
 
 describe('qwen parseQianwenSessionId', () => {
     const id = 'abcd1234ef567890abcd1234ef567890';
