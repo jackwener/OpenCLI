@@ -2,7 +2,7 @@
  * Bilibili shared helpers: WBI signing, authenticated fetch, nav data, UID resolution.
  */
 import https from 'node:https';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 /**
  * Resolve Bilibili short URL / short code to BV ID.
  * Supports: BV1MV9NBtENN, XYzsqGa, b23.tv/XYzsqGa, https://b23.tv/XYzsqGa
@@ -50,29 +50,64 @@ export function resolveBvid(input) {
 /**
  * 解析 --page 选集序号（分P / 视频选集）。
  * 缺省/空串 → null（不下钻，保持整集默认 P1 旧行为）。
- * 非正整数 → 抛 CommandExecutionError（结构化报错，不静默吞）。
+ * 非正十进制整数 → 抛 ArgumentError（参数错误，不静默吞）。
  */
 export function parsePageArg(value) {
-    if (value == null || String(value).trim() === '') return null;
-    const n = Number(String(value).trim());
-    if (!Number.isInteger(n) || n < 1) {
-        throw new CommandExecutionError(`--page 必须是从 1 开始的正整数，收到：${value}`);
+    if (value == null || value === '') return null;
+    if (typeof value === 'number') {
+        if (Number.isSafeInteger(value) && value >= 1) return value;
+        throw new ArgumentError(`--page must be a positive decimal integer, got: ${value}`);
+    }
+    if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
+        throw new ArgumentError(`--page must be a positive decimal integer, got: ${String(value)}`);
+    }
+    const n = Number(value);
+    if (!Number.isSafeInteger(n)) {
+        throw new ArgumentError(`--page is too large: ${value}`);
     }
     return n;
 }
 
+function readApiPositiveInteger(value, label) {
+    if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 1) {
+        return value;
+    }
+    if (typeof value === 'string' && /^[1-9]\d*$/.test(value)) {
+        const n = Number(value);
+        if (Number.isSafeInteger(n)) return n;
+    }
+    throw new CommandExecutionError(`Bilibili view API returned a malformed ${label}`);
+}
+
 /**
  * 从 view API 的 data.pages 数组取第 N 集（1-based）。
- * 优先按 page 字段匹配，回退到下标 N-1。越界抛 CommandExecutionError。
+ * page/cid 都以 view API 的 pages[] 为 source-of-truth；缺失、重复或畸形都 fail closed。
  * 返回该集 raw 对象（含 cid / part(分集标题) / page / duration）。
  */
 export function selectVideoPart(viewData, pageNum) {
-    const pages = Array.isArray(viewData?.pages) ? viewData.pages : [];
-    const part = pages.find((p) => Number(p?.page) === pageNum) ?? pages[pageNum - 1];
-    if (!part || part.cid == null) {
+    const pages = Array.isArray(viewData?.pages) ? viewData.pages : null;
+    if (!pages || pages.length === 0) {
+        throw new CommandExecutionError('Bilibili view API did not return pages[] for --page selection');
+    }
+    const matches = [];
+    for (const entry of pages) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            throw new CommandExecutionError('Bilibili view API returned a malformed pages[] entry');
+        }
+        const apiPage = readApiPositiveInteger(entry.page, 'page number');
+        if (apiPage === pageNum) {
+            matches.push(entry);
+        }
+    }
+    if (matches.length > 1) {
+        throw new CommandExecutionError(`Bilibili view API returned duplicate page entries for p=${pageNum}`);
+    }
+    const part = matches[0];
+    if (!part) {
         const total = pages.length || viewData?.videos || 1;
         throw new CommandExecutionError(`分P 序号超出范围：p=${pageNum}（该视频共 ${total} 集）`);
     }
+    readApiPositiveInteger(part.cid, `cid for p=${pageNum}`);
     return part;
 }
 

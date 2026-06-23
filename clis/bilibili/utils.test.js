@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveBvid, resolveUid } from './utils.js';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { parsePageArg, resolveBvid, resolveUid, selectVideoPart } from './utils.js';
 describe('resolveBvid', () => {
     it('passes through a valid BV ID', async () => {
         expect(await resolveBvid('BV1MV9NBtENN')).toBe('BV1MV9NBtENN');
@@ -57,5 +57,41 @@ describe('resolveUid', () => {
     it('keeps explicit no-user result as EmptyResultError', async () => {
         await expect(resolveUid(pageWithUserSearchResult({ code: 0, data: { result: [] } }), 'nobody'))
             .rejects.toBeInstanceOf(EmptyResultError);
+    });
+});
+
+describe('parsePageArg', () => {
+    it('accepts omitted page and strict positive decimal integers', () => {
+        expect(parsePageArg(undefined)).toBeNull();
+        expect(parsePageArg(null)).toBeNull();
+        expect(parsePageArg('')).toBeNull();
+        expect(parsePageArg('1')).toBe(1);
+        expect(parsePageArg('12')).toBe(12);
+        expect(parsePageArg(3)).toBe(3);
+    });
+
+    it('rejects malformed or coerced page values as argument errors', () => {
+        for (const value of ['0', '-1', '1.5', '1e2', '0x10', ' 1 ', '01', 'abc', Number.NaN, 1.2]) {
+            expect(() => parsePageArg(value)).toThrow(ArgumentError);
+        }
+    });
+});
+
+describe('selectVideoPart', () => {
+    it('selects by unique API page number and preserves cid', () => {
+        const part = selectVideoPart({
+            pages: [
+                { page: 1, cid: 1001, part: 'P1' },
+                { page: 3, cid: '1003', part: 'P3' },
+            ],
+        }, 3);
+        expect(part).toMatchObject({ page: 3, cid: '1003', part: 'P3' });
+    });
+
+    it('fails closed for missing, duplicate, or malformed page identity', () => {
+        expect(() => selectVideoPart({ pages: [] }, 1)).toThrow(CommandExecutionError);
+        expect(() => selectVideoPart({ pages: [{ page: 1, cid: 1 }, { page: 1, cid: 2 }] }, 1)).toThrow(CommandExecutionError);
+        expect(() => selectVideoPart({ pages: [{ page: '1e0', cid: 1 }] }, 1)).toThrow(CommandExecutionError);
+        expect(() => selectVideoPart({ pages: [{ page: 1, cid: 0 }] }, 1)).toThrow(CommandExecutionError);
     });
 });

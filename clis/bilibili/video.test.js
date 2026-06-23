@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const { mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
@@ -270,9 +270,11 @@ describe('bilibili video', () => {
     await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: '99' })).rejects.toBeInstanceOf(CommandExecutionError);
   });
 
-  it('throws CommandExecutionError when --page is not a positive integer', async () => {
-    await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: '0' })).rejects.toBeInstanceOf(CommandExecutionError);
-    await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: 'abc' })).rejects.toBeInstanceOf(CommandExecutionError);
+  it('throws ArgumentError when --page is not a strict positive decimal integer', async () => {
+    for (const pageArg of ['0', 'abc', '1e2', '0x10', ' 1 ']) {
+      await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: pageArg })).rejects.toBeInstanceOf(ArgumentError);
+    }
+    expect(mockApiGet).not.toHaveBeenCalled();
   });
 
   it('omits cid/page/series_title fields when --page is not given (backward compat)', async () => {

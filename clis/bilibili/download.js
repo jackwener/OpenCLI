@@ -11,7 +11,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
 import { checkYtdlp, sanitizeFilename } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { apiGet, resolveBvid, parsePageArg } from './utils.js';
+import { apiGet, resolveBvid, parsePageArg, selectVideoPart } from './utils.js';
 
 const PAYMENT_LABELS = {
     vip: '大会员专享/付费 OGV',
@@ -78,6 +78,21 @@ async function assertNotPaidContent(page, bvid) {
         EXIT_CODES.NOPERM,
     );
 }
+
+async function loadSelectedPart(page, bvid, pageNum) {
+    let payload;
+    try {
+        payload = await apiGet(page, '/x/web-interface/view', { params: { bvid } });
+    }
+    catch (error) {
+        throw new CommandExecutionError(`获取视频分P信息失败: ${error?.message || error}`);
+    }
+    if (!isObject(payload) || payload.code !== 0) {
+        throw new CommandExecutionError(`获取视频分P信息失败: ${payload?.message ?? 'unknown'} (${payload?.code ?? 'malformed'})`);
+    }
+    return selectVideoPart(payload.data, pageNum);
+}
+
 cli({
     site: 'bilibili',
     name: 'download',
@@ -98,6 +113,7 @@ cli({
         const output = kwargs.output;
         const quality = kwargs.quality;
         const selectedPage = parsePageArg(kwargs.page);
+        const selectedPart = selectedPage != null ? await loadSelectedPart(page, bvid, selectedPage) : null;
         // yt-dlp 原生支持分P URL（?p=N），直接拼到 watch URL 即可定位到该集。
         const watchUrl = selectedPage != null
             ? `https://www.bilibili.com/video/${bvid}?p=${selectedPage}`
@@ -126,7 +142,9 @@ cli({
         return { title, author };
       })()
     `);
-        const title = sanitizeFilename(data?.title || 'video');
+        const partTitle = typeof selectedPart?.part === 'string' ? selectedPart.part.trim() : '';
+        const displayTitle = partTitle || data?.title || 'video';
+        const title = sanitizeFilename(displayTitle);
         // Extract cookies for yt-dlp
         const browserCookies = await page.getCookies({ domain: 'bilibili.com' });
         // Build yt-dlp format string based on quality
@@ -152,7 +170,7 @@ cli({
         const r = results[0] || { status: 'failed', size: '-' };
         return [{
                 bvid,
-                title: data?.title || 'video',
+                title: displayTitle,
                 status: r.status,
                 size: r.size,
             }];

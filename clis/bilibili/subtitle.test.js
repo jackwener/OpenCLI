@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 const { mockApiGet } = vi.hoisted(() => ({
     mockApiGet: vi.fn(),
 }));
@@ -190,6 +190,11 @@ describe('bilibili subtitle', () => {
             data: { bvid: 'BV1h6V16SEpg', cid: 1001, pages: [{ cid: 1001, page: 1, part: '01' }] },
         });
         await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: '9' })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('rejects malformed --page before querying subtitle APIs', async () => {
+        await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: '1e2' })).rejects.toBeInstanceOf(ArgumentError);
+        expect(mockApiGet).not.toHaveBeenCalled();
     });
 
     it('works for bangumi-bound bvid (PGC content) — same code path, view API returns cid + redirect_url', async () => {
