@@ -33,14 +33,35 @@ export function requireString(value, label) {
 
 export function requireBoundedInt(value, defaultValue, maxValue, label = 'limit') {
     const raw = value ?? defaultValue;
-    const n = typeof raw === 'number' ? raw : Number(raw);
-    if (!Number.isInteger(n) || n <= 0) {
+    let n;
+    if (typeof raw === 'number') {
+        n = raw;
+    }
+    else if (typeof raw === 'string' && /^[1-9]\d*$/.test(raw)) {
+        n = Number(raw);
+    }
+    else {
+        throw new ArgumentError(`juejin ${label} must be a positive decimal integer`);
+    }
+    if (!Number.isSafeInteger(n) || n <= 0) {
         throw new ArgumentError(`juejin ${label} must be a positive integer`);
     }
     if (n > maxValue) {
         throw new ArgumentError(`juejin ${label} must be <= ${maxValue}`);
     }
     return n;
+}
+
+export function requireCursor(value) {
+    const raw = value ?? '0';
+    if (typeof raw === 'number') {
+        if (Number.isSafeInteger(raw) && raw >= 0) return String(raw);
+        throw new ArgumentError('juejin cursor must be a non-negative decimal integer');
+    }
+    if (typeof raw === 'string' && /^(0|[1-9]\d*)$/.test(raw)) {
+        return raw;
+    }
+    throw new ArgumentError('juejin cursor must be a non-negative decimal integer');
 }
 
 /** Resolve a `--category` arg to the underlying numeric category id. */
@@ -95,10 +116,43 @@ export async function juejinFetch(path, body, label, method = 'POST') {
     } catch (err) {
         throw new CommandExecutionError(`${label} returned malformed JSON: ${err?.message ?? err}`);
     }
-    if (payload?.err_no && payload.err_no !== 0) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.hasOwn(payload, 'err_no')) {
+        throw new CommandExecutionError(`${label} returned a malformed API envelope`);
+    }
+    if (payload.err_no !== 0) {
         throw new CommandExecutionError(`${label} returned err_no ${payload.err_no}: ${payload.err_msg ?? ''}`);
     }
     return payload;
+}
+
+export function readDataArray(payload, label) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.hasOwn(payload, 'data')) {
+        throw new CommandExecutionError(`${label} returned a malformed payload`);
+    }
+    if (!Array.isArray(payload.data)) {
+        throw new CommandExecutionError(`${label} returned a non-array data field`);
+    }
+    if (payload.data.length === 0) {
+        throw new EmptyResultError(label, `${label} returned no articles.`);
+    }
+    return payload.data;
+}
+
+function readArticleId(value, label) {
+    const id = String(value ?? '').trim();
+    if (!JUEJIN_ID.test(id)) {
+        throw new CommandExecutionError(`${label} returned a malformed article id`);
+    }
+    return id;
+}
+
+function readOptionalNumber(value, label) {
+    if (value == null) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        throw new CommandExecutionError(`${label} returned a malformed numeric field`);
+    }
+    return n;
 }
 
 /** Map a recommend-feed row (`item_info.article_info` / `author_user_info`) to a flat shape. */
@@ -109,15 +163,15 @@ export function mapFeedItem(row, rank) {
     const tags = Array.isArray(info.tags)
         ? info.tags.map(t => t?.tag_name).filter(Boolean).slice(0, 6).join(', ')
         : '';
-    const articleId = String(article.article_id ?? '');
+    const articleId = readArticleId(article.article_id, 'juejin recommend');
     return {
         rank,
         article_id: articleId,
         title: String(article.title ?? '').trim(),
         brief: String(article.brief_content ?? '').trim(),
-        views: article.view_count != null ? Number(article.view_count) : null,
-        likes: article.digg_count != null ? Number(article.digg_count) : null,
-        comments: article.comment_count != null ? Number(article.comment_count) : null,
+        views: readOptionalNumber(article.view_count, 'juejin recommend'),
+        likes: readOptionalNumber(article.digg_count, 'juejin recommend'),
+        comments: readOptionalNumber(article.comment_count, 'juejin recommend'),
         author: String(author.user_name ?? '').trim(),
         tags,
         url: articleId ? `${JUEJIN_POST_URL}/${articleId}` : '',
@@ -129,16 +183,16 @@ export function mapHotItem(row, rank) {
     const content = row?.content ?? {};
     const counter = row?.content_counter ?? {};
     const author = row?.author ?? {};
-    const articleId = String(content.content_id ?? '');
+    const articleId = readArticleId(content.content_id, 'juejin hot');
     return {
         rank,
         article_id: articleId,
         title: String(content.title ?? '').trim(),
         brief: String(content.brief ?? '').trim(),
-        views: counter.view != null ? Number(counter.view) : null,
-        likes: counter.like != null ? Number(counter.like) : null,
-        comments: counter.comment_count != null ? Number(counter.comment_count) : null,
-        hot_rank: counter.hot_rank != null ? Number(counter.hot_rank) : null,
+        views: readOptionalNumber(counter.view, 'juejin hot'),
+        likes: readOptionalNumber(counter.like, 'juejin hot'),
+        comments: readOptionalNumber(counter.comment_count, 'juejin hot'),
+        hot_rank: readOptionalNumber(counter.hot_rank, 'juejin hot'),
         author: String(author.name ?? '').trim(),
         url: articleId ? `${JUEJIN_POST_URL}/${articleId}` : '',
     };
