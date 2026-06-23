@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAppId, fmtUnix, truncate, joinList, roleLabel, isOnlineVersion } from './utils.js';
+import { normalizeAppId, fmtUnix, truncate, joinList, roleLabel, isOnlineVersion, splitScopes } from './utils.js';
 
 describe('lark-console utils', () => {
   it('extracts app ids from bare ids, paths and console urls', () => {
@@ -41,5 +41,13 @@ describe('lark-console utils', () => {
     expect(isOnlineVersion(2)).toBe(true);
     expect(isOnlineVersion(100)).toBe(false);
     expect(isOnlineVersion(undefined)).toBe(false);
+  });
+
+  it('splits scope inputs on commas and whitespace', () => {
+    expect(splitScopes('im:message, contact:contact.base:readonly')).toEqual(['im:message', 'contact:contact.base:readonly']);
+    expect(splitScopes('8002  20001')).toEqual(['8002', '20001']);
+    expect(splitScopes('im:message')).toEqual(['im:message']);
+    expect(splitScopes('')).toEqual([]);
+    expect(splitScopes(null)).toEqual([]);
   });
 });

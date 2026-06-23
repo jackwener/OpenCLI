@@ -6,11 +6,16 @@ The Lark Open Platform [developer console](https://open.larksuite.com/app) — w
 
 Those services authenticate off the session cookie; the `/developers/v1` endpoints additionally require an `x-csrf-token` header, which the console publishes as a `window.csrfToken` global — the adapter reuses it from inside the bound tab. Run `opencli lark-console login` once (or just sign in to the console in your bound Chrome), then every command works against your account.
 
-> Read-only. The adapter never creates apps, edits scopes, or publishes versions — it only surfaces what the console shows.
+> Reads everything the console shows; writes are limited to **scope management**,
+> which only edits an app's draft config (changes go live when you publish a new
+> version in the console). It never creates/deletes apps or publishes versions.
+> Write commands require `--execute`.
 >
 > Targets **Lark** (`open.larksuite.com`). Feishu (`open.feishu.cn`) exposes the identical API surface; a Feishu variant only needs the host swapped.
 
 ## Commands
+
+### Read
 
 | Command | Description |
 |---------|-------------|
@@ -23,8 +28,18 @@ Those services authenticate off the session cookie; the `/developers/v1` endpoin
 | `opencli lark-console scopes <app>` | The API permission scopes an app has applied for |
 | `opencli lark-console admins <app>` | An app's admins / collaborators |
 
+### Write (require `--execute`)
+
+| Command | Description |
+|---------|-------------|
+| `opencli lark-console add-scope <app> <scopes> --execute` | Apply permission scope(s) to an app's draft |
+| `opencli lark-console remove-scope <app> <scopes> --execute` | Remove permission scope(s) from an app's draft |
+
 `<app>` accepts a bare app id (`cli_…`) or any console URL that embeds it
 (e.g. `https://open.larksuite.com/app/cli_aab2033f0b389ee7/baseinfo`).
+
+`<scopes>` is one or more scope **names** (e.g. `im:message`) or numeric **ids**,
+comma- or space-separated. Names are resolved against the app's scope catalog.
 
 ## Usage Examples
 
@@ -52,6 +67,12 @@ opencli lark-console scopes cli_aab2033f0b389ee7
 
 # Who can administer the app?
 opencli lark-console admins cli_aab2033f0b389ee7
+
+# Apply scopes (by name) to the draft, then publish a new version in the console to go live
+opencli lark-console add-scope cli_aab2033f0b389ee7 im:message,im:message.group_msg --execute
+
+# Remove a scope (by name or id)
+opencli lark-console remove-scope cli_aab2033f0b389ee7 im:message.group_msg --execute
 ```
 
 ## Notes
@@ -59,4 +80,5 @@ opencli lark-console admins cli_aab2033f0b389ee7
 - **`apps` · `role`** — `owner` when you created the app, otherwise `collaborator`.
 - **`versions` · `online`** — `yes` marks the live published version. Other historical / under-review states are not decoded (and so are left blank) rather than guessed at.
 - **`secret`** returns the same secret the console's *Credentials & Basic Info* page reveals; treat the output as sensitive.
-- Endpoints key off your logged-in session, so you only ever see apps your Lark account can access in the console.
+- **`add-scope` / `remove-scope`** edit the app's **draft** scope config (tenant-token scopes), exactly like the console's *Permissions & Scopes* page. Changes take effect only after you **publish a new version** in the console. They refuse to run without `--execute`.
+- Endpoints key off your logged-in session, so you only ever see — and edit — apps your Lark account can access in the console.

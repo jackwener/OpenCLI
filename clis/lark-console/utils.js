@@ -11,7 +11,7 @@
 // Feishu (https://open.feishu.cn/app) exposes the identical API surface; only the
 // host differs. This adapter targets Lark so every command can be verified against
 // a real logged-in account — swapping LARK is all a Feishu variant would need.
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 export const LARK = 'open.larksuite.com';
 
@@ -117,4 +117,58 @@ export function roleLabel(role) {
 // historical/under-review states we don't claim to decode, so we only flag "online".
 export function isOnlineVersion(versionStatus) {
   return Number(versionStatus) === 2;
+}
+
+// Scope-write inputs are comma/space-separated names or ids.
+export function splitScopes(value) {
+  return String(value == null ? '' : value).split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+// ── write helpers ───────────────────────────────────────────────────────
+
+// Mutating commands refuse to run without --execute.
+export function requireExecute(kwargs, action) {
+  if (!kwargs || kwargs.execute !== true) {
+    throw new ArgumentError(`Refusing to ${action} without --execute. Re-run with --execute to actually perform this.`);
+  }
+}
+
+// Resolve scope name(s) (e.g. "im:message") or numeric id(s) to numeric scope ids
+// against the app's full scope catalog. Throws listing any token that doesn't match.
+export async function resolveScopeIds(page, host, appId, tokens) {
+  const catalog = await consoleApi(page, host, `/developers/v1/scope/all/${appId}`, { method: 'POST', body: {} });
+  const scopes = catalog && Array.isArray(catalog.scopes) ? catalog.scopes : [];
+  if (scopes.length === 0) {
+    throw new CommandExecutionError(`Could not load the scope catalog for ${appId}.`);
+  }
+  const byName = new Map();
+  const knownIds = new Set();
+  for (const s of scopes) {
+    if (s && s.name) byName.set(String(s.name), String(s.id));
+    if (s && s.id != null) knownIds.add(String(s.id));
+  }
+  const resolved = [];
+  const unknown = [];
+  for (const token of tokens) {
+    const t = String(token).trim();
+    if (!t) continue;
+    if (/^\d+$/.test(t) && knownIds.has(t)) resolved.push(t);
+    else if (byName.has(t)) resolved.push(byName.get(t));
+    else unknown.push(t);
+  }
+  if (unknown.length) {
+    throw new ArgumentError(`Unknown scope(s): ${unknown.join(', ')}. Pass scope names (e.g. im:message) or numeric ids — run \`opencli lark-console scopes <app>\` to see ids.`);
+  }
+  if (resolved.length === 0) throw new ArgumentError('No scopes given.');
+  return [...new Set(resolved)];
+}
+
+// Apply ('add') or remove ('del') tenant-token scope ids on an app's draft config.
+// Mirrors the console exactly: ids go in appScopeIDs, the other arrays stay empty,
+// so a scope added this way is removable the same way (the API keys off the slot).
+export async function updateScopes(page, host, appId, ids, operation) {
+  return consoleApi(page, host, `/developers/v1/scope/update/${appId}`, {
+    method: 'POST',
+    body: { appScopeIDs: ids, userScopeIDs: [], scopeIds: [], operation },
+  });
 }

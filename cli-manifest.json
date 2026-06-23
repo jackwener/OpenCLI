@@ -19746,6 +19746,48 @@
   },
   {
     "site": "lark-console",
+    "name": "add-scope",
+    "description": "Apply permission scope(s) to an app (draft; requires --execute)",
+    "access": "write",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      },
+      {
+        "name": "scopes",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Scope name(s) or id(s), comma-separated (e.g. im:message,contact:contact.base:readonly)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually apply the change (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "app_id",
+      "scope_id",
+      "operation",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/scope-write.js",
+    "sourceFile": "lark-console/scope-write.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
     "name": "admins",
     "description": "List an app’s admins / collaborators",
     "access": "read",
@@ -19853,6 +19895,48 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "lark-console",
+    "name": "remove-scope",
+    "description": "Remove permission scope(s) from an app (draft; requires --execute)",
+    "access": "write",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      },
+      {
+        "name": "scopes",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Scope name(s) or id(s), comma-separated (e.g. im:message,contact:contact.base:readonly)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually apply the change (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "app_id",
+      "scope_id",
+      "operation",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/scope-write.js",
+    "sourceFile": "lark-console/scope-write.js",
+    "navigateBefore": "https://open.larksuite.com"
   },
   {
     "site": "lark-console",
