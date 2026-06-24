@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
 import {
     DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
@@ -131,7 +131,7 @@ export const askCommand = cli({
             // 3 s settle here was a redundant sleep on top of the first poll.
             const result = await waitForResponse(page, baseline, prompt, timeoutMs, wantThink);
             if (!result) {
-                return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
+                throw new TimeoutError('deepseek ask', kwargs.timeout, 'No DeepSeek reply observed before timeout. Retry with --timeout increased.');
             }
             if (wantThink && typeof result === 'object' && result.response !== undefined) {
                 return [result];
@@ -147,7 +147,7 @@ export const askCommand = cli({
 
         const result = await waitForResponse(page, baseline, prompt, timeoutMs, wantThink);
         if (!result) {
-            return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
+            throw new TimeoutError('deepseek ask', kwargs.timeout, 'No DeepSeek reply observed before timeout. Retry with --timeout increased.');
         }
 
         if (wantThink && typeof result === 'object' && result.response !== undefined) {

@@ -21,7 +21,17 @@ It also works as a **CLI hub** for local tools such as `gh`, `docker`, `longbrid
 
 ### 1. Install OpenCLI
 
-OpenCLI requires **Node.js >= 20**.
+For desktop use, start with **OpenCLIApp**. It bundles the OpenCLI runtime,
+keeps the managed `opencli` command installed, and gives you a system tray UI
+for setup, diagnostics, updates, browser-login keepalive, and Web → Markdown.
+
+**Option A — OpenCLIApp (recommended for macOS / Windows):**
+Download the latest app from <https://opencli.info/download>, install it, then
+open the app once and use the System page to install or repair the `opencli`
+command.
+
+**Option B — npm global install (CLI-only / CI / servers):**
+OpenCLI requires **Node.js >= 20** when installed through npm.
 
 ```bash
 node --version

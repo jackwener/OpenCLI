@@ -21,7 +21,16 @@ OpenCLI 可以用同一套 CLI 做三类事情：
 
 ### 1. 安装 OpenCLI
 
-OpenCLI 要求 **Node.js >= 20**。
+如果你是在自己的电脑上使用，优先安装 **OpenCLIApp**。它会内置
+OpenCLI runtime，帮你安装 / 修复受管理的 `opencli` 命令，并提供系统托盘
+UI 来做环境诊断、更新、浏览器登录态保活和网页转 Markdown。
+
+**方式 A — OpenCLIApp（macOS / Windows 推荐）：**
+从 <https://opencli.info/download> 下载最新版 App，安装后打开一次，在
+System 页面安装或修复 `opencli` 命令。
+
+**方式 B — npm 全局安装（纯 CLI / CI / 服务器）：**
+通过 npm 安装时，OpenCLI 要求 **Node.js >= 20**。
 
 ```bash
 node --version

@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, isGenerating, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
 
 const tempDirs = [];
 
@@ -96,7 +96,9 @@ describe('chatgpt conversation id parsing', () => {
         expect(__test__.parseChatGPTConversationId('abc_123-def')).toBe('abc_123-def');
         expect(__test__.parseChatGPTConversationId('https://chatgpt.com/c/abc_123-def?model=gpt-5')).toBe('abc_123-def');
         expect(__test__.parseChatGPTConversationId('https://chat.openai.chatgpt.com/c/abc_123-def')).toBe('abc_123-def');
+        expect(__test__.parseChatGPTConversationId('https://chatgpt.com/g/g-p-12345678-demo/c/abc_123-def')).toBe('abc_123-def');
         expect(__test__.parseChatGPTConversationId('/c/abc_123-def')).toBe('abc_123-def');
+        expect(__test__.parseChatGPTConversationId('/g/g-p-12345678-demo/c/abc_123-def')).toBe('abc_123-def');
     });
 
     it('rejects invalid detail ids', () => {
@@ -1128,5 +1130,324 @@ describe('chatgpt image upload helper', () => {
         expect(__test__.imageMimeFromPath('/tmp/a.png')).toBe('image/png');
         expect(__test__.imageMimeFromPath('/tmp/a.webp')).toBe('image/webp');
         expect(__test__.imageMimeFromPath('/tmp/a.jpg')).toBe('image/jpeg');
+    });
+});
+
+describe('chatgpt project id parsing', () => {
+    it('accepts project hex ids and /g/g-p- URLs', () => {
+        expect(__test__.parseChatGPTProjectId('12345678abcdef90')).toBe('12345678abcdef90');
+        expect(__test__.parseChatGPTProjectId('https://chatgpt.com/g/g-p-12345678abcdef90')).toBe('12345678abcdef90');
+        expect(__test__.parseChatGPTProjectId('/g/g-p-abcdef0123456789')).toBe('abcdef0123456789');
+    });
+
+    it('accepts g-p-{hex_id}-{slug} pattern', () => {
+        expect(__test__.parseChatGPTProjectId('g-p-12345678-my-project')).toBe('12345678');
+    });
+
+    it('rejects invalid project ids', () => {
+        expect(() => __test__.parseChatGPTProjectId('')).toThrow(/project/);
+        expect(() => __test__.parseChatGPTProjectId('https://chatgpt.com/')).toThrow(/project/);
+        expect(() => __test__.parseChatGPTProjectId('https://evil.test/g/g-p-12345678')).toThrow(/project/);
+        expect(() => __test__.parseChatGPTProjectId('http://chatgpt.com/g/g-p-12345678')).toThrow(/project/);
+        expect(() => __test__.parseChatGPTProjectId('g-p-a-short')).toThrow(/project/);
+        expect(() => __test__.parseChatGPTProjectId('https://chatgpt.com/g/g-p-a-short')).toThrow(/project/);
+    });
+});
+
+describe('chatgpt project navigation', () => {
+    it('verifies the current URL stays bound to the requested project', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                url: 'https://chatgpt.com/g/g-p-deadbeef',
+                title: 'Other Project',
+                hasComposer: true,
+                isLoggedIn: true,
+                hasLoginGate: false,
+            }),
+        };
+
+        await expect(navigateToProject(page, '12345678')).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('maps project login redirects to AuthRequiredError', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                url: 'https://chatgpt.com/auth/login',
+                title: 'Log in',
+                hasComposer: false,
+                isLoggedIn: false,
+                hasLoginGate: true,
+            }),
+        };
+
+        await expect(navigateToProject(page, '12345678')).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+});
+
+describe('chatgpt file path validation', () => {
+    it('validates local files for project upload (any type)', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const pdfPath = path.join(dir, 'report.pdf');
+        fs.writeFileSync(pdfPath, 'fake-pdf');
+        const docxPath = path.join(dir, 'notes.docx');
+        fs.writeFileSync(docxPath, 'fake-docx');
+
+        const { prepareChatGPTFilePaths } = await import('./utils.js');
+        await expect(prepareChatGPTFilePaths([pdfPath])).resolves.toEqual({ ok: true, paths: [pdfPath] });
+        await expect(prepareChatGPTFilePaths([pdfPath, docxPath])).resolves.toEqual({ ok: true, paths: [pdfPath, docxPath] });
+        await expect(prepareChatGPTFilePaths([path.join(dir, 'missing.txt')])).resolves.toMatchObject({
+            ok: false,
+            reason: expect.stringContaining('File not found'),
+        });
+    });
+});
+
+describe('chatgpt project file upload helper', () => {
+    it('exposes mimeFromFilePath for fallback upload', () => {
+        expect(__test__.mimeFromFilePath('/tmp/report.pdf')).toBe('application/pdf');
+        expect(__test__.mimeFromFilePath('/tmp/notes.docx')).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        expect(__test__.mimeFromFilePath('/tmp/data.csv')).toBe('text/csv');
+        expect(__test__.mimeFromFilePath('/tmp/code.py')).toBe('text/x-python');
+        expect(__test__.mimeFromFilePath('/tmp/image.png')).toBe('image/png');
+        expect(__test__.mimeFromFilePath('/tmp/unknown.xyz')).toBe('application/octet-stream');
+    });
+
+    it('exposes PROJECT_LINK_SELECTOR for project link extraction', () => {
+        expect(__test__.PROJECT_LINK_SELECTOR).toBe('a[href*="/g/g-p-"]');
+    });
+
+    it('extracts visible project anchors from the sidebar without React Fiber internals', async () => {
+        const dom = new JSDOM(`
+            <!doctype html>
+            <a data-sidebar-item="true" href="/g/g-p-12345678-alpha">
+              <span data-testid="project-folder-icon"></span>
+              Project Alpha
+            </a>
+            <a data-sidebar-item="true" href="https://chatgpt.com/g/g-p-12345678-alpha?model=gpt-5">
+              <span data-testid="project-folder-icon"></span>
+              Duplicate Alpha
+            </a>
+            <a data-sidebar-item="true" href="/g/g-p-abcdef90">
+              <span data-testid="project-folder-icon"></span>
+              Project Beta
+            </a>
+            <a data-sidebar-item="true" href="https://evil.test/g/g-p-badbadbad">
+              <span data-testid="project-folder-icon"></span>
+              Evil Project
+            </a>
+            <a data-sidebar-item="true" href="/g/g-p-a-short">
+              <span data-testid="project-folder-icon"></span>
+              Short Bait
+            </a>
+        `, {
+            url: 'https://chatgpt.com/',
+            runScripts: 'outside-only',
+        });
+        for (const el of dom.window.document.querySelectorAll('[data-sidebar-item="true"]')) {
+            el.getBoundingClientRect = () => ({ width: 240, height: 32 });
+        }
+
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
+        };
+
+        const { getProjectList } = await import('./utils.js');
+        await expect(getProjectList(page)).resolves.toEqual([
+            {
+                Index: 1,
+                Id: '12345678',
+                Title: 'Project Alpha',
+                Url: 'https://chatgpt.com/g/g-p-12345678-alpha',
+            },
+            {
+                Index: 2,
+                Id: 'abcdef90',
+                Title: 'Project Beta',
+                Url: 'https://chatgpt.com/g/g-p-abcdef90',
+            },
+        ]);
+    });
+
+    it('opens project knowledge dialog by finding an "Add files" button', async () => {
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            setFileInput: vi.fn(),
+            evaluate: vi.fn((script) => {
+                if (String(script).includes('Add files')) {
+                    return Promise.resolve(true);
+                }
+                if (String(script).includes('role="dialog"')) {
+                    return Promise.resolve(true);
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        const { openProjectKnowledgeDialog } = await import('./utils.js');
+        const result = await openProjectKnowledgeDialog(page);
+        expect(result).toBe(true);
+    });
+
+    it('reports failure when no Add files button is found', async () => {
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            setFileInput: vi.fn(),
+            evaluate: vi.fn().mockResolvedValue(false),
+        };
+
+        const { openProjectKnowledgeDialog } = await import('./utils.js');
+        const result = await openProjectKnowledgeDialog(page);
+        expect(result).toBe(false);
+    });
+
+    it('opens the live project Sources tab upload surface when no Add files dialog exists', async () => {
+        const dom = new JSDOM(`
+            <!doctype html>
+            <button role="tab" aria-selected="true">Chats</button>
+            <button role="tab" aria-selected="false" id="project-home-tabs-demo-sources">Sources</button>
+            <div role="tabpanel" data-state="inactive"></div>
+        `, {
+            url: 'https://chatgpt.com/g/g-p-12345678-demo/project',
+            runScripts: 'outside-only',
+        });
+        const sourcesTab = dom.window.document.querySelector('#project-home-tabs-demo-sources');
+        sourcesTab.getBoundingClientRect = () => ({ width: 96, height: 32 });
+        sourcesTab.addEventListener('click', () => {
+            sourcesTab.setAttribute('aria-selected', 'true');
+            sourcesTab.dataset.clicked = 'true';
+        });
+
+        const page = {
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
+        };
+
+        const { openProjectKnowledgeDialog } = await import('./utils.js');
+        await expect(openProjectKnowledgeDialog(page)).resolves.toBe(true);
+        expect(sourcesTab.dataset.clicked).toBe('true');
+    });
+
+    it('projects file upload uses dialog file input selectors and waits for filename confirmation', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'report.pdf');
+        fs.writeFileSync(filePath, 'fake-pdf');
+
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeType: vi.fn(),
+            setFileInput: vi.fn().mockRejectedValue(new Error('No element found')),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                // getPageState returns a specific object
+                if (s.includes('isVisible') && s.includes('hasComposer') && s.includes('isLoggedIn')) {
+                    return Promise.resolve({ session: 'test', data: { url: 'https://chatgpt.com/g/g-p-12345678', title: 'Project', hasComposer: true, isLoggedIn: true, hasLoginGate: false } });
+                }
+                if (s.includes('expectedFileNames')) {
+                    return Promise.resolve({ ok: true });
+                }
+                if (s.includes('new DataTransfer()')) {
+                    return Promise.resolve({ ok: true });
+                }
+                if (s.includes('Add files')) return Promise.resolve(true);
+                if (s.includes('role="dialog"')) return Promise.resolve(true);
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        const { uploadChatGPTProjectFiles } = await import('./utils.js');
+        const result = await uploadChatGPTProjectFiles(page, '12345678', [filePath]);
+
+        expect(result).toEqual({ ok: true, files: [filePath] });
+        expect(page.goto).toHaveBeenCalledWith(
+            expect.stringContaining('/g/g-p-12345678'),
+            expect.any(Object),
+        );
+        expect(page.evaluate.mock.calls.some(([script]) => String(script).includes('expectedFileNames'))).toBe(true);
+    });
+
+    it('returns failure when project upload confirmation does not appear', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'missing-confirmation.pdf');
+        fs.writeFileSync(filePath, 'fake-pdf');
+
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s.includes('isVisible') && s.includes('hasComposer') && s.includes('isLoggedIn')) {
+                    return Promise.resolve({ session: 'test', data: { url: 'https://chatgpt.com/g/g-p-12345678', title: 'Project', hasComposer: true, isLoggedIn: true, hasLoginGate: false } });
+                }
+                if (s.includes('expectedFileNames')) return Promise.resolve({ ok: false, reason: 'uploaded file did not appear in project knowledge' });
+                if (s.includes('Add files')) return Promise.resolve(true);
+                if (s.includes('role="dialog"')) return Promise.resolve(true);
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        const { uploadChatGPTProjectFiles } = await import('./utils.js');
+        const result = await uploadChatGPTProjectFiles(page, '12345678', [filePath]);
+
+        expect(result).toMatchObject({
+            ok: false,
+            reason: expect.stringContaining('uploaded file did not appear'),
+        });
+    });
+
+    it('does not treat composer/body filename text as project knowledge confirmation', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'composer-only.pdf');
+        fs.writeFileSync(filePath, 'fake-pdf');
+
+        const dom = new JSDOM(`
+            <!doctype html>
+            <main>
+              <form data-type="unified-composer">
+                <input id="upload-files" type="file">
+                <span>composer-only.pdf</span>
+              </form>
+            </main>
+        `, {
+            url: 'https://chatgpt.com/g/g-p-12345678',
+            runScripts: 'outside-only',
+        });
+
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s.includes('isVisible') && s.includes('hasComposer') && s.includes('isLoggedIn')) {
+                    return Promise.resolve({ session: 'test', data: { url: 'https://chatgpt.com/g/g-p-12345678', title: 'Project', hasComposer: true, isLoggedIn: true, hasLoginGate: false } });
+                }
+                if (s.includes('expectedFileNames')) {
+                    return Promise.resolve(dom.window.eval(s));
+                }
+                if (s.includes('Add files')) return Promise.resolve(true);
+                if (s.includes('role="dialog"')) return Promise.resolve(true);
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        const { uploadChatGPTProjectFiles } = await import('./utils.js');
+        const result = await uploadChatGPTProjectFiles(page, '12345678', [filePath]);
+
+        expect(result).toMatchObject({
+            ok: false,
+            reason: expect.stringContaining('project knowledge surface'),
+        });
     });
 });

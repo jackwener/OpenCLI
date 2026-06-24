@@ -14,9 +14,9 @@ describe('reddit subreddit adapter', () => {
   });
 
   it('shapes children into the intermediate-object pattern with media spread in', () => {
-    expect(command?.pipeline?.[1]?.evaluate).toContain('function extractRedditMedia');
-    expect(command?.pipeline?.[1]?.evaluate).toContain('...extractRedditMedia(c.data)');
-    expect(command?.pipeline?.[2]?.map).toMatchObject({
+    expect(command?.pipeline?.[0]?.evaluate).toContain('function extractRedditMedia');
+    expect(command?.pipeline?.[0]?.evaluate).toContain('...extractRedditMedia(c.data)');
+    expect(command?.pipeline?.[1]?.map).toMatchObject({
       title: '${{ item.title }}',
       author: '${{ item.author }}',
       upvotes: '${{ item.upvotes }}',

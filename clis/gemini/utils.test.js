@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, sendGeminiMessage, } from './utils.js';
 function createPageMock() {
@@ -151,6 +152,9 @@ describe('gemini send strategy', () => {
     it('keeps a button submit path in the generated submit script', () => {
         expect(__test__.submitComposerScript()).toContain('.click()');
     });
+    it('matches the Traditional Chinese send label in the generated submit script', () => {
+        expect(__test__.submitComposerScript()).toContain('傳送');
+    });
     it('supports localized new chat labels in the generated new-chat script', () => {
         expect(__test__.clickNewChatScript()).toContain('发起新对话');
     });
@@ -178,6 +182,43 @@ describe('gemini turn normalization', () => {
     });
 });
 describe('gemini evaluate result boundaries', () => {
+    function runExpandRecentScript(buttonHtml) {
+        const dom = new JSDOM(`<!doctype html><body>${buttonHtml}</body>`, {
+            pretendToBeVisual: true,
+            runScripts: 'outside-only',
+        });
+        const { window } = dom;
+        Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ width: 100, height: 24, top: 0, left: 0, right: 100, bottom: 24 }),
+        });
+        let clicks = 0;
+        window.document.querySelector('button')?.addEventListener('click', () => {
+            clicks += 1;
+        });
+        const changed = window.eval(__test__.expandGeminiRecentScript());
+        return { changed, clicks };
+    }
+    it('does not collapse already-expanded Recents when aria-expanded is missing', () => {
+        expect(runExpandRecentScript('<button aria-label="Collapse Recents">Recents</button>')).toEqual({
+            changed: false,
+            clicks: 0,
+        });
+        expect(runExpandRecentScript('<button aria-label="收起最近">最近</button>')).toEqual({
+            changed: false,
+            clicks: 0,
+        });
+    });
+    it('expands Recents when the label or aria-expanded explicitly says it is collapsed', () => {
+        expect(runExpandRecentScript('<button aria-label="Expand Recents">Recents</button>')).toEqual({
+            changed: true,
+            clicks: 1,
+        });
+        expect(runExpandRecentScript('<button aria-label="Recents" aria-expanded="false">Recents</button>')).toEqual({
+            changed: true,
+            clicks: 1,
+        });
+    });
     it('unwraps Browser Bridge envelopes for conversation lists', async () => {
         const page = createPageMock();
         const evaluate = vi.mocked(page.evaluate);
@@ -203,6 +244,38 @@ describe('gemini evaluate result boundaries', () => {
         await expect(getGeminiConversationList(page)).resolves.toEqual([
             { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
         ]);
+    });
+    it('expands collapsed Recents and retries conversation extraction', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const wait = vi.mocked(page.wait);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce([
+            { title: 'Recovered Chat', url: 'https://gemini.google.com/app/recovered123' },
+        ]);
+        await expect(getGeminiConversationList(page)).resolves.toEqual([
+            { Title: 'Recovered Chat', Url: 'https://gemini.google.com/app/recovered123' },
+        ]);
+        expect(evaluate).toHaveBeenCalledTimes(4);
+        expect(wait).toHaveBeenCalledWith(1.2);
+    });
+    it('does not expand Recents when visible conversation links already exist', async () => {
+        const page = createPageMock();
+        const evaluate = vi.mocked(page.evaluate);
+        const wait = vi.mocked(page.wait);
+        evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce([
+            { title: 'Chat A', url: 'https://gemini.google.com/app/abc123' },
+        ]);
+        await expect(getGeminiConversationList(page)).resolves.toEqual([
+            { Title: 'Chat A', Url: 'https://gemini.google.com/app/abc123' },
+        ]);
+        expect(evaluate).toHaveBeenCalledTimes(2);
+        expect(wait).not.toHaveBeenCalled();
     });
     it('typed-fails malformed Browser Bridge envelopes instead of treating them as empty', async () => {
         const page = createPageMock();

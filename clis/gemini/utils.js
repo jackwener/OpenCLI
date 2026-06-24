@@ -594,7 +594,7 @@ function submitComposerScript() {
       }
 
       const excludedPattern = /main menu|主菜单|microphone|麦克风|upload|上传|mode|模式|tools|工具|settings|临时对话|new chat|新对话/i;
-      const submitPattern = /send|发送|submit|提交/i;
+      const submitPattern = /send|发送|傳送|submit|提交/i;
       let bestButton = null;
       let bestScore = -1;
 
@@ -972,6 +972,61 @@ function getGeminiConversationListScript() {
     })()
   `;
 }
+
+// Gemini collapses the sidebar's "最近" / "Recents" section by default, so the
+// /app/<id> conversation anchors are not present in the DOM (or are hidden)
+// until that section is expanded. The script below opens the sidebar if it is
+// collapsed and expands the Recents toggle, returning true if it likely
+// changed the DOM and the caller should retry extraction.
+function expandGeminiRecentScript() {
+    return `
+    (() => {
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const ariaHidden = (el.getAttribute('aria-hidden') || '').toLowerCase();
+        if (ariaHidden === 'true' || el.closest('[aria-hidden="true"]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (Number(style.opacity) === 0) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      let changed = false;
+      const buttons = Array.from(document.querySelectorAll('button')).filter(isVisible);
+
+      // 1. Open the sidebar if it is collapsed (button only renders when closed).
+      const openSidebar = buttons.find((b) => {
+        const label = normalize(b.getAttribute('aria-label') || '');
+        return /打开边栏|open sidebar|open navigation|展开边栏/i.test(label);
+      });
+      if (openSidebar) { openSidebar.click(); changed = true; }
+
+      // 2. Expand the "最近" / "Recents" toggle if it is currently collapsed.
+      const recentToggle = buttons.find((b) => {
+        const label = normalize(b.getAttribute('aria-label') || '');
+        const expanded = (b.getAttribute('aria-expanded') || '').toLowerCase();
+        return /最近|recent/i.test(label) && (
+          /展开|收起|expand|collapse|toggle|show|hide/i.test(label)
+          || expanded === 'false'
+          || expanded === 'true'
+        );
+      });
+      if (recentToggle) {
+        const label = normalize(recentToggle.getAttribute('aria-label') || '');
+        const expanded = (recentToggle.getAttribute('aria-expanded') || '').toLowerCase();
+        const explicitExpandLabel = /展开|显示|expand|show/i.test(label) && !/收起|collapse|hide/i.test(label);
+        if (expanded === 'false' || (expanded !== 'true' && explicitExpandLabel)) {
+          recentToggle.click();
+          changed = true;
+        }
+      }
+
+      return changed;
+    })()
+  `;
+}
 function clickGeminiConversationByTitleScript(query) {
     const normalizedQuery = normalizeGeminiTitle(query);
     return `
@@ -1082,15 +1137,29 @@ export async function startNewGeminiChat(page) {
 }
 export async function getGeminiConversationList(page) {
     await ensureGeminiPage(page);
-    const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
-    const rows = raw.flatMap((item) => {
-        if (!isObjectRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
-            throw new CommandExecutionError('Gemini conversation list returned a malformed row');
-        }
-        if (!isGeminiConversationUrl(item.url))
-            return [];
-        return { Title: item.title, Url: item.url };
-    });
+    let rows = [];
+    // Gemini collapses the sidebar "最近"/Recents section by default, hiding
+    // the conversation anchors. Retry extraction after expanding it.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
+        rows = raw.flatMap((item) => {
+            if (!isObjectRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
+                throw new CommandExecutionError('Gemini conversation list returned a malformed row');
+            }
+            if (!isGeminiConversationUrl(item.url))
+                return [];
+            return { Title: item.title, Url: item.url };
+        });
+        if (rows.length > 0)
+            break;
+        const changedRaw = unwrapGeminiEvaluateResult(await page.evaluate(expandGeminiRecentScript()), 'Gemini sidebar expand');
+        const changed = changedRaw === true;
+        // Give the React sidebar a moment to render the expanded anchors,
+        // longer on the first expansion (sidebar slide-in is async).
+        await page.wait(attempt === 0 ? 1.2 : 0.6);
+        if (!changed && attempt > 0)
+            break;
+    }
     return rows;
 }
 export async function clickGeminiConversationByTitle(page, query) {
@@ -1783,6 +1852,7 @@ export const __test__ = {
     hasGeminiTurnPrefix,
     readGeminiSnapshot,
     readGeminiSnapshotScript,
+    expandGeminiRecentScript,
     submitComposerScript,
     insertComposerTextFallbackScript,
 };

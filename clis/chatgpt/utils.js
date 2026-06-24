@@ -206,6 +206,25 @@ export function requireBooleanEvaluateResult(payload, label) {
     return payload;
 }
 
+function isTrustedChatGPTHost(hostname) {
+    return hostname === CHATGPT_DOMAIN || hostname.endsWith(`.${CHATGPT_DOMAIN}`);
+}
+
+function projectIdFromPathname(pathname) {
+    const match = String(pathname || '').match(/^\/g\/g-p-([a-f0-9]{8,})(?:[-/]|$)/i);
+    return match ? match[1].toLowerCase() : '';
+}
+
+function projectIdFromUrl(value) {
+    try {
+        const url = new URL(String(value || ''), CHATGPT_URL);
+        if (url.protocol !== 'https:' || !isTrustedChatGPTHost(url.hostname)) return '';
+        return projectIdFromPathname(url.pathname);
+    } catch {
+        return '';
+    }
+}
+
 export function parseChatGPTConversationId(value) {
     const raw = String(value ?? '').trim();
     if (/^https?:\/\//i.test(raw)) {
@@ -214,7 +233,7 @@ export function parseChatGPTConversationId(value) {
             if (parsed.protocol !== 'https:' || (parsed.hostname !== CHATGPT_DOMAIN && !parsed.hostname.endsWith(`.${CHATGPT_DOMAIN}`))) {
                 throw new Error('off-domain');
             }
-            const match = parsed.pathname.match(/^\/c\/([A-Za-z0-9_-]{8,})$/);
+            const match = parsed.pathname.match(/^\/(?:g\/g-p-[^/]+\/)?c\/([A-Za-z0-9_-]{8,})$/);
             if (match) return match[1];
         } catch {
             // Fall through to the shared typed ArgumentError below.
@@ -224,7 +243,7 @@ export function parseChatGPTConversationId(value) {
             'Example: opencli chatgpt detail https://chatgpt.com/c/123e4567-e89b-12d3-a456-426614174000',
         );
     }
-    const pathMatch = raw.match(/^\/c\/([A-Za-z0-9_-]{8,})(?:[?#].*)?$/);
+    const pathMatch = raw.match(/^\/(?:g\/g-p-[^/]+\/)?c\/([A-Za-z0-9_-]{8,})(?:[?#].*)?$/);
     if (pathMatch) return pathMatch[1];
     if (/^[A-Za-z0-9_-]{8,}$/.test(raw)) return raw;
     throw new ArgumentError(
@@ -255,6 +274,7 @@ export async function isOnChatGPT(page) {
 // we only need to know "the composer is ready", not which variant rendered.
 const COMPOSER_WAIT_SELECTOR = '#prompt-textarea, [data-testid="prompt-textarea"]';
 const CONVERSATION_LINK_SELECTOR = 'a[href*="/c/"]';
+const PROJECT_LINK_SELECTOR = 'a[href*="/g/g-p-"]';
 // Selector used by detail.js to wait for at least one rendered message bubble
 // after navigating to /c/<id>; mirrors the markup queried by getVisibleMessages.
 export const CONVERSATION_MESSAGE_SELECTOR = '[data-message-author-role], article[data-testid*="conversation-turn"]';
@@ -739,6 +759,26 @@ export async function clearChatGPTDraft(page) {
         })()
     `);
     await page.wait(0.5);
+}
+
+export function parseChatGPTProjectId(value) {
+    const raw = String(value ?? '').trim();
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) {
+        const id = projectIdFromUrl(raw);
+        if (id) return id;
+        throw new ArgumentError(
+            'chatgpt project commands require a chatgpt.com project id or /g/g-p-<id> URL',
+            'Example: opencli chatgpt project-file-add report.pdf --id 12345678',
+        );
+    }
+    // Accept project slug pattern: g-p-{hex_id}-{slug} or just hex id
+    const slugMatch = raw.match(/^g-p-([a-f0-9]{8,})/i);
+    if (slugMatch) return slugMatch[1].toLowerCase();
+    if (/^[a-f0-9]{8,}$/i.test(raw)) return raw.toLowerCase();
+    throw new ArgumentError(
+        'chatgpt project commands require a project id or /g/g-p-<id> URL',
+        'Example: opencli chatgpt project-file-add report.pdf --id 12345678',
+    );
 }
 
 /**
@@ -1533,6 +1573,541 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
     return lastUrls;
 }
 
+/**
+ * Get the list of ChatGPT Projects from the sidebar.
+ * Navigates to chatgpt.com if not already there, opens the sidebar,
+ * and extracts project links (matching /g/g-p-*).
+ */
+export async function getProjectList(page) {
+    await ensureOnChatGPT(page);
+
+    // Ensure sidebar is open
+    const openSidebar = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const button = Array.from(document.querySelectorAll('button'))
+            .find((node) => /open sidebar/i.test(node.getAttribute('aria-label') || ''));
+        if (button instanceof HTMLElement) {
+            button.click();
+            return true;
+        }
+        return false;
+    })()`)), 'chatgpt sidebar open state');
+    if (openSidebar) {
+        await page.wait(0.5);
+    }
+
+    // Click "Show more" to reveal all projects
+    await page.evaluate(`(() => {
+        var btn = Array.from(document.querySelectorAll('button')).find(function(b) {
+            var text = (b.innerText || '').trim();
+            return text === 'Show more' || text === '显示更多' || text === '查看更多';
+        });
+        if (btn instanceof HTMLElement) {
+            btn.click();
+        }
+    })()`);
+    await page.wait(0.5);
+
+    let items = await extractProjectLinks(page);
+    if (!items.length) {
+        await page.goto(CHATGPT_URL, { settleMs: 2000 });
+        await page.wait(1);
+        // Try clicking Show more again on fresh page
+        await page.evaluate(`(() => {
+            var btn = Array.from(document.querySelectorAll('button')).find(function(b) {
+                var text = (b.innerText || '').trim();
+                return text === 'Show more' || text === '显示更多' || text === '查看更多';
+            });
+            if (btn instanceof HTMLElement) {
+                btn.click();
+            }
+        })()`);
+        await page.wait(0.5);
+        items = await extractProjectLinks(page);
+    }
+
+    return items;
+}
+
+async function extractProjectLinks(page) {
+    const items = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const projectLinkSelector = ${JSON.stringify(PROJECT_LINK_SELECTOR)};
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const cleanText = (value) => String(value || '').replace(new RegExp('\\\\s+', 'g'), ' ').trim();
+        const trustedHost = (hostname) => hostname === '${CHATGPT_DOMAIN}' || hostname.endsWith('.${CHATGPT_DOMAIN}');
+        const projectIdFromPathname = (pathname) => {
+            const match = String(pathname || '').match(new RegExp('^/g/g-p-([a-f0-9]{8,})(?:[-/]|$)', 'i'));
+            return match ? match[1].toLowerCase() : '';
+        };
+        const parseProjectId = (value) => {
+            const raw = String(value || '').trim();
+            if (new RegExp('^https?://', 'i').test(raw) || raw.startsWith('/')) {
+                try {
+                    const url = new URL(raw, '${CHATGPT_URL}');
+                    if (url.protocol !== 'https:' || !trustedHost(url.hostname)) return '';
+                    return projectIdFromPathname(url.pathname);
+                } catch {
+                    return '';
+                }
+            }
+            const slugMatch = raw.match(new RegExp('^g-p-([a-f0-9]{8,})', 'i'));
+            if (slugMatch) return slugMatch[1].toLowerCase();
+            if (new RegExp('^[a-f0-9]{8,}$', 'i').test(raw)) return raw.toLowerCase();
+            return '';
+        };
+        const normalizeProjectUrl = (href, projectId) => {
+            try {
+                const url = new URL(href, '${CHATGPT_URL}');
+                if (url.protocol !== 'https:' || !trustedHost(url.hostname)) return '';
+                if (projectIdFromPathname(url.pathname) !== projectId) return '';
+                url.search = '';
+                url.hash = '';
+                return url.href.endsWith('/') ? url.href.slice(0, -1) : url.href;
+            } catch {
+                return '${CHATGPT_URL}' + '/g/g-p-' + projectId;
+            }
+        };
+
+        var seen = new Set();
+        var rows = [];
+        const addRow = (projectId, title, url) => {
+            if (!projectId || seen.has(projectId)) return;
+            seen.add(projectId);
+            rows.push({
+                Id: projectId,
+                Title: cleanText(title) || '(untitled project)',
+                Url: url || ('${CHATGPT_URL}' + '/g/g-p-' + projectId),
+            });
+        };
+
+        // Prefer explicit project anchors when the sidebar exposes them. This is
+        // stable across React internals and matches the URL shape documented by
+        // PROJECT_LINK_SELECTOR.
+        for (const link of Array.from(document.querySelectorAll(projectLinkSelector))) {
+            if (!isVisible(link)) continue;
+            const href = link.getAttribute('href') || link.href || '';
+            const projectId = parseProjectId(href);
+            if (!projectId) continue;
+            const container = link.closest('[data-sidebar-item="true"]') || link;
+            addRow(projectId, cleanText(container.innerText || container.textContent || link.textContent), normalizeProjectUrl(href, projectId));
+        }
+
+        // Fallback for ChatGPT sidebar builds that render project rows without
+        // anchors but keep gizmo data on React Fiber props.
+        const projectEls = Array.from(document.querySelectorAll('[data-sidebar-item="true"]'))
+            .filter(function(el) {
+                if (!isVisible(el)) return false;
+                var icon = el.querySelector('[data-testid="project-folder-icon"]');
+                if (!icon) return false;
+                var text = cleanText(el.innerText || el.textContent);
+                if (!text) return false;
+                if (el.getAttribute('data-testid') === 'accounts-profile-button') return false;
+                return true;
+            });
+
+        for (var i = 0; i < projectEls.length; i++) {
+            var el = projectEls[i];
+            var title = cleanText(el.innerText || el.textContent);
+            var projectId = '';
+            var shortUrl = '';
+            var fiberKey = Object.keys(el).find(function(k) { return k.startsWith('__reactFiber$'); });
+            if (fiberKey) {
+                var f = el[fiberKey];
+                for (var d = 0; f && d < 15; d++) {
+                    var props = f.memoizedProps || f.pendingProps;
+                    if (props && props.gizmo) {
+                        var g = props.gizmo;
+                        var gId = g.gizmo && g.gizmo.id ? g.gizmo.id : g.id;
+                        var gIdMatch = String(gId || '').match(new RegExp('^g-p-([a-f0-9]{8,})(?:-|$)', 'i'));
+                        if (gIdMatch) {
+                            projectId = gIdMatch[1].toLowerCase();
+                            shortUrl = String(g.short_url || g.gizmo && g.gizmo.short_url || '');
+                            break;
+                        }
+                    }
+                    f = f.return;
+                }
+            }
+            if (!projectId) continue;
+            var url = shortUrl ? '${CHATGPT_URL}' + '/g/' + shortUrl : '${CHATGPT_URL}' + '/g/g-p-' + projectId;
+            addRow(projectId, title, url);
+        }
+
+        return rows;
+    })()`)), 'chatgpt project link extraction');
+    return items.map(function(item, index) {
+        return {
+            Index: index + 1,
+            Id: String(item?.Id || ''),
+            Title: String(item?.Title || '(untitled project)').trim() || '(untitled project)',
+            Url: String(item?.Url || ''),
+        };
+    }).filter(function(item) { return item.Id; });
+}
+
+/**
+ * Navigate to a ChatGPT project page.
+ */
+const PROJECT_ADD_FILES_LABELS = [
+    'Add files',
+    'Add sources',
+    '添加文件',
+    'Project files',
+    '项目文件',
+];
+
+const PROJECT_ADD_FILES_DIALOG_SELECTORS = [
+    '[role="tabpanel"][data-state="active"] [data-project-home-sources-surface="true"] input[type="file"]:not([accept])',
+    '[data-project-home-sources-surface="true"] input[type="file"]:not([accept])',
+    '[role="dialog"] input[type="file"]',
+    '[data-testid*="project-files"] input[type="file"]',
+    '[data-testid*="project"] input[type="file"]',
+];
+
+/**
+ * Navigate to a ChatGPT project page.
+ */
+export async function navigateToProject(page, projectId) {
+    const id = parseChatGPTProjectId(projectId);
+    await page.goto(`${CHATGPT_URL}/g/g-p-${id}`, { settleMs: 2000 });
+    try {
+        await page.wait({ selector: COMPOSER_WAIT_SELECTOR, timeout: 10 });
+    } catch {
+        // Composer may not mount if project requires login; downstream ensureChatGPTLogin handles it.
+    }
+    const state = await getPageState(page);
+    if (projectIdFromUrl(state.url) === id) return id;
+    if (state.hasLoginGate || !state.isLoggedIn) {
+        throw new AuthRequiredError(CHATGPT_DOMAIN, 'ChatGPT project requires a logged-in ChatGPT session.');
+    }
+    throw new CommandExecutionError(
+        `ChatGPT did not open the requested project ${id}.`,
+        `Current URL: ${state.url || '(unknown)'}`,
+    );
+}
+
+/**
+ * Open the Project knowledge files dialog by clicking the "Add files" button
+ * in the project header area (NOT the chat composer's plus button).
+ * Returns true if the dialog appeared.
+ */
+export async function openProjectKnowledgeDialog(page) {
+    const rawOpenResult = unwrapEvaluateResult(await page.evaluate(`
+        (() => {
+            const labels = ${JSON.stringify(PROJECT_ADD_FILES_LABELS)};
+            const isVisible = (el) => {
+                if (!(el instanceof HTMLElement)) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            };
+
+            // Current ChatGPT project pages expose project knowledge under a
+            // Sources tab. Prefer that surface when present; it contains the
+            // project-source file input and avoids the chat composer's plus menu.
+            const sourceInput = document.querySelector('[data-project-home-sources-surface="true"] input[type="file"]:not([accept])');
+            if (sourceInput instanceof HTMLInputElement) return { ok: true };
+
+            const sourcesTab = Array.from(document.querySelectorAll('[role="tab"], button')).find(el => {
+                const text = (el.innerText || el.textContent || '').trim();
+                const id = el.id || '';
+                return text === 'Sources' || text === '资料' || id.includes('-sources');
+            });
+            if (sourcesTab instanceof HTMLElement) {
+                if (sourcesTab.getAttribute('aria-selected') === 'true') return { ok: true };
+                const rect = sourcesTab.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const nativeClick = rect.width > 0 && rect.height > 0 && Number.isFinite(centerX) && Number.isFinite(centerY) ? {
+                    x: centerX,
+                    y: centerY,
+                } : null;
+
+                // Radix-powered tabs on the live ChatGPT project page do not
+                // respond reliably to HTMLElement.click(); they activate after
+                // the same pointer/mouse sequence a real browser click emits.
+                const eventInit = {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    view: window,
+                    clientX: nativeClick ? nativeClick.x : 0,
+                    clientY: nativeClick ? nativeClick.y : 0,
+                    button: 0,
+                    buttons: 1,
+                };
+                for (const type of ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                    const Ctor = type.startsWith('pointer') && typeof PointerEvent !== 'undefined' ? PointerEvent : MouseEvent;
+                    sourcesTab.dispatchEvent(new Ctor(type, eventInit));
+                }
+                return { ok: true, nativeClick };
+            }
+
+            // Older project pages opened a dedicated project files dialog.
+            // Strategy 1: aria-label or data-testid
+            const byAttr = Array.from(document.querySelectorAll('button, a, [role="button"]')).find(el => {
+                if (!isVisible(el)) return false;
+                if (el.closest('[role="textbox"], #prompt-textarea, [data-testid="composer"], form[data-type="unified-composer"]')) return false;
+                const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                const testid = (el.getAttribute('data-testid') || '').toLowerCase();
+                const text = (el.innerText || el.textContent || '').trim();
+                if (aria.includes('add sources') || aria.includes('project files')) return true;
+                if (aria === 'add files') return true;
+                if (testid.includes('add-files') || testid.includes('project-files')) return true;
+                if (labels.some(l => text === l)) return true;
+                return false;
+            });
+            if (byAttr instanceof HTMLElement) { byAttr.click(); return { ok: true }; }
+
+            // Strategy 2: look for buttons that contain "Add files"/"Add sources"
+            // text, but exclude the composer plus button (which has a different role).
+            const allButtons = Array.from(document.querySelectorAll('button'));
+            for (const btn of allButtons) {
+                if (!isVisible(btn)) continue;
+                const text = (btn.innerText || btn.textContent || '').trim();
+                if (labels.some(l => text === l) && !btn.closest('[role="textbox"], #prompt-textarea, [data-testid="composer"]')) {
+                    btn.click();
+                    return { ok: true };
+                }
+            }
+
+            return { ok: false };
+        })()
+    `));
+    const openResult = typeof rawOpenResult === 'boolean'
+        ? { ok: rawOpenResult }
+        : requireObjectEvaluateResult(rawOpenResult, 'chatgpt project knowledge dialog open');
+
+    if (openResult.ok) {
+        if (openResult.nativeClick && typeof page.nativeClick === 'function') {
+            try { await page.nativeClick(openResult.nativeClick.x, openResult.nativeClick.y); } catch {}
+        }
+        if (openResult.nativeClick && typeof page.click === 'function') {
+            try { await page.click('[role="tab"][id$="-sources"]'); } catch {}
+        }
+        // Wait for the dialog or Sources tab content to appear
+        await page.wait(1);
+        try {
+            await page.wait({ selector: '[role="dialog"], [data-project-home-sources-surface="true"] input[type="file"]', timeout: 5 });
+        } catch {
+            // Dialog/source input may use a different shape; upload selectors surface the precise failure.
+        }
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Upload files to a ChatGPT Project's knowledge base.
+ * This navigates to the project page, opens the knowledge files dialog,
+ * and uploads files through the dialog's file input.
+ */
+export async function uploadChatGPTProjectFiles(page, projectId, filePaths) {
+    const id = parseChatGPTProjectId(projectId);
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+
+    const prepared = await prepareChatGPTFilePaths(filePaths);
+    if (!prepared.ok) return { ...prepared, inputError: true };
+    const absPaths = prepared.paths;
+
+    // Navigate to project and open knowledge dialog
+    await navigateToProject(page, id);
+    await ensureChatGPTLogin(page, 'ChatGPT project file upload requires a logged-in ChatGPT session.');
+
+    const dialogOpened = await openProjectKnowledgeDialog(page);
+    if (!dialogOpened) {
+        return { ok: false, reason: 'could not find or click the project "Add files" button' };
+    }
+
+    // Try uploading via dialog file input (multiple selector patterns)
+    const fileNames = absPaths.map(fp => path.default.basename(fp));
+
+    let uploaded = false;
+    if (page.setFileInput) {
+        for (const selector of PROJECT_ADD_FILES_DIALOG_SELECTORS) {
+            try {
+                await page.setFileInput(absPaths, selector);
+                uploaded = true;
+                break;
+            } catch (err) {
+                const msg = String(err?.message || err);
+                if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('No element found')) {
+                    throw err;
+                }
+            }
+        }
+    }
+
+    if (!uploaded) {
+        // Fallback: try all dialog file inputs via evaluate
+        const files = absPaths.map(absPath => ({
+            name: path.default.basename(absPath),
+            mime: mimeFromFilePath(absPath),
+            base64: fs.default.readFileSync(absPath).toString('base64'),
+        }));
+        const fallbackResult = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
+            (() => {
+                const files = ${JSON.stringify(files)};
+
+                // Look for file input inside a dialog or the project area
+                const selectors = ${JSON.stringify(PROJECT_ADD_FILES_DIALOG_SELECTORS)};
+                let input = null;
+                for (const sel of selectors) {
+                    input = document.querySelector(sel);
+                    if (input instanceof HTMLInputElement) break;
+                }
+                // Last resort: stay scoped to project knowledge containers. Do
+                // not fall back to arbitrary page inputs, because the composer
+                // attachment input can also accept files but uploads them to
+                // the conversation instead of project knowledge.
+                if (!(input instanceof HTMLInputElement)) {
+                    const allFileInputs = document.querySelectorAll('[data-project-home-sources-surface="true"] input[type="file"], [role="dialog"] input[type="file"], [data-testid*="project"] input[type="file"]');
+                    for (const fi of allFileInputs) {
+                        input = fi;
+                        break;
+                    }
+                }
+                if (!(input instanceof HTMLInputElement)) {
+                    return { ok: false, reason: 'project file input not found' };
+                }
+
+                const dt = new DataTransfer();
+                for (const item of files) {
+                    const binary = atob(item.base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+                    dt.items.add(new File([bytes], item.name, { type: item.mime }));
+                }
+                input.files = dt.files;
+
+                const propsKey = Object.keys(input).find(key => key.startsWith('__reactProps$'));
+                if (propsKey && input[propsKey] && typeof input[propsKey].onChange === 'function') {
+                    const nativeEvent = new Event('change', { bubbles: true });
+                    input[propsKey].onChange({
+                        target: input,
+                        currentTarget: input,
+                        nativeEvent,
+                        preventDefault() {},
+                        stopPropagation() {},
+                        isDefaultPrevented() { return false; },
+                        isPropagationStopped() { return false; },
+                        persist() {},
+                    });
+                } else {
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                return { ok: true };
+            })()
+        `)), 'chatgpt project file upload fallback');
+        if (fallbackResult && !fallbackResult.ok) return fallbackResult;
+    }
+
+    const confirmation = await waitForChatGPTProjectUploadConfirmation(page, fileNames);
+    if (!confirmation.ok) return confirmation;
+
+    return { ok: true, files: absPaths };
+}
+
+async function waitForChatGPTProjectUploadConfirmation(page, fileNames) {
+    const expectedFileNames = fileNames.map(name => String(name || '').trim()).filter(Boolean);
+    if (!expectedFileNames.length) return { ok: true };
+
+    let lastReason = 'uploaded file did not appear in project knowledge';
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        const result = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
+            (() => {
+                const expectedFileNames = ${JSON.stringify(expectedFileNames)};
+                const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+                const root = document.querySelector('[role="dialog"]')
+                    || document.querySelector('[data-project-home-sources-surface="true"]')
+                    || document.querySelector('[role="tabpanel"][data-state="active"]');
+                if (!root) {
+                    return { ok: false, pending: true, reason: 'project knowledge surface was not visible after upload' };
+                }
+                const text = normalize(root?.innerText || root?.textContent || '');
+                const errorNode = Array.from((root || document).querySelectorAll('[role="alert"], [data-testid*="error"], [class*="error"]')).find((node) => {
+                    const label = normalize(node.innerText || node.textContent || node.getAttribute('aria-label') || '');
+                    return /failed|error|unable|could not|too large|unsupported/i.test(label);
+                });
+                if (errorNode) {
+                    return { ok: false, reason: normalize(errorNode.innerText || errorNode.textContent || errorNode.getAttribute('aria-label') || 'project upload failed') };
+                }
+                const missing = expectedFileNames.filter((name) => !text.includes(name));
+                if (!missing.length) return { ok: true };
+                return { ok: false, pending: true, reason: 'uploaded file did not appear in project knowledge: ' + missing.join(', ') };
+            })()
+        `)), 'chatgpt project upload confirmation');
+
+        if (result.ok === true) return { ok: true };
+        lastReason = String(result.reason || lastReason);
+        if (!result.pending) return { ok: false, reason: lastReason };
+        await page.wait(0.5);
+    }
+
+    return { ok: false, reason: lastReason };
+}
+
+/**
+ * Validate local file paths for project file upload.
+ * Accepts all file types with a 512 MB per-file limit (matching ChatGPT's project limit).
+ */
+export async function prepareChatGPTFilePaths(filePaths) {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const absPaths = filePaths.map(filePath => path.default.resolve(filePath));
+
+    for (const absPath of absPaths) {
+        if (!fs.default.existsSync(absPath)) {
+            return { ok: false, reason: `File not found: ${absPath}` };
+        }
+        const stat = fs.default.statSync(absPath);
+        if (!stat.isFile()) {
+            return { ok: false, reason: `Not a file: ${absPath}` };
+        }
+        if (stat.size > 512 * 1024 * 1024) {
+            return { ok: false, reason: `File too large (${(stat.size / 1024 / 1024).toFixed(1)} MB). Max: 512 MB` };
+        }
+    }
+
+    return { ok: true, paths: absPaths };
+}
+
+function mimeFromFilePath(filePath) {
+    const lower = String(filePath || '').toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.doc')) return 'application/msword';
+    if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
+    if (lower.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+    if (lower.endsWith('.pptx')) return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    if (lower.endsWith('.csv')) return 'text/csv';
+    if (lower.endsWith('.txt')) return 'text/plain';
+    if (lower.endsWith('.json')) return 'application/json';
+    if (lower.endsWith('.xml')) return 'application/xml';
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'text/html';
+    if (lower.endsWith('.md')) return 'text/markdown';
+    if (lower.endsWith('.py')) return 'text/x-python';
+    if (lower.endsWith('.js')) return 'text/javascript';
+    if (lower.endsWith('.ts')) return 'application/typescript';
+    if (lower.endsWith('.jsx')) return 'text/jsx';
+    if (lower.endsWith('.tsx')) return 'text/tsx';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.svg')) return 'image/svg+xml';
+    return 'application/octet-stream';
+}
+
 export const __test__ = {
     COMPOSER_SELECTORS,
     SEND_BUTTON_SELECTOR,
@@ -1542,7 +2117,10 @@ export const __test__ = {
     buildComposerLocatorScript,
     isSameChatGPTConversation,
     parseChatGPTConversationId,
+    parseChatGPTProjectId,
     imageMimeFromPath,
+    mimeFromFilePath,
+    PROJECT_LINK_SELECTOR,
 };
 
 /**

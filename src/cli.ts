@@ -736,18 +736,19 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
 
-      // Table (default) — grouped by site
-      const sites = new Map<string, CliCommand[]>();
+      // Table (default) — grouped by adapter kind (app vs site), then by site name.
+      // classifyAdapter() reads the `domain` field: DNS-style domains are sites;
+      // localhost/loopback endpoints and bare app names are apps.
+      const appsBySite = new Map<string, CliCommand[]>();
+      const sitesBySite = new Map<string, CliCommand[]>();
       for (const cmd of commands) {
-        const g = sites.get(cmd.site) ?? [];
+        const target = classifyAdapter(cmd.domain) === 'app' ? appsBySite : sitesBySite;
+        const g = target.get(cmd.site) ?? [];
         g.push(cmd);
-        sites.set(cmd.site, g);
+        target.set(cmd.site, g);
       }
 
-      console.log();
-      console.log('  opencli' + ' — available commands');
-      console.log();
-      for (const [site, cmds] of sites) {
+      const renderSiteGroup = (site: string, cmds: CliCommand[]): void => {
         console.log(`  ${site}`);
         for (const cmd of cmds) {
           const label = strategyLabel(cmd);
@@ -758,6 +759,22 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? ` — ${cmd.description}` : ''}`);
         }
         console.log();
+      };
+
+      console.log();
+      console.log('  opencli' + ' — available commands');
+      console.log();
+
+      if (appsBySite.size > 0) {
+        console.log('  App adapters');
+        console.log();
+        for (const [site, cmds] of appsBySite) renderSiteGroup(site, cmds);
+      }
+
+      if (sitesBySite.size > 0) {
+        console.log('  Site adapters');
+        console.log();
+        for (const [site, cmds] of sitesBySite) renderSiteGroup(site, cmds);
       }
 
       const externalClis = loadExternalClis();
@@ -771,7 +788,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         console.log();
       }
 
-      console.log(`  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`);
+      console.log(`  ${commands.length} built-in commands across ${appsBySite.size} apps + ${sitesBySite.size} sites, ${externalClis.length} external CLIs`);
       console.log();
     });
 

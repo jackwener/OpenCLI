@@ -17,6 +17,7 @@ import {
     selectChatGPTTool,
     isGenerating,
     startNewChat,
+    navigateToProject,
     waitForChatGPTResponse,
 } from './utils.js';
 
@@ -49,6 +50,7 @@ export const askCommand = cli({
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for response' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
         { name: 'conversation', valueRequired: true, help: 'Continue an existing ChatGPT conversation ID or /c/<id> URL' },
+        { name: 'project', valueRequired: true, help: 'Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL' },
         { name: 'wait', type: 'boolean', default: true, help: 'Wait for the assistant response after sending' },
         { name: 'deep-research', type: 'boolean', default: false, help: 'Enable ChatGPT 深度研究 (Deep Research)' },
         { name: 'web-search', type: 'boolean', default: false, help: 'Enable ChatGPT 网页搜索 (Web Search)' },
@@ -76,10 +78,18 @@ export const askCommand = cli({
                 'Choose either a new chat or an existing conversation.',
             );
         }
+        if (kwargs.project && kwargs.conversation) {
+            throw new ArgumentError(
+                'chatgpt ask cannot use --project and --conversation together',
+                'Choose either a project new chat or an existing conversation.',
+            );
+        }
         const tool = useDeepResearch ? 'deep-research' : (useWebSearch ? 'web-search' : null);
 
         if (kwargs.conversation) {
             await openChatGPTConversation(page, kwargs.conversation);
+        } else if (kwargs.project) {
+            await navigateToProject(page, kwargs.project);
         } else if (normalizeBooleanFlag(kwargs.new)) {
             await startNewChat(page);
         } else {

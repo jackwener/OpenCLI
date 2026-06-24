@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const { mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
@@ -208,6 +208,87 @@ describe('bilibili video', () => {
     });
 
     await expect(command.func(page, { bvid: 'BV1xx411c7mD' })).rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('selects a specific 分P part via --page: title=part, plus cid/page/series_title fields', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      code: 0,
+      data: {
+        bvid: 'BV1h6V16SEpg',
+        title: '《道德经的奥秘》',
+        stat: {},
+        owner: { mid: 1, name: 'UP' },
+        desc: '',
+        rights: {},
+        videos: 21,
+        pages: [
+          { cid: 1001, page: 1, part: '01 上士闻道', duration: 1391 },
+          { cid: 1002, page: 2, part: '02 上士闻道', duration: 1391 },
+          { cid: 1003, page: 3, part: '03 人生的价值', duration: 1391 },
+        ],
+      },
+    });
+
+    const rows = await command.func(page, { bvid: 'BV1h6V16SEpg', page: '3' });
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+
+    expect(byField.title).toBe('03 人生的价值');
+    expect(byField.cid).toBe('1003');
+    expect(byField.page).toBe('3');
+    expect(byField.series_title).toBe('《道德经的奥秘》');
+    expect(byField.parts).toBe('21');
+    expect(byField.duration).toBe('23m11s (1391s)');
+  });
+
+  it('falls back to "<series> P<n>" when the part has no title', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      code: 0,
+      data: {
+        bvid: 'BV1h6V16SEpg', title: '合集标题', stat: {}, owner: {}, desc: '', rights: {},
+        videos: 2,
+        pages: [
+          { cid: 1, page: 1, part: '', duration: 60 },
+          { cid: 2, page: 2, part: '   ', duration: 60 },
+        ],
+      },
+    });
+
+    const rows = await command.func(page, { bvid: 'BV1h6V16SEpg', page: '2' });
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+    expect(byField.title).toBe('合集标题 P2');
+    expect(byField.cid).toBe('2');
+  });
+
+  it('throws CommandExecutionError when --page is out of range', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      code: 0,
+      data: {
+        bvid: 'BV1h6V16SEpg', title: 't', stat: {}, owner: {}, desc: '', rights: {},
+        videos: 2, pages: [{ cid: 1, page: 1, part: 'a' }, { cid: 2, page: 2, part: 'b' }],
+      },
+    });
+    await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: '99' })).rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it('throws ArgumentError when --page is not a strict positive decimal integer', async () => {
+    for (const pageArg of ['0', 'abc', '1e2', '0x10', ' 1 ']) {
+      await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: pageArg })).rejects.toBeInstanceOf(ArgumentError);
+    }
+    expect(mockApiGet).not.toHaveBeenCalled();
+  });
+
+  it('omits cid/page/series_title fields when --page is not given (backward compat)', async () => {
+    mockApiGet.mockResolvedValueOnce({
+      code: 0,
+      data: { bvid: 'BV1xx411c7mD', title: 't', stat: {}, owner: {}, desc: '', rights: {}, videos: 3, pages: [{ cid: 1, page: 1, part: 'a' }] },
+    });
+    const rows = await command.func(page, { bvid: 'BV1xx411c7mD' });
+    const fields = rows.map((r) => r.field);
+    expect(fields).not.toContain('cid');
+    expect(fields).not.toContain('page');
+    expect(fields).not.toContain('series_title');
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+    expect(byField.title).toBe('t'); // 整集标题，不下钻
   });
 
   it('returns full description without truncation or whitespace collapse', async () => {

@@ -2627,6 +2627,170 @@
     "sourceFile": "apple-podcasts/top.js"
   },
   {
+    "site": "archive",
+    "name": "item",
+    "description": "Fetch metadata for a single Internet Archive item by identifier.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "identifier",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Archive item identifier (e.g. \"open-syllabus\", \"FinalFantasy2_356\")."
+      }
+    ],
+    "columns": [
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "collection",
+      "description",
+      "file_count",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/item.js",
+    "sourceFile": "archive/item.js"
+  },
+  {
+    "site": "archive",
+    "name": "search",
+    "description": "Search Internet Archive items across books, movies, audio, software, and web.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full-text query (matches title, description, creator, subject)."
+      },
+      {
+        "name": "mediatype",
+        "type": "string",
+        "required": false,
+        "help": "Restrict to mediatype: texts, movies, audio, software, image, web, data, collection"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "downloads",
+        "required": false,
+        "help": "Sort key: downloads, date, addeddate, week, title"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max items (max 100; one API page)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "downloads",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/search.js",
+    "sourceFile": "archive/search.js"
+  },
+  {
+    "site": "archive",
+    "name": "snapshots",
+    "description": "List Wayback Machine snapshots over time for a URL via the CDX API.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "help": "Earliest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": false,
+        "help": "Latest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max snapshots to return (max 1000)."
+      }
+    ],
+    "columns": [
+      "timestamp",
+      "snapshot_url",
+      "status",
+      "mimetype",
+      "original_url"
+    ],
+    "type": "js",
+    "modulePath": "archive/snapshots.js",
+    "sourceFile": "archive/snapshots.js"
+  },
+  {
+    "site": "archive",
+    "name": "wayback",
+    "description": "Look up the closest Wayback Machine snapshot for a URL.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "timestamp",
+        "type": "string",
+        "required": false,
+        "help": "Target timestamp (YYYY[MM[DD[hh[mm[ss]]]]] or ISO date). Defaults to most recent snapshot."
+      }
+    ],
+    "columns": [
+      "original_url",
+      "requested_timestamp",
+      "snapshot_timestamp",
+      "snapshot_url",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "archive/wayback.js",
+    "sourceFile": "archive/wayback.js"
+  },
+  {
     "site": "arxiv",
     "name": "author",
     "description": "List arXiv papers by a given author (newest first)",
@@ -2763,6 +2927,70 @@
     "type": "js",
     "modulePath": "arxiv/search.js",
     "sourceFile": "arxiv/search.js"
+  },
+  {
+    "site": "autohome",
+    "name": "brand",
+    "aliases": [
+      "series"
+    ],
+    "description": "汽车之家按品牌列出全部车系 + 厂商指导价（免登录）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "brand",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "品牌名（宝马 / 比亚迪 / 理想 / 丰田 …）或车系目录首字母 A-Z"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "返回的车系数量（最多 120）"
+      }
+    ],
+    "columns": [
+      "series_id",
+      "name",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "autohome/brand.js",
+    "sourceFile": "autohome/brand.js"
+  },
+  {
+    "site": "autohome",
+    "name": "score",
+    "aliases": [
+      "koubei",
+      "rating"
+    ],
+    "description": "汽车之家车系口碑评分（总分 + 各维度 + 故障率PPH + 竞品对比，免登录）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 brand 的 series_id，或 k.autohome.com.cn/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "autohome/score.js",
+    "sourceFile": "autohome/score.js"
   },
   {
     "site": "baidu-scholar",
@@ -3382,6 +3610,12 @@
         "default": false,
         "required": false,
         "help": "跳过付费内容预检直接下载（已购买/已充电/已开通会员时用）"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频下载该集；缺省下载默认 P1"
       }
     ],
     "columns": [
@@ -3829,6 +4063,12 @@
         "type": "str",
         "required": false,
         "help": "字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频取该集字幕；缺省取默认 P1"
       }
     ],
     "columns": [
@@ -3961,6 +4201,12 @@
         "required": true,
         "positional": true,
         "help": "BV ID, video URL, or b23.tv short link"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频指定某一集，title/cid 返回该集；缺省取整集默认（P1）"
       }
     ],
     "columns": [
@@ -5960,6 +6206,13 @@
         "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
       },
       {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
+      },
+      {
         "name": "wait",
         "type": "boolean",
         "default": true,
@@ -6103,6 +6356,13 @@
         "help": "Local image path to attach before prompting; comma-separated paths are supported"
       },
       {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start image generation inside a ChatGPT project ID or /g/g-p-<id> URL"
+      },
+      {
         "name": "op",
         "type": "str",
         "required": false,
@@ -6189,6 +6449,13 @@
           "pro",
           "thinking"
         ]
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Open a ChatGPT project ID or /g/g-p-<id> URL before switching intelligence level"
       }
     ],
     "columns": [
@@ -6209,13 +6476,83 @@
     "domain": "chatgpt.com",
     "strategy": "cookie",
     "browser": true,
-    "args": [],
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
+      }
+    ],
     "columns": [
       "Status"
     ],
     "type": "js",
     "modulePath": "chatgpt/new.js",
     "sourceFile": "chatgpt/new.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "project-file-add",
+    "description": "Upload files to a ChatGPT project as project knowledge (not just conversation attachments)",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Local file path(s) to upload; comma-separated paths are supported"
+      },
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "help": "Project ID or /g/g-p-<id> URL"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/project-file-add.js",
+    "sourceFile": "chatgpt/project-file-add.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "project-list",
+    "description": "List visible ChatGPT projects from the sidebar",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max projects to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/project-list.js",
+    "sourceFile": "chatgpt/project-list.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -6276,6 +6613,13 @@
         "required": false,
         "valueRequired": true,
         "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
       }
     ],
     "columns": [
@@ -10296,6 +10640,203 @@
     "sourceFile": "dockerhub/search.js"
   },
   {
+    "site": "dongchedi",
+    "name": "koubei",
+    "aliases": [
+      "reviews"
+    ],
+    "description": "懂车帝车系口碑/车主评价（评分 / 购车款型 / 点赞 / 评论 / 正文摘要）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回的口碑条数（最多 15，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "user",
+      "car",
+      "score",
+      "likes",
+      "comments",
+      "content",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/koubei.js",
+    "sourceFile": "dongchedi/koubei.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "models",
+    "aliases": [
+      "trims"
+    ],
+    "description": "懂车帝车系款型列表（car_id / 名称 / 年款 / 指导价 / 经销商价 / 车主成交价）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "default": "online",
+        "required": false,
+        "help": "在售 online（默认）或停售 offline"
+      }
+    ],
+    "columns": [
+      "car_id",
+      "name",
+      "year",
+      "official_price",
+      "dealer_price",
+      "owner_price"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/models.js",
+    "sourceFile": "dongchedi/models.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "score",
+    "aliases": [
+      "rating"
+    ],
+    "description": "懂车帝车系评分（懂车分 8 维度 + 同级车均值对比）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "dimension",
+      "score",
+      "same_level_avg"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/score.js",
+    "sourceFile": "dongchedi/score.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "search",
+    "description": "懂车帝车系搜索（按关键词，返回车系 + 指导价/经销商价）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词，例如 \"宝马X5\" 或 \"汉兰达\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "返回的车系数量（最多 30）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "series_id",
+      "name",
+      "brand",
+      "official_price",
+      "dealer_price",
+      "pictures",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/search.js",
+    "sourceFile": "dongchedi/search.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "series",
+    "aliases": [
+      "detail"
+    ],
+    "description": "懂车帝车系概览（品牌 / 指导价 / 二手价 / 懂车分 / 销量排名 / 在售款型数）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/series.js",
+    "sourceFile": "dongchedi/series.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "specs",
+    "aliases": [
+      "config"
+    ],
+    "description": "懂车帝车系配置概览（尺寸 / 动力 / 发动机 / 变速箱 / 四驱 / 悬挂 / 气囊）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/specs.js",
+    "sourceFile": "dongchedi/specs.js"
+  },
+  {
     "site": "douban",
     "name": "book-hot",
     "description": "豆瓣图书热门榜单",
@@ -13938,6 +14479,51 @@
     "siteSession": "persistent"
   },
   {
+    "site": "github-trending",
+    "name": "repos",
+    "description": "GitHub Trending repositories (public, no login). Filter by --language and --since.",
+    "access": "read",
+    "domain": "github.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "since",
+        "type": "string",
+        "default": "daily",
+        "required": false,
+        "help": "Time range: daily / weekly / monthly"
+      },
+      {
+        "name": "language",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by programming language slug, e.g. python, rust, \"c++\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of repositories to return (max 25)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "repo",
+      "description",
+      "language",
+      "stars",
+      "forks",
+      "starsSince",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "github-trending/repos.js",
+    "sourceFile": "github-trending/repos.js"
+  },
+  {
     "site": "google",
     "name": "news",
     "description": "Get Google News headlines",
@@ -14927,6 +15513,74 @@
     "sourceFile": "grok/auth.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "guazi",
+    "name": "browse",
+    "aliases": [
+      "list"
+    ],
+    "description": "瓜子二手车在售车源列表（按城市，含售价/首付/里程/年份）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "城市名（北京/上海/...）或瓜子城市码（bj/sh/...）。默认 bj 北京"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的车源数量（最多 40，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "clue_id",
+      "title",
+      "price",
+      "down_payment",
+      "mileage",
+      "year",
+      "city",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "guazi/browse.js",
+    "sourceFile": "guazi/browse.js"
+  },
+  {
+    "site": "guazi",
+    "name": "car",
+    "aliases": [
+      "detail"
+    ],
+    "description": "瓜子二手车车源详情（售价 / 上牌 / 里程 / 过户 / 配置 / 车况）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "clue_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车源 ID（来自 browse 的 clue_id，或 /car-detail/c<id>.html URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "guazi/car.js",
+    "sourceFile": "guazi/car.js"
   },
   {
     "site": "hackernews",
@@ -18186,6 +18840,87 @@
     "sourceFile": "jira/search.js"
   },
   {
+    "site": "juejin",
+    "name": "hot",
+    "description": "Juejin (掘金) hot article ranking, optionally scoped to a category",
+    "access": "read",
+    "domain": "api.juejin.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "string",
+        "required": false,
+        "help": "Category slug or numeric id. Slugs: backend, frontend, android, ios, ai. Defaults to \"backend\"."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max articles (1-50)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "article_id",
+      "title",
+      "brief",
+      "views",
+      "likes",
+      "comments",
+      "hot_rank",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "juejin/hot.js",
+    "sourceFile": "juejin/hot.js"
+  },
+  {
+    "site": "juejin",
+    "name": "recommend",
+    "description": "Juejin (掘金) homepage recommended article feed",
+    "access": "read",
+    "domain": "api.juejin.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max articles (1-100, single page)."
+      },
+      {
+        "name": "cursor",
+        "type": "string",
+        "default": "0",
+        "required": false,
+        "help": "Pagination cursor; pass back the previous response's next-page cursor to keep scrolling."
+      }
+    ],
+    "columns": [
+      "rank",
+      "article_id",
+      "title",
+      "brief",
+      "views",
+      "likes",
+      "comments",
+      "author",
+      "tags",
+      "url",
+      "next_cursor",
+      "has_more"
+    ],
+    "type": "js",
+    "modulePath": "juejin/recommend.js",
+    "sourceFile": "juejin/recommend.js"
+  },
+  {
     "site": "ke",
     "name": "chengjiao",
     "description": "贝壳找房成交记录",
@@ -19364,6 +20099,31 @@
     "modulePath": "kimi/audit-extras.js",
     "sourceFile": "kimi/audit-extras.js",
     "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "kimi",
+    "name": "usage",
+    "description": "Read Kimi Code console usage cards: weekly quota, rate limit, membership, and model permission.",
+    "access": "read",
+    "domain": "kimi.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "weeklyUsagePct",
+      "weeklyResetIn",
+      "rateLimitPct",
+      "rateLimitResetIn",
+      "membershipName",
+      "membershipTier",
+      "modelPermission",
+      "modelCost"
+    ],
+    "type": "js",
+    "modulePath": "kimi/usage.js",
+    "sourceFile": "kimi/usage.js",
+    "navigateBefore": true,
     "siteSession": "persistent"
   },
   {
@@ -28687,6 +29447,160 @@
     "type": "js",
     "modulePath": "rubygems/search.js",
     "sourceFile": "rubygems/search.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "citations",
+    "description": "List papers that cite a Semantic Scholar paper (paginated)",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max citing papers (1-1000, single Semantic Scholar page)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Page offset (0-based)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/citations.js",
+    "sourceFile": "semanticscholar/citations.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "paper",
+    "description": "Semantic Scholar paper detail (citation graph + AI tldr) by paperId, DOI, or arXiv id",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id (e.g. \"ARXIV:1706.03762\", \"PMID:12345\")"
+      }
+    ],
+    "columns": [
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "influentialCitationCount",
+      "referenceCount",
+      "tldr",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/paper.js",
+    "sourceFile": "semanticscholar/paper.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "recommendations",
+    "description": "Semantic Scholar AI-curated related papers for a paperId, DOI, or arXiv id",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max recommendations (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/recommendations.js",
+    "sourceFile": "semanticscholar/recommendations.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "search",
+    "description": "Search Semantic Scholar papers by free text",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text (e.g. \"attention is all you need\", \"diffusion model\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max papers (1-100, single Semantic Scholar page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/search.js",
+    "sourceFile": "semanticscholar/search.js"
   },
   {
     "site": "sinablog",
@@ -42564,6 +43478,80 @@
   },
   {
     "site": "zhihu",
+    "name": "followers",
+    "description": "知乎某用户的粉丝列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of followers to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "url_token",
+      "headline",
+      "followers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/followers.js",
+    "sourceFile": "zhihu/followers.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "following",
+    "description": "知乎某用户关注的人列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of followees to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "url_token",
+      "headline",
+      "followers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/following.js",
+    "sourceFile": "zhihu/following.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "hot",
     "description": "知乎热榜",
     "access": "read",
@@ -42656,6 +43644,45 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "zhihu",
+    "name": "pins",
+    "description": "知乎某用户的想法（短内容）列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of pins to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "excerpt",
+      "type",
+      "likes",
+      "comments",
+      "reposts",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/pins.js",
+    "sourceFile": "zhihu/pins.js",
+    "navigateBefore": "https://www.zhihu.com"
   },
   {
     "site": "zhihu",
@@ -42783,6 +43810,113 @@
     "type": "js",
     "modulePath": "zhihu/search.js",
     "sourceFile": "zhihu/search.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user",
+    "description": "知乎用户主页资料（粉丝/关注/回答/文章/获赞数）",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL, e.g. wen-jie-16-47"
+      }
+    ],
+    "columns": [
+      "url_token",
+      "name",
+      "headline",
+      "followers",
+      "following",
+      "answers",
+      "articles",
+      "voteup",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user.js",
+    "sourceFile": "zhihu/user.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user-answers",
+    "description": "知乎某用户的回答列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of answers to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "question",
+      "votes",
+      "comments",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user-answers.js",
+    "sourceFile": "zhihu/user-answers.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user-articles",
+    "description": "知乎某用户的文章/专栏列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of articles to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "votes",
+      "comments",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user-articles.js",
+    "sourceFile": "zhihu/user-articles.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {

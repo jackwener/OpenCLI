@@ -1,0 +1,60 @@
+{
+ "data": [
+  {
+   "id": "26_dcd_car_series_v2:5273",
+   "series_id": 5273,
+   "cell_type": 26,
+   "koubei": {
+    "url": "",
+    "tag_list": null
+   },
+   "display": {
+    "title": "宝马X5",
+    "series_name": "宝马X5",
+    "sub_brand_name": "华晨宝马",
+    "agent_price": "51.00-68.00万",
+    "official_price": "59.80-74.80万",
+    "cover_url": "https://p3-dcd.byteimg.com/img/tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1~1080x0.png?psm=motor.search.block",
+    "picture_num": 11355,
+    "dealer_text": "询最低价"
+   }
+  },
+  {
+   "id": "200_:7566598885808833062",
+   "series_id": null,
+   "cell_type": 200,
+   "koubei": null,
+   "display": {}
+  },
+  {
+   "id": "200_:7601400898518090302",
+   "series_id": null,
+   "cell_type": 200,
+   "koubei": null,
+   "display": {}
+  },
+  {
+   "id": "200_:7595987626075849241",
+   "series_id": null,
+   "cell_type": 200,
+   "koubei": null,
+   "display": {}
+  },
+  {
+   "id": "200_:7621424306387747352",
+   "series_id": null,
+   "cell_type": 200,
+   "koubei": null,
+   "display": {}
+  },
+  {
+   "id": "200_:7601471677582803518",
+   "series_id": null,
+   "cell_type": 200,
+   "koubei": null,
+   "display": {}
+  }
+ ],
+ "has_more": 1,
+ "return_count": 37
+}
