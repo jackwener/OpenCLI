@@ -845,6 +845,63 @@ function selectGeminiToolScript(labels) {
     })(${labelsJson})
   `;
 }
+function geminiModePickerLabelScript() {
+    return `
+    (() => {
+      const picker = Array.from(document.querySelectorAll('button, [role="button"]')).find((node) => (node.getAttribute('aria-label') || '').toLowerCase().includes('open mode picker'));
+      return picker ? (picker.getAttribute('aria-label') || '') : '';
+    })()
+  `;
+}
+function openGeminiModePickerScript() {
+    return `
+    (() => {
+      const picker = Array.from(document.querySelectorAll('button, [role="button"]')).find((node) => (node.getAttribute('aria-label') || '').toLowerCase().includes('open mode picker'));
+      if (!(picker instanceof HTMLElement)) return false;
+      picker.click();
+      return true;
+    })()
+  `;
+}
+function openGeminiThinkingLevelSubmenuScript() {
+    return `
+    (() => {
+      const norm = (value) => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      const item = Array.from(document.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="option"]')).find((node) => norm(node.textContent).includes('thinking level'));
+      if (!(item instanceof HTMLElement)) return false;
+      item.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      item.click();
+      return true;
+    })()
+  `;
+}
+function selectGeminiThinkingOptionScript(level) {
+    const levelJson = JSON.stringify(String(level || ''));
+    return `
+    ((targetLevel) => {
+      const norm = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+      const wanted = norm(targetLevel).toLowerCase();
+      if (!wanted) return '';
+      const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="option"]'));
+      const match = items.find((node) => {
+        const text = norm(node.textContent).toLowerCase();
+        return text === wanted || text.startsWith(wanted + ' ');
+      });
+      if (!(match instanceof HTMLElement)) return '';
+      match.click();
+      return norm(match.textContent);
+    })(${levelJson})
+  `;
+}
+function dismissGeminiMenuScript() {
+    return `
+    (() => {
+      (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, which: 27, bubbles: true }));
+      return true;
+    })()
+  `;
+}
 function clickGeminiConfirmButtonScript(labels) {
     const labelsJson = JSON.stringify(labels);
     return `
@@ -1109,6 +1166,39 @@ export async function selectGeminiTool(page, labels) {
     await openGeminiToolsMenu(page);
     const matched = await page.evaluate(selectGeminiToolScript(labels));
     return typeof matched === 'string' ? matched : '';
+}
+// Switch the composer's thinking level (e.g. "Extended") before sending a
+// prompt. The Gemini 3 mode picker (aria-label "Open mode picker, currently
+// <model>") opens a menu where "Thinking level" is a submenu containing
+// "Standard" / "Extended"; selecting one updates the picker label to
+// "<model> <level>". Idempotent: returns true without touching the UI when the
+// requested level is already active.
+export async function selectGeminiThinkingLevel(page, level = 'Extended') {
+    await ensureGeminiPage(page);
+    const target = String(level || 'Extended');
+    const currentLabel = String((await page.evaluate(geminiModePickerLabelScript())) || '');
+    if (currentLabel.toLowerCase().includes(target.toLowerCase())) {
+        return true;
+    }
+    const opened = await page.evaluate(openGeminiModePickerScript());
+    if (!opened)
+        return false;
+    await page.wait(0.7);
+    // The level options live in a "Thinking level" submenu; try a direct hit
+    // first, then open the submenu and retry.
+    let matched = await page.evaluate(selectGeminiThinkingOptionScript(target));
+    if (!matched) {
+        await page.evaluate(openGeminiThinkingLevelSubmenuScript());
+        await page.wait(0.7);
+        matched = await page.evaluate(selectGeminiThinkingOptionScript(target));
+    }
+    if (matched) {
+        await page.wait(0.5);
+        return true;
+    }
+    // Leave the menu closed if we could not select the level.
+    await page.evaluate(dismissGeminiMenuScript()).catch(() => { });
+    return false;
 }
 export async function waitForGeminiConfirmButton(page, labels, timeoutSeconds) {
     await ensureGeminiPage(page);

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, sendGeminiMessage, } from './utils.js';
+import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, selectGeminiThinkingLevel, sendGeminiMessage, } from './utils.js';
 function createPageMock() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -388,5 +388,37 @@ describe('pickGeminiDeepResearchExportUrl', () => {
             'performance::https://www.google-analytics.com/g/collect?v=2',
         ], 'https://gemini.google.com/app/abc');
         expect(picked).toEqual({ url: '', source: 'none' });
+    });
+});
+describe('selectGeminiThinkingLevel', () => {
+    it('is a no-op when the requested level is already active', async () => {
+        const page = createPageMock();
+        page.evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app') // ensureGeminiPage -> isOnGemini
+            .mockResolvedValueOnce('Open mode picker, currently Flash Extended'); // current label
+        const result = await selectGeminiThinkingLevel(page, 'Extended');
+        expect(result).toBe(true);
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+    });
+    it('opens the picker and selects the level through the Thinking level submenu', async () => {
+        const page = createPageMock();
+        page.evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app') // ensureGeminiPage
+            .mockResolvedValueOnce('Open mode picker, currently Flash') // current label (Standard)
+            .mockResolvedValueOnce(true) // open mode picker
+            .mockResolvedValueOnce('') // direct option hit (submenu not open yet)
+            .mockResolvedValueOnce(true) // open Thinking level submenu
+            .mockResolvedValueOnce('Extended Complex problem solving'); // select option
+        const result = await selectGeminiThinkingLevel(page, 'Extended');
+        expect(result).toBe(true);
+    });
+    it('returns false when the mode picker cannot be opened', async () => {
+        const page = createPageMock();
+        page.evaluate
+            .mockResolvedValueOnce('https://gemini.google.com/app') // ensureGeminiPage
+            .mockResolvedValueOnce('') // current label
+            .mockResolvedValueOnce(false); // open mode picker fails
+        const result = await selectGeminiThinkingLevel(page, 'Extended');
+        expect(result).toBe(false);
     });
 });
