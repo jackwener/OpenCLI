@@ -119,6 +119,41 @@ async function evaluate(tabId, expression, aggressiveRetry = false) {
   throw new Error("evaluate: max retries exhausted");
 }
 const evaluateAsync = evaluate;
+async function evaluateViaScripting(tabId, expression) {
+  let results;
+  try {
+    results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: async (code) => {
+        try {
+          const value = await (0, eval)(code);
+          return { ok: true, value };
+        } catch (e) {
+          return { ok: false, error: e instanceof Error ? e.message : String(e) };
+        }
+      },
+      args: [expression]
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`--via-extension eval failed: ${msg}`);
+  }
+  if (!results || results.length === 0) {
+    throw new Error("--via-extension eval failed: executeScript returned no results");
+  }
+  const payload = results[0].result;
+  if (!payload) {
+    throw new Error("--via-extension eval failed: script returned undefined (return value may not be structured-cloneable)");
+  }
+  if (!payload.ok) {
+    const msg = payload.error ?? "Script evaluation failed";
+    const isCsp = /unsafe-eval|content security policy|EvalError/i.test(msg);
+    throw new Error(isCsp ? `${msg}
+(--via-extension eval runs in the page's MAIN world and is subject to its CSP; sites that block unsafe-eval will reject this. Use plain \`browser eval\` (CDP path) on such pages.)` : msg);
+  }
+  return payload.value;
+}
 async function screenshot(tabId, options = {}) {
   await ensureAttached(tabId);
   const format = options.format ?? "png";
@@ -700,6 +735,7 @@ console.error = (...args) => {
   forwardLog("error", args);
 };
 function isDaemonSocketActive(socket = ws) {
+  if (typeof WebSocket === "undefined") return false;
   return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
 }
 function connect() {
@@ -1476,6 +1512,8 @@ async function handleCommand(cmd) {
     switch (cmd.action) {
       case "exec":
         return await handleExec(cmd, leaseKey);
+      case "exec-via-scripting":
+        return await handleExecViaScripting(cmd, leaseKey);
       case "navigate":
         return await handleNavigate(cmd, leaseKey);
       case "tabs":
@@ -1709,6 +1747,17 @@ async function listAutomationTabs(leaseKey) {
 async function listAutomationWebTabs(leaseKey) {
   const tabs = await listAutomationTabs(leaseKey);
   return tabs.filter((tab) => isDebuggableUrl(tab.url));
+}
+async function handleExecViaScripting(cmd, leaseKey) {
+  if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  try {
+    const data = await evaluateViaScripting(tabId, cmd.code);
+    return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 async function handleExec(cmd, leaseKey) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };

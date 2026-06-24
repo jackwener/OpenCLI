@@ -333,6 +333,11 @@ export class Page extends BasePage {
     return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
   }
 
+  async evaluateNoDebugger(js: string): Promise<unknown> {
+    const code = buildEvaluateExpression(js);
+    return sendCommand('exec-via-scripting', { code, ...this._cmdOpts() });
+  }
+
   async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     return sendCommand('cdp', {
       cdpMethod: method,

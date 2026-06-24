@@ -7,6 +7,7 @@
 
 export type Action =
   | 'exec'
+  | 'exec-via-scripting'
   | 'navigate'
   | 'tabs'
   | 'cookies'

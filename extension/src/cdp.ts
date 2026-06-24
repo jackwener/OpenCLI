@@ -202,6 +202,53 @@ export async function evaluate(tabId: number, expression: string, aggressiveRetr
 export const evaluateAsync = evaluate;
 
 /**
+ * Execute JS in a tab via chrome.scripting.executeScript (MAIN world).
+ * Does not attach chrome.debugger — invisible to anti-bot fingerprinting.
+ * Limitations vs CDP path: return value must be structured-cloneable (no DOM
+ * nodes, functions, or circular refs); error stacks are not preserved.
+ */
+export async function evaluateViaScripting(tabId: number, expression: string): Promise<unknown> {
+  let results: chrome.scripting.InjectionResult[];
+  try {
+    results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: async (code: string) => {
+        try {
+          // indirect eval: runs in page global scope, not extension scope
+          // eslint-disable-next-line no-eval
+          const value = await (0, eval)(code);
+          return { ok: true, value };
+        } catch (e) {
+          return { ok: false, error: e instanceof Error ? e.message : String(e) };
+        }
+      },
+      args: [expression],
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`--via-extension eval failed: ${msg}`);
+  }
+
+  if (!results || results.length === 0) {
+    throw new Error('--via-extension eval failed: executeScript returned no results');
+  }
+
+  const payload = results[0].result as { ok: boolean; value?: unknown; error?: string } | undefined;
+  if (!payload) {
+    throw new Error('--via-extension eval failed: script returned undefined (return value may not be structured-cloneable)');
+  }
+  if (!payload.ok) {
+    const msg = payload.error ?? 'Script evaluation failed';
+    const isCsp = /unsafe-eval|content security policy|EvalError/i.test(msg);
+    throw new Error(isCsp
+      ? `${msg}\n(--via-extension eval runs in the page's MAIN world and is subject to its CSP; sites that block unsafe-eval will reject this. Use plain \`browser eval\` (CDP path) on such pages.)`
+      : msg);
+  }
+  return payload.value;
+}
+
+/**
  * Capture a screenshot via CDP Page.captureScreenshot.
  * Returns base64-encoded image data.
  */

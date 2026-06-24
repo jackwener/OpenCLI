@@ -94,6 +94,7 @@ console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error
 // ─── WebSocket connection ────────────────────────────────────────────
 
 function isDaemonSocketActive(socket: WebSocket | null | undefined = ws): boolean {
+  if (typeof WebSocket === 'undefined') return false;
   return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
 }
 
@@ -1145,6 +1146,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
     switch (cmd.action) {
       case 'exec':
         return await handleExec(cmd, leaseKey);
+      case 'exec-via-scripting':
+        return await handleExecViaScripting(cmd, leaseKey);
       case 'navigate':
         return await handleNavigate(cmd, leaseKey);
       case 'tabs':
@@ -1440,6 +1443,18 @@ async function listAutomationTabs(leaseKey: string): Promise<chrome.tabs.Tab[]> 
 async function listAutomationWebTabs(leaseKey: string): Promise<chrome.tabs.Tab[]> {
   const tabs = await listAutomationTabs(leaseKey);
   return tabs.filter((tab) => isDebuggableUrl(tab.url));
+}
+
+async function handleExecViaScripting(cmd: Command, leaseKey: string): Promise<Result> {
+  if (!cmd.code) return { id: cmd.id, ok: false, error: 'Missing code' };
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  try {
+    const data = await executor.evaluateViaScripting(tabId, cmd.code);
+    return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
@@ -2008,6 +2023,7 @@ async function handleBind(cmd: Command, leaseKey: string): Promise<Result> {
 
 export const __test__ = {
   handleExec,
+  handleExecViaScripting,
   handleNavigate,
   isTargetUrl,
   handleTabs,

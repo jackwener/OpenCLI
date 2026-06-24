@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Listener<T extends (...args: any[]) => void> = {
   addListener: any;
@@ -237,6 +237,11 @@ function createChromeMock() {
     setLastFocusedWindowId: (windowId: number) => { lastFocusedWindowId = windowId; },
   };
 }
+
+// Keep WebSocket stubbed for the entire file so that any pending connectAttempt()
+// Promises can resolve safely between describe blocks.
+beforeAll(() => { vi.stubGlobal('WebSocket', MockWebSocket); });
+afterAll(() => { vi.unstubAllGlobals(); });
 
 describe('background tab isolation', () => {
   beforeEach(() => {
@@ -1751,5 +1756,161 @@ describe('background tab isolation', () => {
     }));
     expect(chrome.tabs.update).toHaveBeenCalledWith(2, expect.objectContaining({ url: 'https://other.example' }));
     expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleExecViaScripting path', () => {
+  // Keep WebSocket stubbed for the entire describe block so that any pending
+  // connectAttempt() Promises left over from the previous describe block can
+  // resolve safely (without "WebSocket is not defined") during our tests.
+  beforeAll(() => {
+    MockWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', MockWebSocket);
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    MockWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', MockWebSocket);
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  it('calls evaluateViaScripting and NOT evaluateAsync for exec-via-scripting action', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'cdp-result');
+    const evaluateViaScripting = vi.fn(async () => 'scripting-result');
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateViaScripting,
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleExecViaScripting({
+      id: 'scripting-exec',
+      action: 'exec-via-scripting',
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+    }, browserKey('default'));
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toBe('scripting-result');
+    expect(evaluateViaScripting).toHaveBeenCalledOnce();
+    expect(evaluateAsync).not.toHaveBeenCalled();
+  });
+
+  it('exec action still uses evaluateAsync (CDP) and does NOT call evaluateViaScripting', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'cdp-result');
+    const evaluateViaScripting = vi.fn();
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateViaScripting,
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleExec({
+      id: 'cdp-exec',
+      action: 'exec',
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+    }, browserKey('default'));
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toBe('cdp-result');
+    expect(evaluateAsync).toHaveBeenCalledOnce();
+    expect(evaluateViaScripting).not.toHaveBeenCalled();
+  });
+
+  it('propagates evaluateViaScripting errors as ok:false', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync: vi.fn(),
+      evaluateViaScripting: vi.fn(async () => { throw new Error('--via-extension eval failed: Cannot access chrome:// URL'); }),
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleExecViaScripting({
+      id: 'scripting-error',
+      action: 'exec-via-scripting',
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+    }, browserKey('default'));
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('--via-extension eval failed');
+  });
+
+  it('handleCommand returns ok:false for unrecognized actions (old extension fails loudly, no silent CDP fallback)', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'cdp-result');
+    const evaluateViaScripting = vi.fn(async () => 'scripting-result');
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateViaScripting,
+      screenshot: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+
+    // An old extension that doesn't know exec-via-scripting would hit the default
+    // switch branch and return Unknown action — not silently fall through to CDP.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await mod.__test__.handleCommand({
+      id: 'unrecognized',
+      action: 'exec-unrecognized-future-action' as Parameters<typeof mod.__test__.handleCommand>[0]['action'],
+      session: 'default',
+      surface: 'browser',
+      code: 'document.title',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/Unknown action/i);
+    expect(evaluateAsync).not.toHaveBeenCalled();
+    expect(evaluateViaScripting).not.toHaveBeenCalled();
   });
 });

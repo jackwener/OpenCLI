@@ -33,6 +33,7 @@ export default defineConfig({
           name: 'e2e',
           include: [
             'tests/e2e/browser-public.test.ts',
+            'tests/e2e/browser-eval-via-extension.test.ts',
             'tests/e2e/band-auth.test.ts',
             'tests/e2e/public-commands.test.ts',
             'tests/e2e/management.test.ts',

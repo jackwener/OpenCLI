@@ -2416,11 +2416,22 @@ Examples:
     browser.command('eval')
       .argument('<js>', 'JavaScript code')
       .option('--frame <index>', 'Cross-origin iframe index from "browser frames"')
+      .option('--via-extension', 'Run via chrome.scripting (MAIN world) instead of CDP — bypasses debugger-detection on sites like zhipin.com; return value must be JSON-serializable, --frame is unsupported, and pages with strict CSP (no unsafe-eval) will reject the eval')
       .description('Execute JS in page context, return result'),
   )
     .action(browserAction(async (page, js, opts) => {
       let result: unknown;
-      if (opts.frame !== undefined) {
+      if (opts.viaExtension) {
+        if (opts.frame !== undefined) {
+          console.error('--via-extension and --frame cannot be used together. Omit --frame or remove --via-extension.');
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        if (!page.evaluateNoDebugger) {
+          throw new Error('This browser session does not support --via-extension evaluation');
+        }
+        result = await page.evaluateNoDebugger(js);
+      } else if (opts.frame !== undefined) {
         const frameIndex = Number.parseInt(opts.frame, 10);
         if (!Number.isInteger(frameIndex) || frameIndex < 0) {
           console.error(`Invalid frame index "${opts.frame}". Use a 0-based index from "browser frames".`);
