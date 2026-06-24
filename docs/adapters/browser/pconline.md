@@ -1,6 +1,6 @@
 # 太平洋电脑网 PConline
 
-**Mode**: 🌐 Public · **Domain**: `product.pconline.com.cn`
+**Mode**: 🌐 Public (4 commands) + 🔐 Browser (`search`) · **Domain**: `product.pconline.com.cn`
 
 No login, no cookies, no signature. PConline (太平洋电脑网) runs one of China's
 oldest digital-product catalogues (产品库) — phones, laptops, cameras, CPUs,
@@ -13,6 +13,7 @@ the HTML — there is no JSON blob and no anti-bot token on these pages.
 
 | Command | Description |
 |---------|-------------|
+| `opencli pconline search <keyword>` | 🔐 Keyword search (快搜) → name + 报价 + detail URL — needs a logged-in browser |
 | `opencli pconline list <category>` | Browse a category (产品大全) → name + 参考价 + detail URL |
 | `opencli pconline info <product>` | Product overview: 名称 / 分类 / 品牌 / 重点参数 |
 | `opencli pconline param <product>` | Full spec sheet (参数): screen, battery, chipset, ports… |
@@ -36,7 +37,10 @@ pass the full URL `list` prints.
 ## Usage Examples
 
 ```bash
-# Browse a category to discover products + their URLs
+# Keyword search (needs a logged-in Chrome via the browser bridge)
+opencli pconline search "iPhone 15" --limit 5
+
+# …or browse a category to discover products + their URLs (no browser needed)
 opencli pconline list mobile --limit 10
 opencli pconline list notebook
 
@@ -69,12 +73,13 @@ opencli pconline price 2718819
   (a separate host from the rate-limited 产品库, keyed by the numeric id alone,
   so it accepts a bare id). It returns the 历史最低价 plus each mall's latest
   tracked price; malls with no data points are simply omitted.
-- **Why no `search` / `comment`?** Investigated and deliberately left out — they
-  are **not** login-gated (logging in does not unlock them), just not cleanly
-  fetchable:
-  - keyword search (`ks.pconline.com.cn` 快搜) sits behind a JS/slide-captcha
-    anti-bot challenge — it renders in a real browser but a plain fetch gets
-    HTTP 503. `list` covers discovery instead.
-  - the 点评 API (`pdcmt…/mtp-list.jsp`) returns empty shells.
-
-  The adapter never ships empty/unreliable data.
+- **`search`** is the one **browser** command. 快搜 (`ks.pconline.com.cn`) sits
+  behind a slide-captcha anti-bot challenge, so a plain fetch gets HTTP 503 — it
+  only renders in a real browser. So `search` drives the browser bridge
+  (`Strategy.COOKIE`, `browser: true`), lets the SSR results render, and parses
+  each `.item-wrap` card (`.item-name[title]` + `.item-pic` detail link + ￥price)
+  out of the DOM. The anti-bot is **not** a login gate — but a logged-in Chrome
+  is the reliable way to have the challenge already cleared. If you don't want a
+  browser, `list` covers discovery with a plain fetch.
+- **Why no `comment`?** The 点评 API (`pdcmt…/mtp-list.jsp`) returns empty
+  shells, so it's left out — the adapter never ships empty/unreliable data.

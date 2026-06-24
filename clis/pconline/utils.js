@@ -33,11 +33,13 @@ import {
 
 export const PC_PRODUCT = 'https://product.pconline.com.cn';
 export const PC_PPC = 'https://ppc.pconline.com.cn';
+export const PC_KS = 'https://ks.pconline.com.cn';
 
 const UA =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     + '(KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
+export const SEARCH_COLUMNS = ['rank', 'product_id', 'name', 'category', 'price', 'url'];
 export const LIST_COLUMNS = ['rank', 'product_id', 'name', 'category', 'brand', 'price', 'url'];
 export const INFO_COLUMNS = ['field', 'value'];
 export const PARAM_COLUMNS = ['field', 'value'];

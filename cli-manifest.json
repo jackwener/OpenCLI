@@ -25877,6 +25877,43 @@
     "sourceFile": "pconline/price.js"
   },
   {
+    "site": "pconline",
+    "name": "search",
+    "description": "太平洋电脑网产品搜索（快搜，按关键词返回名称 + 报价 + 产品 URL；走登录态浏览器绕过 slide-captcha 反爬）",
+    "access": "read",
+    "domain": "pconline.com.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词，例如 \"iPhone 15\" 或 \"ThinkPad X1\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的产品数量（最多 40）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "product_id",
+      "name",
+      "category",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pconline/search.js",
+    "sourceFile": "pconline/search.js",
+    "navigateBefore": false
+  },
+  {
     "site": "pixiv",
     "name": "detail",
     "description": "View illustration details (tags, stats, URLs)",

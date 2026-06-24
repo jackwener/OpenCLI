@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { getRegistry, Strategy } from '@jackwener/opencli/registry';
 
 import {
+    SEARCH_COLUMNS,
     LIST_COLUMNS,
     INFO_COLUMNS,
     PARAM_COLUMNS,
@@ -27,6 +28,7 @@ import {
     productBase,
     fmtDate,
 } from './utils.js';
+import { parseSearchRows } from './search.js';
 import { parseListRows } from './list.js';
 import { parseInfoRows } from './info.js';
 import { parseParamRows } from './param.js';
@@ -34,10 +36,31 @@ import { parsePriceRows } from './price.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fx = (name) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
+const SEARCH = fx('search.html');
 const LIST = fx('list.html');
 const INFO = fx('info.html');
 const PARAM = fx('param.html');
 const PRICE = JSON.parse(fx('price.json'));
+
+describe('pconline search', () => {
+    it('parses 快搜 result cards with id / name / category / price / url', () => {
+        const rows = parseSearchRows(SEARCH, 20);
+        expect(rows.length).toBeGreaterThan(0);
+        expect(Object.keys(rows[0])).toEqual(SEARCH_COLUMNS);
+        const ip = rows.find((r) => /iPhone 15/.test(r.name));
+        expect(ip).toBeTruthy();
+        expect(ip.product_id).toMatch(/^\d+$/);
+        expect(ip.url).toMatch(/^https:\/\/product\.pconline\.com\.cn\/[a-z]+\/[a-z0-9]+\/\d+\.html$/);
+        expect(ip.price === null || /^￥\d+$/.test(ip.price)).toBe(true);
+    });
+
+    it('dedupes by id, respects the limit, and returns [] for empty html', () => {
+        const ids = parseSearchRows(SEARCH, 30).map((r) => r.product_id);
+        expect(new Set(ids).size).toBe(ids.length);
+        expect(parseSearchRows(SEARCH, 3).length).toBeLessThanOrEqual(3);
+        expect(parseSearchRows('', 20)).toEqual([]);
+    });
+});
 
 describe('pconline list', () => {
     it('parses product cards with id / name / category / url', () => {
@@ -179,5 +202,13 @@ describe('pconline command registration', () => {
             expect(cmd.browser).toBe(false);
             expect(cmd.access).toBe('read');
         }
+    });
+
+    it('registers search as a COOKIE browser read command', () => {
+        const cmd = getRegistry().get('pconline/search');
+        expect(cmd, 'pconline search registered').toBeTruthy();
+        expect(cmd.strategy).toBe(Strategy.COOKIE);
+        expect(cmd.browser).toBe(true);
+        expect(cmd.access).toBe('read');
     });
 });
