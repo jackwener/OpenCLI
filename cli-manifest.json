@@ -39842,7 +39842,7 @@
   {
     "site": "xianyu",
     "name": "search",
-    "description": "搜索闲鱼商品",
+    "description": "搜索闲鱼商品（支持服务端价格区间 / 地区筛选）",
     "access": "read",
     "domain": "www.goofish.com",
     "strategy": "cookie",
@@ -39853,14 +39853,38 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Search keyword"
+        "help": "搜索关键词"
       },
       {
         "name": "limit",
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of results to return"
+        "help": "返回结果数（最多 60，自动翻页）"
+      },
+      {
+        "name": "min-price",
+        "type": "float",
+        "required": false,
+        "help": "最低价格（元），服务端筛选"
+      },
+      {
+        "name": "max-price",
+        "type": "float",
+        "required": false,
+        "help": "最高价格（元），服务端筛选"
+      },
+      {
+        "name": "province",
+        "type": "string",
+        "required": false,
+        "help": "省份名（如 广东），服务端按地区筛选"
+      },
+      {
+        "name": "city",
+        "type": "string",
+        "required": false,
+        "help": "城市名（如 深圳 / 湛江），可单独使用，服务端按地区筛选"
       }
     ],
     "columns": [
@@ -39868,10 +39892,8 @@
       "rank",
       "title",
       "price",
-      "condition",
-      "brand",
       "location",
-      "badge",
+      "want",
       "url"
     ],
     "type": "js",
