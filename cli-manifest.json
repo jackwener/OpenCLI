@@ -17757,6 +17757,111 @@
     "siteSession": "persistent"
   },
   {
+    "site": "ithome",
+    "name": "article",
+    "aliases": [
+      "read"
+    ],
+    "description": "IT之家文章正文（按 newsid 或文章 URL 返回标题 / 标签 / 正文段落）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "article",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "newsid（来自 news/rank）或文章 URL，如 www.ithome.com/0/968/068.htm"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "ithome/article.js",
+    "sourceFile": "ithome/article.js"
+  },
+  {
+    "site": "ithome",
+    "name": "news",
+    "aliases": [
+      "latest"
+    ],
+    "description": "IT之家最新资讯（可按频道 news/apple/android/win… 返回标题 + 阅读/评论数 + 文章 URL）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "channel",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "频道 slug，缺省 news；如 apple / android / win / soft / game"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的资讯数量（最多 50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "newsid",
+      "title",
+      "comments",
+      "hits",
+      "date",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ithome/news.js",
+    "sourceFile": "ithome/news.js"
+  },
+  {
+    "site": "ithome",
+    "name": "rank",
+    "aliases": [
+      "hot"
+    ],
+    "description": "IT之家热榜（48小时/周热门/周评论/月榜，返回标题 + 阅读数 + 评论数 + 文章 URL）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "board",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "只看某个榜单：48 / 周热门 / 评论 / 月（缺省返回全部 4 个榜）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的条目总数（最多 80）"
+      }
+    ],
+    "columns": [
+      "board",
+      "rank",
+      "newsid",
+      "title",
+      "hits",
+      "comments",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ithome/rank.js",
+    "sourceFile": "ithome/rank.js"
+  },
+  {
     "site": "jd",
     "name": "add-cart",
     "description": "京东加入购物车",
