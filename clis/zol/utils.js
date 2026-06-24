@@ -26,6 +26,7 @@ import {
 
 export const ZOL_DETAIL = 'https://detail.zol.com.cn';
 export const ZOL_SEARCH = 'https://search.zol.com.cn';
+export const ZOL_TOP = 'https://top.zol.com.cn';
 
 const UA =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -34,6 +35,9 @@ const UA =
 export const SEARCH_COLUMNS = ['rank', 'product_id', 'name', 'price', 'url'];
 export const PARAM_COLUMNS = ['field', 'value'];
 export const PRICE_COLUMNS = ['platform', 'seller', 'price', 'url'];
+export const KOUBEI_COLUMNS = ['rank', 'user', 'score', 'subscores', 'content', 'date', 'url'];
+export const PIC_COLUMNS = ['rank', 'type', 'url'];
+export const RANK_COLUMNS = ['category', 'rank', 'product_id', 'name', 'price', 'url'];
 
 const ENTITY_MAP = {
     '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>',
@@ -58,6 +62,24 @@ export function stripHtml(html) {
 /** Collapse whitespace and trim; returns '' for nullish. */
 export function clean(s) {
     return decodeEntities(String(s == null ? '' : s)).replace(/\s+/g, ' ').trim();
+}
+
+/** Strip HTML to text, then truncate to `max` chars with an ellipsis. */
+export function snippet(html, max = 160) {
+    const t = stripHtml(html);
+    return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+
+/**
+ * Convert a ZOL star bar (`<em style="width:96%">`) to a 0–5 score.
+ * The bar width is a percentage of five full stars, so 96% → 4.8.
+ * Returns null when no width is present.
+ */
+export function starScore(widthPercent) {
+    if (widthPercent == null || widthPercent === '') return null;
+    const n = Number(widthPercent);
+    if (!Number.isFinite(n)) return null;
+    return Math.round((n / 20) * 10) / 10;
 }
 
 /** Validate an integer limit in [1, max]. */

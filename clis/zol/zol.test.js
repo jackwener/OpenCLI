@@ -16,21 +16,32 @@ import {
     SEARCH_COLUMNS,
     PARAM_COLUMNS,
     PRICE_COLUMNS,
+    KOUBEI_COLUMNS,
+    PIC_COLUMNS,
+    RANK_COLUMNS,
     clean,
     stripHtml,
     decodeEntities,
+    snippet,
+    starScore,
     requireLimit,
     normalizeProductId,
 } from './utils.js';
 import { parseSearchRows } from './search.js';
 import { parseParamRows } from './param.js';
 import { parsePriceRows } from './price.js';
+import { parseKoubeiRows } from './koubei.js';
+import { parsePicRows } from './pic.js';
+import { parseRankRows } from './rank.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fx = (name) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
 const SEARCH = fx('search.html');
 const PARAM = fx('param.html');
 const PRICE = fx('price.html');
+const KOUBEI = fx('koubei.html');
+const PIC = fx('pic.html');
+const TOP = fx('top.html');
 
 describe('zol search', () => {
     it('parses product rows with id / name / price / url', () => {
@@ -87,7 +98,72 @@ describe('zol price', () => {
     });
 });
 
+describe('zol koubei', () => {
+    it('parses user-review rows with score / subscores / content', () => {
+        const rows = parseKoubeiRows(KOUBEI, 15);
+        expect(rows.length).toBeGreaterThan(0);
+        expect(Object.keys(rows[0])).toEqual(KOUBEI_COLUMNS);
+        const r = rows[0];
+        expect(r.user).toBeTruthy();
+        // star bar → 0–5 score
+        expect(r.score === null || (r.score >= 0 && r.score <= 5)).toBe(true);
+        // at least one review carries the 续航/拍照/性能… subscore string
+        expect(rows.some((x) => x.subscores && /续航|拍照|性能|外观|性价比/.test(x.subscores))).toBe(true);
+        // and a review link back to the full write-up
+        expect(rows.some((x) => x.url && /review_/.test(x.url))).toBe(true);
+    });
+
+    it('respects the limit and returns [] for empty html', () => {
+        expect(parseKoubeiRows(KOUBEI, 3).length).toBeLessThanOrEqual(3);
+        expect(parseKoubeiRows('', 15)).toEqual([]);
+    });
+});
+
+describe('zol pic', () => {
+    it('parses gallery image rows with type / url', () => {
+        const rows = parsePicRows(PIC, 20);
+        expect(rows.length).toBeGreaterThan(0);
+        expect(Object.keys(rows[0])).toEqual(PIC_COLUMNS);
+        expect(rows[0].url).toMatch(/^https:\/\/.*zol-img\.com\.cn\/product\/.*\.(?:jpg|png|webp)$/);
+        // urls are deduped
+        const urls = rows.map((r) => r.url);
+        expect(new Set(urls).size).toBe(urls.length);
+    });
+
+    it('returns [] for empty html', () => {
+        expect(parsePicRows('', 20)).toEqual([]);
+    });
+});
+
+describe('zol rank', () => {
+    it('parses ranking rows tagged by category, with product_id', () => {
+        const rows = parseRankRows(TOP, { category: null, limit: 50 });
+        expect(rows.length).toBeGreaterThan(0);
+        expect(Object.keys(rows[0])).toEqual(RANK_COLUMNS);
+        expect(rows[0].product_id).toMatch(/^\d+$/);
+        expect(rows[0].url).toMatch(/index\d+\.shtml$/);
+        // more than one category board is present
+        expect(new Set(rows.map((r) => r.category)).size).toBeGreaterThan(1);
+    });
+
+    it('filters by category and respects the limit', () => {
+        const phones = parseRankRows(TOP, { category: '手机', limit: 50 });
+        expect(phones.length).toBeGreaterThan(0);
+        expect(phones.every((r) => r.category.includes('手机'))).toBe(true);
+        expect(parseRankRows(TOP, { category: null, limit: 3 }).length).toBeLessThanOrEqual(3);
+        expect(parseRankRows(TOP, { category: '不存在的品类', limit: 50 })).toEqual([]);
+    });
+});
+
 describe('zol utils', () => {
+    it('snippet truncates with an ellipsis; starScore maps width% to 0–5', () => {
+        expect(snippet('<b>hello</b> world', 100)).toBe('hello world');
+        expect(snippet('abcdef', 3)).toBe('abc…');
+        expect(starScore('96')).toBe(4.8);
+        expect(starScore('100')).toBe(5);
+        expect(starScore('')).toBe(null);
+    });
+
     it('normalizeProductId accepts bare id, index URL and param URL', () => {
         expect(normalizeProductId('1427365')).toBe('1427365');
         expect(normalizeProductId('//detail.zol.com.cn/cell_phone/index1427365.shtml')).toBe('1427365');
@@ -111,9 +187,9 @@ describe('zol utils', () => {
 });
 
 describe('zol command registration', () => {
-    it('registers search / param / price as PUBLIC read commands', () => {
+    it('registers all six commands as PUBLIC read commands', () => {
         const reg = getRegistry();
-        for (const name of ['search', 'param', 'price']) {
+        for (const name of ['search', 'param', 'price', 'koubei', 'pic', 'rank']) {
             const cmd = reg.get(`zol/${name}`);
             expect(cmd, `zol ${name} registered`).toBeTruthy();
             expect(cmd.strategy).toBe(Strategy.PUBLIC);
