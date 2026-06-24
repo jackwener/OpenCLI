@@ -26,5 +26,4 @@ docs/.vitepress/cache
 autoresearch/results/
 autoresearch-results.tsv
 
-# ADG local runtimes
-.agents/plugins/
+
