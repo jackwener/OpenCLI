@@ -354,6 +354,37 @@ export function generateStealthJs(): string {
         }
       } catch {}
 
+      // 14. beforeunload neutralization (x.com "Leave site?" dialog hardening)
+      //     x.com registers an onbeforeunload handler once the composer has
+      //     staged unsaved state (uploaded media, typed text). Under CDP /
+      //     extension automation there is no user to dismiss the resulting
+      //     "Leave site?" dialog, and the CLI side cannot intercept the raw
+      //     CDP Page.javascriptDialogOpening event (the daemon owns the CDP
+      //     session), so the dialog wedges the tab: every subsequent
+      //     navigate/exec aborts with "This operation was aborted" until a
+      //     human manually clicks "Stay". This repeatedly broke twitter
+      //     post/reply on the image->text transition and poisoned later reads.
+      //     Defense: a capturing-phase listener that swallows the event, plus
+      //     an accessor on window.onbeforeunload that silently drops future
+      //     assignments — so no dialog can ever open. Runs in stealth (injected
+      //     on every navigation), covering post, reply, and reads uniformly.
+      try {
+        window.addEventListener('beforeunload', (e) => {
+          try { e.stopImmediatePropagation(); } catch {}
+          try { e.preventDefault(); } catch {}
+          try { delete e.returnValue; } catch {}
+          try { e.returnValue = undefined; } catch {}
+        }, true);
+        try { window.onbeforeunload = null; } catch {}
+        try {
+          Object.defineProperty(window, 'onbeforeunload', {
+            get: () => null,
+            set: () => {},
+            configurable: true,
+          });
+        } catch {}
+      } catch {}
+
       return 'applied';
     })()
   `);

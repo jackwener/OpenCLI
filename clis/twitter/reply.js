@@ -53,6 +53,15 @@ async function openReplyComposer(page, rawUrl) {
 }
 
 async function insertReplyText(page, text) {
+    // Neutralize beforeunload right before focusing the composer. The stealth
+    // layer already strips this globally on every navigation, but re-strip here
+    // as defense-in-depth: x.com can re-register onbeforeunload after load
+    // (e.g. once media is staged), and if a "Leave site?" dialog opens during
+    // the text-insert -> submit window it wedges the CDP-controlled tab with no
+    // user to dismiss it, aborting every later navigate/exec.
+    try {
+        await page.evaluate(`(() => { try { window.onbeforeunload = null; } catch (e) {} })()`);
+    } catch { /* non-fatal: best-effort hardening */ }
     return page.evaluate(`(async () => {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
