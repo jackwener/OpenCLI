@@ -1180,6 +1180,609 @@ export async function waitForChatGPTDetailRows(page, { wantMarkdown = false, tim
     );
 }
 
+function normalizeDeepResearchText(value) {
+    return String(value || '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function looksLikeDeepResearchReport(text) {
+    const normalized = normalizeDeepResearchText(text);
+    if (normalized.length < 500) return false;
+    return /(^|\n)\s*#{1,3}\s+\S|Sources|References|参考|来源|结论|建议|Executive Summary|摘要/i.test(normalized);
+}
+
+function parseJsonMaybe(value) {
+    if (!value) return null;
+    if (typeof value === 'object') return value;
+    if (typeof value !== 'string') return null;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return null;
+    }
+}
+
+function extractDeepResearchSourcesFromReportMessage(reportMessage) {
+    const metadata = reportMessage?.metadata && typeof reportMessage.metadata === 'object'
+        ? reportMessage.metadata
+        : {};
+    const references = Array.isArray(metadata.content_references) ? metadata.content_references : [];
+    const safeUrls = Array.isArray(metadata.safe_urls) ? metadata.safe_urls : [];
+    const groups = Array.isArray(metadata.search_result_groups) ? metadata.search_result_groups : [];
+    const byUrl = new Map();
+
+    const addSource = (source = {}) => {
+        const rawUrl = String(source.url || source.href || source.safe_url || '').trim();
+        const title = String(source.title || source.name || source.text || '').trim();
+        if (!rawUrl && !title) return;
+        const key = rawUrl || title;
+        if (!byUrl.has(key)) {
+            byUrl.set(key, { title, url: rawUrl });
+        } else if (title && !byUrl.get(key).title) {
+            byUrl.get(key).title = title;
+        }
+    };
+
+    for (const reference of references) {
+        addSource(reference);
+        if (reference?.matched_text) addSource({ title: reference.matched_text, url: reference.url });
+        if (reference?.metadata) addSource(reference.metadata);
+    }
+    for (const url of safeUrls) addSource(typeof url === 'string' ? { url } : url);
+    for (const group of groups) {
+        for (const entry of [
+            ...(Array.isArray(group?.entries) ? group.entries : []),
+            ...(Array.isArray(group?.results) ? group.results : []),
+            ...(Array.isArray(group?.items) ? group.items : []),
+        ]) {
+            addSource(entry);
+        }
+    }
+    return [...byUrl.values()].slice(0, 200);
+}
+
+function extractDeepResearchFromWidgetState(widgetState, source = 'conversation-widget-state') {
+    const state = parseJsonMaybe(widgetState);
+    if (!state || typeof state !== 'object') return null;
+    const reportMessage = state.report_message || state.reportMessage || null;
+    const parts = Array.isArray(reportMessage?.content?.parts) ? reportMessage.content.parts : [];
+    const report = normalizeDeepResearchText(parts.filter((part) => typeof part === 'string').join('\n\n'));
+    if (!looksLikeDeepResearchReport(report)) return null;
+    return {
+        status: 'completed',
+        report,
+        html: '',
+        method: source,
+        sources: extractDeepResearchSourcesFromReportMessage(reportMessage),
+        widgetStatus: String(state.status || ''),
+        reportMessageId: String(reportMessage?.id || ''),
+        reportLength: report.length,
+    };
+}
+
+function extractDeepResearchFromConversationPayload(payload) {
+    const mapping = payload?.mapping && typeof payload.mapping === 'object' ? payload.mapping : {};
+    const candidates = [];
+    for (const [messageId, node] of Object.entries(mapping)) {
+        const message = node?.message || {};
+        const sdk = message?.metadata?.chatgpt_sdk;
+        for (const widgetState of [
+            sdk?.widget_state,
+            sdk?.widgetState,
+            message?.metadata?.widget_state,
+            message?.metadata?.widgetState,
+        ]) {
+            const extracted = extractDeepResearchFromWidgetState(widgetState);
+            if (extracted) {
+                candidates.push({
+                    ...extracted,
+                    conversationMessageId: messageId,
+                });
+            }
+        }
+    }
+    candidates.sort((a, b) => b.report.length - a.report.length);
+    return candidates[0] || null;
+}
+
+function extractDeepResearchFromNetworkEntries(entries) {
+    const candidates = [];
+    for (const entry of Array.isArray(entries) ? entries : []) {
+        const url = String(entry?.url || '');
+        if (!/\/backend-api\/conversation\//.test(url)) continue;
+        const body = parseJsonMaybe(entry?.responsePreview) || parseJsonMaybe(entry?.body) || null;
+        const extracted = extractDeepResearchFromConversationPayload(body);
+        if (extracted) {
+            candidates.push({
+                ...extracted,
+                method: 'network-conversation-widget-state',
+                networkUrl: url,
+            });
+        }
+    }
+    candidates.sort((a, b) => b.report.length - a.report.length);
+    return candidates[0] || null;
+}
+
+function conversationIdFromUrl(url) {
+    const match = String(url || '').match(/\/c\/([a-zA-Z0-9_-]+)/);
+    return match?.[1] || '';
+}
+
+async function buildChatGPTConversationHeaders(page, { includeAuthorization = false } = {}) {
+    if (typeof page.getCookies !== 'function') {
+        return { ok: false, status: 0, reason: 'missing-cookie-api' };
+    }
+    const cookieLists = await Promise.all([
+        page.getCookies({ url: CHATGPT_URL }).catch(() => []),
+        page.getCookies({ url: `${CHATGPT_URL}/api/auth/session` }).catch(() => []),
+        page.getCookies({ domain: CHATGPT_DOMAIN }).catch(() => []),
+        page.getCookies({ domain: `.${CHATGPT_DOMAIN}` }).catch(() => []),
+        page.getCookies().catch(() => []),
+    ]);
+    const cookiesByName = new Map();
+    for (const cookie of cookieLists.flat()) {
+        if (!cookie?.name || typeof cookie.value !== 'string') continue;
+        if (!cookiesByName.has(cookie.name) || cookie.domain === CHATGPT_DOMAIN || cookie.domain === `.${CHATGPT_DOMAIN}`) {
+            cookiesByName.set(cookie.name, cookie);
+        }
+    }
+    const cookieHeader = Array.from(cookiesByName.values())
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; ');
+    if (!cookieHeader) return { ok: false, status: 0, reason: 'missing-cookies' };
+    const headers = {
+        accept: 'application/json',
+        cookie: cookieHeader,
+        origin: CHATGPT_URL,
+        referer: `${CHATGPT_URL}/`,
+        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+    };
+    if (!includeAuthorization) return { ok: true, status: 200, headers };
+
+    const sessionResponse = await fetch(`${CHATGPT_URL}/api/auth/session`, {
+        headers,
+        signal: AbortSignal.timeout(10000),
+    });
+    if (!sessionResponse.ok) {
+        return { ok: false, status: sessionResponse.status, reason: 'session' };
+    }
+    const session = await sessionResponse.json();
+    const accessToken = session?.accessToken;
+    if (!accessToken) return { ok: false, status: 0, reason: 'missing-access-token' };
+    return {
+        ok: true,
+        status: 200,
+        headers: {
+            ...headers,
+            authorization: `Bearer ${accessToken}`,
+        },
+    };
+}
+
+async function fetchChatGPTConversationPayload(page, conversationId) {
+    if (!conversationId) return null;
+    const errors = [];
+    try {
+        const cookieAuth = await buildChatGPTConversationHeaders(page, { includeAuthorization: false });
+        if (cookieAuth.ok) {
+            const response = await fetch(`${CHATGPT_URL}/backend-api/conversation/${conversationId}`, {
+                headers: {
+                    ...cookieAuth.headers,
+                    referer: `${CHATGPT_URL}/c/${conversationId}`,
+                },
+                signal: AbortSignal.timeout(8000),
+            });
+            const text = await response.text();
+            if (response.ok) {
+                const payload = parseJsonMaybe(text);
+                if (payload) {
+                    return {
+                        payload,
+                        status: response.status,
+                        contentType: response.headers.get('content-type') || '',
+                        transport: 'node-fetch-cookie',
+                    };
+                }
+                errors.push('node fetch returned non-json');
+            } else if (response.status === 401 || response.status === 403) {
+                errors.push(`node cookie fetch status ${response.status}`);
+                const bearerAuth = await buildChatGPTConversationHeaders(page, { includeAuthorization: true });
+                if (bearerAuth.ok) {
+                    const bearerResponse = await fetch(`${CHATGPT_URL}/backend-api/conversation/${conversationId}`, {
+                        headers: {
+                            ...bearerAuth.headers,
+                            referer: `${CHATGPT_URL}/c/${conversationId}`,
+                        },
+                        signal: AbortSignal.timeout(8000),
+                    });
+                    const bearerText = await bearerResponse.text();
+                    if (bearerResponse.ok) {
+                        const payload = parseJsonMaybe(bearerText);
+                        if (payload) {
+                            return {
+                                payload,
+                                status: bearerResponse.status,
+                                contentType: bearerResponse.headers.get('content-type') || '',
+                                transport: 'node-fetch-bearer',
+                            };
+                        }
+                        errors.push('node bearer fetch returned non-json');
+                    } else {
+                        errors.push(`node bearer fetch status ${bearerResponse.status}`);
+                    }
+                } else {
+                    errors.push(`node bearer auth ${bearerAuth.reason || bearerAuth.status || 'failed'}`);
+                }
+            } else {
+                errors.push(`node fetch status ${response.status}`);
+            }
+        } else {
+            errors.push(`node cookie auth ${cookieAuth.reason || cookieAuth.status || 'failed'}`);
+        }
+    } catch (error) {
+        errors.push(`node fetch ${String(error?.message || error)}`);
+    }
+
+    const result = unwrapEvaluateResult(await withTimeout(page.evaluate(`(async () => {
+        const response = await fetch('/backend-api/conversation/${conversationId}', {
+            credentials: 'include',
+            headers: { accept: 'application/json' },
+        });
+        const text = await response.text();
+        return {
+            ok: response.ok,
+            status: response.status,
+            contentType: response.headers.get('content-type') || '',
+            text,
+        };
+    })()`), 8000, 'conversation fetch'));
+    if (!result?.ok) {
+        return { error: [...errors, `page fetch status ${result?.status || 0}`].join('; ') };
+    }
+    const payload = parseJsonMaybe(result.text);
+    if (!payload) return { error: [...errors, 'page fetch returned non-json'].join('; ') };
+    return { payload, status: result.status, contentType: result.contentType, transport: 'page-fetch' };
+}
+
+function collectAxText(tree) {
+    const nodes = Array.isArray(tree?.nodes) ? tree.nodes : [];
+    const pieces = [];
+    for (const node of nodes) {
+        const role = String(node?.role?.value || node?.role || '');
+        if (/StaticText|InlineTextBox|heading|paragraph|link|button|text/i.test(role)) {
+            const value = String(node?.name?.value || node?.name || '').trim();
+            if (value) pieces.push(value);
+        }
+    }
+    return normalizeDeepResearchText(pieces.join('\n'));
+}
+
+function withTimeout(promise, ms, label) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+    ]);
+}
+
+export async function getChatGPTDeepResearchResult(page, { useBridgeProbes = false } = {}) {
+    const iframeState = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        };
+        const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const iframes = Array.from(document.querySelectorAll('iframe')).map((frame, index) => {
+            const rect = frame.getBoundingClientRect();
+            const title = frame.getAttribute('title') || '';
+            const src = frame.getAttribute('src') || frame.src || '';
+            const deepResearch = /deep-research|connector_openai_deep_research/i.test(title + ' ' + src);
+            let accessible = false;
+            let text = '';
+            let html = '';
+            let accessError = '';
+            try {
+                const doc = frame.contentDocument || frame.contentWindow?.document;
+                accessible = !!doc;
+                text = normalize(doc?.body?.innerText || doc?.body?.textContent || '');
+                html = String(doc?.body?.innerHTML || '');
+            } catch (error) {
+                accessError = String(error?.name || error);
+            }
+            return {
+                index,
+                title,
+                src,
+                visible: isVisible(frame),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+                deepResearch,
+                accessible,
+                accessError,
+                text,
+                html,
+            };
+        });
+        const matched = iframes.find((frame) => frame.deepResearch) || null;
+        return {
+            url: window.location.href,
+            title: document.title,
+            iframes,
+            deepResearchIframe: matched,
+        };
+    })()`)), 'chatgpt deep research iframe state');
+
+    const generating = await isGenerating(page).catch(() => false);
+    const iframe = iframeState.deepResearchIframe;
+    const diagnostics = {
+        iframeCount: Array.isArray(iframeState.iframes) ? iframeState.iframes.length : 0,
+        iframe: iframe ? {
+            index: iframe.index,
+            title: iframe.title,
+            src: iframe.src,
+            visible: iframe.visible,
+            width: iframe.width,
+            height: iframe.height,
+            accessible: iframe.accessible,
+            accessError: iframe.accessError || '',
+        } : null,
+        methodsTried: ['main-document-iframe'],
+        methodsSkipped: useBridgeProbes ? [] : ['browser-frames', 'cdp-accessibility', 'network-capture'],
+    };
+
+    if (useBridgeProbes && typeof page.readNetworkCapture === 'function') {
+        diagnostics.methodsTried.push('network-conversation-widget-state');
+        try {
+            const entries = await withTimeout(page.readNetworkCapture(), 5000, 'network capture read');
+            const relevantEntries = (Array.isArray(entries) ? entries : [])
+                .filter((entry) => /\/backend-api\/conversation\/|deep|research|oaiusercontent|ecosystem|widget/i.test(String(entry?.url || '')));
+            diagnostics.networkEntries = relevantEntries
+                .slice(-20)
+                .map((entry) => ({
+                    url: entry.url,
+                    status: entry.responseStatus ?? entry.status ?? 0,
+                    contentType: entry.responseContentType ?? '',
+                    preview: String(entry.responsePreview || '').slice(0, 500),
+                    bodySize: Number(entry.responseBodyFullSize || 0) || undefined,
+                    bodyTruncated: entry.responseBodyTruncated === true || undefined,
+                }));
+            const extracted = extractDeepResearchFromNetworkEntries(relevantEntries);
+            if (extracted) {
+                diagnostics.networkConversation = {
+                    foundReport: true,
+                    reportLength: extracted.reportLength || extracted.report.length,
+                    sourceCount: Array.isArray(extracted.sources) ? extracted.sources.length : 0,
+                };
+                return {
+                    status: 'completed',
+                    report: extracted.report,
+                    html: '',
+                    url: iframeState.url,
+                    method: extracted.method,
+                    sources: extracted.sources || [],
+                    diagnostics,
+                };
+            }
+        } catch (error) {
+            diagnostics.networkConversationError = String(error?.message || error);
+        }
+    }
+
+    const conversationId = conversationIdFromUrl(iframeState.url);
+    if (conversationId) {
+        diagnostics.methodsTried.push('conversation-widget-state');
+        try {
+            const conversation = await fetchChatGPTConversationPayload(page, conversationId);
+            if (conversation?.error) {
+                diagnostics.conversationError = conversation.error;
+            } else {
+                const extracted = extractDeepResearchFromConversationPayload(conversation?.payload);
+                diagnostics.conversation = {
+                    status: conversation?.status || 0,
+                    contentType: conversation?.contentType || '',
+                    transport: conversation?.transport || '',
+                    foundReport: !!extracted,
+                    reportLength: extracted?.reportLength || 0,
+                    widgetStatus: extracted?.widgetStatus || '',
+                    sourceCount: Array.isArray(extracted?.sources) ? extracted.sources.length : 0,
+                };
+                if (extracted) {
+                    return {
+                        status: 'completed',
+                        report: extracted.report,
+                        html: '',
+                        url: iframeState.url,
+                        method: extracted.method,
+                        sources: extracted.sources || [],
+                        diagnostics,
+                    };
+                }
+            }
+        } catch (error) {
+            diagnostics.conversationError = String(error?.message || error);
+        }
+    }
+
+    if (iframe?.text && looksLikeDeepResearchReport(iframe.text)) {
+        return {
+            status: 'completed',
+            report: normalizeDeepResearchText(iframe.text),
+            html: iframe.html || '',
+            url: iframeState.url,
+            method: 'same-origin-iframe-dom',
+            sources: [],
+            diagnostics,
+        };
+    }
+
+    if (!iframe) {
+        return {
+            status: generating ? 'running' : 'not_found',
+            report: '',
+            html: '',
+            url: iframeState.url,
+            method: 'main-document-dom',
+            sources: [],
+            diagnostics,
+        };
+    }
+
+    if (useBridgeProbes && typeof page.frames === 'function' && typeof page.evaluateInFrame === 'function') {
+        try {
+            const frames = await withTimeout(page.frames(), 3000, 'browser frames');
+            diagnostics.frames = Array.isArray(frames) ? frames : [];
+            for (let index = 0; index < diagnostics.frames.length; index += 1) {
+                const frameInfo = diagnostics.frames[index];
+                const frameText = unwrapEvaluateResult(await withTimeout(
+                    page.evaluateInFrame('document.body?.innerText || document.body?.textContent || ""', index),
+                    3000,
+                    'frame eval',
+                ));
+                const text = normalizeDeepResearchText(frameText);
+                if ((/deep-research|connector_openai_deep_research/i.test(String(frameInfo?.url || '')) || looksLikeDeepResearchReport(text))
+                    && looksLikeDeepResearchReport(text)) {
+                    return {
+                        status: 'completed',
+                        report: text,
+                        html: '',
+                        url: iframeState.url,
+                        method: 'browser-frame-dom',
+                        sources: [],
+                        diagnostics,
+                    };
+                }
+            }
+        } catch (error) {
+            diagnostics.frameError = String(error?.message || error);
+        }
+    }
+
+    if (useBridgeProbes && typeof page.cdp === 'function') {
+        try {
+            const frameTree = await withTimeout(page.cdp('Page.getFrameTree', {}), 5000, 'Page.getFrameTree');
+            diagnostics.frameTree = frameTree;
+            const stack = [frameTree?.frameTree].filter(Boolean);
+            const frames = [];
+            while (stack.length) {
+                const node = stack.shift();
+                const frame = node?.frame;
+                const url = String(frame?.url || frame?.unreachableUrl || '');
+                if (frame?.id && /deep-research|connector_openai_deep_research|oaiusercontent/i.test(url)) {
+                    frames.push({ frameId: frame.id, url });
+                }
+                for (const child of node?.childFrames || []) stack.push(child);
+            }
+            diagnostics.cdpFrames = frames;
+            for (const frame of frames) {
+                const tree = await withTimeout(page.cdp('Accessibility.getFullAXTree', {
+                    frameId: frame.frameId,
+                    sessionId: 'target',
+                    targetUrl: frame.url,
+                }), 5000, 'Accessibility.getFullAXTree').catch(() => null);
+                const text = collectAxText(tree);
+                if (looksLikeDeepResearchReport(text)) {
+                    return {
+                        status: 'completed',
+                        report: text,
+                        html: '',
+                        url: iframeState.url,
+                        method: 'cdp-accessibility-frame',
+                        sources: [],
+                        diagnostics,
+                    };
+                }
+            }
+        } catch (error) {
+            diagnostics.cdpError = String(error?.message || error);
+        }
+    }
+
+    if (useBridgeProbes && typeof page.readNetworkCapture === 'function' && !diagnostics.networkEntries) {
+        try {
+            const entries = await withTimeout(page.readNetworkCapture(), 3000, 'network capture read');
+            diagnostics.networkEntries = (Array.isArray(entries) ? entries : [])
+                .filter((entry) => /deep|research|oaiusercontent|ecosystem|widget/i.test(String(entry?.url || '')))
+                .slice(-20)
+                .map((entry) => ({
+                    url: entry.url,
+                    status: entry.responseStatus ?? entry.status ?? 0,
+                    contentType: entry.responseContentType ?? '',
+                    preview: String(entry.responsePreview || '').slice(0, 500),
+                }));
+            const candidate = diagnostics.networkEntries
+                .map((entry) => entry.preview)
+                .find((preview) => looksLikeDeepResearchReport(preview));
+            if (candidate) {
+                return {
+                    status: 'completed',
+                    report: normalizeDeepResearchText(candidate),
+                    html: '',
+                    url: iframeState.url,
+                    method: 'network-capture',
+                    sources: [],
+                    diagnostics,
+                };
+            }
+        } catch (error) {
+            diagnostics.networkError = String(error?.message || error);
+        }
+    }
+
+    return {
+        status: generating ? 'running' : 'unavailable',
+        report: '',
+        html: '',
+        url: iframeState.url,
+        method: 'cross-origin-iframe-detected',
+        sources: [],
+        diagnostics,
+    };
+}
+
+export async function waitForChatGPTDeepResearchResult(page, { timeoutSeconds = 120, stableSeconds = 6 } = {}) {
+    const startTime = Date.now();
+    let lastReport = '';
+    let stableStartedAt = 0;
+
+    while (Date.now() - startTime < timeoutSeconds * 1000) {
+        const result = await getChatGPTDeepResearchResult(page, { useBridgeProbes: true });
+        if (result.status === 'completed' && result.report) {
+            if (/conversation-widget-state/.test(result.method || '')) {
+                return { ...result, stableSeconds: 0 };
+            }
+            if (result.report === lastReport) {
+                if (!stableStartedAt) stableStartedAt = Date.now();
+                const elapsedSeconds = Math.floor((Date.now() - stableStartedAt) / 1000);
+                if (elapsedSeconds >= stableSeconds) {
+                    return { ...result, stableSeconds: elapsedSeconds };
+                }
+            } else {
+                lastReport = result.report;
+                stableStartedAt = Date.now();
+            }
+        } else if (result.status !== 'running') {
+            return result;
+        }
+        await page.wait(3);
+    }
+
+    throw new TimeoutError(
+        'chatgpt deep-research-result',
+        timeoutSeconds,
+        'Deep Research did not complete or become extractable before timeout.',
+    );
+}
+
 export function messageHtmlToMarkdown(html) {
     try {
         return htmlToMarkdown(html).trim();
@@ -2254,6 +2857,10 @@ export const __test__ = {
     isSameChatGPTConversation,
     parseChatGPTConversationId,
     parseChatGPTProjectId,
+    extractDeepResearchFromConversationPayload,
+    extractDeepResearchFromNetworkEntries,
+    extractDeepResearchFromWidgetState,
+    looksLikeDeepResearchReport,
     imageMimeFromPath,
     mimeFromFilePath,
     PROJECT_LINK_SELECTOR,

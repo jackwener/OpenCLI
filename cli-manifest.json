@@ -6248,6 +6248,59 @@
   },
   {
     "site": "chatgpt",
+    "name": "deep-research-result",
+    "description": "Read a completed ChatGPT Deep Research report from the conversation payload",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID or full /c/<id> URL"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Wait until Deep Research completes or becomes extractable"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait when --wait is true"
+      },
+      {
+        "name": "stable",
+        "type": "int",
+        "default": 6,
+        "required": false,
+        "help": "Seconds the report text must remain unchanged when --wait is true"
+      }
+    ],
+    "columns": [
+      "conversationId",
+      "status",
+      "report",
+      "sources",
+      "url",
+      "method",
+      "diagnostics"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/deep-research-result.js",
+    "sourceFile": "chatgpt/deep-research-result.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
     "name": "detail",
     "description": "Open a ChatGPT web conversation by ID and read its messages",
     "access": "read",

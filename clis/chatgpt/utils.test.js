@@ -131,6 +131,105 @@ describe('chatgpt conversation navigation', () => {
     });
 });
 
+function makeDeepResearchReport() {
+    return [
+        '# Executive Summary',
+        '',
+        'This completed Deep Research report is intentionally long enough to pass extraction heuristics.',
+        'It summarizes findings, constraints, evidence, and recommendations from multiple public sources.',
+        'The extraction path should read this markdown from metadata.chatgpt_sdk.widget_state.report_message.content.parts[0].',
+        'Using the conversation payload avoids the cross-origin internal deep research iframe boundary.',
+        'The report body includes repeated detail so the parser treats it as a real report, not a short UI preview.',
+        'Findings show that reliable automation should prefer captured backend conversation JSON over iframe DOM access.',
+        'Recommendations include returning diagnostics when no report is present and bounding source extraction.',
+        'References and Sources are represented in metadata content references, safe URLs, and search result groups.',
+        'Additional detail confirms that source de-duplication should key by URL and keep a readable title.',
+        'This paragraph pads the fixture with realistic report text for the minimum-length guard.',
+        'Another paragraph pads the fixture with realistic report text for the minimum-length guard.',
+        'A final paragraph pads the fixture with realistic report text for the minimum-length guard.',
+        '',
+        '## Sources',
+        '',
+        '- Example source',
+    ].join('\n');
+}
+
+function makeDeepResearchPayload(report = makeDeepResearchReport()) {
+    return {
+        mapping: {
+            report_node: {
+                message: {
+                    metadata: {
+                        chatgpt_sdk: {
+                            widget_state: JSON.stringify({
+                                status: 'completed',
+                                report_message: {
+                                    id: 'report-msg',
+                                    content: { parts: [report] },
+                                    metadata: {
+                                        content_references: [
+                                            { title: 'Reference A', url: 'https://example.com/a' },
+                                            { matched_text: 'Matched B', url: 'https://example.com/b' },
+                                        ],
+                                        safe_urls: ['https://example.com/c'],
+                                        search_result_groups: [
+                                            { entries: [{ title: 'Reference D', url: 'https://example.com/d' }] },
+                                        ],
+                                    },
+                                },
+                            }),
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+describe('chatgpt deep research result extraction', () => {
+    it('extracts report markdown and sources from conversation widget_state', () => {
+        const result = __test__.extractDeepResearchFromConversationPayload(makeDeepResearchPayload());
+
+        expect(result).toMatchObject({
+            status: 'completed',
+            method: 'conversation-widget-state',
+            reportMessageId: 'report-msg',
+            reportLength: expect.any(Number),
+        });
+        expect(result.report).toContain('Executive Summary');
+        expect(result.sources).toEqual(expect.arrayContaining([
+            { title: 'Reference A', url: 'https://example.com/a' },
+            { title: 'Matched B', url: 'https://example.com/b' },
+            { title: '', url: 'https://example.com/c' },
+            { title: 'Reference D', url: 'https://example.com/d' },
+        ]));
+    });
+
+    it('extracts the largest report from captured conversation network entries', () => {
+        const shorterReport = `${makeDeepResearchReport()}\n\nshort`;
+        const longerReport = `${makeDeepResearchReport()}\n\nAdditional longer section.`;
+        const result = __test__.extractDeepResearchFromNetworkEntries([
+            { url: 'https://chatgpt.com/backend-api/bootstrap', responsePreview: '{}' },
+            {
+                url: 'https://chatgpt.com/backend-api/conversation/demo1',
+                responsePreview: JSON.stringify(makeDeepResearchPayload(shorterReport)),
+            },
+            {
+                url: 'https://chatgpt.com/backend-api/conversation/demo2',
+                responsePreview: JSON.stringify(makeDeepResearchPayload(longerReport)),
+            },
+        ]);
+
+        expect(result.method).toBe('network-conversation-widget-state');
+        expect(result.networkUrl).toContain('/conversation/demo2');
+        expect(result.report).toContain('Additional longer section');
+    });
+
+    it('ignores short widget previews that are not completed reports', () => {
+        expect(__test__.extractDeepResearchFromConversationPayload(makeDeepResearchPayload('short preview'))).toBeNull();
+    });
+});
+
 describe('chatgpt model selection validation', () => {
     it('rejects unknown model names', async () => {
         await expect(selectChatGPTModel({ nativeClick: vi.fn() }, 'unknown'))
