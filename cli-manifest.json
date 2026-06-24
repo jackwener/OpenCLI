@@ -25852,6 +25852,31 @@
     "sourceFile": "pconline/param.js"
   },
   {
+    "site": "pconline",
+    "name": "price",
+    "description": "太平洋电脑网价格走势（按产品 id/URL 返回历史最低价 + 京东/苏宁最新报价）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "产品 id 或详情 URL（来自 list / info / param）"
+      }
+    ],
+    "columns": [
+      "mall",
+      "price",
+      "date"
+    ],
+    "type": "js",
+    "modulePath": "pconline/price.js",
+    "sourceFile": "pconline/price.js"
+  },
+  {
     "site": "pixiv",
     "name": "detail",
     "description": "View illustration details (tags, stats, URLs)",

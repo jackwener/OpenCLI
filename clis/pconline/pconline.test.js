@@ -17,22 +17,27 @@ import {
     LIST_COLUMNS,
     INFO_COLUMNS,
     PARAM_COLUMNS,
+    PRICE_COLUMNS,
     clean,
     stripHtml,
     decodeEntities,
     requireLimit,
     normalizeProduct,
+    normalizeProductId,
     productBase,
+    fmtDate,
 } from './utils.js';
 import { parseListRows } from './list.js';
 import { parseInfoRows } from './info.js';
 import { parseParamRows } from './param.js';
+import { parsePriceRows } from './price.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fx = (name) => readFileSync(join(__dirname, '__fixtures__', name), 'utf8');
 const LIST = fx('list.html');
 const INFO = fx('info.html');
 const PARAM = fx('param.html');
+const PRICE = JSON.parse(fx('price.json'));
 
 describe('pconline list', () => {
     it('parses product cards with id / name / category / url', () => {
@@ -98,7 +103,42 @@ describe('pconline param', () => {
     });
 });
 
+describe('pconline price', () => {
+    it('parses 历史最低价 + per-mall latest price rows', () => {
+        const rows = parsePriceRows(PRICE);
+        expect(rows.length).toBeGreaterThan(0);
+        expect(Object.keys(rows[0])).toEqual(PRICE_COLUMNS);
+        const low = rows.find((r) => r.mall === '历史最低价');
+        expect(low).toBeTruthy();
+        expect(typeof low.price).toBe('number');
+        expect(low.price).toBeGreaterThan(0);
+        expect(low.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        // the vivo S60 fixture has 京东 price points
+        const jd = rows.find((r) => r.mall === '京东');
+        expect(jd).toBeTruthy();
+        expect(typeof jd.price).toBe('number');
+    });
+
+    it('handles a no-data payload without throwing', () => {
+        expect(parsePriceRows({ data: { cheapest: null, mall: {} } })).toEqual([]);
+        expect(parsePriceRows({})).toEqual([]);
+    });
+});
+
 describe('pconline utils', () => {
+    it('normalizeProductId accepts bare id and URL', () => {
+        expect(normalizeProductId('2718819')).toBe('2718819');
+        expect(normalizeProductId('//product.pconline.com.cn/mobile/apple/2718819.html')).toBe('2718819');
+        expect(normalizeProductId('mobile/apple/2718819')).toBe('2718819');
+        expect(() => normalizeProductId('')).toThrow();
+    });
+
+    it('fmtDate formats epoch-ms as YYYY-MM-DD', () => {
+        expect(fmtDate(1780243200000)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(fmtDate(0)).toBe(null);
+        expect(fmtDate(null)).toBe(null);
+    });
+
     it('normalizeProduct accepts URL and triple, rejects bare id', () => {
         expect(normalizeProduct('//product.pconline.com.cn/mobile/apple/2718819.html'))
             .toEqual({ category: 'mobile', brand: 'apple', id: '2718819' });
@@ -130,9 +170,9 @@ describe('pconline utils', () => {
 });
 
 describe('pconline command registration', () => {
-    it('registers list / info / param as PUBLIC read commands', () => {
+    it('registers list / info / param / price as PUBLIC read commands', () => {
         const reg = getRegistry();
-        for (const name of ['list', 'info', 'param']) {
+        for (const name of ['list', 'info', 'param', 'price']) {
             const cmd = reg.get(`pconline/${name}`);
             expect(cmd, `pconline ${name} registered`).toBeTruthy();
             expect(cmd.strategy).toBe(Strategy.PUBLIC);

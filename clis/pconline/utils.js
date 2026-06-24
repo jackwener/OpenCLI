@@ -32,6 +32,7 @@ import {
 } from '@jackwener/opencli/errors';
 
 export const PC_PRODUCT = 'https://product.pconline.com.cn';
+export const PC_PPC = 'https://ppc.pconline.com.cn';
 
 const UA =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -40,6 +41,7 @@ const UA =
 export const LIST_COLUMNS = ['rank', 'product_id', 'name', 'category', 'brand', 'price', 'url'];
 export const INFO_COLUMNS = ['field', 'value'];
 export const PARAM_COLUMNS = ['field', 'value'];
+export const PRICE_COLUMNS = ['mall', 'price', 'date'];
 
 /** Known 产品库 category slugs → 中文 name (for `list` help + nicer errors). */
 export const CATEGORIES = {
@@ -124,6 +126,59 @@ export function normalizeProduct(rawInput) {
 /** Build the canonical detail base `product.pconline.com.cn/<cat>/<brand>/<id>`. */
 export function productBase({ category, brand, id }) {
     return `${PC_PRODUCT}/${category}/${brand}/${id}`;
+}
+
+/**
+ * Extract just the numeric product id from a URL/triple or a bare id. The
+ * price JSON API is keyed by id alone, so (unlike `info`/`param`) a bare id is
+ * accepted here.
+ */
+export function normalizeProductId(rawInput) {
+    const raw = String(rawInput || '').trim();
+    if (!raw) throw new ArgumentError('product must be a non-empty value');
+    if (/^\d+$/.test(raw)) return raw;
+    const m = raw.match(/\/(?:[a-z]+\/[a-z0-9]+\/)?(\d+)(?:[._/]|\.html|$)/i);
+    if (!m) {
+        throw new ArgumentError(
+            `'${rawInput}' does not look like a PConline product id or URL`,
+        );
+    }
+    return m[1];
+}
+
+/** Format an epoch-ms timestamp as YYYY-MM-DD (null for falsy/invalid). */
+export function fmtDate(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return new Date(n).toISOString().slice(0, 10);
+}
+
+/**
+ * Fetch a PConline JSON API (UTF-8) and return the parsed object. Used for the
+ * price endpoint on `ppc.pconline.com.cn`, which is a plain public JSON service
+ * (no login, no signature) on a host separate from the rate-limited 产品库.
+ */
+export async function pcFetchJson(url, contextHint) {
+    let resp;
+    try {
+        resp = await fetch(url, {
+            headers: {
+                'User-Agent': UA,
+                Referer: `${PC_PRODUCT}/`,
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+            },
+        });
+    } catch (err) {
+        throw new CommandExecutionError(`pconline ${contextHint} network error: ${err?.message || err}`);
+    }
+    if (!resp.ok) {
+        throw new CommandExecutionError(`pconline ${contextHint} HTTP ${resp.status}`);
+    }
+    try {
+        return await resp.json();
+    } catch (err) {
+        throw new CommandExecutionError(`pconline ${contextHint} bad JSON: ${err?.message || err}`);
+    }
 }
 
 /**

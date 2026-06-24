@@ -16,6 +16,7 @@ the HTML — there is no JSON blob and no anti-bot token on these pages.
 | `opencli pconline list <category>` | Browse a category (产品大全) → name + 参考价 + detail URL |
 | `opencli pconline info <product>` | Product overview: 名称 / 分类 / 品牌 / 重点参数 |
 | `opencli pconline param <product>` | Full spec sheet (参数): screen, battery, chipset, ports… |
+| `opencli pconline price <product>` | Price history: 历史最低价 + 京东/苏宁 latest tracked price |
 
 `info` and `param` take a **product reference** — the detail URL from `list`
 (e.g. `product.pconline.com.cn/mobile/apple/2718819.html`) or the bare
@@ -47,6 +48,9 @@ opencli pconline info mobile/apple/2718819
 
 # Full parameter sheet
 opencli pconline param mobile/apple/2718819
+
+# Price history (accepts a bare id too)
+opencli pconline price 2718819
 ```
 
 ## Notes
@@ -61,14 +65,16 @@ opencli pconline param mobile/apple/2718819
 - **`param`** pairs each `<th>` with its `<td>` inside `area-detailparams`;
   glossary popups (`<div class="tips">…是什么 / 查看所有…</div>`) and the CPU/GPU
   "点击型号查看完整天梯图" affordance are stripped so only real spec values remain.
-- **Why no `search` / `price` / `comment`?** These were investigated and
-  deliberately left out — they are **not** login-gated (so logging in wouldn't
-  unlock them), they're simply not cleanly fetchable:
-  - keyword search (`ks.pconline.com.cn` 快搜) sits behind a JS/anti-bot
-    challenge — a plain fetch gets HTTP 503;
-  - the legacy merchant-price API (`ppc…/shop_list_new2015.jsp`) is retired
-    (404) and the static price page only carries promo ads;
+- **`price`** calls the public JSON API `ppc.pconline.com.cn/productPrice/list`
+  (a separate host from the rate-limited 产品库, keyed by the numeric id alone,
+  so it accepts a bare id). It returns the 历史最低价 plus each mall's latest
+  tracked price; malls with no data points are simply omitted.
+- **Why no `search` / `comment`?** Investigated and deliberately left out — they
+  are **not** login-gated (logging in does not unlock them), just not cleanly
+  fetchable:
+  - keyword search (`ks.pconline.com.cn` 快搜) sits behind a JS/slide-captcha
+    anti-bot challenge — it renders in a real browser but a plain fetch gets
+    HTTP 503. `list` covers discovery instead.
   - the 点评 API (`pdcmt…/mtp-list.jsp`) returns empty shells.
 
-  `list` covers discovery instead, and the adapter never ships empty/unreliable
-  data.
+  The adapter never ships empty/unreliable data.
