@@ -8,6 +8,7 @@ import './send.js';
 import './read.js';
 import './history.js';
 import './detail.js';
+import './deep-research-result.js';
 import './new.js';
 import './status.js';
 import './image.js';
@@ -50,6 +51,7 @@ describe('chatgpt browser command registration', () => {
             read: 'read',
             history: 'read',
             detail: 'read',
+            'deep-research-result': 'read',
             new: 'read',
             status: 'read',
             image: 'write',
@@ -119,6 +121,17 @@ describe('chatgpt browser command registration', () => {
         expect(detail.columns).toEqual(['Index', 'Role', 'Text', 'Generating', 'StableSeconds']);
     });
 
+    it('registers deep research result command with wait options', () => {
+        const command = getRegistry().get('chatgpt/deep-research-result');
+        expect(command.args).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'id', positional: true, required: true }),
+            expect.objectContaining({ name: 'wait', type: 'boolean', default: false }),
+            expect.objectContaining({ name: 'timeout', type: 'int', default: 120 }),
+            expect.objectContaining({ name: 'stable', type: 'int', default: 6 }),
+        ]));
+        expect(command.columns).toEqual(['conversationId', 'status', 'report', 'sources', 'url', 'method', 'diagnostics']);
+    });
+
     it('registers project routing on chat-starting commands', () => {
         for (const name of ['new', 'image', 'model']) {
             const cmd = getRegistry().get(`chatgpt/${name}`);
@@ -144,7 +157,7 @@ describe('chatgpt browser command registration', () => {
                 name: 'model',
                 positional: true,
                 required: true,
-                choices: ['instant', 'medium', 'high', 'extra-high', 'pro', 'thinking'],
+                choices: expect.arrayContaining(['fast', 'speed', 'instant', 'balanced', 'balance', 'advanced', 'high', 'thinking', 'very-high', 'ultra', 'xhigh', 'x-high', 'pro', 'professional']),
             }),
             expect.objectContaining({ name: 'project', valueRequired: true }),
         ]));
