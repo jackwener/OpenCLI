@@ -25758,6 +25758,100 @@
     "sourceFile": "paperreview/submit.js"
   },
   {
+    "site": "pconline",
+    "name": "info",
+    "aliases": [
+      "overview"
+    ],
+    "description": "太平洋电脑网产品概览（名称 / 分类 / 品牌 / 重点参数，按产品 URL 返回）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "产品详情 URL 或 <品类>/<品牌>/<id>（来自 list 的 url 列）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "pconline/info.js",
+    "sourceFile": "pconline/info.js"
+  },
+  {
+    "site": "pconline",
+    "name": "list",
+    "aliases": [
+      "browse"
+    ],
+    "description": "太平洋电脑网产品大全（按品类浏览 mobile/notebook/dc/cpu/vga… 返回名称 + 参考价 + 详情 URL）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "品类 slug，例如 mobile(手机) / notebook(笔记本) / dc(相机) / cpu / vga(显卡) / tabletpc(平板) / smartwatch"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的产品数量（最多 60）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "product_id",
+      "name",
+      "category",
+      "brand",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pconline/list.js",
+    "sourceFile": "pconline/list.js"
+  },
+  {
+    "site": "pconline",
+    "name": "param",
+    "aliases": [
+      "spec",
+      "specs"
+    ],
+    "description": "太平洋电脑网产品参数（按产品 URL 返回完整规格表：屏幕/电池/处理器/接口等）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "产品详情 URL 或 <品类>/<品牌>/<id>（来自 list 的 url 列）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "pconline/param.js",
+    "sourceFile": "pconline/param.js"
+  },
+  {
     "site": "pixiv",
     "name": "detail",
     "description": "View illustration details (tags, stats, URLs)",
