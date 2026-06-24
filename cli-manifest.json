@@ -31089,9 +31089,102 @@
   },
   {
     "site": "smzdm",
+    "name": "detail",
+    "description": "什么值得买好价详情（标题/价格/购买直达链接）",
+    "access": "read",
+    "example": "opencli smzdm detail 177316535 -f json",
+    "domain": "www.smzdm.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "deal",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Deal id (e.g. 174854494) or full smzdm URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "price",
+      "buy_link",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "smzdm/detail.js",
+    "sourceFile": "smzdm/detail.js",
+    "navigateBefore": "https://www.smzdm.com"
+  },
+  {
+    "site": "smzdm",
+    "name": "favorite",
+    "description": "收藏一条好价（需登录）",
+    "access": "write",
+    "example": "opencli smzdm favorite 177316535",
+    "domain": "www.smzdm.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "deal",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Deal id (e.g. 174854494) or full smzdm URL"
+      }
+    ],
+    "columns": [
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "smzdm/favorite.js",
+    "sourceFile": "smzdm/favorite.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "smzdm",
+    "name": "hot",
+    "description": "什么值得买首页精选好价流",
+    "access": "read",
+    "example": "opencli smzdm hot --limit 5 -f json",
+    "domain": "www.smzdm.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "price",
+      "mall",
+      "updated_at",
+      "zhi_count",
+      "buzhi_count",
+      "favorite_count",
+      "comments",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "smzdm/hot.js",
+    "sourceFile": "smzdm/hot.js",
+    "navigateBefore": "https://www.smzdm.com"
+  },
+  {
+    "site": "smzdm",
     "name": "search",
     "description": "什么值得买搜索好价",
     "access": "read",
+    "example": "opencli smzdm search \"无线耳机\" --limit 5 -f json",
     "domain": "www.smzdm.com",
     "strategy": "cookie",
     "browser": true,
@@ -31127,6 +31220,41 @@
     "modulePath": "smzdm/search.js",
     "sourceFile": "smzdm/search.js",
     "navigateBefore": "https://www.smzdm.com"
+  },
+  {
+    "site": "smzdm",
+    "name": "zhi",
+    "description": "给一条好价打分：值（默认）或不值（--down）（需登录）",
+    "access": "write",
+    "example": "opencli smzdm zhi 177316535",
+    "domain": "www.smzdm.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "deal",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Deal id (e.g. 174854494) or full smzdm URL"
+      },
+      {
+        "name": "down",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Vote 不值 instead of 值"
+      }
+    ],
+    "columns": [
+      "status",
+      "vote",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "smzdm/zhi.js",
+    "sourceFile": "smzdm/zhi.js",
+    "navigateBefore": true
   },
   {
     "site": "spotify",
