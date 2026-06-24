@@ -16,15 +16,18 @@ import {
     BROWSE_COLUMNS,
     CAR_COLUMNS,
     resolveCityCode,
+    resolveBrandSlug,
     normalizeClueId,
     requireLimit,
 } from './utils.js';
 import { parseListings } from './browse.js';
 import { parseCarDetail } from './car.js';
+import './search.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LIST = readFileSync(join(__dirname, '__fixtures__/list.html'), 'utf8');
 const DETAIL = readFileSync(join(__dirname, '__fixtures__/detail.html'), 'utf8');
+const SEARCH = readFileSync(join(__dirname, '__fixtures__/search.html'), 'utf8');
 
 describe('guazi adapter — registration', () => {
     it('registers browse + car as PUBLIC (no browser)', () => {
@@ -38,6 +41,15 @@ describe('guazi adapter — registration', () => {
         expect(getRegistry().get('guazi/browse').columns).toEqual(BROWSE_COLUMNS);
         expect(getRegistry().get('guazi/car').columns).toEqual(CAR_COLUMNS);
     });
+
+    it('registers search as PUBLIC (mobile SSR, brand-filtered)', () => {
+        const cmd = getRegistry().get('guazi/search');
+        expect(cmd).toBeTruthy();
+        expect(cmd.browser).toBe(false);
+        expect(cmd.strategy).toBe(Strategy.PUBLIC);
+        expect(cmd.access).toBe('read');
+        expect(cmd.columns).toEqual(BROWSE_COLUMNS);
+    });
 });
 
 describe('guazi adapter — utils', () => {
@@ -48,6 +60,16 @@ describe('guazi adapter — utils', () => {
         expect(resolveCityCode('')).toBe('bj');
         expect(resolveCityCode(undefined)).toBe('bj');
         expect(() => resolveCityCode('火星')).toThrow();
+    });
+    it('resolveBrandSlug maps 中文 names, passes slugs, nulls on empty', () => {
+        expect(resolveBrandSlug('宝马')).toBe('bmw');
+        expect(resolveBrandSlug('比亚迪')).toBe('byd');
+        expect(resolveBrandSlug('理想汽车')).toBe('lixiang');
+        expect(resolveBrandSlug('问界')).toBe('aito');
+        expect(resolveBrandSlug('bmw')).toBe('bmw');
+        expect(resolveBrandSlug('')).toBeNull();
+        expect(resolveBrandSlug(undefined)).toBeNull();
+        expect(() => resolveBrandSlug('不存在的牌子')).toThrow();
     });
     it('normalizeClueId accepts numbers and URLs', () => {
         expect(normalizeClueId('162563585115789')).toBe('162563585115789');
@@ -122,5 +144,21 @@ describe('guazi adapter — parsers against frozen fixtures', () => {
         const map = Object.fromEntries(rows.map((r) => [r.field, r.value]));
         expect(map.title).toBe('');
         expect(map.price).toBe('');
+    });
+});
+
+describe('guazi adapter — brand-filtered search page (frozen mobile-SSR fixture)', () => {
+    it('parseListings extracts brand-filtered rows from the brand page', () => {
+        const rows = parseListings(SEARCH, 40);
+        expect(rows.length).toBeGreaterThan(0);
+        for (const r of rows) {
+            expect(Object.keys(r).sort()).toEqual([...BROWSE_COLUMNS].sort());
+            expect(r.clue_id).toMatch(/^\d+$/);
+            expect(r.url).toContain('/car-detail/c');
+        }
+        // the brand page is genuinely filtered to one brand
+        expect(rows.every((r) => /宝马/.test(r.title))).toBe(true);
+        expect(rows[0].price).toMatch(/万$/);
+        expect(rows[0].year).toMatch(/^\d{4}$/);
     });
 });
