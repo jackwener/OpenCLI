@@ -1,11 +1,12 @@
 /**
  * Shared helpers for the 汽车之家 (Autohome) adapter.
  *
- * Autohome's keyword-search and per-trim-config JSON APIs are app-signature
- * gated (and the config page additionally uses CSS font-glyph obfuscation),
- * so those are deliberately NOT used — they cannot be read reliably without a
- * browser running Autohome's signing code, and faking partial data would be
- * worse than omitting it. Two sources ARE clean, no-login, plain-HTTP:
+ * Autohome's keyword-search and its OWN per-trim-config JSON API are
+ * app-signature gated (and the config page additionally uses CSS font-glyph
+ * obfuscation), so those are deliberately NOT used — they cannot be read
+ * reliably without a browser running Autohome's signing code, and faking
+ * partial data would be worse than omitting it. Three sources ARE clean,
+ * no-login, plain-HTTP:
  *
  *   1. The brand catalog `grade/carhtml/<INITIAL>.html` — every series of a
  *      brand with its 指导价 (guide price), keyed by the brand's pinyin
@@ -14,13 +15,18 @@
  *      `__NEXT_DATA__.props.pageProps.baseData` carries the aggregate owner
  *      rating (overall + per-dimension), level, price, competitors, and the
  *      reliability PPH (每百辆车故障数).
+ *   3. The per-trim spec sheet — served UNSIGNED by the SAME 汽车之家 group's
+ *      车168 cache API (`cacheapigo.che168.com/CarProduct/GetParam.ashx`, GBK
+ *      JSON). This is how `spec` reads the very config data autohome.com.cn's
+ *      own (signed, font-obfuscated) endpoint won't give up.
  *
- * So the adapter searches by BRAND (you almost always know the brand) and
- * reads ratings by seriesId — both unsigned, both login-free.
+ * So the adapter searches by BRAND (you almost always know the brand), reads
+ * ratings by seriesId, and full params by specid — all unsigned, all login-free.
  */
 
 import {
     ArgumentError,
+    AuthRequiredError,
     CommandExecutionError,
     EmptyResultError,
 } from '@jackwener/opencli/errors';
@@ -34,6 +40,15 @@ const UA =
 
 export const BRAND_COLUMNS = ['series_id', 'name', 'price', 'url'];
 export const SCORE_COLUMNS = ['field', 'value'];
+export const SPEC_COLUMNS = ['group', 'field', 'value'];
+
+// `spec` reads the unsigned 汽车之家 param cache served by the 车168 sister
+// site (GBK JSON); see the file header for why this lives under `autohome`.
+export const PARAM_API = 'https://cacheapigo.che168.com/CarProduct/GetParam.ashx';
+const PARAM_M_BASE = 'https://m.che168.com';
+const PARAM_UA =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 '
+    + '(KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
 
 /**
  * 中文品牌名 → 车系目录页的拼音首字母 (grade/carhtml/<X>.html).
@@ -77,6 +92,22 @@ export function resolveBrandInitial(brandArg) {
         'brand',
         `unknown brand '${brandArg}'. Pass a known Chinese brand name (e.g. 宝马 / 比亚迪 / 理想) or a single A-Z catalog letter.`,
     );
+}
+
+/**
+ * Normalize a 汽车之家 spec id (款型 id): a bare number, a `.../spec/<id>/`
+ * URL, or a `?specid=<id>` query value. Distinct from a series id.
+ */
+export function normalizeSpecId(rawInput) {
+    const raw = String(rawInput ?? '').trim();
+    if (!raw) throw new ArgumentError('specid must be a non-empty value');
+    const m = raw.match(/specid[=/](\d+)/i) || raw.match(/spec[/_-](\d+)/i) || raw.match(/^(\d+)$/);
+    if (!m) {
+        throw new ArgumentError(
+            `'${rawInput}' does not look like a 汽车之家 specid (a number, or a .../spec/<id>/ URL)`,
+        );
+    }
+    return m[1];
 }
 
 /** Normalize a series id: a bare number or an autohome URL containing it. */
@@ -142,6 +173,36 @@ export async function ahFetch(url, contextHint) {
     return resp.text();
 }
 
+/** Fetch the GBK-encoded 汽车之家 spec cache API (车168 host) and parse JSON. */
+export async function paramGetJson(url, contextHint) {
+    let resp;
+    try {
+        resp = await fetch(url, {
+            headers: {
+                'User-Agent': PARAM_UA,
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+                Referer: `${PARAM_M_BASE}/`,
+            },
+        });
+    } catch (err) {
+        throw new CommandExecutionError(`${contextHint} network error: ${err?.message || err}`);
+    }
+    if (!resp.ok) {
+        throw new CommandExecutionError(`${contextHint} HTTP ${resp.status}`);
+    }
+    const buf = await resp.arrayBuffer();
+    // cache-API responses are GBK, not UTF-8.
+    const text = new TextDecoder('gbk').decode(buf);
+    if (/瑞数|reese84|安全验证|滑动验证/i.test(text) && !/returncode/i.test(text)) {
+        throw new AuthRequiredError('che168.com', `${contextHint} hit an anti-bot challenge.`);
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        throw new CommandExecutionError(`${contextHint} returned non-JSON (possibly anti-bot or schema change)`);
+    }
+}
+
 /** Extract __NEXT_DATA__ pageProps from a koubei page (pure, testable). */
 export function extractPageProps(html) {
     const m = String(html || '').match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
@@ -154,4 +215,4 @@ export function extractPageProps(html) {
     }
 }
 
-export { ArgumentError, CommandExecutionError, EmptyResultError };
+export { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError };

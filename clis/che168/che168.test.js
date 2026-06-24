@@ -1,10 +1,10 @@
 /**
  * Unit tests for the 汽车之家二手车 / 车168 (che168) adapter.
  *
- * `spec` parses GBK cache-API JSON; `browse`/`car` parse rendered used-car DOM
- * (the pages are 瑞数-gated, so the live data is reached through the logged-in
- * browser). All parsers are pure and exercised here against frozen fixtures —
- * no network.
+ * `browse`/`car` parse rendered used-car DOM (the pages are 瑞数-gated, so the
+ * live data is reached through the logged-in browser). Both parsers are pure
+ * and exercised here against frozen fixtures — no network. (New-car spec/config
+ * by specid moved to `autohome spec`; see autohome.test.js.)
  */
 
 import { readFileSync } from 'node:fs';
@@ -12,34 +12,21 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
-import { getRegistry, Strategy } from '@jackwener/opencli/registry';
+import { getRegistry } from '@jackwener/opencli/registry';
 
 import {
     BROWSE_COLUMNS,
     CAR_COLUMNS,
-    SPEC_COLUMNS,
     normalizeInfoId,
-    normalizeSpecId,
 } from './utils.js';
-import { parseParams } from './spec.js';
 import { extractListings } from './browse.js';
 import { extractCarDetail } from './car.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PARAM = JSON.parse(readFileSync(join(__dirname, '__fixtures__/param.json'), 'utf8'));
 const LIST = readFileSync(join(__dirname, '__fixtures__/list.html'), 'utf8');
 const DETAIL = readFileSync(join(__dirname, '__fixtures__/detail.html'), 'utf8');
 
 describe('che168 adapter — registration', () => {
-    it('registers spec as PUBLIC (no browser)', () => {
-        const spec = getRegistry().get('che168/spec');
-        expect(spec).toBeTruthy();
-        expect(spec.strategy).toBe(Strategy.PUBLIC);
-        expect(spec.browser).toBe(false);
-        expect(spec.access).toBe('read');
-        expect(spec.columns).toEqual(SPEC_COLUMNS);
-    });
-
     it('registers browse + car as browser commands', () => {
         for (const n of ['browse', 'car']) {
             const cmd = getRegistry().get(`che168/${n}`);
@@ -53,41 +40,10 @@ describe('che168 adapter — registration', () => {
 });
 
 describe('che168 adapter — utils', () => {
-    it('normalizeSpecId accepts numbers, spec URLs, and specid params', () => {
-        expect(normalizeSpecId('39616')).toBe('39616');
-        expect(normalizeSpecId('https://www.autohome.com.cn/spec/39616/')).toBe('39616');
-        expect(normalizeSpecId('https://cacheapigo.che168.com/CarProduct/GetParam.ashx?specid=39616')).toBe('39616');
-        expect(() => normalizeSpecId('abc')).toThrow();
-        expect(() => normalizeSpecId('')).toThrow();
-    });
-
     it('normalizeInfoId accepts numbers and detail URLs', () => {
         expect(normalizeInfoId('51234567')).toBe('51234567');
         expect(normalizeInfoId('https://www.che168.com/dealer/123/51234567.html')).toBe('51234567');
         expect(() => normalizeInfoId('abc')).toThrow();
-    });
-});
-
-describe('che168 adapter — spec parser against frozen fixture', () => {
-    it('parseParams flattens groups into group/field/value rows', () => {
-        const rows = parseParams(PARAM);
-        expect(rows.length).toBeGreaterThan(0);
-        for (const r of rows) {
-            expect(Object.keys(r).sort()).toEqual([...SPEC_COLUMNS].sort());
-            expect(r.field).toBeTruthy();
-        }
-        const map = Object.fromEntries(rows.map((r) => [r.field, r.value]));
-        expect(map['车型名称']).toContain('宝马3系');
-        expect(map['厂商指导价(元)']).toMatch(/万$/);
-        // groups are preserved
-        const groups = new Set(rows.map((r) => r.group));
-        expect(groups.has('基本参数')).toBe(true);
-        expect(groups.has('发动机')).toBe(true);
-    });
-
-    it('parseParams tolerates an empty / discontinued specid', () => {
-        expect(parseParams({ returncode: 0, result: { specid: 1, paramtypeitems: [] } })).toEqual([]);
-        expect(parseParams({})).toEqual([]);
     });
 });
 

@@ -2993,6 +2993,36 @@
     "sourceFile": "autohome/score.js"
   },
   {
+    "site": "autohome",
+    "name": "spec",
+    "aliases": [
+      "param",
+      "config"
+    ],
+    "description": "汽车之家车型完整参数配置（基本/车身/发动机/变速箱/底盘/制动，免登录）",
+    "access": "read",
+    "domain": "cacheapigo.che168.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "specid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车型款型 ID（specid，来自汽车之家 /spec/<id>/ URL 或 specid= 参数）"
+      }
+    ],
+    "columns": [
+      "group",
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "autohome/spec.js",
+    "sourceFile": "autohome/spec.js"
+  },
+  {
     "site": "baidu-scholar",
     "name": "search",
     "description": "百度学术搜索",
@@ -7127,36 +7157,6 @@
     "modulePath": "che168/car.js",
     "sourceFile": "che168/car.js",
     "navigateBefore": "https://www.che168.com"
-  },
-  {
-    "site": "che168",
-    "name": "spec",
-    "aliases": [
-      "param",
-      "config"
-    ],
-    "description": "汽车之家/车168 车型完整参数配置（基本/车身/发动机/变速箱/底盘/制动，免登录）",
-    "access": "read",
-    "domain": "cacheapigo.che168.com",
-    "strategy": "public",
-    "browser": false,
-    "args": [
-      {
-        "name": "specid",
-        "type": "str",
-        "required": true,
-        "positional": true,
-        "help": "车型款型 ID（specid，来自 autohome/che168 的 /spec/<id>/ URL 或 specid= 参数）"
-      }
-    ],
-    "columns": [
-      "group",
-      "field",
-      "value"
-    ],
-    "type": "js",
-    "modulePath": "che168/spec.js",
-    "sourceFile": "che168/spec.js"
   },
   {
     "site": "chess",
