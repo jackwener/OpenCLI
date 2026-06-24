@@ -36530,6 +36530,43 @@
   },
   {
     "site": "twitter",
+    "name": "switch-account",
+    "description": "List the Twitter accounts available to switch into, or switch into one by @handle.",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "target",
+        "type": "string",
+        "required": false,
+        "positional": true,
+        "help": "Twitter screen name (with or without @) to switch into. Omit (or pass --list) to list accounts instead."
+      },
+      {
+        "name": "list",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "List the accounts available to switch into instead of switching."
+      }
+    ],
+    "columns": [
+      "status",
+      "handle",
+      "display_name",
+      "is_current",
+      "unread",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/switch-account.js",
+    "sourceFile": "twitter/switch-account.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "thread",
     "description": "Get a tweet thread (original + all replies)",
     "access": "read",
