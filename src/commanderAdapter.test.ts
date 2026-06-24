@@ -3,9 +3,10 @@ import { Command } from 'commander';
 import type { CliCommand } from './registry.js';
 import { attachTraceReceipt, EmptyResultError, selectorError } from './errors.js';
 
-const { mockExecuteCommand, mockRenderOutput } = vi.hoisted(() => ({
+const { mockExecuteCommand, mockRenderOutput, mockEnforceRateLimit } = vi.hoisted(() => ({
   mockExecuteCommand: vi.fn(),
   mockRenderOutput: vi.fn(),
+  mockEnforceRateLimit: vi.fn(),
 }));
 
 vi.mock('./execution.js', async () => {
@@ -20,7 +21,12 @@ vi.mock('./output.js', () => ({
   render: mockRenderOutput,
 }));
 
+vi.mock('./rate-limit.js', () => ({
+  enforceRateLimit: mockEnforceRateLimit,
+}));
+
 import { registerCommandToProgram } from './commanderAdapter.js';
+import { RateLimitError } from './errors.js';
 
 describe('commanderAdapter arg passing', () => {
   const cmd: CliCommand = {
@@ -40,6 +46,7 @@ describe('commanderAdapter arg passing', () => {
     mockExecuteCommand.mockReset();
     mockExecuteCommand.mockResolvedValue([]);
     mockRenderOutput.mockReset();
+    mockEnforceRateLimit.mockReset();
     delete process.env.OPENCLI_VERBOSE;
     process.exitCode = undefined;
   });
@@ -99,6 +106,42 @@ describe('commanderAdapter arg passing', () => {
     );
   });
 
+  it('checks rate limits after args are prepared and before execution', async () => {
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf']);
+
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith('paperreview/submit');
+    expect(mockExecuteCommand).toHaveBeenCalled();
+  });
+
+  it('does not execute when the rate limit blocks the command', async () => {
+    mockEnforceRateLimit.mockImplementationOnce(() => {
+      throw new RateLimitError('paperreview/submit', 5_000, '/tmp/rate-limits.yaml');
+    });
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf']);
+
+    expect(mockExecuteCommand).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(75);
+  });
+
+  it('counts command aliases against the canonical command name', async () => {
+    const aliasCmd: CliCommand = { ...cmd, name: 'delete', aliases: ['rm'] };
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, aliasCmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'rm', './paper.pdf']);
+
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith('paperreview/delete');
+  });
+
   it('rejects invalid bool values before calling executeCommand', async () => {
     const program = new Command();
     const siteCmd = program.command('paperreview');
@@ -108,6 +151,7 @@ describe('commanderAdapter arg passing', () => {
 
     // prepareCommandArgs validates bools before dispatch; executeCommand should not be reached
     expect(mockExecuteCommand).not.toHaveBeenCalled();
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
   });
 });
 

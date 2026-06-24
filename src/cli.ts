@@ -10,6 +10,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command, InvalidArgumentError, Option } from 'commander';
+import yaml from 'js-yaml';
 import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
 import { serializeCommand, formatArgSummary } from './serialization.js';
@@ -20,7 +21,7 @@ import { loadExternalClis, executeExternalCli, installExternalCli, registerExter
 import { listOpenCliSkills, readOpenCliSkill } from './skills.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
-import { EXIT_CODES, getErrorMessage, BrowserConnectError, CliError } from './errors.js';
+import { EXIT_CODES, getErrorMessage, BrowserConnectError, CliError, toEnvelope } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
 import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type FindError, type SemanticFindOptions } from './browser/find.js';
@@ -3473,8 +3474,13 @@ cli({
     try {
       executeExternalCli(name, args, externalClis);
     } catch (err) {
-      console.error(`Error: ${getErrorMessage(err)}`);
-      process.exitCode = EXIT_CODES.GENERIC_ERROR;
+      if (err instanceof CliError) {
+        process.stderr.write(yaml.dump(toEnvelope(err), { sortKeys: false, lineWidth: 120, noRefs: true }));
+        process.exitCode = err.exitCode;
+      } else {
+        console.error(`Error: ${getErrorMessage(err)}`);
+        process.exitCode = EXIT_CODES.GENERIC_ERROR;
+      }
     }
   }
 

@@ -125,6 +125,18 @@ export class TimeoutError extends CliError {
   }
 }
 
+export class RateLimitError extends CliError {
+  constructor(command: string, retryAfterMs: number, configPath: string) {
+    const retryAfter = formatRetryAfter(retryAfterMs);
+    super(
+      'RATE_LIMITED',
+      `Rate limit exceeded for ${command}`,
+      `Retry after ${retryAfter}. To change this limit, edit ${configPath}.`,
+      EXIT_CODES.TEMPFAIL,
+    );
+  }
+}
+
 export class ArgumentError extends CliError {
   constructor(message: string, hint?: string) {
     super('ARGUMENT', message, hint, EXIT_CODES.USAGE_ERROR);
@@ -159,6 +171,17 @@ export class PluginError extends CliError {
   constructor(message: string, hint?: string) {
     super('PLUGIN', message, hint, EXIT_CODES.GENERIC_ERROR);
   }
+}
+
+function formatRetryAfter(ms: number): string {
+  const safeMs = Math.max(0, Math.ceil(ms));
+  if (safeMs < 1_000) return `${safeMs}ms`;
+  const seconds = Math.ceil(safeMs / 1_000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.ceil(minutes / 60);
+  return `${hours}h`;
 }
 
 /**
