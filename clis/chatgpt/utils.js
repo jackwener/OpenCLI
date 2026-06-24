@@ -10,49 +10,60 @@ export const CHATGPT_DOMAIN = 'chatgpt.com';
 export const CHATGPT_URL = 'https://chatgpt.com';
 
 const CHATGPT_MODEL_TARGETS = {
-    instant: {
-        label: 'Instant',
-        labels: ['Instant', '即时', '极速'],
-        optionLabels: ['Instant', '极速', '即时'],
+    fast: {
+        label: 'Fast',
+        labels: ['Fast', 'Speed', 'Instant', '极速', '即时'],
+        optionLabels: ['Fast', 'Speed', 'Instant', '极速', '即时'],
         testIds: ['model-switcher-gpt-5-5'],
         intelligenceOrder: 0,
+        aliases: ['speed', 'instant', '极速'],
     },
-    medium: {
-        label: 'Medium',
-        labels: ['Medium', '均衡'],
-        optionLabels: ['Medium', '均衡'],
+    balanced: {
+        label: 'Balanced',
+        labels: ['Balanced', 'Balance', 'Medium', '均衡'],
+        optionLabels: ['Balanced', 'Balance', 'Medium', '均衡'],
         testIds: [],
         intelligenceOrder: 1,
+        aliases: ['balance', 'medium', '均衡'],
     },
-    high: {
-        label: 'High',
-        labels: ['High', '高级', 'Thinking', '思考'],
-        optionLabels: ['High', '高级', 'Thinking', '思考'],
+    advanced: {
+        label: 'Advanced',
+        labels: ['Advanced', 'High', 'Thinking', '高级', '思考'],
+        optionLabels: ['Advanced', 'High', 'Thinking', '高级', '思考'],
         testIds: ['model-switcher-gpt-5-5-thinking'],
         intelligenceOrder: 2,
+        aliases: ['high', 'thinking', '高级'],
+        modelConfig: { modelSlug: 'gpt-5-5-thinking', effort: 'extended' },
     },
-    'extra-high': {
-        label: 'Extra High',
-        labels: ['Extra High', '超高'],
-        optionLabels: ['Extra High', '超高'],
+    'very-high': {
+        label: 'Very High',
+        labels: ['Very High', 'Extra High', 'Ultra', 'XHigh', 'X-High', '超高'],
+        optionLabels: ['Very High', 'Extra High', 'Ultra', 'XHigh', 'X-High', '超高'],
         testIds: [],
         intelligenceOrder: 3,
+        aliases: ['ultra', 'xhigh', 'x-high', 'extra-high', '超高'],
     },
     pro: {
         label: 'Pro',
-        labels: ['Pro', '进阶专业', '专业'],
-        optionLabels: ['专业', 'Pro', '进阶专业'],
+        labels: ['Pro', 'Professional', '进阶专业', '专业'],
+        optionLabels: ['专业', 'Pro', 'Professional', '进阶专业'],
         testIds: ['model-switcher-gpt-5-5-pro'],
         intelligenceOrder: 4,
+        aliases: ['professional', '专业'],
+        modelConfig: { modelSlug: 'gpt-5-5-pro', effort: 'standard' },
     },
 };
-const CHATGPT_MODEL_ALIASES = {
-    thinking: 'high',
-};
-export const CHATGPT_MODEL_CHOICES = [
-    ...Object.keys(CHATGPT_MODEL_TARGETS),
-    ...Object.keys(CHATGPT_MODEL_ALIASES),
-];
+const CHATGPT_MODEL_ALIASES = Object.fromEntries(Object.entries(CHATGPT_MODEL_TARGETS).flatMap(([key, target]) => [
+    [key, key],
+    ...(target.aliases || []).map((alias) => [String(alias).toLowerCase(), key]),
+]));
+export const CHATGPT_MODEL_CHOICES = Object.keys(CHATGPT_MODEL_ALIASES);
+
+function debugChatGPTModel(message) {
+    if (process?.env?.OPENCLI_CHATGPT_MODEL_DEBUG) {
+        console.error(`[chatgpt/model] ${message}`);
+    }
+}
 
 const CHATGPT_TOOL_OPTIONS = {
     'deep-research': { label: 'Deep Research', labels: ['深度研究', 'Deep Research'] },
@@ -445,18 +456,127 @@ export async function getCurrentChatGPTModel(page) {
     })()`)), 'chatgpt current model');
 }
 
+async function buildChatGPTBackendHeaders(page, { includeAuthorization = false } = {}) {
+    if (typeof page.getCookies !== 'function') {
+        return { ok: false, status: 0, reason: 'missing-cookie-api' };
+    }
+    const cookieLists = await Promise.all([
+        page.getCookies({ url: CHATGPT_URL }).catch(() => []),
+        page.getCookies({ url: `${CHATGPT_URL}/api/auth/session` }).catch(() => []),
+        page.getCookies({ domain: CHATGPT_DOMAIN }).catch(() => []),
+        page.getCookies({ domain: `.${CHATGPT_DOMAIN}` }).catch(() => []),
+        page.getCookies().catch(() => []),
+    ]);
+    const cookiesByName = new Map();
+    for (const cookie of cookieLists.flat()) {
+        if (!cookie?.name || typeof cookie.value !== 'string') continue;
+        if (!cookiesByName.has(cookie.name) || cookie.domain === CHATGPT_DOMAIN || cookie.domain === `.${CHATGPT_DOMAIN}`) {
+            cookiesByName.set(cookie.name, cookie);
+        }
+    }
+    const cookieHeader = Array.from(cookiesByName.values())
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; ');
+    if (!cookieHeader) return { ok: false, status: 0, reason: 'missing-cookies' };
+    const headers = {
+        accept: 'application/json',
+        cookie: cookieHeader,
+        origin: CHATGPT_URL,
+        referer: `${CHATGPT_URL}/`,
+        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+    };
+    if (!includeAuthorization) return { ok: true, status: 200, headers };
+
+    const sessionResponse = await fetch(`${CHATGPT_URL}/api/auth/session`, {
+        headers,
+        signal: AbortSignal.timeout(10000),
+    });
+    if (!sessionResponse.ok) {
+        return { ok: false, status: sessionResponse.status, reason: 'session' };
+    }
+    const session = await sessionResponse.json();
+    const accessToken = session?.accessToken;
+    if (!accessToken) return { ok: false, status: 0, reason: 'missing-access-token' };
+    return {
+        ok: true,
+        status: 200,
+        headers: {
+            ...headers,
+            authorization: `Bearer ${accessToken}`,
+        },
+    };
+}
+
+async function setChatGPTModelConfig(page, target) {
+    if (!target.modelConfig) return null;
+    const auth = await buildChatGPTBackendHeaders(page, { includeAuthorization: true });
+    if (!auth.ok) return auth;
+
+    const modelSlug = target.modelConfig.modelSlug;
+    const effort = target.modelConfig.effort;
+    const patchUrl = `${CHATGPT_URL}/backend-api/settings/user_last_used_model_config`
+        + `?model_slug=${encodeURIComponent(modelSlug)}`
+        + `&thinking_effort=${encodeURIComponent(effort)}`;
+    const response = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: auth.headers,
+        signal: AbortSignal.timeout(10000),
+    });
+    let body = null;
+    try { body = await response.json(); } catch {}
+    if (!response.ok || body?.success !== true) {
+        return { ok: false, status: response.status, reason: 'patch', body };
+    }
+    await page.evaluate(`(() => {
+        const value = encodeURIComponent(JSON.stringify({ model: ${JSON.stringify(modelSlug)}, effort: ${JSON.stringify(effort)} }));
+        for (const domain of ['; domain=.chatgpt.com', '; domain=chatgpt.com', '']) {
+            document.cookie = 'oai-last-model-config=; path=/' + domain + '; max-age=0; SameSite=Lax';
+        }
+        document.cookie = 'oai-last-model-config=' + value + '; path=/; domain=.chatgpt.com; max-age=31536000; SameSite=Lax';
+        document.cookie = 'oai-last-model-config=' + value + '; path=/; max-age=31536000; SameSite=Lax';
+        if (window.location.pathname === '/new') window.location.reload();
+        else window.location.assign('/new');
+        return true;
+    })()`).catch(() => true);
+    return { ok: true, status: response.status, modelSlug, effort };
+}
+
 export async function selectChatGPTModel(page, model) {
     const target = requireKnownChatGPTModel(model);
+    debugChatGPTModel(`target=${target.key}`);
     if (typeof page.nativeClick !== 'function') {
         throw new CommandExecutionError('ChatGPT model selection requires native browser click support.');
     }
     await ensureOnChatGPT(page);
+    debugChatGPTModel('ensured chatgpt');
+    const currentUrl = await currentChatGPTUrl(page).catch(() => '');
+    debugChatGPTModel(`url=${currentUrl}`);
+    if (!currentUrl.startsWith(`${CHATGPT_URL}/new`)) {
+        await page.goto(`${CHATGPT_URL}/new`, { waitUntil: 'none' });
+        await page.wait(2);
+    }
     await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
+    debugChatGPTModel('composer ok');
 
     const before = await getCurrentChatGPTModel(page);
+    debugChatGPTModel(`before=${before.model || 'none'}`);
     if (before.model === target.key) {
         return { Status: 'Already selected', Model: target.label };
     }
+    const apiResult = await setChatGPTModelConfig(page, target);
+    debugChatGPTModel(`api=${apiResult ? JSON.stringify({ ok: apiResult.ok, status: apiResult.status, reason: apiResult.reason }) : 'none'}`);
+    if (apiResult) {
+        if (!apiResult.ok) {
+            throw new CommandExecutionError(`Could not update ChatGPT model preference for ${target.label} (${apiResult.reason || 'unknown'}, status ${apiResult.status || 0}).`);
+        }
+        debugChatGPTModel('config cookie set and reload scheduled');
+        return { Status: 'Success', Model: target.label };
+    }
+    await page.wait(2);
 
     const menuButton = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const isVisible = (el) => {

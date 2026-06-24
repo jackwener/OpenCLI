@@ -6429,7 +6429,7 @@
   {
     "site": "chatgpt",
     "name": "model",
-    "description": "Switch ChatGPT web intelligence level (instant, medium, high, extra-high, pro; thinking aliases high)",
+    "description": "Switch ChatGPT web intelligence level (fast, balanced, advanced, very-high, pro)",
     "access": "write",
     "domain": "chatgpt.com",
     "strategy": "cookie",
@@ -6440,14 +6440,29 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Intelligence level to switch to; thinking is a backward-compatible alias for high",
+        "help": "Intelligence level to switch to",
         "choices": [
+          "fast",
+          "speed",
           "instant",
+          "极速",
+          "balanced",
+          "balance",
           "medium",
+          "均衡",
+          "advanced",
           "high",
+          "thinking",
+          "高级",
+          "very-high",
+          "ultra",
+          "xhigh",
+          "x-high",
           "extra-high",
+          "超高",
           "pro",
-          "thinking"
+          "professional",
+          "专业"
         ]
       },
       {

@@ -144,7 +144,7 @@ describe('chatgpt browser command registration', () => {
                 name: 'model',
                 positional: true,
                 required: true,
-                choices: ['instant', 'medium', 'high', 'extra-high', 'pro', 'thinking'],
+                choices: expect.arrayContaining(['fast', 'speed', 'instant', 'balanced', 'balance', 'advanced', 'high', 'thinking', 'very-high', 'ultra', 'xhigh', 'x-high', 'pro', 'professional']),
             }),
             expect.objectContaining({ name: 'project', valueRequired: true }),
         ]));
