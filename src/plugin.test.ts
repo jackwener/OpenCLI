@@ -161,6 +161,48 @@ describe('parseSource', () => {
     });
   });
 
+  it('parses generic git URLs with fragment sub-plugin selectors', () => {
+    const result = _parseSource('https://gitlab.example.com/org/opencli-plugins.git#analytics');
+    expect(result).toEqual({
+      type: 'git',
+      cloneUrl: 'https://gitlab.example.com/org/opencli-plugins.git',
+      name: 'opencli-plugins',
+      subPlugin: 'analytics',
+    });
+  });
+
+  it('parses fragment sub-plugin selectors on SSH and GitHub HTTPS sources', () => {
+    expect(_parseSource('ssh://git@gitlab.com/team/opencli-plugins.git#alpha')).toMatchObject({
+      type: 'git',
+      cloneUrl: 'ssh://git@gitlab.com/team/opencli-plugins.git',
+      name: 'opencli-plugins',
+      subPlugin: 'alpha',
+    });
+    expect(_parseSource('https://github.com/user/opencli-plugins#beta')).toMatchObject({
+      type: 'git',
+      cloneUrl: 'https://github.com/user/opencli-plugins.git',
+      name: 'opencli-plugins',
+      subPlugin: 'beta',
+    });
+  });
+
+  it('rejects malformed fragment sub-plugin selectors', () => {
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#')).toBeNull();
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#../alpha')).toBeNull();
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#alpha%2Fbeta')).toBeNull();
+    expect(_parseSource('https://gitlab.example.com/org/opencli-plugins.git#%E0%A4%A')).toBeNull();
+  });
+
+  it('rejects duplicate sub-plugin selectors instead of ignoring one', () => {
+    expect(_parseSource('github:user/opencli-plugins/polymarket#analytics')).toBeNull();
+  });
+
+  it('does not allow fragment sub-plugin selectors on local sources', () => {
+    const localDir = path.join(os.tmpdir(), 'opencli-plugin-test');
+    expect(_parseSource(`${pathToFileURL(localDir).href}#analytics`)).toBeNull();
+    expect(_parseSource(`${localDir}#analytics`)).toBeNull();
+  });
+
   it('still prefers GitHub shorthand over generic HTTPS for github.com', () => {
     const result = _parseSource('https://github.com/user/repo');
     // Should be handled by the GitHub-specific matcher (normalizes URL)
@@ -1090,6 +1132,29 @@ describe('installPlugin transactional staging', () => {
     });
 
     expect(() => installPlugin(standaloneSource)).toThrow(`npm install failed`);
+    expect(fs.existsSync(standaloneDir)).toBe(false);
+    expect(_readLockFile()[standaloneName]).toBeUndefined();
+  });
+
+  it('fails instead of installing root plugin when a sub-plugin selector targets a single-plugin repo', () => {
+    mockExecFileSync.mockImplementation((cmd, args) => {
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'clone') {
+        const cloneDir = String(args[args.length - 1]);
+        fs.mkdirSync(cloneDir, { recursive: true });
+        fs.writeFileSync(path.join(cloneDir, 'hello.js'), 'cli({ site: "test", name: "hello", access: "read" })');
+        fs.writeFileSync(path.join(cloneDir, 'opencli-plugin.json'), JSON.stringify({
+          name: standaloneName,
+        }));
+        return '';
+      }
+      if (cmd === 'git' && Array.isArray(args) && args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return '1234567890abcdef1234567890abcdef12345678\n';
+      }
+      return '';
+    });
+
+    expect(() => installPlugin(`${standaloneSource}#analytics`)).toThrow('not an OpenCLI plugin monorepo');
+    expect(() => installPlugin(`${standaloneSource}/analytics`)).toThrow('not an OpenCLI plugin monorepo');
     expect(fs.existsSync(standaloneDir)).toBe(false);
     expect(_readLockFile()[standaloneName]).toBeUndefined();
   });
