@@ -98,13 +98,7 @@ function buildThreadSnapshotScript(maxScrolls) {
     const headerSelectors = [
       '.msg-thread__link-to-profile',
       '.msg-thread__link-to-profile span[aria-hidden="true"]',
-      '.msg-entity-lockup__entity-title',
-      '.msg-conversation-card__participant-names',
-      'main h1',
-      'main h2',
-      '[data-anonymize="person-name"]',
-      'a[href*="/in/"] span[aria-hidden="true"]',
-      'a[href*="/in/"]'
+      '.msg-thread .msg-entity-lockup__entity-title'
     ];
     for (const selector of headerSelectors) {
       for (const el of Array.from(document.querySelectorAll(selector)).slice(0, 8)) {
@@ -137,7 +131,6 @@ function buildThreadSnapshotScript(maxScrolls) {
       url: location.href,
       title: document.title || '',
       headerNames: Array.from(new Set(headerCandidates)).slice(0, 10),
-      bodyText: refreshedText,
       latestMessageText,
       messages,
       messageCount: messages.length,

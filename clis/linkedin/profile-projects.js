@@ -285,7 +285,7 @@ cli({
     await page.wait(5);
     await assertLinkedInAuthenticated(page, 'LinkedIn profile-projects');
     try {
-      await page.wait({ text: 'Projects', timeout: 10000 });
+      await page.wait({ text: 'Projects', timeout: 10 });
     } catch {}
     await page.autoScroll({ times: 3, delayMs: 700 });
     await page.wait(1);

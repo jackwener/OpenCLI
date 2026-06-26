@@ -116,7 +116,7 @@ function assessProfileSafety(probe, expectedName, expectedProfileUrl) {
     if (expectedUrl && actualUrl && expectedUrl !== actualUrl) {
         return { ok: false, safety: 'unsafe_block', connectable: null, blockReason: 'profile_url_mismatch', expectedValue: expectedUrl, actualValue: actualUrl, observedUrl: actualUrl };
     }
-    if (probe?.alreadyConnected) return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'already_connected', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    if (probe?.alreadyConnected && !probe?.connectAvailable) return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'already_connected', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
     if (probe?.pending) return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'connection_pending', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
     if (probe?.connectAvailable) return { ok: true, safety: 'connectable', connectable: true, blockReason: 'verified', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
     // No top-level Connect, but a "More" actions menu is present and the profile is neither
