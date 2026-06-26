@@ -33266,7 +33266,8 @@
     "type": "js",
     "modulePath": "tiktok/following.js",
     "sourceFile": "tiktok/following.js",
-    "navigateBefore": "https://www.tiktok.com"
+    "navigateBefore": "https://www.tiktok.com",
+    "siteSession": "persistent"
   },
   {
     "site": "tiktok",
