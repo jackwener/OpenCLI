@@ -1,5 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     __test__,
@@ -274,6 +275,81 @@ describe('doubao receive strategy', () => {
         const transcriptScript = __test__.getTranscriptLinesScript();
         expect(transcriptScript).toContain('请仔细甄别');
         expect(transcriptScript).toContain('下载电脑版');
+    });
+
+    it('carries the server pc_pin_query_type across recent-conversation pages', () => {
+        const recentScript = __test__.getRecentConversationsScript(100);
+        expect(recentScript).toContain('let pcPinQueryType = 0');
+        expect(recentScript).toContain('pc_pin_query_type: pcPinQueryType');
+        expect(recentScript).toContain('pcPinQueryType = downlink.extra?.pc_pin_query_type ?? pcPinQueryType');
+    });
+
+    it('extracts image and video media from Doubao route data', () => {
+        const dom = new JSDOM('<img src="https://example.com/dom.png" width="800" height="600">', {
+            url: 'https://www.doubao.com/chat/1234567890123',
+            runScripts: 'outside-only',
+        });
+        dom.window._ROUTER_DATA = {
+            loaderData: {
+                'chat_1234567890123/page': {
+                    messageList: [
+                        {
+                            entities: [
+                                {
+                                    entity_content: {
+                                        image: {
+                                            key: 'tos-cn-i-a9rns2rl98/example.jpeg',
+                                            image_ori: {
+                                                url: 'https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/example.jpeg?x-signature=abc',
+                                                width: 1440,
+                                                height: 1080,
+                                                format: 'jpeg',
+                                            },
+                                            resource_id: 'resource-1',
+                                        },
+                                    },
+                                    identifier: 'identifier-1',
+                                },
+                            ],
+                        },
+                        {
+                            content: {
+                                creation_block: {
+                                    creations: [
+                                        {
+                                            video: {
+                                                vid: 'video-1',
+                                                download_url: 'https://v.example.com/video/example.mp4',
+                                                video_type: 'mp4',
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+        const assets = dom.window.eval(__test__.getConversationAssetsScript('1234567890123', 'original'));
+        expect(assets).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                type: 'image',
+                url: 'https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/example.jpeg?x-signature=abc',
+                key: 'tos-cn-i-a9rns2rl98/example.jpeg',
+                resourceId: 'resource-1',
+            }),
+            expect.objectContaining({
+                type: 'video',
+                url: 'https://v.example.com/video/example.mp4',
+                key: 'video-1',
+            }),
+            expect.objectContaining({
+                type: 'image',
+                url: 'https://example.com/dom.png',
+                label: 'dom',
+            }),
+        ]));
     });
 });
 describe('collectDoubaoTranscriptAdditions', () => {
