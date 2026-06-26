@@ -1,4 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { listDiscordServers } from './utils.js';
+
 export const serversCommand = cli({
     site: 'discord-app',
     name: 'servers',
@@ -8,30 +11,16 @@ export const serversCommand = cli({
     strategy: Strategy.UI,
     browser: true,
     args: [],
-    columns: ['Index', 'Server'],
+    columns: ['Index', 'Server', 'guild_id', 'url'],
     func: async (page) => {
-        const servers = await page.evaluate(`
-      (function() {
-        const results = [];
-        // Discord guild icons in the sidebar
-        const items = document.querySelectorAll('[data-list-item-id*="guildsnav___"], [class*="listItem_"]');
-        
-        items.forEach((item, i) => {
-          const nameAttr = item.querySelector('[data-dnd-name]');
-          const ariaLabel = item.getAttribute('aria-label') || (item.querySelector('[aria-label]') || {}).getAttribute?.('aria-label');
-          const name = nameAttr ? nameAttr.getAttribute('data-dnd-name') : (ariaLabel || (item.textContent || '').trim());
-          
-          if (name && name.length > 0) {
-            results.push({ Index: i + 1, Server: name.substring(0, 80) });
-          }
-        });
-        
-        return results;
-      })()
-    `);
+        const servers = await listDiscordServers(page);
         if (servers.length === 0) {
-            return [{ Index: 0, Server: 'No servers found' }];
+            throw new EmptyResultError('discord-app servers', 'No Discord servers were found in the sidebar.');
         }
         return servers;
     },
 });
+
+export const __test__ = {
+    serversCommand,
+};

@@ -17,9 +17,10 @@ import { render as renderOutput } from './output.js';
 import { PKG_VERSION } from './version.js';
 import { printCompletionScript } from './completion.js';
 import { loadExternalClis, executeExternalCli, installExternalCli, registerExternalCli, isBinaryInstalled, formatExternalCliLabel } from './external.js';
+import { listOpenCliSkills, readOpenCliSkill } from './skills.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
-import { EXIT_CODES, getErrorMessage, BrowserConnectError } from './errors.js';
+import { EXIT_CODES, getErrorMessage, BrowserConnectError, CliError } from './errors.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
 import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type FindError, type SemanticFindOptions } from './browser/find.js';
@@ -30,6 +31,7 @@ import { parseFilter, shapeMatchesFilter } from './browser/shape-filter.js';
 import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
+import { registerAuthCommands } from './commands/auth.js';
 import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
@@ -184,6 +186,144 @@ export type SiteMemoryReport = {
   endpoints: { present: boolean; count: number; path: string };
   notes: { present: boolean; path: string };
 };
+
+export type SitemapAvailability = {
+  site: string;
+  available: true;
+  source: 'local' | 'global' | 'local+global';
+  hint: string;
+  paths: {
+    local?: string;
+    global?: string;
+  };
+};
+
+type SitemapHintState = {
+  seenSites: string[];
+  updatedAt: string;
+};
+
+type SitemapAvailabilityOptions = {
+  homeDir?: string;
+  packageRoot?: string;
+  registry?: Map<string, CliCommand>;
+  fileExists?: (candidate: string) => boolean;
+};
+
+const SITEMAP_HINT =
+  'Site sitemap available. For navigation context, use the opencli-browser-sitemap skill; treat browser state as truth if it disagrees.';
+
+function siteNameCandidatesFromUrl(url: string, registry: Map<string, CliCommand> = getRegistry()): string[] {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return [];
+  }
+
+  const scored = new Map<string, number>();
+  for (const command of registry.values()) {
+    if (!command.domain) continue;
+    let domainHost = command.domain.toLowerCase().trim();
+    try {
+      domainHost = new URL(domainHost.includes('://') ? domainHost : `https://${domainHost}`).hostname.toLowerCase();
+    } catch {
+      domainHost = domainHost.split('/')[0] ?? domainHost;
+    }
+    domainHost = domainHost.replace(/^www\./, '');
+    if (!domainHost) continue;
+    if (host === domainHost || host.endsWith(`.${domainHost}`)) {
+      scored.set(command.site, Math.max(scored.get(command.site) ?? 0, domainHost.length));
+    }
+  }
+
+  const registrySites = [...scored.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([site]) => site);
+
+  const hostParts = host.split('.').filter(Boolean);
+  const fallback = hostParts.length >= 2 ? hostParts[hostParts.length - 2] : hostParts[0];
+  return [...new Set([...registrySites, ...(fallback ? [fallback] : [])])];
+}
+
+function firstExistingSitemapPath(paths: string[], fileExists: (candidate: string) => boolean): string | undefined {
+  return paths.find((candidate) => fileExists(candidate));
+}
+
+function sitemapPathsForSite(site: string, opts: Required<Pick<SitemapAvailabilityOptions, 'homeDir' | 'packageRoot' | 'fileExists'>>): { local?: string; global?: string } {
+  const safeSite = site.replace(/[^a-zA-Z0-9_-]+/g, '-');
+  if (!safeSite) return {};
+  const localBase = path.join(opts.homeDir, '.opencli', 'sites', safeSite);
+  return {
+    local: firstExistingSitemapPath([
+      path.join(localBase, 'sitemap'),
+      path.join(localBase, 'sitemap.md'),
+    ], opts.fileExists),
+    global: firstExistingSitemapPath([
+      path.join(opts.packageRoot, 'sitemaps', safeSite),
+      path.join(opts.packageRoot, 'sitemaps', `${safeSite}.md`),
+    ], opts.fileExists),
+  };
+}
+
+export function resolveSitemapAvailabilityForUrl(url: string, options: SitemapAvailabilityOptions = {}): SitemapAvailability | null {
+  const homeDir = options.homeDir ?? os.homedir();
+  const packageRoot = options.packageRoot ?? findPackageRoot(CLI_FILE);
+  const registry = options.registry ?? getRegistry();
+  const fileExists = options.fileExists ?? fs.existsSync;
+
+  for (const site of siteNameCandidatesFromUrl(url, registry)) {
+    const paths = sitemapPathsForSite(site, { homeDir, packageRoot, fileExists });
+    if (!paths.local && !paths.global) continue;
+    const source = paths.local && paths.global ? 'local+global' : paths.local ? 'local' : 'global';
+    return {
+      site,
+      available: true,
+      source,
+      hint: SITEMAP_HINT,
+      paths,
+    };
+  }
+  return null;
+}
+
+function getBrowserSitemapHintStatePath(scope: string): string {
+  const safeScope = scope.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return path.join(getBrowserCacheDir(), 'browser-sitemap-hints', `${safeScope}.json`);
+}
+
+function loadBrowserSitemapHintState(scope: string): SitemapHintState {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getBrowserSitemapHintStatePath(scope), 'utf-8')) as SitemapHintState;
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.seenSites)) {
+      return {
+        seenSites: parsed.seenSites.filter((site) => typeof site === 'string'),
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date(0).toISOString(),
+      };
+    }
+  } catch {
+    // First command in this browser session has no hint cache yet.
+  }
+  return { seenSites: [], updatedAt: new Date(0).toISOString() };
+}
+
+function markBrowserSitemapHintSeen(scope: string, site: string): void {
+  const state = loadBrowserSitemapHintState(scope);
+  if (!state.seenSites.includes(site)) state.seenSites.push(site);
+  const target = getBrowserSitemapHintStatePath(scope);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, JSON.stringify({ seenSites: state.seenSites, updatedAt: new Date().toISOString() }), 'utf-8');
+}
+
+function sitemapHintForBrowserUrl(url: string, scope: string, opts: { oncePerSession: boolean }): SitemapAvailability | null {
+  const sitemap = resolveSitemapAvailabilityForUrl(url);
+  if (!sitemap) return null;
+  if (!opts.oncePerSession) return sitemap;
+  const state = loadBrowserSitemapHintState(scope);
+  if (state.seenSites.includes(sitemap.site)) return null;
+  markBrowserSitemapHintSeen(scope, sitemap.site);
+  return sitemap;
+}
 
 export function checkSiteMemory(site: string): SiteMemoryReport {
   const siteDir = path.join(os.homedir(), '.opencli', 'sites', site);
@@ -596,18 +736,19 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
 
-      // Table (default) — grouped by site
-      const sites = new Map<string, CliCommand[]>();
+      // Table (default) — grouped by adapter kind (app vs site), then by site name.
+      // classifyAdapter() reads the `domain` field: DNS-style domains are sites;
+      // localhost/loopback endpoints and bare app names are apps.
+      const appsBySite = new Map<string, CliCommand[]>();
+      const sitesBySite = new Map<string, CliCommand[]>();
       for (const cmd of commands) {
-        const g = sites.get(cmd.site) ?? [];
+        const target = classifyAdapter(cmd.domain) === 'app' ? appsBySite : sitesBySite;
+        const g = target.get(cmd.site) ?? [];
         g.push(cmd);
-        sites.set(cmd.site, g);
+        target.set(cmd.site, g);
       }
 
-      console.log();
-      console.log('  opencli' + ' — available commands');
-      console.log();
-      for (const [site, cmds] of sites) {
+      const renderSiteGroup = (site: string, cmds: CliCommand[]): void => {
         console.log(`  ${site}`);
         for (const cmd of cmds) {
           const label = strategyLabel(cmd);
@@ -618,6 +759,22 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? ` — ${cmd.description}` : ''}`);
         }
         console.log();
+      };
+
+      console.log();
+      console.log('  opencli' + ' — available commands');
+      console.log();
+
+      if (appsBySite.size > 0) {
+        console.log('  App adapters');
+        console.log();
+        for (const [site, cmds] of appsBySite) renderSiteGroup(site, cmds);
+      }
+
+      if (sitesBySite.size > 0) {
+        console.log('  Site adapters');
+        console.log();
+        for (const [site, cmds] of sitesBySite) renderSiteGroup(site, cmds);
       }
 
       const externalClis = loadExternalClis();
@@ -631,7 +788,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         console.log();
       }
 
-      console.log(`  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`);
+      console.log(`  ${commands.length} built-in commands across ${appsBySite.size} apps + ${sitesBySite.size} sites, ${externalClis.length} external CLIs`);
       console.log();
     });
 
@@ -657,6 +814,51 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
       console.log(renderVerifyReport(r));
       process.exitCode = r.ok ? EXIT_CODES.SUCCESS : EXIT_CODES.GENERIC_ERROR;
     });
+
+  const skillsCmd = program
+    .command('skills')
+    .description('Read bundled OpenCLI skills');
+
+  skillsCmd
+    .command('list')
+    .description('List bundled opencli-* skills')
+    .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
+    .action((opts) => {
+      const rows = listOpenCliSkills();
+      renderOutput(rows, {
+        fmt: opts.format,
+        fmtExplicit: !!opts.format,
+        columns: ['name', 'description', 'version', 'path'],
+        title: 'opencli/skills/list',
+        source: 'opencli skills list',
+      });
+    });
+
+  skillsCmd
+    .command('read')
+    .description("Print an opencli-* skill's SKILL.md or reference file")
+    .argument('<skill>', 'Skill name, or skill/path like opencli-browser/references/foo.md')
+    .argument('[path]', 'Path under the skill directory')
+    .option('--json', 'Output a JSON envelope instead of raw markdown', false)
+    .action((skill: string, skillPath: string | undefined, opts) => {
+      let result: ReturnType<typeof readOpenCliSkill>;
+      try {
+        result = readOpenCliSkill(skill, skillPath ?? '');
+      } catch (err) {
+        console.error(`Error: ${getErrorMessage(err)}`);
+        if (err instanceof CliError && err.hint) console.error(`Hint: ${err.hint}`);
+        process.exitCode = err instanceof CliError ? err.exitCode : EXIT_CODES.GENERIC_ERROR;
+        return;
+      }
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      process.stdout.write(result.content);
+      if (!result.content.endsWith('\n')) process.stdout.write('\n');
+    });
+
+  const authCmd = registerAuthCommands(program);
 
   program
     .command('convention-audit')
@@ -700,6 +902,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
 
 Examples:
   $ opencli browser work open https://x.com
+  $ opencli browser work open https://x.com --window background
   $ opencli browser work click 12
   $ opencli browser work state
   $ opencli browser work bind
@@ -972,9 +1175,12 @@ Examples:
       if (!hasSessionCapture) {
         try { await page.evaluate(NETWORK_INTERCEPTOR_JS); } catch { /* non-fatal */ }
       }
+      const currentUrl = await page.getCurrentUrl?.() ?? url;
+      const sitemap = sitemapHintForBrowserUrl(currentUrl, getPageScope(page), { oncePerSession: true });
       console.log(JSON.stringify({
-        url: await page.getCurrentUrl?.() ?? url,
+        url: currentUrl,
         ...(page.getActivePage?.() ? { page: page.getActivePage?.() } : {}),
+        ...(sitemap ? { sitemap } : {}),
       }, null, 2));
     }));
 
@@ -1134,6 +1340,7 @@ Examples:
   //
   //   - pattern: A/B/C/D (mapped from network + SSR-globals signals)
   //   - anti_bot: vendor + evidence + the one-liner for "what to do next"
+  //   - api_candidates: captured endpoints scored as real data vs telemetry
   //   - initial_state: which window globals are populated
   //   - nearest_adapter: existing commands for the same site, if any
   //   - recommended_next_step: a single imperative sentence
@@ -1142,7 +1349,7 @@ Examples:
   // feedback loop with a single deterministic verdict. Without this, agents
   // burn ~20min per WAF-protected site re-discovering anti-bot posture.
   addBrowserTabOption(browser.command('analyze').argument('<url>'))
-    .description('Classify site: anti-bot vendor, pattern (A/B/C/D), nearest adapter, recommended next step')
+    .description('Classify site: anti-bot vendor, real-data API candidates, pattern (A/B/C/D), nearest adapter, next step')
     .action(browserAction(async (page, url) => {
       const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
       await page.goto(url);
@@ -1197,7 +1404,11 @@ Examples:
         title: probe.title,
       };
       const report = analyzeSite(signals, getRegistry());
-      console.log(JSON.stringify(report, null, 2));
+      const sitemap = resolveSitemapAvailabilityForUrl(probe.finalUrl || url);
+      console.log(JSON.stringify({
+        ...report,
+        ...(sitemap ? { sitemap } : {}),
+      }, null, 2));
     }));
 
   // ── Find (structured CSS query, agent-native) ──
@@ -3289,7 +3500,7 @@ cli({
     .option('--timeout <seconds>', 'Maximum time to wait for a reply (default: 120s)')
     .action(async (opts) => {
       // @ts-expect-error JS adapter — no type declarations
-      const { startServe } = await import('../clis/antigravity/serve.js');
+      const { startServe } = await import('../../clis/antigravity/serve.js');
       await startServe({
         port: parseInt(opts.port, 10),
         timeout: opts.timeout ? parsePositiveIntOption(opts.timeout, '--timeout', 120) : undefined,
@@ -3324,6 +3535,7 @@ cli({
   const adapterGroups: RootAdapterGroups = { external: externalHelpEntries, apps, sites };
   const adapterNameSet = new Set<string>([...externalNames, ...siteNames]);
   installCommanderNamespaceStructuredHelp(browser, { globalCommand: program, description: originalBrowserDescription });
+  installCommanderNamespaceStructuredHelp(authCmd, { globalCommand: program, description: 'Inspect website login status' });
   installCommanderNamespaceStructuredHelp(daemonCmd, { globalCommand: program, description: originalDaemonDescription });
   installCommanderNamespaceStructuredHelp(pluginCmd, { globalCommand: program, description: originalPluginDescription });
   installCommanderNamespaceStructuredHelp(adapterCmd, { globalCommand: program, description: originalAdapterDescription });

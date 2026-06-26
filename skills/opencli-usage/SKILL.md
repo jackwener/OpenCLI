@@ -152,6 +152,7 @@ opencli completion bash   # also: zsh, fish
 | Drive a live browser ad-hoc (no adapter available, or prototyping) | `opencli-browser` |
 | Write a new adapter, or add a command to an existing site | `opencli-adapter-author` |
 | Fix a broken adapter after a command failure | `opencli-autofix` |
+| Route a search / lookup / research request to the right adapter | `smart-search` |
 
 ## Commands that used to exist
 

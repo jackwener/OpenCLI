@@ -87,14 +87,14 @@ describe('twitter list-add registration', () => {
         expect(row.message).toBe('@alice is already a member of list 123');
     });
 
-    it('fails typed when unchanged member_count does not confirm membership', () => {
+    it('fails typed when member_count is unchanged but membership is not confirmed', () => {
         expect(() => buildListAddMemberRow({
             addResult: { httpOk: true, status: 200, mc: 10, isMember: false, errors: null },
             memberCountBefore: 10,
             listId: '123',
             username: 'alice',
             userId: '42',
-        })).toThrow(CommandExecutionError);
+        })).toThrow(/membership was not confirmed/);
     });
 
     it('fails typed when member_count decreases unexpectedly', () => {

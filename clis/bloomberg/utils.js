@@ -6,28 +6,44 @@ export const BLOOMBERG_FEEDS = {
     industries: 'https://feeds.bloomberg.com/industries/news.rss',
     tech: 'https://feeds.bloomberg.com/technology/news.rss',
     politics: 'https://feeds.bloomberg.com/politics/news.rss',
-    businessweek: 'https://feeds.bloomberg.com/businessweek/news.rss',
     opinions: 'https://feeds.bloomberg.com/bview/news.rss',
+    green: 'https://feeds.bloomberg.com/green/news.rss',
+    crypto: 'https://feeds.bloomberg.com/crypto/news.rss',
+    pursuits: 'https://feeds.bloomberg.com/pursuits/news.rss',
 };
+// Note: the Businessweek RSS feed (feeds.bloomberg.com/businessweek/news.rss) is now served
+// empty by Bloomberg, so the `businessweek` command reads the section page instead (see
+// businessweek.js). Other sections still publish working RSS feeds.
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; opencli)';
+// Bloomberg's edge occasionally serves a transient empty/non-OK RSS response under load; a
+// couple of quick retries turn those intermittent misses into a successful fetch instead of a
+// hard NOT_FOUND. A feed that is genuinely empty still surfaces NOT_FOUND after the retries.
 export async function fetchBloombergFeed(name, limit = 1) {
     const feedUrl = BLOOMBERG_FEEDS[name];
     if (!feedUrl) {
         throw new CliError('ARGUMENT', `Unknown Bloomberg feed: ${name}`);
     }
-    const resp = await fetch(feedUrl, {
-        headers: { 'User-Agent': DEFAULT_USER_AGENT },
-    });
-    if (!resp.ok) {
-        throw new CliError('FETCH_ERROR', `Bloomberg RSS HTTP ${resp.status}`, 'Bloomberg may be temporarily unavailable; try again later.');
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+        }
+        const resp = await fetch(feedUrl, {
+            headers: { 'User-Agent': DEFAULT_USER_AGENT },
+        });
+        if (!resp.ok) {
+            lastError = new CliError('FETCH_ERROR', `Bloomberg RSS HTTP ${resp.status}`, 'Bloomberg may be temporarily unavailable; try again later.');
+            continue;
+        }
+        const xml = await resp.text();
+        const items = parseBloombergRss(xml);
+        if (items.length) {
+            const count = Math.max(1, Math.min(Number(limit) || 1, 20));
+            return items.slice(0, count);
+        }
+        lastError = new CliError('NOT_FOUND', 'Bloomberg RSS feed returned no items', 'Bloomberg may have changed the feed format.');
     }
-    const xml = await resp.text();
-    const items = parseBloombergRss(xml);
-    if (!items.length) {
-        throw new CliError('NOT_FOUND', 'Bloomberg RSS feed returned no items', 'Bloomberg may have changed the feed format.');
-    }
-    const count = Math.max(1, Math.min(Number(limit) || 1, 20));
-    return items.slice(0, count);
+    throw lastError;
 }
 export function parseBloombergRss(xml) {
     const items = [];

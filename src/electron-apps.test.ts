@@ -22,6 +22,15 @@ describe('electron-apps registry', () => {
     expect(ports).not.toContain(9222);
   });
 
+  it('returns builtin app entry for Trae CN', () => {
+    const app = getElectronApp('trae-cn');
+    expect(app).toBeDefined();
+    expect(app!.port).toBe(39240);
+    expect(app!.processName).toBe('Trae CN');
+    expect(app!.bundleId).toBe('cn.trae.app');
+    expect(app!.executableNames).toEqual(['Electron']);
+  });
+
   it('returns undefined for non-Electron sites', () => {
     expect(getElectronApp('bilibili')).toBeUndefined();
     expect(getElectronApp('hackernews')).toBeUndefined();
@@ -31,6 +40,28 @@ describe('electron-apps registry', () => {
     expect(isElectronApp('cursor')).toBe(true);
     expect(isElectronApp('codex')).toBe(true);
     expect(isElectronApp('chatwise')).toBe(true);
+    expect(isElectronApp('qoder')).toBe(true);
+    expect(isElectronApp('trae-solo')).toBe(true);
+    expect(isElectronApp('trae-cn')).toBe(true);
+  });
+
+  it('registers Qoder on its own CDP port', () => {
+    const app = getElectronApp('qoder');
+    expect(app).toMatchObject({
+      port: 9237,
+      processName: 'Qoder',
+      bundleId: 'com.qoder.ide',
+      displayName: 'Qoder',
+    });
+  });
+
+  it('registers Trae SOLO with its own CDP port and process metadata', () => {
+    const app = getElectronApp('trae-solo');
+
+    expect(app).toBeDefined();
+    expect(app!.port).toBe(9235);
+    expect(app!.processName).toBe('TRAE SOLO');
+    expect(app!.bundleId).toBe('com.trae.solo.app');
   });
 
   it('isElectronApp returns false for non-Electron sites', () => {

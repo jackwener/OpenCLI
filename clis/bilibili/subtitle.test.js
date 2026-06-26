@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 const { mockApiGet } = vi.hoisted(() => ({
     mockApiGet: vi.fn(),
 }));
@@ -151,6 +151,50 @@ describe('bilibili subtitle', () => {
         });
         page.evaluate.mockResolvedValueOnce({ success: true, data: [{ from: 'bad', to: 1.5, content: 'hello' }] });
         await expect(command.func(page, { bvid: 'BV1GbXPBeEZm' })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('uses the selected 分P part cid when --page is given', async () => {
+        // view 返回 pages 数组；--page 3 应改用 pages[2].cid，而非 data.cid（默认 P1）
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                bvid: 'BV1h6V16SEpg',
+                cid: 1001, // P1 默认 cid
+                pages: [
+                    { cid: 1001, page: 1, part: '01' },
+                    { cid: 1002, page: 2, part: '02' },
+                    { cid: 1003, page: 3, part: '03 人生的价值' },
+                ],
+            },
+        });
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: {
+                need_login_subtitle: false,
+                subtitle: { subtitles: [{ lan: 'zh-CN', subtitle_url: '//example.com/sub.json' }] },
+            },
+        });
+        page.evaluate.mockResolvedValueOnce({ success: true, data: [{ from: 0, to: 1, content: 'a' }] });
+
+        await command.func(page, { bvid: 'BV1h6V16SEpg', page: '3' });
+
+        // 第二发 apiGet（player/wbi/v2）的 cid 必须是第 3 集的 1003
+        const playerCall = mockApiGet.mock.calls[1];
+        expect(playerCall[1]).toBe('/x/player/wbi/v2');
+        expect(playerCall[2]?.params?.cid).toBe(1003);
+    });
+
+    it('throws CommandExecutionError when --page is out of range', async () => {
+        mockApiGet.mockResolvedValueOnce({
+            code: 0,
+            data: { bvid: 'BV1h6V16SEpg', cid: 1001, pages: [{ cid: 1001, page: 1, part: '01' }] },
+        });
+        await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: '9' })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('rejects malformed --page before querying subtitle APIs', async () => {
+        await expect(command.func(page, { bvid: 'BV1h6V16SEpg', page: '1e2' })).rejects.toBeInstanceOf(ArgumentError);
+        expect(mockApiGet).not.toHaveBeenCalled();
     });
 
     it('works for bangumi-bound bvid (PGC content) — same code path, view API returns cid + redirect_url', async () => {

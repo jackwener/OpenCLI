@@ -104,6 +104,79 @@ describe('daemonStatus', () => {
   });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// GH #1575: differentiate the three "no route" states. The pre-fix
+// behaviour collapsed multi-profile-no-default + profile-disconnected
+// + zero-profile all to "Extension: disconnected", sending users on
+// reinstall-everything debug paths when the actual fix was
+// `opencli profile use <name>`.
+// ────────────────────────────────────────────────────────────────────
+
+describe('daemonStatus extension label states (#1575)', () => {
+  let stdoutSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    fetchDaemonStatusMock.mockReset();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  async function extensionLineFor(extra: Record<string, unknown>): Promise<string | undefined> {
+    fetchDaemonStatusMock.mockResolvedValue({
+      ok: true,
+      pid: 99,
+      uptime: 60,
+      daemonVersion: PKG_VERSION,
+      pending: 0,
+      memoryMB: 32,
+      port: 19825,
+      ...extra,
+    });
+    await daemonStatus();
+    return stdoutSpy.mock.calls
+      .map((c: unknown[]) => c[0])
+      .find((line: unknown): line is string =>
+        typeof line === 'string' && line.startsWith('Extension:'));
+  }
+
+  it('prints a route hint for 2+ profiles with no default (not bare "disconnected")', async () => {
+    const line = await extensionLineFor({
+      extensionConnected: false,
+      profileRequired: true,
+      profiles: [
+        { contextId: 'work', extensionConnected: true, pending: 0 },
+        { contextId: 'personal', extensionConnected: true, pending: 0 },
+      ],
+    });
+    expect(line).not.toBe('Extension: disconnected');
+    expect(line).toContain('2 profiles connected');
+    expect(line).toContain('opencli profile use');
+  });
+
+  it('defensively uses singular grammar for a one-profile profile-required payload', async () => {
+    const line = await extensionLineFor({
+      extensionConnected: false,
+      profileRequired: true,
+      profiles: [{ contextId: 'work', extensionConnected: true, pending: 0 }],
+    });
+    expect(line).toContain('1 profile connected');
+  });
+
+  it('prints a route hint when the requested profile is disconnected', async () => {
+    const line = await extensionLineFor({
+      extensionConnected: false,
+      profileDisconnected: true,
+    });
+    expect(line).not.toBe('Extension: disconnected');
+    expect(line).toContain('opencli profile use');
+  });
+
+  it('keeps the plain "disconnected" label when zero profiles are connected', async () => {
+    const line = await extensionLineFor({ extensionConnected: false });
+    expect(line).toBe('Extension: disconnected');
+  });
+});
+
 describe('daemonStop', () => {
   let stderrSpy: ReturnType<typeof vi.spyOn>;
 

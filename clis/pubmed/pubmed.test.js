@@ -16,6 +16,10 @@ import './article.js';
 import './author.js';
 import './citations.js';
 import './related.js';
+import './clinical-trial.js';
+import './review.js';
+import './mesh.js';
+import './journal.js';
 
 const SUMMARY_RESULT = {
     result: {
@@ -44,6 +48,7 @@ const SUMMARY_RESULT = {
 const ARTICLE_XML = `<?xml version="1.0"?>
 <PubmedArticle>
   <MedlineCitation>
+    <PMID Version="1">123</PMID>
     <Article>
       <Journal>
         <Title>Journal of Tests</Title>
@@ -52,16 +57,41 @@ const ARTICLE_XML = `<?xml version="1.0"?>
       <ArticleTitle>Detailed PubMed article &amp; title.</ArticleTitle>
       <Abstract><AbstractText>Background text.</AbstractText><AbstractText>Conclusion text.</AbstractText></Abstract>
       <AuthorList>
-        <Author><LastName>Alice</LastName><ForeName>Example</ForeName></Author>
-        <Author><LastName>Bob</LastName><Initials>B</Initials></Author>
+        <Author><LastName>Alice</LastName><ForeName>Example</ForeName><AffiliationInfo><Affiliation>Department of Oncology, SYSU.</Affiliation></AffiliationInfo></Author>
+        <Author><LastName>Bob</LastName><Initials>B</Initials><AffiliationInfo><Affiliation>State Key Laboratory of Oncology.</Affiliation></AffiliationInfo></Author>
       </AuthorList>
       <Language>eng</Language>
       <PublicationTypeList><PublicationType>Review</PublicationType></PublicationTypeList>
     </Article>
     <MeshHeadingList><MeshHeading><DescriptorName>Neoplasms</DescriptorName></MeshHeading></MeshHeadingList>
     <KeywordList><Keyword>machine learning</Keyword></KeywordList>
+    <GrantList>
+      <Grant><GrantID>81972898</GrantID><Agency>National Natural Science Foundation of China</Agency></Grant>
+      <Grant><GrantID>2024A1515010001</GrantID><Agency>Guangdong Basic and Applied Basic Research Foundation</Agency></Grant>
+    </GrantList>
   </MedlineCitation>
   <PubmedData><ArticleIdList><ArticleId IdType="doi">10.1000/detail</ArticleId><ArticleId IdType="pmc">PMC123</ArticleId></ArticleIdList></PubmedData>
+</PubmedArticle>`;
+
+const LONG_ARTICLE_XML = `<?xml version="1.0"?>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID Version="1">555</PMID>
+    <Article>
+      <Journal>
+        <Title>Clinical Trials Journal</Title>
+        <JournalIssue><PubDate><Year>2025</Year><Month>Feb</Month><Day>14</Day></PubDate></JournalIssue>
+      </Journal>
+      <ArticleTitle>Long abstract trial paper.</ArticleTitle>
+      <Abstract><AbstractText>${'Trial outcome sentence. '.repeat(40)}</AbstractText></Abstract>
+      <AuthorList>
+        <Author><LastName>Chan</LastName><ForeName>Robin</ForeName></Author>
+      </AuthorList>
+      <Language>eng</Language>
+      <PublicationTypeList><PublicationType>Clinical Trial</PublicationType></PublicationTypeList>
+    </Article>
+  </MedlineCitation>
+  <PubmedData><ArticleIdList><ArticleId IdType="doi">10.1000/trial</ArticleId></ArticleIdList></PubmedData>
 </PubmedArticle>`;
 
 function jsonResponse(body, ok = true, status = 200) {
@@ -87,16 +117,19 @@ afterEach(() => {
 });
 
 describe('pubmed adapter registration', () => {
-    it('registers five public read commands with expected listing columns', () => {
+    it('registers nine public read commands with expected listing columns', () => {
         const registry = getRegistry();
-        for (const name of ['search', 'article', 'author', 'citations', 'related']) {
+        for (const name of ['search', 'article', 'author', 'citations', 'related', 'clinical-trial', 'review', 'mesh', 'journal']) {
             const command = registry.get(`pubmed/${name}`);
             expect(command).toBeDefined();
             expect(command.strategy).toBe('public');
             expect(command.browser).toBe(false);
-            expect(command.access).toBe('read');
         }
         expect(registry.get('pubmed/search').columns).toEqual(SEARCH_COLUMNS);
+        expect(registry.get('pubmed/clinical-trial').columns).toEqual(SEARCH_COLUMNS);
+        expect(registry.get('pubmed/review').columns).toEqual(SEARCH_COLUMNS);
+        expect(registry.get('pubmed/mesh').columns).toEqual(SEARCH_COLUMNS);
+        expect(registry.get('pubmed/journal').columns).toEqual(SEARCH_COLUMNS);
         expect(registry.get('pubmed/author').columns).toEqual(LINK_COLUMNS);
         expect(registry.get('pubmed/citations').columns).toEqual(LINK_COLUMNS);
         expect(registry.get('pubmed/related').columns).toEqual(RELATED_COLUMNS);
@@ -149,6 +182,10 @@ describe('pubmed utility contracts', () => {
         expect(article.doi).toBe('10.1000/detail');
         expect(article.mesh_terms).toBe('Neoplasms');
     });
+
+    it('rejects EFetch XML whose PMID identity does not match the request', () => {
+        expect(() => parseArticleXml(ARTICLE_XML.replace('>123</PMID>', '>456</PMID>'), '123')).toThrow(CommandExecutionError);
+    });
 });
 
 describe('pubmed search command', () => {
@@ -200,13 +237,93 @@ describe('pubmed search command', () => {
     });
 });
 
+describe('pubmed mesh command', () => {
+    it('searches by MeSH term with optional major-topic filter', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: ['123'] } }))
+            .mockResolvedValueOnce(jsonResponse({ result: { 123: SUMMARY_RESULT.result[123] } }));
+        vi.stubGlobal('fetch', fetchMock);
+        const rows = await getRegistry().get('pubmed/mesh').func({ term: 'Neoplasms', major: true, limit: 1, sort: 'date' });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].pmid).toBe('123');
+        const url = fetchMock.mock.calls[0][0];
+        expect(url).toContain('Neoplasms%5BMajr%5D');
+        expect(url).toContain('sort=pub_date');
+    });
+
+    it('rejects invalid mesh args and empty results', async () => {
+        const command = getRegistry().get('pubmed/mesh');
+        await expect(command.func({ term: '' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ term: 'Neoplasms', limit: 101 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ term: 'Neoplasms', sort: 'bad' })).rejects.toBeInstanceOf(ArgumentError);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: [] } })));
+        await expect(command.func({ term: 'Neoplasms' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+});
+
+describe('pubmed journal command', () => {
+    it('searches by journal with optional year range and date sort', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: ['123'] } }))
+            .mockResolvedValueOnce(jsonResponse({ result: { 123: SUMMARY_RESULT.result[123] } }));
+        vi.stubGlobal('fetch', fetchMock);
+        const rows = await getRegistry().get('pubmed/journal').func({
+            journal: 'Nature',
+            'year-from': 2020,
+            'year-to': 2024,
+            sort: 'date',
+            limit: 1,
+        });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].pmid).toBe('123');
+        const url = fetchMock.mock.calls[0][0];
+        expect(url).toContain('Nature%5BJournal%5D');
+        expect(url).toContain('2020%3A2024%5BPDAT%5D');
+        expect(url).toContain('sort=pub_date');
+    });
+
+    it('rejects invalid journal args and empty results', async () => {
+        const command = getRegistry().get('pubmed/journal');
+        await expect(command.func({ journal: '' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ journal: 'Nature', limit: 101 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ journal: 'Nature', sort: 'bad' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ journal: 'Nature', 'year-from': 2025, 'year-to': 2020 })).rejects.toBeInstanceOf(ArgumentError);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: [] } })));
+        await expect(command.func({ journal: 'Nature' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+});
+
 describe('pubmed article command', () => {
-    it('returns field/value rows for a valid article', async () => {
+    it('returns a single structured row for a valid article', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(xmlResponse(ARTICLE_XML)));
         const rows = await getRegistry().get('pubmed/article').func({ pmid: '123' });
-        expect(rows).toContainEqual({ field: 'PMID', value: '123' });
-        expect(rows).toContainEqual({ field: 'DOI', value: '10.1000/detail' });
-        expect(rows.find(row => row.field === 'Abstract').value).toContain('Background text');
+        expect(rows).toEqual([expect.objectContaining({
+            pmid: '123',
+            title: 'Detailed PubMed article & title.',
+            authors: 'Alice Example, Bob B',
+            journal: 'Journal of Tests',
+            year: '2024',
+            article_type: 'Review',
+            doi: '10.1000/detail',
+            pmc: 'PMC123',
+            affiliations: 'Department of Oncology, SYSU. | State Key Laboratory of Oncology.',
+            grants: '81972898: National Natural Science Foundation of China | 2024A1515010001: Guangdong Basic and Applied Basic Research Foundation',
+            abstract: 'Background text. Conclusion text.',
+            url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
+        })]);
+    });
+
+    it('truncates long abstracts by default and expands them with --full-abstract', async () => {
+        const command = getRegistry().get('pubmed/article');
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(xmlResponse(LONG_ARTICLE_XML)));
+        const truncatedRows = await command.func({ pmid: '555' });
+        expect(truncatedRows[0].abstract.length).toBeLessThan(520);
+        expect(truncatedRows[0].abstract.endsWith('...')).toBe(true);
+
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(xmlResponse(LONG_ARTICLE_XML)));
+        const fullRows = await command.func({ pmid: '555', 'full-abstract': true });
+        expect(fullRows[0].abstract.length).toBeGreaterThan(800);
+        expect(fullRows[0].abstract.endsWith('...')).toBe(false);
     });
 
     it('rejects invalid or missing articles with typed errors', async () => {
@@ -214,6 +331,77 @@ describe('pubmed article command', () => {
         await expect(command.func({ pmid: 'abc' })).rejects.toBeInstanceOf(ArgumentError);
         vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(xmlResponse('<ERROR>not found</ERROR>')));
         await expect(command.func({ pmid: '123' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+});
+
+describe('pubmed clinical-trial command', () => {
+    it('searches with the clinical-trial preset and optional free-full-text filter', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: ['123'] } }))
+            .mockResolvedValueOnce(jsonResponse({ result: { 123: SUMMARY_RESULT.result[123] } }));
+        vi.stubGlobal('fetch', fetchMock);
+        const rows = await getRegistry().get('pubmed/clinical-trial').func({
+            query: 'breast cancer',
+            'year-from': 2020,
+            'year-to': 2024,
+            'free-full-text': true,
+            sort: 'date',
+            limit: 1,
+        });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].pmid).toBe('123');
+        const url = fetchMock.mock.calls[0][0];
+        expect(url).toContain('breast+cancer');
+        expect(url).toContain('Clinical+Trial%5BPT%5D');
+        expect(url).toContain('humans%5Bmesh%5D');
+        expect(url).toContain('free+full+text%5Bsb%5D');
+        expect(url).toContain('2020%3A2024%5BPDAT%5D');
+        expect(url).toContain('sort=pub_date');
+    });
+
+    it('rejects invalid clinical-trial args and empty results', async () => {
+        const command = getRegistry().get('pubmed/clinical-trial');
+        await expect(command.func({ query: '' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ query: 'breast cancer', limit: 101 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ query: 'breast cancer', sort: 'bad' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ query: 'breast cancer', 'year-from': 2025, 'year-to': 2020 })).rejects.toBeInstanceOf(ArgumentError);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: [] } })));
+        await expect(command.func({ query: 'breast cancer' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+});
+
+describe('pubmed review command', () => {
+    it('searches with the review preset and optional abstract filter', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: ['123'] } }))
+            .mockResolvedValueOnce(jsonResponse({ result: { 123: SUMMARY_RESULT.result[123] } }));
+        vi.stubGlobal('fetch', fetchMock);
+        const rows = await getRegistry().get('pubmed/review').func({
+            query: 'immunotherapy',
+            'year-from': 2021,
+            'year-to': 2024,
+            'has-abstract': true,
+            sort: 'date',
+            limit: 1,
+        });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].pmid).toBe('123');
+        const url = fetchMock.mock.calls[0][0];
+        expect(url).toContain('immunotherapy');
+        expect(url).toContain('Review%5BPT%5D');
+        expect(url).toContain('hasabstract%5Btext%5D');
+        expect(url).toContain('2021%3A2024%5BPDAT%5D');
+        expect(url).toContain('sort=pub_date');
+    });
+
+    it('rejects invalid review args and empty results', async () => {
+        const command = getRegistry().get('pubmed/review');
+        await expect(command.func({ query: '' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ query: 'immunotherapy', limit: 101 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ query: 'immunotherapy', sort: 'bad' })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(command.func({ query: 'immunotherapy', 'year-from': 2025, 'year-to': 2020 })).rejects.toBeInstanceOf(ArgumentError);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ esearchresult: { idlist: [] } })));
+        await expect(command.func({ query: 'immunotherapy' })).rejects.toBeInstanceOf(EmptyResultError);
     });
 });
 

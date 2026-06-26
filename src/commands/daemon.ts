@@ -19,11 +19,25 @@ export async function daemonStatus(): Promise<void> {
     return;
   }
 
-  const extensionLabel = !status.extensionConnected
-    ? 'disconnected'
-    : status.extensionVersion
+  // GH #1575: ``Extension: disconnected`` used to be printed for THREE
+  // structurally different states — zero profiles (accurate), 2+
+  // profiles connected with no default (misleading), and a requested
+  // profile that vanished (misleading). The status JSON already
+  // distinguishes them; surface that distinction so the user's next
+  // step is visible inline instead of "reinstall everything".
+  let extensionLabel: string;
+  if (status.extensionConnected) {
+    extensionLabel = status.extensionVersion
       ? `connected (v${status.extensionVersion})`
       : 'connected (version unknown)';
+  } else if (status.profileRequired) {
+    const count = status.profiles?.length ?? 0;
+    extensionLabel = `${count} ${count === 1 ? 'profile' : 'profiles'} connected, none selected — run \`opencli profile use <name>\``;
+  } else if (status.profileDisconnected) {
+    extensionLabel = 'requested profile not connected — run `opencli profile use <name>`';
+  } else {
+    extensionLabel = 'disconnected';
+  }
 
   const daemonVersion = formatDaemonVersion(status);
   const stale = isDaemonStale(status, PKG_VERSION);

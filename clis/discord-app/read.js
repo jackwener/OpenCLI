@@ -1,46 +1,42 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import {
+    assertDiscordMessageRowsBelongToTarget,
+    maybeNavigateToDiscordChannel,
+    parsePositiveInt,
+    readDiscordMessages,
+} from './utils.js';
+
 export const readCommand = cli({
     site: 'discord-app',
     name: 'read',
     access: 'read',
-    description: 'Read recent messages from the active Discord channel',
+    description: 'Read recent messages from the active or targeted Discord channel',
     domain: 'localhost',
     strategy: Strategy.UI,
     browser: true,
     args: [
         { name: 'count', required: false, help: 'Number of messages to read (default: 20)', default: '20' },
+        { name: 'guild', required: false, help: 'Guild/server id or visible name for targeted reads' },
+        { name: 'channel', required: false, help: 'Channel id or visible name for targeted reads' },
+        { name: 'url', required: false, help: 'Discord channel URL to open before reading' },
     ],
-    columns: ['Author', 'Time', 'Message'],
+    columns: ['Author', 'Time', 'Message', 'channel_id', 'message_id'],
     func: async (page, kwargs) => {
-        const count = parseInt(kwargs.count, 10) || 20;
-        const messages = await page.evaluate(`
-      (function(limit) {
-        const results = [];
-        // Discord renders messages in list items with id starting with "chat-messages-"
-        const msgNodes = document.querySelectorAll('[id^="chat-messages-"] > div, [class*="messageListItem"]');
-        
-        const slice = Array.from(msgNodes).slice(-limit);
-        
-        slice.forEach(node => {
-          const authorEl = node.querySelector('[class*="username"], [class*="headerText"] span');
-          const timeEl = node.querySelector('time');
-          const contentEl = node.querySelector('[id^="message-content-"], [class*="messageContent"]');
-          
-          if (contentEl) {
-            results.push({
-              Author: authorEl ? authorEl.textContent.trim() : '—',
-              Time: timeEl ? timeEl.getAttribute('datetime') || timeEl.textContent.trim() : '',
-              Message: (contentEl.textContent || '').trim().substring(0, 300),
-            });
-          }
-        });
-        
-        return results;
-      })(${count})
-    `);
+        const count = parsePositiveInt(kwargs.count, 20, 'count');
+        const target = await maybeNavigateToDiscordChannel(page, kwargs, { waitForContent: 'messages' });
+        const messages = assertDiscordMessageRowsBelongToTarget(
+            await readDiscordMessages(page, count),
+            target,
+            'Discord channel read',
+        );
         if (messages.length === 0) {
-            return [{ Author: 'System', Time: '', Message: 'No messages found in the current channel.' }];
+            throw new EmptyResultError('discord-app read', 'No messages were found in the selected Discord channel.');
         }
         return messages;
     },
 });
+
+export const __test__ = {
+    readCommand,
+};

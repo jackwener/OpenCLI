@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { extractMedia } from './shared.js';
+import { extractMedia, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const BOOKMARKS_QUERY_ID = 'Fy0QMy4q_aZCpkO0PnyLYw';
 const MAX_PAGINATION_PAGES = 100;
@@ -112,7 +112,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of bookmarks to return (default 20).' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (saved-time) ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url', 'has_media', 'media_urls'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         const cookies = await page.getCookies({ url: 'https://x.com' });
@@ -162,7 +162,7 @@ cli({
       }`);
             if (data?.error) {
                 if (allTweets.length === 0)
-                    throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch bookmarks. queryId may have expired.`);
+                    throw new CommandExecutionError(describeTwitterApiError('Bookmarks', data.error));
                 break;
             }
             const { tweets, nextCursor } = parseBookmarks(data, seen);

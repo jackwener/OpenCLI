@@ -4,12 +4,22 @@ import { __test__ } from './search.js';
 
 const { buildSearchQuery, resolveSearchFParam, resolveSearchProduct, buildSearchTimelineRequest, parseSearchTimeline, HAS_CHOICES, EXCLUDE_CHOICES, PRODUCT_CHOICES, EXCLUDE_TO_OPERATOR, PRODUCT_TO_F_PARAM, FROM_USER_PATTERN } = __test__;
 describe('twitter search command', () => {
+    // Mocked SearchTimeline operation metadata. The dynamic resolver
+    // (resolveTwitterOperationMetadata) is exercised via page.evaluate's first
+    // call. Returning a full {queryId, features, fieldToggles} validates the
+    // happy path where bundle scan / GitHub fallback succeeds — not the stale
+    // hardcoded path that previously masked the regex bug.
+    const DYNAMIC_OP = {
+        queryId: 'DynamicSearchQid42',
+        features: { dynamic_test_feature: true },
+        fieldToggles: { dynamic_test_toggle: true },
+    };
     function makeSearchPage(data) {
         return {
             getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
             goto: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn()
-                .mockResolvedValueOnce(null) // resolveTwitterQueryId fallback
+                .mockResolvedValueOnce(DYNAMIC_OP) // resolveTwitterOperationMetadata dynamic result
                 .mockResolvedValueOnce(data),
         };
     }
@@ -79,6 +89,7 @@ describe('twitter search command', () => {
                 url: 'https://x.com/i/status/1',
                 has_media: false,
                 media_urls: [],
+                media_posters: [],
                 card: null,
                 quoted_tweet: null,
             },
@@ -89,6 +100,11 @@ describe('twitter search command', () => {
         expect(searchFetch).toContain('/SearchTimeline');
         expect(searchFetch).toContain("method: 'POST'");
         expect(searchFetch).toContain('\\"rawQuery\\":\\"from:alice\\"');
+        // Regression guard: the dynamic queryId from resolveTwitterOperationMetadata
+        // must propagate to the actual GraphQL URL. Previously a bug in the bundle
+        // parser would return a wrong queryId silently, Twitter would 4xx, and
+        // search.js raised "queryId may have expired".
+        expect(searchFetch).toContain('/DynamicSearchQid42/SearchTimeline');
     });
 
     it('uses the requested GraphQL product', async () => {
@@ -153,6 +169,40 @@ describe('twitter search command', () => {
         expect(result).toHaveLength(7);
         expect(result.map((row) => row.id)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
         expect(page.evaluate).toHaveBeenCalledTimes(8);
+    });
+
+    it('surfaces empty author when the tweet has no user screen_name', () => {
+        const payload = {
+            data: {
+                search_by_raw_query: {
+                    search_timeline: {
+                        timeline: {
+                            instructions: [{
+                                type: 'TimelineAddEntries',
+                                entries: [{
+                                    entryId: 'tweet-2',
+                                    content: {
+                                        itemContent: {
+                                            tweet_results: {
+                                                result: {
+                                                    rest_id: '2',
+                                                    legacy: { full_text: 'no author here', favorite_count: 0, created_at: '' },
+                                                    core: { user_results: { result: {} } },
+                                                },
+                                            },
+                                        },
+                                    },
+                                }],
+                            }],
+                        },
+                    },
+                },
+            },
+        };
+        const { rows } = parseSearchTimeline(payload, new Set());
+        expect(rows).toHaveLength(1);
+        expect(rows[0].author).toBe('');
+        expect(rows[0].id).toBe('2');
     });
 });
 
@@ -346,4 +396,5 @@ describe('twitter search end-to-end with new filters', () => {
         const searchFetch = evaluate.mock.calls[1][0];
         expect(searchFetch).toContain('\\"rawQuery\\":\\"from:alice\\"');
     });
+
 });

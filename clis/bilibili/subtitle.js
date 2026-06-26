@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { apiGet, resolveBvid } from './utils.js';
+import { apiGet, resolveBvid, parsePageArg, selectVideoPart } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'subtitle',
@@ -11,12 +11,14 @@ cli({
     args: [
         { name: 'bvid', required: true, positional: true, help: 'Bilibili 视频 BV ID（如 BV1xx411c7mD），或视频 URL / b23.tv 短链' },
         { name: 'lang', required: false, help: '字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个' },
+        { name: 'page', required: false, help: '分P 选集序号（从 1 开始）。多 P 视频取该集字幕；缺省取默认 P1' },
     ],
     columns: ['index', 'from', 'to', 'content'],
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for bilibili subtitle');
         const bvid = await resolveBvid(kwargs.bvid);
+        const selectedPage = parsePageArg(kwargs.page);
         // 1. 通过 view API 拿 cid。
         //    以前的实现走 page.goto(/video/<bvid>) + window.__INITIAL_STATE__.videoData.cid，
         //    bangumi 绑定的 bvid（番剧/纪录片/电影/综艺）页面 state 不在 videoData 而在 epList，
@@ -31,7 +33,8 @@ cli({
         if (view?.code !== 0) {
             throw new CommandExecutionError(`获取视频信息失败: ${view?.message ?? 'unknown'} (${view?.code})`);
         }
-        const cid = view?.data?.cid;
+        // --page 给定时用该集 cid（selectVideoPart 越界抛错）；缺省取整集默认 cid（P1，旧行为）。
+        const cid = selectedPage != null ? selectVideoPart(view?.data, selectedPage).cid : view?.data?.cid;
         if (!cid) {
             throw new CommandExecutionError(`无法从 view API 拿到 cid (bvid=${bvid})`);
         }

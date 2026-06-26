@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { buildCommentsExtractJs, parseXhsLikeCountText } from './comments.js';
+import { buildCommentsExtractJs, buildXhsProfileUrl, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -178,9 +178,33 @@ describe('xiaohongshu comments', () => {
         `);
 
         expect(data.results).toEqual([
-            { author: 'Alice', text: 'Great note', likes: 21000, time: 'today', is_reply: false, reply_to: '' },
-            { author: 'Bob', text: 'Malformed count', likes: 0, time: '', is_reply: false, reply_to: '' },
+            { author: 'Alice', authorHrefRaw: '', text: 'Great note', likes: 21000, time: 'today', is_reply: false, reply_to: '' },
+            { author: 'Bob', authorHrefRaw: '', text: 'Malformed count', likes: 0, time: '', is_reply: false, reply_to: '' },
         ]);
+    });
+    it('extracts authorHrefRaw from /user/profile/ anchor wrapping the name', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <div class="author-wrapper"><a class="name" href="/user/profile/5e8a1b2c3d4e5f6a7b8c9d0e?xsec_token=tok">Alice</a></div>
+                <div class="content">Hi</div>
+                <span class="count">1</span>
+                <span class="date">today</span>
+              </div>
+            </section>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <a class="user-name" href="https://www.xiaohongshu.com/user/profile/abc123def456">Bob</a>
+                <div class="note-text">Hey</div>
+              </div>
+            </section>
+          </main>
+        `);
+        expect(data.results[0].author).toBe('Alice');
+        expect(data.results[0].authorHrefRaw).toBe('/user/profile/5e8a1b2c3d4e5f6a7b8c9d0e?xsec_token=tok');
+        expect(data.results[1].author).toBe('Bob');
+        expect(data.results[1].authorHrefRaw).toBe('https://www.xiaohongshu.com/user/profile/abc123def456');
     });
     it('respects the limit for top-level comments', async () => {
         const manyComments = Array.from({ length: 10 }, (_, i) => ({
@@ -199,6 +223,44 @@ describe('xiaohongshu comments', () => {
         expect(result).toHaveLength(3);
         expect(result[0].rank).toBe(1);
         expect(result[2].rank).toBe(3);
+    });
+    it('enriches each row with userId and profileUrl derived from authorHrefRaw', async () => {
+        const page = createPageMock({
+            loginWall: false,
+            results: [
+                { author: 'Alice', authorHrefRaw: '/user/profile/abc123?xsec_token=tok', text: 'hi', likes: 1, time: 't', is_reply: false, reply_to: '' },
+                { author: 'Bob', authorHrefRaw: 'https://www.xiaohongshu.com/user/profile/xyz789', text: 'hey', likes: 0, time: '', is_reply: false, reply_to: '' },
+                { author: 'Anon', authorHrefRaw: '', text: 'no link', likes: 0, time: '', is_reply: false, reply_to: '' },
+            ],
+        });
+        const result = (await command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        }));
+        expect(result).toHaveLength(3);
+        expect(result[0]).toMatchObject({ rank: 1, author: 'Alice', userId: 'abc123', profileUrl: 'https://www.xiaohongshu.com/user/profile/abc123' });
+        expect(result[1]).toMatchObject({ rank: 2, author: 'Bob', userId: 'xyz789', profileUrl: 'https://www.xiaohongshu.com/user/profile/xyz789' });
+        expect(result[2]).toMatchObject({ rank: 3, author: 'Anon', userId: '', profileUrl: '' });
+        // the raw transport field must not leak into the final row shape
+        for (const row of result) {
+            expect(row).not.toHaveProperty('authorHrefRaw');
+            expect(row).not.toHaveProperty('authorHref');
+        }
+    });
+    it('buildXhsProfileUrl handles trusted relative/absolute inputs and rejects host/path drift', () => {
+        expect(parseXhsProfileHref('/user/profile/abc123')).toBe('abc123');
+        expect(parseXhsProfileHref('https://www.xiaohongshu.com/user/profile/xyz?xsec_token=tok')).toBe('xyz');
+        expect(buildXhsProfileUrl('/user/profile/abc123')).toBe('https://www.xiaohongshu.com/user/profile/abc123');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/xyz?xsec_token=tok')).toBe('https://www.xiaohongshu.com/user/profile/xyz');
+        expect(buildXhsProfileUrl('')).toBe('');
+        expect(buildXhsProfileUrl(null)).toBe('');
+        expect(buildXhsProfileUrl('/user/profile/zzz', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/zzz');
+        expect(buildXhsProfileUrl('http://www.xiaohongshu.com/user/profile/abc123')).toBe('');
+        expect(buildXhsProfileUrl('https://evil.test/user/profile/abc123')).toBe('');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/abc123/extra')).toBe('');
+        expect(buildXhsProfileUrl('/user/profile/abc123/extra')).toBe('');
+        expect(buildXhsProfileUrl('https://www.rednote.com/user/profile/zzz', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/zzz');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/zzz', 'www.rednote.com')).toBe('');
     });
     it('clamps invalid negative limits to a safe minimum', async () => {
         const page = createPageMock({

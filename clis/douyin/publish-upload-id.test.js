@@ -66,6 +66,42 @@ describe('douyin publish upload identifier handling', () => {
     const createCall = mocks.browserFetch.mock.calls.find((call) => String(call[2]).includes('/aweme/create_v2/'));
     expect(createCall?.[3]?.body.item.common.video_id).toBe('canonical-video-id');
     expect(createCall?.[3]?.body.item.common.video_id).not.toBe('object-key-returned-by-complete');
+    expect(createCall?.[3]?.body.item.common.text).toBe('OpenCLI自测');
+  });
+
+  it('keeps title-prefixed publish text and hashtag offsets aligned for create_v2', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-publish-text-'));
+    const video = path.join(tmpDir, 'video.mp4');
+    fs.writeFileSync(video, Buffer.from('fake-video'));
+
+    const { getRegistry } = await import('@jackwener/opencli/registry');
+    getRegistry().delete('douyin/publish');
+    await import('./publish.js');
+    const cmd = getRegistry().get('douyin/publish');
+    if (!cmd) throw new Error('douyin publish command not registered');
+
+    await cmd.func({}, {
+      video,
+      title: 'OpenCLI标题',
+      schedule: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+      caption: '正文 #话题',
+      visibility: 'private',
+      no_safety_check: true,
+    });
+
+    const createCall = mocks.browserFetch.mock.calls.find((call) => String(call[2]).includes('/aweme/create_v2/'));
+    const common = createCall?.[3]?.body.item.common;
+    expect(common.text).toBe('OpenCLI标题 正文 #话题');
+    expect(common.caption).toBe('正文 #话题');
+    expect(common.item_title).toBe('OpenCLI标题');
+    const textExtra = JSON.parse(common.text_extra);
+    expect(textExtra).toEqual([
+      expect.objectContaining({
+        hashtag_name: '话题',
+        start: 'OpenCLI标题 正文 '.length,
+        end: 'OpenCLI标题 正文 #话题'.length,
+      }),
+    ]);
   });
 
   it('continues to create_v2 when the legacy fast detect API returns an empty response', async () => {

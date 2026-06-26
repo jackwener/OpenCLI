@@ -4,6 +4,34 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+
+function unwrapBrowserResult(value) {
+    if (value && typeof value === 'object' && 'session' in value && 'data' in value) {
+        return value.data;
+    }
+    return value;
+}
+
+function requireVideoPayload(value) {
+    const payload = unwrapBrowserResult(value);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new CommandExecutionError('Failed to extract video metadata from page');
+    }
+    if (payload.error) {
+        throw new CommandExecutionError(String(payload.error));
+    }
+    if (typeof payload.playabilityStatus !== 'string') {
+        throw new CommandExecutionError('YouTube video metadata is missing playabilityStatus');
+    }
+    if (typeof payload.playabilityReason !== 'string') {
+        throw new CommandExecutionError('YouTube video metadata is missing playabilityReason');
+    }
+    if (typeof payload.membersOnly !== 'boolean') {
+        throw new CommandExecutionError('YouTube video metadata is missing membersOnly');
+    }
+    return payload;
+}
+
 cli({
     site: 'youtube',
     name: 'video',
@@ -86,6 +114,13 @@ cli({
           }
         } catch {}
 
+        // 播放门禁信号：会员专享（channel membership）/ 付费点播等视频 metadata 照常
+        // 可见，但视频流拿不到——playabilityStatus.status != 'OK'。reason 文本是本地化
+        // 的（中文 cookie 下是中文），所以 membersOnly 用 watch HTML 里 locale 无关的
+        // BADGE_STYLE_TYPE_MEMBERS_ONLY 徽标枚举判定，下游不要去 parse reason。
+        const ps = player.playabilityStatus || {};
+        const membersOnly = html.indexOf('BADGE_STYLE_TYPE_MEMBERS_ONLY') !== -1;
+
         return {
           title: details.title || '',
           channel: details.author || '',
@@ -101,15 +136,15 @@ cli({
           keywords: (details.keywords || []).join(', '),
           isLive: details.isLiveContent || false,
           thumbnail: details.thumbnail?.thumbnails?.slice(-1)?.[0]?.url || '',
+          playabilityStatus: ps.status || '',
+          playabilityReason: ps.reason || '',
+          membersOnly,
         };
       })()
     `);
-        if (!data || typeof data !== 'object')
-            throw new CommandExecutionError('Failed to extract video metadata from page');
-        if (data.error)
-            throw new CommandExecutionError(data.error);
+        const payload = requireVideoPayload(data);
         // Return as field/value pairs for table display
-        return Object.entries(data).map(([field, value]) => ({
+        return Object.entries(payload).map(([field, value]) => ({
             field,
             value: String(value),
         }));

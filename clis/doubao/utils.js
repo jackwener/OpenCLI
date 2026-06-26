@@ -166,11 +166,13 @@ function getTurnsScript() {
         // 2026-05 Doubao DOM refactor: no more receive-message / bg-g-receive-msg-bubble
         // markers on assistant turns. Wrappers are now [class*="inner-item-"] /
         // [class*="top-item-"] and the only reliable assistant signal is the
-        // .flow-markdown-body content container WITHOUT any send-bubble marker.
+        // .flow-markdown-body / .md-box-root content container WITHOUT any
+        // send-bubble marker.
         if (
           (root.matches('[class*="inner-item-"], [class*="top-item-"]')
             || root.closest('[class*="inner-item-"], [class*="top-item-"]'))
-          && (root.matches('.flow-markdown-body') || root.querySelector('.flow-markdown-body'))
+          && (root.matches('.flow-markdown-body, .md-box-root, [class*="md-box-root"]')
+            || root.querySelector('.flow-markdown-body, .md-box-root, [class*="md-box-root"]'))
           && !root.matches('[class*="bg-g-send-msg-bubble"]')
           && !root.querySelector('[class*="bg-g-send-msg-bubble"]')
         ) {
@@ -189,6 +191,8 @@ function getTurnsScript() {
         '[class*="bg-g-send-msg-bubble"]',
         '[class*="bg-g-receive-msg-bubble"]',
         '.flow-markdown-body',
+        '.md-box-root',
+        '[class*="md-box-root"]',
         '[class*="bubble"]',
       ];
       const messageImageSelector = messageTextSelectors.map((s) => s + ' img').join(', ');
@@ -232,9 +236,6 @@ function getTurnsScript() {
         return text ? text + '\\n' + imageLines.join('\\n') : imageLines.join('\\n');
       };
 
-      const messageList = document.querySelector('[class*="message-list-S2Fv2S"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"]');
-      if (!messageList) return [];
-
       const itemSelectors = [
         // 2026-05 Doubao DOM refactor wrappers (prepended; outer ones win via
         // ancestor-keep dedup below).
@@ -248,15 +249,21 @@ function getTurnsScript() {
         '[class*="bg-g-receive-msg-bubble"]',
       ];
 
+      const messageLists = Array.from(document.querySelectorAll('[class*="message-list-"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"]'))
+        .filter((el) => isVisible(el));
+      if (messageLists.length === 0) return [];
+
       const allRoots = [];
       const seen = new Set();
-      for (const sel of itemSelectors) {
-        messageList.querySelectorAll(sel).forEach((el) => {
-          if (!seen.has(el)) {
-            seen.add(el);
-            allRoots.push(el);
-          }
-        });
+      for (const messageList of messageLists) {
+        for (const sel of itemSelectors) {
+          messageList.querySelectorAll(sel).forEach((el) => {
+            if (!seen.has(el)) {
+              seen.add(el);
+              allRoots.push(el);
+            }
+          });
+        }
       }
       const roots = allRoots
         .filter((el) => isVisible(el) && !el.closest('script, style, noscript'))

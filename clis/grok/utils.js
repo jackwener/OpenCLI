@@ -106,11 +106,26 @@ export async function getCurrentSessionId(page) {
     return match ? match[1].toLowerCase() : '';
 }
 
+// Model picker trigger has stable id="model-select-trigger". Use that as the
+// primary selector — aria-label localizes (e.g. "Model select" in English,
+// "模型选择" in Chinese, etc.) and is unreliable across browser locales.
+const MODEL_TRIGGER_SELECTORS = [
+    '#model-select-trigger',
+    'button[aria-label="Model select"]',
+    'button[aria-label="模型选择"]',
+    'button[aria-label="モデル選択"]',
+];
+
 export async function getModelLabel(page) {
+    const selectorJson = JSON.stringify(MODEL_TRIGGER_SELECTORS);
     const result = await page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
-    const trigger = Array.from(document.querySelectorAll('button[aria-label="Model select"]'))
-      .find((node) => isVisible(node));
+    const selectors = ${selectorJson};
+    let trigger = null;
+    for (const sel of selectors) {
+      trigger = Array.from(document.querySelectorAll(sel)).find((node) => isVisible(node));
+      if (trigger) break;
+    }
     if (!trigger) return '';
     return (trigger.innerText || trigger.textContent || '').trim().split('\\n')[0].trim();
   })()`);
@@ -225,11 +240,269 @@ export async function startNewChat(page) {
     await page.wait(2);
 }
 
+// Open the sidebar conversation context menu (right-click on the /c/<id>
+// link), wait for it to appear, click the menu item whose visible text
+// matches one of the localized labels. Returns whether the click happened.
+//
+// Menu items observed on grok.com (2026-05-31):
+//   "打开新标签页" / "Open in new tab"
+//   "重命名"     / "Rename"
+//   "置顶" or "取消置顶" / "Pin" or "Unpin"
+//   "删除"       / "Delete"
+//
+// Grok's delete action takes effect IMMEDIATELY — no confirmation dialog —
+// so callers must enforce their own --yes / dry-run gating.
+export async function clickConversationMenuItem(page, conversationId, labelOptions) {
+    const id = String(conversationId).toLowerCase();
+    const idJson = JSON.stringify(id);
+    const labelsJson = JSON.stringify(labelOptions.map((l) => l.toLowerCase()));
+    return await page.evaluate(`(async () => {
+    const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const id = ${idJson};
+    const labels = ${labelsJson};
+    // Find the sidebar anchor for this conversation.
+    let link = null;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      link = Array.from(document.querySelectorAll('a[href^="/c/"]'))
+        .find((a) => a instanceof HTMLElement && a.offsetParent && (a.getAttribute('href') || '').toLowerCase().includes(id));
+      if (link) break;
+      await waitFor(300);
+    }
+    if (!link) {
+      return { ok: false, reason: 'Conversation not found in sidebar.', detail: 'id=' + id };
+    }
+    // Trigger the radix context menu — radix listens to PointerEvent +
+    // contextmenu, so plain MouseEvent('contextmenu') alone is ignored.
+    // Dispatch the full sequence pointerdown/mousedown/contextmenu/pointerup/mouseup
+    // with right-button state to mirror a real right-click.
+    {
+      const rect = link.getBoundingClientRect();
+      const init = {
+        bubbles: true, cancelable: true, button: 2, buttons: 2,
+        clientX: Math.round(rect.left + Math.min(rect.width / 2, 16)),
+        clientY: Math.round(rect.top + Math.min(rect.height / 2, 16)),
+      };
+      link.dispatchEvent(new PointerEvent('pointerdown', { ...init, pointerType: 'mouse' }));
+      link.dispatchEvent(new MouseEvent('mousedown', init));
+      link.dispatchEvent(new MouseEvent('contextmenu', init));
+      link.dispatchEvent(new PointerEvent('pointerup', { ...init, pointerType: 'mouse' }));
+      link.dispatchEvent(new MouseEvent('mouseup', init));
+    }
+    // Wait for menu items to appear.
+    let items = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+        .filter((it) => it instanceof HTMLElement && it.offsetParent);
+      if (items.length) break;
+      await waitFor(150);
+    }
+    if (!items.length) {
+      return { ok: false, reason: 'Context menu did not open for the conversation.' };
+    }
+    const target = items.find((it) => {
+      const text = (it.textContent || '').trim().toLowerCase();
+      return labels.some((l) => text === l);
+    });
+    if (!target) {
+      return {
+        ok: false,
+        reason: 'No menu item matched the requested label.',
+        detail: 'available=' + JSON.stringify(items.map((it) => (it.textContent || '').trim())),
+      };
+    }
+    target.click();
+    return { ok: true, clicked: (target.textContent || '').trim() };
+  })()`);
+}
+
+export function getPinStateFromMenuLabels(labels) {
+    const normalized = (Array.isArray(labels) ? labels : [])
+        .map((label) => String(label || '').trim().toLowerCase())
+        .filter(Boolean);
+    if (normalized.some((label) => label === '取消置顶' || label === 'unpin')) {
+        return 'pinned';
+    }
+    if (normalized.some((label) => label === '置顶' || label === 'pin')) {
+        return 'unpinned';
+    }
+    return '';
+}
+
+export async function isConversationVisibleInSidebar(page, conversationId) {
+    const id = String(conversationId).toLowerCase();
+    const idJson = JSON.stringify(id);
+    const result = await page.evaluate(`(() => {
+    const id = ${idJson};
+    return Array.from(document.querySelectorAll('a[href^="/c/"]'))
+      .some((a) => a instanceof HTMLElement && a.offsetParent && (a.getAttribute('href') || '').toLowerCase().includes(id));
+  })()`);
+    return Boolean(result);
+}
+
+export async function waitForConversationToDisappear(page, conversationId, timeoutMs = 5_000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (!(await isConversationVisibleInSidebar(page, conversationId))) return true;
+        await page.wait(0.25);
+    }
+    return !(await isConversationVisibleInSidebar(page, conversationId));
+}
+
+export async function readConversationMenuLabels(page, conversationId) {
+    const id = String(conversationId).toLowerCase();
+    const idJson = JSON.stringify(id);
+    const result = await page.evaluate(`(async () => {
+    const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const id = ${idJson};
+    let link = null;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      link = Array.from(document.querySelectorAll('a[href^="/c/"]'))
+        .find((a) => a instanceof HTMLElement && a.offsetParent && (a.getAttribute('href') || '').toLowerCase().includes(id));
+      if (link) break;
+      await waitFor(300);
+    }
+    if (!link) {
+      return { ok: false, reason: 'Conversation not found in sidebar.', detail: 'id=' + id, labels: [] };
+    }
+    const rect = link.getBoundingClientRect();
+    const init = {
+      bubbles: true, cancelable: true, button: 2, buttons: 2,
+      clientX: Math.round(rect.left + Math.min(rect.width / 2, 16)),
+      clientY: Math.round(rect.top + Math.min(rect.height / 2, 16)),
+    };
+    link.dispatchEvent(new PointerEvent('pointerdown', { ...init, pointerType: 'mouse' }));
+    link.dispatchEvent(new MouseEvent('mousedown', init));
+    link.dispatchEvent(new MouseEvent('contextmenu', init));
+    link.dispatchEvent(new PointerEvent('pointerup', { ...init, pointerType: 'mouse' }));
+    link.dispatchEvent(new MouseEvent('mouseup', init));
+
+    let items = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+        .filter((it) => it instanceof HTMLElement && it.offsetParent);
+      if (items.length) break;
+      await waitFor(150);
+    }
+    const labels = items.map((it) => (it.textContent || '').trim()).filter(Boolean);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return items.length
+      ? { ok: true, labels }
+      : { ok: false, reason: 'Context menu did not open for the conversation.', labels: [] };
+  })()`);
+    try {
+        await page.keys('Escape');
+    } catch {
+        // Best-effort cleanup; some fake pages and browser adapters do not expose keys().
+    }
+    if (!result || typeof result !== 'object') {
+        return { ok: false, reason: 'Malformed context-menu result.', labels: [] };
+    }
+    return {
+        ok: Boolean(result.ok),
+        reason: String(result.reason || ''),
+        detail: String(result.detail || ''),
+        labels: Array.isArray(result.labels) ? result.labels.map((label) => String(label || '')) : [],
+    };
+}
+
+export async function waitForConversationPinState(page, conversationId, expectedState, timeoutMs = 5_000) {
+    const started = Date.now();
+    let last = null;
+    while (Date.now() - started < timeoutMs) {
+        last = await readConversationMenuLabels(page, conversationId);
+        if (last.ok && getPinStateFromMenuLabels(last.labels) === expectedState) {
+            return { ok: true, state: expectedState, labels: last.labels };
+        }
+        await page.wait(0.25);
+    }
+    last = await readConversationMenuLabels(page, conversationId);
+    const state = last.ok ? getPinStateFromMenuLabels(last.labels) : '';
+    return {
+        ok: last.ok && state === expectedState,
+        state,
+        labels: last.labels || [],
+        reason: last.reason || `Conversation did not reach ${expectedState} state.`,
+        detail: last.detail || '',
+    };
+}
+
+// After clickConversationMenuItem opens an inline rename input, fill it and
+// commit by pressing Enter. Returns the new title we set (best-effort).
+export async function fillRenameInputAndSubmit(page, newTitle) {
+    const titleJson = JSON.stringify(newTitle);
+    return await page.evaluate(`(async () => {
+    const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    let input = null;
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      // The inline rename UI surfaces as a single visible <input> or a
+      // contenteditable inside the sidebar row.
+      input = Array.from(document.querySelectorAll('input[type="text"], [contenteditable="true"]:not(.ProseMirror)'))
+        .find((el) => el instanceof HTMLElement && el.offsetParent && el.getBoundingClientRect().left < 260);
+      if (input) break;
+      await waitFor(200);
+    }
+    if (!input) {
+      return { ok: false, reason: 'Inline rename input did not appear.' };
+    }
+    input.focus();
+    if (input instanceof HTMLInputElement) {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(input, ${titleJson});
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // contenteditable path
+      input.innerText = '';
+      document.execCommand('insertText', false, ${titleJson});
+    }
+    // Commit by Enter (Grok accepts Enter to confirm, Escape to cancel).
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    return { ok: true, value: ${titleJson} };
+  })()`);
+}
+
 export async function sendMessage(page, prompt) {
     const promptJson = JSON.stringify(prompt);
     return await page.evaluate(`(async () => {
     const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
     const composerSelector = '.ProseMirror[contenteditable="true"]';
+    const isVisible = (node) => {
+      if (!(node instanceof Element)) return false;
+      const style = window.getComputedStyle(node);
+      if (style.visibility === 'hidden' || style.display === 'none') return false;
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+    const responseIdFor = (node) => {
+      let parent = node.parentElement;
+      while (parent && parent !== document.body) {
+        const id = parent.getAttribute('id') || '';
+        if (id.startsWith('response-')) return id.slice('response-'.length);
+        parent = parent.parentElement;
+      }
+      return '';
+    };
+    const userTurns = () => Array.from(document.querySelectorAll('[data-testid="user-message"]'))
+      .filter((node) => node instanceof HTMLElement && isVisible(node))
+      .map((node, index) => ({
+        id: responseIdFor(node) || ('pos-' + index),
+        text: normalize(node.innerText || node.textContent || ''),
+      }))
+      .filter((turn) => turn.text);
+    const promptText = normalize(${promptJson});
+    const beforeTurns = userTurns();
+    const beforeKeys = new Set(beforeTurns.map((turn) => turn.id + '\\n' + turn.text));
+    const waitForSubmittedUserTurn = async () => {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const turns = userTurns();
+        const latest = turns[turns.length - 1];
+        const hasNewMatchingTurn = turns.some((turn) => turn.text === promptText && !beforeKeys.has(turn.id + '\\n' + turn.text));
+        const appendedMatchingTurn = turns.length > beforeTurns.length && latest?.text === promptText;
+        if (hasNewMatchingTurn || appendedMatchingTurn) return true;
+        await waitFor(250);
+      }
+      return false;
+    };
     let composer = null;
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const candidate = document.querySelector(composerSelector);
@@ -257,22 +530,62 @@ export async function sendMessage(page, prompt) {
     const isClickableSubmit = (node) => {
       if (!(node instanceof HTMLButtonElement)) return false;
       if (node.disabled) return false;
-      const style = window.getComputedStyle(node);
-      if (style.visibility === 'hidden' || style.display === 'none') return false;
-      const rect = node.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
+      return isVisible(node);
     };
+    // Prefer data-testid (locale-independent); fall back to aria-label per
+    // language. As of 2026-05-31 Grok renders button[data-testid="chat-submit"]
+    // once the composer has content. The aria-label varies: "Submit" (en),
+    // "提交" (zh-CN), and presumably other locales.
+    const submitSelectors = [
+      'button[data-testid="chat-submit"]',
+      'button[aria-label="Submit"]',
+      'button[aria-label="提交"]',
+      'button[aria-label="送信"]',
+    ];
     let submit = null;
     for (let attempt = 0; attempt < 12; attempt += 1) {
-      const candidate = Array.from(document.querySelectorAll('button[aria-label="Submit"]')).find(isClickableSubmit);
-      if (candidate instanceof HTMLButtonElement) { submit = candidate; break; }
+      for (const sel of submitSelectors) {
+        const candidate = Array.from(document.querySelectorAll(sel)).find(isClickableSubmit);
+        if (candidate instanceof HTMLButtonElement) { submit = candidate; break; }
+      }
+      if (submit) break;
       await waitFor(500);
     }
-    if (!(submit instanceof HTMLButtonElement)) {
-      return { ok: false, reason: 'Grok submit button did not reach a clickable state after prompt insertion.' };
+    if (submit instanceof HTMLButtonElement) {
+      submit.click();
+      if (!(await waitForSubmittedUserTurn())) {
+        return { ok: false, reason: 'Grok submit button was clicked but no new user turn appeared.' };
+      }
+      return { ok: true, submittedVia: 'submit-button' };
     }
-    submit.click();
-    return { ok: true };
+    // Fallback: some Grok deployments / locales never surface a
+    // submit-labelled button (see #1782); the composer commits on Enter
+    // when there is no Shift modifier, and Tiptap honours the synthetic
+    // keypress because the editor is focused. Dispatch a full keydown +
+    // keypress + keyup chain so any modifier / IME listener stays
+    // consistent with a real user pressing Enter.
+    const dispatchEnter = (target) => {
+      const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+      target.dispatchEvent(new KeyboardEvent('keydown', opts));
+      target.dispatchEvent(new KeyboardEvent('keypress', opts));
+      target.dispatchEvent(new KeyboardEvent('keyup', opts));
+    };
+    try {
+      // Re-focus first; insertContent above may have moved focus elsewhere.
+      editor.commands.focus();
+      const focusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : composer;
+      dispatchEnter(focusTarget);
+      if (!(await waitForSubmittedUserTurn())) {
+        return { ok: false, reason: 'Grok Enter-key fallback fired but no new user turn appeared.' };
+      }
+      return { ok: true, submittedVia: 'enter-key' };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'Grok submit button never appeared and Enter-key fallback failed.',
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    }
   })()`);
 }
 
@@ -323,4 +636,5 @@ export async function waitForAnswer(page, prompt, timeoutSeconds, baselineLastAs
 
 export const __test__ = {
     GROK_SESSION_ID_RE,
+    getPinStateFromMenuLabels,
 };

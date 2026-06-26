@@ -4,6 +4,7 @@ import {
   detectAntiBot,
   classifyPattern,
   findNearestAdapter,
+  scoreEndpointEvidence,
   type PageSignals,
 } from './analyze.js';
 import type { CliCommand } from '../registry.js';
@@ -87,13 +88,29 @@ describe('classifyPattern', () => {
     const v = classifyPattern(
       mkSignals({
         networkEntries: [
-          { url: 'https://x.com/api/a', status: 200, contentType: 'application/json', bodyPreview: '{}' },
-          { url: 'https://x.com/api/b', status: 200, contentType: 'application/json;charset=utf-8', bodyPreview: '{}' },
+          { url: 'https://x.com/api/a', status: 200, contentType: 'application/json', bodyPreview: '{"items":[{"title":"A","id":"1"}]}' },
+          { url: 'https://x.com/api/b', status: 200, contentType: 'application/json;charset=utf-8', bodyPreview: '{"data":{"results":[{"name":"B","url":"/b"}]}}' },
         ],
       }),
     );
     expect(v.pattern).toBe('A');
     expect(v.json_responses).toBe(2);
+    expect(v.real_data_candidates).toBe(2);
+  });
+
+  it('does not call analytics JSON a real API pattern', () => {
+    const v = classifyPattern(
+      mkSignals({
+        networkEntries: [
+          { url: 'https://x.com/analytics/collect', status: 200, contentType: 'application/json', bodyPreview: '{"event":"view","clientId":"abc","experiment":"A"}' },
+          { url: 'https://x.com/personalization', status: 200, contentType: 'application/json', bodyPreview: '{"sessionId":"s1","metrics":{"latency":12}}' },
+        ],
+      }),
+    );
+    expect(v.pattern).toBe('C');
+    expect(v.json_responses).toBe(2);
+    expect(v.real_data_candidates).toBe(0);
+    expect(v.reason).toMatch(/telemetry|side-channel/);
   });
 
   it('returns B when __INITIAL_STATE__ is present, beating JSON signals', () => {
@@ -124,6 +141,40 @@ describe('classifyPattern', () => {
   it('returns C by default for static pages', () => {
     const v = classifyPattern(mkSignals());
     expect(v.pattern).toBe('C');
+  });
+});
+
+describe('scoreEndpointEvidence', () => {
+  it('scores non-empty business JSON above telemetry side-channel JSON', () => {
+    const data = scoreEndpointEvidence({
+      url: 'https://x.com/api/search',
+      status: 200,
+      contentType: 'application/json',
+      bodyPreview: '{"data":{"items":[{"title":"A","price":12,"url":"/a"}],"total":1}}',
+    });
+    const telemetry = scoreEndpointEvidence({
+      url: 'https://x.com/analytics/collect',
+      status: 200,
+      contentType: 'application/json',
+      bodyPreview: '{"event":"view","clientId":"abc"}',
+    });
+
+    expect(data.verdict).toBe('likely_data');
+    expect(data.real_data_score).toBeGreaterThan(telemetry.real_data_score);
+    expect(data.sample_paths).toContain('$.data.items:array(1)');
+    expect(telemetry.verdict).toBe('noise');
+  });
+
+  it('marks auth-gated JSON as blocked rather than data', () => {
+    const evidence = scoreEndpointEvidence({
+      url: 'https://x.com/api/private',
+      status: 403,
+      contentType: 'application/json',
+      bodyPreview: '{"error":"forbidden"}',
+    });
+
+    expect(evidence.verdict).toBe('blocked');
+    expect(evidence.real_data_score).toBeLessThan(0.1);
   });
 });
 

@@ -1,6 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { resolveTwitterQueryId } from './shared.js';
+import { resolveTwitterQueryId, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 const TWEET_RESULT_BY_REST_ID_QUERY_ID = '7xflPyRiUxGVbJd4uWmbfg';
 cli({
@@ -96,7 +96,7 @@ cli({
           + '&fieldToggles=' + encodeURIComponent(fieldToggles);
 
         const resp = await fetch(url, {headers, credentials: 'include'});
-        if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Tweet may not exist or queryId expired'};
+        if (!resp.ok) return {httpStatus: resp.status};
         const d = await resp.json();
 
         const result = d.data?.tweetResult?.result;
@@ -159,6 +159,9 @@ cli({
         }];
       }
     `);
+        if (result?.httpStatus) {
+            throw new CommandExecutionError(describeTwitterApiError('TweetResultByRestId', result.httpStatus));
+        }
         if (result?.error) {
             throw new CommandExecutionError(result.error + (result.hint ? ` (${result.hint})` : ''));
         }

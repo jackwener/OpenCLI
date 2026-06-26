@@ -9,6 +9,15 @@ import {
     openCodexConversation,
     selectCodexConversationInDocument,
 } from './sidebar.js';
+import {
+    findActiveCodexConversation,
+    findCodexConversation,
+    resolveActionConversation,
+} from './_actions.js';
+import {
+    findUniqueModelOption,
+    modelSelectionVerified,
+} from './model.js';
 
 class FakeElement {
     constructor(tagName = 'div', attrs = {}, children = [], text = '') {
@@ -253,6 +262,56 @@ describe('codex sidebar helpers', () => {
             conversation: '统一 opencli 二级命令分组',
             threadId: 'local:opencli-groups',
         });
+    });
+
+    it('finds a postcondition target by stable thread id', () => {
+        const projects = collectCodexProjectsFromDocument(fixtureDocument());
+
+        const result = findCodexConversation(projects, {
+            threadId: 'local:trading-agents',
+            project: 'wrong project',
+            conversation: 'wrong title',
+        });
+
+        expect(result?.project.project).toBe('stock');
+        expect(result?.conversation.title).toBe('借鉴 TradingAgents');
+    });
+
+    it('requires exactly one active conversation for active-chat write postconditions', () => {
+        const projects = collectCodexProjectsFromDocument(fixtureDocument());
+        expect(findActiveCodexConversation(projects)?.conversation.threadId).toBe('local:stock-sync');
+
+        projects[1].conversations[0].active = true;
+        expect(findActiveCodexConversation(projects)).toBeNull();
+    });
+
+    it('matches model options without allowing ambiguous substrings', () => {
+        const labels = ['GPT-5.5', 'GPT-5.4', 'Medium', 'Extra High'];
+
+        expect(findUniqueModelOption(labels, 'medium')).toBe('Medium');
+        expect(findUniqueModelOption(labels, '5.5')).toBe('GPT-5.5');
+        expect(() => findUniqueModelOption(labels, '5')).toThrowError(CommandExecutionError);
+    });
+
+    it('verifies model switch postconditions against the visible selector text', () => {
+        expect(modelSelectionVerified('5.5 Extra High', 'GPT-5.5')).toBe(true);
+        expect(modelSelectionVerified('5.5 Medium', 'Medium')).toBe(true);
+        expect(modelSelectionVerified('5 High', 'GPT-5')).toBe(true);
+        expect(modelSelectionVerified('5.5 Extra High', 'Medium')).toBe(false);
+        expect(modelSelectionVerified('5.5 Extra High', 'High')).toBe(false);
+        expect(modelSelectionVerified('5.5 Medium', 'GPT-5')).toBe(false);
+    });
+
+    it('requires a stable thread id for write action postconditions', async () => {
+        const doc = fixtureDocument();
+        const row = doc.querySelectorAll('[data-app-action-sidebar-thread-row]')[0];
+        row.attrs['data-app-action-sidebar-thread-id'] = '';
+
+        const page = {
+            evaluate: async () => collectCodexProjectsFromDocument(doc),
+        };
+
+        await expect(resolveActionConversation(page, {})).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
     it('reports exact thread-id misses as not found', () => {

@@ -28,6 +28,7 @@ describe('twitter bookmarks parser', () => {
             url: 'https://x.com/alice/status/1',
             has_media: false,
             media_urls: [],
+            media_posters: [],
         });
     });
 

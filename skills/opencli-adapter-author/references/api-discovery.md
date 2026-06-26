@@ -59,6 +59,15 @@ opencli browser network
 
 静态资源 / 埋点 / 追踪默认已过滤。默认会保留 JSON / XML / plain text / `text/javascript` 这类 API 响应；如果你确定浏览器 DevTools 里有目标请求但这里缺失，用 `--all` 查一遍是否被 content-type 或 URL 噪音过滤挡掉。
 
+如果是冷启动，先看 `opencli browser analyze <url>` 里的 `api_candidates`：
+
+- `verdict: "likely_data"`：优先 replay 这条，拿 status / content-type / sample shape 填 strategy note
+- `verdict: "maybe_data"`：可以试，但必须人工核对字段是否是目标业务数据
+- `verdict: "noise"`：多半是 analytics / beacon / personalization，不要因为 XHR 数量多就判 Pattern A
+- `verdict: "blocked"`：401/403；先排 cookie / token / CSRF，别直接退到 selector
+
+`real_data_score` 是证据，不是自动 strategy。最终仍要在 strategy note 里写 replay 结果和降级理由。
+
 ### 按 shape 初筛
 
 挑 `key` 里含业务词（`list / detail / Timeline / User / Tweets / Quote`）的优先看 `shape`：

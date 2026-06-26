@@ -134,12 +134,21 @@ function keysToFlags(keys) {
     return Object.fromEntries(keys.filter((key) => typeof key === 'string' && key).map((key) => [key, true]));
 }
 
+export function normalizeTwitterOperationFlags(value) {
+    if (Array.isArray(value)) return keysToFlags(value);
+    if (!value || typeof value !== 'object') return {};
+    return Object.fromEntries(
+        Object.entries(value)
+            .filter(([key, flag]) => typeof key === 'string' && key && typeof flag === 'boolean'),
+    );
+}
+
 function normalizeOperationFallback(fallback) {
     if (typeof fallback === 'string') return { queryId: fallback, features: {}, fieldToggles: {} };
     return {
         queryId: fallback?.queryId || null,
-        features: fallback?.features || {},
-        fieldToggles: fallback?.fieldToggles || {},
+        features: normalizeTwitterOperationFlags(fallback?.features),
+        fieldToggles: normalizeTwitterOperationFlags(fallback?.fieldToggles),
     };
 }
 
@@ -192,41 +201,100 @@ export function sanitizeTwitterOperationMetadata(resolved, fallback) {
     // surfacing a misleading "queryId expired" error.
     return {
         queryId: sanitizeQueryId(value?.queryId, normalizedFallback.queryId),
-        features: value?.features
-            && typeof value.features === 'object'
-            && Object.keys(value.features).length > 0
-            ? value.features
+        features: Object.keys(normalizeTwitterOperationFlags(value?.features)).length > 0
+            ? normalizeTwitterOperationFlags(value.features)
             : normalizedFallback.features,
-        fieldToggles: value?.fieldToggles
-            && typeof value.fieldToggles === 'object'
-            && Object.keys(value.fieldToggles).length > 0
-            ? value.fieldToggles
+        fieldToggles: Object.keys(normalizeTwitterOperationFlags(value?.fieldToggles)).length > 0
+            ? normalizeTwitterOperationFlags(value.fieldToggles)
             : normalizedFallback.fieldToggles,
     };
 }
 
+// Pure helper extracted for unit testing. Used both directly in tests and
+// serialized into page.evaluate() below so the same logic runs in-browser.
+//
+// Why two regexes with [^}] separator instead of cutting a snippet around
+// the operationName marker:
+//   The old approach (lastIndexOf 'e.exports=' / indexOf '}}}') was prone to
+//   cross-module pollution. In a minified bundle 'e.exports=' is dense, and
+//   the snippet often spanned multiple operation modules. snippet.match(/queryId/)
+//   would then return the FIRST queryId in the snippet — frequently belonging
+//   to a different operation — and Twitter would reject it as expired.
+//   Anchoring queryId immediately adjacent to operationName (≤400 chars,
+//   non-} characters only) guarantees the queryId belongs to this operation.
+export function parseOperationFromBundleText(text, operationName) {
+    if (!text || !operationName) return null;
+    const esc = operationName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const reA = new RegExp(`queryId:"([A-Za-z0-9_-]+)"[^}]{0,400}operationName:"${esc}"`);
+    const reB = new RegExp(`operationName:"${esc}"[^}]{0,400}queryId:"([A-Za-z0-9_-]+)"`);
+    let queryId = null;
+    let matchIndex = -1;
+    const mA = text.match(reA);
+    if (mA && typeof mA.index === 'number') {
+        queryId = mA[1];
+        matchIndex = mA.index;
+    } else {
+        const mB = text.match(reB);
+        if (mB && typeof mB.index === 'number') {
+            queryId = mB[1];
+            matchIndex = mB.index;
+        }
+    }
+    if (!queryId) return null;
+    const winStart = Math.max(0, matchIndex - 500);
+    const winEnd = Math.min(text.length, matchIndex + 1500);
+    const win = text.slice(winStart, winEnd);
+    const quotedKeys = (source) => source
+        ? Array.from(source.matchAll(/"([^"]+)"/g)).map((m) => m[1])
+        : [];
+    const flags = (keys) => Object.fromEntries(
+        (keys || []).filter((k) => typeof k === 'string' && k).map((k) => [k, true]),
+    );
+    return {
+        queryId,
+        features: flags(quotedKeys(win.match(/featureSwitches:\[([^\]]*)\]/)?.[1])),
+        fieldToggles: flags(quotedKeys(win.match(/fieldToggles:\[([^\]]*)\]/)?.[1])),
+    };
+}
+
 export async function resolveTwitterOperationMetadata(page, operationName, fallback) {
+    const parserSource = parseOperationFromBundleText.toString();
+    // Order: GitHub placeholder.json FIRST (more reliable — fa0311/twitter-openapi
+    // tracks Twitter's queryId rotation), bundle scan SECOND as offline fallback.
+    // The previous order (bundle-first) silently returned wrong queryIds from
+    // cross-module snippet pollution and never reached the GitHub path.
     const resolved = await page.evaluate(`async () => {
     const operationName = ${JSON.stringify(operationName)};
-    const keysToFlags = (keys) => Object.fromEntries((keys || []).map((key) => [key, true]));
-    const quotedKeys = (source) => source
-      ? Array.from(source.matchAll(/"([^"]+)"/g)).map((match) => match[1])
-      : [];
-    const parseOperation = (text) => {
-      const marker = 'operationName:"' + operationName + '"';
-      const index = text.indexOf(marker);
-      if (index < 0) return null;
-      const start = Math.max(0, text.lastIndexOf('e.exports=', index));
-      const endMarker = text.indexOf('}}}', index);
-      const snippet = text.slice(start, endMarker > index ? endMarker + 3 : index + 2500);
-      const queryId = snippet.match(/queryId:"([A-Za-z0-9_-]+)"/)?.[1] || null;
-      if (!queryId) return null;
-      return {
-        queryId,
-        features: keysToFlags(quotedKeys(snippet.match(/featureSwitches:\\[([^\\]]*)\\]/)?.[1])),
-        fieldToggles: keysToFlags(quotedKeys(snippet.match(/fieldToggles:\\[([^\\]]*)\\]/)?.[1])),
-      };
+    const keysToFlags = (keys) => Object.fromEntries((keys || []).filter((k) => typeof k === 'string' && k).map((key) => [key, true]));
+    const normalizeFlags = (value) => {
+      if (Array.isArray(value)) return keysToFlags(value);
+      if (!value || typeof value !== 'object') return {};
+      return Object.fromEntries(Object.entries(value).filter(([key, flag]) => typeof key === 'string' && key && typeof flag === 'boolean'));
     };
+    const parseOperationFromBundleText = ${parserSource};
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (ghResp.ok) {
+          const data = await ghResp.json();
+          const entry = data && data[operationName];
+          if (entry && entry.queryId) {
+            return {
+              queryId: entry.queryId,
+              features: normalizeFlags(entry.features ?? entry.featureSwitches),
+              fieldToggles: normalizeFlags(entry.fieldToggles),
+            };
+          }
+        }
+      } catch {
+        clearTimeout(timeout);
+      }
+    } catch {}
+
     try {
       const scripts = Array.from(document.scripts)
         .map(s => s.src)
@@ -235,33 +303,18 @@ export async function resolveTwitterOperationMetadata(page, operationName, fallb
           .map(r => r.name)
           .filter(r => r.includes('client-web') && r.endsWith('.js')));
       const uniqueScripts = Array.from(new Set(scripts));
-      for (const scriptUrl of uniqueScripts.slice(-30)) {
+      const head = uniqueScripts.slice(0, 15);
+      const tail = uniqueScripts.slice(-15);
+      const candidates = Array.from(new Set([...head, ...tail]));
+      for (const scriptUrl of candidates) {
         try {
           const text = await (await fetch(scriptUrl)).text();
-          const operation = parseOperation(text);
+          const operation = parseOperationFromBundleText(text, operationName);
           if (operation) return operation;
         } catch {}
       }
     } catch {}
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    try {
-      const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json', { signal: controller.signal });
-      clearTimeout(timeout);
-      if (ghResp.ok) {
-        const data = await ghResp.json();
-        const entry = data?.[operationName];
-        if (entry && entry.queryId) {
-          return {
-            queryId: entry.queryId,
-            features: keysToFlags(entry.featureSwitches),
-            fieldToggles: keysToFlags(entry.fieldToggles),
-          };
-        }
-      }
-    } catch {
-      clearTimeout(timeout);
-    }
+
     return null;
   }`);
     return sanitizeTwitterOperationMetadata(resolved, fallback);
@@ -278,25 +331,39 @@ export async function resolveTwitterQueryId(page, operationName, fallbackId) {
  * back to `entities.media` when the extended form is missing. For videos and
  * animated GIFs, returns the mp4 variant URL; for photos, returns
  * `media_url_https`.
+ *
+ * Also returns `media_posters`, index-aligned 1:1 with `media_urls`: the still
+ * preview image for each item. For videos / animated GIFs this is the
+ * `media_url_https` thumbnail (otherwise discarded in favour of the mp4 URL);
+ * for photos it equals the photo URL itself. Each entry is a non-null string —
+ * it falls back to the media URL if a thumbnail is somehow absent, preserving
+ * alignment.
  */
 export function extractMedia(legacy) {
     const media = legacy?.extended_entities?.media || legacy?.entities?.media;
     if (!Array.isArray(media) || media.length === 0) {
-        return { has_media: false, media_urls: [] };
+        return { has_media: false, media_urls: [], media_posters: [] };
     }
     const urls = [];
+    const posters = [];
     for (const m of media) {
         if (!m) continue;
         if (m.type === 'video' || m.type === 'animated_gif') {
             const variants = m.video_info?.variants || [];
             const mp4 = variants.find((v) => v?.content_type === 'video/mp4');
             const url = mp4?.url || m.media_url_https;
-            if (url) urls.push(url);
+            if (url) {
+                urls.push(url);
+                posters.push(m.media_url_https || url);
+            }
         } else {
-            if (m.media_url_https) urls.push(m.media_url_https);
+            if (m.media_url_https) {
+                urls.push(m.media_url_https);
+                posters.push(m.media_url_https);
+            }
         }
     }
-    return { has_media: urls.length > 0, media_urls: urls };
+    return { has_media: urls.length > 0, media_urls: urls, media_posters: posters };
 }
 
 /**
@@ -394,7 +461,8 @@ export function extractQuotedTweet(tweet) {
     const q = tweet?.quoted_status_result?.result
         ?? tweet?.legacy?.quoted_status_result?.result;
     // `result` can be a tombstone (`__typename: 'TweetTombstone'`) or
-    // `'TweetUnavailable'` when the quoted tweet was deleted / privacy-restricted.
+    // `'TweetUnavailable'` when the quoted tweet was deleted / privacy-restricted —
+    // it has no `legacy`, so the downstream null-check covers both cases.
     if (!q) return null;
     // Nested `tweet` wrapper appears on TweetWithVisibilityResults — same
     // shim that callers already do at the top level (`tw.tweet || tw`).
@@ -435,13 +503,52 @@ export function extractQuotedTweet(tweet) {
         url: `https://x.com/${qScreenName}/status/${qTw.rest_id}`,
         has_media: qMedia.has_media,
         media_urls: qMedia.media_urls,
+        media_posters: qMedia.media_posters,
     };
     if (qCard) out.card = qCard;
     return out;
 }
 
+/**
+ * Translate a non-200 Twitter API response into a message that distinguishes
+ * the actual HTTP failure mode, so callers (scripts / scrapers / pipelines)
+ * can choose retry / cooldown / re-auth / drop without misreading "queryId
+ * expired" as the universal cause.
+ *
+ * @param {string} operation - GraphQL operationName or REST endpoint label
+ *                             (e.g. 'SearchTimeline', 'TweetDetail',
+ *                             'device_follow'); used in the error prefix.
+ * @param {number|string} status - HTTP status code from page.evaluate fetch
+ *                                 (e.g. r.status); coerced to Number.
+ * @param {string} [extraHint] - Optional adapter-specific hint appended after
+ *                               the generic explanation (e.g. "list may be
+ *                               private", "folder may not exist").
+ * @returns {string} Message intended for `new CommandExecutionError(...)`.
+ */
+export function describeTwitterApiError(operation, status, extraHint) {
+    const code = Number(status);
+    const prefix = `HTTP ${status}: ${operation} fetch failed`;
+    let suffix;
+    if (code === 429) {
+        suffix = 'rate-limited by Twitter (session quota); retry after cooldown (typically 15-30 min)';
+    } else if (code === 401) {
+        suffix = 'auth failed (cookie expired or invalidated); re-login required';
+    } else if (code === 403) {
+        suffix = 'forbidden (cookie lacks scope, or resource is private)';
+    } else if (code === 404) {
+        suffix = 'resource not found (deleted, suspended, or private)';
+    } else if (code >= 500 && code < 600) {
+        suffix = 'Twitter server error; retry later';
+    } else {
+        suffix = 'possibly queryId expired, schema change, or transient';
+    }
+    if (extraHint) suffix = `${suffix} (${extraHint})`;
+    return `${prefix} — ${suffix}`;
+}
+
 export const __test__ = {
     sanitizeQueryId,
+    normalizeTwitterOperationFlags,
     sanitizeTwitterOperationMetadata,
     unwrapBrowserResult,
     normalizeTwitterGraphqlPayload,
@@ -452,4 +559,6 @@ export const __test__ = {
     parseTweetUrl,
     buildTwitterArticleScopeSource,
     looksLikePrivateTwitterTimeline,
+    parseOperationFromBundleText,
+    describeTwitterApiError,
 };

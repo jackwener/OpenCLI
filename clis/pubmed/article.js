@@ -11,11 +11,12 @@ cli({
     domain: 'pubmed.ncbi.nlm.nih.gov',
     strategy: Strategy.PUBLIC,
     browser: false,
+    defaultFormat: 'plain',
     args: [
         { name: 'pmid', positional: true, required: true, help: 'PubMed ID, e.g. 37780221' },
         { name: 'full-abstract', type: 'boolean', default: false, help: 'Do not truncate the abstract in table output' },
     ],
-    columns: ['field', 'value'],
+    columns: ['pmid', 'title', 'authors', 'journal', 'year', 'date', 'article_type', 'language', 'doi', 'pmc', 'affiliations', 'grants', 'mesh_terms', 'keywords', 'abstract', 'url'],
     func: async (args) => {
         const pmid = requirePmid(args.pmid);
         const xml = await eutilsFetch('efetch', {
@@ -31,20 +32,24 @@ cli({
         }
         const abstract = args['full-abstract'] ? article.abstract : truncateText(article.abstract, 500);
         return [
-            { field: 'PMID', value: article.pmid },
-            { field: 'Title', value: article.title },
-            { field: 'Authors', value: article.authors.join(', ') },
-            { field: 'Journal', value: article.journal },
-            { field: 'Year', value: article.year },
-            { field: 'Date', value: article.date },
-            { field: 'Article Type', value: article.article_type },
-            { field: 'Language', value: article.language },
-            { field: 'DOI', value: article.doi || null },
-            { field: 'PMC ID', value: article.pmc || null },
-            { field: 'MeSH Terms', value: article.mesh_terms || null },
-            { field: 'Keywords', value: article.keywords || null },
-            { field: 'Abstract', value: abstract || null },
-            { field: 'URL', value: article.url },
+            {
+                pmid: article.pmid,
+                title: article.title,
+                authors: article.authors.join(', '),
+                journal: article.journal,
+                year: article.year,
+                date: article.date || null,
+                article_type: article.article_type,
+                language: article.language || null,
+                doi: article.doi || null,
+                pmc: article.pmc || null,
+                affiliations: article.affiliations || null,
+                grants: article.grants || null,
+                mesh_terms: article.mesh_terms || null,
+                keywords: article.keywords || null,
+                abstract: abstract || null,
+                url: article.url,
+            },
         ];
     },
 });

@@ -284,12 +284,62 @@ function stripNoise(text) {
         .trim();
 }
 
-export async function waitForAnswer(page, prompt, timeoutSeconds) {
+function normalizePromptText(text) {
+    return stripNoise(text).replace(/\s+/g, ' ').trim();
+}
+
+function normalizeWaitAnchor(anchor) {
+    if (typeof anchor === 'string') {
+        return { lastBubbleId: '', lastAssistantId: anchor };
+    }
+    return {
+        lastBubbleId: String(anchor?.lastBubbleId || ''),
+        lastAssistantId: String(anchor?.lastAssistantId || ''),
+    };
+}
+
+function findAssistantAfterPrompt(bubbles, prompt, anchor) {
+    const normalizedPrompt = normalizePromptText(prompt);
+    let startIndex = -1;
+    const hasAnchor = Boolean(anchor.lastBubbleId || anchor.lastAssistantId);
+    let foundAnchor = false;
+    if (anchor.lastBubbleId) {
+        const lastBubbleIndex = bubbles.findIndex((bubble) => bubble.id === anchor.lastBubbleId);
+        if (lastBubbleIndex >= 0) {
+            startIndex = lastBubbleIndex;
+            foundAnchor = true;
+        }
+    }
+    if (anchor.lastAssistantId) {
+        const lastAssistantIndex = bubbles.findIndex((bubble) => bubble.id === anchor.lastAssistantId);
+        if (lastAssistantIndex >= 0) {
+            startIndex = Math.max(startIndex, lastAssistantIndex);
+            foundAnchor = true;
+        }
+    }
+    if (hasAnchor && !foundAnchor) return null;
+
+    let promptIndex = -1;
+    for (let i = startIndex + 1; i < bubbles.length; i += 1) {
+        if (bubbles[i].role === 'User' && normalizePromptText(bubbles[i].text) === normalizedPrompt) {
+            promptIndex = i;
+        }
+    }
+    if (promptIndex < 0) return null;
+
+    for (let i = promptIndex + 1; i < bubbles.length; i += 1) {
+        if (bubbles[i].role === 'Assistant') return bubbles[i];
+    }
+    return null;
+}
+
+export async function waitForAnswer(page, prompt, timeoutSeconds, baselineAnchor) {
+    const anchor = normalizeWaitAnchor(baselineAnchor);
     const startTime = Date.now();
     let previousText = '';
     let stableCount = 0;
     let lastCandidate = '';
-    let seenAssistantId = '';
+    let lastAssistantCandidate = null;
 
     while (Date.now() - startTime < timeoutSeconds * 1000) {
         await page.wait(POLL_INTERVAL_SECONDS);
@@ -299,14 +349,18 @@ export async function waitForAnswer(page, prompt, timeoutSeconds) {
         }
 
         const bubbles = await getMessageBubbles(page);
-        const lastAssistant = [...bubbles].reverse().find((b) => b.role === 'Assistant');
+        const lastAssistant = findAssistantAfterPrompt(bubbles, prompt, anchor);
         if (!lastAssistant) continue;
+
+        // Guard against stale assistant turns that existed before our send even
+        // if the DOM briefly reorders or rehydrates while the new turn loads.
+        if (anchor.lastAssistantId && lastAssistant.id === anchor.lastAssistantId) continue;
 
         const text = stripNoise(lastAssistant.text);
         if (!text || text === prompt) continue;
 
-        if (!seenAssistantId) seenAssistantId = lastAssistant.id;
         lastCandidate = text;
+        lastAssistantCandidate = lastAssistant;
 
         const waitedLongEnough = Date.now() - startTime >= MIN_WAIT_MS;
         if (text === previousText) {
@@ -321,9 +375,7 @@ export async function waitForAnswer(page, prompt, timeoutSeconds) {
     }
 
     if (lastCandidate) {
-        const bubbles = await getMessageBubbles(page);
-        const lastAssistant = [...bubbles].reverse().find((b) => b.role === 'Assistant');
-        return { status: 'partial', assistant: lastAssistant };
+        return { status: 'partial', assistant: lastAssistantCandidate };
     }
     return { status: 'timeout' };
 }

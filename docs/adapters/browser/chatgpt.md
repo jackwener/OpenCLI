@@ -14,6 +14,7 @@
 | `opencli chatgpt new` | Start a new conversation |
 | `opencli chatgpt status` | Check page and login state |
 | `opencli chatgpt image <prompt>` | Generate images in ChatGPT web and optionally save them locally |
+| `opencli chatgpt model <level>` | Switch the ChatGPT web intelligence level |
 
 ## Usage Examples
 
@@ -36,6 +37,13 @@ opencli chatgpt new
 
 # Generate an image and save it to the default directory
 opencli chatgpt image "a cyberpunk city at night"
+
+# Switch ChatGPT's intelligence level
+opencli chatgpt model instant
+opencli chatgpt model medium
+opencli chatgpt model high
+opencli chatgpt model extra-high
+opencli chatgpt model pro
 
 # Upload a local image, ask ChatGPT to edit it, and save the result
 opencli chatgpt image "make the background blue" --image ./cat.png
@@ -62,12 +70,14 @@ opencli chatgpt image "a tiny watercolor fox" --sd true
 | `--image` | Local image path to attach before prompting; comma-separated paths are supported |
 | `--op` | Output directory for downloaded images (default: `~/Pictures/chatgpt`) |
 | `--sd` | Skip download and only print the ChatGPT conversation link |
+| `model` | ChatGPT intelligence level for `model`: `instant`, `medium`, `high`, `extra-high`, or `pro`; `thinking` is accepted as a backward-compatible alias for `high` |
 
 ## Behavior
 
 - ChatGPT web commands use persistent site sessions by default, so consecutive `ask` / `send` / `read` / `detail` commands continue in the same ChatGPT tab. Use `--site-session ephemeral` for one-shot isolated tabs.
 - `ask` waits for the first stable assistant response after sending. `send` submits only and returns immediately.
 - `history` reads visible `/c/<id>` links from the ChatGPT sidebar; it does not use private backend APIs.
+- `model` switches the visible ChatGPT web intelligence level. It recognizes the current English labels (`Instant`, `Medium`, `High`, `Extra High`, `Pro`) and Chinese labels (`极速`, `均衡`, `高级`, `超高`, `专业`). If labels are localized differently, it only falls back to option order after confirming the guarded five-option ChatGPT intelligence picker structure.
 - `image` opens a fresh `chatgpt.com/new` page before sending the image prompt.
 - When `--image` is provided, local images are uploaded first and the prompt is sent as an image edit request.
 - `image` output is plain `status / file / link`, not a markdown table.

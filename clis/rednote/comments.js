@@ -59,6 +59,15 @@ cli({
         }
         void noteId;
         const all = data.results ?? [];
+        const toRow = (c, i) => ({
+            rank: i + 1,
+            author: c.author,
+            text: c.text,
+            likes: c.likes,
+            time: c.time,
+            is_reply: c.is_reply,
+            reply_to: c.reply_to,
+        });
         if (withReplies) {
             const limited = [];
             let topCount = 0;
@@ -69,8 +78,8 @@ cli({
                     break;
                 limited.push(c);
             }
-            return limited.map((c, i) => ({ rank: i + 1, ...c }));
+            return limited.map(toRow);
         }
-        return all.slice(0, limit).map((c, i) => ({ rank: i + 1, ...c }));
+        return all.slice(0, limit).map(toRow);
     },
 });

@@ -61,6 +61,11 @@ opencli browser network
 
 **下一步**：`api-discovery.md` §1（network 精读）
 
+**注意 — Pattern A 命中不等于 strategy 选 `PAGE_FETCH`**：
+- 先看 `opencli browser analyze` 输出的 `api_candidates[]`：`verdict=likely_data` 的条目才是真候选；`verdict=noise`（analytics / beacon / personalization）不能算 API 信号
+- booking #1680 反例：17 个 JSON XHR 看起来像 Pattern A，但全是 analytics side-channel，最终走 `DOM_STATE` / `UI_SELECTOR`
+- replay 候选 endpoint 后，按 `strategy-selection.md` 的契约模型选 strategy；`PUBLIC_API` / `COOKIE_API` 都不通才考虑 `PAGE_FETCH`
+
 ---
 
 ## Pattern B — SSR / inline data

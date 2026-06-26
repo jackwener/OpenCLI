@@ -1,14 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './utils.js';
 import { __test__ as priceTest } from './price.js';
 import { __test__ as trainTest } from './train.js';
+import { __test__ as trainsTest } from './trains.js';
 import './orders.js';
 
 const { parseStationBundle, resolveStation, validateDate, buildCookieHeader, parseTrainRecord, maskEmail, maskMobile, maskChineseName, unwrapEvaluateResult, requireEvaluateObject, isAuthLikePayload } = __test__;
-const { parsePriceData, queryStopsForPrice, queryPrice } = priceTest;
-const { queryStops } = trainTest;
+const { parsePriceData, queryStopsForPrice, queryPrice, TRAIN_NO_RE: PRICE_TRAIN_NO_RE } = priceTest;
+const { queryStops, TRAIN_NO_RE: TRAIN_TRAIN_NO_RE } = trainTest;
+const { queryLeftTickets, extractQueryEndpoint } = trainsTest;
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
 
 describe('12306 utils - parseStationBundle', () => {
     it('parses the `@`-delimited station bundle into structured records', () => {
@@ -229,6 +235,30 @@ describe('12306 price - parsePriceData', () => {
     });
 });
 
+describe('12306 train_no validation regex', () => {
+    // 12306 train_no values returned by /otn/leftTicket/query sometimes contain
+    // lowercase letters (e.g. "5l000G1970A3" for G1970 上海虹桥 -> 宝鸡南).
+    // Both `12306 price` and `12306 train` must accept the raw value emitted
+    // by `12306 trains`, otherwise the two adapters drift apart and downstream
+    // calls fail with ARGUMENT before ever hitting 12306.
+    for (const [label, re] of [['price', PRICE_TRAIN_NO_RE], ['train', TRAIN_TRAIN_NO_RE]]) {
+        describe(label, () => {
+            it('accepts an all-uppercase train_no', () => {
+                expect(re.test('24000000G10L')).toBe(true);
+            });
+            it('accepts a train_no with lowercase letters (real 12306 payload)', () => {
+                expect(re.test('5l000G1970A3')).toBe(true);
+            });
+            it('rejects public codes like G1970', () => {
+                expect(re.test('G1970')).toBe(false);
+            });
+            it('rejects values with disallowed characters', () => {
+                expect(re.test('5l000-G1970A3')).toBe(false);
+            });
+        });
+    }
+});
+
 describe('12306 public API typed boundaries', () => {
     const nonJsonFetch = async () => ({
         ok: true,
@@ -247,6 +277,69 @@ describe('12306 public API typed boundaries', () => {
             .rejects.toBeInstanceOf(CommandExecutionError);
         await expect(queryPrice('cookie=1', '24000000G10L', '01', '02', 'OM9', '2026-05-22', nonJsonFetch))
             .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+});
+
+describe('12306 trains endpoint rotation', () => {
+    const successBody = { data: { result: ['row|payload'] } };
+
+    it('extracts only leftTicket query endpoints from rotation hints', () => {
+        expect(extractQueryEndpoint('leftTicket/queryB')).toBe('queryB');
+        expect(extractQueryEndpoint('/otn/leftTicket/queryC')).toBe('queryC');
+        expect(extractQueryEndpoint('https://kyfw.12306.cn/otn/leftTicket/queryD')).toBe('queryD');
+        expect(extractQueryEndpoint('/otn/error.html')).toBe('');
+        expect(extractQueryEndpoint('https://example.com/leftTicket/queryB')).toBe('');
+        expect(extractQueryEndpoint('leftTicket/querybad')).toBe('');
+    });
+
+    it('follows a 302 JSON c_url rotation signal before trying fallback endpoints', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(new Response(JSON.stringify({ c_url: 'leftTicket/queryB' }), { status: 302 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify(successBody), { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(queryLeftTickets('cookie=1', 'BJP', 'AOH', '2026-05-22')).resolves.toEqual(['row|payload']);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls[0][0]).toContain('/leftTicket/queryG?');
+        expect(fetchMock.mock.calls[1][0]).toContain('/leftTicket/queryB?');
+    });
+
+    it('follows a 302 Location header rotation signal when the body is not JSON', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(new Response('<html>redirect</html>', {
+                status: 302,
+                headers: { location: '/otn/leftTicket/queryB' },
+            }))
+            .mockResolvedValueOnce(new Response(JSON.stringify(successBody), { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(queryLeftTickets('cookie=1', 'BJP', 'AOH', '2026-05-22')).resolves.toEqual(['row|payload']);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls[1][0]).toContain('/leftTicket/queryB?');
+    });
+
+    it('typed-fails a 302 that does not identify a leftTicket query endpoint', async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(new Response('<html>error</html>', {
+            status: 302,
+            headers: { location: '/otn/error.html' },
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(queryLeftTickets('cookie=1', 'BJP', 'AOH', '2026-05-22'))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('deduplicates rotation endpoints request-locally and keeps fallback bounded', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(new Response(JSON.stringify({ c_url: 'leftTicket/queryG' }), { status: 302 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify(successBody), { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(queryLeftTickets('cookie=1', 'BJP', 'AOH', '2026-05-22')).resolves.toEqual(['row|payload']);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls[0][0]).toContain('/leftTicket/queryG?');
+        expect(fetchMock.mock.calls[1][0]).toContain('/leftTicket/queryO?');
     });
 });
 
