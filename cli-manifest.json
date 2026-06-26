@@ -16175,6 +16175,916 @@
     "siteSession": "persistent"
   },
   {
+    "site": "hltv",
+    "name": "event-matches",
+    "description": "Read visible HLTV stats match rows for a specific event",
+    "access": "read",
+    "example": "opencli hltv event-matches 8301 --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "event",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Event id, /events/:id URL, or stats URL with event="
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to return from the visible stats matches table (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "eventId",
+      "team",
+      "opponent",
+      "score",
+      "map",
+      "matchStatsId",
+      "matchStatsUrl",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/event-matches.js",
+    "sourceFile": "hltv/event-matches.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "match-map",
+    "description": "Read a single HLTV mapstats page and return all player rows for that map",
+    "access": "read",
+    "example": "opencli hltv match-map \"https://www.hltv.org/stats/matches/mapstatsid/231594/falcons-vs-natus-vincere\" -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "match",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Full HLTV /stats/matches/mapstatsid/:id/:slug URL from player-matches"
+      }
+    ],
+    "columns": [
+      "matchStatsId",
+      "playerId",
+      "playerName",
+      "team",
+      "kills",
+      "deaths",
+      "adr",
+      "kastPct",
+      "rating",
+      "opKd",
+      "details",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hltv/match-map.js",
+    "sourceFile": "hltv/match-map.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "match-series",
+    "description": "Expand an HLTV match or stats series into summary, map, and player rows",
+    "access": "read",
+    "example": "opencli hltv match-series https://www.hltv.org/stats/matches/126993/spirit-vs-falcons -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "match",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "HLTV match, stats series, or mapstats URL"
+      }
+    ],
+    "columns": [
+      "rowType",
+      "date",
+      "event",
+      "map",
+      "team",
+      "opponent",
+      "score",
+      "matchStatsId",
+      "playerId",
+      "playerName",
+      "rating",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/match-series.js",
+    "sourceFile": "hltv/match-series.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-duel",
+    "description": "Compare two HLTV players on shared maps, including direct kill matrix when available",
+    "access": "read",
+    "example": "opencli hltv player-duel 19230/m0nesy 3741/niko --match https://www.hltv.org/stats/matches/mapstatsid/231594/falcons-vs-natus-vincere -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "playerA",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "First player ref: 19230/m0nesy, player URL, or stats player URL"
+      },
+      {
+        "name": "playerB",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Second player ref: 3741/niko, player URL, or stats player URL"
+      },
+      {
+        "name": "match",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional HLTV match, stats series, or mapstats URL"
+      },
+      {
+        "name": "mode",
+        "type": "string",
+        "default": "lastEncounter",
+        "required": false,
+        "help": "lastEncounter / intersection / history. Ignored when --match is provided"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset for broad mode; must be a multiple of 100"
+      },
+      {
+        "name": "recentMaps",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "lastEncounter mode candidate maps from playerA to scan (max 500)"
+      },
+      {
+        "name": "scanPages",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Broad mode pages to scan, 100 rows each (max 5)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum shared maps to compare (max 100)"
+      }
+    ],
+    "columns": [
+      "rowType",
+      "scope",
+      "date",
+      "event",
+      "map",
+      "matchStatsId",
+      "playerAId",
+      "playerBId",
+      "ratingDiff",
+      "killDiff",
+      "directKillDiff",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-duel.js",
+    "sourceFile": "hltv/player-duel.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-form",
+    "description": "Aggregate recent HLTV player maps into form summaries grouped by summary, map, and opponent",
+    "access": "read",
+    "example": "opencli hltv player-form --player 19230/m0nesy --limit 30 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats matches URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Recent maps to aggregate from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "playerId",
+      "nickname",
+      "maps",
+      "avgRating",
+      "kdRatio",
+      "killsPerMap",
+      "plusMinusTotal",
+      "winMaps",
+      "lossMaps",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-form.js",
+    "sourceFile": "hltv/player-form.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-map-pool",
+    "description": "Aggregate a player matches page into per-map performance buckets",
+    "access": "read",
+    "example": "opencli hltv player-map-pool --player 3741/niko --limit 50 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats player URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Recent maps to aggregate from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "playerId",
+      "nickname",
+      "maps",
+      "avgRating",
+      "kdRatio",
+      "killsPerMap",
+      "plusMinusTotal",
+      "winMaps",
+      "lossMaps",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-map-pool.js",
+    "sourceFile": "hltv/player-map-pool.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-matches",
+    "description": "Read HLTV player match history from the stats Matches tab",
+    "access": "read",
+    "example": "opencli hltv player-matches --player 3741/niko --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats matches URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to return from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "playerTeam",
+      "opponent",
+      "map",
+      "kills",
+      "deaths",
+      "plusMinus",
+      "rating",
+      "playerId",
+      "matchStatsId",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-matches.js",
+    "sourceFile": "hltv/player-matches.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-summary",
+    "description": "Read an HLTV player summary page",
+    "access": "read",
+    "example": "opencli hltv player-summary --player 3741/niko -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko or https://www.hltv.org/player/3741/niko"
+      }
+    ],
+    "columns": [
+      "playerId",
+      "slug",
+      "nickname",
+      "fullName",
+      "age",
+      "teamName",
+      "prizeMoneyUsd",
+      "maps",
+      "rating",
+      "roles",
+      "completeStatsUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-summary.js",
+    "sourceFile": "hltv/player-summary.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-teammate-impact",
+    "description": "Compare playerA maps with and without playerB present in the scanned sample",
+    "access": "read",
+    "example": "opencli hltv player-teammate-impact 3741/niko 19230/m0nesy --limit 50 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "playerA",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Primary player ref"
+      },
+      {
+        "name": "playerB",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Teammate player ref"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to scan for each player from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "playerId",
+      "maps",
+      "avgRating",
+      "kdRatio",
+      "killsPerMap",
+      "plusMinusTotal",
+      "winMaps",
+      "lossMaps",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-teammate-impact.js",
+    "sourceFile": "hltv/player-teammate-impact.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-vs-team",
+    "description": "Filter a player matches page to maps played against a specific HLTV team",
+    "access": "read",
+    "example": "opencli hltv player-vs-team 7020/spirit --player 3741/niko --limit 20 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats player URL"
+      },
+      {
+        "name": "team",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Team ref: 7020/spirit, team URL, or stats team URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to scan from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "rowType",
+      "rank",
+      "date",
+      "playerId",
+      "opponent",
+      "map",
+      "kills",
+      "deaths",
+      "rating",
+      "result",
+      "matchStatsId",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-vs-team.js",
+    "sourceFile": "hltv/player-vs-team.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "search",
+    "description": "Search HLTV players, teams, events, and articles",
+    "access": "read",
+    "example": "opencli hltv search niko --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword, e.g. niko"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Maximum rows per result type (max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "id",
+      "name",
+      "title",
+      "date",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hltv/search.js",
+    "sourceFile": "hltv/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "team-map-pool",
+    "description": "Read the visible HLTV team map-pool page with win rate, pick rate, and ban rate",
+    "access": "read",
+    "example": "opencli hltv team-map-pool 11283/falcons -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "team",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Team ref: 11283/falcons, team URL, or stats team URL"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "teamId",
+      "team",
+      "maps",
+      "winMaps",
+      "lossMaps",
+      "winRatePct",
+      "avgRoundDiff",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/team-map-pool.js",
+    "sourceFile": "hltv/team-map-pool.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "team-matches",
+    "description": "Read recent HLTV team map results from the stats team matches page",
+    "access": "read",
+    "example": "opencli hltv team-matches 6667/falcons --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "team",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Team ref: 6667/falcons, team URL, or stats team URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to return from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "team",
+      "opponent",
+      "map",
+      "result",
+      "teamId",
+      "matchStatsId",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/team-matches.js",
+    "sourceFile": "hltv/team-matches.js",
+    "navigateBefore": false
+  },
+  {
     "site": "homebrew",
     "name": "cask",
     "description": "Fetch a Homebrew cask's metadata (version, homepage, deprecation, download URL)",

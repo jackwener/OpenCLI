@@ -73,6 +73,7 @@ export default defineConfig({
                 { text: 'Booking.com', link: '/adapters/browser/booking' },
                 { text: 'GeoGebra', link: '/adapters/browser/geogebra' },
                 { text: 'Reuters', link: '/adapters/browser/reuters' },
+                { text: 'HLTV', link: '/adapters/browser/hltv' },
                 { text: 'SMZDM', link: '/adapters/browser/smzdm' },
                 { text: 'Jike', link: '/adapters/browser/jike' },
                 { text: 'Jimeng', link: '/adapters/browser/jimeng' },
