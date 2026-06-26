@@ -1632,6 +1632,46 @@
     "navigateBefore": false
   },
   {
+    "site": "anthropic",
+    "name": "download",
+    "description": "Download Anthropic articles as local Markdown with YAML frontmatter and images",
+    "access": "read",
+    "domain": "www.anthropic.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "help": "Anthropic article URL under www.anthropic.com"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./anthropic-articles",
+        "required": false,
+        "help": "Output directory"
+      },
+      {
+        "name": "download-images",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Download cover and article images locally"
+      }
+    ],
+    "columns": [
+      "title",
+      "date",
+      "status",
+      "images",
+      "saved",
+      "assets"
+    ],
+    "type": "js",
+    "modulePath": "anthropic/download.js",
+    "sourceFile": "anthropic/download.js"
     "site": "amazon",
     "name": "whoami",
     "description": "Show the current logged-in amazon account",
