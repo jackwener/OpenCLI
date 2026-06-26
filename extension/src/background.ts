@@ -1292,6 +1292,49 @@ type ResolvedTab = { tabId: number; tab: chrome.tabs.Tab | null };
  * the Tab object (when available) so callers can skip a redundant chrome.tabs.get().
  */
 async function resolveTab(tabId: number | undefined, leaseKey: string, initialUrl?: string): Promise<ResolvedTab> {
+  const resolved = await resolveTabInternal(tabId, leaseKey, initialUrl);
+
+  if (getWindowMode(leaseKey) === 'foreground' && resolved.tabId !== undefined) {
+    try {
+      if (typeof chrome.tabs?.update === 'function') {
+        await chrome.tabs.update(resolved.tabId, { active: true });
+      }
+      const tab = resolved.tab || (typeof chrome.tabs?.get === 'function' ? await chrome.tabs.get(resolved.tabId) : null);
+      if (tab && typeof tab.windowId === 'number' && typeof chrome.windows?.update === 'function') {
+        let stateUpdate: chrome.windows.UpdateInfo = {};
+        if (typeof chrome.windows?.get === 'function') {
+          try {
+            const win = await chrome.windows.get(tab.windowId);
+            if (win.state === 'minimized') {
+              stateUpdate.state = 'normal';
+            }
+          } catch { /* ignore */ }
+        }
+        await chrome.windows.update(tab.windowId, { focused: true, ...stateUpdate });
+      }
+
+      if (typeof chrome.debugger?.sendCommand === 'function') {
+        try {
+          await executor.ensureAttached(resolved.tabId);
+          await chrome.debugger.sendCommand({ tabId: resolved.tabId }, 'Emulation.setPageVisibilityState', {
+            visibilityState: 'visible',
+          });
+          await chrome.debugger.sendCommand({ tabId: resolved.tabId }, 'Emulation.setFocusEmulationEnabled', {
+            enabled: true,
+          });
+        } catch (cdpErr) {
+          console.warn(`[opencli] Failed to set CDP visibility/focus emulation: ${cdpErr}`);
+        }
+      }
+    } catch (err) {
+      console.warn(`[opencli] Failed to focus tab/window: ${err}`);
+    }
+  }
+
+  return resolved;
+}
+
+async function resolveTabInternal(tabId: number | undefined, leaseKey: string, initialUrl?: string): Promise<ResolvedTab> {
   const existingSession = automationSessions.get(leaseKey);
   // Even when an explicit tabId is provided, validate it is still debuggable.
   if (tabId !== undefined) {

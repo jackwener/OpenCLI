@@ -467,6 +467,7 @@ describe('background tab isolation', () => {
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
+      ensureAttached: vi.fn(async () => {}),
       waitForDownload,
     }));
 
@@ -503,6 +504,7 @@ describe('background tab isolation', () => {
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
+      ensureAttached: vi.fn(async () => {}),
       evaluateAsync: vi.fn(async () => 'main-result'),
       evaluateInFrame,
       getFrameTree: vi.fn(async () => ({
@@ -654,6 +656,7 @@ describe('background tab isolation', () => {
       registerListeners: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => true),
       detach: detachMock,
+      ensureAttached: vi.fn(async () => {}),
     }));
 
     const mod = await import('./background');
@@ -808,6 +811,7 @@ describe('background tab isolation', () => {
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      ensureAttached: vi.fn(async () => {}),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -846,6 +850,7 @@ describe('background tab isolation', () => {
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      ensureAttached: vi.fn(async () => {}),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -1723,6 +1728,7 @@ describe('background tab isolation', () => {
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
+      ensureAttached: vi.fn(async () => {}),
     }));
 
     const mod = await import('./background');
