@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../daemon-utils.js';
 import {
   BrowserCommandError,
   fetchDaemonStatus,
@@ -242,5 +243,41 @@ describe('daemon-client', () => {
       hint: 'Inspect state before retrying.',
     } satisfies Partial<BrowserCommandError>);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sendCommand does not silently retry a mutating command on fetch AbortError', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockRejectedValue(
+      Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }),
+    );
+
+    await expect(sendCommand('exec', { code: 'window.__mutate = true' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: COMMAND_RESULT_UNKNOWN_CODE,
+      hint: COMMAND_RESULT_UNKNOWN_HINT,
+    } satisfies Partial<BrowserCommandError>);
+    // No second dispatch — the command must not be re-POSTed with a fresh id.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sendCommand still retries on TypeError (connection refused) since the command never reached the daemon', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_456);
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+      } as Response);
+
+    await expect(sendCommand('exec', { code: '1 + 1' })).resolves.toBe('ok');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const ids = fetchMock.mock.calls.map(([, init]) => {
+      const body = JSON.parse(String(init?.body)) as { id: string };
+      return body.id;
+    });
+    expect(ids[0]).not.toBe(ids[1]);
   });
 });
