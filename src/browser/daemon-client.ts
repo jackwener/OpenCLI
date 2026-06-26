@@ -201,8 +201,13 @@ async function sendCommandRaw(
         if (result.errorCode === 'command_result_unknown') {
           throw new BrowserCommandError(result.error ?? 'Browser command result is unknown', result.errorCode, result.errorHint);
         }
-        const isDuplicateCommandId = res.status === 409
-          || (result.error ?? '').includes('Duplicate command id');
+        // Only retry the genuine duplicate-id 409, which always carries this
+        // message. A bare `res.status === 409` also matches the daemon's
+        // `profile_required` 409 (multiple Browser Bridge profiles connected),
+        // which is NOT retryable — retrying it silently burns every attempt and
+        // then throws the opaque "max retries exhausted", discarding the
+        // actionable errorCode/hint that tells the user to pass --profile.
+        const isDuplicateCommandId = (result.error ?? '').includes('Duplicate command id');
         if (isDuplicateCommandId && attempt < maxRetries) {
           continue;
         }
