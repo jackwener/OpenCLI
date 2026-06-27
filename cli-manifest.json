@@ -39420,6 +39420,53 @@
     "sourceFile": "wikipedia/trending.js"
   },
   {
+    "site": "wps-pdf",
+    "name": "convert",
+    "description": "WPS PDF 在线文档格式转换（站点 pdf.wps.cn）：PDF↔Word/Excel/PPT、图片↔文档 互转，及 PDF 拆分/加密/水印等操作；复用浏览器已登录的 WPS 会员态",
+    "access": "write",
+    "domain": "pdf.wps.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "input",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "输入文件路径（按当前终端目录解析）"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "help": "目标格式：docx/pptx/xlsx/html/pdf/png/jpg/word/txt 或 PDF 操作 optimize/split/encrypt/..."
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "required": false,
+        "help": "输出文件路径（默认：与输入同目录，扩展名按结果文件）"
+      },
+      {
+        "name": "extra",
+        "type": "str",
+        "required": false,
+        "help": "commit 附加字段 JSON，如 '{\"newpassword\":\"abc\"}' / '{\"pages\":\"1,3-5\"}' / '{\"watermark_type\":\"text\",\"content\":\"密\"}'"
+      }
+    ],
+    "columns": [
+      "status",
+      "source",
+      "target",
+      "output",
+      "bytes"
+    ],
+    "type": "js",
+    "modulePath": "wps-pdf/convert.js",
+    "sourceFile": "wps-pdf/convert.js",
+    "navigateBefore": false
+  },
+  {
     "site": "wttr",
     "name": "current",
     "description": "Current weather conditions for a location (city, lat,lon, or airport code)",
