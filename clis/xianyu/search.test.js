@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './search.js';
 import './search.js';
@@ -57,17 +57,20 @@ function createPageMock(evaluateResult) {
 }
 describe('xianyu search command', () => {
     const command = getRegistry().get('xianyu/search');
+    it('keeps existing search columns while adding want count', () => {
+        expect(command.columns).toEqual(['item_id', 'rank', 'title', 'price', 'condition', 'brand', 'location', 'badge', 'want', 'url']);
+    });
     it('assigns contiguous ranks and passes item fields through', async () => {
         const page = createPageMock({
             items: [
-                { item_id: '111', title: 'A', price: '¥130000', location: '深圳', want: '3', url: 'u1' },
-                { item_id: '222', title: 'B', price: '¥185000', location: '深圳', want: '0', url: 'u2' },
+                { item_id: '111', title: 'A', price: '¥130000', condition: '几乎全新', brand: '小鹏', location: '深圳', badge: '信用极好', want: '3', url: 'u1' },
+                { item_id: '222', title: 'B', price: '¥185000', condition: '', brand: '', location: '深圳', badge: '', want: '0', url: 'u2' },
             ],
         });
         const rows = await command.func(page, { query: '小鹏G9', city: '深圳', 'min-price': 100000, 'max-price': 200000 });
         expect(rows.map((r) => r.rank)).toEqual([1, 2]);
         expect(rows.map((r) => r.item_id)).toEqual(['111', '222']);
-        expect(rows[0]).toMatchObject({ rank: 1, price: '¥130000', location: '深圳' });
+        expect(rows[0]).toMatchObject({ rank: 1, price: '¥130000', condition: '几乎全新', brand: '小鹏', location: '深圳', badge: '信用极好' });
     });
     it('rejects an inverted price range before touching the page', async () => {
         const page = createPageMock({ items: [] });
@@ -81,6 +84,18 @@ describe('xianyu search command', () => {
     it('throws AuthRequiredError on an expired mtop session', async () => {
         const page = createPageMock({ error: 'mtop-response-error', error_code: 'FAIL_SYS_SESSION_EXPIRED', error_message: 'x' });
         await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+    it('throws CommandExecutionError on verification blocks', async () => {
+        const page = createPageMock({ error: 'blocked' });
+        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+    it('throws CommandExecutionError on malformed mtop payloads', async () => {
+        const page = createPageMock({ error: 'malformed-response', error_message: 'missing resultList' });
+        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+    it('throws CommandExecutionError when evaluate does not return an items array', async () => {
+        const page = createPageMock({});
+        await expect(command.func(page, { query: '小鹏G9' })).rejects.toBeInstanceOf(CommandExecutionError);
     });
     it('throws EmptyResultError when nothing matches the filters', async () => {
         const page = createPageMock({ items: [] });

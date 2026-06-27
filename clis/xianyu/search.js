@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 const ROWS_PER_PAGE = 30;
 const MAX_LIMIT = 60;
@@ -48,6 +48,14 @@ function buildSearchEvaluate({ keyword, searchFilter, extraFilterValue, fromFilt
     return `
     (async () => {
       const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
+      const cleanFirst = (...values) => values.map(clean).find(Boolean) || '';
+      const cleanTagList = (value) => {
+        const nodes = Array.isArray(value) ? value : [];
+        return nodes
+          .map((entry) => cleanFirst(entry?.text, entry?.title, entry?.name, entry?.label, entry?.content, entry?.data?.content))
+          .filter(Boolean)
+          .join(' | ');
+      };
       const extractRetCode = (ret) => {
         const first = Array.isArray(ret) ? ret[0] : '';
         return clean(first).split('::')[0] || '';
@@ -123,29 +131,53 @@ function buildSearchEvaluate({ keyword, searchFilter, extraFilterValue, fromFilt
           };
         }
 
-        const list = Array.isArray(response?.data?.resultList) ? response.data.resultList : [];
+        if (!response?.data || !Array.isArray(response.data.resultList)) {
+          return {
+            error: 'malformed-response',
+            error_message: 'Xianyu search response did not include a resultList array',
+          };
+        }
+
+        const list = response.data.resultList;
         if (!list.length) break;
 
+        let pageValidRows = 0;
+        let pageMalformedRows = 0;
         for (const entry of list) {
           const itemNode = entry?.data?.item || {};
           const main = itemNode.main || {};
           const args = main.clickParam?.args || {};
           const ex = main.exContent || itemNode.exContent || {};
           const itemId = clean(args.item_id || args.id || '');
-          if (!itemId) continue;
-          const priceYuan = clean(args.price || args.displayPrice || '');
           const title = clean(ex.title || ex.detailParams?.title || '');
+          if (!itemId || !title) {
+            pageMalformedRows += 1;
+            continue;
+          }
+          const priceYuan = clean(args.price || args.displayPrice || '');
           const city = clean(args.p_city || '');
           const area = clean(ex.area || '');
+          const tagText = cleanTagList(ex.fishTags || ex.labels || ex.tags || ex.tagList || []);
           collected.push({
             item_id: itemId,
             title,
             price: priceYuan ? ('¥' + priceYuan) : '',
+            condition: cleanFirst(ex.condition, ex.stuffStatus, ex.detailParams?.condition),
+            brand: cleanFirst(ex.brand, ex.brandName, ex.detailParams?.brand),
             location: city || area,
+            badge: cleanFirst(ex.badge, ex.creditText, ex.creditLevel, tagText),
             want: clean(args.wantNum || ex.want || ''),
             url: 'https://www.goofish.com/item?id=' + itemId,
           });
+          pageValidRows += 1;
           if (collected.length >= maxItems) break;
+        }
+
+        if (!pageValidRows && pageMalformedRows) {
+          return {
+            error: 'malformed-row',
+            error_message: 'Xianyu search result rows were missing item_id or title',
+          };
         }
 
         if (list.length < rows) break;
@@ -172,7 +204,7 @@ cli({
         { name: 'province', type: 'string', help: '省份名（如 广东），服务端按地区筛选' },
         { name: 'city', type: 'string', help: '城市名（如 深圳 / 湛江），可单独使用，服务端按地区筛选' },
     ],
-    columns: ['item_id', 'rank', 'title', 'price', 'location', 'want', 'url'],
+    columns: ['item_id', 'rank', 'title', 'price', 'condition', 'brand', 'location', 'badge', 'want', 'url'],
     func: async (page, kwargs) => {
         const query = String(kwargs.query || '').trim();
         const limit = normalizeLimit(kwargs.limit);
@@ -193,10 +225,13 @@ cli({
             throw new AuthRequiredError('www.goofish.com', 'Xianyu search requires a logged-in browser session');
         }
         if (result?.error === 'blocked') {
-            throw new EmptyResultError('xianyu search', 'Xianyu returned a verification page or blocked the current browser session');
+            throw new CommandExecutionError('Xianyu returned a verification page or blocked the current browser session');
         }
         if (result?.error === 'mtop-not-ready') {
             throw selectorError('window.lib.mtop', '闲鱼页面未完成初始化，无法调用搜索接口');
+        }
+        if (!result || typeof result !== 'object') {
+            throw new CommandExecutionError('Xianyu search returned a malformed response');
         }
         const errorCode = String(result?.error_code || '');
         const errorMessage = String(result?.error_message || '');
@@ -204,9 +239,12 @@ cli({
             throw new AuthRequiredError('www.goofish.com', 'Xianyu search requires a logged-in browser session');
         }
         if (result?.error) {
-            throw new EmptyResultError('xianyu search', errorMessage || `Xianyu search request failed: ${result.error}`);
+            throw new CommandExecutionError(errorMessage || `Xianyu search request failed: ${result.error}`);
         }
-        const items = Array.isArray(result?.items) ? result.items : [];
+        if (!Array.isArray(result.items)) {
+            throw new CommandExecutionError('Xianyu search response did not include an items array');
+        }
+        const items = result.items;
         if (!items.length) {
             throw new EmptyResultError('xianyu search', '没有匹配的商品（筛选条件可能过窄，或当前关键词无结果）');
         }

@@ -39892,7 +39892,10 @@
       "rank",
       "title",
       "price",
+      "condition",
+      "brand",
       "location",
+      "badge",
       "want",
       "url"
     ],
