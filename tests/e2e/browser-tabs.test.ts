@@ -29,10 +29,11 @@ type FakeTab = {
 };
 
 type FakeDaemon = {
-  port: number;
   close: () => Promise<void>;
   maxInFlightExec: () => number;
 };
+
+const DAEMON_PORT = 19825;
 
 async function readBody(req: IncomingMessage): Promise<string> {
   return await new Promise((resolve, reject) => {
@@ -61,7 +62,6 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
     const pathname = req.url?.split('?')[0] ?? '/';
 
     if (req.method === 'GET' && pathname === '/status') {
-      const port = typeof server.address() === 'object' && server.address() ? server.address().port : 0;
       json(res, 200, {
         ok: true,
         pid: process.pid,
@@ -71,7 +71,7 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
         extensionVersion: 'test',
         pending: 0,
         memoryMB: 1,
-        port,
+        port: DAEMON_PORT,
       });
       return;
     }
@@ -184,17 +184,20 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
     }
   });
 
-  await new Promise<void>((resolve) => {
-    server.listen(0, '127.0.0.1', () => resolve());
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(DAEMON_PORT, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
   });
 
   const address = server.address();
   if (!address || typeof address !== 'object') {
-    throw new Error('Failed to bind fake daemon port');
+    throw new Error(`Failed to bind fake daemon port ${DAEMON_PORT}`);
   }
 
   return {
-    port: address.port,
     close: async () => {
       await new Promise<void>((resolve, reject) => {
         server.close((err) => err ? reject(err) : resolve());
@@ -221,10 +224,9 @@ describe('browser tab CLI e2e', () => {
   it('lists, creates, and closes tabs through the built CLI', async () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
-    const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
     const session = 'tabs-basic';
 
-    const listed = await runCli(browserArgs(session, 'tab', 'list'), { env });
+    const listed = await runCli(browserArgs(session, 'tab', 'list'));
     expect(listed.code).toBe(0);
     const listData = parseJsonOutput(listed.stdout);
     expect(listData).toEqual(expect.arrayContaining([
@@ -232,7 +234,7 @@ describe('browser tab CLI e2e', () => {
       expect.objectContaining({ page: 'tab-2', title: 'tab-two' }),
     ]));
 
-    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'), { env });
+    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'));
     expect(created.code).toBe(0);
     const createdData = parseJsonOutput(created.stdout);
     expect(createdData).toEqual(expect.objectContaining({
@@ -240,12 +242,12 @@ describe('browser tab CLI e2e', () => {
       url: 'https://three.example/',
     }));
 
-    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-3'), { env });
+    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-3'));
     expect(closed.code).toBe(0);
     const closedData = parseJsonOutput(closed.stdout);
     expect(closedData).toEqual({ closed: 'tab-3' });
 
-    const relisted = await runCli(browserArgs(session, 'tab', 'list'), { env });
+    const relisted = await runCli(browserArgs(session, 'tab', 'list'));
     expect(relisted.code).toBe(0);
     const relistedData = parseJsonOutput(relisted.stdout);
     expect(relistedData).toHaveLength(2);
@@ -255,12 +257,11 @@ describe('browser tab CLI e2e', () => {
   it('routes concurrent browser commands to their requested tabs', async () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
-    const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
     const session = 'tabs-concurrent';
 
     const [left, right] = await Promise.all([
-      runCli(browserArgs(session, 'eval', '--tab', 'tab-1', 'window.__delay = "left"'), { env, timeout: 30_000 }),
-      runCli(browserArgs(session, 'eval', '--tab', 'tab-2', 'window.__delay = "right"'), { env, timeout: 30_000 }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-1', 'window.__delay = "left"'), { timeout: 30_000 }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-2', 'window.__delay = "right"'), { timeout: 30_000 }),
     ]);
 
     expect(left.code).toBe(0);
@@ -280,7 +281,6 @@ describe('browser tab CLI e2e', () => {
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
     const env = {
-      OPENCLI_DAEMON_PORT: String(daemon.port),
       OPENCLI_CACHE_DIR: cacheDir,
     };
     const session = 'tabs-default-new';
@@ -300,7 +300,6 @@ describe('browser tab CLI e2e', () => {
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
     const env = {
-      OPENCLI_DAEMON_PORT: String(daemon.port),
       OPENCLI_CACHE_DIR: cacheDir,
     };
     const session = 'tabs-selected-default';
