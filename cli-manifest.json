@@ -36683,7 +36683,14 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Max tweets to return"
+        "help": "Max tweets to return (1-10000; fetched across cursor pages)"
+      },
+      {
+        "name": "page-delay",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Seconds to wait between paginated timeline requests to reduce rate-limit risk. Use 0 to disable."
       },
       {
         "name": "top-by-engagement",

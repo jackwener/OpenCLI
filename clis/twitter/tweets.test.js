@@ -3,6 +3,58 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 import { __test__ } from './tweets.js';
 
+function makeTweetEntry(id, author = 'jakevin7') {
+    return {
+        entryId: `tweet-${id}`,
+        content: {
+            itemContent: {
+                tweet_results: {
+                    result: {
+                        rest_id: String(id),
+                        legacy: {
+                            full_text: `post ${id}`,
+                            favorite_count: 0,
+                            retweet_count: 0,
+                            reply_count: 0,
+                            created_at: 'now',
+                        },
+                        core: {
+                            user_results: {
+                                result: {
+                                    legacy: { screen_name: author, name: author },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+function makeTimelinePayload(startId, count, nextCursor = null) {
+    const entries = Array.from({ length: count }, (_, index) => makeTweetEntry(startId + index));
+    if (nextCursor) {
+        entries.push({
+            entryId: `cursor-bottom-${nextCursor}`,
+            content: { entryType: 'TimelineTimelineCursor', cursorType: 'Bottom', value: nextCursor },
+        });
+    }
+    return {
+        data: {
+            user: {
+                result: {
+                    timeline_v2: {
+                        timeline: {
+                            instructions: [{ entries }],
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
 describe('twitter tweets helpers', () => {
     it('registers id and is_retweet in the default columns', () => {
         const cmd = getRegistry().get('twitter/tweets');
@@ -120,6 +172,79 @@ describe('twitter tweets helpers', () => {
         };
 
         await expect(cmd.func(page, { username: 'viewer/extra' })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.getCookies).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('fetches limits above 200 across cursor pages with a delay between pages', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const userTweetsRequests = [];
+        const pages = [
+            makeTimelinePayload(1, 100, 'cursor-1'),
+            makeTimelinePayload(101, 100, 'cursor-2'),
+            makeTimelinePayload(201, 60, null),
+        ];
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = typeof script === 'function' ? script.toString() : String(script);
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) return '42';
+                if (text.includes('/UserTweets')) {
+                    userTweetsRequests.push(decodeURIComponent(text));
+                    return pages[userTweetsRequests.length - 1];
+                }
+                return null;
+            }),
+        };
+
+        const rows = await cmd.func(page, { username: 'jakevin7', limit: 250, 'page-delay': 1 });
+
+        expect(rows).toHaveLength(250);
+        expect(rows[0]).toMatchObject({ id: '1', text: 'post 1' });
+        expect(rows[249]).toMatchObject({ id: '250', text: 'post 250' });
+        expect(userTweetsRequests).toHaveLength(3);
+        expect(userTweetsRequests[0]).toContain('"count":100');
+        expect(userTweetsRequests[0]).not.toContain('"cursor"');
+        expect(userTweetsRequests[1]).toContain('"cursor":"cursor-1"');
+        expect(userTweetsRequests[1]).toContain('"count":100');
+        expect(userTweetsRequests[2]).toContain('"cursor":"cursor-2"');
+        expect(userTweetsRequests[2]).toContain('"count":60');
+        expect(page.wait).toHaveBeenCalledTimes(2);
+        expect(page.wait).toHaveBeenNthCalledWith(1, 1);
+        expect(page.wait).toHaveBeenNthCalledWith(2, 1);
+    });
+
+    it('rejects invalid tweet limits before navigation', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(),
+            evaluate: vi.fn(),
+        };
+
+        await expect(cmd.func(page, { username: 'jakevin7', limit: __test__.MAX_TWEETS_LIMIT + 1 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(cmd.func(page, { username: 'jakevin7', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.getCookies).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid pagination delays before navigation', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(),
+            evaluate: vi.fn(),
+        };
+
+        await expect(cmd.func(page, { username: 'jakevin7', limit: 20, 'page-delay': -1 })).rejects.toBeInstanceOf(ArgumentError);
+        await expect(cmd.func(page, { username: 'jakevin7', limit: 20, 'page-delay': 61 })).rejects.toBeInstanceOf(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
         expect(page.getCookies).not.toHaveBeenCalled();
         expect(page.evaluate).not.toHaveBeenCalled();

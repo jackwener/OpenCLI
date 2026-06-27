@@ -6,6 +6,9 @@ import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const MAX_PAGINATION_PAGES = 100;
+const USER_TWEETS_PAGE_SIZE = 100;
+const MAX_TWEETS_LIMIT = MAX_PAGINATION_PAGES * USER_TWEETS_PAGE_SIZE;
+const DEFAULT_PAGE_DELAY_SECONDS = 1;
 
 const USER_TWEETS_FEATURES = {
     rweb_video_screen_enabled: true,
@@ -213,6 +216,28 @@ function parseUserTweets(data, seen) {
     return { tweets, nextCursor };
 }
 
+function normalizeLimit(rawLimit) {
+    const limit = rawLimit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_TWEETS_LIMIT) {
+        throw new ArgumentError(
+            `twitter tweets --limit must be an integer between 1 and ${MAX_TWEETS_LIMIT}`,
+            `Example: opencli twitter tweets @jack --limit 250`
+        );
+    }
+    return limit;
+}
+
+function normalizePageDelaySeconds(rawDelay) {
+    const delay = rawDelay ?? DEFAULT_PAGE_DELAY_SECONDS;
+    if (!Number.isInteger(delay) || delay < 0 || delay > 60) {
+        throw new ArgumentError(
+            'twitter tweets --page-delay must be an integer between 0 and 60 seconds',
+            'Example: opencli twitter tweets @jack --limit 250 --page-delay 1'
+        );
+    }
+    return delay;
+}
+
 cli({
     site: 'twitter',
     name: 'tweets',
@@ -223,12 +248,14 @@ cli({
     browser: true,
     args: [
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
-        { name: 'limit', type: 'int', default: 20, help: 'Max tweets to return' },
+        { name: 'limit', type: 'int', default: 20, help: `Max tweets to return (1-${MAX_TWEETS_LIMIT}; fetched across cursor pages)` },
+        { name: 'page-delay', type: 'int', default: DEFAULT_PAGE_DELAY_SECONDS, help: 'Seconds to wait between paginated timeline requests to reduce rate-limit risk. Use 0 to disable.' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the chronological ordering.' },
     ],
     columns: ['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet'],
     func: async (page, kwargs) => {
-        const limit = Math.max(1, Math.min(200, kwargs.limit || 20));
+        const limit = normalizeLimit(kwargs.limit);
+        const pageDelaySeconds = normalizePageDelaySeconds(kwargs['page-delay']);
         const rawUsername = String(kwargs.username ?? '').trim();
         let username = normalizeTwitterScreenName(rawUsername);
         if (rawUsername && !username) {
@@ -283,7 +310,10 @@ cli({
         let cursor = null;
         // Runaway guard only; --limit and cursor exhaustion control normal pagination.
         for (let i = 0; i < MAX_PAGINATION_PAGES && all.length < limit; i++) {
-            const fetchCount = Math.min(100, limit - all.length + 10);
+            if (i > 0 && pageDelaySeconds > 0) {
+                await page.wait(pageDelaySeconds);
+            }
+            const fetchCount = Math.min(USER_TWEETS_PAGE_SIZE, limit - all.length + 10);
             const url = buildUserTweetsUrl(userTweetsOperation, userId, fetchCount, cursor);
             const data = normalizeTwitterGraphqlPayload(await page.evaluate(`async () => {
         const r = await fetch("${url}", { headers: ${headers}, credentials: 'include' });
@@ -306,9 +336,12 @@ cli({
 });
 
 export const __test__ = {
+    MAX_TWEETS_LIMIT,
     sanitizeQueryId,
     buildUserTweetsUrl,
     buildUserByScreenNameUrl,
     extractTweet,
     parseUserTweets,
+    normalizeLimit,
+    normalizePageDelaySeconds,
 };
