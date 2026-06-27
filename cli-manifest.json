@@ -36688,7 +36688,7 @@
       {
         "name": "page-delay",
         "type": "int",
-        "default": 1,
+        "default": 2,
         "required": false,
         "help": "Seconds to wait between paginated timeline requests to reduce rate-limit risk. Use 0 to disable."
       },

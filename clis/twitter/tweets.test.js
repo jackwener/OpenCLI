@@ -201,7 +201,7 @@ describe('twitter tweets helpers', () => {
             }),
         };
 
-        const rows = await cmd.func(page, { username: 'jakevin7', limit: 250, 'page-delay': 1 });
+        const rows = await cmd.func(page, { username: 'jakevin7', limit: 250 });
 
         expect(rows).toHaveLength(250);
         expect(rows[0]).toMatchObject({ id: '1', text: 'post 1' });
@@ -214,8 +214,8 @@ describe('twitter tweets helpers', () => {
         expect(userTweetsRequests[2]).toContain('"cursor":"cursor-2"');
         expect(userTweetsRequests[2]).toContain('"count":60');
         expect(page.wait).toHaveBeenCalledTimes(2);
-        expect(page.wait).toHaveBeenNthCalledWith(1, 1);
-        expect(page.wait).toHaveBeenNthCalledWith(2, 1);
+        expect(page.wait).toHaveBeenNthCalledWith(1, 2);
+        expect(page.wait).toHaveBeenNthCalledWith(2, 2);
     });
 
     it('rejects invalid tweet limits before navigation', async () => {

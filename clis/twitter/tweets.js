@@ -8,7 +8,7 @@ const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 const MAX_PAGINATION_PAGES = 100;
 const USER_TWEETS_PAGE_SIZE = 100;
 const MAX_TWEETS_LIMIT = MAX_PAGINATION_PAGES * USER_TWEETS_PAGE_SIZE;
-const DEFAULT_PAGE_DELAY_SECONDS = 1;
+const DEFAULT_PAGE_DELAY_SECONDS = 2;
 
 const USER_TWEETS_FEATURES = {
     rweb_video_screen_enabled: true,
@@ -232,7 +232,7 @@ function normalizePageDelaySeconds(rawDelay) {
     if (!Number.isInteger(delay) || delay < 0 || delay > 60) {
         throw new ArgumentError(
             'twitter tweets --page-delay must be an integer between 0 and 60 seconds',
-            'Example: opencli twitter tweets @jack --limit 250 --page-delay 1'
+            'Example: opencli twitter tweets @jack --limit 250 --page-delay 2'
         );
     }
     return delay;
