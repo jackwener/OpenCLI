@@ -583,6 +583,156 @@
     ]
   },
   {
+    "command": "strava/activities",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "date",
+      "device",
+      "gear",
+      "moreStats",
+      "stats",
+      "title"
+    ]
+  },
+  {
+    "command": "strava/activities",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "followLinks",
+      "location"
+    ]
+  },
+  {
+    "command": "strava/activities",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "href",
+      "iconClass",
+      "typeText"
+    ]
+  },
+  {
+    "command": "strava/activity",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "followLinks",
+      "location"
+    ]
+  },
+  {
+    "command": "strava/activity",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "href",
+      "iconClass",
+      "typeText"
+    ]
+  },
+  {
+    "command": "strava/activity",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "moreStats",
+      "stats",
+      "title"
+    ]
+  },
+  {
+    "command": "strava/activity",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "rank"
+    ]
+  },
+  {
+    "command": "strava/club",
+    "file": "clis/strava/club.js",
+    "missing": [
+      "activity_id",
+      "athlete",
+      "athlete_id",
+      "rank",
+      "title"
+    ]
+  },
+  {
+    "command": "strava/club",
+    "file": "clis/strava/club.js",
+    "missing": [
+      "locFromTitle"
+    ]
+  },
+  {
+    "command": "strava/comment-delete",
+    "file": "clis/strava/comment.js",
+    "missing": [
+      "athlete_id",
+      "author",
+      "rank",
+      "text",
+      "time"
+    ]
+  },
+  {
+    "command": "strava/comments",
+    "file": "clis/strava/comment.js",
+    "missing": [
+      "commentId",
+      "href"
+    ]
+  },
+  {
+    "command": "strava/feed",
+    "file": "clis/strava/feed.js",
+    "missing": [
+      "activityHref",
+      "athleteHref"
+    ]
+  },
+  {
+    "command": "strava/profile",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "date",
+      "device",
+      "gear",
+      "moreStats",
+      "stats",
+      "title"
+    ]
+  },
+  {
+    "command": "strava/profile",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "followLinks"
+    ]
+  },
+  {
+    "command": "strava/profile",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "href",
+      "iconClass",
+      "typeText"
+    ]
+  },
+  {
+    "command": "strava/profile",
+    "file": "clis/strava/strava.js",
+    "missing": [
+      "rank",
+      "type"
+    ]
+  },
+  {
+    "command": "strava/prs",
+    "file": "clis/strava/prs.js",
+    "missing": [
+      "href"
+    ]
+  },
+  {
     "command": "tieba/search",
     "file": "clis/tieba/search.js",
     "missing": [
