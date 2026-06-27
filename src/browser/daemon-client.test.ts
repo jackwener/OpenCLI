@@ -7,6 +7,7 @@ import {
   requestDaemonShutdown,
   sendCommand,
 } from './daemon-client.js';
+import * as daemonLifecycle from './daemon-lifecycle.js';
 
 describe('daemon-client', () => {
   beforeEach(() => {
@@ -264,5 +265,116 @@ describe('daemon-client', () => {
       hint: 'Inspect state before retrying.',
     } satisfies Partial<BrowserCommandError>);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sendCommand runs full bridge ensure on a pre-dispatch failure, then resends with a fresh id', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_321);
+    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
+      health: {
+        state: 'ready',
+        status: {
+          ok: true,
+          pid: 1,
+          uptime: 1,
+          extensionConnected: true,
+          pending: 0,
+          memoryMB: 0,
+          port: 19825,
+        },
+      },
+      spawnedProcess: null,
+    });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({
+          ok: false,
+          errorCode: 'extension_not_connected',
+          error: 'Extension not connected.',
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 7 }),
+      } as Response);
+
+    await expect(sendCommand('exec', { code: '1 + 6', contextId: 'work' })).resolves.toBe(7);
+
+    expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ contextId: 'work', verbose: false }));
+    const ids = fetchMock.mock.calls.map(([, init]) => (JSON.parse(String(init?.body)) as { id: string }).id);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('sendCommand runs full bridge ensure on a local TypeError before resending', async () => {
+    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
+      health: {
+        state: 'ready',
+        status: {
+          ok: true,
+          pid: 1,
+          uptime: 1,
+          extensionConnected: true,
+          pending: 0,
+          memoryMB: 0,
+          port: 19825,
+        },
+      },
+      spawnedProcess: null,
+    });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+      } as Response);
+
+    await expect(sendCommand('exec', { code: 'document.title' })).resolves.toBe('ok');
+
+    expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ verbose: false }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('sendCommand does NOT wait when the bridge reports profile_required', async () => {
+    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({
+        ok: false,
+        errorCode: 'profile_required',
+        error: 'Multiple Browser Bridge profiles are connected; choose one with --profile.',
+        errorHint: 'Run opencli profile list, then opencli profile use <name>.',
+      }),
+    } as Response);
+
+    await expect(sendCommand('exec', { code: '1' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'profile_required',
+    } satisfies Partial<BrowserCommandError>);
+
+    expect(ensureSpy).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sendCommand surfaces an AbortError as command_result_unknown without ensure or resend', async () => {
+    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady');
+    const abortErr = new Error('The operation was aborted');
+    abortErr.name = 'AbortError';
+    vi.mocked(fetch).mockRejectedValueOnce(abortErr);
+
+    await expect(sendCommand('exec', { code: 'window.__mutate = true' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'command_result_unknown',
+    } satisfies Partial<BrowserCommandError>);
+
+    expect(ensureSpy).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

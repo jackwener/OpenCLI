@@ -759,6 +759,42 @@ describe('background tab isolation', () => {
     });
   });
 
+  it('uses the production-safe 30s keepalive alarm period', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
+
+    await import('./background');
+
+    expect(chrome.alarms.create).toHaveBeenCalledWith('keepalive', { periodInMinutes: 0.5 });
+  });
+
+  it('reschedules a pending slow reconnect timer to fast cadence after daemon ping succeeds', async () => {
+    const { chrome } = createChromeMock();
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000);
+    vi.stubGlobal('chrome', chrome);
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error('daemon down'))
+      .mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const mod = await import('./background');
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    mod.__test__.resetReconnectState();
+    mod.__test__.setReconnectPhaseStartedAt(Date.now() - 31_000);
+    mod.__test__.scheduleReconnectForTest();
+    expect(mod.__test__.getReconnectTimerDelay()).toBe(15_000);
+
+    await mod.__test__.connectForTest();
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(mod.__test__.getReconnectTimerDelay()).toBe(3_000);
+  });
+
   it('ignores daemon commands delivered to a superseded WebSocket', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

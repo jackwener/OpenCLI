@@ -37,6 +37,7 @@ import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
+import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
 import type { BrowserWindowMode } from './runtime.js';
 
@@ -525,7 +526,7 @@ async function getBrowserPage(
   const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
   const page = await bridge.connect({
-    timeout: 30,
+    timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
     session,
     surface: 'browser',
     ...(contextId && { contextId }),
@@ -1038,7 +1039,7 @@ Examples:
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
         const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
+        await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...(contextId && { contextId }) });
         const data = await bindTab(session, { ...(contextId && { contextId }) });
         saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
         console.log(JSON.stringify({ session, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
@@ -1067,7 +1068,7 @@ Examples:
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
         const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
+        await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...(contextId && { contextId }) });
         await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
         saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
         console.log(JSON.stringify({ unbound: true, session }, null, 2));

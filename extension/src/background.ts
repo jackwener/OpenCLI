@@ -8,7 +8,7 @@
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
-import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL, WS_RECONNECT_BASE_DELAY, WS_RECONNECT_MAX_DELAY } from './protocol';
+import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL } from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
 
@@ -118,9 +118,14 @@ async function connectAttempt(): Promise<void> {
 
   try {
     const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
-    if (!res.ok) return; // unexpected response — not our daemon
+    if (!res.ok) {
+      scheduleReconnect();
+      return; // unexpected response — not our daemon, but keep polling.
+    }
+    notifyDaemonReachable();
   } catch {
-    return; // daemon not running — skip WebSocket to avoid console noise
+    scheduleReconnect();
+    return; // daemon not running — keep polling until the next daemon spawn.
   }
   if (isDaemonSocketActive()) return;
 
@@ -140,10 +145,12 @@ async function connectAttempt(): Promise<void> {
     if (ws !== thisWs) return;
     console.log('[opencli] Connected to daemon');
     reconnectAttempts = 0; // Reset on successful connection
+    reconnectPhaseStartedAt = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
+    reconnectTimerDelayMs = null;
     // Send version + compatibility range so the daemon can report mismatches to the CLI
     safeSend(thisWs, {
       type: 'hello',
@@ -178,21 +185,54 @@ async function connectAttempt(): Promise<void> {
 }
 
 /**
- * After MAX_EAGER_ATTEMPTS (reaching 60s backoff), stop scheduling reconnects.
- * The keepalive alarm (~24s) will still call connect() periodically, but at a
- * much lower frequency — reducing console noise when the daemon is not running.
+ * Reconnect cadence is phased and never gives up while Chrome keeps the
+ * service worker alive:
+ *
+ * - fast phase: every 3s for 30s after a disconnect/failure;
+ * - slow phase: every 15s after the fast window expires;
+ * - durable wake path: chrome.alarms. Production Chrome currently enforces a
+ *   30s minimum alarm interval, so alarms wake the service worker after idle
+ *   eviction while setTimeout provides the faster path only when the worker
+ *   remains alive.
  */
-const MAX_EAGER_ATTEMPTS = 6; // 2s, 4s, 8s, 16s, 32s, 60s — then stop
+const RECONNECT_FAST_INTERVAL_MS = 3000;
+const RECONNECT_FAST_WINDOW_MS = 30000;
+const RECONNECT_SLOW_INTERVAL_MS = 15000;
+let reconnectPhaseStartedAt = 0;
+let reconnectTimerDelayMs: number | null = null;
 
-function scheduleReconnect(): void {
-  if (reconnectTimer) return;
+function nextReconnectDelayMs(): number {
+  const sinceLoss = Date.now() - reconnectPhaseStartedAt;
+  return sinceLoss < RECONNECT_FAST_WINDOW_MS
+    ? RECONNECT_FAST_INTERVAL_MS
+    : RECONNECT_SLOW_INTERVAL_MS;
+}
+
+function scheduleReconnect(opts: { replaceExisting?: boolean } = {}): void {
+  if (reconnectTimer) {
+    if (!opts.replaceExisting) return;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    reconnectTimerDelayMs = null;
+  }
   reconnectAttempts++;
-  if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return; // let keepalive alarm handle it
-  const delay = Math.min(WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), WS_RECONNECT_MAX_DELAY);
+  if (reconnectPhaseStartedAt === 0) {
+    reconnectPhaseStartedAt = Date.now();
+  }
+  const delay = nextReconnectDelayMs();
+  reconnectTimerDelayMs = delay;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
+    reconnectTimerDelayMs = null;
     void connect();
   }, delay);
+}
+
+function notifyDaemonReachable(): void {
+  reconnectPhaseStartedAt = Date.now();
+  if (reconnectTimer && reconnectTimerDelayMs !== RECONNECT_FAST_INTERVAL_MS) {
+    scheduleReconnect({ replaceExisting: true });
+  }
 }
 
 // ─── Browser target leases ───────────────────────────────────────────
@@ -1046,7 +1086,7 @@ let initialized = false;
 function initialize(): void {
   if (initialized) return;
   initialized = true;
-  chrome.alarms.create('keepalive', { periodInMinutes: 0.4 }); // ~24 seconds
+  chrome.alarms.create('keepalive', { periodInMinutes: 0.5 }); // Chrome production minimum: 30 seconds
   executor.registerListeners();
   try {
     const registerFrameTracking = (executor as { registerFrameTracking?: () => void }).registerFrameTracking;
@@ -2022,6 +2062,20 @@ export const __test__ = {
   sessionTimeoutOverrides,
   reconcileTargetLeaseRegistry,
   ensureOwnedContainerGroup,
+  connectForTest: connect,
+  scheduleReconnectForTest: () => scheduleReconnect(),
+  notifyDaemonReachableForTest: notifyDaemonReachable,
+  getReconnectTimerDelay: () => reconnectTimerDelayMs,
+  setReconnectPhaseStartedAt: (value: number) => { reconnectPhaseStartedAt = value; },
+  resetReconnectState: () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    reconnectTimerDelayMs = null;
+    reconnectAttempts = 0;
+    reconnectPhaseStartedAt = 0;
+    connectInFlight = null;
+    ws = null;
+  },
   getSession: (leaseKey: string = 'default') => automationSessions.get(leaseKey) ?? null,
   getAutomationWindowId: (leaseKey: string = 'default') => automationSessions.get(leaseKey)?.windowId ?? null,
   setAutomationWindowId: (leaseKey: string, windowId: number | null) => {

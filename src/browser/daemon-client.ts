@@ -4,14 +4,22 @@
  * Provides a typed send() function that posts a Command and returns a Result.
  */
 
-import { DEFAULT_DAEMON_PORT, unsupportedDaemonPortEnvMessage } from '../constants.js';
 import { sleep } from '../utils.js';
+import { BrowserConnectError } from '../errors.js';
 import { classifyBrowserError } from './errors.js';
 import { resolveProfileContextId } from './profile.js';
-
-const DAEMON_PORT = DEFAULT_DAEMON_PORT;
-const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
-const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
+import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './config.js';
+import { ensureBrowserBridgeReady } from './daemon-lifecycle.js';
+import { isPreDispatchError } from './bridge-readiness.js';
+import {
+  fetchDaemonStatus,
+  getDaemonHealth,
+  requestDaemon,
+  requestDaemonShutdown,
+  type BrowserProfileStatus,
+  type DaemonHealth,
+  type DaemonStatus,
+} from './daemon-transport.js';
 
 let _idCounter = 0;
 
@@ -81,119 +89,35 @@ export class BrowserCommandError extends Error {
   }
 }
 
-class UnsupportedDaemonPortEnvError extends Error {
-  constructor(value: string) {
-    super(unsupportedDaemonPortEnvMessage(value));
-    this.name = 'UnsupportedDaemonPortEnvError';
-  }
-}
-
-function assertSupportedDaemonPortEnv(): void {
-  const value = process.env.OPENCLI_DAEMON_PORT;
-  if (value !== undefined && value !== '') throw new UnsupportedDaemonPortEnvError(value);
-}
-
-export interface DaemonStatus {
-  ok: boolean;
-  pid: number;
-  uptime: number;
-  daemonVersion?: string;
-  extensionConnected: boolean;
-  extensionVersion?: string;
-  extensionCompatRange?: string;
-  contextId?: string;
-  profileRequired?: boolean;
-  profileDisconnected?: boolean;
-  profiles?: BrowserProfileStatus[];
-  pending: number;
-  commandResultUnknown?: number;
-  memoryMB: number;
-  port: number;
-}
-
-export interface BrowserProfileStatus {
-  contextId: string;
-  extensionConnected: boolean;
-  extensionVersion?: string;
-  extensionCompatRange?: string;
-  pending: number;
-  lastSeenAt?: number;
-}
-
-async function requestDaemon(pathname: string, init?: RequestInit & { timeout?: number }): Promise<Response> {
-  assertSupportedDaemonPortEnv();
-  const { timeout = 2000, headers, ...rest } = init ?? {};
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetch(`${DAEMON_URL}${pathname}`, {
-      ...rest,
-      headers: { ...OPENCLI_HEADERS, ...headers },
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-export async function fetchDaemonStatus(opts?: { timeout?: number; contextId?: string }): Promise<DaemonStatus | null> {
-  try {
-    const params = opts?.contextId ? `?contextId=${encodeURIComponent(opts.contextId)}` : '';
-    const res = await requestDaemon(`/status${params}`, { timeout: opts?.timeout ?? 2000 });
-    if (!res.ok) return null;
-    return await res.json() as DaemonStatus;
-  } catch (err) {
-    if (err instanceof UnsupportedDaemonPortEnvError) throw err;
-    return null;
-  }
-}
-
-export type DaemonHealth =
-  | { state: 'stopped'; status: null }
-  | { state: 'no-extension'; status: DaemonStatus }
-  | { state: 'profile-required'; status: DaemonStatus }
-  | { state: 'profile-disconnected'; status: DaemonStatus }
-  | { state: 'ready'; status: DaemonStatus };
+export {
+  fetchDaemonStatus,
+  getDaemonHealth,
+  requestDaemonShutdown,
+  type BrowserProfileStatus,
+  type DaemonHealth,
+  type DaemonStatus,
+};
 
 /**
- * Unified daemon health check — single entry point for all status queries.
- * Replaces isDaemonRunning(), isExtensionConnected(), and checkDaemonStatus().
- */
-export async function getDaemonHealth(opts?: { timeout?: number; contextId?: string }): Promise<DaemonHealth> {
-  const status = await fetchDaemonStatus(opts);
-  if (!status) return { state: 'stopped', status: null };
-  if (status.profileRequired) return { state: 'profile-required', status };
-  if (status.profileDisconnected) return { state: 'profile-disconnected', status };
-  if (!status.extensionConnected) return { state: 'no-extension', status };
-  return { state: 'ready', status };
-}
-
-export async function requestDaemonShutdown(opts?: { timeout?: number }): Promise<boolean> {
-  try {
-    const res = await requestDaemon('/shutdown', { method: 'POST', timeout: opts?.timeout ?? 5000 });
-    return res.ok;
-  } catch (err) {
-    if (err instanceof UnsupportedDaemonPortEnvError) throw err;
-    return false;
-  }
-}
-
-/**
- * Internal: send a command to the daemon with retry logic.
- * Returns the raw DaemonResult. All retry policy lives here — callers
- * (sendCommand, sendCommandFull) only shape the return value.
+ * Internal: send a command to the daemon and return the raw `DaemonResult`.
  *
- * Retries up to 4 times:
- * - Network errors (TypeError, AbortError): retry at 500ms
- * - Transient browser errors: retry at the delay suggested by classifyBrowserError()
+ * Retry policy is explicit:
+ * - pre-dispatch bridge/profile errors: run the full daemon/extension ensure
+ *   path, then resend with a fresh transport id;
+ * - local TypeError before dispatch: same full ensure path, because the daemon
+ *   may be stopped/stale and needs spawn/replacement, not just polling;
+ * - `command_result_unknown` and AbortError: never retry automatically.
  */
 async function sendCommandRaw(
   action: DaemonCommand['action'],
   params: Omit<DaemonCommand, 'id' | 'action'>,
 ): Promise<DaemonResult> {
-  const maxRetries = 4;
+  const maxAttempts = 4;
+  let dispatchRecoveryUsed = false;
+  let duplicateIdRetryUsed = false;
+  let transientRetryUsed = false;
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const id = generateId();
     const rawWindowMode = process.env.OPENCLI_WINDOW;
     const envWindowMode = rawWindowMode === 'foreground' || rawWindowMode === 'background'
@@ -212,35 +136,73 @@ async function sendCommandRaw(
 
       const result = (await res.json()) as DaemonResult;
 
-      if (!result.ok) {
-        if (result.errorCode === 'command_result_unknown') {
-          throw new BrowserCommandError(result.error ?? 'Browser command result is unknown', result.errorCode, result.errorHint);
-        }
-        const isDuplicateCommandId = res.status === 409
-          || (result.error ?? '').includes('Duplicate command id');
-        if (isDuplicateCommandId && attempt < maxRetries) {
-          continue;
-        }
-        const advice = classifyBrowserError(new Error(result.error ?? ''));
-        if (advice.retryable && attempt < maxRetries) {
+      if (result.ok) return result;
+
+      if (result.errorCode === 'command_result_unknown') {
+        throw new BrowserCommandError(result.error ?? 'Browser command result is unknown', result.errorCode, result.errorHint);
+      }
+
+      if (!dispatchRecoveryUsed && isPreDispatchError(result.errorCode)) {
+        dispatchRecoveryUsed = true;
+        await ensureBrowserBridgeReady({
+          timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
+          contextId,
+          verbose: false,
+        });
+        continue;
+      }
+
+      const isDuplicateCommandId = res.status === 409
+        && !result.errorCode
+        && (result.error ?? '').includes('Duplicate command id');
+      if (isDuplicateCommandId && !duplicateIdRetryUsed) {
+        duplicateIdRetryUsed = true;
+        continue;
+      }
+
+      const advice = classifyBrowserError(new Error(result.error ?? ''));
+      if (advice.retryable && !transientRetryUsed) {
+        transientRetryUsed = true;
+        await sleep(advice.delayMs);
+        continue;
+      }
+
+      throw new BrowserCommandError(result.error ?? 'Daemon command failed', result.errorCode, result.errorHint);
+    } catch (err) {
+      if (err instanceof BrowserCommandError || err instanceof BrowserConnectError) throw err;
+
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new BrowserCommandError(
+          'Browser command timed out client-side; the page may still have applied it.',
+          'command_result_unknown',
+          'Inspect the page state before retrying. Idempotent reads are safe to retry; non-idempotent writes may have already happened.',
+        );
+      }
+
+      if (!dispatchRecoveryUsed && err instanceof TypeError) {
+        dispatchRecoveryUsed = true;
+        await ensureBrowserBridgeReady({
+          timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
+          contextId,
+          verbose: false,
+        });
+        continue;
+      }
+
+      if (err instanceof Error) {
+        const advice = classifyBrowserError(err);
+        if (advice.retryable && !transientRetryUsed) {
+          transientRetryUsed = true;
           await sleep(advice.delayMs);
           continue;
         }
-        throw new BrowserCommandError(result.error ?? 'Daemon command failed', result.errorCode, result.errorHint);
       }
 
-      return result;
-    } catch (err) {
-      const isNetworkError = err instanceof TypeError
-        || (err instanceof Error && err.name === 'AbortError');
-      if (isNetworkError && attempt < maxRetries) {
-        await sleep(500);
-        continue;
-      }
       throw err;
     }
   }
-  throw new Error('sendCommand: max retries exhausted');
+
+  throw new BrowserCommandError('sendCommand: max attempts exhausted', 'max_attempts_exhausted');
 }
 
 /**
