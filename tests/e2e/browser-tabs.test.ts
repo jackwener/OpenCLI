@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -35,6 +35,42 @@ type FakeDaemon = {
 
 const DAEMON_PORT = 19825;
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function shutdownExistingDaemon(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const req = request({
+      host: '127.0.0.1',
+      port: DAEMON_PORT,
+      path: '/shutdown',
+      method: 'POST',
+      headers: { 'X-OpenCLI': '1' },
+      timeout: 500,
+    }, (res) => {
+      res.resume();
+      res.on('end', finish);
+      res.on('close', finish);
+    });
+
+    req.on('timeout', () => req.destroy());
+    req.on('error', finish);
+    req.on('close', finish);
+    req.end();
+  });
+
+  await sleep(100);
+}
+
 async function readBody(req: IncomingMessage): Promise<string> {
   return await new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -50,6 +86,8 @@ function json(res: ServerResponse, status: number, payload: unknown): void {
 }
 
 async function startFakeDaemon(): Promise<FakeDaemon> {
+  await shutdownExistingDaemon();
+
   const tabs = new Map<string, FakeTab>([
     ['tab-1', { page: 'tab-1', url: 'https://one.example/', title: 'tab-one', active: true }],
     ['tab-2', { page: 'tab-2', url: 'https://two.example/', title: 'tab-two', active: false }],
@@ -184,13 +222,31 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
     }
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(DAEMON_PORT, '127.0.0.1', () => {
-      server.off('error', reject);
-      resolve();
-    });
-  });
+  let lastBindError: unknown;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(DAEMON_PORT, '127.0.0.1', () => {
+          server.off('error', reject);
+          resolve();
+        });
+      });
+      lastBindError = undefined;
+      break;
+    } catch (err: any) {
+      lastBindError = err;
+      if (err?.code !== 'EADDRINUSE') {
+        break;
+      }
+      await shutdownExistingDaemon();
+      await sleep(100);
+    }
+  }
+
+  if (lastBindError) {
+    throw lastBindError;
+  }
 
   const address = server.address();
   if (!address || typeof address !== 'object') {
