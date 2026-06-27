@@ -244,9 +244,13 @@ describe('background tab isolation', () => {
     vi.useRealTimers();
     MockWebSocket.instances = [];
     vi.stubGlobal('WebSocket', MockWebSocket);
+    // Most tests exercise tab/session behavior, not daemon reconnect cadence.
+    // Keep the startup ping pending unless a test explicitly controls it.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
