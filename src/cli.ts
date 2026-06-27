@@ -36,6 +36,7 @@ import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
 import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
+import { resolveBrowserTabPlacementFromEnv } from './browser/tab-placement.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
 import type { BrowserWindowMode } from './runtime.js';
@@ -524,6 +525,7 @@ async function getBrowserPage(
   // Internal GC timeout for browser sessions. Not the per-command runtime timeout.
   const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
+  const tabPlacement = resolveBrowserTabPlacementFromEnv();
   const page = await bridge.connect({
     timeout: 30,
     session,
@@ -531,6 +533,7 @@ async function getBrowserPage(
     ...(contextId && { contextId }),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
     windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'foreground'),
+    ...(tabPlacement && { tabPlacement }),
   });
   const targetScope = getBrowserScope(session, contextId);
   const resolvedTargetPage = targetPage

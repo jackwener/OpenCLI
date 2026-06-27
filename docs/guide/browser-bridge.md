@@ -68,6 +68,8 @@ Use `opencli browser <session> bind` when you want to attach OpenCLI to a Chrome
 
 The `OpenCLI Browser` and `OpenCLI Adapter` tab groups are extension-managed automation containers; avoid putting your own long-lived tabs in them or renaming them.
 
+Set `OPENCLI_TAB_PLACEMENT=existing-window` when you want owned Browser Bridge sessions to create regular tabs in an already-open normal Chrome profile window. This mode does not create Chrome windows and does not create, move, or rename OpenCLI tab groups. If the selected profile has no normal window open, the command fails and asks you to open that profile window first.
+
 ## How It Works
 
 ```

@@ -8,6 +8,7 @@ import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import { sleep } from '../utils.js';
 import { classifyBrowserError } from './errors.js';
 import { resolveProfileContextId } from './profile.js';
+import { resolveBrowserTabPlacementFromEnv, type BrowserTabPlacement } from './tab-placement.js';
 
 const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
@@ -55,6 +56,8 @@ export interface DaemonCommand {
   cdpParams?: Record<string, unknown>;
   /** Window foreground/background policy for owned Browser Bridge containers. */
   windowMode?: 'foreground' | 'background';
+  /** Tab placement policy for Browser Bridge owned sessions. */
+  tabPlacement?: BrowserTabPlacement;
   /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
@@ -186,7 +189,15 @@ async function sendCommandRaw(
       : undefined;
     const contextId = params.contextId ?? resolveProfileContextId();
     const windowMode = params.windowMode ?? envWindowMode;
-    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowMode && { windowMode }) };
+    const tabPlacement = params.tabPlacement ?? resolveBrowserTabPlacementFromEnv();
+    const command: DaemonCommand = {
+      id,
+      action,
+      ...params,
+      ...(contextId && { contextId }),
+      ...(windowMode && { windowMode }),
+      ...(tabPlacement && { tabPlacement }),
+    };
     try {
       const res = await requestDaemon('/command', {
         method: 'POST',

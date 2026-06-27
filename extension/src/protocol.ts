@@ -71,6 +71,8 @@ export interface Command {
   cdpParams?: Record<string, unknown>;
   /** Window foreground/background policy for owned Browser Bridge containers. */
   windowMode?: 'foreground' | 'background';
+  /** Owned tab placement policy. Defaults to OpenCLI-managed windows/groups. */
+  tabPlacement?: 'owned-container' | 'existing-window';
   /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
@@ -98,7 +100,7 @@ export interface Result {
 
 /** Default daemon port */
 export const DAEMON_PORT = 19825;
-export const DAEMON_HOST = 'localhost';
+export const DAEMON_HOST = '127.0.0.1';
 export const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
 /** Lightweight health-check endpoint — probed before each WebSocket attempt. */
 export const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;

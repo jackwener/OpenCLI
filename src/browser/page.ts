@@ -18,6 +18,7 @@ import { waitForDomStableJs } from './dom-helpers.js';
 import { BasePage } from './base-page.js';
 import { classifyBrowserError } from './errors.js';
 import { log } from '../logger.js';
+import type { BrowserTabPlacement } from './tab-placement.js';
 
 function isUnsupportedNetworkCaptureError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -49,6 +50,7 @@ export class Page extends BasePage {
     private readonly windowMode?: 'foreground' | 'background',
     private readonly surface: 'browser' | 'adapter' = 'browser',
     private readonly siteSession?: 'ephemeral' | 'persistent',
+    private readonly tabPlacement?: BrowserTabPlacement,
   ) {
     super();
     this._idleTimeout = idleTimeout;
@@ -56,23 +58,33 @@ export class Page extends BasePage {
 
   /** Active page identity (targetId), set after navigate and used in all subsequent commands */
   private _page: string | undefined;
+  private _closed = false;
   private _networkCaptureUnsupported = false;
   private _networkCaptureWarned = false;
 
+  private _assertOpen(): void {
+    if (this._closed) {
+      throw new Error('Browser page is closed');
+    }
+  }
+
   /** Helper: spread session into command params */
-  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; siteSession?: 'ephemeral' | 'persistent' } {
+  private _sessionOpts(opts: { allowClosed?: boolean } = {}): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; tabPlacement?: BrowserTabPlacement; siteSession?: 'ephemeral' | 'persistent' } {
+    if (!opts.allowClosed) this._assertOpen();
     return {
       session: this.session,
       surface: this.surface,
       ...(this.contextId && { contextId: this.contextId }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.tabPlacement && { tabPlacement: this.tabPlacement }),
       ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
 
   /** Helper: spread session + page identity into command params */
   private _cmdOpts(): Record<string, unknown> {
+    this._assertOpen();
     return {
       session: this.session,
       surface: this.surface,
@@ -80,6 +92,7 @@ export class Page extends BasePage {
       ...(this._page !== undefined && { page: this._page }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
       ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.tabPlacement && { tabPlacement: this.tabPlacement }),
       ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
@@ -187,11 +200,13 @@ export class Page extends BasePage {
 
   /** Release the current browser session lease in the extension */
   async closeWindow(): Promise<void> {
+    if (this._closed) return;
     try {
-      await sendCommand('close-window', { ...this._sessionOpts() });
+      await sendCommand('close-window', { ...this._sessionOpts({ allowClosed: true }) });
     } catch {
       // Window may already be closed or daemon may be down
     } finally {
+      this._closed = true;
       this._page = undefined;
       this._lastUrl = null;
       this._networkCaptureUnsupported = false;
@@ -262,10 +277,13 @@ export class Page extends BasePage {
   async startNetworkCapture(pattern: string = ''): Promise<boolean> {
     if (this._networkCaptureUnsupported) return false;
     try {
-      await sendCommand('network-capture-start', {
+      const result = await sendCommandFull('network-capture-start', {
         pattern,
         ...this._cmdOpts(),
       });
+      if (result?.page) {
+        this._page = result.page;
+      }
       return true;
     } catch (err) {
       if (!isUnsupportedNetworkCaptureError(err)) throw err;

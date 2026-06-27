@@ -66,6 +66,8 @@ opencli browser my-session close
 
 `OpenCLI Browser` 和 `OpenCLI Adapter` tab group 是扩展管理的自动化容器；请不要把自己的长期 tab 放进去，也不要重命名。
 
+如果希望 OpenCLI 拥有的 Browser Bridge session 只在已经打开的 Chrome Profile 普通窗口里创建普通标签页，可以设置 `OPENCLI_TAB_PLACEMENT=existing-window`。这个模式不会创建 Chrome 窗口，也不会创建、移动或重命名 OpenCLI tab group；如果所选 Profile 没有打开的普通窗口，命令会失败并提示你先打开该 Profile 窗口。
+
 ## Daemon 生命周期
 
 Daemon 在首次运行浏览器命令时自动启动，之后保持常驻运行。

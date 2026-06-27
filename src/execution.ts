@@ -30,6 +30,7 @@ import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceRece
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { resolveProfileContextId } from './browser/profile.js';
+import { resolveBrowserTabPlacementFromEnv } from './browser/tab-placement.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
@@ -255,6 +256,7 @@ export async function executeCommand(
       const session = resolveAdapterBrowserSession(cmd, siteSession);
       const keepTab = resolveKeepTab(siteSession, opts.keepTab);
       const windowMode = resolveBrowserWindowMode(cmd.defaultWindowMode ?? 'background', opts.windowMode);
+      const tabPlacement = resolveBrowserTabPlacementFromEnv();
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
@@ -369,7 +371,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { session, cdpEndpoint, contextId, windowMode, surface: 'adapter', siteSession });
+      }, { session, cdpEndpoint, contextId, windowMode, tabPlacement, surface: 'adapter', siteSession });
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that

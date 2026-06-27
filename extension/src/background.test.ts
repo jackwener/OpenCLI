@@ -23,6 +23,14 @@ type MockTabGroup = {
   collapsed?: boolean;
 };
 
+type MockWindowType = 'normal' | 'popup' | 'panel' | 'app' | 'devtools';
+
+type MockWindow = {
+  id: number;
+  focused?: boolean;
+  type?: MockWindowType;
+};
+
 const leaseKey = (surface: 'browser' | 'adapter', session: string): string =>
   `${surface}\u0000${encodeURIComponent(session)}`;
 const browserKey = (session: string): string => leaseKey('browser', session);
@@ -72,6 +80,10 @@ function createChromeMock() {
     { id: 3, windowId: 1, url: 'chrome://extensions', title: 'chrome', active: false, status: 'complete', groupId: -1 },
   ];
   const groups: MockTabGroup[] = [];
+  let windows: MockWindow[] = [
+    { id: 1, focused: false, type: 'normal' },
+    { id: 2, focused: true, type: 'normal' },
+  ];
   let lastFocusedWindowId = 2;
 
   const removeEmptyGroups = () => {
@@ -198,7 +210,34 @@ function createChromeMock() {
       onEvent: { addListener: vi.fn() } as Listener<(source: any, method: string, params: any) => void>,
     },
     windows: {
-      get: vi.fn(async (windowId: number) => ({ id: windowId, focused: windowId === lastFocusedWindowId })),
+      get: vi.fn(async (windowId: number) => {
+        const win = windows.find((entry) => entry.id === windowId)
+          ?? (tabs.some((tab) => tab.windowId === windowId) ? { id: windowId, type: 'normal' as MockWindowType } : undefined);
+        if (!win) throw new Error(`Unknown window ${windowId}`);
+        return { ...win, focused: windowId === lastFocusedWindowId };
+      }),
+      getLastFocused: vi.fn(async (queryOptions?: { windowTypes?: MockWindowType[] }) => {
+        const win = windows.find((entry) => entry.id === lastFocusedWindowId);
+        if (!win) throw new Error('No focused window');
+        if (queryOptions?.windowTypes && !queryOptions.windowTypes.includes(win.type ?? 'normal')) {
+          throw new Error('No focused matching window');
+        }
+        return { ...win, focused: true };
+      }),
+      query: vi.fn(async (queryOptions?: { windowTypes?: MockWindowType[] }) => {
+        return windows
+          .filter((win) => !queryOptions?.windowTypes || queryOptions.windowTypes.includes(win.type ?? 'normal'))
+          .map((win) => ({ ...win, focused: win.id === lastFocusedWindowId }));
+      }),
+      update: vi.fn(async (windowId: number, updateInfo: { focused?: boolean }) => {
+        const win = windows.find((entry) => entry.id === windowId);
+        if (!win) throw new Error(`Unknown window ${windowId}`);
+        if (updateInfo.focused) {
+          lastFocusedWindowId = windowId;
+          windows = windows.map((entry) => ({ ...entry, focused: entry.id === windowId }));
+        }
+        return { ...win, focused: windowId === lastFocusedWindowId };
+      }),
       create: vi.fn(async ({ url, focused, width, height, type }: any) => ({ id: 1, url, focused, width, height, type })),
       remove: vi.fn(async (_windowId: number) => {}),
       onRemoved: { addListener: vi.fn() } as Listener<(windowId: number) => void>,
@@ -235,6 +274,11 @@ function createChromeMock() {
     create,
     update,
     setLastFocusedWindowId: (windowId: number) => { lastFocusedWindowId = windowId; },
+    setWindows: (nextWindows: MockWindow[]) => {
+      windows = nextWindows;
+      const focused = nextWindows.find((win) => win.focused);
+      lastFocusedWindowId = focused?.id ?? nextWindows[0]?.id ?? -1;
+    },
   };
 }
 
@@ -1153,6 +1197,229 @@ describe('background tab isolation', () => {
 
     expect(result).toEqual(expect.objectContaining({ ok: true }));
     expect(chrome.windows.create).toHaveBeenCalledWith(expect.objectContaining({ focused: true }));
+  });
+
+  it('creates ordinary tabs in the focused existing Chrome window when tabPlacement is existing-window', async () => {
+    const { chrome, create, tabs } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-new',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://new.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(create).toHaveBeenCalledWith({ windowId: 2, url: 'https://new.example', active: true });
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === 10)).toEqual(expect.objectContaining({
+      windowId: 2,
+      groupId: -1,
+      url: 'https://new.example',
+    }));
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      windowId: 2,
+      preferredTabId: 10,
+      tabPlacement: 'existing-window',
+    }));
+  });
+
+  it('falls back to any normal window when the focused Chrome window is not normal', async () => {
+    const { chrome, create, setWindows } = createChromeMock();
+    setWindows([
+      { id: 30, focused: true, type: 'popup' },
+      { id: 31, focused: false, type: 'normal' },
+    ]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-fallback',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://fallback.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(create).toHaveBeenCalledWith({ windowId: 31, url: 'https://fallback.example', active: true });
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('fails clearly in existing-window placement when no normal Chrome window is open', async () => {
+    const { chrome, setWindows } = createChromeMock();
+    setWindows([]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-missing',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://new.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'existing_window_required',
+      error: expect.stringContaining('No normal Chrome window is open'),
+      errorHint: expect.stringContaining('Open the target Chrome profile window'),
+    }));
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('closes existing-window tabs on release instead of leaving blank placeholders', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.handleCommand({
+      id: 'existing-window-new',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://close.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-close',
+      action: 'close-window',
+      session: 'twitter',
+      surface: 'adapter',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(10);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank', active: true });
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
+  });
+
+  it('removes stale owned-container tabs when commands switch to existing-window placement', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'), 'https://old.example');
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      tabPlacement: 'owned-container',
+    }));
+
+    vi.clearAllMocks();
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-close-stale',
+      action: 'close-window',
+      session: 'twitter',
+      surface: 'adapter',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(tabId);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(tabId, { url: 'about:blank', active: true });
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
+  });
+
+  it('purges stale adapter owned-container placeholders before existing-window commands', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const firstTabId = await mod.__test__.resolveTabId(undefined, adapterKey('stale-first'), 'https://first.example');
+    const secondTabId = await mod.__test__.resolveTabId(undefined, adapterKey('stale-second'), 'https://second.example');
+    expect(mod.__test__.getSession(adapterKey('stale-first'))).toEqual(expect.objectContaining({
+      tabPlacement: 'owned-container',
+    }));
+    expect(mod.__test__.getSession(adapterKey('stale-second'))).toEqual(expect.objectContaining({
+      tabPlacement: 'owned-container',
+    }));
+
+    vi.clearAllMocks();
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-new',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://new.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(firstTabId);
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(secondTabId);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(firstTabId, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(secondTabId, { url: 'about:blank', active: true });
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('stale-first'))).toBeNull();
+    expect(mod.__test__.getSession(adapterKey('stale-second'))).toBeNull();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      tabPlacement: 'existing-window',
+    }));
+  });
+
+  it('closes empty owned-container windows before existing-window commands', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs.push({ id: 77, windowId: 77, url: 'about:blank', title: 'blank', active: true, status: 'complete', groupId: -1 });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v2: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: {
+          interactive: { windowId: null, groupId: null },
+          automation: { windowId: 77, groupId: null },
+        },
+        leases: {},
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    vi.clearAllMocks();
+    const result = await mod.__test__.handleCommand({
+      id: 'existing-window-new',
+      action: 'tabs',
+      op: 'new',
+      session: 'twitter',
+      surface: 'adapter',
+      url: 'https://new.example',
+      tabPlacement: 'existing-window',
+    } as any);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }));
+    expect(chrome.windows.remove).toHaveBeenCalledWith(77);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toEqual(expect.objectContaining({
+      tabPlacement: 'existing-window',
+    }));
   });
 
   it('creates additional adapter lease tabs in the owned window without grouping them', async () => {

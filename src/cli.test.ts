@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -1110,11 +1110,13 @@ describe('browser tab targeting commands', () => {
   beforeEach(() => {
     process.exitCode = undefined;
     process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tab-state-'));
+    process.env.OPENCLI_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tab-config-'));
     consoleLogSpy.mockClear();
     stderrSpy.mockClear();
     mockBrowserConnect.mockClear();
     mockBrowserClose.mockReset().mockResolvedValue(undefined);
     delete process.env.OPENCLI_WINDOW;
+    delete process.env.OPENCLI_TAB_PLACEMENT;
     mockBindTab.mockReset().mockResolvedValue({
       session: 'test',
       page: 'tab-2',
@@ -1160,6 +1162,10 @@ describe('browser tab targeting commands', () => {
     } as unknown as IPage;
   });
 
+  afterEach(() => {
+    delete process.env.OPENCLI_CONFIG_DIR;
+  });
+
   function lastJsonLog(): any {
     const calls = consoleLogSpy.mock.calls;
     if (calls.length === 0) throw new Error('Expected at least one console.log call');
@@ -1197,7 +1203,13 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'foreground' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({
+      timeout: 30,
+      session: 'test',
+      surface: 'browser',
+      windowMode: 'foreground',
+      tabPlacement: 'existing-window',
+    });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 
@@ -1206,7 +1218,29 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', '--window', 'background', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'background' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({
+      timeout: 30,
+      session: 'test',
+      surface: 'browser',
+      windowMode: 'background',
+      tabPlacement: 'existing-window',
+    });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('passes OPENCLI_TAB_PLACEMENT through opencli browser sessions', async () => {
+    process.env.OPENCLI_TAB_PLACEMENT = 'existing-window';
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({
+      timeout: 30,
+      session: 'test',
+      surface: 'browser',
+      windowMode: 'foreground',
+      tabPlacement: 'existing-window',
+    });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 

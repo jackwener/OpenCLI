@@ -179,6 +179,27 @@ browser: false
     await expect(discoverPlugins()).resolves.not.toThrow();
   });
 
+  it('supports legacy plugin cmd.js files that use global cli()', async () => {
+    await fs.promises.mkdir(testPluginDir, { recursive: true });
+    await fs.promises.writeFile(path.join(testPluginDir, 'cmd.js'), `
+cli({
+  site: '__test-plugin__',
+  name: 'legacy',
+  access: 'read',
+  description: 'Legacy plugin command',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  func: async () => [{ ok: true }],
+});
+`);
+
+    await discoverPlugins();
+
+    const cmd = getRegistry().get('__test-plugin__/legacy');
+    expect(cmd).toBeDefined();
+    expect(cmd?.browser).toBe(false);
+  });
+
   it('ignores YAML files in symlinked plugin directories (YAML format removed)', async () => {
     await fs.promises.mkdir(PLUGINS_DIR, { recursive: true });
     await fs.promises.mkdir(symlinkTargetDir, { recursive: true });

@@ -197,6 +197,32 @@ describe('daemon-client', () => {
     expect(body.windowMode).toBe('background');
   });
 
+  it('sendCommand forwards OPENCLI_TAB_PLACEMENT to the daemon command', async () => {
+    vi.stubEnv('OPENCLI_TAB_PLACEMENT', 'existing-window');
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1' });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { tabPlacement?: string };
+    expect(body.tabPlacement).toBe('existing-window');
+  });
+
+  it('sendCommand rejects invalid OPENCLI_TAB_PLACEMENT values before dispatch', async () => {
+    vi.stubEnv('OPENCLI_TAB_PLACEMENT', 'new-window');
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await expect(sendCommand('exec', { code: '1 + 1' })).rejects.toThrow(
+      'OPENCLI_TAB_PLACEMENT must be one of: owned-container, existing-window. Received: "new-window"',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('sendCommand retries with a new id when daemon reports a duplicate pending id', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_123);
     const fetchMock = vi.mocked(fetch);

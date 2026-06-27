@@ -11,7 +11,7 @@ import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserProfileStatus } from './browser/daemon-client.js';
-import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import { aliasForContextId, loadProfileConfig, resolveProfileContextId } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
@@ -100,12 +100,23 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Live connectivity check is the core of doctor — it doubles as auto-start
-  // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
-  const connectivity = await checkConnectivity();
+  // Single status read *after* connectivity side-effects settle. Use the same
+  // default/env profile selection as BrowserBridge.connect so multi-profile
+  // setups do not report profile-required after the live check succeeds.
+  const contextId = resolveProfileContextId();
+  const healthOpts = contextId ? { contextId } : undefined;
+  const statusStart = Date.now();
+  let health = await getDaemonHealth(healthOpts);
 
-  // Single status read *after* connectivity side-effects settle.
-  const health = await getDaemonHealth();
+  // If the selected profile is already ready, do not open a temporary page just
+  // to prove connectivity. This keeps doctor read-only for healthy profiles and
+  // avoids creating visible Chrome windows, groups, or blank tabs.
+  const connectivity = health.state === 'ready'
+    ? { ok: true, durationMs: Date.now() - statusStart }
+    : await checkConnectivity();
+  if (health.state !== 'ready') {
+    health = await getDaemonHealth(healthOpts);
+  }
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;
