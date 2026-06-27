@@ -5,6 +5,12 @@
 /** Default daemon port for HTTP/WebSocket communication with browser extension */
 export const DEFAULT_DAEMON_PORT = 19825;
 
+export function unsupportedDaemonPortEnvMessage(value?: string): string {
+  const suffix = value ? ` (received ${value})` : '';
+  return `OPENCLI_DAEMON_PORT is no longer supported${suffix}. ` +
+    `The OpenCLI Chrome extension can only connect to localhost:${DEFAULT_DAEMON_PORT}. ` +
+    'Unset OPENCLI_DAEMON_PORT and rerun opencli.';
+}
 
 /** URL query params that are volatile/ephemeral and should be stripped from patterns */
 export const VOLATILE_PARAMS = new Set([

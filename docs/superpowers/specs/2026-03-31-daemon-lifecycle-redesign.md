@@ -184,7 +184,7 @@ and shows:
 ## Backward Compatibility
 
 - No breaking changes to CLI commands or Extension protocol
-- Existing `OPENCLI_DAEMON_PORT` environment variable continues to work
+- The daemon and extension use the fixed Browser Bridge port.
 - The only observable behavior change: daemon stays alive longer
 - New `daemon` subcommands are additive
 

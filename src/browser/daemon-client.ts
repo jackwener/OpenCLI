@@ -4,12 +4,12 @@
  * Provides a typed send() function that posts a Command and returns a Result.
  */
 
-import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import { DEFAULT_DAEMON_PORT, unsupportedDaemonPortEnvMessage } from '../constants.js';
 import { sleep } from '../utils.js';
 import { classifyBrowserError } from './errors.js';
 import { resolveProfileContextId } from './profile.js';
 
-const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+const DAEMON_PORT = DEFAULT_DAEMON_PORT;
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 const OPENCLI_HEADERS = { 'X-OpenCLI': '1' };
 
@@ -81,6 +81,18 @@ export class BrowserCommandError extends Error {
   }
 }
 
+class UnsupportedDaemonPortEnvError extends Error {
+  constructor(value: string) {
+    super(unsupportedDaemonPortEnvMessage(value));
+    this.name = 'UnsupportedDaemonPortEnvError';
+  }
+}
+
+function assertSupportedDaemonPortEnv(): void {
+  const value = process.env.OPENCLI_DAEMON_PORT;
+  if (value !== undefined && value !== '') throw new UnsupportedDaemonPortEnvError(value);
+}
+
 export interface DaemonStatus {
   ok: boolean;
   pid: number;
@@ -109,6 +121,7 @@ export interface BrowserProfileStatus {
 }
 
 async function requestDaemon(pathname: string, init?: RequestInit & { timeout?: number }): Promise<Response> {
+  assertSupportedDaemonPortEnv();
   const { timeout = 2000, headers, ...rest } = init ?? {};
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
@@ -129,7 +142,8 @@ export async function fetchDaemonStatus(opts?: { timeout?: number; contextId?: s
     const res = await requestDaemon(`/status${params}`, { timeout: opts?.timeout ?? 2000 });
     if (!res.ok) return null;
     return await res.json() as DaemonStatus;
-  } catch {
+  } catch (err) {
+    if (err instanceof UnsupportedDaemonPortEnvError) throw err;
     return null;
   }
 }
@@ -158,7 +172,8 @@ export async function requestDaemonShutdown(opts?: { timeout?: number }): Promis
   try {
     const res = await requestDaemon('/shutdown', { method: 'POST', timeout: opts?.timeout ?? 5000 });
     return res.ok;
-  } catch {
+  } catch (err) {
+    if (err instanceof UnsupportedDaemonPortEnvError) throw err;
     return false;
   }
 }

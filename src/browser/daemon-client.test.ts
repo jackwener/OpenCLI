@@ -149,6 +149,28 @@ describe('daemon-client', () => {
     expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
   });
 
+  it('rejects OPENCLI_DAEMON_PORT so CLI and extension cannot split bridge ports', async () => {
+    vi.resetModules();
+    vi.stubEnv('OPENCLI_DAEMON_PORT', '19999');
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 1,
+        port: 19825,
+      }),
+    } as Response);
+
+    const freshClient = await import('./daemon-client.js');
+    await expect(freshClient.fetchDaemonStatus()).rejects.toThrow('OPENCLI_DAEMON_PORT is no longer supported');
+
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
   it('sendCommand includes the current pid in generated command ids', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_000);
     vi.mocked(fetch).mockResolvedValue({
