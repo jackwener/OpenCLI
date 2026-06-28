@@ -979,6 +979,22 @@ Examples:
     }, null, 2));
   }
 
+  function emitBrowserCommandErrorEnvelope(err: BrowserCommandError): void {
+    if (!err.code) return;
+    console.log(JSON.stringify({
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.hint ? { hint: err.hint } : {}),
+      },
+    }, null, 2));
+  }
+
+  function logBrowserCommandError(err: BrowserCommandError): void {
+    log.error(err.message);
+    if (err.hint) log.error(`Hint: ${err.hint}`);
+  }
+
   /** Wrap browser actions with error handling and optional --json output */
   function browserAction<Args extends unknown[]>(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: Args) => Promise<unknown>) {
     return async (...args: Args) => {
@@ -998,17 +1014,10 @@ Examples:
         } else if (err instanceof BrowserCommandError) {
           if (isJavaScriptDialogMessage(err.message)) {
             emitJavaScriptDialogError(err.message);
-          } else if (err.code) {
-            console.log(JSON.stringify({
-              error: {
-                code: err.code,
-                message: err.message,
-                ...(err.hint ? { hint: err.hint } : {}),
-              },
-            }, null, 2));
+          } else {
+            emitBrowserCommandErrorEnvelope(err);
           }
-          log.error(err.message);
-          if (err.hint) log.error(`Hint: ${err.hint}`);
+          logBrowserCommandError(err);
         } else if (err instanceof TargetError) {
           // Agent-facing structured envelope on stdout + short human line on stderr.
           emitTargetError(err);
@@ -1030,63 +1039,48 @@ Examples:
     };
   }
 
-  browser.command('bind')
-    .description('Bind the current Chrome tab/window to the browser session named by <session>')
-    .action(async (optsOrCommand, maybeCommand?: Command) => {
+  type BrowserSessionCommandContext = {
+    session: string;
+    contextId?: string;
+  };
+
+  function browserSessionCommandAction(fn: (ctx: BrowserSessionCommandContext) => Promise<void>) {
+    return async (optsOrCommand: unknown, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
       const session = getBrowserSession(command);
+      const contextId = getBrowserContextId(command);
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
-        const contextId = getBrowserContextId(command);
         await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...(contextId && { contextId }) });
-        const data = await bindTab(session, { ...(contextId && { contextId }) });
-        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
-        console.log(JSON.stringify({ session, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
+        await fn({ session, contextId });
       } catch (err) {
-        if (err instanceof BrowserCommandError && err.code) {
-          console.log(JSON.stringify({
-            error: {
-              code: err.code,
-              message: err.message,
-              ...(err.hint ? { hint: err.hint } : {}),
-            },
-          }, null, 2));
+        if (err instanceof BrowserCommandError) {
+          emitBrowserCommandErrorEnvelope(err);
+          logBrowserCommandError(err);
+        } else {
+          log.error(err instanceof Error ? err.message : String(err));
         }
-        log.error(err instanceof Error ? err.message : String(err));
-        if (err instanceof BrowserCommandError && err.hint) log.error(`Hint: ${err.hint}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
-    });
+    };
+  }
+
+  browser.command('bind')
+    .description('Bind the current Chrome tab/window to the browser session named by <session>')
+    .action(browserSessionCommandAction(async ({ session, contextId }) => {
+      const data = await bindTab(session, { ...(contextId && { contextId }) });
+      saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+      console.log(JSON.stringify({ session, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
+    }));
 
   browser.command('unbind')
     .description('Detach the bound browser session named by <session> without closing the user tab/window')
-    .action(async (optsOrCommand, maybeCommand?: Command) => {
-      const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
-      const session = getBrowserSession(command);
-      try {
-        const { BrowserBridge } = await import('./browser/index.js');
-        const bridge = new BrowserBridge();
-        const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...(contextId && { contextId }) });
-        await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
-        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
-        console.log(JSON.stringify({ unbound: true, session }, null, 2));
-      } catch (err) {
-        if (err instanceof BrowserCommandError && err.code) {
-          console.log(JSON.stringify({
-            error: {
-              code: err.code,
-              message: err.message,
-              ...(err.hint ? { hint: err.hint } : {}),
-            },
-          }, null, 2));
-        }
-        log.error(err instanceof Error ? err.message : String(err));
-        if (err instanceof BrowserCommandError && err.hint) log.error(`Hint: ${err.hint}`);
-        process.exitCode = EXIT_CODES.GENERIC_ERROR;
-      }
-    });
+    .action(browserSessionCommandAction(async ({ session, contextId }) => {
+      await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
+      saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+      console.log(JSON.stringify({ unbound: true, session }, null, 2));
+    }));
 
   const browserTab = browser
     .command('tab')
