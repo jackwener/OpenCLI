@@ -1143,10 +1143,17 @@ export abstract class BasePage implements IPage {
 
   async installInterceptor(pattern: string): Promise<void> {
     const { generateInterceptorJs } = await import('../interceptor.js');
-    await this.evaluate(generateInterceptorJs(JSON.stringify(pattern), {
+    const interceptorJs = generateInterceptorJs(JSON.stringify(pattern), {
       arrayName: '__opencli_xhr',
       patchGuard: '__opencli_interceptor_patched',
-    }));
+    });
+    await this.evaluate(interceptorJs);
+
+    const cdp = (this as IPage).cdp;
+    if (typeof cdp !== 'function') return;
+    await cdp.call(this, 'Page.addScriptToEvaluateOnNewDocument', {
+      source: `(${interceptorJs})()`,
+    }).catch(() => {});
   }
 
   async getInterceptedRequests(): Promise<unknown[]> {
