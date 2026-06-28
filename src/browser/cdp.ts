@@ -19,6 +19,7 @@ import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
 import { getAllElectronApps } from '../electron-apps.js';
 import { BasePage } from './base-page.js';
+import { BROWSER_VIEWPORT_METRICS_SCRIPT, clickScreenPoint, viewportPointToScreenPoint, type BrowserViewportMetrics } from './system-input.js';
 
 export interface CDPTarget {
   type?: string;
@@ -441,6 +442,11 @@ class CDPPage extends BasePage {
       button: 'left',
       clickCount: 1,
     });
+  }
+
+  async systemClick(x: number, y: number): Promise<void> {
+    const metrics = await this.evaluate<BrowserViewportMetrics>(BROWSER_VIEWPORT_METRICS_SCRIPT);
+    await clickScreenPoint(viewportPointToScreenPoint(metrics, { x, y }));
   }
 
   async nativeType(text: string): Promise<void> {

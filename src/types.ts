@@ -148,6 +148,8 @@ export interface IPage {
   evaluateInFrame?(js: string, frameIndex: number): Promise<unknown>;
   /** Click at native coordinates via CDP Input.dispatchMouseEvent. */
   nativeClick?(x: number, y: number): Promise<void>;
+  /** Click at page viewport coordinates via the operating-system mouse. */
+  systemClick?(x: number, y: number): Promise<void>;
   /** Type text via CDP Input.insertText. */
   nativeType?(text: string): Promise<void>;
   /** Press a key via CDP Input.dispatchKeyEvent. */

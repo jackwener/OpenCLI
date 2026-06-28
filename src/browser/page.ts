@@ -19,6 +19,7 @@ import { BasePage } from './base-page.js';
 import { classifyBrowserError } from './errors.js';
 import { log } from '../logger.js';
 import type { BrowserTabPlacement } from './tab-placement.js';
+import { BROWSER_VIEWPORT_METRICS_SCRIPT, clickScreenPoint, viewportPointToScreenPoint, type BrowserViewportMetrics } from './system-input.js';
 
 function isUnsupportedNetworkCaptureError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -456,6 +457,11 @@ export class Page extends BasePage {
       button: 'left',
       clickCount: 1,
     });
+  }
+
+  async systemClick(x: number, y: number): Promise<void> {
+    const metrics = await this.evaluate<BrowserViewportMetrics>(BROWSER_VIEWPORT_METRICS_SCRIPT);
+    await clickScreenPoint(viewportPointToScreenPoint(metrics, { x, y }));
   }
 
   async nativeType(text: string): Promise<void> {
