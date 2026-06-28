@@ -27,6 +27,7 @@ import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type Fi
 import { inferShape } from './browser/shape.js';
 import { assignKeys } from './browser/network-key.js';
 import { DEFAULT_TTL_MS, findEntry, loadNetworkCache, saveNetworkCache, type CachedNetworkEntry } from './browser/network-cache.js';
+import { NETWORK_INTERCEPTOR_JS } from './browser/network-interceptor.js';
 import { parseFilter, shapeMatchesFilter } from './browser/shape-filter.js';
 import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
@@ -1153,18 +1154,6 @@ Examples:
     }));
 
   // ── Navigation ──
-
-  /**
-   * Network interceptor JS — injected on every open/navigate to capture
-   * fetch/XHR bodies when the session-level capture channel (CDP/extension)
-   * isn't available. Keeps parity with the CDP path's truncation contract:
-   * when a body exceeds the per-entry cap, we keep a string prefix and set
-   * `bodyTruncated: true` + `bodyFullSize: <original length>` so `browser
-   * network` can propagate a visible signal to the agent instead of
-   * silently dropping the body. Per-entry cap is 1 MiB and the ring is
-   * capped at 200 entries, bounding worst-case in-page memory.
-   */
-  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body,timestamp:Date.now()};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
   addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in the browser session'))
     .action(browserAction(async (page, url, opts) => {
