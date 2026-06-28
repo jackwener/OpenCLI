@@ -7,7 +7,7 @@ const { mockGetDaemonHealth, mockConnect, mockClose, mockFindShadowedUserAdapter
   mockFindShadowedUserAdapters: vi.fn(),
 }));
 
-vi.mock('./browser/daemon-client.js', () => ({
+vi.mock('./browser/daemon-transport.js', () => ({
   getDaemonHealth: mockGetDaemonHealth,
 }));
 

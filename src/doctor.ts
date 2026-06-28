@@ -6,11 +6,11 @@
 
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
-import { getDaemonHealth } from './browser/daemon-client.js';
+import { getDaemonHealth } from './browser/daemon-transport.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
-import type { BrowserProfileStatus } from './browser/daemon-client.js';
+import type { BrowserProfileStatus } from './browser/daemon-transport.js';
 import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
