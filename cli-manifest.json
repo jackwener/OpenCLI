@@ -40122,6 +40122,154 @@
     "siteSession": "persistent"
   },
   {
+    "site": "xiaoheihe",
+    "name": "feed",
+    "description": "小黑盒社区首页信息流",
+    "access": "read",
+    "example": "opencli xiaoheihe feed --limit 10 -f json",
+    "domain": "www.xiaoheihe.cn",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of posts (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "description",
+      "author",
+      "topic",
+      "likes",
+      "commentCount",
+      "createdAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaoheihe/feed.js",
+    "sourceFile": "xiaoheihe/feed.js"
+  },
+  {
+    "site": "xiaoheihe",
+    "name": "hot",
+    "description": "小黑盒社区热门帖子（按互动数排序）",
+    "access": "read",
+    "example": "opencli xiaoheihe hot --limit 10 -f json",
+    "domain": "www.xiaoheihe.cn",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of posts (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "description",
+      "author",
+      "topic",
+      "likes",
+      "commentCount",
+      "createdAt",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaoheihe/hot.js",
+    "sourceFile": "xiaoheihe/hot.js"
+  },
+  {
+    "site": "xiaoheihe",
+    "name": "post",
+    "description": "小黑盒帖子正文和首屏回复",
+    "access": "read",
+    "example": "opencli xiaoheihe post 184169654 --limit 20 -f json",
+    "domain": "www.xiaoheihe.cn",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "post",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Post id or xiaoheihe post URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of comments/replies (1-100)"
+      },
+      {
+        "name": "include-comments",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Include comments and nested replies"
+      }
+    ],
+    "columns": [
+      "type",
+      "id",
+      "parentId",
+      "author",
+      "replyTo",
+      "title",
+      "content",
+      "likes",
+      "replyCount",
+      "createdAt",
+      "ipLocation",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaoheihe/post.js",
+    "sourceFile": "xiaoheihe/post.js"
+  },
+  {
+    "site": "xiaoheihe",
+    "name": "topics",
+    "description": "小黑盒热门社区/话题列表",
+    "access": "read",
+    "example": "opencli xiaoheihe topics --limit 10 -f json",
+    "domain": "www.xiaoheihe.cn",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of topics (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "hotValue",
+      "icon",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaoheihe/topics.js",
+    "sourceFile": "xiaoheihe/topics.js"
+  },
+  {
     "site": "xiaohongshu",
     "name": "ask",
     "description": "Ask 小红书点点 and return the answer with citation sources.",
