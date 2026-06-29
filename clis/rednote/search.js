@@ -53,6 +53,11 @@ const WAIT_FOR_CONTENT_JS = `
     };
     const detect = () => {
       if (document.querySelector('section.note-item')) return 'content';
+      // Risk-control block detected via URL redirect only — NOT page text.
+      // The search page echoes the query back, so matching '安全限制' in body
+      // text would false-positive when a user literally searches that term.
+      if (/error_code=(300017|300031)/.test(location.href)
+        || (location.href || '').includes('website-login/error')) return 'security_block';
       if (/登录后查看搜索结果|请登录/.test(document.body?.innerText || '')) return 'login_wall';
       if (hasLoginModal()) return 'login_wall';
       return null;
@@ -86,6 +91,9 @@ cli({
         const keyword = encodeURIComponent(kwargs.query);
         await page.goto(`https://www.rednote.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
         const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
+        if (waitResult === 'security_block') {
+            throw new CommandExecutionError('Rednote search was blocked by risk control (captcha).', 'The session is likely rate-limited or flagged. Pause scraping and retry later from the same logged-in session.');
+        }
         if (waitResult === 'login_wall') {
             throw new AuthRequiredError('www.rednote.com', 'Rednote search results are blocked behind a login wall');
         }

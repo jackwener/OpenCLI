@@ -69,6 +69,18 @@ describe('xiaohongshu search', () => {
         });
         expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
+    it('rejects with risk-control error instead of silently returning [] when blocked', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            { session: 'site:xiaohongshu', data: 'security_block' },
+        ]);
+
+        await expect(cmd.func(page, { query: '特斯拉', limit: 5 })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+            message: expect.stringContaining('risk control'),
+        });
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
     it('returns ranked results with search_result url and author_url preserved', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');

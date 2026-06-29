@@ -171,6 +171,18 @@ describe('rednote search browser-bridge envelopes', () => {
         expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
 
+    it('rejects with risk-control error instead of silently returning [] when blocked', async () => {
+        const page = createSearchPageMock([
+            { session: 'site:rednote', data: 'security_block' },
+        ]);
+
+        await expect(search.func(page, { query: 'tesla', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('risk control'),
+        });
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
     it('unwraps search extraction envelopes and preserves rednote row shape', async () => {
         const url = 'https://www.rednote.com/search_result/68e90be80000000004022e66?xsec_token=test-token';
         const page = createSearchPageMock([

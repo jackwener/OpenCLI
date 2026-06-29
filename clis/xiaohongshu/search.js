@@ -6,7 +6,7 @@
  * Ref: https://github.com/jackwener/opencli/issues/10
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 /**
  * Wait for search results or login wall using MutationObserver (max 5s).
  * Returns 'content' if note items appeared, 'login_wall' if login gate
@@ -24,6 +24,11 @@ const WAIT_FOR_CONTENT_JS = `
     );
     const detect = () => {
       if (findNoteCard()) return 'content';
+      // Risk-control block detected via URL redirect only — NOT page text.
+      // The search page echoes the query back, so matching '安全限制' in body
+      // text would false-positive when a user literally searches that term.
+      if (/error_code=(300017|300031)/.test(location.href)
+        || (location.href || '').includes('website-login/error')) return 'security_block';
       if (/登录后查看搜索结果/.test(document.body?.innerText || '')) return 'login_wall';
       return null;
     };
@@ -288,6 +293,9 @@ export const command = cli({
         // Uses MutationObserver to resolve as soon as content appears,
         // instead of a fixed delay + blind retry.
         const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
+        if (waitResult === 'security_block') {
+            throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by risk control (captcha).', 'The session is likely rate-limited or flagged. Pause scraping and retry later from the same logged-in session.');
+        }
         if (waitResult === 'login_wall') {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
         }
