@@ -23088,6 +23088,200 @@
     "navigateBefore": "https://medium.com"
   },
   {
+    "site": "mercury",
+    "name": "check-login",
+    "description": "Open Mercury reimbursements and report whether the active browser profile is logged in",
+    "access": "read",
+    "example": "opencli --profile <profile> mercury check-login -f json",
+    "domain": "app.mercury.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "status",
+      "loggedIn",
+      "url",
+      "hasSubmitExpense",
+      "hasReimbursements",
+      "title"
+    ],
+    "type": "js",
+    "modulePath": "mercury/check-login.js",
+    "sourceFile": "mercury/check-login.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "mercury",
+    "name": "reimbursement-draft",
+    "description": "Create a Mercury reimbursement draft from a local receipt, correct OCR fields, and stop at Review",
+    "access": "write",
+    "example": "opencli --profile <profile> mercury reimbursement-draft --receipt /tmp/receipt.png --amount 140.00 --currency CNY --date 2026-06-26 --merchant \"Example Merchant\" --category \"Marketing & Advertising\" --notes \"Example business purpose.\" -f json",
+    "domain": "app.mercury.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "receipt",
+        "type": "str",
+        "required": true,
+        "help": "Local receipt/proof file path"
+      },
+      {
+        "name": "amount",
+        "type": "str",
+        "required": true,
+        "help": "Original-currency amount, e.g. 140.00"
+      },
+      {
+        "name": "currency",
+        "type": "str",
+        "default": "CNY",
+        "required": false,
+        "help": "Original currency code"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Expense date as YYYY-MM-DD"
+      },
+      {
+        "name": "merchant",
+        "type": "str",
+        "required": true,
+        "help": "Merchant shown on the reimbursement"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "default": "Marketing & Advertising",
+        "required": false,
+        "help": "Mercury expense category"
+      },
+      {
+        "name": "notes",
+        "type": "str",
+        "required": true,
+        "help": "Business purpose / reimbursement notes"
+      },
+      {
+        "name": "ocr-wait-seconds",
+        "type": "str",
+        "default": "8",
+        "required": false,
+        "help": "Seconds to wait after receipt upload before correcting OCR-overwritten fields"
+      },
+      {
+        "name": "close-after-review",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Close the Review dialog after verification; final Submit is still never clicked"
+      }
+    ],
+    "columns": [
+      "status",
+      "url",
+      "receipt",
+      "uploaded",
+      "fieldsTouched",
+      "reviewReady",
+      "submitBlocked",
+      "warnings"
+    ],
+    "type": "js",
+    "modulePath": "mercury/reimbursement-draft.js",
+    "sourceFile": "mercury/reimbursement-draft.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "mercury",
+    "name": "reimbursement-plan",
+    "description": "Validate Mercury reimbursement inputs and print the draft plan without opening a browser",
+    "access": "read",
+    "example": "opencli mercury reimbursement-plan --receipt /tmp/receipt.png --amount 140.00 --currency CNY --date 2026-06-26 --merchant \"Example Merchant\" --category \"Marketing & Advertising\" --notes \"Example business purpose.\" -f json",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "receipt",
+        "type": "str",
+        "required": true,
+        "help": "Local receipt/proof file path"
+      },
+      {
+        "name": "amount",
+        "type": "str",
+        "required": true,
+        "help": "Original-currency amount, e.g. 140.00"
+      },
+      {
+        "name": "currency",
+        "type": "str",
+        "default": "CNY",
+        "required": false,
+        "help": "Original currency code"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Expense date as YYYY-MM-DD"
+      },
+      {
+        "name": "merchant",
+        "type": "str",
+        "required": true,
+        "help": "Merchant shown on the reimbursement"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "default": "Marketing & Advertising",
+        "required": false,
+        "help": "Mercury expense category"
+      },
+      {
+        "name": "notes",
+        "type": "str",
+        "required": true,
+        "help": "Business purpose / reimbursement notes"
+      },
+      {
+        "name": "ocr-wait-seconds",
+        "type": "str",
+        "default": "8",
+        "required": false,
+        "help": "Seconds the draft command waits after receipt upload before correcting OCR fields"
+      },
+      {
+        "name": "close-after-review",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "For draft command: close the Review dialog after verification"
+      }
+    ],
+    "columns": [
+      "status",
+      "receipt",
+      "amount",
+      "currency",
+      "date",
+      "merchant",
+      "category",
+      "notes",
+      "safety"
+    ],
+    "type": "js",
+    "modulePath": "mercury/reimbursement-plan.js",
+    "sourceFile": "mercury/reimbursement-plan.js"
+  },
+  {
     "site": "mubu",
     "name": "doc",
     "description": "读取幕布文档内容（默认输出 Markdown，可用 --output text 输出纯文本）",
