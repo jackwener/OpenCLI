@@ -121,10 +121,17 @@ function renderMarkdown(data: unknown, opts: RenderOptions): void {
     }
   }
   const columns = resolveColumns(rows, opts);
-  console.log('| ' + columns.join(' | ') + ' |');
+  // Cell values containing '|' or newlines would otherwise add spurious columns
+  // or split the row, breaking the GFM table. Collapse every newline flavour
+  // (CRLF, lone CR, lone LF) into <br> so a stray '\r' can't split the row either.
+  const escapeCell = (v: string): string => v.replace(/\|/g, '\\|').replace(/\r\n|\r|\n/g, '<br>');
+  // The header row is escaped too as defense-in-depth: column names are normally
+  // safe identifiers, but escaping them keeps the table valid even if a caller
+  // passes an arbitrary string as a column key.
+  console.log('| ' + columns.map(escapeCell).join(' | ') + ' |');
   console.log('| ' + columns.map(() => '---').join(' | ') + ' |');
   for (const row of rows) {
-    console.log('| ' + columns.map(c => String((row as Record<string, unknown>)[c] ?? '')).join(' | ') + ' |');
+    console.log('| ' + columns.map(c => escapeCell(String((row as Record<string, unknown>)[c] ?? ''))).join(' | ') + ' |');
   }
 }
 
