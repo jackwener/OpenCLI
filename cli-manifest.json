@@ -7499,6 +7499,129 @@
   },
   {
     "site": "cls",
+    "name": "calendar",
+    "description": "财联社首页投资日历事件，默认返回前 20 条",
+    "access": "read",
+    "domain": "www.cls.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "date",
+      "week",
+      "time",
+      "title",
+      "country",
+      "star"
+    ],
+    "type": "js",
+    "modulePath": "cls/calendar.js",
+    "sourceFile": "cls/calendar.js"
+  },
+  {
+    "site": "cls",
+    "name": "hot",
+    "description": "财联社首页热门文章，默认返回前 10 条",
+    "access": "read",
+    "domain": "www.cls.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回数量 (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "brief",
+      "author",
+      "readingCount",
+      "pubTime",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "cls/hot.js",
+    "sourceFile": "cls/hot.js"
+  },
+  {
+    "site": "cls",
+    "name": "plates",
+    "description": "财联社首页热门板块和主力资金，默认返回前 10 条",
+    "access": "read",
+    "domain": "www.cls.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回数量 (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "code",
+      "name",
+      "changePct",
+      "mainFundDiff",
+      "upStocks",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "cls/plates.js",
+    "sourceFile": "cls/plates.js"
+  },
+  {
+    "site": "cls",
+    "name": "subjects",
+    "description": "财联社首页热门话题，默认返回前 10 条",
+    "access": "read",
+    "domain": "www.cls.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回数量 (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "name",
+      "description",
+      "attentionCount",
+      "newestArticleId",
+      "newestArticleTitle",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "cls/subjects.js",
+    "sourceFile": "cls/subjects.js"
+  },
+  {
+    "site": "cls",
     "name": "telegraph",
     "description": "财联社电报快讯列表，默认返回最新 20 条",
     "access": "read",

@@ -3,6 +3,11 @@ import { getRegistry, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
   extractArticleDetailFromNextData,
+  fetchHtml,
+  mapCalendarRows,
+  mapHotArticleRows,
+  mapHotPlateRows,
+  mapHotSubjectRows,
   mapArticleDetailRow,
   mapTelegraphRows,
   normalizeLimit,
@@ -10,6 +15,10 @@ import {
 } from './utils.js';
 import './telegraph.js';
 import './article.js';
+import './hot.js';
+import './subjects.js';
+import './plates.js';
+import './calendar.js';
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -33,6 +42,10 @@ describe('cls command registration', () => {
   it('registers public read commands with stable row columns', () => {
     const telegraph = getRegistry().get('cls/telegraph');
     const article = getRegistry().get('cls/article');
+    const hot = getRegistry().get('cls/hot');
+    const subjects = getRegistry().get('cls/subjects');
+    const plates = getRegistry().get('cls/plates');
+    const calendar = getRegistry().get('cls/calendar');
 
     expect(telegraph).toMatchObject({
       site: 'cls',
@@ -78,6 +91,81 @@ describe('cls command registration', () => {
       'audioUrl',
       'url',
     ]);
+
+    expect(hot).toMatchObject({
+      site: 'cls',
+      name: 'hot',
+      access: 'read',
+      domain: 'www.cls.cn',
+      strategy: Strategy.PUBLIC,
+      browser: false,
+    });
+    expect(hot.columns).toEqual([
+      'rank',
+      'id',
+      'title',
+      'brief',
+      'author',
+      'readingCount',
+      'pubTime',
+      'url',
+    ]);
+
+    expect(subjects).toMatchObject({
+      site: 'cls',
+      name: 'subjects',
+      access: 'read',
+      domain: 'www.cls.cn',
+      strategy: Strategy.PUBLIC,
+      browser: false,
+    });
+    expect(subjects.columns).toEqual([
+      'rank',
+      'id',
+      'name',
+      'description',
+      'attentionCount',
+      'newestArticleId',
+      'newestArticleTitle',
+      'url',
+    ]);
+
+    expect(plates).toMatchObject({
+      site: 'cls',
+      name: 'plates',
+      access: 'read',
+      domain: 'www.cls.cn',
+      strategy: Strategy.PUBLIC,
+      browser: false,
+    });
+    expect(plates.columns).toEqual([
+      'rank',
+      'code',
+      'name',
+      'changePct',
+      'mainFundDiff',
+      'upStocks',
+      'url',
+    ]);
+
+    expect(calendar).toMatchObject({
+      site: 'cls',
+      name: 'calendar',
+      access: 'read',
+      domain: 'www.cls.cn',
+      strategy: Strategy.PUBLIC,
+      browser: false,
+    });
+    expect(calendar.columns).toEqual([
+      'rank',
+      'id',
+      'date',
+      'week',
+      'time',
+      'title',
+      'country',
+      'star',
+    ]);
   });
 });
 
@@ -88,6 +176,17 @@ describe('cls utils', () => {
     expect(() => normalizeLimit(0, 20, 100)).toThrow(ArgumentError);
     expect(() => normalizeLimit(1.5, 20, 100)).toThrow(ArgumentError);
     expect(() => normalizeLimit(101, 20, 100)).toThrow(ArgumentError);
+  });
+
+  it('uses a browser-like user agent for CLS HTML fetches', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html></html>'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchHtml('https://www.cls.cn/', 'cls test');
+
+    const headers = fetchMock.mock.calls[0][1].headers;
+    expect(headers['User-Agent']).toContain('Chrome/');
+    expect(headers['User-Agent']).not.toContain('opencli');
   });
 
   it('parses a CLS article id from a bare id or detail URL', () => {
@@ -227,6 +326,89 @@ describe('cls utils', () => {
       content: '',
     })).toThrow(CommandExecutionError);
   });
+
+  it('maps homepage hot articles from SSR state', () => {
+    expect(mapHotArticleRows([{
+      id: 2411240,
+      title: '【早报】普京：考虑全面禁止柴油出口',
+      brief: '①人工智能标准发布',
+      author: '财联社',
+      ctime: 1782687600,
+      readNum: 598124,
+    }], 1)).toEqual([{
+      rank: 1,
+      id: '2411240',
+      title: '【早报】普京：考虑全面禁止柴油出口',
+      brief: '①人工智能标准发布',
+      author: '财联社',
+      readingCount: 598124,
+      pubTime: '2026-06-28T23:00:00.000Z',
+      url: 'https://www.cls.cn/detail/2411240',
+    }]);
+  });
+
+  it('maps homepage popular subjects from SSR state', () => {
+    expect(mapHotSubjectRows([{
+      id: 1556,
+      name: '环球市场情报',
+      description: '网罗天下要闻',
+      attention_num: 161350,
+      newest_article_id: 2411657,
+      newest_article_title: '西班牙6月CPI同比增长3.2%',
+    }], 1)).toEqual([{
+      rank: 1,
+      id: '1556',
+      name: '环球市场情报',
+      description: '网罗天下要闻',
+      attentionCount: 161350,
+      newestArticleId: '2411657',
+      newestArticleTitle: '西班牙6月CPI同比增长3.2%',
+      url: 'https://www.cls.cn/subject/1556',
+    }]);
+  });
+
+  it('maps homepage hot plates with percentage output', () => {
+    expect(mapHotPlateRows([{
+      secu_code: 'cls82054',
+      secu_name: '生物制品',
+      change: 0.0736,
+      main_fund_diff: 848165739,
+      up_stock: [
+        { secu_code: 'sz300204', secu_name: '舒泰神', change: 0.2 },
+        { secu_code: 'sh688765', secu_name: '禾元生物-U', change: 0.2 },
+      ],
+    }], 1)).toEqual([{
+      rank: 1,
+      code: 'cls82054',
+      name: '生物制品',
+      changePct: 7.36,
+      mainFundDiff: 848165739,
+      upStocks: '舒泰神(sz300204), 禾元生物-U(sh688765)',
+      url: 'https://www.cls.cn/plate?code=cls82054',
+    }]);
+  });
+
+  it('flattens homepage investment calendar days', () => {
+    expect(mapCalendarRows([{
+      calendar_day: '2026-06-29',
+      week: '星期一',
+      items: [{
+        id: 809033,
+        calendar_time: '2026-06-29 00:00:00',
+        title: '芝商所推出微型指数期权',
+        event: { country: '美国', star: 5 },
+      }],
+    }], 1)).toEqual([{
+      rank: 1,
+      id: '809033',
+      date: '2026-06-29',
+      week: '星期一',
+      time: '2026-06-29 00:00:00',
+      title: '芝商所推出微型指数期权',
+      country: '美国',
+      star: 5,
+    }]);
+  });
 });
 
 describe('cls telegraph command', () => {
@@ -309,5 +491,76 @@ describe('cls article command', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('<html></html>')));
 
     await expect(command().func({ id: '2411505' })).rejects.toBeInstanceOf(EmptyResultError);
+  });
+});
+
+describe('cls homepage SSR commands', () => {
+  const homeState = {
+    props: {
+      pageProps: {
+        hotArticleData: [{
+          id: 2411240,
+          title: '热门文章',
+          brief: '摘要',
+          author: '财联社',
+          ctime: 1782687600,
+          readNum: 100,
+        }],
+        hotSubject: [{
+          id: 1556,
+          name: '环球市场情报',
+          description: '网罗天下要闻',
+          attention_num: 161350,
+          newest_article_id: 2411657,
+          newest_article_title: '最新文章',
+        }],
+        hotPlate: [{
+          secu_code: 'cls82054',
+          secu_name: '生物制品',
+          change: 0.0736,
+          main_fund_diff: 848165739,
+          up_stock: [],
+        }],
+        investKalendarData: [{
+          calendar_day: '2026-06-29',
+          week: '星期一',
+          items: [{ id: 809033, calendar_time: '2026-06-29 00:00:00', title: '事件', event: { country: '美国', star: 5 } }],
+        }],
+      },
+    },
+  };
+
+  function stubHomePage() {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse(
+      `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(homeState)}</script>`,
+    )));
+  }
+
+  it('hot command fetches homepage SSR data', async () => {
+    stubHomePage();
+    await expect(getRegistry().get('cls/hot').func({ limit: 1 })).resolves.toEqual([
+      expect.objectContaining({ id: '2411240', title: '热门文章' }),
+    ]);
+  });
+
+  it('subjects command fetches homepage SSR data', async () => {
+    stubHomePage();
+    await expect(getRegistry().get('cls/subjects').func({ limit: 1 })).resolves.toEqual([
+      expect.objectContaining({ id: '1556', name: '环球市场情报' }),
+    ]);
+  });
+
+  it('plates command fetches homepage SSR data', async () => {
+    stubHomePage();
+    await expect(getRegistry().get('cls/plates').func({ limit: 1 })).resolves.toEqual([
+      expect.objectContaining({ code: 'cls82054', name: '生物制品' }),
+    ]);
+  });
+
+  it('calendar command fetches homepage SSR data', async () => {
+    stubHomePage();
+    await expect(getRegistry().get('cls/calendar').func({ limit: 1 })).resolves.toEqual([
+      expect.objectContaining({ id: '809033', title: '事件' }),
+    ]);
   });
 });
