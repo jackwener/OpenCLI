@@ -99,6 +99,7 @@ Run `opencli list` for the live registry.
 | Site                                           | Commands                                                                                                                                       | Mode         |
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | **[hackernews](./browser/hackernews.md)**         | `top` `new` `best` `ask` `show` `jobs` `search` `user`                                                                                         | 🌐 Public    |
+| **[cls](./browser/cls.md)**                       | `telegraph` `article`                                                                                                                          | 🌐 Public    |
 | **[bbc](./browser/bbc.md)**                       | `news`                                                                                                                                         | 🌐 Public    |
 | **[devto](./browser/devto.md)**                   | `top` `tag` `user`                                                                                                                             | 🌐 Public    |
 | **[juejin](./browser/juejin.md)**                 | `recommend` `hot`                                                                                                                              | 🌐 Public    |
