@@ -332,6 +332,15 @@ function compactCommanderCommand(
   opts: { globalCommand?: Command } = {},
 ): Record<string, unknown> {
   const relativePath = commandPathFromRoot(namespaceRoot, command);
+  // Dedup: remove options inherited from the namespace root (e.g. browser's
+  // `--window`) from this leaf's own `command_options`. They are surfaced once
+  // under `namespace_options`, but are also redeclared on each page leaf so they
+  // parse in the trailing position (#1850); without this filter the same flag
+  // would appear twice — once at the namespace level and once per leaf.
+  const namespaceOptionLongs = new Set(
+    namespaceRoot.options.map(opt => opt.long).filter((long): long is string => Boolean(long)),
+  );
+  const ownOptions = command.options.filter(opt => !opt.long || !namespaceOptionLongs.has(opt.long));
   return {
     name: relativePath.join(' '),
     command: commanderPath(command).join(' '),
@@ -339,7 +348,7 @@ function compactCommanderCommand(
     description: command.description(),
     ...(command.aliases().length ? { aliases: command.aliases() } : {}),
     positionals: command.registeredArguments.map(compactCommanderArgument),
-    command_options: compactCommanderOptions(command.options),
+    command_options: compactCommanderOptions(ownOptions),
   };
 }
 
