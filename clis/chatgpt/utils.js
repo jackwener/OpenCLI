@@ -1621,6 +1621,7 @@ export async function getChatGPTDeepResearchResult(page, { conversationId = '', 
                 };
             }
         } catch (error) {
+            if (error instanceof CommandExecutionError) throw error;
             diagnostics.networkConversationError = String(error?.message || error);
         }
     }
@@ -1658,6 +1659,7 @@ export async function getChatGPTDeepResearchResult(page, { conversationId = '', 
                 }
             }
         } catch (error) {
+            if (error instanceof CommandExecutionError) throw error;
             diagnostics.conversationError = String(error?.message || error);
         }
     }
