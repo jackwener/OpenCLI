@@ -154,8 +154,8 @@ function makeDeepResearchReport() {
     ].join('\n');
 }
 
-function makeDeepResearchPayload(report = makeDeepResearchReport()) {
-    return {
+function makeDeepResearchPayload(report = makeDeepResearchReport(), { conversationId = '' } = {}) {
+    const payload = {
         mapping: {
             report_node: {
                 message: {
@@ -184,6 +184,8 @@ function makeDeepResearchPayload(report = makeDeepResearchReport()) {
             },
         },
     };
+    if (conversationId) payload.conversation_id = conversationId;
+    return payload;
 }
 
 describe('chatgpt deep research result extraction', () => {
@@ -205,24 +207,48 @@ describe('chatgpt deep research result extraction', () => {
         ]));
     });
 
-    it('extracts the largest report from captured conversation network entries', () => {
+    it('extracts the requested report from captured conversation network entries', () => {
         const shorterReport = `${makeDeepResearchReport()}\n\nshort`;
         const longerReport = `${makeDeepResearchReport()}\n\nAdditional longer section.`;
         const result = __test__.extractDeepResearchFromNetworkEntries([
             { url: 'https://chatgpt.com/backend-api/bootstrap', responsePreview: '{}' },
             {
-                url: 'https://chatgpt.com/backend-api/conversation/demo1',
-                responsePreview: JSON.stringify(makeDeepResearchPayload(shorterReport)),
+                url: 'https://chatgpt.com/backend-api/conversation/requested123',
+                responsePreview: JSON.stringify(makeDeepResearchPayload(shorterReport, { conversationId: 'requested123' })),
             },
             {
-                url: 'https://chatgpt.com/backend-api/conversation/demo2',
-                responsePreview: JSON.stringify(makeDeepResearchPayload(longerReport)),
+                url: 'https://chatgpt.com/backend-api/conversation/stale45678',
+                responsePreview: JSON.stringify(makeDeepResearchPayload(longerReport, { conversationId: 'stale45678' })),
             },
-        ]);
+        ], { expectedConversationId: 'requested123' });
 
         expect(result.method).toBe('network-conversation-widget-state');
-        expect(result.networkUrl).toContain('/conversation/demo2');
-        expect(result.report).toContain('Additional longer section');
+        expect(result.networkUrl).toContain('/conversation/requested123');
+        expect(result.report).not.toContain('Additional longer section');
+    });
+
+    it('typed-fails when the conversation payload id does not match the requested id', () => {
+        expect(() => __test__.extractDeepResearchFromConversationPayload(
+            makeDeepResearchPayload(makeDeepResearchReport(), { conversationId: 'stale45678' }),
+            { expectedConversationId: 'requested123' },
+        )).toThrow(CommandExecutionError);
+    });
+
+    it('typed-fails malformed source rows instead of silently dropping them', () => {
+        const payload = makeDeepResearchPayload();
+        const widget = JSON.parse(payload.mapping.report_node.message.metadata.chatgpt_sdk.widget_state);
+        widget.report_message.metadata.search_result_groups = [
+            { entries: [{ title: 'Source without URL' }] },
+        ];
+        payload.mapping.report_node.message.metadata.chatgpt_sdk.widget_state = JSON.stringify(widget);
+
+        expect(() => __test__.extractDeepResearchFromConversationPayload(payload))
+            .toThrow(CommandExecutionError);
+    });
+
+    it('typed-fails malformed conversation payloads instead of treating them as empty reports', () => {
+        expect(() => __test__.extractDeepResearchFromConversationPayload({}))
+            .toThrow(CommandExecutionError);
     });
 
     it('ignores short widget previews that are not completed reports', () => {

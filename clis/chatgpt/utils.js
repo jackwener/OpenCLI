@@ -1214,31 +1214,43 @@ function extractDeepResearchSourcesFromReportMessage(reportMessage) {
     const groups = Array.isArray(metadata.search_result_groups) ? metadata.search_result_groups : [];
     const byUrl = new Map();
 
-    const addSource = (source = {}) => {
+    const addSource = (source = {}, label = 'source') => {
+        if (!source || typeof source !== 'object') {
+            throw new CommandExecutionError(`Malformed ChatGPT Deep Research ${label}: expected object source row.`);
+        }
         const rawUrl = String(source.url || source.href || source.safe_url || '').trim();
         const title = String(source.title || source.name || source.text || '').trim();
-        if (!rawUrl && !title) return;
-        const key = rawUrl || title;
-        if (!byUrl.has(key)) {
-            byUrl.set(key, { title, url: rawUrl });
-        } else if (title && !byUrl.get(key).title) {
-            byUrl.get(key).title = title;
+        if (!rawUrl) {
+            if (title || source.matched_text || source.metadata) {
+                throw new CommandExecutionError(`Malformed ChatGPT Deep Research ${label}: missing source URL.`);
+            }
+            return;
+        }
+        if (!/^https?:\/\//i.test(rawUrl)) {
+            throw new CommandExecutionError(`Malformed ChatGPT Deep Research ${label}: invalid source URL.`);
+        }
+        if (!byUrl.has(rawUrl)) {
+            byUrl.set(rawUrl, { title, url: rawUrl });
+        } else if (title && !byUrl.get(rawUrl).title) {
+            byUrl.get(rawUrl).title = title;
         }
     };
 
     for (const reference of references) {
-        addSource(reference);
-        if (reference?.matched_text) addSource({ title: reference.matched_text, url: reference.url });
-        if (reference?.metadata) addSource(reference.metadata);
+        const hasDirectSource = reference && typeof reference === 'object'
+            && (reference.url || reference.href || reference.safe_url || reference.title || reference.name || reference.text || reference.matched_text);
+        if (hasDirectSource) addSource(reference, 'content reference');
+        if (reference?.matched_text) addSource({ title: reference.matched_text, url: reference.url }, 'matched content reference');
+        if (reference?.metadata) addSource(reference.metadata, 'content reference metadata');
     }
-    for (const url of safeUrls) addSource(typeof url === 'string' ? { url } : url);
+    for (const url of safeUrls) addSource(typeof url === 'string' ? { url } : url, 'safe URL');
     for (const group of groups) {
         for (const entry of [
             ...(Array.isArray(group?.entries) ? group.entries : []),
             ...(Array.isArray(group?.results) ? group.results : []),
             ...(Array.isArray(group?.items) ? group.items : []),
         ]) {
-            addSource(entry);
+            addSource(entry, 'search result');
         }
     }
     return [...byUrl.values()].slice(0, 200);
@@ -1263,8 +1275,20 @@ function extractDeepResearchFromWidgetState(widgetState, source = 'conversation-
     };
 }
 
-function extractDeepResearchFromConversationPayload(payload) {
+function extractDeepResearchFromConversationPayload(payload, { expectedConversationId = '' } = {}) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new CommandExecutionError('Malformed ChatGPT conversation payload for Deep Research extraction.');
+    }
+    const payloadConversationId = String(payload.conversation_id || payload.conversationId || payload.id || '').trim();
+    if (expectedConversationId && payloadConversationId && payloadConversationId !== expectedConversationId) {
+        throw new CommandExecutionError(
+            `ChatGPT conversation payload id mismatch: expected ${expectedConversationId}, got ${payloadConversationId}.`,
+        );
+    }
     const mapping = payload?.mapping && typeof payload.mapping === 'object' ? payload.mapping : {};
+    if (!payload.mapping || typeof payload.mapping !== 'object' || Array.isArray(payload.mapping)) {
+        throw new CommandExecutionError('Malformed ChatGPT conversation payload for Deep Research extraction: missing mapping.');
+    }
     const candidates = [];
     for (const [messageId, node] of Object.entries(mapping)) {
         const message = node?.message || {};
@@ -1288,13 +1312,23 @@ function extractDeepResearchFromConversationPayload(payload) {
     return candidates[0] || null;
 }
 
-function extractDeepResearchFromNetworkEntries(entries) {
+function conversationIdFromBackendConversationUrl(url) {
+    const match = String(url || '').match(/\/backend-api\/conversation\/([^/?#]+)/);
+    return match?.[1] ? decodeURIComponent(match[1]) : '';
+}
+
+function extractDeepResearchFromNetworkEntries(entries, { expectedConversationId = '' } = {}) {
     const candidates = [];
     for (const entry of Array.isArray(entries) ? entries : []) {
         const url = String(entry?.url || '');
         if (!/\/backend-api\/conversation\//.test(url)) continue;
+        const entryConversationId = conversationIdFromBackendConversationUrl(url);
+        if (expectedConversationId && entryConversationId !== expectedConversationId) continue;
         const body = parseJsonMaybe(entry?.responsePreview) || parseJsonMaybe(entry?.body) || null;
-        const extracted = extractDeepResearchFromConversationPayload(body);
+        if (!body) {
+            throw new CommandExecutionError(`Malformed ChatGPT conversation network payload for ${entryConversationId || 'unknown conversation'}.`);
+        }
+        const extracted = extractDeepResearchFromConversationPayload(body, { expectedConversationId });
         if (extracted) {
             candidates.push({
                 ...extracted,
@@ -1472,7 +1506,7 @@ function withTimeout(promise, ms, label) {
     ]);
 }
 
-export async function getChatGPTDeepResearchResult(page, { useBridgeProbes = false } = {}) {
+export async function getChatGPTDeepResearchResult(page, { conversationId = '', useBridgeProbes = false } = {}) {
     const iframeState = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const isVisible = (el) => {
             if (!(el instanceof HTMLElement)) return false;
@@ -1524,6 +1558,19 @@ export async function getChatGPTDeepResearchResult(page, { useBridgeProbes = fal
 
     const generating = await isGenerating(page).catch(() => false);
     const iframe = iframeState.deepResearchIframe;
+    const currentConversationId = conversationIdFromUrl(iframeState.url);
+    if (conversationId) {
+        if (!currentConversationId) {
+            throw new CommandExecutionError(
+                `ChatGPT deep-research-result did not stay on requested conversation ${conversationId}.`,
+            );
+        }
+        if (currentConversationId !== conversationId) {
+            throw new CommandExecutionError(
+                `ChatGPT deep-research-result conversation mismatch: expected ${conversationId}, current page is ${currentConversationId}.`,
+            );
+        }
+    }
     const diagnostics = {
         iframeCount: Array.isArray(iframeState.iframes) ? iframeState.iframes.length : 0,
         iframe: iframe ? {
@@ -1556,7 +1603,7 @@ export async function getChatGPTDeepResearchResult(page, { useBridgeProbes = fal
                     bodySize: Number(entry.responseBodyFullSize || 0) || undefined,
                     bodyTruncated: entry.responseBodyTruncated === true || undefined,
                 }));
-            const extracted = extractDeepResearchFromNetworkEntries(relevantEntries);
+            const extracted = extractDeepResearchFromNetworkEntries(relevantEntries, { expectedConversationId: conversationId });
             if (extracted) {
                 diagnostics.networkConversation = {
                     foundReport: true,
@@ -1578,15 +1625,17 @@ export async function getChatGPTDeepResearchResult(page, { useBridgeProbes = fal
         }
     }
 
-    const conversationId = conversationIdFromUrl(iframeState.url);
-    if (conversationId) {
+    const fetchConversationId = conversationId || currentConversationId;
+    if (fetchConversationId) {
         diagnostics.methodsTried.push('conversation-widget-state');
         try {
-            const conversation = await fetchChatGPTConversationPayload(page, conversationId);
+            const conversation = await fetchChatGPTConversationPayload(page, fetchConversationId);
             if (conversation?.error) {
                 diagnostics.conversationError = conversation.error;
             } else {
-                const extracted = extractDeepResearchFromConversationPayload(conversation?.payload);
+                const extracted = extractDeepResearchFromConversationPayload(conversation?.payload, {
+                    expectedConversationId: fetchConversationId,
+                });
                 diagnostics.conversation = {
                     status: conversation?.status || 0,
                     contentType: conversation?.contentType || '',
@@ -1749,13 +1798,13 @@ export async function getChatGPTDeepResearchResult(page, { useBridgeProbes = fal
     };
 }
 
-export async function waitForChatGPTDeepResearchResult(page, { timeoutSeconds = 120, stableSeconds = 6 } = {}) {
+export async function waitForChatGPTDeepResearchResult(page, { conversationId = '', timeoutSeconds = 120, stableSeconds = 6 } = {}) {
     const startTime = Date.now();
     let lastReport = '';
     let stableStartedAt = 0;
 
     while (Date.now() - startTime < timeoutSeconds * 1000) {
-        const result = await getChatGPTDeepResearchResult(page, { useBridgeProbes: true });
+        const result = await getChatGPTDeepResearchResult(page, { conversationId, useBridgeProbes: true });
         if (result.status === 'completed' && result.report) {
             if (/conversation-widget-state/.test(result.method || '')) {
                 return { ...result, stableSeconds: 0 };
@@ -1770,8 +1819,6 @@ export async function waitForChatGPTDeepResearchResult(page, { timeoutSeconds = 
                 lastReport = result.report;
                 stableStartedAt = Date.now();
             }
-        } else if (result.status !== 'running') {
-            return result;
         }
         await page.wait(3);
     }

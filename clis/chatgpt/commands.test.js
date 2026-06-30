@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './ask.js';
 import './send.js';
@@ -130,6 +131,51 @@ describe('chatgpt browser command registration', () => {
             expect.objectContaining({ name: 'stable', type: 'int', default: 6 }),
         ]));
         expect(command.columns).toEqual(['conversationId', 'status', 'report', 'sources', 'url', 'method', 'diagnostics']);
+    });
+
+    it('does not return a success row when no completed deep research report exists', async () => {
+        const command = getRegistry().get('chatgpt/deep-research-result');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            startNetworkCapture: vi.fn().mockResolvedValue(true),
+            readNetworkCapture: vi.fn().mockResolvedValue([]),
+            getCookies: vi.fn().mockResolvedValue([]),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s === 'window.location.href') return Promise.resolve('https://chatgpt.com/');
+                if (s.includes("fetch('/backend-api/conversation/requested123'")) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        contentType: 'application/json',
+                        text: JSON.stringify({ mapping: {} }),
+                    });
+                }
+                if (s.includes("document.querySelectorAll('iframe')")) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/requested123',
+                        title: 'ChatGPT',
+                        iframes: [],
+                        deepResearchIframe: null,
+                    });
+                }
+                if (s.includes('composerSelectors') && s.includes('hasComposer')) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/requested123',
+                        title: 'ChatGPT',
+                        hasComposer: true,
+                        isLoggedIn: true,
+                        hasLoginGate: false,
+                    });
+                }
+                if (s.includes('Stop generating') || s.includes('Thinking')) return Promise.resolve(false);
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(command.func(page, { id: 'requested123' }))
+            .rejects.toBeInstanceOf(EmptyResultError);
     });
 
     it('registers project routing on chat-starting commands', () => {
