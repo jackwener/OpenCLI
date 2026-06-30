@@ -33,6 +33,7 @@ import {
   buildExtensionDisconnectFailure,
   getResponseCorsHeaders,
 } from './daemon-utils.js';
+import * as trace from './browser/trace.js';
 
 const PORT = DEFAULT_DAEMON_PORT;
 if (process.env.OPENCLI_DAEMON_PORT) {
@@ -55,6 +56,7 @@ const pending = new Map<string, {
   contextId: string;
   action: string;
   dispatched: boolean;
+  dispatchTs: number;
   resolve: (data: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -145,6 +147,7 @@ function unregisterExtensionConnection(ws: WebSocket): void {
   for (const [contextId, connection] of extensionProfiles.entries()) {
     if (connection.ws !== ws) continue;
     extensionProfiles.delete(contextId);
+    trace.traceExtDisconnect(contextId);
     for (const [id, p] of pending) {
       if (p.contextId !== contextId) continue;
       clearTimeout(p.timer);
@@ -157,6 +160,7 @@ function unregisterExtensionConnection(ws: WebSocket): void {
         commandResultUnknownCount++;
         log.warn(`[daemon] Command result unknown after extension disconnect (id=${id}, action=${p.action}, context=${contextId})`);
       }
+      trace.traceResult(id, false, Date.now() - p.dispatchTs, failure.errorCode);
       p.reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
       pending.delete(id);
     }
@@ -327,12 +331,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(body.id);
+          trace.traceTimeout(body.id, timeoutMs, typeof body.action === 'string' ? body.action : undefined);
           reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
         }, timeoutMs);
         const entry = {
           contextId: route.connection!.contextId,
           action: typeof body.action === 'string' ? body.action : 'unknown',
           dispatched: false,
+          dispatchTs: Date.now(),
           resolve,
           reject,
           timer,
@@ -354,6 +360,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           // result is later lost; do not downgrade later disconnects to a
           // pre-dispatch failure just because no result/ack has arrived yet.
           entry.dispatched = true;
+          trace.traceDispatch(body);
         } catch (err) {
           failBeforeDispatch(err);
         }
@@ -427,6 +434,7 @@ wss.on('connection', (ws: WebSocket) => {
         connection.lastSeenAt = Date.now();
         if (connection.extensionVersion) recordExtensionVersion(connection.extensionVersion);
         log.info(`[daemon] Extension profile connected: ${connection.contextId}`);
+        trace.traceExtConnect(connection.contextId, connection.extensionVersion);
         return;
       }
 
@@ -436,6 +444,7 @@ wss.on('connection', (ws: WebSocket) => {
         else if (msg.level === 'warn') log.warn(`[ext] ${msg.msg}`);
         else log.info(`[ext] ${msg.msg}`);
         pushLog({ level: msg.level, msg: msg.msg, ts: msg.ts ?? Date.now() });
+        trace.traceExtLog(msg.level, msg.msg);
         return;
       }
 
@@ -444,6 +453,7 @@ wss.on('connection', (ws: WebSocket) => {
       if (p) {
         clearTimeout(p.timer);
         pending.delete(msg.id);
+        trace.traceResult(msg.id, !!msg.ok, Date.now() - p.dispatchTs, typeof msg.errorCode === 'string' ? msg.errorCode : undefined, typeof msg.page === 'string' ? msg.page : undefined);
         p.resolve(msg);
       }
     } catch (err) {
