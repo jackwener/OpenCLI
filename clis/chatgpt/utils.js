@@ -574,7 +574,14 @@ export async function selectChatGPTModel(page, model) {
             throw new CommandExecutionError(`Could not update ChatGPT model preference for ${target.label} (${apiResult.reason || 'unknown'}, status ${apiResult.status || 0}).`);
         }
         debugChatGPTModel('config cookie set and reload scheduled');
-        return { Status: 'Success', Model: target.label };
+        await page.wait(2);
+        await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
+        const afterApi = await getCurrentChatGPTModel(page);
+        debugChatGPTModel(`after-api=${afterApi.model || 'none'}`);
+        if (afterApi.model === target.key) {
+            return { Status: 'Success', Model: target.label };
+        }
+        debugChatGPTModel('api did not prove selection; falling back to visible picker');
     }
     await page.wait(2);
 

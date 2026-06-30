@@ -185,6 +185,8 @@ describe('chatgpt model selection validation', () => {
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
                 if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 3) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 4) return Promise.resolve({ model: 'advanced', label: 'Advanced' });
                 return Promise.resolve({});
             }),
         };
@@ -194,6 +196,36 @@ describe('chatgpt model selection validation', () => {
         expect(fetchMock.mock.calls[1][0]).toContain('model_slug=gpt-5-5-thinking');
         expect(fetchMock.mock.calls[1][0]).toContain('thinking_effort=extended');
         expect(page.nativeClick).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the visible picker when the model config API does not prove selection', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 3) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 4) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 5) return Promise.resolve({ found: true, x: 10, y: 20 });
+                if (objectCall === 6) return Promise.resolve({ found: true, x: 30, y: 40 });
+                if (objectCall === 7) return Promise.resolve({ model: 'advanced', label: 'Advanced' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'advanced')).resolves.toEqual({ Status: 'Success', Model: 'Advanced' });
+        expect(page.nativeClick).toHaveBeenNthCalledWith(1, 10, 20);
+        expect(page.nativeClick).toHaveBeenNthCalledWith(2, 30, 40);
     });
 
     it('selects current Chinese intelligence options by exact visible menu text', async () => {
