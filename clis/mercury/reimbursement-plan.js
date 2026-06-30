@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { normalizeReimbursementInput } from './utils.js';
+import { normalizeReimbursementInput, receiptBasename } from './utils.js';
 
 cli({
     site: 'mercury',
@@ -25,7 +25,7 @@ cli({
         const input = normalizeReimbursementInput(kwargs);
         return [{
             status: 'ready',
-            receipt: input.receipt,
+            receipt: receiptBasename(input.receipt),
             amount: input.amount,
             currency: input.currency,
             date: input.date,

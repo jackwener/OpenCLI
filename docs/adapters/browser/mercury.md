@@ -76,8 +76,10 @@ For `reimbursement-plan`:
 
 - `status: "ready"` means the local receipt exists and amount/date formats are
   valid.
-- Missing receipt files, non-positive amount strings, or non-`YYYY-MM-DD` dates
-  fail before Mercury is opened.
+- Missing receipt files, non-positive amount strings, malformed currency codes,
+  invalid calendar dates, or invalid wait/boolean flags fail before Mercury is
+  opened.
+- Output uses the receipt basename, not the absolute local path.
 
 For `reimbursement-draft`:
 
@@ -88,9 +90,9 @@ For `reimbursement-draft`:
 - Mercury shows the Review step with the expected receipt, amount, currency,
   date, merchant, category, and notes.
 
-If `reviewReady` is false, keep the browser open and inspect the page for
-Mercury validation errors. The command returns which field selectors were
-missed, if any.
+If upload confirmation, required field correction, or the Review postcondition
+fails, the command throws a typed error instead of returning a partial success
+row. Keep the browser open and inspect Mercury for validation errors.
 
 ## Testing
 
@@ -156,9 +158,10 @@ Pass condition: Mercury stops at Review and the returned row has
 
 - `needs_login`: open Mercury in the same Chrome/OpenCLI profile, finish login,
   then rerun `check-login`.
-- `uploaded: false`: verify the file exists locally and that Mercury still uses
-  the receipt input selector above.
-- `reviewReady: false`: inspect Mercury for validation errors; the command may
-  have uploaded the receipt and filled fields but failed to reach Review.
+- Upload failure: verify the file exists locally and that Mercury still uses the
+  receipt input selector above. The command requires Browser Bridge
+  `uploadFiles` support so it can verify the intended file input.
+- Review failure: inspect Mercury for validation errors; the command may have
+  uploaded the receipt and filled fields but failed to reach Review.
 - Category did not commit: custom Mercury dropdowns can be sensitive to UI
   changes. Retry with the exact category label visible in Mercury.

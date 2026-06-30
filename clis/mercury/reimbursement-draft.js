@@ -1,11 +1,15 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     MERCURY_EXPENSES_URL,
     RECEIPT_INPUT_SELECTOR,
+    assertCreateExpenseSurface,
+    assertLoggedIn,
     clickText,
     fillReimbursementFields,
     inspectMercury,
     normalizeReimbursementInput,
+    receiptBasename,
     reviewSnapshot,
 } from './utils.js';
 
@@ -36,90 +40,68 @@ cli({
     func: async (page, kwargs) => {
         const input = normalizeReimbursementInput(kwargs);
         const before = await inspectMercury(page);
-        if (!before.loggedIn) {
-            return [{
-                status: 'needs_login',
-                url: before.url,
-                receipt: input.receipt,
-                uploaded: false,
-                fieldsTouched: '',
-                reviewReady: false,
-                submitBlocked: true,
-                warnings: 'Mercury redirected to login. Log in with the selected browser profile, then rerun.',
-            }];
-        }
+        assertLoggedIn(before);
 
-        if (!before.hasSubmitExpense) {
-            await page.goto(MERCURY_EXPENSES_URL, { waitUntil: 'load', settleMs: 1500 });
-            await page.wait({ time: 1 });
+        await page.goto(MERCURY_EXPENSES_URL, { waitUntil: 'load', settleMs: 1500 });
+        await page.wait({ time: 1 });
+        const createSurface = await assertCreateExpenseSurface(page);
+        if (createSurface.hasFinalSubmit && /review/i.test(createSurface.bodyPreview || '')) {
+            throw new CommandExecutionError('Mercury appears to have an existing expense review open; refusing to click a possible final Submit expense button');
         }
 
         const opened = await clickText(page, ['Submit expense', 'New expense']);
         if (!opened.clicked) {
-            return [{
-                status: 'blocked',
-                url: before.url,
-                receipt: input.receipt,
-                uploaded: false,
-                fieldsTouched: '',
-                reviewReady: false,
-                submitBlocked: true,
-                warnings: 'Could not find the Mercury Submit expense button/link.',
-            }];
+            throw new CommandExecutionError('Could not find the Mercury Submit expense or New expense button');
         }
 
         await page.wait({ time: 2 });
 
-        let uploaded = false;
-        const uploadWarnings = [];
-        try {
-            if (page.setFileInput) {
-                await page.setFileInput([input.receipt], RECEIPT_INPUT_SELECTOR);
-            }
-            else if (page.uploadFiles) {
-                await page.uploadFiles(RECEIPT_INPUT_SELECTOR, [input.receipt]);
-            }
-            else {
-                throw new Error('OpenCLI page object does not expose file upload support');
-            }
-            uploaded = true;
+        if (!page.uploadFiles) {
+            throw new CommandExecutionError('Mercury reimbursement-draft requires Browser Bridge uploadFiles support to verify the intended receipt input');
         }
-        catch (error) {
-            uploadWarnings.push(`upload failed: ${error instanceof Error ? error.message : String(error)}`);
+        const upload = await page.uploadFiles(RECEIPT_INPUT_SELECTOR, [input.receipt]);
+        if (!upload || upload.uploaded !== true || upload.files !== 1) {
+            throw new CommandExecutionError('Mercury receipt upload did not confirm exactly one uploaded file');
+        }
+        const uploadedNames = Array.isArray(upload.file_names) ? upload.file_names : [];
+        if (!uploadedNames.includes(receiptBasename(input.receipt))) {
+            throw new CommandExecutionError('Mercury receipt upload did not confirm the expected receipt file');
         }
 
         if (input.ocrWaitSeconds > 0) await page.wait({ time: input.ocrWaitSeconds });
 
         const fields = await fillReimbursementFields(page, input);
         await page.wait({ time: 1 });
+        const expectedFields = ['amount', 'currency', 'date', 'merchant', 'category', 'notes'];
+        const missing = expectedFields.filter((key) => !fields.touched[key]);
+        if (missing.length > 0) {
+            throw new CommandExecutionError(`Mercury reimbursement form fields were not all filled: ${missing.join(', ')}`);
+        }
 
         const reviewClick = await clickText(page, ['Review']);
+        if (!reviewClick.clicked) {
+            throw new CommandExecutionError('Mercury Review button was not clicked; inspect the page for validation errors');
+        }
         await page.wait({ time: 2 });
         const review = await reviewSnapshot(page);
+        if (!review.hasReview || !review.hasSubmitExpenseButton) {
+            throw new CommandExecutionError('Mercury did not reach the Review step with the final Submit expense button visible');
+        }
 
         if (input.closeAfterReview) {
             await clickText(page, ['Close']);
             await page.wait({ time: 1 });
         }
 
-        const expectedFields = ['amount', 'currency', 'date', 'merchant', 'category', 'notes'];
-        const missing = expectedFields.filter((key) => !fields.touched[key]);
-        const warnings = [
-            ...uploadWarnings,
-            reviewClick.clicked ? '' : 'Review button was not clicked; inspect the page for validation errors.',
-            missing.length > 0 ? `field selectors missed: ${missing.join(', ')}` : '',
-            'final Submit expense was intentionally not clicked',
-        ].filter(Boolean).join('; ');
-
         return [{
-            status: review.hasSubmitExpenseButton ? 'review_ready' : 'draft_open',
+            status: 'review_ready',
             url: review.url,
-            receipt: input.receipt,
-            uploaded,
+            receipt: receiptBasename(input.receipt),
+            uploaded: true,
             fieldsTouched: JSON.stringify(fields.touched),
-            reviewReady: review.hasSubmitExpenseButton,
+            reviewReady: true,
             submitBlocked: true,
-            warnings,
+            warnings: 'final Submit expense was intentionally not clicked',
         }];
     },
 });
