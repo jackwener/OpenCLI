@@ -22,7 +22,7 @@ function generateId(): string {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
+  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'credential-fill' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
@@ -48,6 +48,22 @@ export interface DaemonCommand {
   selector?: string;
   /** Raw text payload for insert-text action */
   text?: string;
+  /** Username payload for credential-fill action */
+  username?: string;
+  /** Password payload for credential-fill action */
+  password?: string;
+  /** Allowed host suffixes for credential-fill action */
+  allowedHosts?: string[];
+  /** Username input selectors for credential-fill action */
+  usernameSelectors?: string[];
+  /** Password input selectors for credential-fill action */
+  passwordSelectors?: string[];
+  /** Optional login-mode labels to activate before filling */
+  activateTextPatterns?: string[];
+  /** Submit button selectors for credential-fill action */
+  submitSelectors?: string[];
+  /** Whether credential-fill should submit after filling */
+  submit?: boolean;
   /** URL substring filter pattern for network capture */
   pattern?: string;
   /** Download wait timeout in milliseconds */

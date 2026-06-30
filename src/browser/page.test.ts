@@ -263,6 +263,51 @@ describe('Page download waits', () => {
   });
 });
 
+describe('Page credential fill', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('sends credentials through the dedicated daemon command', async () => {
+    sendCommandMock.mockResolvedValueOnce({
+      ok: true,
+      host: 'login.taobao.com',
+      username_filled: true,
+      password_filled: true,
+      submitted: true,
+    });
+
+    const page = new Page('qn', undefined, 'gumo-studio', undefined, 'adapter', 'persistent', 'existing-window');
+    const result = await page.fillCredentials({
+      username: 'seller',
+      password: 'secret-password',
+      allowedHosts: ['taobao.com'],
+      submit: true,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      host: 'login.taobao.com',
+      username_filled: true,
+      password_filled: true,
+      submitted: true,
+    });
+    expect(sendCommandMock).toHaveBeenCalledWith('credential-fill', expect.objectContaining({
+      session: 'qn',
+      surface: 'adapter',
+      contextId: 'gumo-studio',
+      siteSession: 'persistent',
+      tabPlacement: 'existing-window',
+      username: 'seller',
+      password: 'secret-password',
+      allowedHosts: ['taobao.com'],
+      submit: true,
+    }));
+  });
+});
+
 describe('Page CDP helpers', () => {
   beforeEach(() => {
     sendCommandMock.mockReset();

@@ -1256,6 +1256,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleSetFileInput(cmd, leaseKey);
       case 'insert-text':
         return await handleInsertText(cmd, leaseKey);
+      case 'credential-fill':
+        return await handleCredentialFill(cmd, leaseKey);
       case 'bind':
         return await handleBind(cmd, leaseKey);
       case 'network-capture-start':
@@ -1915,6 +1917,296 @@ async function handleInsertText(cmd: Command, leaseKey: string): Promise<Result>
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+type CredentialFillFrameResult = {
+  ok: boolean;
+  host: string;
+  username_filled: boolean;
+  password_filled: boolean;
+  submitted: boolean;
+  reason?: string;
+};
+
+type CredentialFillRequest = {
+  username: string;
+  password: string;
+  allowedHosts: string[];
+  usernameSelectors: string[];
+  passwordSelectors: string[];
+  activateTextPatterns: string[];
+  submitSelectors: string[];
+  submit: boolean;
+};
+
+const DEFAULT_USERNAME_SELECTORS = [
+  '#fm-login-id',
+  'input[name="fm-login-id"]',
+  'input[autocomplete="username"]',
+  'input[type="email"]',
+  'input[type="text"]',
+];
+
+const DEFAULT_PASSWORD_SELECTORS = [
+  '#fm-login-password',
+  'input[name="fm-login-password"]',
+  'input[autocomplete="current-password"]',
+  'input[type="password"]',
+];
+
+const DEFAULT_LOGIN_ACTIVATION_TEXT = ['账号密码登录', '密码登录', '账号登录'];
+
+const DEFAULT_SUBMIT_SELECTORS = [
+  'button[type="submit"]',
+  'input[type="submit"]',
+  'button',
+  'a',
+];
+
+function cleanStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  const cleaned = value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return cleaned.length > 0 ? cleaned : fallback;
+}
+
+async function handleCredentialFill(cmd: Command, leaseKey: string): Promise<Result> {
+  if (typeof cmd.username !== 'string' || typeof cmd.password !== 'string') {
+    return { id: cmd.id, ok: false, error: 'Missing credential payload' };
+  }
+  if (!Array.isArray(cmd.allowedHosts) || cmd.allowedHosts.length === 0) {
+    return { id: cmd.id, ok: false, error: 'Missing allowedHosts payload' };
+  }
+
+  const request: CredentialFillRequest = {
+    username: cmd.username,
+    password: cmd.password,
+    allowedHosts: cleanStringArray(cmd.allowedHosts, []),
+    usernameSelectors: cleanStringArray(cmd.usernameSelectors, DEFAULT_USERNAME_SELECTORS),
+    passwordSelectors: cleanStringArray(cmd.passwordSelectors, DEFAULT_PASSWORD_SELECTORS),
+    activateTextPatterns: cleanStringArray(cmd.activateTextPatterns, DEFAULT_LOGIN_ACTIVATION_TEXT),
+    submitSelectors: cleanStringArray(cmd.submitSelectors, DEFAULT_SUBMIT_SELECTORS),
+    submit: cmd.submit !== false,
+  };
+
+  if (request.allowedHosts.length === 0) {
+    return { id: cmd.id, ok: false, error: 'Missing allowedHosts payload' };
+  }
+
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: 'MAIN',
+      func: credentialFillInFrame,
+      args: [request],
+    });
+    const frameResults = results
+      .map((entry) => ({
+        frameId: entry.frameId,
+        result: entry.result,
+      }))
+      .filter((entry): entry is { frameId: number; result: CredentialFillFrameResult } =>
+        isCredentialFillFrameResult(entry.result),
+      );
+    const success = frameResults.find((entry) => entry.result.ok);
+    const selected = success ?? frameResults.find((entry) => entry.result.reason !== 'host_not_allowed') ?? frameResults[0];
+    const data = selected
+      ? { ...selected.result, frameId: selected.frameId }
+      : {
+          ok: false,
+          host: '',
+          username_filled: false,
+          password_filled: false,
+          submitted: false,
+          reason: 'no_frame_result',
+        };
+    return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function isCredentialFillFrameResult(value: unknown): value is CredentialFillFrameResult {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.ok === 'boolean'
+    && typeof record.host === 'string'
+    && typeof record.username_filled === 'boolean'
+    && typeof record.password_filled === 'boolean'
+    && typeof record.submitted === 'boolean';
+}
+
+async function credentialFillInFrame(request: CredentialFillRequest): Promise<CredentialFillFrameResult> {
+  const host = window.location.hostname;
+  const normalizeHost = (value: string) => value.trim().toLowerCase().replace(/^\.+/, '');
+  const normalizedHost = normalizeHost(host);
+  const allowed = request.allowedHosts.some((entry) => {
+    const allowedHost = normalizeHost(entry);
+    return allowedHost.length > 0
+      && (normalizedHost === allowedHost || normalizedHost.endsWith(`.${allowedHost}`));
+  });
+  if (!allowed) {
+    return {
+      ok: false,
+      host,
+      username_filled: false,
+      password_filled: false,
+      submitted: false,
+      reason: 'host_not_allowed',
+    };
+  }
+
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  const clean = (value: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim();
+  const isVisible = (element: Element | null): element is HTMLElement => {
+    if (!(element instanceof HTMLElement)) return false;
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.visibility !== 'hidden'
+      && style.display !== 'none'
+      && rect.width > 0
+      && rect.height > 0
+      && !element.hasAttribute('disabled');
+  };
+  const queryFirstVisibleInput = (selectors: string[]) => {
+    for (const selector of selectors) {
+      let elements: Element[] = [];
+      try {
+        elements = Array.from(document.querySelectorAll(selector));
+      } catch {
+        continue;
+      }
+      const found = elements.find((element): element is HTMLInputElement | HTMLTextAreaElement =>
+        (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)
+          && isVisible(element)
+          && !element.readOnly,
+      );
+      if (found) return found;
+    }
+    return null;
+  };
+  const textOf = (element: HTMLElement) => clean([
+    element.innerText,
+    element.getAttribute('aria-label'),
+    element.getAttribute('title'),
+    element.getAttribute('placeholder'),
+    element instanceof HTMLInputElement ? element.value : '',
+  ].filter(Boolean).join(' '));
+  const matchesActivationText = (text: string) => request.activateTextPatterns.some((pattern) => {
+    try {
+      return new RegExp(pattern).test(text);
+    } catch {
+      return text === pattern || text.includes(pattern);
+    }
+  });
+  const activateLoginMode = () => {
+    const candidates = Array.from(document.querySelectorAll('button, a, input, div, span'))
+      .filter(isVisible);
+    const target = candidates.find((element) => matchesActivationText(textOf(element)));
+    if (!target) return false;
+    target.click();
+    return true;
+  };
+  const makeInputEvent = (type: string, value: string) => {
+    try {
+      return new InputEvent(type, { bubbles: true, cancelable: false, inputType: 'insertText', data: value });
+    } catch {
+      return new Event(type, { bubbles: true, cancelable: false });
+    }
+  };
+  const dispatchLegacyEvent = (field: HTMLElement, eventName: string) => {
+    const event = field.ownerDocument.createEvent('Event');
+    event.initEvent(eventName, true, false);
+    field.dispatchEvent(event);
+  };
+  const setValue = async (field: HTMLInputElement | HTMLTextAreaElement, value: string) => {
+    field.focus();
+    await Promise.resolve();
+    field.dispatchEvent(new FocusEvent('focus', { bubbles: false, cancelable: false }));
+    field.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: false }));
+    field.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: false, key: value }));
+    field.dispatchEvent(makeInputEvent('beforeinput', value));
+    field.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true, cancelable: false, key: value }));
+    const descriptor = Object.getOwnPropertyDescriptor(
+      field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
+      'value',
+    );
+    if (descriptor?.set) {
+      descriptor.set.call(field, value);
+    } else {
+      field.value = value;
+    }
+    field.dispatchEvent(new Event('input', { bubbles: true, cancelable: false }));
+    field.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: false, key: value }));
+    field.dispatchEvent(new Event('change', { bubbles: true, cancelable: false }));
+    dispatchLegacyEvent(field, 'input');
+    dispatchLegacyEvent(field, 'change');
+  };
+  const findSubmitTarget = (usernameInput: HTMLInputElement | HTMLTextAreaElement | null, passwordInput: HTMLInputElement | HTMLTextAreaElement | null) => {
+    for (const selector of request.submitSelectors) {
+      let elements: Element[] = [];
+      try {
+        elements = Array.from(document.querySelectorAll(selector));
+      } catch {
+        continue;
+      }
+      const found = elements.find((element): element is HTMLElement => {
+        if (!isVisible(element)) return false;
+        const text = textOf(element);
+        return /^(登录|登 录|提交|确认|继续)$/.test(text)
+          || element.getAttribute('type') === 'submit';
+      });
+      if (found) return found;
+    }
+    const form = passwordInput?.form ?? usernameInput?.form ?? null;
+    return form?.querySelector('button[type="submit"], input[type="submit"]') ?? null;
+  };
+
+  let usernameInput = queryFirstVisibleInput(request.usernameSelectors);
+  let passwordInput = queryFirstVisibleInput(request.passwordSelectors);
+  if ((!usernameInput || !passwordInput) && activateLoginMode()) {
+    await sleep(500);
+    usernameInput = queryFirstVisibleInput(request.usernameSelectors);
+    passwordInput = queryFirstVisibleInput(request.passwordSelectors);
+  }
+  if (!usernameInput || !passwordInput) {
+    return {
+      ok: false,
+      host,
+      username_filled: false,
+      password_filled: false,
+      submitted: false,
+      reason: 'login_inputs_not_found',
+    };
+  }
+
+  await setValue(usernameInput, request.username);
+  await setValue(passwordInput, request.password);
+
+  let submitted = false;
+  if (request.submit) {
+    const submitTarget = findSubmitTarget(usernameInput, passwordInput);
+    if (submitTarget instanceof HTMLElement) {
+      submitTarget.click();
+      submitted = true;
+    } else if (passwordInput.form && typeof passwordInput.form.requestSubmit === 'function') {
+      passwordInput.form.requestSubmit();
+      submitted = true;
+    }
+  }
+
+  return {
+    ok: true,
+    host,
+    username_filled: clean(usernameInput.value).length > 0,
+    password_filled: clean(passwordInput.value).length > 0,
+    submitted,
+    reason: '',
+  };
 }
 
 async function handleNetworkCaptureStart(cmd: Command, leaseKey: string): Promise<Result> {

@@ -67,6 +67,27 @@ export interface FetchJsonOptions {
   timeoutMs?: number;
 }
 
+export interface BrowserCredentialFillOptions {
+  username: string;
+  password: string;
+  allowedHosts: string[];
+  usernameSelectors?: string[];
+  passwordSelectors?: string[];
+  activateTextPatterns?: string[];
+  submitSelectors?: string[];
+  submit?: boolean;
+}
+
+export interface BrowserCredentialFillResult {
+  ok: boolean;
+  host: string;
+  frameId?: number;
+  username_filled: boolean;
+  password_filled: boolean;
+  submitted: boolean;
+  reason?: string;
+}
+
 export type BrowserEvaluateFunction<Args extends unknown[] = unknown[], Result = unknown> = (...args: Args) => Result | Promise<Result>;
 
 export interface IPage {
@@ -131,6 +152,11 @@ export interface IPage {
    * Useful for rich editors that ignore synthetic DOM value/text mutations.
    */
   insertText?(text: string): Promise<void>;
+  /**
+   * Fill login credentials from the extension content-script layer. This is
+   * intentionally narrow and should not expose the password in its result.
+   */
+  fillCredentials?(options: BrowserCredentialFillOptions): Promise<BrowserCredentialFillResult>;
   closeWindow?(): Promise<void>;
   /** Returns the current page URL, or null if unavailable. */
   getCurrentUrl?(): Promise<string | null>;

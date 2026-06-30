@@ -9,7 +9,7 @@
  * page-scoped operations target the correct page without guessing.
  */
 
-import type { BrowserCookie, BrowserDownloadWaitResult, BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserCredentialFillOptions, BrowserCredentialFillResult, BrowserDownloadWaitResult, BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
 import { buildEvaluateExpression } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
@@ -340,6 +340,21 @@ export class Page extends BasePage {
     if (!result?.inserted) {
       throw new Error('insertText returned no inserted flag — command may not be supported by the extension');
     }
+  }
+
+  async fillCredentials(options: BrowserCredentialFillOptions): Promise<BrowserCredentialFillResult> {
+    const result = await sendCommand('credential-fill', {
+      username: options.username,
+      password: options.password,
+      allowedHosts: options.allowedHosts,
+      usernameSelectors: options.usernameSelectors,
+      passwordSelectors: options.passwordSelectors,
+      activateTextPatterns: options.activateTextPatterns,
+      submitSelectors: options.submitSelectors,
+      submit: options.submit,
+      ...this._cmdOpts(),
+    }) as BrowserCredentialFillResult;
+    return result;
   }
 
   async frames(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>> {

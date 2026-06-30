@@ -264,6 +264,19 @@ function createChromeMock() {
     cookies: {
       getAll: vi.fn(async () => []),
     },
+    scripting: {
+      executeScript: vi.fn(async () => [{
+        frameId: 0,
+        result: {
+          ok: true,
+          host: 'login.taobao.com',
+          username_filled: true,
+          password_filled: true,
+          submitted: true,
+          reason: '',
+        },
+      }]),
+    },
   };
 
   return {
@@ -293,6 +306,39 @@ describe('background tab isolation', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('fills credentials through extension scripting without returning the password', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const result = await mod.__test__.handleCommand({
+      id: 'credential-fill',
+      action: 'credential-fill',
+      session: 'qn',
+      surface: 'adapter',
+      username: 'seller',
+      password: 'secret-password',
+      allowedHosts: ['taobao.com'],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual({
+      ok: true,
+      host: 'login.taobao.com',
+      frameId: 0,
+      username_filled: true,
+      password_filled: true,
+      submitted: true,
+      reason: '',
+    });
+    expect(JSON.stringify(result.data)).not.toContain('secret-password');
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(1);
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith(expect.objectContaining({
+      target: expect.objectContaining({ allFrames: true }),
+      world: 'MAIN',
+    }));
   });
 
   it('lists only automation-window web tabs', async () => {

@@ -815,10 +815,11 @@ const REGISTRY_KEY = "opencli_target_lease_registry_v2";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
 const CONTAINER_TAB_GROUP_TITLE = {
   interactive: "OpenCLI Browser",
+  // Retained for registry/type compatibility. Adapter automation no longer
+  // creates or discovers a visible tab group.
   automation: "OpenCLI Adapter"
 };
-const LEGACY_AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
-const AUTOMATION_TAB_GROUP_COLOR = "orange";
+const OWNED_TAB_GROUP_COLOR = "orange";
 let leaseMutationQueue = Promise.resolve();
 const ownedContainers = {
   interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
@@ -932,7 +933,7 @@ function emptyRegistry() {
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
-        groupId: ownedContainers.automation.groupId
+        groupId: null
       }
     },
     leases: {}
@@ -956,7 +957,7 @@ async function readRegistry() {
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null,
-          groupId: typeof storedContainers.automation?.groupId === "number" ? storedContainers.automation.groupId : null
+          groupId: null
         }
       },
       leases: stored.leases
@@ -1000,7 +1001,7 @@ async function persistRuntimeState() {
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
-        groupId: ownedContainers.automation.groupId
+        groupId: null
       }
     },
     leases
@@ -1054,7 +1055,7 @@ function resetWindowIdleTimer(leaseKey) {
   }, timeout);
 }
 function getOwnedContainerGroupTitles(role) {
-  return role === "automation" ? [CONTAINER_TAB_GROUP_TITLE.automation, LEGACY_AUTOMATION_TAB_GROUP_TITLE] : [CONTAINER_TAB_GROUP_TITLE.interactive];
+  return role === "automation" ? [] : [CONTAINER_TAB_GROUP_TITLE.interactive];
 }
 async function focusOwnedWindowIfRequested(windowId, mode) {
   if (mode !== "foreground") return;
@@ -1087,6 +1088,7 @@ function selectOwnedContainerGroupCandidate(candidates) {
   })[0];
 }
 async function collectOwnedGroupCandidates(role) {
+  if (role === "automation") return [];
   const container = ownedContainers[role];
   const groupsById = /* @__PURE__ */ new Map();
   if (container.groupId !== null) {
@@ -1162,7 +1164,7 @@ async function ensureCanonicalGroupTitle(role, group) {
   if (group.title === canonicalTitle) return group;
   const updated = await chrome.tabGroups.update(group.id, {
     title: canonicalTitle,
-    color: AUTOMATION_TAB_GROUP_COLOR
+    color: OWNED_TAB_GROUP_COLOR
   });
   return { id: updated.id, windowId: updated.windowId, title: updated.title };
 }
@@ -1195,7 +1197,7 @@ async function createOwnedGroup(role, windowId, ids) {
   ownedContainers[role].windowId = windowId;
   await persistRuntimeState();
   const group = await chrome.tabGroups.update(groupId, {
-    color: AUTOMATION_TAB_GROUP_COLOR,
+    color: OWNED_TAB_GROUP_COLOR,
     title: CONTAINER_TAB_GROUP_TITLE[role],
     collapsed: false
   });
@@ -1203,6 +1205,7 @@ async function createOwnedGroup(role, windowId, ids) {
   return { id: group.id, windowId: group.windowId, title: group.title };
 }
 async function ensureOwnedContainerGroup(role, fallbackWindowId, tabIds) {
+  if (role === "automation") return null;
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   const container = ownedContainers[role];
   const previousGroupPromise = container.groupPromise ?? Promise.resolve(null);
@@ -1594,6 +1597,8 @@ async function handleCommand(cmd) {
         return await handleSetFileInput(cmd, leaseKey);
       case "insert-text":
         return await handleInsertText(cmd, leaseKey);
+      case "credential-fill":
+        return await handleCredentialFill(cmd, leaseKey);
       case "bind":
         return await handleBind(cmd, leaseKey);
       case "network-capture-start":
@@ -2145,6 +2150,240 @@ async function handleInsertText(cmd, leaseKey) {
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+const DEFAULT_USERNAME_SELECTORS = [
+  "#fm-login-id",
+  'input[name="fm-login-id"]',
+  'input[autocomplete="username"]',
+  'input[type="email"]',
+  'input[type="text"]'
+];
+const DEFAULT_PASSWORD_SELECTORS = [
+  "#fm-login-password",
+  'input[name="fm-login-password"]',
+  'input[autocomplete="current-password"]',
+  'input[type="password"]'
+];
+const DEFAULT_LOGIN_ACTIVATION_TEXT = ["账号密码登录", "密码登录", "账号登录"];
+const DEFAULT_SUBMIT_SELECTORS = [
+  'button[type="submit"]',
+  'input[type="submit"]',
+  "button",
+  "a"
+];
+function cleanStringArray(value, fallback) {
+  if (!Array.isArray(value)) return fallback;
+  const cleaned = value.filter((entry) => typeof entry === "string").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  return cleaned.length > 0 ? cleaned : fallback;
+}
+async function handleCredentialFill(cmd, leaseKey) {
+  if (typeof cmd.username !== "string" || typeof cmd.password !== "string") {
+    return { id: cmd.id, ok: false, error: "Missing credential payload" };
+  }
+  if (!Array.isArray(cmd.allowedHosts) || cmd.allowedHosts.length === 0) {
+    return { id: cmd.id, ok: false, error: "Missing allowedHosts payload" };
+  }
+  const request = {
+    username: cmd.username,
+    password: cmd.password,
+    allowedHosts: cleanStringArray(cmd.allowedHosts, []),
+    usernameSelectors: cleanStringArray(cmd.usernameSelectors, DEFAULT_USERNAME_SELECTORS),
+    passwordSelectors: cleanStringArray(cmd.passwordSelectors, DEFAULT_PASSWORD_SELECTORS),
+    activateTextPatterns: cleanStringArray(cmd.activateTextPatterns, DEFAULT_LOGIN_ACTIVATION_TEXT),
+    submitSelectors: cleanStringArray(cmd.submitSelectors, DEFAULT_SUBMIT_SELECTORS),
+    submit: cmd.submit !== false
+  };
+  if (request.allowedHosts.length === 0) {
+    return { id: cmd.id, ok: false, error: "Missing allowedHosts payload" };
+  }
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: "MAIN",
+      func: credentialFillInFrame,
+      args: [request]
+    });
+    const frameResults = results.map((entry) => ({
+      frameId: entry.frameId,
+      result: entry.result
+    })).filter(
+      (entry) => isCredentialFillFrameResult(entry.result)
+    );
+    const success = frameResults.find((entry) => entry.result.ok);
+    const selected = success ?? frameResults.find((entry) => entry.result.reason !== "host_not_allowed") ?? frameResults[0];
+    const data = selected ? { ...selected.result, frameId: selected.frameId } : {
+      ok: false,
+      host: "",
+      username_filled: false,
+      password_filled: false,
+      submitted: false,
+      reason: "no_frame_result"
+    };
+    return pageScopedResult(cmd.id, tabId, data);
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+function isCredentialFillFrameResult(value) {
+  if (!value || typeof value !== "object") return false;
+  const record = value;
+  return typeof record.ok === "boolean" && typeof record.host === "string" && typeof record.username_filled === "boolean" && typeof record.password_filled === "boolean" && typeof record.submitted === "boolean";
+}
+async function credentialFillInFrame(request) {
+  const host = window.location.hostname;
+  const normalizeHost = (value) => value.trim().toLowerCase().replace(/^\.+/, "");
+  const normalizedHost = normalizeHost(host);
+  const allowed = request.allowedHosts.some((entry) => {
+    const allowedHost = normalizeHost(entry);
+    return allowedHost.length > 0 && (normalizedHost === allowedHost || normalizedHost.endsWith(`.${allowedHost}`));
+  });
+  if (!allowed) {
+    return {
+      ok: false,
+      host,
+      username_filled: false,
+      password_filled: false,
+      submitted: false,
+      reason: "host_not_allowed"
+    };
+  }
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const clean = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+  const isVisible = (element) => {
+    if (!(element instanceof HTMLElement)) return false;
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0 && !element.hasAttribute("disabled");
+  };
+  const queryFirstVisibleInput = (selectors) => {
+    for (const selector of selectors) {
+      let elements = [];
+      try {
+        elements = Array.from(document.querySelectorAll(selector));
+      } catch {
+        continue;
+      }
+      const found = elements.find(
+        (element) => (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) && isVisible(element) && !element.readOnly
+      );
+      if (found) return found;
+    }
+    return null;
+  };
+  const textOf = (element) => clean([
+    element.innerText,
+    element.getAttribute("aria-label"),
+    element.getAttribute("title"),
+    element.getAttribute("placeholder"),
+    element instanceof HTMLInputElement ? element.value : ""
+  ].filter(Boolean).join(" "));
+  const matchesActivationText = (text) => request.activateTextPatterns.some((pattern) => {
+    try {
+      return new RegExp(pattern).test(text);
+    } catch {
+      return text === pattern || text.includes(pattern);
+    }
+  });
+  const activateLoginMode = () => {
+    const candidates = Array.from(document.querySelectorAll("button, a, input, div, span")).filter(isVisible);
+    const target = candidates.find((element) => matchesActivationText(textOf(element)));
+    if (!target) return false;
+    target.click();
+    return true;
+  };
+  const makeInputEvent = (type, value) => {
+    try {
+      return new InputEvent(type, { bubbles: true, cancelable: false, inputType: "insertText", data: value });
+    } catch {
+      return new Event(type, { bubbles: true, cancelable: false });
+    }
+  };
+  const dispatchLegacyEvent = (field, eventName) => {
+    const event = field.ownerDocument.createEvent("Event");
+    event.initEvent(eventName, true, false);
+    field.dispatchEvent(event);
+  };
+  const setValue = async (field, value) => {
+    field.focus();
+    await Promise.resolve();
+    field.dispatchEvent(new FocusEvent("focus", { bubbles: false, cancelable: false }));
+    field.dispatchEvent(new FocusEvent("focusin", { bubbles: true, cancelable: false }));
+    field.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: false, key: value }));
+    field.dispatchEvent(makeInputEvent("beforeinput", value));
+    field.dispatchEvent(new KeyboardEvent("keypress", { bubbles: true, cancelable: false, key: value }));
+    const descriptor = Object.getOwnPropertyDescriptor(
+      field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
+      "value"
+    );
+    if (descriptor?.set) {
+      descriptor.set.call(field, value);
+    } else {
+      field.value = value;
+    }
+    field.dispatchEvent(new Event("input", { bubbles: true, cancelable: false }));
+    field.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, cancelable: false, key: value }));
+    field.dispatchEvent(new Event("change", { bubbles: true, cancelable: false }));
+    dispatchLegacyEvent(field, "input");
+    dispatchLegacyEvent(field, "change");
+  };
+  const findSubmitTarget = (usernameInput2, passwordInput2) => {
+    for (const selector of request.submitSelectors) {
+      let elements = [];
+      try {
+        elements = Array.from(document.querySelectorAll(selector));
+      } catch {
+        continue;
+      }
+      const found = elements.find((element) => {
+        if (!isVisible(element)) return false;
+        const text = textOf(element);
+        return /^(登录|登 录|提交|确认|继续)$/.test(text) || element.getAttribute("type") === "submit";
+      });
+      if (found) return found;
+    }
+    const form = passwordInput2?.form ?? usernameInput2?.form ?? null;
+    return form?.querySelector('button[type="submit"], input[type="submit"]') ?? null;
+  };
+  let usernameInput = queryFirstVisibleInput(request.usernameSelectors);
+  let passwordInput = queryFirstVisibleInput(request.passwordSelectors);
+  if ((!usernameInput || !passwordInput) && activateLoginMode()) {
+    await sleep(500);
+    usernameInput = queryFirstVisibleInput(request.usernameSelectors);
+    passwordInput = queryFirstVisibleInput(request.passwordSelectors);
+  }
+  if (!usernameInput || !passwordInput) {
+    return {
+      ok: false,
+      host,
+      username_filled: false,
+      password_filled: false,
+      submitted: false,
+      reason: "login_inputs_not_found"
+    };
+  }
+  await setValue(usernameInput, request.username);
+  await setValue(passwordInput, request.password);
+  let submitted = false;
+  if (request.submit) {
+    const submitTarget = findSubmitTarget(usernameInput, passwordInput);
+    if (submitTarget instanceof HTMLElement) {
+      submitTarget.click();
+      submitted = true;
+    } else if (passwordInput.form && typeof passwordInput.form.requestSubmit === "function") {
+      passwordInput.form.requestSubmit();
+      submitted = true;
+    }
+  }
+  return {
+    ok: true,
+    host,
+    username_filled: clean(usernameInput.value).length > 0,
+    password_filled: clean(passwordInput.value).length > 0,
+    submitted,
+    reason: ""
+  };
 }
 async function handleNetworkCaptureStart(cmd, leaseKey) {
   const cmdTabId = await resolveCommandTabId(cmd);

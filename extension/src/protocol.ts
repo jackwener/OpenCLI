@@ -15,6 +15,7 @@ export type Action =
   | 'sessions'
   | 'set-file-input'
   | 'insert-text'
+  | 'credential-fill'
   | 'bind'
   | 'network-capture-start'
   | 'network-capture-read'
@@ -61,6 +62,22 @@ export interface Command {
   selector?: string;
   /** Raw text payload for insert-text action */
   text?: string;
+  /** Username payload for credential-fill action */
+  username?: string;
+  /** Password payload for credential-fill action */
+  password?: string;
+  /** Allowed host suffixes for credential-fill action */
+  allowedHosts?: string[];
+  /** Username input selectors for credential-fill action */
+  usernameSelectors?: string[];
+  /** Password input selectors for credential-fill action */
+  passwordSelectors?: string[];
+  /** Optional login-mode labels to activate before filling */
+  activateTextPatterns?: string[];
+  /** Submit button selectors for credential-fill action */
+  submitSelectors?: string[];
+  /** Whether credential-fill should submit after filling */
+  submit?: boolean;
   /** URL substring filter pattern for network capture actions */
   pattern?: string;
   /** Download wait timeout in milliseconds */
