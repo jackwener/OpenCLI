@@ -498,7 +498,12 @@ async function buildChatGPTBackendHeaders(page, { includeAuthorization = false }
     if (!sessionResponse.ok) {
         return { ok: false, status: sessionResponse.status, reason: 'session' };
     }
-    const session = await sessionResponse.json();
+    let session = null;
+    try {
+        session = await sessionResponse.json();
+    } catch {
+        return { ok: false, status: sessionResponse.status, reason: 'session-json' };
+    }
     const accessToken = session?.accessToken;
     if (!accessToken) return { ok: false, status: 0, reason: 'missing-access-token' };
     return {
@@ -571,17 +576,21 @@ export async function selectChatGPTModel(page, model) {
     debugChatGPTModel(`api=${apiResult ? JSON.stringify({ ok: apiResult.ok, status: apiResult.status, reason: apiResult.reason }) : 'none'}`);
     if (apiResult) {
         if (!apiResult.ok) {
-            throw new CommandExecutionError(`Could not update ChatGPT model preference for ${target.label} (${apiResult.reason || 'unknown'}, status ${apiResult.status || 0}).`);
+            if (apiResult.status === 401 || apiResult.status === 403) {
+                throw new AuthRequiredError(CHATGPT_DOMAIN, `ChatGPT model preference API rejected the current session while selecting ${target.label}.`);
+            }
+            debugChatGPTModel(`falling back to picker after api failure: ${apiResult.reason || 'unknown'}`);
+        } else {
+            debugChatGPTModel('config cookie set and reload scheduled');
+            await page.wait(2);
+            await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
+            const afterApi = await getCurrentChatGPTModel(page);
+            debugChatGPTModel(`after-api=${afterApi.model || 'none'}`);
+            if (afterApi.model === target.key) {
+                return { Status: 'Success', Model: target.label };
+            }
+            debugChatGPTModel('api did not prove selection; falling back to visible picker');
         }
-        debugChatGPTModel('config cookie set and reload scheduled');
-        await page.wait(2);
-        await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
-        const afterApi = await getCurrentChatGPTModel(page);
-        debugChatGPTModel(`after-api=${afterApi.model || 'none'}`);
-        if (afterApi.model === target.key) {
-            return { Status: 'Success', Model: target.label };
-        }
-        debugChatGPTModel('api did not prove selection; falling back to visible picker');
     }
     await page.wait(2);
 

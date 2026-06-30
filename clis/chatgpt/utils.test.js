@@ -228,6 +228,53 @@ describe('chatgpt model selection validation', () => {
         expect(page.nativeClick).toHaveBeenNthCalledWith(2, 30, 40);
     });
 
+    it('falls back to the picker when the session API response is malformed', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response('{', { status: 200 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 3) return Promise.resolve({ found: true, x: 10, y: 20 });
+                if (objectCall === 4) return Promise.resolve({ found: true, x: 30, y: 40 });
+                if (objectCall === 5) return Promise.resolve({ model: 'advanced', label: 'Advanced' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'advanced')).resolves.toEqual({ Status: 'Success', Model: 'Advanced' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps ChatGPT preference API auth rejection to AuthRequiredError', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'advanced')).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
     it('selects current Chinese intelligence options by exact visible menu text', async () => {
         const page = createDomEvaluatePage(`
             <form>
