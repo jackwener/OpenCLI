@@ -12,7 +12,7 @@
 import type { BrowserCookie, BrowserCredentialFillOptions, BrowserCredentialFillResult, BrowserDownloadWaitResult, BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
 import { buildEvaluateExpression } from './utils.js';
-import { saveBase64ToFile } from '../utils.js';
+import { saveBase64ToFile, sleep } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { BasePage } from './base-page.js';
@@ -20,6 +20,10 @@ import { classifyBrowserError } from './errors.js';
 import { log } from '../logger.js';
 import type { BrowserTabPlacement } from './tab-placement.js';
 import { BROWSER_VIEWPORT_METRICS_SCRIPT, clickScreenPoint, viewportPointToScreenPoint, type BrowserViewportMetrics } from './system-input.js';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 function isUnsupportedNetworkCaptureError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -36,6 +40,106 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
 function isStalePageIdentityError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return message.includes('stale page identity') || /^Page not found:\s*\S+\s*$/.test(message);
+}
+
+type BrowserAutofillEntry = {
+  contextId?: string;
+  allowedHosts?: string[];
+  matchHosts?: string[];
+  usernameSelectors?: string[];
+  passwordSelectors?: string[];
+  activateTextPatterns?: string[];
+  submitSelectors?: string[];
+  submit?: boolean;
+  keychain?: {
+    service?: string;
+    account?: string;
+    format?: string;
+  };
+};
+
+type StoredBrowserCredential = {
+  username: string;
+  password: string;
+};
+
+function normalizeHost(value: string): string {
+  return value.trim().toLowerCase().replace(/^\.+/, '');
+}
+
+function hostMatches(host: string, candidates: string[] | undefined): boolean {
+  const normalized = normalizeHost(host);
+  if (!normalized || !Array.isArray(candidates)) return false;
+  return candidates.some((candidate) => {
+    const allowed = normalizeHost(String(candidate || ''));
+    return allowed.length > 0 && (normalized === allowed || normalized.endsWith(`.${allowed}`));
+  });
+}
+
+function urlHost(rawUrl: string | undefined): string {
+  if (!rawUrl) return '';
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.hostname;
+  } catch {
+    return '';
+  }
+}
+
+function openCliConfigDir(): string {
+  return process.env.OPENCLI_CONFIG_DIR || path.join(os.homedir(), '.opencli');
+}
+
+function loadBrowserAutofillEntries(): BrowserAutofillEntry[] {
+  try {
+    const raw = fs.readFileSync(path.join(openCliConfigDir(), 'browser-autofill.json'), 'utf8');
+    const parsed = JSON.parse(raw) as { entries?: unknown };
+    return Array.isArray(parsed.entries)
+      ? parsed.entries.filter((entry): entry is BrowserAutofillEntry => Boolean(entry) && typeof entry === 'object')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseStoredBrowserCredential(raw: string): StoredBrowserCredential | null {
+  const text = raw.trim();
+  if (!text) return null;
+  let payload = text;
+  if (/^[0-9a-f]+$/i.test(text) && text.length % 2 === 0) {
+    const decoded = Buffer.from(text, 'hex').toString('utf8').trim();
+    if (decoded.startsWith('{')) payload = decoded;
+  }
+  try {
+    const parsed = JSON.parse(payload) as { username?: unknown; password?: unknown };
+    const username = typeof parsed.username === 'string' ? parsed.username : '';
+    const password = typeof parsed.password === 'string' ? parsed.password : '';
+    return username && password ? { username, password } : null;
+  } catch {
+    return null;
+  }
+}
+
+function readBrowserAutofillCredential(entry: BrowserAutofillEntry): StoredBrowserCredential | null {
+  const service = entry.keychain?.service;
+  const account = entry.keychain?.account;
+  if (!service || !account || process.platform !== 'darwin') return null;
+  try {
+    const raw = execFileSync('/usr/bin/security', [
+      'find-generic-password',
+      '-s',
+      service,
+      '-a',
+      account,
+      '-w',
+    ], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return parseStoredBrowserCredential(raw);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -122,6 +226,7 @@ export class Page extends BasePage {
     if (result.page) {
       this._page = result.page;
     }
+    await this._maybeFillConfiguredCredential(url);
     this._lastUrl = url;
     // Inject stealth + settle in a single round-trip instead of two sequential exec calls.
     // The stealth guard flag prevents double-injection; settle uses DOM stability detection.
@@ -355,6 +460,57 @@ export class Page extends BasePage {
       ...this._cmdOpts(),
     }) as BrowserCredentialFillResult;
     return result;
+  }
+
+  private async _maybeFillConfiguredCredential(targetUrl: string): Promise<void> {
+    if (!this.contextId) return;
+    const entries = loadBrowserAutofillEntries().filter((entry) => entry.contextId === this.contextId);
+    if (entries.length === 0) return;
+
+    let currentUrl = targetUrl;
+    try {
+      const value = await sendCommand('exec', {
+        code: buildEvaluateExpression('location.href'),
+        ...this._cmdOpts(),
+      });
+      if (typeof value === 'string' && value.trim()) currentUrl = value;
+    } catch {
+      // Use the requested URL when reading the page URL is not available.
+    }
+
+    const targetHost = urlHost(targetUrl);
+    const currentHost = urlHost(currentUrl);
+    const entry = entries.find((candidate) => (
+      hostMatches(currentHost, candidate.matchHosts)
+      || hostMatches(targetHost, candidate.matchHosts)
+      || hostMatches(currentHost, candidate.allowedHosts)
+      || hostMatches(targetHost, candidate.allowedHosts)
+    ));
+    if (!entry) return;
+
+    const credential = readBrowserAutofillCredential(entry);
+    if (!credential) return;
+
+    const delays = [0, 500, 1200, 2500];
+    for (const delay of delays) {
+      if (delay > 0) await sleep(delay);
+      try {
+        const result = await this.fillCredentials({
+          username: credential.username,
+          password: credential.password,
+          allowedHosts: Array.isArray(entry.allowedHosts) ? entry.allowedHosts : [],
+          usernameSelectors: Array.isArray(entry.usernameSelectors) ? entry.usernameSelectors : undefined,
+          passwordSelectors: Array.isArray(entry.passwordSelectors) ? entry.passwordSelectors : undefined,
+          activateTextPatterns: Array.isArray(entry.activateTextPatterns) ? entry.activateTextPatterns : undefined,
+          submitSelectors: Array.isArray(entry.submitSelectors) ? entry.submitSelectors : undefined,
+          submit: entry.submit === true,
+        });
+        if (result.username_filled && result.password_filled) return;
+        if (result.reason && result.reason !== 'login_inputs_not_found' && result.reason !== 'host_not_allowed') return;
+      } catch {
+        return;
+      }
+    }
   }
 
   async frames(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>> {

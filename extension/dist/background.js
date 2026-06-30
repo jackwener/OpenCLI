@@ -657,6 +657,17 @@ const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
 let connectInFlight = null;
+const AUTOFILL_CANDIDATE_HOSTS = [
+  "login.taobao.com",
+  "loginmyseller.taobao.com",
+  "havanalogin.taobao.com"
+];
+const AUTOFILL_REQUEST_TIMEOUT_MS = 2500;
+const AUTOFILL_ATTEMPT_TTL_MS = 2e4;
+const AUTOFILL_ATTEMPT_DELAYS_MS = [0, 400, 1200, 2500];
+let autofillRequestCounter = 0;
+const pendingAutofillRequests = /* @__PURE__ */ new Map();
+const recentAutofillAttempts = /* @__PURE__ */ new Map();
 async function getCurrentContextId() {
   if (contextIdPromise) return contextIdPromise;
   contextIdPromise = (async () => {
@@ -778,7 +789,12 @@ async function connectAttempt() {
   thisWs.onmessage = async (event) => {
     if (ws !== thisWs) return;
     try {
-      const command = JSON.parse(event.data);
+      const payload = JSON.parse(event.data);
+      if (isAutofillResponseMessage(payload)) {
+        handleAutofillResponse(payload);
+        return;
+      }
+      const command = payload;
       const result = await handleCommand(command);
       if (ws !== thisWs) return;
       safeSend(thisWs, result);
@@ -806,6 +822,132 @@ function scheduleReconnect() {
     reconnectTimer = null;
     void connect();
   }, delay);
+}
+function isAutofillResponseMessage(value) {
+  if (!value || typeof value !== "object") return false;
+  const record = value;
+  return record.type === "autofill-response" && typeof record.requestId === "string" && typeof record.ok === "boolean";
+}
+function handleAutofillResponse(message) {
+  const pending = pendingAutofillRequests.get(message.requestId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pendingAutofillRequests.delete(message.requestId);
+  pending.resolve(message.ok && message.credential ? message.credential : null);
+}
+function isAutofillCandidateUrl(rawUrl) {
+  if (!rawUrl) return false;
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    const normalizedHost = url.hostname.trim().toLowerCase();
+    return AUTOFILL_CANDIDATE_HOSTS.some((host) => normalizedHost === host || normalizedHost.endsWith(`.${host}`));
+  } catch {
+    return false;
+  }
+}
+function cleanupRecentAutofillAttempts(now) {
+  for (const [key, timestamp] of recentAutofillAttempts.entries()) {
+    if (now - timestamp > AUTOFILL_ATTEMPT_TTL_MS * 3) recentAutofillAttempts.delete(key);
+  }
+}
+async function triggerAutofillForTab(tabId, rawUrl, options = {}) {
+  if (!isAutofillCandidateUrl(rawUrl)) return;
+  console.log(`[opencli] Passive credential autofill candidate tab=${tabId} url=${rawUrl}`);
+  const now = Date.now();
+  cleanupRecentAutofillAttempts(now);
+  const key = `${tabId}
+${rawUrl}`;
+  const lastAttempt = recentAutofillAttempts.get(key) ?? 0;
+  if (!options.bypassRecent && now - lastAttempt < AUTOFILL_ATTEMPT_TTL_MS) return;
+  recentAutofillAttempts.set(key, now);
+  await passiveAutofillTab(tabId, rawUrl);
+}
+function scheduleAutofillForTab(tabId, rawUrl) {
+  void triggerAutofillForTab(tabId, rawUrl);
+}
+async function requestAutofillCredential(rawUrl) {
+  const connected = await waitForOpenDaemonSocket(AUTOFILL_REQUEST_TIMEOUT_MS);
+  if (!connected || !ws || ws.readyState !== WebSocket.OPEN) {
+    console.log("[opencli] Passive credential autofill skipped: daemon socket not ready");
+    return null;
+  }
+  const requestId = `autofill_${Date.now()}_${++autofillRequestCounter}`;
+  const contextId = await getCurrentContextId();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      pendingAutofillRequests.delete(requestId);
+      console.log("[opencli] Passive credential autofill skipped: credential request timed out");
+      resolve(null);
+    }, AUTOFILL_REQUEST_TIMEOUT_MS);
+    pendingAutofillRequests.set(requestId, { resolve, timer });
+    const sent = safeSend(ws, {
+      type: "autofill-request",
+      requestId,
+      contextId,
+      url: rawUrl
+    });
+    if (!sent) {
+      clearTimeout(timer);
+      pendingAutofillRequests.delete(requestId);
+      console.log("[opencli] Passive credential autofill skipped: credential request not sent");
+      resolve(null);
+    }
+  });
+}
+async function runCredentialFillOnTab(tabId, request) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    world: "MAIN",
+    func: credentialFillInFrame,
+    args: [request]
+  });
+  const frameResults = results.map((entry) => entry.result).filter((entry) => isCredentialFillFrameResult(entry));
+  return frameResults.find((entry) => entry.ok) ?? frameResults.find((entry) => entry.reason !== "host_not_allowed") ?? frameResults[0] ?? null;
+}
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function waitForOpenDaemonSocket(timeoutMs) {
+  await connect();
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (ws?.readyState === WebSocket.OPEN) return true;
+    await sleep(100);
+  }
+  return ws?.readyState === WebSocket.OPEN;
+}
+async function passiveAutofillTab(tabId, rawUrl) {
+  const credential = await requestAutofillCredential(rawUrl);
+  if (!credential) {
+    console.log("[opencli] Passive credential autofill skipped: no matching credential");
+    return;
+  }
+  const request = {
+    ...credential,
+    submit: false,
+    allowedHosts: cleanStringArray(credential.allowedHosts, []),
+    usernameSelectors: cleanStringArray(credential.usernameSelectors, DEFAULT_USERNAME_SELECTORS),
+    passwordSelectors: cleanStringArray(credential.passwordSelectors, DEFAULT_PASSWORD_SELECTORS),
+    activateTextPatterns: cleanStringArray(credential.activateTextPatterns, DEFAULT_LOGIN_ACTIVATION_TEXT),
+    submitSelectors: cleanStringArray(credential.submitSelectors, DEFAULT_SUBMIT_SELECTORS)
+  };
+  if (request.allowedHosts.length === 0) return;
+  for (const delayMs of AUTOFILL_ATTEMPT_DELAYS_MS) {
+    if (delayMs > 0) await sleep(delayMs);
+    try {
+      const result = await runCredentialFillOnTab(tabId, request);
+      if (result?.ok) {
+        console.log(`[opencli] Passive credential autofill completed on ${result.host}`);
+        return;
+      }
+      if (result) console.log(`[opencli] Passive credential autofill attempt did not fill: ${result.reason || "unknown"}`);
+      if (result && result.reason !== "login_inputs_not_found" && result.reason !== "host_not_allowed") return;
+    } catch {
+      console.log("[opencli] Passive credential autofill attempt failed during scripting");
+      return;
+    }
+  }
 }
 const automationSessions = /* @__PURE__ */ new Map();
 const IDLE_TIMEOUT_DEFAULT = 3e4;
@@ -1497,6 +1639,26 @@ function initialize() {
   if (initialized) return;
   initialized = true;
   chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    const rawUrl = changeInfo.url ?? tab.url;
+    if (changeInfo.status === "complete" || changeInfo.url) {
+      scheduleAutofillForTab(tabId, rawUrl);
+    }
+  });
+  if (chrome.webNavigation?.onCommitted) {
+    chrome.webNavigation.onCommitted.addListener((details) => {
+      scheduleAutofillForTab(details.tabId, details.url);
+    }, {
+      url: AUTOFILL_CANDIDATE_HOSTS.map((hostEquals) => ({ hostEquals }))
+    });
+  }
+  if (chrome.webNavigation?.onCompleted) {
+    chrome.webNavigation.onCompleted.addListener((details) => {
+      scheduleAutofillForTab(details.tabId, details.url);
+    }, {
+      url: AUTOFILL_CANDIDATE_HOSTS.map((hostEquals) => ({ hostEquals }))
+    });
+  }
   registerListeners();
   try {
     const registerFrameTracking$1 = registerFrameTracking;
@@ -1507,8 +1669,12 @@ function initialize() {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
     await connect();
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (typeof tab.id === "number") scheduleAutofillForTab(tab.id, tab.url);
+    }
   })();
-  console.log("[opencli] OpenCLI extension initialized");
+  console.log("[opencli] OpenCLI extension initialized; passive credential autofill listener active");
 }
 chrome.runtime.onInstalled.addListener(() => {
   initialize();
@@ -1522,7 +1688,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
   if (leaseKey) await releaseLease(leaseKey, "idle alarm");
 });
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "autofill-page-ready") {
+    const tabId = sender.tab?.id;
+    const rawUrl = typeof msg.url === "string" ? msg.url : sender.url;
+    if (typeof tabId === "number") scheduleAutofillForTab(tabId, rawUrl);
+    sendResponse({ ok: true });
+    return false;
+  }
   if (msg?.type === "getStatus") {
     void (async () => {
       const contextId = await getCurrentContextId();
@@ -1599,6 +1772,8 @@ async function handleCommand(cmd) {
         return await handleInsertText(cmd, leaseKey);
       case "credential-fill":
         return await handleCredentialFill(cmd, leaseKey);
+      case "credential-autofill":
+        return await handleCredentialAutofill(cmd, leaseKey);
       case "bind":
         return await handleBind(cmd, leaseKey);
       case "network-capture-start":
@@ -1795,6 +1970,11 @@ async function resolveTab(tabId, leaseKey, initialUrl) {
 }
 async function pageScopedResult(id, tabId, data) {
   const page = await resolveTargetId(tabId);
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    await triggerAutofillForTab(tabId, tab.url, { bypassRecent: true });
+  } catch {
+  }
   return { id, ok: true, data, page };
 }
 async function resolveTabId(tabId, leaseKey, initialUrl) {
@@ -1866,6 +2046,7 @@ async function handleNavigate(cmd, leaseKey) {
   const beforeNormalized = normalizeUrlForComparison(beforeTab.url);
   const targetUrl = cmd.url;
   if (beforeTab.status === "complete" && isTargetUrl(beforeTab.url, targetUrl)) {
+    await triggerAutofillForTab(tabId, beforeTab.url ?? targetUrl, { bypassRecent: true });
     return pageScopedResult(cmd.id, tabId, { title: beforeTab.title, url: beforeTab.url, timedOut: false });
   }
   if (!hasActiveNetworkCapture(tabId)) {
@@ -1921,6 +2102,7 @@ async function handleNavigate(cmd, leaseKey) {
       console.warn(`[opencli] Failed to recover drifted tab: ${moveErr}`);
     }
   }
+  await triggerAutofillForTab(tabId, tab.url ?? targetUrl, { bypassRecent: true });
   return pageScopedResult(cmd.id, tabId, { title: tab.title, url: tab.url, timedOut });
 }
 async function handleTabs(cmd, leaseKey) {
@@ -2226,6 +2408,21 @@ async function handleCredentialFill(cmd, leaseKey) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+async function handleCredentialAutofill(cmd, leaseKey) {
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const rawUrl = cmd.url ?? tab.url;
+    await triggerAutofillForTab(tabId, rawUrl, { bypassRecent: true });
+    return pageScopedResult(cmd.id, tabId, {
+      attempted: isAutofillCandidateUrl(rawUrl),
+      url: rawUrl
+    });
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
 function isCredentialFillFrameResult(value) {
   if (!value || typeof value !== "object") return false;
   const record = value;
@@ -2249,7 +2446,7 @@ async function credentialFillInFrame(request) {
       reason: "host_not_allowed"
     };
   }
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const clean = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
   const isVisible = (element) => {
     if (!(element instanceof HTMLElement)) return false;
@@ -2349,7 +2546,7 @@ async function credentialFillInFrame(request) {
   let usernameInput = queryFirstVisibleInput(request.usernameSelectors);
   let passwordInput = queryFirstVisibleInput(request.passwordSelectors);
   if ((!usernameInput || !passwordInput) && activateLoginMode()) {
-    await sleep(500);
+    await sleep2(500);
     usernameInput = queryFirstVisibleInput(request.usernameSelectors);
     passwordInput = queryFirstVisibleInput(request.passwordSelectors);
   }

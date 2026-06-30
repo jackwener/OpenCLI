@@ -21,6 +21,10 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { EXIT_CODES } from './errors.js';
@@ -71,6 +75,213 @@ class DaemonCommandFailure extends Error {
     super(message);
     this.name = 'DaemonCommandFailure';
   }
+}
+
+type AutofillKeychainConfig = {
+  service: string;
+  account: string;
+  format: 'json';
+};
+
+type AutofillConfigEntry = {
+  id: string;
+  contextId: string;
+  allowedHosts: string[];
+  matchHosts?: string[];
+  usernameSelectors?: string[];
+  passwordSelectors?: string[];
+  activateTextPatterns?: string[];
+  submitSelectors?: string[];
+  submit?: boolean;
+  keychain: AutofillKeychainConfig;
+};
+
+type AutofillConfig = {
+  version: 1;
+  entries: AutofillConfigEntry[];
+};
+
+type AutofillRequestMessage = {
+  type: 'autofill-request';
+  requestId: string;
+  contextId?: string;
+  url?: string;
+};
+
+type StoredCredential = {
+  username: string;
+  password: string;
+};
+
+function openCliConfigDir(): string {
+  return process.env.OPENCLI_CONFIG_DIR || path.join(os.homedir(), '.opencli');
+}
+
+function browserAutofillConfigPath(): string {
+  return path.join(openCliConfigDir(), 'browser-autofill.json');
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function cleanStringArray(value: unknown): string[] {
+  if (!isStringArray(value)) return [];
+  return value.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+}
+
+function parseAutofillEntry(value: unknown): AutofillConfigEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const keychain = record.keychain;
+  if (!keychain || typeof keychain !== 'object') return null;
+  const keychainRecord = keychain as Record<string, unknown>;
+  const id = typeof record.id === 'string' ? record.id.trim() : '';
+  const contextId = typeof record.contextId === 'string' ? record.contextId.trim() : '';
+  const service = typeof keychainRecord.service === 'string' ? keychainRecord.service.trim() : '';
+  const account = typeof keychainRecord.account === 'string' ? keychainRecord.account.trim() : '';
+  const allowedHosts = cleanStringArray(record.allowedHosts);
+  if (!id || !contextId || !service || !account || allowedHosts.length === 0) return null;
+  return {
+    id,
+    contextId,
+    allowedHosts,
+    matchHosts: cleanStringArray(record.matchHosts),
+    usernameSelectors: cleanStringArray(record.usernameSelectors),
+    passwordSelectors: cleanStringArray(record.passwordSelectors),
+    activateTextPatterns: cleanStringArray(record.activateTextPatterns),
+    submitSelectors: cleanStringArray(record.submitSelectors),
+    submit: record.submit === true,
+    keychain: {
+      service,
+      account,
+      format: 'json',
+    },
+  };
+}
+
+function loadAutofillConfig(): AutofillConfig {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(browserAutofillConfigPath(), 'utf-8')) as unknown;
+    if (!parsed || typeof parsed !== 'object') return { version: 1, entries: [] };
+    const entriesValue = (parsed as Record<string, unknown>).entries;
+    const entries = Array.isArray(entriesValue)
+      ? entriesValue.map(parseAutofillEntry).filter((entry): entry is AutofillConfigEntry => entry !== null)
+      : [];
+    return { version: 1, entries };
+  } catch {
+    return { version: 1, entries: [] };
+  }
+}
+
+function normalizeHost(value: string): string {
+  return value.trim().toLowerCase().replace(/^\.+/, '');
+}
+
+function hostMatches(host: string, allowedHost: string): boolean {
+  const normalizedHost = normalizeHost(host);
+  const normalizedAllowed = normalizeHost(allowedHost);
+  return normalizedAllowed.length > 0
+    && (normalizedHost === normalizedAllowed || normalizedHost.endsWith(`.${normalizedAllowed}`));
+}
+
+function selectAutofillEntry(contextId: string, rawUrl: string): AutofillConfigEntry | null {
+  let host = '';
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    host = url.hostname;
+  } catch {
+    return null;
+  }
+  const config = loadAutofillConfig();
+  return config.entries.find((entry) => {
+    if (entry.contextId !== contextId) return false;
+    const matchHosts = entry.matchHosts && entry.matchHosts.length > 0 ? entry.matchHosts : entry.allowedHosts;
+    return matchHosts.some((allowedHost) => hostMatches(host, allowedHost));
+  }) ?? null;
+}
+
+function parseStoredCredential(raw: string): StoredCredential | null {
+  const text = raw.trim();
+  if (!text) return null;
+  const payload = /^[0-9a-f]+$/i.test(text) && text.length % 2 === 0
+    ? Buffer.from(text, 'hex').toString('utf8').trim()
+    : text;
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const record = parsed as Record<string, unknown>;
+    const username = typeof record.username === 'string' ? record.username : '';
+    const password = typeof record.password === 'string' ? record.password : '';
+    if (!username || !password) return null;
+    return { username, password };
+  } catch {
+    return null;
+  }
+}
+
+function readKeychainCredential(config: AutofillKeychainConfig): StoredCredential | null {
+  if (process.platform !== 'darwin') return null;
+  const result = spawnSync('/usr/bin/security', [
+    'find-generic-password',
+    '-s', config.service,
+    '-a', config.account,
+    '-w',
+  ], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.status !== 0 || !result.stdout.trim()) return null;
+  return parseStoredCredential(result.stdout);
+}
+
+function isAutofillRequestMessage(value: unknown): value is AutofillRequestMessage {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return record.type === 'autofill-request' && typeof record.requestId === 'string';
+}
+
+function respondToAutofillRequest(ws: WebSocket, requestId: string, payload: Record<string, unknown>): void {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({
+    type: 'autofill-response',
+    requestId,
+    ...payload,
+  }));
+}
+
+function handleAutofillRequest(ws: WebSocket, msg: AutofillRequestMessage): void {
+  const connection = [...extensionProfiles.values()].find((entry) => entry.ws === ws && entry.ws.readyState === WebSocket.OPEN);
+  const contextId = connection?.contextId ?? (typeof msg.contextId === 'string' ? msg.contextId.trim() : '');
+  const rawUrl = typeof msg.url === 'string' ? msg.url : '';
+  if (!contextId || !rawUrl) {
+    respondToAutofillRequest(ws, msg.requestId, { ok: false, error: 'missing_context_or_url' });
+    return;
+  }
+  const entry = selectAutofillEntry(contextId, rawUrl);
+  if (!entry) {
+    respondToAutofillRequest(ws, msg.requestId, { ok: false, error: 'no_matching_autofill_entry' });
+    return;
+  }
+  const credential = readKeychainCredential(entry.keychain);
+  if (!credential) {
+    respondToAutofillRequest(ws, msg.requestId, { ok: false, error: 'credential_not_found' });
+    return;
+  }
+  respondToAutofillRequest(ws, msg.requestId, {
+    ok: true,
+    credential: {
+      username: credential.username,
+      password: credential.password,
+      allowedHosts: entry.allowedHosts,
+      usernameSelectors: entry.usernameSelectors ?? [],
+      passwordSelectors: entry.passwordSelectors ?? [],
+      activateTextPatterns: entry.activateTextPatterns ?? [],
+      submitSelectors: entry.submitSelectors ?? [],
+      submit: entry.submit === true,
+    },
+  });
 }
 
 function pushLog(entry: LogEntry): void {
@@ -432,6 +643,14 @@ wss.on('connection', (ws: WebSocket) => {
         else if (msg.level === 'warn') log.warn(`[ext] ${msg.msg}`);
         else log.info(`[ext] ${msg.msg}`);
         pushLog({ level: msg.level, msg: msg.msg, ts: msg.ts ?? Date.now() });
+        return;
+      }
+
+      // Extension-initiated passive autofill requests. These are not CLI
+      // commands: the extension observes a configured login page and asks the
+      // local daemon for that profile's Keychain-backed credential.
+      if (isAutofillRequestMessage(msg)) {
+        handleAutofillRequest(ws, msg);
         return;
       }
 

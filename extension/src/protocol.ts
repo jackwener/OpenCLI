@@ -16,6 +16,7 @@ export type Action =
   | 'set-file-input'
   | 'insert-text'
   | 'credential-fill'
+  | 'credential-autofill'
   | 'bind'
   | 'network-capture-start'
   | 'network-capture-read'
