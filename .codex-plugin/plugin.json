@@ -1,0 +1,11 @@
+{
+  "name": "opencli",
+  "version": "1.8.4",
+  "description": "Skills and tools for OpenCLI automation, browsing, and custom adapter creation.",
+  "skills": "./skills/",
+  "author": {
+    "name": "jackwener",
+    "url": "https://github.com/jackwener"
+  },
+  "license": "Apache-2.0"
+}
