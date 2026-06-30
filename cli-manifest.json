@@ -2993,6 +2993,36 @@
     "sourceFile": "autohome/score.js"
   },
   {
+    "site": "autohome",
+    "name": "spec",
+    "aliases": [
+      "param",
+      "config"
+    ],
+    "description": "汽车之家车型完整参数配置（基本/车身/发动机/变速箱/底盘/制动，免登录）",
+    "access": "read",
+    "domain": "cacheapigo.che168.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "specid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车型款型 ID（specid，来自汽车之家 /spec/<id>/ URL 或 specid= 参数）"
+      }
+    ],
+    "columns": [
+      "group",
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "autohome/spec.js",
+    "sourceFile": "autohome/spec.js"
+  },
+  {
     "site": "baidu-scholar",
     "name": "search",
     "description": "百度学术搜索",
@@ -7056,6 +7086,77 @@
     "modulePath": "chatwise/status.js",
     "sourceFile": "chatwise/status.js",
     "navigateBefore": true
+  },
+  {
+    "site": "che168",
+    "name": "browse",
+    "aliases": [
+      "list"
+    ],
+    "description": "车168/汽车之家二手车在售车源列表（按城市，含售价/上牌/里程）",
+    "access": "read",
+    "domain": "www.che168.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "城市名（北京/上海/...）或 che168 城市拼音（beijing/shanghai/...）。默认 beijing"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的车源数量（最多 50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "info_id",
+      "title",
+      "price",
+      "reg_date",
+      "mileage",
+      "city",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "che168/browse.js",
+    "sourceFile": "che168/browse.js",
+    "navigateBefore": "https://www.che168.com"
+  },
+  {
+    "site": "che168",
+    "name": "car",
+    "aliases": [
+      "detail"
+    ],
+    "description": "车168/汽车之家二手车车源详情（售价/首付/上牌/里程/变速箱/过户/所在地）",
+    "access": "read",
+    "domain": "www.che168.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "che168 车源详情 URL（来自 browse 的 url 列，含 /dealer/<dealer>/<info_id>.html）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "che168/car.js",
+    "sourceFile": "che168/car.js",
+    "navigateBefore": "https://www.che168.com"
   },
   {
     "site": "chess",
@@ -15581,6 +15682,53 @@
     "type": "js",
     "modulePath": "guazi/car.js",
     "sourceFile": "guazi/car.js"
+  },
+  {
+    "site": "guazi",
+    "name": "search",
+    "aliases": [
+      "find"
+    ],
+    "description": "瓜子二手车按品牌+城市筛选搜索（宝马/比亚迪/理想…，免登录移动端 SSR）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "brand",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "品牌中文名（宝马/奔驰/比亚迪/理想/特斯拉…）或 guazi 品牌 slug"
+      },
+      {
+        "name": "city",
+        "type": "str",
+        "required": false,
+        "help": "城市名或 guazi 城市码（北京/bj、上海/sh…）。默认 bj"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的车源数量（最多 40，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "clue_id",
+      "title",
+      "price",
+      "down_payment",
+      "mileage",
+      "year",
+      "city",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "guazi/search.js",
+    "sourceFile": "guazi/search.js"
   },
   {
     "site": "hackernews",

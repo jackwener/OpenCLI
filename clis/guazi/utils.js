@@ -66,6 +66,41 @@ export function resolveCityCode(cityArg) {
     throw new ArgumentError('city', `unknown city '${cityArg}'. pass a Guazi city code or one of: ${names}`);
 }
 
+/**
+ * 中文品牌名 → Guazi brand slug (the `/<city>/<slug>/` path segment).
+ * Captured live from the guazi brand filter rail. Guazi uses an idiosyncratic
+ * mix of English, pinyin, and abbreviations, so this is a fixed lookup rather
+ * than anything derivable.
+ */
+export const BRAND_SLUG = {
+    '奔驰': 'benz', '宝马': 'bmw', '奥迪': 'audi', '大众': 'dazhong',
+    '丰田': 'toyota', '本田': 'honda', '日产': 'richan', '别克': 'buick',
+    '福特': 'ford', '雪佛兰': 'chevrolet', '马自达': 'mazda', '雷克萨斯': 'lexus',
+    '保时捷': 'porsche', '路虎': 'landrover', '沃尔沃': 'volvo', '凯迪拉克': 'cadillac',
+    '克莱斯勒': 'chrysler', '名爵': 'mg1', '红旗': 'hongqi', '比亚迪': 'byd',
+    '特斯拉': 'tesila', '小鹏': 'xpqc', '蔚来': 'weilai', '理想': 'lixiang',
+    '理想汽车': 'lixiang', '小米': 'xiaomiqiche', '小米汽车': 'xiaomiqiche',
+    '零跑': 'lpqc', '零跑汽车': 'lpqc', '腾势': 'tengshi', '坦克': 'tk',
+    '领克': 'lk', '岚图': 'lt-qc', '岚图汽车': 'lt-qc', '五菱': 'wuling',
+    '五菱汽车': 'wuling', '启辰': 'qichen', '鸿蒙智行': 'aito', '问界': 'aito',
+};
+
+/**
+ * Resolve a brand arg (中文 name or an already-known slug) to a Guazi brand
+ * slug. Returns null for an empty arg.
+ */
+export function resolveBrandSlug(brandArg) {
+    if (brandArg == null || brandArg === '') return null;
+    const raw = String(brandArg).trim();
+    if (BRAND_SLUG[raw]) return BRAND_SLUG[raw];
+    const noSuffix = raw.replace(/(汽车|二手车)$/, '');
+    if (BRAND_SLUG[noSuffix]) return BRAND_SLUG[noSuffix];
+    const lower = raw.toLowerCase();
+    if (/^[a-z0-9-]{2,20}$/.test(lower)) return lower; // already a slug
+    const names = Object.keys(BRAND_SLUG).filter((k) => !/汽车$/.test(k)).slice(0, 24).join('、');
+    throw new ArgumentError('brand', `unknown brand '${brandArg}'. pass a Guazi brand slug or one of: ${names} …`);
+}
+
 /** Normalize a clue id: a bare number or a /car-detail/c<id>.htm(l) URL. */
 export function normalizeClueId(rawInput) {
     const raw = String(rawInput || '').trim();
