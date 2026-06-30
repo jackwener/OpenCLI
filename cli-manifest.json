@@ -13663,6 +13663,12 @@
         "help": "Prompt to send"
       },
       {
+        "name": "model",
+        "type": "string",
+        "required": false,
+        "help": "Gemini model to use (e.g. \"2.5-flash\"). Use \"opencli gemini models\" to list available values."
+      },
+      {
         "name": "timeout",
         "type": "int",
         "default": 60,
@@ -13675,6 +13681,13 @@
         "default": "false",
         "required": false,
         "help": "Start a new chat first (true/false, default: false)"
+      },
+      {
+        "name": "thinking",
+        "type": "str",
+        "default": null,
+        "required": false,
+        "help": "Thinking level: standard or extended (omitted = leave unchanged)"
       }
     ],
     "columns": [
@@ -13929,6 +13942,25 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "gemini",
+    "name": "models",
+    "description": "List available Gemini models from the web UI",
+    "access": "read",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "model",
+      "thinkingValues"
+    ],
+    "type": "js",
+    "modulePath": "gemini/models.js",
+    "sourceFile": "gemini/models.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gemini",
