@@ -166,6 +166,39 @@ export async function clickText(page, labels) {
     return payload;
 }
 
+export async function clickCreateExpenseButton(page) {
+    const result = await page.evaluate(`(() => {
+        const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        const wanted = new Set(['submit expense', 'new expense']);
+        const candidates = Array.from(document.querySelectorAll('button, a, [role="button"], [role="link"]'))
+          .filter((node) => {
+            const style = window.getComputedStyle(node);
+            return style.visibility !== 'hidden' && style.display !== 'none' && node.offsetParent !== null;
+          })
+          .filter((node) => wanted.has(norm(node.innerText || node.textContent || '')));
+        const dangerous = candidates.find((node) => {
+          const container = node.closest('[role="dialog"], dialog, form, [aria-modal="true"]');
+          const context = String(container?.innerText || container?.textContent || '').replace(/\\s+/g, ' ').trim();
+          return Boolean(container) || /Review|receipt|amount|merchant|category|notes|expense date/i.test(context);
+        });
+        if (dangerous) {
+          return { clicked: false, blocked: true, text: dangerous.innerText || dangerous.textContent || '' };
+        }
+        const el = candidates[0];
+        if (!el) return { clicked: false, blocked: false };
+        el.click();
+        return { clicked: true, blocked: false, text: el.innerText || el.textContent || '' };
+    })()`);
+    const payload = assertObject(result, 'create expense click result');
+    if (typeof payload.clicked !== 'boolean' || typeof payload.blocked !== 'boolean') {
+        throw new CommandExecutionError('Mercury returned malformed create expense click result');
+    }
+    if (payload.blocked) {
+        throw new CommandExecutionError('Mercury is already showing a submit/review surface; refusing to click a possible final Submit expense button');
+    }
+    return payload;
+}
+
 export async function assertCreateExpenseSurface(page) {
     const state = await page.evaluate(`(() => {
         const text = document.body?.innerText || '';

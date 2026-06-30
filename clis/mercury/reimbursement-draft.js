@@ -4,8 +4,8 @@ import {
     MERCURY_EXPENSES_URL,
     RECEIPT_INPUT_SELECTOR,
     assertCreateExpenseSurface,
+    clickCreateExpenseButton,
     assertLoggedIn,
-    clickText,
     fillReimbursementFields,
     inspectMercury,
     normalizeReimbursementInput,
@@ -49,7 +49,7 @@ cli({
             throw new CommandExecutionError('Mercury appears to have an existing expense review open; refusing to click a possible final Submit expense button');
         }
 
-        const opened = await clickText(page, ['Submit expense', 'New expense']);
+        const opened = await clickCreateExpenseButton(page);
         if (!opened.clicked) {
             throw new CommandExecutionError('Could not find the Mercury Submit expense or New expense button');
         }
@@ -62,6 +62,9 @@ cli({
         const upload = await page.uploadFiles(RECEIPT_INPUT_SELECTOR, [input.receipt]);
         if (!upload || upload.uploaded !== true || upload.files !== 1) {
             throw new CommandExecutionError('Mercury receipt upload did not confirm exactly one uploaded file');
+        }
+        if (upload.target !== RECEIPT_INPUT_SELECTOR || upload.matches_n !== 1) {
+            throw new CommandExecutionError('Mercury receipt upload did not confirm the intended receipt input');
         }
         const uploadedNames = Array.isArray(upload.file_names) ? upload.file_names : [];
         if (!uploadedNames.includes(receiptBasename(input.receipt))) {
@@ -78,7 +81,21 @@ cli({
             throw new CommandExecutionError(`Mercury reimbursement form fields were not all filled: ${missing.join(', ')}`);
         }
 
-        const reviewClick = await clickText(page, ['Review']);
+        const reviewClick = await page.evaluate(`(() => {
+            const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+            const candidates = Array.from(document.querySelectorAll('button, a, [role="button"], [role="link"]'))
+              .filter((node) => {
+                const style = window.getComputedStyle(node);
+                return style.visibility !== 'hidden' && style.display !== 'none' && node.offsetParent !== null;
+              });
+            const el = candidates.find((node) => norm(node.innerText || node.textContent || '') === 'review');
+            if (!el) return { clicked: false };
+            el.click();
+            return { clicked: true, text: el.innerText || el.textContent || '' };
+        })()`);
+        if (!reviewClick || typeof reviewClick !== 'object' || typeof reviewClick.clicked !== 'boolean') {
+            throw new CommandExecutionError('Mercury returned malformed Review click result');
+        }
         if (!reviewClick.clicked) {
             throw new CommandExecutionError('Mercury Review button was not clicked; inspect the page for validation errors');
         }
@@ -89,7 +106,13 @@ cli({
         }
 
         if (input.closeAfterReview) {
-            await clickText(page, ['Close']);
+            await page.evaluate(`(() => {
+                const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                const el = Array.from(document.querySelectorAll('button, a, [role="button"], [role="link"]'))
+                  .find((node) => norm(node.innerText || node.textContent || '') === 'close');
+                el?.click();
+                return { clicked: Boolean(el) };
+            })()`);
             await page.wait({ time: 1 });
         }
 

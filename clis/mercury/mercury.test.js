@@ -80,7 +80,7 @@ function createSurface(overrides = {}) {
 }
 
 function clickResult(clicked = true) {
-    return { clicked, text: clicked ? 'clicked' : '' };
+    return { clicked, blocked: false, text: clicked ? 'clicked' : '' };
 }
 
 function fillResult(touched = {}) {
@@ -172,6 +172,16 @@ describe('mercury reimbursement-draft', () => {
         expect(page.uploadFiles).not.toHaveBeenCalled();
     });
 
+    it('typed-fails if the create click probe sees a submit/review surface', async () => {
+        const page = createPageMock([
+            loggedInState(),
+            createSurface(),
+            { clicked: false, blocked: true, text: 'Submit expense' },
+        ]);
+        await expect(command.func(page, validArgs())).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(page.uploadFiles).not.toHaveBeenCalled();
+    });
+
     it('typed-fails malformed create expense surface payloads', async () => {
         const page = createPageMock([
             loggedInState(),
@@ -199,6 +209,23 @@ describe('mercury reimbursement-draft', () => {
             clickResult(true),
         ], {
             uploadFiles: vi.fn().mockResolvedValue({ uploaded: true, files: 1, file_names: ['other.png'] }),
+        });
+        await expect(command.func(page, validArgs())).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('typed-fails upload confirmation for the wrong input target', async () => {
+        const page = createPageMock([
+            loggedInState(),
+            createSurface(),
+            clickResult(true),
+        ], {
+            uploadFiles: vi.fn().mockResolvedValue({
+                uploaded: true,
+                files: 1,
+                file_names: ['receipt.png'],
+                target: '[data-testid="wrong"]',
+                matches_n: 1,
+            }),
         });
         await expect(command.func(page, validArgs())).rejects.toBeInstanceOf(CommandExecutionError);
     });
