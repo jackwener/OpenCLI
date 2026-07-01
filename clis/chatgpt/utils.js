@@ -359,6 +359,132 @@ export async function ensureChatGPTLogin(page, message = 'ChatGPT requires a log
     return state;
 }
 
+export async function fetchChatGPTBackendJson(page, path, label = 'chatgpt backend fetch') {
+    const normalizedPath = String(path || '').startsWith('/') ? String(path) : `/${String(path || '')}`;
+    const result = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(async () => {
+        const sessionResponse = await fetch('/api/auth/session', { credentials: 'include' });
+        if (!sessionResponse.ok) {
+            return { ok: false, status: sessionResponse.status, url: '/api/auth/session', body: { detail: 'session fetch failed' } };
+        }
+        const session = await sessionResponse.json();
+        if (!session.accessToken) {
+            return { ok: false, status: 401, url: '/api/auth/session', body: { detail: 'missing access token' } };
+        }
+        const response = await fetch(${JSON.stringify(normalizedPath)}, {
+            credentials: 'include',
+            headers: { Authorization: 'Bearer ' + session.accessToken },
+        });
+        const text = await response.text();
+        let body;
+        try {
+            body = JSON.parse(text);
+        } catch {
+            body = { raw_text: text };
+        }
+        return {
+            ok: response.ok,
+            status: response.status,
+            url: ${JSON.stringify(normalizedPath)},
+            contentType: response.headers.get('content-type') || '',
+            size: text.length,
+            body,
+        };
+    })()`)), label);
+    if (!result.ok) {
+        if (result.status === 401 || result.status === 403) {
+            throw new AuthRequiredError(CHATGPT_DOMAIN, `${label} requires a logged-in ChatGPT session with backend API access.`);
+        }
+        throw new CommandExecutionError(`${label} failed with HTTP ${result.status}`);
+    }
+    return result;
+}
+
+export async function fetchChatGPTBackendJsonBatch(page, paths, { label = 'chatgpt backend batch fetch', delayMs = 0 } = {}) {
+    const normalizedPaths = paths.map((path) => String(path || '').startsWith('/') ? String(path) : `/${String(path || '')}`);
+    const result = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(async () => {
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const sessionResponse = await fetch('/api/auth/session', { credentials: 'include' });
+        if (!sessionResponse.ok) {
+            return { ok: false, status: sessionResponse.status, url: '/api/auth/session', body: { detail: 'session fetch failed' }, results: [] };
+        }
+        const session = await sessionResponse.json();
+        if (!session.accessToken) {
+            return { ok: false, status: 401, url: '/api/auth/session', body: { detail: 'missing access token' }, results: [] };
+        }
+        const paths = ${JSON.stringify(normalizedPaths)};
+        const delayMs = ${JSON.stringify(Math.max(0, Number(delayMs) || 0))};
+        const results = [];
+        for (const path of paths) {
+            try {
+                const response = await fetch(path, {
+                    credentials: 'include',
+                    headers: { Authorization: 'Bearer ' + session.accessToken },
+                });
+                const text = await response.text();
+                let body;
+                try {
+                    body = JSON.parse(text);
+                } catch {
+                    body = { raw_text: text };
+                }
+                results.push({
+                    ok: response.ok,
+                    status: response.status,
+                    url: path,
+                    contentType: response.headers.get('content-type') || '',
+                    size: text.length,
+                    body,
+                });
+            } catch (error) {
+                results.push({
+                    ok: false,
+                    status: 0,
+                    url: path,
+                    body: { detail: String(error) },
+                });
+            }
+            if (delayMs > 0) await sleep(delayMs);
+        }
+        return { ok: true, status: 200, results };
+    })()`)), label);
+    if (!result.ok) {
+        if (result.status === 401 || result.status === 403) {
+            throw new AuthRequiredError(CHATGPT_DOMAIN, `${label} requires a logged-in ChatGPT session with backend API access.`);
+        }
+        throw new CommandExecutionError(`${label} failed with HTTP ${result.status}`);
+    }
+    if (!Array.isArray(result.results)) {
+        throw new CommandExecutionError(`${label} returned malformed batch payload`);
+    }
+    return result.results;
+}
+
+export async function fetchChatGPTBackendConversationItems(page, { limit, pageSize, label = 'chatgpt backend-history' }) {
+    const rows = [];
+    let offset = 0;
+    let total = Infinity;
+    while (rows.length < limit && offset < total) {
+        const batchLimit = Math.min(pageSize, limit - rows.length);
+        const result = await fetchChatGPTBackendJson(
+            page,
+            `/backend-api/conversations?offset=${offset}&limit=${batchLimit}&order=updated`,
+            label,
+        );
+        const body = result.body || {};
+        const items = Array.isArray(body.items) ? body.items : [];
+        total = Number.isFinite(Number(body.total)) ? Number(body.total) : offset + items.length;
+        for (const item of items) {
+            const id = String(item.id || item.conversation_id || '').trim();
+            if (!id) continue;
+            rows.push(item);
+            if (rows.length >= limit) break;
+        }
+        if (!items.length) break;
+        offset += items.length;
+    }
+    return rows;
+}
+
 export async function ensureChatGPTComposer(page, message = 'ChatGPT composer is not available on the current page.') {
     const state = await ensureChatGPTLogin(page, message);
     if (!state.hasComposer) {
