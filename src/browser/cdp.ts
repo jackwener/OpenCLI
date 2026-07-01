@@ -398,7 +398,7 @@ class CDPPage extends BasePage {
     }
     if (level === 'all') return [...this._consoleMessages];
     // 'error' level includes both console.error() and uncaught exceptions
-    if (level === 'error') return this._consoleMessages.filter(m => m.type === 'error' || m.type === 'warning');
+    if (level === 'error') return this._consoleMessages.filter(m => m.type === 'error');
     return this._consoleMessages.filter(m => m.type === level);
   }
 
