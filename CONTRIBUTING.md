@@ -40,6 +40,7 @@ cli({
   description: 'Trending posts on MySite',
   domain: 'www.mysite.com',
   strategy: Strategy.PUBLIC,
+  access: 'read',
   browser: false,
   args: [
     { name: 'query', positional: true, required: true, help: 'Search keyword' },
@@ -84,14 +85,12 @@ cli({
     const { query, limit = 10 } = kwargs;
     await page.goto('https://www.mysite.com');
 
-    const data = await page.evaluate(`
-      (async () => {
-        const res = await fetch('/api/search?q=${encodeURIComponent(query)}', {
-          credentials: 'include'
-        });
-        return (await res.json()).results;
-      })()
-    `);
+    const data = await page.evaluate(async (q: string) => {
+      const res = await fetch('/api/search?q=' + encodeURIComponent(q), {
+        credentials: 'include'
+      });
+      return (await res.json()).results;
+    }, query);
 
     return data.slice(0, Number(limit)).map((item: any) => ({
       title: item.title,
