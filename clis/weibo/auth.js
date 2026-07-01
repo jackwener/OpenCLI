@@ -1,5 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
+import { getSelfUid } from './utils.js';
 
 async function hasWeiboSessionCookie(page) {
   const cookies = await page.getCookies({ url: 'https://weibo.com' });
@@ -7,15 +8,14 @@ async function hasWeiboSessionCookie(page) {
   return names.has('SUB') && names.has('SUBP');
 }
 
-async function verifyWeiboIdentity(page) {
-  if (!await hasWeiboSessionCookie(page)) {
-    throw new AuthRequiredError('weibo.com', 'Weibo SUB / SUBP cookies missing');
-  }
-  await page.goto('https://weibo.com/');
-  await page.wait(3);
-  const result = await page.evaluate(`(async () => {
+// Weibo's /ajax/profile/info requires the current uid — the bare endpoint
+// returns HTTP 400 in the current web app. Mirror `weibo me`: resolve the uid
+// first, then probe /ajax/profile/info?uid=<uid>.
+function buildWeiboIdentityProbe(uid) {
+  const infoUrl = '/ajax/profile/info?uid=' + encodeURIComponent(uid);
+  return `(async () => {
     try {
-      const res = await fetch('/ajax/profile/info', { credentials: 'include', headers: { 'Accept': 'application/json' } });
+      const res = await fetch(${JSON.stringify(infoUrl)}, { credentials: 'include', headers: { 'Accept': 'application/json' } });
       if (res.status === 401 || res.status === 403) {
         return { kind: 'auth', detail: 'Weibo /ajax/profile/info HTTP ' + res.status };
       }
@@ -29,7 +29,18 @@ async function verifyWeiboIdentity(page) {
     } catch (e) {
       return { kind: 'exception', detail: String(e && e.message || e) };
     }
-  })()`);
+  })()`;
+}
+
+async function verifyWeiboIdentity(page) {
+  if (!await hasWeiboSessionCookie(page)) {
+    throw new AuthRequiredError('weibo.com', 'Weibo SUB / SUBP cookies missing');
+  }
+  await page.goto('https://weibo.com/');
+  await page.wait(3);
+  // getSelfUid throws AuthRequiredError when no logged-in uid can be resolved.
+  const uid = await getSelfUid(page);
+  const result = await page.evaluate(buildWeiboIdentityProbe(uid));
   if (result?.kind === 'auth') throw new AuthRequiredError('weibo.com', result.detail);
   if (result?.kind === 'http') throw new CommandExecutionError(`HTTP ${result.httpStatus} from /ajax/profile/info`);
   if (result?.kind === 'exception') throw new CommandExecutionError(`Weibo whoami failed: ${result.detail}`);
@@ -51,3 +62,5 @@ registerSiteAuthCommands({
     return verifyWeiboIdentity(page);
   },
 });
+
+export const __test__ = { buildWeiboIdentityProbe, verifyWeiboIdentity };
