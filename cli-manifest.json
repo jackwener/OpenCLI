@@ -19034,13 +19034,117 @@
         "type": "str",
         "default": "bj",
         "required": false,
-        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)"
       },
       {
         "name": "district",
         "type": "str",
         "required": false,
-        "help": "区域拼音，如 chaoyang, haidian"
+        "help": "区域拼音，如 chaoyang, haidian, xuhui"
+      },
+      {
+        "name": "rooms",
+        "type": "int",
+        "required": false,
+        "help": "几室 (1-5)"
+      },
+      {
+        "name": "min-area",
+        "type": "int",
+        "required": false,
+        "help": "最小建筑面积（㎡）"
+      },
+      {
+        "name": "max-area",
+        "type": "int",
+        "required": false,
+        "help": "最大建筑面积（㎡）"
+      },
+      {
+        "name": "orientation",
+        "type": "str",
+        "required": false,
+        "help": "朝向：south-north(南北)/south(朝南)/east(朝东)/north(朝北)/west(朝西)",
+        "choices": [
+          "south-north",
+          "south",
+          "east",
+          "north",
+          "west"
+        ]
+      },
+      {
+        "name": "floor",
+        "type": "str",
+        "required": false,
+        "help": "楼层：low(低)/mid(中)/high(高)",
+        "choices": [
+          "low",
+          "mid",
+          "high"
+        ]
+      },
+      {
+        "name": "age",
+        "type": "str",
+        "required": false,
+        "help": "楼龄：5/10/15/20 年以内，20+ 为 20 年以上",
+        "choices": [
+          "5",
+          "10",
+          "15",
+          "20",
+          "20+"
+        ]
+      },
+      {
+        "name": "decoration",
+        "type": "str",
+        "required": false,
+        "help": "装修：fine(精装)/simple(普通)/rough(毛坯)",
+        "choices": [
+          "fine",
+          "simple",
+          "rough"
+        ]
+      },
+      {
+        "name": "usage",
+        "type": "str",
+        "required": false,
+        "help": "用途：residential(普通住宅)/commercial(商业类)/villa(别墅)/courtyard(四合院)/parking(车位)/other(其他)",
+        "choices": [
+          "residential",
+          "commercial",
+          "villa",
+          "courtyard",
+          "parking",
+          "other"
+        ]
+      },
+      {
+        "name": "elevator",
+        "type": "str",
+        "required": false,
+        "help": "电梯：yes(有)/no(无)",
+        "choices": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "required": false,
+        "help": "排序：total-price-asc|desc(总价)/unit-price-asc|desc(房屋单价)/area-asc|desc(面积)",
+        "choices": [
+          "total-price-asc",
+          "total-price-desc",
+          "unit-price-asc",
+          "unit-price-desc",
+          "area-asc",
+          "area-desc"
+        ]
       },
       {
         "name": "limit",
@@ -19078,13 +19182,13 @@
         "type": "str",
         "default": "bj",
         "required": false,
-        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)"
       },
       {
         "name": "district",
         "type": "str",
         "required": false,
-        "help": "区域拼音，如 chaoyang, haidian, tianhe"
+        "help": "区域拼音，如 chaoyang, haidian, tianhe, xihuqu4"
       },
       {
         "name": "min-price",
@@ -19099,10 +19203,115 @@
         "help": "最高总价（万元）"
       },
       {
+        "name": "min-area",
+        "type": "int",
+        "required": false,
+        "help": "最小建筑面积（㎡）"
+      },
+      {
+        "name": "max-area",
+        "type": "int",
+        "required": false,
+        "help": "最大建筑面积（㎡）"
+      },
+      {
         "name": "rooms",
         "type": "int",
         "required": false,
         "help": "几居室 (1-5)"
+      },
+      {
+        "name": "orientation",
+        "type": "str",
+        "required": false,
+        "help": "朝向：south-north(南北)/south(朝南)/east(朝东)/north(朝北)/west(朝西)",
+        "choices": [
+          "south-north",
+          "south",
+          "east",
+          "north",
+          "west"
+        ]
+      },
+      {
+        "name": "floor",
+        "type": "str",
+        "required": false,
+        "help": "楼层：low(低)/mid(中)/high(高)",
+        "choices": [
+          "low",
+          "mid",
+          "high"
+        ]
+      },
+      {
+        "name": "age",
+        "type": "str",
+        "required": false,
+        "help": "楼龄：5/10/15/20 年以内，20+ 为 20 年以上",
+        "choices": [
+          "5",
+          "10",
+          "15",
+          "20",
+          "20+"
+        ]
+      },
+      {
+        "name": "decoration",
+        "type": "str",
+        "required": false,
+        "help": "装修：fine(精装)/simple(普通)/rough(毛坯)",
+        "choices": [
+          "fine",
+          "simple",
+          "rough"
+        ]
+      },
+      {
+        "name": "elevator",
+        "type": "str",
+        "required": false,
+        "help": "电梯：yes(有)/no(无)",
+        "choices": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "name": "features",
+        "type": "str",
+        "required": false,
+        "help": "房源特色，逗号分隔多选：must-see,five-years,two-years,near-subway,vr,new-7d,anytime-view"
+      },
+      {
+        "name": "usage",
+        "type": "str",
+        "required": false,
+        "help": "用途：residential(普通住宅)/commercial(商业类)/villa(别墅)/courtyard(四合院)/parking(车位)/other(其他)",
+        "choices": [
+          "residential",
+          "commercial",
+          "villa",
+          "courtyard",
+          "parking",
+          "other"
+        ]
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "required": false,
+        "help": "排序：newest(最新发布)/total-price-asc|desc(总价)/unit-price-asc|desc(单价)/area-asc|desc(面积)",
+        "choices": [
+          "newest",
+          "total-price-asc",
+          "total-price-desc",
+          "unit-price-asc",
+          "unit-price-desc",
+          "area-asc",
+          "area-desc"
+        ]
       },
       {
         "name": "limit",
@@ -19191,13 +19400,54 @@
         "type": "str",
         "default": "bj",
         "required": false,
-        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)"
       },
       {
         "name": "district",
         "type": "str",
         "required": false,
-        "help": "区域拼音，如 chaoyang, haidian"
+        "help": "区域拼音，如 chaoyang, haidian, tianhe, xuhui"
+      },
+      {
+        "name": "min-price",
+        "type": "int",
+        "required": false,
+        "help": "最低均价（万/㎡）"
+      },
+      {
+        "name": "max-price",
+        "type": "int",
+        "required": false,
+        "help": "最高均价（万/㎡）"
+      },
+      {
+        "name": "age",
+        "type": "str",
+        "required": false,
+        "help": "楼龄：5/10/15/20 年以内，20+ 为 20 年以上",
+        "choices": [
+          "5",
+          "10",
+          "15",
+          "20",
+          "20+"
+        ]
+      },
+      {
+        "name": "near-subway",
+        "type": "boolean",
+        "required": false,
+        "help": "仅看近地铁小区"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "required": false,
+        "help": "排序：avg-price-asc|desc(小区均价)；不传为默认排序",
+        "choices": [
+          "avg-price-asc",
+          "avg-price-desc"
+        ]
       },
       {
         "name": "limit",
@@ -19233,13 +19483,13 @@
         "type": "str",
         "default": "bj",
         "required": false,
-        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)"
+        "help": "城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)"
       },
       {
         "name": "district",
         "type": "str",
         "required": false,
-        "help": "区域拼音，如 chaoyang, haidian"
+        "help": "区域拼音，如 chaoyang, haidian, pudong"
       },
       {
         "name": "min-price",
@@ -19252,6 +19502,88 @@
         "type": "int",
         "required": false,
         "help": "最高月租（元）"
+      },
+      {
+        "name": "rooms",
+        "type": "int",
+        "required": false,
+        "help": "户型居室数 (1-4)，4 表示四居及以上"
+      },
+      {
+        "name": "rent-type",
+        "type": "str",
+        "required": false,
+        "help": "方式：whole(整租)/shared(合租)",
+        "choices": [
+          "whole",
+          "shared"
+        ]
+      },
+      {
+        "name": "orientation",
+        "type": "str",
+        "required": false,
+        "help": "朝向：south-north(南北)/south(南)/east(东)/north(北)/west(西)",
+        "choices": [
+          "south-north",
+          "south",
+          "east",
+          "north",
+          "west"
+        ]
+      },
+      {
+        "name": "features",
+        "type": "str",
+        "required": false,
+        "help": "特色，逗号分隔多选：near-subway,bag-in,fine,deposit-one,new,certified,anytime-view,vr,owner-rec"
+      },
+      {
+        "name": "lease-term",
+        "type": "str",
+        "required": false,
+        "help": "租期：monthly(月租)/yearly(年租)/min-1month(一个月起租)/1-3months/4-6months",
+        "choices": [
+          "monthly",
+          "yearly",
+          "min-1month",
+          "1-3months",
+          "4-6months"
+        ]
+      },
+      {
+        "name": "floor",
+        "type": "str",
+        "required": false,
+        "help": "楼层：low(低)/mid(中)/high(高)",
+        "choices": [
+          "low",
+          "mid",
+          "high"
+        ]
+      },
+      {
+        "name": "elevator",
+        "type": "str",
+        "required": false,
+        "help": "电梯：yes(有)/no(无)",
+        "choices": [
+          "yes",
+          "no"
+        ]
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "required": false,
+        "help": "排序：newest(最新上架)/rent-asc|desc(租金)/area-asc|desc(面积)",
+        "choices": [
+          "newest",
+          "rent-asc",
+          "rent-desc",
+          "area-asc",
+          "area-desc"
+        ]
       },
       {
         "name": "limit",
