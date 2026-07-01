@@ -27,6 +27,16 @@ describe('twitter delete command', () => {
         expect(script).toContain('__twGetStatusIdFromHref');
         expect(script).toContain("document.querySelectorAll('article')");
         expect(script).toContain("targetArticle.querySelectorAll('button,[role=\"button\"]')");
+        // Localized "More" caret: prefer the language-agnostic data-testid, fall
+        // back to a multilingual aria-label match (zh-Hans 更多), and poll for the
+        // late-hydrating target article before giving up.
+        expect(script).toContain('[data-testid="caret"]');
+        expect(script).toContain('/^(More|更多)/');
+        expect(script).toContain('i < 20');
+        // Delete menu item is localized (删除) and must exclude the Lists item in
+        // both languages (List / 列表).
+        expect(script).toContain('删除');
+        expect(script).toContain('列表');
         // Substring match must NOT appear — exact-id match only.
         expect(script).not.toContain("'/status/' + tweetId");
         expect(result).toEqual([

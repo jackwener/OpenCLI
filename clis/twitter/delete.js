@@ -7,14 +7,23 @@ function buildDeleteScript(tweetId) {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
           ${buildTwitterArticleScopeSource(tweetId)}
-          const targetArticle = findTargetArticle();
+          // The article's self-referential /status/<id> link can hydrate late on
+          // slow networks, so poll findTargetArticle() for ~5s before giving up.
+          let targetArticle = findTargetArticle();
+          for (let i = 0; i < 20 && !targetArticle; i++) {
+              await new Promise(r => setTimeout(r, 250));
+              targetArticle = findTargetArticle();
+          }
 
           if (!targetArticle) {
               return { ok: false, message: 'Could not find the tweet card matching the requested URL.' };
           }
 
           const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]'));
-          const moreMenu = buttons.find((el) => visible(el) && (el.getAttribute('aria-label') || '').trim() === 'More');
+          // X localizes the "More" caret aria-label (zh-Hans: 更多), so prefer the
+          // language-agnostic data-testid and fall back to a multilingual label match.
+          const moreMenu = Array.from(targetArticle.querySelectorAll('[data-testid="caret"]')).find(visible)
+              || buttons.find((el) => visible(el) && /^(More|更多)/.test((el.getAttribute('aria-label') || '').trim()));
           if (!moreMenu) {
               return { ok: false, message: 'Could not find the "More" context menu on the matched tweet. Are you sure you are logged in and looking at a valid tweet?' };
           }
@@ -25,7 +34,9 @@ function buildDeleteScript(tweetId) {
           const items = Array.from(document.querySelectorAll('[role="menuitem"]'));
           const deleteBtn = items.find((item) => {
               const text = (item.textContent || '').trim();
-              return text.includes('Delete') && !text.includes('List');
+              // X localizes the menu item (zh-Hans: 删除); exclude the "Add/remove
+              // from Lists" item in both languages so we never click the wrong row.
+              return (text.includes('Delete') || text.includes('删除')) && !text.includes('List') && !text.includes('列表');
           });
 
           if (!deleteBtn) {
