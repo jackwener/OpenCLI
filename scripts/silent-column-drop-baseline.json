@@ -400,6 +400,240 @@
     ]
   },
   {
+    "command": "garmin/activity",
+    "file": "clis/garmin/activities.js",
+    "missing": [
+      "rank"
+    ]
+  },
+  {
+    "command": "garmin/badges",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "activity_id",
+      "activity_name",
+      "activity_type",
+      "date",
+      "type_id",
+      "value"
+    ]
+  },
+  {
+    "command": "garmin/badges",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "application_key",
+      "part_number"
+    ]
+  },
+  {
+    "command": "garmin/badges",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "display_name",
+      "location"
+    ]
+  },
+  {
+    "command": "garmin/badges",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "make",
+      "model",
+      "status",
+      "type"
+    ]
+  },
+  {
+    "command": "garmin/bodybattery",
+    "file": "clis/garmin/health.js",
+    "missing": [
+      "bmi",
+      "rank",
+      "weight_kg"
+    ]
+  },
+  {
+    "command": "garmin/connections",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "activity_id",
+      "activity_name",
+      "activity_type",
+      "date",
+      "type_id",
+      "value"
+    ]
+  },
+  {
+    "command": "garmin/connections",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "application_key",
+      "part_number"
+    ]
+  },
+  {
+    "command": "garmin/connections",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "category_id",
+      "earned_date",
+      "points"
+    ]
+  },
+  {
+    "command": "garmin/connections",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "make",
+      "model",
+      "status",
+      "type"
+    ]
+  },
+  {
+    "command": "garmin/course",
+    "file": "clis/garmin/courses.js",
+    "missing": [
+      "rank",
+      "type"
+    ]
+  },
+  {
+    "command": "garmin/devices",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "category_id",
+      "earned_date",
+      "points",
+      "rank"
+    ]
+  },
+  {
+    "command": "garmin/devices",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "display_name",
+      "location",
+      "rank"
+    ]
+  },
+  {
+    "command": "garmin/devices",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "make",
+      "model",
+      "status",
+      "type"
+    ]
+  },
+  {
+    "command": "garmin/follow",
+    "file": "clis/garmin/social.js",
+    "missing": [
+      "follow_status",
+      "location",
+      "name",
+      "rank",
+      "url"
+    ]
+  },
+  {
+    "command": "garmin/gear",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "application_key",
+      "part_number"
+    ]
+  },
+  {
+    "command": "garmin/gear",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "category_id",
+      "earned_date",
+      "points",
+      "rank"
+    ]
+  },
+  {
+    "command": "garmin/gear",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "display_name",
+      "location",
+      "rank"
+    ]
+  },
+  {
+    "command": "garmin/heartrate",
+    "file": "clis/garmin/health.js",
+    "missing": [
+      "bmi",
+      "rank",
+      "weight_kg"
+    ]
+  },
+  {
+    "command": "garmin/prs",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "category_id",
+      "earned_date",
+      "name",
+      "points"
+    ]
+  },
+  {
+    "command": "garmin/prs",
+    "file": "clis/garmin/profile.js",
+    "missing": [
+      "display_name",
+      "location",
+      "name"
+    ]
+  },
+  {
+    "command": "garmin/sleep",
+    "file": "clis/garmin/health.js",
+    "missing": [
+      "bmi",
+      "rank",
+      "weight_kg"
+    ]
+  },
+  {
+    "command": "garmin/stats",
+    "file": "clis/garmin/health.js",
+    "missing": [
+      "bmi",
+      "rank",
+      "weight_kg"
+    ]
+  },
+  {
+    "command": "garmin/stress",
+    "file": "clis/garmin/health.js",
+    "missing": [
+      "bmi",
+      "rank",
+      "weight_kg"
+    ]
+  },
+  {
+    "command": "garmin/unfollow",
+    "file": "clis/garmin/social.js",
+    "missing": [
+      "follow_status",
+      "location",
+      "name",
+      "rank",
+      "url"
+    ]
+  },
+  {
     "command": "hupu/mentions",
     "file": "clis/hupu/mentions.js",
     "missing": [
