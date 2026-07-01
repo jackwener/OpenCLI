@@ -44294,6 +44294,202 @@
     "navigateBefore": false
   },
   {
+    "site": "zol",
+    "name": "koubei",
+    "aliases": [
+      "reviews"
+    ],
+    "description": "中关村在线产品口碑/用户点评（评分 / 续航·拍照·性能·外观分项 / 正文摘要）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "产品 id（来自 search 的 product_id 列）或 detail.zol.com.cn 详情页 URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "返回的口碑条数（最多 20，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "user",
+      "score",
+      "subscores",
+      "content",
+      "date",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zol/koubei.js",
+    "sourceFile": "zol/koubei.js"
+  },
+  {
+    "site": "zol",
+    "name": "param",
+    "description": "中关村在线产品参数（按产品 id 返回完整规格表：尺寸/屏幕/电池/处理器等）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "产品 id（来自 search 的 product_id 列）或 detail.zol.com.cn 详情页 URL"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "zol/param.js",
+    "sourceFile": "zol/param.js"
+  },
+  {
+    "site": "zol",
+    "name": "pic",
+    "aliases": [
+      "pics",
+      "images"
+    ],
+    "description": "中关村在线产品图片（按产品 id 返回外观图/细节图等图集 URL）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "产品 id（来自 search 的 product_id 列）或 detail.zol.com.cn 详情页 URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的图片数量（最多 60）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zol/pic.js",
+    "sourceFile": "zol/pic.js"
+  },
+  {
+    "site": "zol",
+    "name": "price",
+    "description": "中关村在线全网报价（按产品 id 返回各电商平台/商家的报价与购买链接）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "product",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "产品 id（来自 search 的 product_id 列）或 detail.zol.com.cn 详情页 URL"
+      }
+    ],
+    "columns": [
+      "platform",
+      "seller",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zol/price.js",
+    "sourceFile": "zol/price.js"
+  },
+  {
+    "site": "zol",
+    "name": "rank",
+    "aliases": [
+      "top"
+    ],
+    "description": "中关村在线热门产品排行榜（手机/笔记本/显示器等热门榜，返回产品 id 供进一步查询）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "str",
+        "required": false,
+        "help": "只看某品类的榜单，例如 手机 / 笔记本 / 显示器 / 相机（缺省返回全部榜单）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的产品数量（最多 100）"
+      }
+    ],
+    "columns": [
+      "category",
+      "rank",
+      "product_id",
+      "name",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zol/rank.js",
+    "sourceFile": "zol/rank.js"
+  },
+  {
+    "site": "zol",
+    "name": "search",
+    "description": "中关村在线产品搜索（按关键词搜手机/笔记本/相机等，返回名称 + 报价 + 产品 id）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词，例如 \"iPhone 15\" 或 \"ThinkPad X1\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的产品数量（最多 40）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "product_id",
+      "name",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zol/search.js",
+    "sourceFile": "zol/search.js"
+  },
+  {
     "site": "zsxq",
     "name": "dynamics",
     "description": "获取所有星球的最新动态",
