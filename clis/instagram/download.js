@@ -152,23 +152,24 @@ export function buildInstagramFetchScript(shortcode) {
         ok: true,
         shortcode: media.shortcode || shortcode,
         owner: media?.owner?.username || '',
+        media,
         items,
       };
     })()
   `;
 }
-function ensurePage(page) {
+export function ensurePage(page) {
     if (!page)
         throw new CommandExecutionError('Browser session required');
     return page;
 }
-function normalizeFetchResult(result) {
+export function normalizeFetchResult(result) {
     if (!result || typeof result !== 'object') {
         throw new CommandExecutionError('Failed to fetch Instagram media metadata');
     }
     return result;
 }
-function handleFetchFailure(result) {
+export function handleFetchFailure(result) {
     const message = result.error || 'Instagram media fetch failed';
     if (result.errorCode === 'AUTH_REQUIRED') {
         throw new AuthRequiredError('instagram.com', message);
