@@ -38718,6 +38718,398 @@
     "sourceFile": "weixin/search.js"
   },
   {
+    "site": "wellfound",
+    "name": "apply",
+    "description": "Inspect or submit a Wellfound-native job application; external company applications are detected and not submitted by default",
+    "access": "write",
+    "domain": "wellfound.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "job-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Wellfound /jobs/<id-slug> URL, ?job_listing_slug URL, or raw id-slug"
+      },
+      {
+        "name": "message",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Answer for \"What interests you about working for this company?\""
+      },
+      {
+        "name": "expected-title",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Guard: refuse if the opened job title differs"
+      },
+      {
+        "name": "expected-company",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Guard: refuse if the opened company differs"
+      },
+      {
+        "name": "allow-company-website",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Return external apply URLs as allowed instead of blocked; does not submit external forms"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually click the Wellfound Apply button. Without it, this is a dry-run inspection."
+      }
+    ],
+    "columns": [
+      "status",
+      "apply_mode",
+      "title",
+      "company",
+      "message",
+      "message_filled",
+      "message_length",
+      "external_apply_url",
+      "url",
+      "notes"
+    ],
+    "type": "js",
+    "modulePath": "wellfound/apply.js",
+    "sourceFile": "wellfound/apply.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "wellfound",
+    "name": "filters",
+    "description": "Read or update the visible Wellfound Browse filters; updates require --execute",
+    "access": "write",
+    "domain": "wellfound.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "default": "https://wellfound.com/jobs",
+        "required": false,
+        "help": "Wellfound jobs URL to open; defaults to Browse all jobs"
+      },
+      {
+        "name": "preset",
+        "type": "string",
+        "required": false,
+        "help": "Optional filter preset, currently: ai-fullstack-remote"
+      },
+      {
+        "name": "salary-min",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Minimum salary filter value when supported by the UI"
+      },
+      {
+        "name": "salary-max",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Maximum salary filter value when supported by the UI"
+      },
+      {
+        "name": "currency",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Salary currency text, e.g. INR or USD"
+      },
+      {
+        "name": "equity-min",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Minimum equity value when supported by the UI"
+      },
+      {
+        "name": "equity-max",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Maximum equity value when supported by the UI"
+      },
+      {
+        "name": "skills",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated skills to select; autocomplete selections may require manual UI support"
+      },
+      {
+        "name": "markets",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated markets to select; autocomplete selections may require manual UI support"
+      },
+      {
+        "name": "job-types",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated job types, e.g. \"Full Time,Contract\""
+      },
+      {
+        "name": "include-keywords",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated included keywords"
+      },
+      {
+        "name": "exclude-keywords",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated excluded keywords"
+      },
+      {
+        "name": "company-sizes",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated company size labels"
+      },
+      {
+        "name": "stages",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated investment stage labels"
+      },
+      {
+        "name": "mostly-remote",
+        "type": "boolean",
+        "required": false,
+        "help": "Only show companies that are mostly or fully remote"
+      },
+      {
+        "name": "responsive",
+        "type": "boolean",
+        "required": false,
+        "help": "Only show highly responsive companies"
+      },
+      {
+        "name": "visa",
+        "type": "boolean",
+        "required": false,
+        "help": "Only show companies that can sponsor a visa"
+      },
+      {
+        "name": "hide-company-apply",
+        "type": "boolean",
+        "required": false,
+        "help": "Document desired setting for hiding company-website applications; current UI exposes this outside the modal"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually update filters. Without it, this reads current filters and previews requested changes."
+      }
+    ],
+    "columns": [
+      "status",
+      "results",
+      "role",
+      "remote",
+      "region",
+      "salary",
+      "currency",
+      "equity",
+      "skills",
+      "markets",
+      "job_types",
+      "experience",
+      "included_keywords",
+      "excluded_keywords",
+      "company_size",
+      "investment_stage",
+      "remote_culture",
+      "responsiveness",
+      "visa_sponsorship",
+      "hide_company_apply",
+      "url",
+      "notes"
+    ],
+    "type": "js",
+    "modulePath": "wellfound/filters.js",
+    "sourceFile": "wellfound/filters.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "wellfound",
+    "name": "job-detail",
+    "description": "Read one Wellfound job detail dialog with description, skills, remote policy, and company metadata",
+    "access": "read",
+    "domain": "wellfound.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "job-url",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Wellfound /jobs/<id-slug> URL, ?job_listing_slug URL, or raw id-slug"
+      }
+    ],
+    "columns": [
+      "title",
+      "company",
+      "location",
+      "compensation",
+      "job_type",
+      "experience",
+      "posted",
+      "recruiter_active",
+      "remote_policy",
+      "company_location",
+      "visa_sponsorship",
+      "preferred_timezones",
+      "collaboration_hours",
+      "relocation",
+      "company_status",
+      "skills",
+      "company_size",
+      "company_industries",
+      "description",
+      "url",
+      "company_url"
+    ],
+    "type": "js",
+    "modulePath": "wellfound/job-detail.js",
+    "sourceFile": "wellfound/job-detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "wellfound",
+    "name": "jobs",
+    "description": "Read visible Wellfound Browse jobs from the current saved/filtered search",
+    "access": "read",
+    "domain": "wellfound.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "default": "https://wellfound.com/jobs",
+        "required": false,
+        "help": "Wellfound jobs URL to open; defaults to Browse all jobs"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of visible job cards to return (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "score",
+      "title",
+      "company",
+      "location",
+      "compensation",
+      "job_type",
+      "posted",
+      "recruiter_active",
+      "apply_on_wellfound",
+      "company_status",
+      "company_summary",
+      "company_size",
+      "company_tags",
+      "url",
+      "company_url"
+    ],
+    "type": "js",
+    "modulePath": "wellfound/jobs.js",
+    "sourceFile": "wellfound/jobs.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "wellfound",
+    "name": "top-picks",
+    "aliases": [
+      "daily"
+    ],
+    "description": "Rank the current Wellfound filtered Browse results and return the best daily application targets",
+    "access": "read",
+    "domain": "wellfound.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "string",
+        "default": "https://wellfound.com/jobs",
+        "required": false,
+        "help": "Wellfound jobs URL to open; defaults to Browse all jobs"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Number of picks to return (1-20)"
+      },
+      {
+        "name": "pool",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Visible result pool size to score before ranking (1-50)"
+      },
+      {
+        "name": "verify-details",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Open candidate detail pages before final ranking to merge company status and detail-only signals"
+      }
+    ],
+    "columns": [
+      "rank",
+      "score",
+      "title",
+      "company",
+      "location",
+      "compensation",
+      "job_type",
+      "posted",
+      "recruiter_active",
+      "apply_on_wellfound",
+      "company_status",
+      "company_summary",
+      "company_size",
+      "company_tags",
+      "url",
+      "company_url"
+    ],
+    "type": "js",
+    "modulePath": "wellfound/top-picks.js",
+    "sourceFile": "wellfound/top-picks.js",
+    "navigateBefore": false
+  },
+  {
     "site": "weread",
     "name": "ai-outline",
     "description": "Get AI-generated outline for a book",
