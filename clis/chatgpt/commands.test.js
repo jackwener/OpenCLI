@@ -9,6 +9,9 @@ import './send.js';
 import './read.js';
 import './history.js';
 import './detail.js';
+import './backend-history.js';
+import './backend-detail.js';
+import './backend-detail-batch.js';
 import './deep-research-result.js';
 import './new.js';
 import './status.js';
@@ -52,6 +55,9 @@ describe('chatgpt browser command registration', () => {
             read: 'read',
             history: 'read',
             detail: 'read',
+            'backend-history': 'read',
+            'backend-detail': 'read',
+            'backend-detail-batch': 'read',
             'deep-research-result': 'read',
             new: 'read',
             status: 'read',
@@ -120,6 +126,124 @@ describe('chatgpt browser command registration', () => {
             expect.objectContaining({ name: 'stable', type: 'int', default: 6 }),
         ]));
         expect(detail.columns).toEqual(['Index', 'Role', 'Text', 'Generating', 'StableSeconds']);
+    });
+
+    it('registers backend raw commands', () => {
+        const history = getRegistry().get('chatgpt/backend-history');
+        const detail = getRegistry().get('chatgpt/backend-detail');
+        const batch = getRegistry().get('chatgpt/backend-detail-batch');
+        expect(history.args).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'limit', type: 'int', default: 200 }),
+            expect.objectContaining({ name: 'page-size', type: 'int', default: 100 }),
+        ]));
+        expect(history.columns).toEqual(['Index', 'Id', 'Title', 'Url', 'CreateTime', 'UpdateTime', 'Raw']);
+        expect(detail.args).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'id', positional: true, required: true }),
+        ]));
+        expect(detail.columns).toEqual(['Id', 'Status', 'Body']);
+        expect(batch.args).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'ids', positional: true, required: true }),
+            expect.objectContaining({ name: 'delay-ms', type: 'int', default: 1000 }),
+        ]));
+        expect(batch.columns).toEqual(['Id', 'Status', 'Body', 'Error']);
+    });
+
+    it('reads ChatGPT backend conversation history with bearer auth', async () => {
+        const command = getRegistry().get('chatgpt/backend-history');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s === 'window.location.href') return Promise.resolve('https://chatgpt.com/');
+                if (s.includes('composerSelectors') && s.includes('hasComposer')) {
+                    return Promise.resolve({ url: 'https://chatgpt.com/', title: 'ChatGPT', hasComposer: true, isLoggedIn: true, hasLoginGate: false });
+                }
+                if (s.includes('/api/auth/session')) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        url: '/backend-api/conversations?offset=0&limit=2&order=updated',
+                        contentType: 'application/json',
+                        size: 200,
+                        body: {
+                            items: [
+                                { id: 'conv-1', title: 'First', create_time: '2026-01-01T00:00:00Z', update_time: '2026-01-02T00:00:00Z' },
+                                { id: 'conv-2', title: 'Second', create_time: '2026-01-03T00:00:00Z', update_time: '2026-01-04T00:00:00Z' },
+                            ],
+                            total: 2,
+                        },
+                    });
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(command.func(page, { limit: 2, 'page-size': 2 })).resolves.toEqual([
+            expect.objectContaining({ Index: 1, Id: 'conv-1', Title: 'First', Url: 'https://chatgpt.com/c/conv-1' }),
+            expect.objectContaining({ Index: 2, Id: 'conv-2', Title: 'Second', Raw: expect.objectContaining({ id: 'conv-2' }) }),
+        ]);
+    });
+
+    it('reads ChatGPT backend conversation detail with bearer auth', async () => {
+        const command = getRegistry().get('chatgpt/backend-detail');
+        const body = { conversation_id: 'conv-1', mapping: { root: { id: 'root' } } };
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s === 'window.location.href') return Promise.resolve('https://chatgpt.com/');
+                if (s.includes('composerSelectors') && s.includes('hasComposer')) {
+                    return Promise.resolve({ url: 'https://chatgpt.com/', title: 'ChatGPT', hasComposer: true, isLoggedIn: true, hasLoginGate: false });
+                }
+                if (s.includes('/api/auth/session')) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        url: '/backend-api/conversation/conv-1',
+                        contentType: 'application/json',
+                        size: 100,
+                        body,
+                    });
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(command.func(page, { id: 'conv-1' })).resolves.toEqual([
+            { Id: 'conv-1', Status: 200, Body: body },
+        ]);
+    });
+
+    it('reads ChatGPT backend conversation detail raw bodies in a batch', async () => {
+        const command = getRegistry().get('chatgpt/backend-detail-batch');
+        const body1 = { conversation_id: 'conv-1', mapping: { root: { id: 'root' } } };
+        const body2 = { conversation_id: 'conv-2', mapping: { root: { id: 'root' } } };
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s === 'window.location.href') return Promise.resolve('https://chatgpt.com/');
+                if (s.includes('composerSelectors') && s.includes('hasComposer')) {
+                    return Promise.resolve({ url: 'https://chatgpt.com/', title: 'ChatGPT', hasComposer: true, isLoggedIn: true, hasLoginGate: false });
+                }
+                if (s.includes('/api/auth/session') && s.includes('/backend-api/conversation/conv-1') && s.includes('/backend-api/conversation/conv-2')) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        results: [
+                            { ok: true, status: 200, url: '/backend-api/conversation/conv-1', body: body1 },
+                            { ok: true, status: 200, url: '/backend-api/conversation/conv-2', body: body2 },
+                        ],
+                    });
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(command.func(page, { ids: 'conv-1,conv-2', 'delay-ms': 0 })).resolves.toEqual([
+            { Id: 'conv-1', Status: 200, Body: body1, Error: '' },
+            { Id: 'conv-2', Status: 200, Body: body2, Error: '' },
+        ]);
     });
 
     it('registers deep research result command with wait options', () => {
