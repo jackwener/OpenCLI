@@ -5319,6 +5319,39 @@
   },
   {
     "site": "boss",
+    "name": "ask-resume",
+    "description": "BOSS直聘请求候选人分享附件简历（招聘端）",
+    "access": "write",
+    "domain": "www.zhipin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "uid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Encrypted UID of the candidate (from chatlist)"
+      },
+      {
+        "name": "job-id",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Encrypted job id (optional; falls back to friend.encryptJobId)"
+      }
+    ],
+    "columns": [
+      "status",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "boss/ask-resume.js",
+    "sourceFile": "boss/ask-resume.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "boss",
     "name": "batchgreet",
     "description": "BOSS直聘批量向推荐候选人发送招呼",
     "access": "write",
