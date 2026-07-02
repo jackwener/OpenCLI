@@ -35,6 +35,16 @@ export function buildExtensionDisconnectFailure(input: {
   return buildCommandDispatchFailure(input.contextId);
 }
 
+export function buildCommandTimeoutFailure(action: string, timeoutMs: number): DaemonFailureContract {
+  return {
+    message: `Browser ${action} command timed out after ${Math.round(timeoutMs / 1000)}s; it may still complete in the browser.`,
+    errorCode: COMMAND_RESULT_UNKNOWN_CODE,
+    errorHint: COMMAND_RESULT_UNKNOWN_HINT,
+    status: 408,
+    countAsCommandResultUnknown: true,
+  };
+}
+
 export function buildCommandDispatchFailure(contextId: string): DaemonFailureContract {
   return {
     message: `Browser profile "${contextId}" disconnected before command dispatch`,

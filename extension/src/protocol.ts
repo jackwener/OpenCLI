@@ -77,6 +77,12 @@ export interface Command {
   frameIndex?: number;
   /** Browser profile/context selected by the CLI. Used by the daemon for routing. */
   contextId?: string;
+  /**
+   * Daemon-side command timeout in seconds, set by the CLI transport. The
+   * extension derives its CDP deadline from this so it fails just before the
+   * daemon timer and its (more specific) error wins.
+   */
+  timeout?: number;
 }
 
 export interface Result {

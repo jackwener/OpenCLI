@@ -30,6 +30,7 @@ import { DEFAULT_CONTEXT_ID } from './browser/profile.js';
 import { recordExtensionVersion } from './update-check.js';
 import {
   buildCommandDispatchFailure,
+  buildCommandTimeoutFailure,
   buildExtensionDisconnectFailure,
   getResponseCorsHeaders,
 } from './daemon-utils.js';
@@ -326,8 +327,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       }
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
+          const entry = pending.get(body.id);
           pending.delete(body.id);
-          reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
+          const failure = buildCommandTimeoutFailure(entry?.action ?? 'unknown', timeoutMs);
+          if (failure.countAsCommandResultUnknown && entry?.dispatched) {
+            commandResultUnknownCount++;
+            log.warn(`[daemon] Command timed out after dispatch (id=${body.id}, action=${entry.action}, timeout=${timeoutMs}ms)`);
+          }
+          reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
         }, timeoutMs);
         const entry = {
           contextId: route.connection!.contextId,

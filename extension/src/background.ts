@@ -1490,6 +1490,20 @@ async function listAutomationWebTabs(leaseKey: string): Promise<chrome.tabs.Tab[
   return tabs.filter((tab) => isDebuggableUrl(tab.url));
 }
 
+/**
+ * Derive the per-command CDP deadline from the daemon-side timeout (seconds)
+ * the CLI transport put on the command. Undercut it by 5s so this (more
+ * specific) error reaches the CLI before the daemon's generic timer fires.
+ * Returns undefined when the command carries no timeout — callers fall back
+ * to the executor's default deadline.
+ */
+function commandCdpTimeoutMs(cmd: Command): number | undefined {
+  if (typeof cmd.timeout === 'number' && cmd.timeout > 0) {
+    return Math.max(10_000, cmd.timeout * 1000 - 5_000);
+  }
+  return undefined;
+}
+
 async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
   if (!cmd.code) return { id: cmd.id, ok: false, error: 'Missing code' };
   const cmdTabId = await resolveCommandTabId(cmd);
@@ -1502,10 +1516,10 @@ async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
       if (cmd.frameIndex < 0 || cmd.frameIndex >= frames.length) {
         return { id: cmd.id, ok: false, error: `Frame index ${cmd.frameIndex} out of range (${frames.length} cross-origin frames available)` };
       }
-      const data = await executor.evaluateInFrame(tabId, cmd.code, frames[cmd.frameIndex].frameId, aggressive);
+      const data = await executor.evaluateInFrame(tabId, cmd.code, frames[cmd.frameIndex].frameId, aggressive, commandCdpTimeoutMs(cmd));
       return pageScopedResult(cmd.id, tabId, data);
     }
-    const data = await executor.evaluateAsync(tabId, cmd.code, aggressive);
+    const data = await executor.evaluateAsync(tabId, cmd.code, aggressive, commandCdpTimeoutMs(cmd));
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -1809,11 +1823,12 @@ async function handleCdp(cmd: Command, leaseKey: string): Promise<Result> {
       : undefined;
     const routeTargetUrl = typeof params.targetUrl === 'string' ? params.targetUrl : undefined;
     const data = routeFrameId
-      ? await executor.sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, 30_000, routeTargetUrl)
-      : await chrome.debugger.sendCommand(
+      ? await executor.sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, commandCdpTimeoutMs(cmd) ?? 30_000, routeTargetUrl)
+      : await executor.sendDebuggerCommand(
         { tabId },
         cmd.cdpMethod,
         stripOpenCliFrameRoutingParams(params, false),
+        commandCdpTimeoutMs(cmd),
       );
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {

@@ -608,3 +608,49 @@ describe('cdp evaluateInFrame stale context fallback', () => {
     expect(debuggerApi.attach).toHaveBeenCalledWith({ targetId: 'stale-frame' }, '1.3');
   });
 });
+
+describe('cdp command deadline', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function createHangingChromeMock() {
+    const { chrome, debuggerApi } = createChromeMock();
+    // A page-blocking native dialog (alert/confirm) makes Runtime.evaluate
+    // never resolve; every other command still works.
+    debuggerApi.sendCommand = vi.fn((_target: unknown, method: string) => {
+      if (method === 'Runtime.evaluate') return new Promise<never>(() => {});
+      return Promise.resolve({});
+    }) as typeof debuggerApi.sendCommand;
+    return { chrome, debuggerApi };
+  }
+
+  it('evaluate rejects instead of hanging forever when Runtime.evaluate never resolves', async () => {
+    vi.useFakeTimers();
+    const { chrome } = createHangingChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const pending = mod.evaluate(1, 'alert("blocked")');
+    const assertion = expect(pending).rejects.toThrow(/timed out after 60s/);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await assertion;
+  });
+
+  it('evaluate honors a caller-supplied deadline from the command timeout', async () => {
+    vi.useFakeTimers();
+    const { chrome } = createHangingChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const pending = mod.evaluate(1, 'alert("blocked")', false, 10_000);
+    const assertion = expect(pending).rejects.toThrow(/timed out after 10s/);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await assertion;
+  });
+});

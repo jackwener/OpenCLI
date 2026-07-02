@@ -552,7 +552,8 @@ describe('background tab isolation', () => {
       { index: 1, frameId: 'cross-origin-sibling', url: 'https://y.example/iframe', name: 'sibling-y' },
     ]);
     expect(execResult.ok).toBe(true);
-    expect(evaluateInFrame).toHaveBeenCalledWith(1, 'document.title', 'cross-origin-nested', false);
+    // Fifth arg is the CDP deadline derived from cmd.timeout (undefined here — no timeout on the command).
+    expect(evaluateInFrame).toHaveBeenCalledWith(1, 'document.title', 'cross-origin-nested', false, undefined);
   });
 
   it('creates new tabs inside the automation container', async () => {
