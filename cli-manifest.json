@@ -43975,6 +43975,55 @@
   },
   {
     "site": "zhihu",
+    "name": "publish",
+    "description": "Publish a Zhihu column article (专栏文章). Without --execute, saves a private draft only.",
+    "access": "write",
+    "domain": "zhuanlan.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "title",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Article title"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Article body as HTML"
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Path to an HTML file for the article body"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "required": false,
+        "help": "Actually publish. Omit to save a private draft only."
+      }
+    ],
+    "columns": [
+      "status",
+      "outcome",
+      "message",
+      "article_id",
+      "url",
+      "author_identity"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/publish.js",
+    "sourceFile": "zhihu/publish.js",
+    "navigateBefore": "https://zhuanlan.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "question",
     "description": "知乎问题详情和回答",
     "access": "read",
