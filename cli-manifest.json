@@ -36516,6 +36516,48 @@
   },
   {
     "site": "twitter",
+    "name": "post-thread",
+    "description": "Post a multi-tweet thread: the first tweet, then each subsequent tweet as a reply to the previous one.",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": false,
+        "positional": true,
+        "help": "Thread text; separate tweets with a line of \"---\" or blank lines"
+      },
+      {
+        "name": "file",
+        "type": "str",
+        "required": false,
+        "help": "Path to a text file with the thread (tweets separated by \"---\" or blank lines)"
+      },
+      {
+        "name": "delay",
+        "type": "int",
+        "default": 3000,
+        "required": false,
+        "help": "Delay in ms between posts (default 3000)"
+      }
+    ],
+    "columns": [
+      "status",
+      "index",
+      "id",
+      "url",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "twitter/post-thread.js",
+    "sourceFile": "twitter/post-thread.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "profile",
     "description": "Fetch a Twitter user profile — bio, stats, etc. (defaults to the logged-in user when no username is given)",
     "access": "read",
