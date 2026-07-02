@@ -9,6 +9,8 @@
  * page-scoped operations target the correct page without guessing.
  */
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { BrowserCookie, BrowserDownloadWaitResult, BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
 import { buildEvaluateExpression } from './utils.js';
@@ -18,6 +20,33 @@ import { waitForDomStableJs } from './dom-helpers.js';
 import { BasePage } from './base-page.js';
 import { classifyBrowserError } from './errors.js';
 import { log } from '../logger.js';
+
+/**
+ * File-extension to MIME-type lookup used by `pasteFiles` to populate
+ * DataTransfer item types. Unknown extensions fall back to
+ * `application/octet-stream`, which browser paste handlers usually still
+ * accept because they sniff content themselves.
+ */
+const CLIPBOARD_MIME_BY_EXT: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml',
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.json': 'application/json',
+  '.csv': 'text/csv',
+  '.html': 'text/html',
+  '.htm': 'text/html',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+};
 
 function isUnsupportedNetworkCaptureError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -320,6 +349,30 @@ export class Page extends BasePage {
     }) as { inserted?: boolean };
     if (!result?.inserted) {
       throw new Error('insertText returned no inserted flag — command may not be supported by the extension');
+    }
+  }
+
+  async pasteFiles(files: string[], selector?: string): Promise<void> {
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new Error('pasteFiles requires at least one file path');
+    }
+    const clipboardFiles = files.map((filePath) => {
+      const absPath = path.resolve(filePath);
+      const buffer = fs.readFileSync(absPath);
+      const ext = path.extname(absPath).toLowerCase();
+      return {
+        name: path.basename(absPath),
+        mimeType: CLIPBOARD_MIME_BY_EXT[ext] ?? 'application/octet-stream',
+        base64: buffer.toString('base64'),
+      };
+    });
+    const result = await sendCommand('paste-files', {
+      clipboardFiles,
+      selector,
+      ...this._cmdOpts(),
+    }) as { count?: number };
+    if (!result?.count) {
+      throw new Error('pasteFiles returned no count; command may not be supported by the extension');
     }
   }
 

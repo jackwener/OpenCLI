@@ -2782,6 +2782,7 @@ describe('browser click/type commands', () => {
       match_level: 'exact',
       multiple: false,
     }),
+    pasteFiles: vi.fn().mockResolvedValue(undefined),
     drag: vi.fn().mockResolvedValue({
       dragged: true,
       source: '#card',
@@ -3157,6 +3158,47 @@ describe('browser click/type commands', () => {
 
     expect(lastJsonLog().error.code).toBe('file_not_found');
     expect(browserState.page!.uploadFiles).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
+  it('paste-files: validates local files and delegates to page.pasteFiles with the optional --target selector', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-paste-'));
+    const file = path.join(dir, 'screenshot.png');
+    fs.writeFileSync(file, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    (browserState.page!.pasteFiles as any).mockResolvedValueOnce(undefined);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'paste-files', file, '--target', '#composer']);
+
+    expect(browserState.page!.pasteFiles).toHaveBeenCalledWith([file], '#composer');
+    expect(lastJsonLog()).toEqual({
+      pasted: true,
+      count: 1,
+      file_names: ['screenshot.png'],
+      target: '#composer',
+    });
+  });
+
+  it('paste-files: omits --target and reports the focused-element default in the envelope', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-paste-'));
+    const file = path.join(dir, 'screenshot.png');
+    fs.writeFileSync(file, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    (browserState.page!.pasteFiles as any).mockResolvedValueOnce(undefined);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'paste-files', file]);
+
+    expect(browserState.page!.pasteFiles).toHaveBeenCalledWith([file], undefined);
+    expect(lastJsonLog().target).toBe('focused');
+  });
+
+  it('paste-files: rejects missing files before touching the page', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'paste-files', '/tmp/opencli-missing-paste-file']);
+
+    expect(lastJsonLog().error.code).toBe('file_not_found');
+    expect(browserState.page!.pasteFiles).not.toHaveBeenCalled();
     expect(process.exitCode).toBeDefined();
   });
 

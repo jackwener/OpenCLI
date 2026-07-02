@@ -15,6 +15,7 @@ export type Action =
   | 'sessions'
   | 'set-file-input'
   | 'insert-text'
+  | 'paste-files'
   | 'bind'
   | 'network-capture-start'
   | 'network-capture-read'
@@ -61,6 +62,8 @@ export interface Command {
   selector?: string;
   /** Raw text payload for insert-text action */
   text?: string;
+  /** Base64-encoded files for paste-files action (name, mimeType, base64 content per entry) */
+  clipboardFiles?: Array<{ name: string; mimeType: string; base64: string }>;
   /** URL substring filter pattern for network capture actions */
   pattern?: string;
   /** Download wait timeout in milliseconds */

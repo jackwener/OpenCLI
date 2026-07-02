@@ -29,7 +29,7 @@ function generateId(): string {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
+  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'paste-files' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
@@ -55,6 +55,8 @@ export interface DaemonCommand {
   selector?: string;
   /** Raw text payload for insert-text action */
   text?: string;
+  /** Base64-encoded files for paste-files action (name, mimeType, base64 content per entry) */
+  clipboardFiles?: Array<{ name: string; mimeType: string; base64: string }>;
   /** URL substring filter pattern for network capture */
   pattern?: string;
   /** Download wait timeout in milliseconds */
