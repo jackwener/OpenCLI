@@ -442,6 +442,36 @@ describe('daemon-client', () => {
     expect(body.timeout).toBe(300);
   });
 
+  it('client HTTP abort fires only after the daemon timer margin (timeout*1000 + 10s)', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.mocked(fetch);
+      let aborted = false;
+      fetchMock.mockImplementationOnce((_url, init) => new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          aborted = true;
+          reject(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' }));
+        });
+      }));
+
+      const pending = sendCommand('exec', { code: '1' });
+      const assertion = expect(pending).rejects.toMatchObject({
+        name: 'BrowserCommandError',
+        code: 'command_result_unknown',
+      } satisfies Partial<BrowserCommandError>);
+
+      // Just before the margin the daemon still owns the deadline — no abort.
+      await vi.advanceTimersByTimeAsync(120_000 + 9_999);
+      expect(aborted).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(aborted).toBe(true);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('sendCommand surfaces an AbortError as command_result_unknown without ensure or resend', async () => {
     const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady');
     const abortErr = new Error('The operation was aborted');

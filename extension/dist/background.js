@@ -436,7 +436,7 @@ async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = fal
       contexts?.delete(frameId);
     }
   }
-  await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry).catch(() => void 0);
+  await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry, timeoutMs).catch(() => void 0);
   const result = await sendCommandInFrameTarget(tabId, frameId, "Runtime.evaluate", {
     expression,
     returnByValue: true,
