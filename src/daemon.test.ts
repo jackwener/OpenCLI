@@ -4,6 +4,7 @@ import {
   COMMAND_RESULT_UNKNOWN_CODE,
   COMMAND_RESULT_UNKNOWN_HINT,
   buildCommandDispatchFailure,
+  buildCommandTimeoutFailure,
   buildExtensionDisconnectFailure,
   commandResultUnknownMessage,
   getResponseCorsHeaders,
@@ -71,6 +72,16 @@ describe('daemon command dispatch', () => {
       errorCode: 'profile_disconnected',
       status: 503,
       countAsCommandResultUnknown: false,
+    });
+  });
+
+  it('classifies daemon-side command timeouts as command_result_unknown with a 408', () => {
+    expect(buildCommandTimeoutFailure('navigate', 120_000)).toEqual({
+      message: 'Browser navigate command timed out after 120s; it may still complete in the browser.',
+      errorCode: 'command_result_unknown',
+      errorHint: COMMAND_RESULT_UNKNOWN_HINT,
+      status: 408,
+      countAsCommandResultUnknown: true,
     });
   });
 });

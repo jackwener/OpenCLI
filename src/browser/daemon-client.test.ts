@@ -6,6 +6,7 @@ import {
   getDaemonHealth,
   requestDaemonShutdown,
   sendCommand,
+  setDaemonCommandTimeoutSeconds,
 } from './daemon-client.js';
 import * as daemonLifecycle from './daemon-lifecycle.js';
 
@@ -309,7 +310,7 @@ describe('daemon-client', () => {
     expect(ids[0]).not.toBe(ids[1]);
   });
 
-  it('sendCommand runs full bridge ensure on a local TypeError before resending', async () => {
+  it('sendCommand runs full bridge ensure on a pre-connect TypeError (ECONNREFUSED) before resending', async () => {
     const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
       health: {
         state: 'ready',
@@ -325,9 +326,11 @@ describe('daemon-client', () => {
       },
       spawnedProcess: null,
     });
+    const refused = new TypeError('fetch failed');
+    (refused as { cause?: unknown }).cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:19825'), { code: 'ECONNREFUSED' });
     const fetchMock = vi.mocked(fetch);
     fetchMock
-      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockRejectedValueOnce(refused)
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -338,6 +341,34 @@ describe('daemon-client', () => {
 
     expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ verbose: false }));
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('sendCommand does NOT resend on a post-connect TypeError (ECONNRESET) — surfaces command_result_unknown', async () => {
+    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady');
+    const reset = new TypeError('fetch failed');
+    (reset as { cause?: unknown }).cause = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+    vi.mocked(fetch).mockRejectedValueOnce(reset);
+
+    await expect(sendCommand('navigate', { url: 'https://example.com' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'command_result_unknown',
+    } satisfies Partial<BrowserCommandError>);
+
+    expect(ensureSpy).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('sendCommand does NOT resend on a bare TypeError with no pre-connect cause', async () => {
+    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady');
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    await expect(sendCommand('exec', { code: 'window.__mutate = true' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'command_result_unknown',
+    } satisfies Partial<BrowserCommandError>);
+
+    expect(ensureSpy).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('sendCommand does NOT wait when the bridge reports profile_required', async () => {
@@ -361,6 +392,84 @@ describe('daemon-client', () => {
 
     expect(ensureSpy).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sendCommand plumbs the default command timeout into body.timeout', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 1 }),
+    } as Response);
+
+    await expect(sendCommand('exec', { code: '1' })).resolves.toBe(1);
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { timeout?: number };
+    expect(body.timeout).toBe(120);
+  });
+
+  it('sendCommand extends body.timeout past an extension-side timeoutMs (wait-download)', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: { downloaded: true } }),
+    } as Response);
+
+    await sendCommand('wait-download', { timeoutMs: 240_000 });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { timeout?: number };
+    // 240s extension wait + 15s margin
+    expect(body.timeout).toBe(255);
+  });
+
+  it('setDaemonCommandTimeoutSeconds raises the transport deadline for the user --timeout', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 1 }),
+    } as Response);
+
+    setDaemonCommandTimeoutSeconds(300);
+    try {
+      await sendCommand('exec', { code: '1' });
+    } finally {
+      setDaemonCommandTimeoutSeconds(null);
+    }
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { timeout?: number };
+    expect(body.timeout).toBe(300);
+  });
+
+  it('client HTTP abort fires only after the daemon timer margin (timeout*1000 + 10s)', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.mocked(fetch);
+      let aborted = false;
+      fetchMock.mockImplementationOnce((_url, init) => new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          aborted = true;
+          reject(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' }));
+        });
+      }));
+
+      const pending = sendCommand('exec', { code: '1' });
+      const assertion = expect(pending).rejects.toMatchObject({
+        name: 'BrowserCommandError',
+        code: 'command_result_unknown',
+      } satisfies Partial<BrowserCommandError>);
+
+      // Just before the margin the daemon still owns the deadline — no abort.
+      await vi.advanceTimersByTimeAsync(120_000 + 9_999);
+      expect(aborted).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(aborted).toBe(true);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('sendCommand surfaces an AbortError as command_result_unknown without ensure or resend', async () => {

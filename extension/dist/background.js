@@ -11,6 +11,26 @@ let frameTargetCleanupRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 const networkCaptures = /* @__PURE__ */ new Map();
+const CDP_COMMAND_TIMEOUT_MS = 6e4;
+const CDP_PROBE_TIMEOUT_MS = 2e3;
+async function sendDebuggerCommand(target, method, params, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
+  let timer;
+  const commandPromise = params === void 0 ? chrome.debugger.sendCommand(target, method) : chrome.debugger.sendCommand(target, method, params);
+  commandPromise.catch(() => {
+  });
+  try {
+    return await Promise.race([
+      commandPromise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(
+          `CDP command ${method} timed out after ${Math.round(timeoutMs / 1e3)}s — the page may be blocked by a native dialog (alert/confirm/print)`
+        )), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer !== void 0) clearTimeout(timer);
+  }
+}
 function isDebuggableUrl$1(url) {
   if (!url) return true;
   return url.startsWith("http://") || url.startsWith("https://") || url === "about:blank" || url.startsWith("data:");
@@ -29,10 +49,10 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   }
   if (attached.has(tabId)) {
     try {
-      await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+      await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
         expression: "1",
         returnByValue: true
-      });
+      }, CDP_PROBE_TIMEOUT_MS);
       return;
     } catch {
       attached.delete(tabId);
@@ -83,27 +103,27 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   }
   attached.add(tabId);
   try {
-    await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
+    await sendDebuggerCommand({ tabId }, "Runtime.enable");
   } catch {
   }
   if (preservedNetworkCapture) {
     try {
-      await chrome.debugger.sendCommand({ tabId }, "Network.enable");
+      await sendDebuggerCommand({ tabId }, "Network.enable");
       networkCaptures.set(tabId, preservedNetworkCapture);
     } catch {
     }
   }
 }
-async function evaluate(tabId, expression, aggressiveRetry = false) {
+async function evaluate(tabId, expression, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
   const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
   for (let attempt = 1; attempt <= MAX_EVAL_RETRIES; attempt++) {
     try {
       await ensureAttached(tabId, aggressiveRetry);
-      const result = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+      const result = await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
         expression,
         returnByValue: true,
         awaitPromise: true
-      });
+      }, timeoutMs);
       if (result.exceptionDetails) {
         const errMsg = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Eval error";
         throw new Error(errMsg);
@@ -134,7 +154,7 @@ async function screenshot(tabId, options = {}) {
   const needsOverride = fullPage || overrideWidth !== void 0 || overrideHeight !== void 0;
   if (needsOverride) {
     if (overrideWidth !== void 0 && fullPage) {
-      await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
+      await sendDebuggerCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
         mobile: false,
         width: overrideWidth,
         height: 0,
@@ -144,14 +164,14 @@ async function screenshot(tabId, options = {}) {
     let finalWidth = overrideWidth ?? 0;
     let finalHeight = overrideHeight ?? 0;
     if (fullPage) {
-      const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
+      const metrics = await sendDebuggerCommand({ tabId }, "Page.getLayoutMetrics");
       const size = metrics.cssContentSize || metrics.contentSize;
       if (size) {
         if (finalWidth === 0) finalWidth = Math.ceil(size.width);
         finalHeight = Math.ceil(size.height);
       }
     }
-    await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
+    await sendDebuggerCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
       mobile: false,
       width: finalWidth,
       height: finalHeight,
@@ -163,28 +183,28 @@ async function screenshot(tabId, options = {}) {
     if (format === "jpeg" && options.quality !== void 0) {
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
-    const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", params);
+    const result = await sendDebuggerCommand({ tabId }, "Page.captureScreenshot", params);
     return result.data;
   } finally {
     if (needsOverride) {
-      await chrome.debugger.sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {
+      await sendDebuggerCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {
       });
     }
   }
 }
 async function setFileInputFiles(tabId, files, selector) {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "DOM.enable");
-  const doc = await chrome.debugger.sendCommand({ tabId }, "DOM.getDocument");
+  await sendDebuggerCommand({ tabId }, "DOM.enable");
+  const doc = await sendDebuggerCommand({ tabId }, "DOM.getDocument");
   const query = selector || 'input[type="file"]';
-  const result = await chrome.debugger.sendCommand({ tabId }, "DOM.querySelector", {
+  const result = await sendDebuggerCommand({ tabId }, "DOM.querySelector", {
     nodeId: doc.root.nodeId,
     selector: query
   });
   if (!result.nodeId) {
     throw new Error(`No element found matching selector: ${query}`);
   }
-  await chrome.debugger.sendCommand({ tabId }, "DOM.setFileInputFiles", {
+  await sendDebuggerCommand({ tabId }, "DOM.setFileInputFiles", {
     files,
     nodeId: result.nodeId
   });
@@ -310,9 +330,9 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   const key = frameTargetKey(tabId, frameId);
   const existing = frameTargets.get(key);
   if (existing) return existing;
-  await chrome.debugger.sendCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
+  await sendDebuggerCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
   });
-  await chrome.debugger.sendCommand({ tabId }, "Target.setAutoAttach", {
+  await sendDebuggerCommand({ tabId }, "Target.setAutoAttach", {
     autoAttach: true,
     waitForDebuggerOnStart: false,
     flatten: true,
@@ -331,7 +351,7 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   return targetId;
 }
 async function resolveFrameTargetId(tabId, frameId, targetUrl) {
-  const result = await chrome.debugger.sendCommand({ tabId }, "Target.getTargets").catch(() => null);
+  const result = await sendDebuggerCommand({ tabId }, "Target.getTargets").catch(() => null);
   const targets = result?.targetInfos ?? [];
   const frameTarget = targets.find((candidate) => {
     const candidateId = candidate.targetId || candidate.id;
@@ -342,14 +362,14 @@ async function resolveFrameTargetId(tabId, frameId, targetUrl) {
   const candidates = targets.filter((target) => target.type === "iframe").map((target) => `${target.targetId || target.id || "?"} ${target.url || ""}`).join("; ");
   throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ""}. Candidates: ${candidates || "none"}`);
 }
-async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4, targetUrl) {
+async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS, targetUrl) {
   const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
   const target = { targetId };
-  return chrome.debugger.sendCommand(target, method, params);
+  return sendDebuggerCommand(target, method, params, timeoutMs);
 }
 async function insertText(tabId, text) {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "Input.insertText", { text });
+  await sendDebuggerCommand({ tabId }, "Input.insertText", { text });
 }
 function registerFrameTracking() {
   registerFrameTargetCleanup();
@@ -387,22 +407,22 @@ function registerFrameTracking() {
 }
 async function getFrameTree(tabId) {
   await ensureAttached(tabId);
-  return chrome.debugger.sendCommand({ tabId }, "Page.getFrameTree");
+  return sendDebuggerCommand({ tabId }, "Page.getFrameTree");
 }
-async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = false) {
+async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
   await ensureAttached(tabId, aggressiveRetry);
-  await chrome.debugger.sendCommand({ tabId }, "Runtime.enable").catch(() => {
+  await sendDebuggerCommand({ tabId }, "Runtime.enable").catch(() => {
   });
   const contexts = tabFrameContexts.get(tabId);
   const contextId = contexts?.get(frameId);
   if (contextId !== void 0) {
     try {
-      const result2 = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+      const result2 = await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
         expression,
         contextId,
         returnByValue: true,
         awaitPromise: true
-      });
+      }, timeoutMs);
       if (result2.exceptionDetails) {
         const errMsg = result2.exceptionDetails.exception?.description || result2.exceptionDetails.text || "Eval error";
         throw new Error(errMsg);
@@ -416,12 +436,12 @@ async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = fal
       contexts?.delete(frameId);
     }
   }
-  await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry).catch(() => void 0);
+  await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry, timeoutMs).catch(() => void 0);
   const result = await sendCommandInFrameTarget(tabId, frameId, "Runtime.evaluate", {
     expression,
     returnByValue: true,
     awaitPromise: true
-  }, aggressiveRetry);
+  }, aggressiveRetry, timeoutMs);
   if (result.exceptionDetails) {
     const errMsg = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Eval error";
     throw new Error(errMsg);
@@ -466,7 +486,7 @@ function getOrCreateNetworkCaptureEntry(tabId, requestId, fallback) {
 }
 async function startNetworkCapture(tabId, pattern) {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "Network.enable");
+  await sendDebuggerCommand({ tabId }, "Network.enable");
   networkCaptures.set(tabId, {
     patterns: normalizeCapturePatterns(pattern),
     entries: [],
@@ -552,7 +572,7 @@ function registerListeners() {
           entry.requestBodyTruncated = truncated;
         }
         try {
-          const postData = await chrome.debugger.sendCommand({ tabId }, "Network.getRequestPostData", { requestId });
+          const postData = await sendDebuggerCommand({ tabId }, "Network.getRequestPostData", { requestId });
           if (postData?.postData) {
             const raw = postData.postData;
             const fullSize = raw.length;
@@ -586,7 +606,7 @@ function registerListeners() {
       const entry = state.entries[stateEntryIndex];
       if (!entry) return;
       try {
-        const body = await chrome.debugger.sendCommand({ tabId }, "Network.getResponseBody", { requestId });
+        const body = await sendDebuggerCommand({ tabId }, "Network.getResponseBody", { requestId });
         if (typeof body?.body === "string") {
           const fullSize = body.body.length;
           const truncated = fullSize > CDP_RESPONSE_BODY_CAPTURE_LIMIT;
@@ -1758,6 +1778,12 @@ async function listAutomationWebTabs(leaseKey) {
   const tabs = await listAutomationTabs(leaseKey);
   return tabs.filter((tab) => isDebuggableUrl(tab.url));
 }
+function commandCdpTimeoutMs(cmd) {
+  if (typeof cmd.timeout === "number" && cmd.timeout > 0) {
+    return Math.max(1e4, cmd.timeout * 1e3 - 5e3);
+  }
+  return void 0;
+}
 async function handleExec(cmd, leaseKey) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
   const cmdTabId = await resolveCommandTabId(cmd);
@@ -1770,10 +1796,10 @@ async function handleExec(cmd, leaseKey) {
       if (cmd.frameIndex < 0 || cmd.frameIndex >= frames.length) {
         return { id: cmd.id, ok: false, error: `Frame index ${cmd.frameIndex} out of range (${frames.length} cross-origin frames available)` };
       }
-      const data2 = await evaluateInFrame(tabId, cmd.code, frames[cmd.frameIndex].frameId, aggressive);
+      const data2 = await evaluateInFrame(tabId, cmd.code, frames[cmd.frameIndex].frameId, aggressive, commandCdpTimeoutMs(cmd));
       return pageScopedResult(cmd.id, tabId, data2);
     }
-    const data = await evaluateAsync(tabId, cmd.code, aggressive);
+    const data = await evaluateAsync(tabId, cmd.code, aggressive, commandCdpTimeoutMs(cmd));
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
     return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -2039,10 +2065,11 @@ async function handleCdp(cmd, leaseKey) {
     const params = cmd.cdpParams ?? {};
     const routeFrameId = typeof params.frameId === "string" && params.sessionId === "target" ? params.frameId : void 0;
     const routeTargetUrl = typeof params.targetUrl === "string" ? params.targetUrl : void 0;
-    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, 3e4, routeTargetUrl) : await chrome.debugger.sendCommand(
+    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, commandCdpTimeoutMs(cmd) ?? 3e4, routeTargetUrl) : await sendDebuggerCommand(
       { tabId },
       cmd.cdpMethod,
-      stripOpenCliFrameRoutingParams(params, false)
+      stripOpenCliFrameRoutingParams(params, false),
+      commandCdpTimeoutMs(cmd)
     );
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {

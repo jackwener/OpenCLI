@@ -58,6 +58,51 @@ export type DownloadWaitResult = {
 };
 
 const networkCaptures = new Map<number, NetworkCaptureState>();
+
+/**
+ * Default deadline for a single chrome.debugger command. chrome.debugger has
+ * no timeout of its own: a page-blocking native dialog (alert/confirm/print/
+ * beforeunload) makes Runtime.evaluate hang forever, wedging every later
+ * command on the tab. Long enough for legitimate in-page waits (default 30s
+ * plus headroom), short enough to fail before the daemon's 120s timer.
+ */
+const CDP_COMMAND_TIMEOUT_MS = 60_000;
+/** Health-check probe deadline — a blocked probe should fail fast. */
+const CDP_PROBE_TIMEOUT_MS = 2_000;
+
+/**
+ * chrome.debugger.sendCommand with a deadline. The underlying command cannot
+ * be cancelled — this only unblocks the caller so the CLI gets an error
+ * instead of an infinite hang.
+ */
+export async function sendDebuggerCommand<T = unknown>(
+  target: chrome.debugger.Debuggee,
+  method: string,
+  params?: Record<string, unknown>,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const commandPromise = (params === undefined
+    ? chrome.debugger.sendCommand(target, method)
+    : chrome.debugger.sendCommand(target, method, params)) as Promise<T>;
+  // If the timeout wins the race, the command promise may still reject much
+  // later (e.g. debugger detach on tab close) — swallow that on a side branch
+  // so it never surfaces as an unhandled rejection in the service worker.
+  commandPromise.catch(() => {});
+  try {
+    return await Promise.race([
+      commandPromise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(
+          `CDP command ${method} timed out after ${Math.round(timeoutMs / 1000)}s — the page may be blocked by a native dialog (alert/confirm/print)`,
+        )), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 /** Check if a URL can be attached via CDP — only allow http(s) and blank pages. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
@@ -83,9 +128,9 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   if (attached.has(tabId)) {
     // Verify the debugger is still actually attached by sending a harmless command
     try {
-      await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
         expression: '1', returnByValue: true,
-      });
+      }, CDP_PROBE_TIMEOUT_MS);
       return; // Still attached and working
     } catch {
       // Stale cache entry — need to re-attach
@@ -158,7 +203,7 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   attached.add(tabId);
 
   try {
-    await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable');
+    await sendDebuggerCommand({ tabId }, 'Runtime.enable');
   } catch {
     // Some pages may not need explicit enable
   }
@@ -170,7 +215,7 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   // while those awaits yield to the event loop.
   if (preservedNetworkCapture) {
     try {
-      await chrome.debugger.sendCommand({ tabId }, 'Network.enable');
+      await sendDebuggerCommand({ tabId }, 'Network.enable');
       networkCaptures.set(tabId, preservedNetworkCapture);
     } catch {
       // Leave capture cleared rather than arm a half-attached Network domain;
@@ -179,7 +224,12 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   }
 }
 
-export async function evaluate(tabId: number, expression: string, aggressiveRetry: boolean = false): Promise<unknown> {
+export async function evaluate(
+  tabId: number,
+  expression: string,
+  aggressiveRetry: boolean = false,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
+): Promise<unknown> {
   // Retry the entire evaluate (attach + command).
   // Normal: 2 retries. Browser: 3 retries (tolerates extension interference).
   const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
@@ -187,11 +237,11 @@ export async function evaluate(tabId: number, expression: string, aggressiveRetr
     try {
       await ensureAttached(tabId, aggressiveRetry);
 
-      const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      const result = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
         expression,
         returnByValue: true,
         awaitPromise: true,
-      }) as {
+      }, timeoutMs) as {
         result?: { type: string; value?: unknown; description?: string; subtype?: string };
         exceptionDetails?: { exception?: { description?: string }; text?: string };
       };
@@ -245,7 +295,7 @@ export async function screenshot(
   if (needsOverride) {
     // When width is set, apply it first so layout reflows before we read content size.
     if (overrideWidth !== undefined && fullPage) {
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+      await sendDebuggerCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
         mobile: false,
         width: overrideWidth,
         height: 0,
@@ -255,7 +305,7 @@ export async function screenshot(
     let finalWidth = overrideWidth ?? 0;
     let finalHeight = overrideHeight ?? 0;
     if (fullPage) {
-      const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
+      const metrics = await sendDebuggerCommand({ tabId }, 'Page.getLayoutMetrics') as {
         contentSize?: { width: number; height: number };
         cssContentSize?: { width: number; height: number };
       };
@@ -265,7 +315,7 @@ export async function screenshot(
         finalHeight = Math.ceil(size.height);
       }
     }
-    await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+    await sendDebuggerCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
       mobile: false,
       width: finalWidth,
       height: finalHeight,
@@ -279,14 +329,14 @@ export async function screenshot(
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
 
-    const result = await chrome.debugger.sendCommand({ tabId }, 'Page.captureScreenshot', params) as {
+    const result = await sendDebuggerCommand({ tabId }, 'Page.captureScreenshot', params) as {
       data: string; // base64-encoded
     };
 
     return result.data;
   } finally {
     if (needsOverride) {
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
+      await sendDebuggerCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
     }
   }
 }
@@ -308,16 +358,16 @@ export async function setFileInputFiles(
   await ensureAttached(tabId);
 
   // Enable DOM domain (required for DOM.querySelector and DOM.setFileInputFiles)
-  await chrome.debugger.sendCommand({ tabId }, 'DOM.enable');
+  await sendDebuggerCommand({ tabId }, 'DOM.enable');
 
   // Get the document root
-  const doc = await chrome.debugger.sendCommand({ tabId }, 'DOM.getDocument') as {
+  const doc = await sendDebuggerCommand({ tabId }, 'DOM.getDocument') as {
     root: { nodeId: number };
   };
 
   // Find the file input element
   const query = selector || 'input[type="file"]';
-  const result = await chrome.debugger.sendCommand({ tabId }, 'DOM.querySelector', {
+  const result = await sendDebuggerCommand({ tabId }, 'DOM.querySelector', {
     nodeId: doc.root.nodeId,
     selector: query,
   }) as { nodeId: number };
@@ -327,7 +377,7 @@ export async function setFileInputFiles(
   }
 
   // Set files directly via CDP — Chrome reads from local filesystem
-  await chrome.debugger.sendCommand({ tabId }, 'DOM.setFileInputFiles', {
+  await sendDebuggerCommand({ tabId }, 'DOM.setFileInputFiles', {
     files,
     nodeId: result.nodeId,
   });
@@ -471,8 +521,8 @@ async function ensureFrameTarget(
   const existing = frameTargets.get(key);
   if (existing) return existing;
 
-  await chrome.debugger.sendCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
-  await chrome.debugger.sendCommand({ tabId }, 'Target.setAutoAttach', {
+  await sendDebuggerCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
+  await sendDebuggerCommand({ tabId }, 'Target.setAutoAttach', {
     autoAttach: true,
     waitForDebuggerOnStart: false,
     flatten: true,
@@ -491,7 +541,7 @@ async function ensureFrameTarget(
 }
 
 async function resolveFrameTargetId(tabId: number, frameId: string, targetUrl?: string): Promise<string> {
-  const result = await chrome.debugger.sendCommand({ tabId }, 'Target.getTargets').catch(() => null) as
+  const result = await sendDebuggerCommand({ tabId }, 'Target.getTargets').catch(() => null) as
     | { targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string }> }
     | null;
   const targets = result?.targetInfos ?? [];
@@ -518,12 +568,12 @@ export async function sendCommandInFrameTarget(
   method: string,
   params: Record<string, unknown> = {},
   aggressiveRetry: boolean = false,
-  _timeoutMs: number = 30_000,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
   targetUrl?: string,
 ): Promise<unknown> {
   const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
   const target = { targetId } as chrome.debugger.Debuggee;
-  return chrome.debugger.sendCommand(target, method, params);
+  return sendDebuggerCommand(target, method, params, timeoutMs);
 }
 
 export async function insertText(
@@ -531,7 +581,7 @@ export async function insertText(
   text: string,
 ): Promise<void> {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
+  await sendDebuggerCommand({ tabId }, 'Input.insertText', { text });
 }
 
 export function registerFrameTracking(): void {
@@ -572,7 +622,7 @@ export function registerFrameTracking(): void {
 
 export async function getFrameTree(tabId: number): Promise<any> {
   await ensureAttached(tabId);
-  return chrome.debugger.sendCommand({ tabId }, 'Page.getFrameTree');
+  return sendDebuggerCommand({ tabId }, 'Page.getFrameTree');
 }
 
 export async function evaluateInFrame(
@@ -580,22 +630,23 @@ export async function evaluateInFrame(
   expression: string,
   frameId: string,
   aggressiveRetry: boolean = false,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
 ): Promise<unknown> {
   await ensureAttached(tabId, aggressiveRetry);
 
-  await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable').catch(() => {});
+  await sendDebuggerCommand({ tabId }, 'Runtime.enable').catch(() => {});
 
   const contexts = tabFrameContexts.get(tabId);
   const contextId = contexts?.get(frameId);
 
   if (contextId !== undefined) {
     try {
-      const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      const result = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
         expression,
         contextId,
         returnByValue: true,
         awaitPromise: true,
-      }) as {
+      }, timeoutMs) as {
         result?: { type: string; value?: unknown; description?: string; subtype?: string };
         exceptionDetails?: { exception?: { description?: string }; text?: string };
       };
@@ -622,12 +673,12 @@ export async function evaluateInFrame(
   }
 
   // No cached context, or the cached one went stale: resolve via the frame target.
-  await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry).catch(() => undefined);
+  await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry, timeoutMs).catch(() => undefined);
   const result = await sendCommandInFrameTarget(tabId, frameId, 'Runtime.evaluate', {
     expression,
     returnByValue: true,
     awaitPromise: true,
-  }, aggressiveRetry) as {
+  }, aggressiveRetry, timeoutMs) as {
     result?: { type: string; value?: unknown; description?: string; subtype?: string };
     exceptionDetails?: { exception?: { description?: string }; text?: string };
   };
@@ -694,7 +745,7 @@ export async function startNetworkCapture(
   pattern?: string,
 ): Promise<void> {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, 'Network.enable');
+  await sendDebuggerCommand({ tabId }, 'Network.enable');
   networkCaptures.set(tabId, {
     patterns: normalizeCapturePatterns(pattern),
     entries: [],
@@ -794,7 +845,7 @@ export function registerListeners(): void {
           entry.requestBodyTruncated = truncated;
         }
         try {
-          const postData = await chrome.debugger.sendCommand({ tabId }, 'Network.getRequestPostData', { requestId }) as { postData?: string };
+          const postData = await sendDebuggerCommand({ tabId }, 'Network.getRequestPostData', { requestId }) as { postData?: string };
           if (postData?.postData) {
             const raw = postData.postData;
             const fullSize = raw.length;
@@ -841,7 +892,7 @@ export function registerListeners(): void {
       const entry = state.entries[stateEntryIndex];
       if (!entry) return;
       try {
-        const body = await chrome.debugger.sendCommand({ tabId }, 'Network.getResponseBody', { requestId }) as {
+        const body = await sendDebuggerCommand({ tabId }, 'Network.getResponseBody', { requestId }) as {
           body?: string;
           base64Encoded?: boolean;
         };

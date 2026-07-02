@@ -552,7 +552,55 @@ describe('background tab isolation', () => {
       { index: 1, frameId: 'cross-origin-sibling', url: 'https://y.example/iframe', name: 'sibling-y' },
     ]);
     expect(execResult.ok).toBe(true);
-    expect(evaluateInFrame).toHaveBeenCalledWith(1, 'document.title', 'cross-origin-nested', false);
+    // Fifth arg is the CDP deadline derived from cmd.timeout (undefined here — no timeout on the command).
+    expect(evaluateInFrame).toHaveBeenCalledWith(1, 'document.title', 'cross-origin-nested', false, undefined);
+  });
+
+  it('derives the CDP deadline from cmd.timeout for exec (timeout*1000 - 5s, floor 10s)', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'main-result');
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateInFrame: vi.fn(),
+      getFrameTree: vi.fn(),
+      screenshot: vi.fn(),
+      setFileInputFiles: vi.fn(),
+      insertText: vi.fn(),
+      startNetworkCapture: vi.fn(),
+      readNetworkCapture: vi.fn(async () => []),
+      ensureAttached: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    // 120s transport timeout → 115s CDP deadline
+    await mod.__test__.handleCommand({
+      id: 'exec-with-timeout',
+      action: 'exec',
+      code: '1',
+      session: 'twitter',
+      surface: 'adapter',
+      timeout: 120,
+    });
+    expect(evaluateAsync).toHaveBeenLastCalledWith(1, '1', false, 115_000);
+
+    // Tiny transport timeout → clamped to the 10s floor
+    await mod.__test__.handleCommand({
+      id: 'exec-with-tiny-timeout',
+      action: 'exec',
+      code: '1',
+      session: 'twitter',
+      surface: 'adapter',
+      timeout: 8,
+    });
+    expect(evaluateAsync).toHaveBeenLastCalledWith(1, '1', false, 10_000);
   });
 
   it('creates new tabs inside the automation container', async () => {

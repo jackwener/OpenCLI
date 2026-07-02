@@ -6,6 +6,7 @@
 
 import { sleep } from '../utils.js';
 import { BrowserConnectError } from '../errors.js';
+import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../daemon-utils.js';
 import { classifyBrowserError } from './errors.js';
 import { resolveProfileContextId } from './profile.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './config.js';
@@ -25,6 +26,69 @@ let _idCounter = 0;
 
 function generateId(): string {
   return `cmd_${process.pid}_${Date.now()}_${++_idCounter}`;
+}
+
+/**
+ * Transport-level deadlines share one source of truth: `body.timeout` (seconds).
+ * The daemon arms its per-command timer from it, the extension derives its CDP
+ * deadline from the same value, and the client HTTP abort fires only after the
+ * daemon's structured timeout response should have arrived — so failures
+ * surface innermost-first (extension < daemon < client) with a real error
+ * instead of an opaque client-side AbortError.
+ */
+const DEFAULT_COMMAND_TIMEOUT_SECONDS = 120;
+/** Headroom past an extension-side operation's own timer (e.g. wait-download). */
+const EXTENSION_OP_TIMEOUT_MARGIN_MS = 15_000;
+/** Client aborts only this long after the daemon timer should have fired. */
+const HTTP_TIMEOUT_MARGIN_MS = 10_000;
+
+let _userCommandTimeoutSeconds: number | null = null;
+
+/**
+ * Propagate the user's `--timeout` down to the transport layer. Without this
+ * the daemon/HTTP deadlines stay at their defaults and a long-running command
+ * gets aborted mid-flight even though the user explicitly allowed more time.
+ */
+export function setDaemonCommandTimeoutSeconds(seconds: number | null): void {
+  _userCommandTimeoutSeconds = typeof seconds === 'number' && seconds > 0 ? Math.ceil(seconds) : null;
+}
+
+function effectiveCommandTimeoutSeconds(params: Omit<DaemonCommand, 'id' | 'action'>): number {
+  const base = _userCommandTimeoutSeconds ?? DEFAULT_COMMAND_TIMEOUT_SECONDS;
+  if (typeof params.timeoutMs === 'number' && params.timeoutMs > 0) {
+    return Math.max(base, Math.ceil((params.timeoutMs + EXTENSION_OP_TIMEOUT_MARGIN_MS) / 1000));
+  }
+  return base;
+}
+
+/**
+ * undici surfaces network failures as `TypeError: fetch failed` with the real
+ * error in `.cause` (possibly an AggregateError). Only failures that happen
+ * before the request could reach the daemon are safe to auto-retry — a reset
+ * or hang-up after connect means the daemon may have already dispatched the
+ * command to the browser.
+ */
+const PRE_CONNECT_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+]);
+
+function isPreConnectFetchError(err: unknown): boolean {
+  const queue: unknown[] = [err];
+  const seen = new Set<unknown>();
+  while (queue.length) {
+    const current = queue.pop();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    const { code, cause, errors } = current as { code?: unknown; cause?: unknown; errors?: unknown };
+    if (typeof code === 'string' && PRE_CONNECT_ERROR_CODES.has(code)) return true;
+    if (cause) queue.push(cause);
+    if (Array.isArray(errors)) queue.push(...errors);
+  }
+  return false;
 }
 
 export interface DaemonCommand {
@@ -69,6 +133,12 @@ export interface DaemonCommand {
   frameIndex?: number;
   /** Browser profile/context to route the command to. */
   contextId?: string;
+  /**
+   * Daemon-side command timeout in seconds. Set by the transport layer from
+   * the effective command deadline; the extension derives its CDP deadline
+   * from the same value.
+   */
+  timeout?: number;
 }
 
 export interface DaemonResult {
@@ -104,8 +174,12 @@ export {
  * Retry policy is explicit:
  * - pre-dispatch bridge/profile errors: run the full daemon/extension ensure
  *   path, then resend with a fresh transport id;
- * - local TypeError before dispatch: same full ensure path, because the daemon
- *   may be stopped/stale and needs spawn/replacement, not just polling;
+ * - fetch TypeError whose cause is a pre-connect failure (ECONNREFUSED etc.):
+ *   same full ensure path, because the daemon may be stopped/stale and needs
+ *   spawn/replacement — the request never reached it, so resending is safe;
+ * - fetch TypeError after connect (ECONNRESET / socket hang-up): NOT retried —
+ *   the daemon may have already dispatched the command to the browser, so this
+ *   surfaces as `command_result_unknown` instead of risking a double write;
  * - `command_result_unknown` and AbortError: never retry automatically.
  */
 async function sendCommandRaw(
@@ -125,13 +199,21 @@ async function sendCommandRaw(
       : undefined;
     const contextId = params.contextId ?? resolveProfileContextId();
     const windowMode = params.windowMode ?? envWindowMode;
-    const command: DaemonCommand = { id, action, ...params, ...(contextId && { contextId }), ...(windowMode && { windowMode }) };
+    const timeoutSeconds = effectiveCommandTimeoutSeconds(params);
+    const command: DaemonCommand = {
+      id,
+      action,
+      ...params,
+      timeout: timeoutSeconds,
+      ...(contextId && { contextId }),
+      ...(windowMode && { windowMode }),
+    };
     try {
       const res = await requestDaemon('/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
-        timeout: 30000,
+        timeout: timeoutSeconds * 1000 + HTTP_TIMEOUT_MARGIN_MS,
       });
 
       const result = (await res.json()) as DaemonResult;
@@ -179,14 +261,26 @@ async function sendCommandRaw(
         );
       }
 
-      if (!dispatchRecoveryUsed && err instanceof TypeError) {
-        dispatchRecoveryUsed = true;
-        await ensureBrowserBridgeReady({
-          timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
-          contextId,
-          verbose: false,
-        });
-        continue;
+      if (err instanceof TypeError) {
+        if (!isPreConnectFetchError(err)) {
+          // Connection dropped after the request may have reached the daemon
+          // (ECONNRESET / socket hang-up) — the command may already be running
+          // in the browser, so resending would risk a double write.
+          throw new BrowserCommandError(
+            'Connection to the daemon was lost mid-command; it may have already been applied.',
+            COMMAND_RESULT_UNKNOWN_CODE,
+            COMMAND_RESULT_UNKNOWN_HINT,
+          );
+        }
+        if (!dispatchRecoveryUsed) {
+          dispatchRecoveryUsed = true;
+          await ensureBrowserBridgeReady({
+            timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
+            contextId,
+            verbose: false,
+          });
+          continue;
+        }
       }
 
       if (err instanceof Error) {
