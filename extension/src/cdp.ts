@@ -85,6 +85,10 @@ export async function sendDebuggerCommand<T = unknown>(
   const commandPromise = (params === undefined
     ? chrome.debugger.sendCommand(target, method)
     : chrome.debugger.sendCommand(target, method, params)) as Promise<T>;
+  // If the timeout wins the race, the command promise may still reject much
+  // later (e.g. debugger detach on tab close) — swallow that on a side branch
+  // so it never surfaces as an unhandled rejection in the service worker.
+  commandPromise.catch(() => {});
   try {
     return await Promise.race([
       commandPromise,

@@ -7,9 +7,13 @@ const { mockGetDaemonHealth, mockConnect, mockClose, mockFindShadowedUserAdapter
   mockFindShadowedUserAdapters: vi.fn(),
 }));
 
-vi.mock('./browser/daemon-transport.js', () => ({
-  getDaemonHealth: mockGetDaemonHealth,
-}));
+vi.mock('./browser/daemon-transport.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./browser/daemon-transport.js')>();
+  return {
+    ...actual,
+    getDaemonHealth: mockGetDaemonHealth,
+  };
+});
 
 vi.mock('./browser/index.js', () => ({
   BrowserBridge: class {

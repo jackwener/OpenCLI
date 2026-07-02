@@ -6,6 +6,7 @@
 
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
+import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
 import { getDaemonHealth } from './browser/daemon-transport.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
@@ -79,10 +80,14 @@ export type DoctorReport = {
  */
 export async function checkConnectivity(opts?: { timeout?: number }): Promise<ConnectivityResult> {
   const start = Date.now();
+  const timeoutSeconds = opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS;
+  // This is a health probe: shrink the transport's per-command deadline so a
+  // hung daemon/extension fails the check in seconds, not the default 120s.
+  setDaemonCommandTimeoutSeconds(timeoutSeconds);
   try {
     const bridge = new BrowserBridge();
     const page = await bridge.connect({
-      timeout: opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS,
+      timeout: timeoutSeconds,
       session: DOCTOR_SESSION,
       surface: 'browser',
     });
@@ -96,6 +101,8 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
     return { ok: true, durationMs: Date.now() - start };
   } catch (err) {
     return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
+  } finally {
+    setDaemonCommandTimeoutSeconds(null);
   }
 }
 

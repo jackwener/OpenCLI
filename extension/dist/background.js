@@ -16,6 +16,8 @@ const CDP_PROBE_TIMEOUT_MS = 2e3;
 async function sendDebuggerCommand(target, method, params, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
   let timer;
   const commandPromise = params === void 0 ? chrome.debugger.sendCommand(target, method) : chrome.debugger.sendCommand(target, method, params);
+  commandPromise.catch(() => {
+  });
   try {
     return await Promise.race([
       commandPromise,
