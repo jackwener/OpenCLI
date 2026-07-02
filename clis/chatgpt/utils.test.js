@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, getVisibleMessages, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
+import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, getVisibleMessages, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDeepResearchResult, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
 
 const tempDirs = [];
 
@@ -189,6 +189,41 @@ function makeDeepResearchPayload(report = makeDeepResearchReport(), { conversati
     return payload;
 }
 
+function makeDeepResearchProgressPayload() {
+    return {
+        mapping: {
+            progress_node: {
+                message: {
+                    metadata: {
+                        chatgpt_sdk: {
+                            widget_state: JSON.stringify({
+                                status: 'waiting_for_user_response_on_plan',
+                                waiting_for_user_response_on_plan_until: '2026-07-02T02:29:48.298274Z',
+                                plan: {
+                                    plan_id: 'plan-demo',
+                                    title: 'LLM 不确定性推理调研计划',
+                                    steps: [
+                                        { id: 'step-1', title: 'Collect sources', status: 'pending' },
+                                    ],
+                                },
+                                step_statuses_by_plan: {
+                                    'step-1': 'pending',
+                                },
+                            }),
+                            response_metadata: {
+                                async_task_conversation_id: '6a45ccdd-811c-83e8-af35-ca4df176e91e',
+                                'openai/widgetSessionId': 'a9c86290-7600-4c7b-a4cb-11229ff0fa4c',
+                                'openai/asyncStatus': 7,
+                                venus_message_type: 'initial_loading_message',
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
 describe('chatgpt deep research result extraction', () => {
     it('extracts report markdown and sources from conversation widget_state', () => {
         const result = __test__.extractDeepResearchFromConversationPayload(makeDeepResearchPayload());
@@ -252,8 +287,112 @@ describe('chatgpt deep research result extraction', () => {
             .toThrow(CommandExecutionError);
     });
 
+    it('extracts waiting-for-user progress from widget metadata without a report', () => {
+        const result = __test__.extractDeepResearchFromConversationPayload(makeDeepResearchProgressPayload());
+
+        expect(result).toMatchObject({
+            status: 'waiting_for_user',
+            method: 'conversation-widget-progress',
+            asyncTaskConversationId: '6a45ccdd-811c-83e8-af35-ca4df176e91e',
+            widgetSessionId: 'a9c86290-7600-4c7b-a4cb-11229ff0fa4c',
+            asyncStatus: 7,
+            venusMessageType: 'initial_loading_message',
+            venusStatus: 'waiting_for_user_response_on_plan',
+            waitingForUserUntil: '2026-07-02T02:29:48.298274Z',
+            planId: 'plan-demo',
+            planTitle: 'LLM 不确定性推理调研计划',
+        });
+        expect(result.report).toBe('');
+        expect(result.progress.planSteps).toEqual([
+            { id: 'step-1', title: 'Collect sources', status: 'pending' },
+        ]);
+    });
+
     it('ignores short widget previews that are not completed reports', () => {
         expect(__test__.extractDeepResearchFromConversationPayload(makeDeepResearchPayload('short preview'))).toBeNull();
+    });
+
+    it('stops waiting immediately when widget state needs user input', async () => {
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([]),
+            wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                const source = String(script);
+                if (source.includes("document.querySelectorAll('iframe')")) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/6a45ccd8-23b8-83ee-9dbc-6a51d1c8195e',
+                        title: 'ChatGPT',
+                        iframes: [],
+                        deepResearchIframe: null,
+                    });
+                }
+                if (source.includes('Stop generating') || source.includes('Thinking')) {
+                    return Promise.resolve(false);
+                }
+                if (source.includes('/backend-api/conversation/')) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        contentType: 'application/json',
+                        text: JSON.stringify(makeDeepResearchProgressPayload()),
+                    });
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        const result = await waitForChatGPTDeepResearchResult(page, { timeoutSeconds: 180, stableSeconds: 3 });
+
+        expect(result.status).toBe('waiting_for_user');
+        expect(result.venusStatus).toBe('waiting_for_user_response_on_plan');
+        expect(page.wait).not.toHaveBeenCalledWith(3);
+    });
+
+    it('polls deep research progress with pure client-side sleeps', async () => {
+        let now = 0;
+        vi.spyOn(Date, 'now').mockImplementation(() => {
+            now += 2000;
+            return now;
+        });
+        const payload = makeDeepResearchProgressPayload();
+        const widgetState = JSON.parse(payload.mapping.progress_node.message.metadata.chatgpt_sdk.widget_state);
+        widgetState.status = 'running';
+        payload.mapping.progress_node.message.metadata.chatgpt_sdk.widget_state = JSON.stringify(widgetState);
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([]),
+            wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                const source = String(script);
+                if (source.includes("document.querySelectorAll('iframe')")) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/6a45ccd8-23b8-83ee-9dbc-6a51d1c8195e',
+                        title: 'ChatGPT',
+                        iframes: [],
+                        deepResearchIframe: null,
+                    });
+                }
+                if (source.includes('Stop generating') || source.includes('Thinking')) {
+                    return Promise.resolve(false);
+                }
+                if (source.includes('/backend-api/conversation/')) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        contentType: 'application/json',
+                        text: JSON.stringify(payload),
+                    });
+                }
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(waitForChatGPTDeepResearchResult(page, { timeoutSeconds: 5, stableSeconds: 3 }))
+            .rejects.toThrow(/deep-research-result timed out/);
+
+        expect(page.sleep).toHaveBeenCalledWith(3);
+        expect(page.wait).not.toHaveBeenCalledWith(3);
     });
 });
 

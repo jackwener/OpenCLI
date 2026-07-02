@@ -130,7 +130,24 @@ describe('chatgpt browser command registration', () => {
             expect.objectContaining({ name: 'timeout', type: 'int', default: 120 }),
             expect.objectContaining({ name: 'stable', type: 'int', default: 6 }),
         ]));
-        expect(command.columns).toEqual(['conversationId', 'status', 'report', 'sources', 'url', 'method', 'diagnostics']);
+        expect(command.columns).toEqual([
+            'conversationId',
+            'status',
+            'report',
+            'sources',
+            'progress',
+            'asyncTaskConversationId',
+            'widgetSessionId',
+            'asyncStatus',
+            'venusMessageType',
+            'venusStatus',
+            'waitingForUserUntil',
+            'planTitle',
+            'planId',
+            'url',
+            'method',
+            'diagnostics',
+        ]);
     });
 
     it('does not return a success row when no completed deep research report exists', async () => {
