@@ -80,7 +80,12 @@ export function detectContentType(url: string, contentType?: string): 'image' | 
     if (contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('xml')) return 'document';
   }
 
-  const ext = path.extname(new URL(url).pathname).toLowerCase();
+  let ext = '';
+  try {
+    ext = path.extname(new URL(url).pathname).toLowerCase();
+  } catch {
+    return 'binary';
+  }
 
   if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (VIDEO_EXTENSIONS.has(ext)) return 'video';

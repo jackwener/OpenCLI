@@ -197,4 +197,8 @@ describe('video-platform host detection', () => {
   it('returns false for an unparseable URL instead of throwing', () => {
     expect(requiresYtdlp('not a url')).toBe(false);
   });
+
+  it('classifies an unparseable URL as binary instead of throwing', () => {
+    expect(detectContentType('not a url')).toBe('binary');
+  });
 });
