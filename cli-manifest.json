@@ -29665,6 +29665,128 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "downloader",
+    "description": "通过本地 XHS-Downloader 服务获取小红书作品内容",
+    "access": "read",
+    "domain": "localhost:5556",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Xiaohongshu note URL or xhslink short link"
+      },
+      {
+        "name": "download",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Ask XHS-Downloader to download media files"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated image indexes to download, e.g. \"1,3,5\""
+      },
+      {
+        "name": "cookie",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Optional Xiaohongshu cookie; prefer XHS_DOWNLOADER_COOKIE or --cookie-file"
+      },
+      {
+        "name": "cookie-file",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Read Xiaohongshu cookie from a local file"
+      },
+      {
+        "name": "proxy",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Optional proxy, e.g. \"http://127.0.0.1:10808\""
+      },
+      {
+        "name": "skip",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Skip files that XHS-Downloader already downloaded"
+      },
+      {
+        "name": "api-base",
+        "type": "str",
+        "default": "http://localhost:5556",
+        "required": false,
+        "help": "XHS-Downloader API base URL"
+      },
+      {
+        "name": "container-name",
+        "type": "str",
+        "default": "xhs-downloader",
+        "required": false,
+        "help": "Docker container name to inspect/start/create"
+      },
+      {
+        "name": "image",
+        "type": "str",
+        "default": "ghcr.io/joeanamier/xhs-downloader",
+        "required": false,
+        "help": "Docker image used when creating the service container"
+      },
+      {
+        "name": "download-dir",
+        "type": "str",
+        "default": "~/XHS-Downloads",
+        "required": false,
+        "help": "Host directory mounted to /app/Volume"
+      },
+      {
+        "name": "no-start",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Do not manage Docker; only call an existing service"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Service startup and request timeout seconds (max 600)"
+      }
+    ],
+    "columns": [
+      "noteId",
+      "title",
+      "description",
+      "author",
+      "authorId",
+      "type",
+      "publishTime",
+      "likes",
+      "collects",
+      "comments",
+      "mediaCount",
+      "downloaded",
+      "downloadDir",
+      "mediaUrls",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/downloader.js",
+    "sourceFile": "xiaohongshu/downloader.js"
+  },
+  {
+    "site": "xiaohongshu",
     "name": "feed",
     "description": "小红书首页推荐 Feed (via Pinia Store Action)",
     "access": "read",

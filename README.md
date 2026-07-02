@@ -169,7 +169,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 
 | Site | Commands |
 |------|----------|
-| **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
+| **xiaohongshu** | `search` `note` `comments` `feed` `user` `download` `downloader` `publish` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
 | **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `me` `subtitle` `summary` `video` `user-videos` |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
@@ -201,7 +201,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 
 | Platform | Content Types | Notes |
 |----------|---------------|-------|
-| **xiaohongshu** | Images, Videos | Downloads all media from a note |
+| **xiaohongshu** | Images, Videos, Note metadata | Downloads all media from a note; `downloader` can call a local XHS-Downloader service |
 | **rednote** | Images, Videos | Downloads all media from a signed rednote note URL |
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | From user media tab or single tweet |
@@ -217,6 +217,8 @@ For video downloads, install `yt-dlp` first: `brew install yt-dlp`
 ```bash
 opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..." --output ./xhs
 opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
+opencli xiaohongshu downloader "https://xhslink.com/..." -f json
+opencli xiaohongshu downloader "https://xhslink.com/..." --download true -f json
 opencli rednote download "https://www.rednote.com/search_result/<id>?xsec_token=..." --output ./rednote
 opencli bilibili download BV1xxx --output ./bilibili
 opencli twitter download elonmusk --limit 20 --output ./twitter

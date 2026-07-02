@@ -1,6 +1,6 @@
 # Xiaohongshu (小红书)
 
-**Mode**: 🔐 Browser · **Domain**: `xiaohongshu.com`
+**Mode**: 🔐 Browser + 🔑 Local API · **Domain**: `xiaohongshu.com`
 
 ## Commands
 
@@ -13,6 +13,7 @@
 | `opencli xiaohongshu notifications` | User notifications (mentions, likes, connections) |
 | `opencli xiaohongshu user` | Get public notes from a user profile |
 | `opencli xiaohongshu download` | Download images and videos from a note |
+| `opencli xiaohongshu downloader` | Get note content through a local XHS-Downloader Docker service |
 | `opencli xiaohongshu publish` | Publish image-text notes (creator center UI automation) |
 | `opencli xiaohongshu delete-note` | Verify or delete a published creator-center note by exact note ID |
 | `opencli xiaohongshu creator-notes` | Creator's note list with per-note metrics |
@@ -42,6 +43,10 @@ opencli xiaohongshu notifications
 opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..."
 opencli xiaohongshu download "https://xhslink.com/..."
 
+# Local XHS-Downloader service: auto-check/start Docker service, then call /xhs/detail
+opencli xiaohongshu downloader "https://xhslink.com/..." -f json
+opencli xiaohongshu downloader "https://xhslink.com/..." --download true --index "1,3" -f json
+
 # Verify a published creator note without deleting it (default dry-run)
 opencli xiaohongshu delete-note 6a08ba0b000000000702a893
 
@@ -49,10 +54,11 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893
 opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 ```
 
-> Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
+> Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. `downloader` calls a local XHS-Downloader API service and can auto-create/start its Docker container. Bare note IDs are no longer reliable on xiaohongshu.
 > `delete-note` operates in creator center and accepts a 24-character note ID or exact Xiaohongshu note URL; it defaults to dry-run verification and only deletes with `--execute`.
 
 ## Prerequisites
 
 - Chrome running and **logged into** xiaohongshu.com
 - [Browser Bridge extension](/guide/browser-bridge) installed
+- Docker installed and running for `opencli xiaohongshu downloader`

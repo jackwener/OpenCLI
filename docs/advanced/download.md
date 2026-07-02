@@ -6,7 +6,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 
 | Platform | Content Types | Notes |
 |----------|---------------|-------|
-| **xiaohongshu** | Images, Videos | Downloads all media from a note |
+| **xiaohongshu** | Images, Videos, Note metadata | Downloads all media from a note; `downloader` can call a local XHS-Downloader service |
 | **bilibili** | Videos | Requires `yt-dlp` installed |
 | **twitter** | Images, Videos | Downloads from user media tab or single tweet |
 | **douban** | Images | Downloads poster / still image lists from movie subjects |
@@ -31,6 +31,8 @@ brew install yt-dlp
 # Download images/videos from Xiaohongshu note
 opencli xiaohongshu download "https://www.xiaohongshu.com/search_result/<id>?xsec_token=..." --output ./xhs
 opencli xiaohongshu download "https://xhslink.com/..." --output ./xhs
+opencli xiaohongshu downloader "https://xhslink.com/..." -f json
+opencli xiaohongshu downloader "https://xhslink.com/..." --download true -f json
 
 # Download Bilibili video (requires yt-dlp)
 opencli bilibili download --bvid BV1xxx --output ./bilibili
