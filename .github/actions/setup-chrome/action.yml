@@ -4,12 +4,18 @@ description: Install real Chrome for browser testing (with xvfb on Linux)
 outputs:
   chrome-path:
     description: Path to the installed Chrome binary
-    value: ${{ steps.setup-chrome.outputs.chrome-path }}
+    value: ${{ runner.os == 'Windows' && steps.win-chrome.outputs.chrome-path || steps.setup-chrome.outputs.chrome-path }}
 
 runs:
   using: composite
   steps:
-    - name: Install real Chrome for Testing
+    # browser-actions/setup-chrome hangs during the Chrome MSI installation on
+    # Windows runners (known issue in the action). The Windows runner image
+    # already ships a maintained stable Chrome, so instead of excluding the OS
+    # from browser testing, resolve the preinstalled binary there and only
+    # download Chrome for Testing on Linux/macOS.
+    - name: Install real Chrome for Testing (Linux / macOS)
+      if: runner.os != 'Windows'
       uses: browser-actions/setup-chrome@v2
       id: setup-chrome
       with:
@@ -17,11 +23,29 @@ runs:
         # `latest` pulls Chromium snapshots, which can break extension startup.
         chrome-version: stable
 
-    - name: Verify Chrome installation
+    - name: Resolve preinstalled Chrome (Windows)
+      if: runner.os == 'Windows'
+      id: win-chrome
       shell: bash
       run: |
-        echo "Chrome path: ${{ steps.setup-chrome.outputs.chrome-path }}"
-        "${{ steps.setup-chrome.outputs.chrome-path }}" --version
+        for candidate in \
+          "/c/Program Files/Google/Chrome/Application/chrome.exe" \
+          "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"; do
+          if [ -x "$candidate" ]; then
+            echo "chrome-path=$candidate" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+        done
+        echo "Preinstalled Chrome not found on the Windows image" >&2
+        exit 1
+
+    - name: Verify Chrome installation
+      shell: bash
+      env:
+        CHROME_PATH: ${{ runner.os == 'Windows' && steps.win-chrome.outputs.chrome-path || steps.setup-chrome.outputs.chrome-path }}
+      run: |
+        echo "Chrome path: $CHROME_PATH"
+        "$CHROME_PATH" --version
 
     - name: Install xvfb (Linux only)
       if: runner.os == 'Linux'

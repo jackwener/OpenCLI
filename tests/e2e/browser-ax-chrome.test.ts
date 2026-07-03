@@ -190,15 +190,18 @@ function findChromeExecutable(): string | null {
     '/usr/bin/google-chrome-stable',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   ].filter((entry): entry is string => !!entry);
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
 
-  for (const binary of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser']) {
-    const resolved = spawnSync('which', [binary], { encoding: 'utf8' });
-    const found = resolved.stdout.trim();
+  const lookup = process.platform === 'win32' ? 'where' : 'which';
+  for (const binary of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'chrome']) {
+    const resolved = spawnSync(lookup, [binary], { encoding: 'utf8' });
+    const found = resolved.stdout.trim().split('\n')[0]?.trim();
     if (resolved.status === 0 && found) return found;
   }
   return null;

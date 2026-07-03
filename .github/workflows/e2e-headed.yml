@@ -34,11 +34,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # NOTE: Windows excluded — browser-actions/setup-chrome hangs during
-        # Chrome MSI installation on Windows runners (known issue).
-        # Pin macOS instead of following macos-latest: the macOS 26 hosted
-        # image has been flaky for command-line unpacked extension startup.
-        os: [ubuntu-latest, macos-15]
+        # Windows uses the image's preinstalled Chrome (setup-chrome action
+        # hangs on the MSI path); it runs the deterministic gates (AX smoke +
+        # daemon transport contracts). macOS pinned to 15 while the macOS 26
+        # image stabilizes; with the smoke now headless the GUI-session
+        # dependency is gone, so the pin should be removable next.
+        os: [ubuntu-latest, macos-15, windows-latest]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -89,8 +90,11 @@ jobs:
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/e2e/ --reporter=verbose
 
-      - name: Run E2E tests (macOS / Windows)
-        if: runner.os != 'Linux'
+      # The full e2e suite (real-site adapters) stays on Linux/macOS for now;
+      # Windows runs the two deterministic blocking gates above. Expanding the
+      # full suite to Windows is tracked separately.
+      - name: Run E2E tests (macOS)
+        if: runner.os == 'macOS'
         env:
           OPENCLI_AX_E2E: '0'
         run: npx vitest run tests/e2e/ --reporter=verbose
