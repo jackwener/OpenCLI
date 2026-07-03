@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
-import './delete.js';
+import { __test__ } from './delete.js';
 describe('twitter delete command', () => {
     it('targets the matched tweet article instead of the first More button on the page', async () => {
         const cmd = getRegistry().get('twitter/delete');
@@ -91,6 +92,50 @@ describe('twitter delete command', () => {
             },
         ]);
         expect(page.wait).toHaveBeenNthCalledWith(2, 2);
+    });
+    it('ignores stale non-target delete menu items that existed before opening the matched tweet menu', async () => {
+        const dom = new JSDOM(`
+            <body>
+              <div role="menuitem" data-stale-delete>删除</div>
+              <article>
+                <a href="https://x.com/bob/status/999">wrong tweet</a>
+                <button data-testid="caret" aria-label="更多"></button>
+              </article>
+              <article>
+                <a href="https://x.com/alice/status/2040254679301718161">target tweet</a>
+                <button data-testid="caret" aria-label="更多" data-target-caret></button>
+              </article>
+            </body>
+        `, { runScripts: 'outside-only', url: 'https://x.com/alice/status/2040254679301718161' });
+        dom.window.setTimeout = (handler) => {
+            if (typeof handler === 'function') handler();
+            return 0;
+        };
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'getClientRects', {
+            configurable: true,
+            value() {
+                return [{ bottom: 1, height: 1, left: 0, right: 1, top: 0, width: 1 }];
+            },
+        });
+        let staleDeleteClicked = false;
+        let targetCaretClicked = false;
+        dom.window.document.querySelector('[data-stale-delete]')?.addEventListener('click', () => {
+            staleDeleteClicked = true;
+        });
+        dom.window.document.querySelector('[data-target-caret]')?.addEventListener('click', () => {
+            targetCaretClicked = true;
+            const item = dom.window.document.createElement('div');
+            item.setAttribute('role', 'menuitem');
+            item.textContent = 'Pin to your profile';
+            dom.window.document.body.appendChild(item);
+        });
+        const result = await dom.window.eval(__test__.buildDeleteScript('2040254679301718161'));
+        expect(targetCaretClicked).toBe(true);
+        expect(staleDeleteClicked).toBe(false);
+        expect(result).toEqual({
+            ok: false,
+            message: 'The matched tweet menu did not contain Delete. This tweet may not belong to you.',
+        });
     });
     it('rejects malformed or off-domain URLs with ArgumentError before navigation', async () => {
         const cmd = getRegistry().get('twitter/delete');

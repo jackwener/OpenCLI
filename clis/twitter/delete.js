@@ -29,10 +29,12 @@ function buildDeleteScript(tweetId) {
               return { ok: false, message: 'Could not find the "More" context menu on the matched tweet. Are you sure you are logged in and looking at a valid tweet?' };
           }
 
+          const beforeMenuItems = new Set(document.querySelectorAll('[role="menuitem"]'));
           moreMenu.click();
           await new Promise(r => setTimeout(r, 1000));
 
-          const items = Array.from(document.querySelectorAll('[role="menuitem"]'));
+          const items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+              .filter((item) => visible(item) && !beforeMenuItems.has(item));
           const deleteBtn = items.find((item) => {
               const text = (item.textContent || '').trim();
               // X localizes the menu item (zh-Hans: 删除); exclude the "Add/remove
