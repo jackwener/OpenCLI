@@ -269,6 +269,13 @@ function axText(axTree: unknown): string {
   return nodes.map((node: any) => String(node?.name?.value ?? '')).join('\n');
 }
 
+function shouldFailOnBridgeUnavailable(): boolean {
+  // Linux is the release-blocking real-extension gate. Hosted macOS runners
+  // can refuse command-line unpacked extension startup depending on the image
+  // and Chrome build; keep that visible but do not block releases on it.
+  return process.env.CI === 'true' && process.platform !== 'darwin';
+}
+
 describe('Browser Bridge AX real Chrome smoke', () => {
   let bridge: FakeBridge | null = null;
   let site: TestSite | null = null;
@@ -304,7 +311,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
     } catch (err) {
       const tail = chromeStderr.split('\n').slice(-30).join('\n').trim();
       const message = `${err instanceof Error ? err.message : String(err)}${tail ? `\nChrome stderr:\n${tail}` : ''}`;
-      if (process.env.CI) throw new Error(message);
+      if (shouldFailOnBridgeUnavailable()) throw new Error(message);
       skipReason = message;
     }
   }, 60_000);
@@ -327,7 +334,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
 
   it('returns AX nodes for parent and same-origin iframe, and probes cross-origin frame support', async () => {
     if (skipReason) {
-      if (process.env.CI) throw new Error(skipReason);
+      if (shouldFailOnBridgeUnavailable()) throw new Error(skipReason);
       console.warn(`skipped — ${skipReason}`);
       return;
     }
