@@ -34,11 +34,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # NOTE: Windows excluded — browser-actions/setup-chrome hangs during
-        # Chrome MSI installation on Windows runners (known issue).
-        # Pin macOS instead of following macos-latest: the macOS 26 hosted
-        # image has been flaky for command-line unpacked extension startup.
-        os: [ubuntu-latest, macos-15]
+        # Gate placement by what each runner can run deterministically:
+        # - the real-browser extension smoke needs a Chrome that reliably runs
+        #   an MV3 extension, which only Linux+xvfb provides on hosted runners
+        #   (headed macOS crashes on Mach port rendezvous outside an Aqua
+        #   session; headless does not connect the extension SW there);
+        # - the daemon transport contracts need no browser and run blocking on
+        #   every OS, so macOS/Windows get a real gate, not a skipped one.
+        # macOS pinned to 15 while the macOS 26 image stabilizes.
+        os: [ubuntu-latest, macos-15, windows-latest]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -51,7 +55,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Linux runs the extension smoke and macOS runs the full real-site e2e
+      # suite; both need a real Chrome. Windows runs only the browser-free
+      # transport gate, and the setup-chrome action hangs on Windows anyway.
       - name: Setup Chrome
+        if: runner.os != 'Windows'
         uses: ./.github/actions/setup-chrome
         id: setup-chrome
 
@@ -61,23 +69,26 @@ jobs:
       - name: Build extension
         run: npm run build --prefix extension
 
-      # The AX smoke runs Chrome in new-headless mode: a full browser (MV3
-      # service worker + chrome.debugger + --load-extension) with no display
-      # server or GUI-session dependency, so the same command is release-
-      # blocking on every OS. Headed Chrome on hosted macOS fails Mach port
-      # rendezvous for child processes (CI jobs run outside a regular Aqua
-      # session); headless removes that entire failure class instead of
-      # skipping the platform.
-      - name: Run AX Chrome smoke (headless, all platforms)
+      # Real-browser extension smoke: Linux under xvfb is the one hosted
+      # environment where a real Chrome reliably starts an MV3 extension, so
+      # this is the release-blocking browser gate. Headed (not headless):
+      # headless does not connect the extension service worker on hosted
+      # runners. See the matrix comment for why macOS/Windows don't run it.
+      - name: Run AX Chrome smoke (Linux, real extension via xvfb)
+        if: runner.os == 'Linux'
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           OPENCLI_AX_E2E: '1'
-        run: npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts --reporter=verbose
+          OPENCLI_E2E_HEADED: '1'
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts --reporter=verbose
 
       # Transport contract E2E: real daemon process + scripted fake extension.
       # Pins the cross-layer contracts (waiter attach, deadline 408, dispatched
       # disconnect, profile fallback, graceful shutdown) end to end with the
-      # actual daemon binary — no browser required, deterministic on every OS.
+      # actual daemon binary — no browser required, so this is the blocking
+      # gate on EVERY OS, including macOS and Windows.
       - name: Run daemon transport contract E2E
         run: npx vitest run --project e2e-fixed-port tests/e2e/daemon-transport.test.ts --reporter=verbose
 
@@ -89,8 +100,10 @@ jobs:
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run tests/e2e/ --reporter=verbose
 
-      - name: Run E2E tests (macOS / Windows)
-        if: runner.os != 'Linux'
+      # Real-site adapter e2e stays on Linux/macOS; Windows runs the two
+      # deterministic gates above (unit coverage in ci.yml already spans it).
+      - name: Run E2E tests (macOS)
+        if: runner.os == 'macOS'
         env:
           OPENCLI_AX_E2E: '0'
         run: npx vitest run tests/e2e/ --reporter=verbose

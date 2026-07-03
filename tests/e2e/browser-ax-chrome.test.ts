@@ -206,16 +206,14 @@ function findChromeExecutable(): string | null {
 
 function launchChrome(chromePath: string, userDataDir: string, startUrl: string): ChildProcess {
   return spawn(chromePath, [
-    // This smoke's contract is "the extension bridge works in a real Chrome",
-    // not "a window appears": new headless is a full browser (MV3 service
-    // worker + chrome.debugger + --load-extension all supported) with no
-    // dependency on a display server or a GUI login session. That dependency
-    // is exactly what broke hosted runners: Linux needed xvfb, and macOS
-    // runners fail Mach port rendezvous for Chrome's child processes because
-    // CI jobs do not run in a regular Aqua session (bootstrap_look_up
-    // MachPortRendezvousServer → "Unknown service name"). Headed mode stays
-    // available for local debugging via OPENCLI_E2E_HEADED=1.
-    ...(process.env.OPENCLI_E2E_HEADED === '1' ? [] : ['--headless=new']),
+    // Headed by default under a real/virtual display (CI Linux runs this under
+    // xvfb). New-headless is convenient locally — no display needed — but on
+    // hosted runners it does not reliably start the MV3 extension service
+    // worker, so CI forces headed via OPENCLI_E2E_HEADED=1. Set OPENCLI_E2E_
+    // HEADLESS=1 to opt into headless locally.
+    ...(process.env.OPENCLI_E2E_HEADLESS === '1' && process.env.OPENCLI_E2E_HEADED !== '1'
+      ? ['--headless=new']
+      : []),
     `--user-data-dir=${userDataDir}`,
     `--disable-extensions-except=${EXTENSION_DIR}`,
     `--load-extension=${EXTENSION_DIR}`,
@@ -280,9 +278,11 @@ function axText(axTree: unknown): string {
 }
 
 function shouldFailOnBridgeUnavailable(): boolean {
-  // Release-blocking on every CI platform: with the smoke running Chrome in
-  // new-headless mode there is no display-server/GUI-session dependency left,
-  // so an unavailable bridge means a real product or packaging regression.
+  // In CI this smoke is scheduled only on Linux (headed under xvfb — the one
+  // hosted environment where a real Chrome reliably starts an MV3 extension),
+  // so any bridge failure there is a real product/packaging regression and
+  // must block. macOS/Windows gate on the browser-free transport contracts
+  // instead; see the e2e-headed workflow for the rationale.
   return process.env.CI === 'true';
 }
 
