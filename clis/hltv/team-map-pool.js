@@ -115,7 +115,7 @@ cli({
           url: url.toString(),
         },
       };
-    }).sort((a, b) => b.maps - a.maps || String(a.key).localeCompare(String(b.key)));
+    }).sort((a, b) => (b.maps ?? -1) - (a.maps ?? -1) || String(a.key).localeCompare(String(b.key)));
 
     const totals = rows.reduce((acc, row) => {
       acc.maps += row.maps ?? 0;

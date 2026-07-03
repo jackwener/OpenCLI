@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { BASE, extractIdFromUrl, gotoAndWait, normalizeLimit, parseEventRef, parseHltvDate, parseNumber } from './utils.js';
+import { BASE, assertRequiredFields, extractIdFromUrl, gotoAndWait, normalizeLimit, parseEventRef, parseHltvDate, parseNumber } from './utils.js';
 
 function buildEventStatsUrl(event) {
   const eventId = parseEventRef(event);
@@ -70,7 +70,7 @@ cli({
     if (!Array.isArray(rawRows)) throw new CommandExecutionError('hltv event-matches parser returned an unexpected shape');
     if (rawRows.length === 0) throw new EmptyResultError('hltv event-matches', `No stats match rows found for event ${eventId}`);
 
-    return rawRows.map((row) => ({
+    return assertRequiredFields(rawRows.map((row) => ({
       rank: row.rank,
       date: parseHltvDate(row.date),
       eventId,
@@ -85,6 +85,6 @@ cli({
         opponentScore: parseNumber(row._opponentScore),
         extra: row._extra,
       },
-    }));
+    })), 'hltv event-matches', ['rank', 'date', 'eventId', 'team', 'opponent', 'matchStatsId', 'matchStatsUrl']);
   },
 });

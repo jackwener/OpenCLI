@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { BASE, assertRows, buildPlayerUrl, gotoAndWait, parseMoneyUsd, parseNumber, parsePlayerRef } from './utils.js';
+import { BASE, assertRequiredFields, buildPlayerUrl, gotoAndWait, parseMoneyUsd, parseNumber, parsePlayerRef } from './utils.js';
 
 cli({
   site: 'hltv',
@@ -76,7 +76,7 @@ cli({
       }];
     }, { base: BASE, playerId, slug, url: url.toString() });
 
-    return assertRows(rows.map((row) => ({
+    return assertRequiredFields(rows.map((row) => ({
       playerId: row.playerId,
       slug: row.slug,
       nickname: row.nickname,
@@ -98,6 +98,6 @@ cli({
       },
       completeStatsUrl: row.completeStatsUrl,
       url: row.url,
-    })), 'hltv player-summary');
+    })), 'hltv player-summary', ['playerId', 'slug', 'nickname', 'completeStatsUrl', 'url']);
   },
 });

@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { BASE, absolutizeUrl, assertRows, extractIdFromUrl, gotoAndWait, normalizeLimit } from './utils.js';
+import { BASE, absolutizeUrl, assertRequiredFields, extractIdFromUrl, gotoAndWait, normalizeLimit } from './utils.js';
 
 const RESULT_TYPES = ['player', 'team', 'event', 'article'];
 
@@ -93,7 +93,7 @@ cli({
       return out.filter((row) => payload.types.includes(row.type));
     }, { base: BASE, limit, types: RESULT_TYPES });
 
-    return assertRows(rows.map((row) => ({
+    return assertRequiredFields(rows.map((row) => ({
       rank: row.rank,
       type: row.type,
       id: row.id ?? extractIdFromUrl(row.url, row.type),
@@ -102,6 +102,6 @@ cli({
       date: row.date,
       author: row.author,
       url: absolutizeUrl(row.url),
-    })), 'hltv search');
+    })), 'hltv search', ['rank', 'type', 'id', 'url']);
   },
 });

@@ -2,6 +2,23 @@ import { ArgumentError, CommandExecutionError, EmptyResultError, TimeoutError } 
 
 export const BASE = 'https://www.hltv.org';
 
+function isHltvHost(hostname) {
+  return hostname === 'hltv.org' || hostname === 'www.hltv.org';
+}
+
+function parseHltvUserUrl(raw, label) {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new ArgumentError(`${label} must be a valid hltv.org URL`);
+  }
+  if (!isHltvHost(url.hostname)) {
+    throw new ArgumentError(`${label} must be an hltv.org URL`);
+  }
+  return url;
+}
+
 export const EVENT_TYPES = {
   all: null,
   majors: 'Majors',
@@ -82,12 +99,28 @@ export function parseMoneyUsd(value) {
 
 export function absolutizeUrl(value) {
   if (!value) return null;
-  return new URL(value, BASE).toString();
+  let url;
+  try {
+    url = new URL(value, BASE);
+  } catch {
+    throw new CommandExecutionError('HLTV parser returned a malformed URL');
+  }
+  if (!isHltvHost(url.hostname)) {
+    throw new CommandExecutionError(`HLTV parser returned an off-domain URL: ${url.toString()}`);
+  }
+  return url.toString();
 }
 
 export function extractIdFromUrl(url, kind) {
   if (!url) return null;
-  const path = new URL(url, BASE).pathname;
+  let parsed;
+  try {
+    parsed = new URL(url, BASE);
+  } catch {
+    return null;
+  }
+  if (!isHltvHost(parsed.hostname)) return null;
+  const path = parsed.pathname;
   const patterns = {
     player: /^\/player\/(\d+)\//,
     team: /^\/team\/(\d+)\//,
@@ -107,8 +140,12 @@ export function parseEventRef(value) {
   if (/^\d+$/.test(raw)) return raw;
 
   let url = null;
-  if (/^https?:\/\//i.test(raw)) url = new URL(raw);
-  if (url?.searchParams.get('event')) return url.searchParams.get('event');
+  if (/^https?:\/\//i.test(raw)) url = parseHltvUserUrl(raw, 'event');
+  if (url?.searchParams.get('event')) {
+    const eventId = url.searchParams.get('event');
+    if (/^\d+$/.test(eventId)) return eventId;
+    throw new ArgumentError('event query parameter must be a numeric event id');
+  }
 
   const path = (url ? url.pathname : raw).replace(/^\/+/, '');
   const eventPath = path.match(/^events\/(\d+)\//i);
@@ -122,7 +159,7 @@ export function parseTeamRef(value, defaultValue = null) {
   if (!raw) throw new ArgumentError('team is required');
 
   let path = raw;
-  if (/^https?:\/\//i.test(raw)) path = new URL(raw).pathname;
+  if (/^https?:\/\//i.test(raw)) path = parseHltvUserUrl(raw, 'team').pathname;
   path = path.replace(/^https?:\/\/[^/]+/i, '').replace(/^\/+/, '');
 
   const statsMatch = path.match(/^stats\/teams(?:\/matches)?\/(\d+)\/([a-z0-9-]+)/i);
@@ -141,7 +178,7 @@ export function parsePlayerRef(value, defaultValue = '3741/niko') {
   if (!raw) throw new ArgumentError('player is required');
 
   let path = raw;
-  if (/^https?:\/\//i.test(raw)) path = new URL(raw).pathname;
+  if (/^https?:\/\//i.test(raw)) path = parseHltvUserUrl(raw, 'player').pathname;
   path = path.replace(/^https?:\/\/[^/]+/i, '').replace(/^\/+/, '');
 
   const statsMatch = path.match(/^stats\/players(?:\/matches)?\/(\d+)\/([a-z0-9-]+)/i);
@@ -315,7 +352,7 @@ export async function readPlayerMatches(page, args, limit) {
     return out;
   }, { base: BASE, playerId, slug, filters, limit, offset: filters.offset });
 
-  return assertRows(rows.map((row) => ({
+  return assertRequiredFields(rows.map((row) => ({
     rank: row.rank,
     date: parseHltvDate(row.date),
     playerTeam: row.playerTeam,
@@ -335,7 +372,7 @@ export async function readPlayerMatches(page, args, limit) {
       nickname: row.nickname,
       filters: row.filters,
     },
-  })), 'hltv player-matches');
+  })), 'hltv player-matches', ['rank', 'date', 'playerTeam', 'opponent', 'map', 'playerId', 'matchStatsId']);
 }
 
 export async function readTeamMatches(page, args, limit) {
@@ -385,7 +422,7 @@ export async function readTeamMatches(page, args, limit) {
     return out;
   }, { base: BASE, teamId, slug, filters, limit, offset: filters.offset });
 
-  return assertRows(rows.map((row) => ({
+  return assertRequiredFields(rows.map((row) => ({
     rank: row.rank,
     date: parseHltvDate(row.date),
     team: row.teamName || row.team,
@@ -402,7 +439,7 @@ export async function readTeamMatches(page, args, limit) {
       matchUrl: row.matchUrl,
       filters: row.filters,
     },
-  })), 'hltv team-matches');
+  })), 'hltv team-matches', ['rank', 'date', 'team', 'opponent', 'teamId', 'matchStatsId']);
 }
 
 export function parseHltvDate(value) {
@@ -423,7 +460,7 @@ export function parseHltvDate(value) {
 export function normalizeMatchUrl(value) {
   const raw = String(value ?? '').trim();
   if (!raw) throw new ArgumentError('match is required');
-  const url = /^https?:\/\//i.test(raw) ? new URL(raw) : new URL(raw.replace(/^\/+/, ''), `${BASE}/`);
+  const url = /^https?:\/\//i.test(raw) ? parseHltvUserUrl(raw, 'match') : new URL(raw.replace(/^\/+/, ''), `${BASE}/`);
   if (!/^\/(?:matches\/\d+\/|stats\/matches\/(?:mapstatsid\/)?\d+\/)/.test(url.pathname)) {
     throw new ArgumentError('match must be an HLTV match, stats series, or mapstats URL');
   }
@@ -564,7 +601,7 @@ export async function readMatchMap(page, match) {
   if (!Array.isArray(rows)) throw new CommandExecutionError('hltv match-map parser returned an unexpected shape');
   if (rows.length === 0) throw new CommandExecutionError('hltv match-map parser found no player rows');
 
-  return rows.map((row) => ({
+  return assertRequiredFields(rows.map((row) => ({
     matchStatsId: row.matchStatsId,
     playerId: row.playerId,
     playerName: row.playerName,
@@ -577,7 +614,7 @@ export async function readMatchMap(page, match) {
     opKd: row.opKd,
     details: row.details,
     url: row.url,
-  }));
+  })), 'hltv match-map', ['matchStatsId', 'playerId', 'playerName', 'team', 'url']);
 }
 
 function round(value, digits = 2) {
@@ -814,5 +851,17 @@ export async function gotoAndWait(page, url, selector, label) {
 export function assertRows(rows, command) {
   if (!Array.isArray(rows)) throw new CommandExecutionError(`${command} parser returned an unexpected shape`);
   if (rows.length === 0) throw new EmptyResultError(command, 'No rows were found in the visible HLTV page');
+  return rows;
+}
+
+export function assertRequiredFields(rows, command, fields) {
+  assertRows(rows, command);
+  for (const [index, row] of rows.entries()) {
+    for (const field of fields) {
+      if (row?.[field] === null || row?.[field] === undefined || row?.[field] === '') {
+        throw new CommandExecutionError(`${command} parser returned row ${index + 1} without required ${field}`);
+      }
+    }
+  }
   return rows;
 }
