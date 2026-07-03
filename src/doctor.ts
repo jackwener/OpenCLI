@@ -171,6 +171,24 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   if (!connectivity.ok) {
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
+  // Stale default detection: a persisted default profile routinely outlives
+  // the extension instance it names (reinstalls regenerate the contextId).
+  // Commands keep working via the daemon's single-profile fallback, but the
+  // user should refresh the default so multi-profile setups stay predictable.
+  const profileConfig = loadProfileConfig();
+  const staleDefault = profileConfig.defaultContextId;
+  if (staleDefault && profiles?.length && !profiles.some((p) => p.contextId === staleDefault)) {
+    const alias = aliasForContextId(profileConfig, staleDefault);
+    const label = alias ? `${alias} (${staleDefault})` : staleDefault;
+    const fallbackNote = profiles.length === 1
+      ? `Commands currently fall back to the only connected profile: ${profiles[0].contextId}.`
+      : 'Multiple profiles are connected, so commands will ask you to choose.';
+    issues.push(
+      `Default browser profile is stale: ${label} is not connected (the extension instance it names no longer exists).\n` +
+      `  ${fallbackNote}\n` +
+      '  Refresh it with: opencli profile list, then opencli profile use <name>.',
+    );
+  }
   const extensionCompatRange = health.status?.extensionCompatRange;
   if (extensionVersion && opts.cliVersion && extensionCompatRange) {
     if (!satisfiesRange(opts.cliVersion, extensionCompatRange)) {

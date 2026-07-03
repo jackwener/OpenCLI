@@ -29,10 +29,12 @@ import { PKG_VERSION } from './version.js';
 import { DEFAULT_CONTEXT_ID } from './browser/profile.js';
 import { recordExtensionVersion } from './update-check.js';
 import {
+  PROFILE_DISCONNECTED_HINT,
   buildCommandDispatchFailure,
   buildCommandTimeoutFailure,
   buildExtensionDisconnectFailure,
   getResponseCorsHeaders,
+  resolveProfileRoute,
 } from './daemon-utils.js';
 
 const PORT = DEFAULT_DAEMON_PORT;
@@ -106,35 +108,37 @@ function activeProfiles(): ExtensionProfileConnection[] {
   return [...extensionProfiles.values()].filter((entry) => entry.ws.readyState === WebSocket.OPEN);
 }
 
-function resolveExtensionConnection(contextId?: string): {
+/** Stale defaults we already warned about — one log line per daemon lifetime. */
+const staleDefaultWarned = new Set<string>();
+
+function resolveExtensionConnection(contextId?: string, preferredContextId?: string): {
   connection?: ExtensionProfileConnection;
   errorCode?: 'extension_not_connected' | 'profile_required' | 'profile_disconnected';
   error?: string;
   errorHint?: string;
 } {
-  const requestedContextId = typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined;
-  if (requestedContextId) {
-    const connection = extensionProfiles.get(requestedContextId);
-    if (connection?.ws.readyState === WebSocket.OPEN) return { connection };
-    return {
-      errorCode: 'profile_disconnected',
-      error: `Browser profile "${requestedContextId}" is not connected.`,
-      errorHint: 'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
-    };
+  const route = resolveProfileRoute({
+    requestedContextId: typeof contextId === 'string' ? contextId : undefined,
+    preferredContextId: typeof preferredContextId === 'string' ? preferredContextId : undefined,
+    connectedContextIds: activeProfiles().map((entry) => entry.contextId),
+  });
+  if (!route.ok) {
+    return { errorCode: route.errorCode, error: route.error, ...(route.errorHint ? { errorHint: route.errorHint } : {}) };
   }
-
-  const connected = activeProfiles();
-  if (connected.length === 1) return { connection: connected[0] };
-  if (connected.length > 1) {
-    return {
-      errorCode: 'profile_required',
-      error: 'Multiple Browser Bridge profiles are connected; choose one with --profile.',
-      errorHint: 'Run opencli profile list, then use opencli --profile <name> ... or opencli profile use <name>.',
-    };
+  if (route.fallbackFrom && !staleDefaultWarned.has(route.fallbackFrom)) {
+    staleDefaultWarned.add(route.fallbackFrom);
+    log.warn(
+      `[daemon] Default profile "${route.fallbackFrom}" is not connected; ` +
+      `using the only connected profile "${route.contextId}". Update the default with: opencli profile use <name>`,
+    );
   }
+  const connection = extensionProfiles.get(route.contextId);
+  if (connection?.ws.readyState === WebSocket.OPEN) return { connection };
+  // Connection raced away between arbitration and lookup.
   return {
-    errorCode: 'extension_not_connected',
-    error: 'Extension not connected. Please install the opencli Browser Bridge extension.',
+    errorCode: 'profile_disconnected',
+    error: `Browser profile "${route.contextId}" is not connected.`,
+    errorHint: PROFILE_DISCONNECTED_HINT,
   };
 }
 
@@ -319,7 +323,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
-      const route = resolveExtensionConnection(typeof body.contextId === 'string' ? body.contextId : undefined);
+      const route = resolveExtensionConnection(
+        typeof body.contextId === 'string' ? body.contextId : undefined,
+        typeof body.preferredContextId === 'string' ? body.preferredContextId : undefined,
+      );
       if (!route.connection) {
         jsonResponse(res, route.errorCode === 'profile_required' ? 409 : 503, {
           id: body.id,

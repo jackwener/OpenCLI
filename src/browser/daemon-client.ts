@@ -8,7 +8,7 @@ import { sleep } from '../utils.js';
 import { BrowserConnectError } from '../errors.js';
 import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../daemon-utils.js';
 import { classifyBrowserError } from './errors.js';
-import { resolveProfileContextId } from './profile.js';
+import { profileRouteParams, resolveProfileSelection } from './profile.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './config.js';
 import { ensureBrowserBridgeReady } from './daemon-lifecycle.js';
 import { isPreDispatchError } from './bridge-readiness.js';
@@ -156,8 +156,15 @@ export interface DaemonCommand {
   idleTimeout?: number;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
-  /** Browser profile/context to route the command to. */
+  /** Browser profile/context REQUIRED for this command (--profile / OPENCLI_PROFILE). Fails loud when offline. */
   contextId?: string;
+  /**
+   * Browser profile/context PREFERRED for this command (persisted config
+   * default). The daemon uses it when connected, and falls back to the only
+   * connected profile when it is not — a stale default must never veto live
+   * reality. Mutually exclusive with `contextId`.
+   */
+  preferredContextId?: string;
   /**
    * Daemon-side command timeout in seconds. Set by the transport layer from
    * the effective command deadline; kept for older daemons — new code prefers
@@ -231,7 +238,13 @@ async function sendCommandRaw(
   const envWindowMode = rawWindowMode === 'foreground' || rawWindowMode === 'background'
     ? rawWindowMode
     : undefined;
-  const contextId = params.contextId ?? resolveProfileContextId();
+  // Requirement vs preference: an explicit contextId routes strictly; a
+  // preferred one is arbitrated by the daemon against live connections.
+  const routing = params.contextId || params.preferredContextId
+    ? { contextId: params.contextId, preferredContextId: params.preferredContextId }
+    : profileRouteParams(resolveProfileSelection());
+  const contextId = routing.contextId;
+  const preferredContextId = routing.preferredContextId;
   const windowMode = params.windowMode ?? envWindowMode;
 
   let id = generateId();
@@ -245,6 +258,9 @@ async function sendCommandRaw(
     const remainingSeconds = Math.ceil((deadlineAt - Date.now()) / 1000);
     const ready = await ensureBrowserBridgeReady({
       timeoutSeconds: Math.max(1, Math.min(DEFAULT_BROWSER_CONNECT_TIMEOUT, remainingSeconds)),
+      // Only an explicit requirement pins readiness to a specific profile —
+      // waiting for a stale preferred profile to come back would hang the
+      // ensure path even though the daemon can already serve the command.
       contextId,
       verbose: false,
     });
@@ -267,6 +283,7 @@ async function sendCommandRaw(
       timeout: timeoutSeconds,
       deadlineAt,
       ...(contextId && { contextId }),
+      ...(preferredContextId && { preferredContextId }),
       ...(windowMode && { windowMode }),
     };
     try {

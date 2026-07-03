@@ -194,7 +194,7 @@ describe('daemon-client', () => {
     expect(ids[0]).not.toBe(ids[1]);
   });
 
-  it('sendCommand forwards OPENCLI_PROFILE as command contextId', async () => {
+  it('sendCommand forwards OPENCLI_PROFILE as a hard contextId requirement', async () => {
     vi.stubEnv('OPENCLI_PROFILE', 'work');
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_000);
     vi.mocked(fetch).mockResolvedValue({
@@ -204,8 +204,36 @@ describe('daemon-client', () => {
 
     await sendCommand('exec', { code: '1 + 1' });
 
-    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { contextId?: string };
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { contextId?: string; preferredContextId?: string };
     expect(body.contextId).toBe('work');
+    expect(body.preferredContextId).toBeUndefined();
+  });
+
+  it('sendCommand forwards the config default as a soft preferredContextId, not a requirement', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-dc-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: {}, defaultContextId: 'zvypsyje' }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
+    vi.stubEnv('OPENCLI_PROFILE', '');
+    try {
+      vi.mocked(fetch).mockResolvedValue({
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+      } as Response);
+
+      await sendCommand('exec', { code: '1 + 1' });
+
+      const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { contextId?: string; preferredContextId?: string };
+      expect(body.preferredContextId).toBe('zvypsyje');
+      expect(body.contextId).toBeUndefined();
+    } finally {
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
   });
 
   it('sendCommand uses explicit windowMode before OPENCLI_WINDOW env fallback', async () => {

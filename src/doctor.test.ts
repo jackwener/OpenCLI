@@ -181,6 +181,38 @@ describe('doctor report rendering', () => {
     ]));
   });
 
+  it('reports a stale default profile when it is not among the connected profiles', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-doctor-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: { work: 'zvypsyje' }, defaultContextId: 'zvypsyje' }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
+    try {
+      mockGetDaemonHealth.mockResolvedValueOnce({
+        state: 'ready',
+        status: {
+          extensionConnected: true,
+          extensionVersion: '1.0.22',
+          profiles: [{ contextId: 'pavmrekj', extensionConnected: true }],
+        },
+      });
+
+      const report = await runBrowserDoctor();
+
+      expect(report.issues).toEqual(expect.arrayContaining([
+        expect.stringContaining('Default browser profile is stale: work (zvypsyje)'),
+      ]));
+      expect(report.issues.join('\n')).toContain('fall back to the only connected profile: pavmrekj');
+    } finally {
+      vi.unstubAllEnvs();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  });
+
   it('reports flapping when live check succeeds but final status shows extension disconnected', async () => {
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
 

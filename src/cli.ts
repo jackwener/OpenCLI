@@ -37,7 +37,7 @@ import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, sendCommand } from './browser/daemon-client.js';
 import { fetchDaemonStatus } from './browser/daemon-transport.js';
-import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
+import { aliasForContextId, loadProfileConfig, profileRouteParams, renameProfile, resolveProfileSelection, setDefaultProfile, type ProfileSelection } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
@@ -519,7 +519,7 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 async function getBrowserPage(
   session: string,
   targetPage?: string,
-  contextId?: string,
+  profileSelection?: ProfileSelection,
   opts: { windowMode?: BrowserWindowMode } = {},
 ): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
@@ -531,11 +531,11 @@ async function getBrowserPage(
     timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
     session,
     surface: 'browser',
-    ...(contextId && { contextId }),
+    ...profileRouteParams(profileSelection),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
     windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'foreground'),
   });
-  const targetScope = getBrowserScope(session, contextId);
+  const targetScope = getBrowserScope(session, profileSelection?.contextId);
   const resolvedTargetPage = targetPage
     ? await resolveBrowserTargetInSession(page, targetPage, { scope: targetScope, source: 'explicit' })
     : await resolveStoredBrowserTarget(page, targetScope);
@@ -591,9 +591,9 @@ function getBrowserSession(command?: Command): string {
   throw new Error('<session> is a required positional argument: opencli browser <session> <command>');
 }
 
-function getBrowserContextId(command?: Command): string | undefined {
+function getBrowserProfileSelection(command?: Command): ProfileSelection | undefined {
   const raw = getCommandOption(command, 'profile');
-  return resolveProfileContextId(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
+  return resolveProfileSelection(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
 }
 
 function getPageSession(page: import('./types.js').IPage): string {
@@ -1005,9 +1005,9 @@ Examples:
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
         const session = getBrowserSession(command);
-        const contextId = getBrowserContextId(command);
+        const profileSelection = getBrowserProfileSelection(command);
         const windowMode = getBrowserWindowMode(command, 'foreground');
-        page = await getBrowserPage(session, targetPage, contextId, { windowMode });
+        page = await getBrowserPage(session, targetPage, profileSelection, { windowMode });
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -1050,11 +1050,12 @@ Examples:
     return async (optsOrCommand: unknown, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
       const session = getBrowserSession(command);
-      const contextId = getBrowserContextId(command);
+      const profileSelection = getBrowserProfileSelection(command);
+      const contextId = profileSelection?.contextId;
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
-        await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...(contextId && { contextId }) });
+        await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...profileRouteParams(profileSelection) });
         await fn({ session, contextId });
       } catch (err) {
         if (err instanceof BrowserCommandError) {

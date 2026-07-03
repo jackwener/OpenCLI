@@ -29,7 +29,7 @@ import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
-import { resolveProfileContextId } from './browser/profile.js';
+import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
@@ -255,7 +255,11 @@ export async function executeCommand(
       }
 
       const BrowserFactory = getBrowserFactory(cmd.site);
-      const contextId = resolveProfileContextId(opts.profile);
+      // Requirement vs preference: --profile / OPENCLI_PROFILE route strictly;
+      // the config default is a soft preference the daemon arbitrates.
+      const profileSelection = resolveProfileSelection(opts.profile);
+      const profileRouting = profileRouteParams(profileSelection);
+      const contextId = profileSelection?.contextId;
       const internal = cmd as InternalCliCommand;
       const siteSession = resolveSiteSession(cmd, opts.siteSession);
       const session = resolveAdapterBrowserSession(cmd, siteSession);
@@ -375,7 +379,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { session, cdpEndpoint, contextId, windowMode, surface: 'adapter', siteSession });
+      }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession });
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that

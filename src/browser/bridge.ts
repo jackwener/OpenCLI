@@ -6,7 +6,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { IPage } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
-import { resolveProfileContextId } from './profile.js';
+import { profileRouteParams, resolveProfileSelection } from './profile.js';
 import { ensureBrowserBridgeReady } from './daemon-lifecycle.js';
 
 const DAEMON_SPAWN_TIMEOUT = 10000; // 10s to wait for daemon + extension
@@ -25,7 +25,7 @@ export class BrowserBridge implements IBrowserFactory {
     return this._state;
   }
 
-  async connect(opts: { timeout?: number; session?: string; idleTimeout?: number; contextId?: string; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' } = {}): Promise<IPage> {
+  async connect(opts: { timeout?: number; session?: string; idleTimeout?: number; contextId?: string; preferredContextId?: string; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' } = {}): Promise<IPage> {
     if (this._state === 'connected' && this._page) return this._page;
     if (this._state === 'connecting') throw new Error('Already connecting');
     if (this._state === 'closing') throw new Error('Session is closing');
@@ -34,10 +34,16 @@ export class BrowserBridge implements IBrowserFactory {
     this._state = 'connecting';
 
     try {
-      const contextId = opts.contextId ?? resolveProfileContextId();
-      await this._ensureDaemon(opts.timeout, contextId);
+      // Requirement vs preference: only an explicit contextId pins daemon
+      // readiness and command routing to a specific profile. A preferred one
+      // (config default) is arbitrated by the daemon against live connections,
+      // so a stale default cannot make connect() wait for a dead profile.
+      const routing = opts.contextId || opts.preferredContextId
+        ? { contextId: opts.contextId, preferredContextId: opts.preferredContextId }
+        : profileRouteParams(resolveProfileSelection());
+      await this._ensureDaemon(opts.timeout, routing.contextId);
       if (!opts.session?.trim()) throw new Error('Browser session is required');
-      this._page = new Page(opts.session.trim(), opts.idleTimeout, contextId, opts.windowMode, opts.surface, opts.siteSession);
+      this._page = new Page(opts.session.trim(), opts.idleTimeout, routing.contextId, opts.windowMode, opts.surface, opts.siteSession, routing.preferredContextId);
       this._state = 'connected';
       return this._page;
     } catch (err) {
