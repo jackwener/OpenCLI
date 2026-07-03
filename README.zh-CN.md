@@ -55,7 +55,21 @@ OpenCLI 通过轻量 Browser Bridge 扩展和本地微型 daemon 与 Chrome/Chro
 opencli doctor
 ```
 
-### 4. 跑第一个命令
+### 4. 可选：给 Chrome profile 起别名
+
+每个 Chrome profile 都会运行自己的 OpenCLI 扩展实例。如果你同时使用多个 Chrome profile，可以先列出已连接的 profile，再给本地常用的 profile 起一个别名：
+
+```bash
+opencli profile list
+opencli profile rename <contextId> work
+opencli profile use work
+```
+
+如果只想让单条命令使用这个 profile，而不修改默认 profile，可以传 `--profile work`。注意 `browser` 命令仍然需要自己的 session 名，例如：`opencli --profile work browser demo state`。
+
+只有一个 profile 连接时，OpenCLI 会自动使用它；多个 profile 同时连接且没有默认值时，OpenCLI 会要求你明确选择，而不是自动猜测。
+
+### 5. 跑第一个命令
 
 ```bash
 opencli list
