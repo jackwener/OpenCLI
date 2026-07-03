@@ -603,8 +603,15 @@ function getPageSession(page: import('./types.js').IPage): string {
 }
 
 function getPageScope(page: import('./types.js').IPage): string {
-  const contextId = (page as unknown as { contextId?: unknown }).contextId;
-  return getBrowserScope(getPageSession(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
+  // Scope is keyed by the SELECTED profile (explicit or preferred), matching
+  // getBrowserPage's targetScope — reading only the explicit contextId would
+  // save and look up the remembered tab under different keys whenever the
+  // profile came from the config default.
+  const { contextId, preferredContextId } = page as unknown as { contextId?: unknown; preferredContextId?: unknown };
+  const selected = typeof contextId === 'string' && contextId.trim()
+    ? contextId.trim()
+    : (typeof preferredContextId === 'string' && preferredContextId.trim() ? preferredContextId.trim() : undefined);
+  return getBrowserScope(getPageSession(page), selected);
 }
 
 type SnapshotSource = 'dom' | 'ax';
