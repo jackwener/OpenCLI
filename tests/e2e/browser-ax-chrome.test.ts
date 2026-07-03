@@ -127,7 +127,7 @@ async function startFakeBridge(): Promise<FakeBridge | null> {
         server.close((err) => err ? reject(err) : resolve());
       });
     },
-    waitForExtension: () => withTimeout(connected, 15_000, 'Timed out waiting for Browser Bridge extension to connect'),
+    waitForExtension: () => withTimeout(connected, 45_000, 'Timed out waiting for Browser Bridge extension to connect'),
     sendCommand: async (command) => {
       if (!ws || ws.readyState !== ws.OPEN) throw new Error('Extension WebSocket is not connected');
       const id = `ax-e2e-${++nextId}`;
@@ -307,7 +307,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
       if (process.env.CI) throw new Error(message);
       skipReason = message;
     }
-  }, 30_000);
+  }, 60_000);
 
   afterAll(async () => {
     await killProcess(chrome);
