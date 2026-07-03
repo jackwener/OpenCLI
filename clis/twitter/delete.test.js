@@ -27,6 +27,8 @@ describe('twitter delete command', () => {
         expect(script).toContain('__twGetStatusIdFromHref');
         expect(script).toContain("document.querySelectorAll('article')");
         expect(script).toContain("targetArticle.querySelectorAll('button,[role=\"button\"]')");
+        expect(script).toContain("closest('article') === targetArticle");
+        expect(script).toContain(".filter(belongsToTargetArticle)");
         // Localized "More" caret: prefer the language-agnostic data-testid, fall
         // back to a multilingual aria-label match (zh-Hans 更多), and poll for the
         // late-hydrating target article before giving up.
@@ -67,6 +69,28 @@ describe('twitter delete command', () => {
             },
         ]);
         expect(page.wait).toHaveBeenCalledTimes(1);
+    });
+    it('unwraps Browser Bridge evaluate envelopes before checking delete success', async () => {
+        const cmd = getRegistry().get('twitter/delete');
+        expect(cmd?.func).toBeTypeOf('function');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue({
+                session: 'twitter',
+                data: { ok: true, message: 'Tweet successfully deleted.' },
+            }),
+        };
+        const result = await cmd.func(page, {
+            url: 'https://x.com/alice/status/2040254679301718161',
+        });
+        expect(result).toEqual([
+            {
+                status: 'success',
+                message: 'Tweet successfully deleted.',
+            },
+        ]);
+        expect(page.wait).toHaveBeenNthCalledWith(2, 2);
     });
     it('rejects malformed or off-domain URLs with ArgumentError before navigation', async () => {
         const cmd = getRegistry().get('twitter/delete');

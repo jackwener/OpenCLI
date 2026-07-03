@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { parseTweetUrl, buildTwitterArticleScopeSource } from './shared.js';
+import { parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult } from './shared.js';
 
 function buildDeleteScript(tweetId) {
     return `(async () => {
@@ -19,10 +19,11 @@ function buildDeleteScript(tweetId) {
               return { ok: false, message: 'Could not find the tweet card matching the requested URL.' };
           }
 
-          const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]'));
+          const belongsToTargetArticle = (el) => el.closest('article') === targetArticle;
+          const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]')).filter(belongsToTargetArticle);
           // X localizes the "More" caret aria-label (zh-Hans: 更多), so prefer the
           // language-agnostic data-testid and fall back to a multilingual label match.
-          const moreMenu = Array.from(targetArticle.querySelectorAll('[data-testid="caret"]')).find(visible)
+          const moreMenu = Array.from(targetArticle.querySelectorAll('[data-testid="caret"]')).filter(belongsToTargetArticle).find(visible)
               || buttons.find((el) => visible(el) && /^(More|更多)/.test((el.getAttribute('aria-label') || '').trim()));
           if (!moreMenu) {
               return { ok: false, message: 'Could not find the "More" context menu on the matched tweet. Are you sure you are logged in and looking at a valid tweet?' };
@@ -80,7 +81,7 @@ cli({
         const target = parseTweetUrl(kwargs.url);
         await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely
-        const result = await page.evaluate(buildDeleteScript(target.id));
+        const result = unwrapBrowserResult(await page.evaluate(buildDeleteScript(target.id)));
         if (result.ok) {
             // Wait for the deletion request to be processed
             await page.wait(2);
