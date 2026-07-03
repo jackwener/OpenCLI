@@ -38077,6 +38077,149 @@
     "siteSession": "persistent"
   },
   {
+    "site": "u2",
+    "name": "subtitles",
+    "description": "搜索 U2 字幕；默认列出当前页 30 条",
+    "access": "read",
+    "domain": "u2.dmhy.org",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "搜索关键词；省略时列出最新字幕"
+      },
+      {
+        "name": "language",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "语言：all 或语言 ID（1–32；简中 25，繁中 28/32）"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码：从 1 开始；网页第二页对应 --page 2"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "返回条数：1–30，默认 30（网页一页）"
+      }
+    ],
+    "columns": [
+      "id",
+      "language",
+      "title",
+      "publishedAt",
+      "size",
+      "downloads",
+      "uploader"
+    ],
+    "type": "js",
+    "modulePath": "u2/subtitles.js",
+    "sourceFile": "u2/subtitles.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "u2",
+    "name": "torrents",
+    "description": "搜索 U2 种子；默认列出当前页 50 条活种",
+    "access": "read",
+    "domain": "u2.dmhy.org",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "搜索关键词；省略时列出最新种子"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "分类 ID，例如 16（BDMV）；默认全部"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "default": "alive",
+        "required": false,
+        "help": "种子状态：alive / dead / all"
+      },
+      {
+        "name": "promotion",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "优惠：all / normal / free / 2x / 2x-free / 50pct / 2x-50pct / 30pct / other"
+      },
+      {
+        "name": "bookmarked",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "收藏：all / only / exclude"
+      },
+      {
+        "name": "area",
+        "type": "string",
+        "default": "title",
+        "required": false,
+        "help": "搜索范围：title / description / uploader / anidb / hash"
+      },
+      {
+        "name": "mode",
+        "type": "string",
+        "default": "and",
+        "required": false,
+        "help": "匹配模式：and / or / exact"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码：从 1 开始；网页第二页对应 --page 2"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "返回条数：1–50，默认 50（网页一页）"
+      }
+    ],
+    "columns": [
+      "id",
+      "category",
+      "title",
+      "comments",
+      "publishedAt",
+      "size",
+      "seeders",
+      "leechers",
+      "snatched",
+      "promotion",
+      "detailsUrl"
+    ],
+    "type": "js",
+    "modulePath": "u2/torrents.js",
+    "sourceFile": "u2/torrents.js",
+    "navigateBefore": false
+  },
+  {
     "site": "uisdc",
     "name": "news",
     "description": "优设读报 - 最新 AI/设计行业新闻",
