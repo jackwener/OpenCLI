@@ -36,7 +36,9 @@ jobs:
       matrix:
         # NOTE: Windows excluded — browser-actions/setup-chrome hangs during
         # Chrome MSI installation on Windows runners (known issue).
-        os: [ubuntu-latest, macos-latest]
+        # Pin macOS instead of following macos-latest: the macOS 26 hosted
+        # image has been flaky for command-line unpacked extension startup.
+        os: [ubuntu-latest, macos-15]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
