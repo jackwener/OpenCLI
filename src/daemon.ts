@@ -52,14 +52,33 @@ type ExtensionProfileConnection = {
 };
 
 const extensionProfiles = new Map<string, ExtensionProfileConnection>();
-const pending = new Map<string, {
+type PendingSettler = {
+  resolve: (data: unknown) => void;
+  reject: (error: Error) => void;
+};
+type PendingEntry = {
   contextId: string;
   action: string;
   dispatched: boolean;
-  resolve: (data: unknown) => void;
-  reject: (error: Error) => void;
+  /**
+   * All HTTP requests waiting on this command id. The first settler is the
+   * original request; transport retries with the same id attach here instead
+   * of re-dispatching, so a retry never re-executes a command that is still
+   * running.
+   */
+  settlers: PendingSettler[];
   timer: ReturnType<typeof setTimeout>;
-}>();
+};
+const pending = new Map<string, PendingEntry>();
+
+function settlePending(id: string, entry: PendingEntry, outcome: { data?: unknown; error?: Error }): void {
+  clearTimeout(entry.timer);
+  pending.delete(id);
+  for (const settler of entry.settlers) {
+    if (outcome.error) settler.reject(outcome.error);
+    else settler.resolve(outcome.data);
+  }
+}
 let commandResultUnknownCount = 0;
 // Extension log ring buffer
 interface LogEntry { level: string; msg: string; ts: number; }
@@ -148,7 +167,6 @@ function unregisterExtensionConnection(ws: WebSocket): void {
     extensionProfiles.delete(contextId);
     for (const [id, p] of pending) {
       if (p.contextId !== contextId) continue;
-      clearTimeout(p.timer);
       const failure = buildExtensionDisconnectFailure({
         contextId,
         action: p.action,
@@ -158,8 +176,7 @@ function unregisterExtensionConnection(ws: WebSocket): void {
         commandResultUnknownCount++;
         log.warn(`[daemon] Command result unknown after extension disconnect (id=${id}, action=${p.action}, context=${contextId})`);
       }
-      p.reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
-      pending.delete(id);
+      settlePending(id, p, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
     }
   }
 }
@@ -314,43 +331,46 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
-      const timeoutMs = typeof body.timeout === 'number' && body.timeout > 0
-        ? body.timeout * 1000
-        : 120000;
-      if (pending.has(body.id)) {
-        jsonResponse(res, 409, {
-          id: body.id,
-          ok: false,
-          error: 'Duplicate command id already pending; retry',
+      // Absolute deadline wins over the legacy duration field: all hops share
+      // one wall clock, so remaining budget absorbs queueing/transit time.
+      const timeoutMs = typeof body.deadlineAt === 'number' && body.deadlineAt > 0
+        ? Math.max(1000, body.deadlineAt - Date.now())
+        : (typeof body.timeout === 'number' && body.timeout > 0 ? body.timeout * 1000 : 120000);
+
+      // A transport retry of an in-flight command attaches to it instead of
+      // re-dispatching — the extension is already executing this id.
+      const existing = pending.get(body.id);
+      if (existing) {
+        const result = await new Promise<unknown>((resolve, reject) => {
+          existing.settlers.push({ resolve, reject });
         });
+        jsonResponse(res, 200, result);
         return;
       }
+
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
           const entry = pending.get(body.id);
-          pending.delete(body.id);
-          const failure = buildCommandTimeoutFailure(entry?.action ?? 'unknown', timeoutMs);
-          if (failure.countAsCommandResultUnknown && entry?.dispatched) {
+          if (!entry) return;
+          const failure = buildCommandTimeoutFailure(entry.action, timeoutMs);
+          if (failure.countAsCommandResultUnknown && entry.dispatched) {
             commandResultUnknownCount++;
             log.warn(`[daemon] Command timed out after dispatch (id=${body.id}, action=${entry.action}, timeout=${timeoutMs}ms)`);
           }
-          reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
+          settlePending(body.id, entry, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
         }, timeoutMs);
-        const entry = {
+        const entry: PendingEntry = {
           contextId: route.connection!.contextId,
           action: typeof body.action === 'string' ? body.action : 'unknown',
           dispatched: false,
-          resolve,
-          reject,
+          settlers: [{ resolve, reject }],
           timer,
         };
         pending.set(body.id, entry);
         const failBeforeDispatch = (err: unknown) => {
           if (pending.get(body.id) !== entry) return;
           const failure = buildCommandDispatchFailure(entry.contextId);
-          clearTimeout(timer);
-          pending.delete(body.id);
-          reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
+          settlePending(body.id, entry, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
           log.warn(`[daemon] Failed to dispatch command ${body.id}: ${err instanceof Error ? err.message : String(err)}`);
         };
         try {
@@ -446,12 +466,14 @@ wss.on('connection', (ws: WebSocket) => {
         return;
       }
 
+      // Application-level keepalive from the extension — WS traffic is what
+      // keeps the MV3 service worker alive; nothing to do here.
+      if (msg.type === 'ping') return;
+
       // Handle command results
       const p = pending.get(msg.id);
       if (p) {
-        clearTimeout(p.timer);
-        pending.delete(msg.id);
-        p.resolve(msg);
+        settlePending(msg.id, p, { data: msg });
       }
     } catch (err) {
       // Malformed message from the extension. Surface so protocol drift /
@@ -494,15 +516,28 @@ httpServer.on('error', (err: NodeJS.ErrnoException) => {
 
 // Graceful shutdown
 function shutdown(): void {
-  // Reject all pending requests so CLI doesn't hang
-  for (const [, p] of pending) {
-    clearTimeout(p.timer);
-    p.reject(new Error('Daemon shutting down'));
+  // Reject all pending requests so the CLI gets a structured response it can
+  // act on (spawn a replacement daemon, retry the same id) instead of a
+  // socket hang-up it must treat as result-unknown.
+  for (const [id, p] of pending) {
+    settlePending(id, p, {
+      error: new DaemonCommandFailure(
+        'Daemon shutting down before the command completed.',
+        'daemon_shutting_down',
+        'The daemon is being replaced; the command can be retried with the same id once a daemon is running again.',
+        503,
+      ),
+    });
   }
   pending.clear();
   for (const profile of extensionProfiles.values()) profile.ws.close();
-  httpServer.close();
-  process.exit(EXIT_CODES.SUCCESS);
+  // Let the rejection responses flush before exiting — a synchronous
+  // process.exit() would kill the queued microtasks that write them.
+  httpServer.close(() => process.exit(EXIT_CODES.SUCCESS));
+  setTimeout(() => {
+    httpServer.closeIdleConnections?.();
+    setTimeout(() => process.exit(EXIT_CODES.SUCCESS), 500).unref();
+  }, 100).unref();
 }
 
 process.on('SIGTERM', shutdown);

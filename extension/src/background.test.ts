@@ -821,30 +821,43 @@ describe('background tab isolation', () => {
     expect(chrome.alarms.create).toHaveBeenCalledWith('keepalive', { periodInMinutes: 0.5 });
   });
 
-  it('reschedules a pending slow reconnect timer to fast cadence after daemon ping succeeds', async () => {
+  it('reconnect delay backs off exponentially with a 15s cap and resets on success', async () => {
     const { chrome } = createChromeMock();
-    vi.useFakeTimers();
-    vi.setSystemTime(100_000);
     vi.stubGlobal('chrome', chrome);
-    const fetchMock = vi.fn()
-      .mockRejectedValueOnce(new Error('daemon down'))
-      .mockResolvedValue({ ok: true });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
 
     const mod = await import('./background');
-    await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
     mod.__test__.resetReconnectState();
-    mod.__test__.setReconnectPhaseStartedAt(Date.now() - 31_000);
-    mod.__test__.scheduleReconnectForTest();
-    expect(mod.__test__.getReconnectTimerDelay()).toBe(15_000);
+
+    mod.__test__.setReconnectAttempts(0);
+    const first = mod.__test__.nextReconnectDelayMs();
+    expect(first).toBeGreaterThanOrEqual(1_000);
+    expect(first).toBeLessThan(1_500);
+
+    mod.__test__.setReconnectAttempts(3);
+    const fourth = mod.__test__.nextReconnectDelayMs();
+    expect(fourth).toBeGreaterThanOrEqual(8_000);
+    expect(fourth).toBeLessThan(8_500);
+
+    mod.__test__.setReconnectAttempts(10);
+    const capped = mod.__test__.nextReconnectDelayMs();
+    expect(capped).toBeGreaterThanOrEqual(15_000);
+    expect(capped).toBeLessThan(15_500);
+  });
+
+  it('a successful daemon ping resets the backoff before the WebSocket attempt', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+
+    const mod = await import('./background');
+    mod.__test__.resetReconnectState();
+    mod.__test__.setReconnectAttempts(5);
 
     await mod.__test__.connectForTest();
 
-    expect(MockWebSocket.instances).toHaveLength(1);
-    expect(mod.__test__.getReconnectTimerDelay()).toBe(3_000);
+    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(1);
+    expect(mod.__test__.getReconnectAttempts()).toBe(0);
   });
 
   it('ignores daemon commands delivered to a superseded WebSocket', async () => {
@@ -1590,7 +1603,7 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(browserKey('default'))).toBeNull();
   });
 
-  it('clears sessionTimeoutOverrides on idle expiry', async () => {
+  it('clears session overrides on idle expiry', async () => {
     const { chrome } = createChromeMock();
     vi.useFakeTimers();
     vi.stubGlobal('chrome', chrome);
@@ -1599,7 +1612,7 @@ describe('background tab isolation', () => {
     mod.__test__.setAutomationWindowId(browserKey('default'), 1);
 
     // Set a custom timeout override
-    mod.__test__.sessionTimeoutOverrides.set(browserKey('default'), 120_000);
+    mod.__test__.sessionOverrides.set(browserKey('default'), { idleTimeoutMs: 120_000 });
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(120_000);
 
     // Trigger idle timer with the custom timeout
@@ -1607,19 +1620,19 @@ describe('background tab isolation', () => {
     await vi.advanceTimersByTimeAsync(120001);
 
     // Override should be cleaned up
-    expect(mod.__test__.sessionTimeoutOverrides.has(browserKey('default'))).toBe(false);
+    expect(mod.__test__.sessionOverrides.has(browserKey('default'))).toBe(false);
     expect(mod.__test__.getSession(browserKey('default'))).toBeNull();
     // Should fall back to default interactive timeout
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(600_000);
   });
 
-  it('clears sessionTimeoutOverrides on explicit close', async () => {
+  it('clears session overrides on explicit close', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./background');
     mod.__test__.setAutomationWindowId(browserKey('default'), 1);
-    mod.__test__.sessionTimeoutOverrides.set(browserKey('default'), 300_000);
+    mod.__test__.sessionOverrides.set(browserKey('default'), { idleTimeoutMs: 300_000 });
 
     const result = await mod.__test__.handleCommand({
       id: 'close-1',
@@ -1629,7 +1642,7 @@ describe('background tab isolation', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(mod.__test__.sessionTimeoutOverrides.has(browserKey('default'))).toBe(false);
+    expect(mod.__test__.sessionOverrides.has(browserKey('default'))).toBe(false);
   });
 
   it('applies idleTimeout from command to session override', async () => {
@@ -1656,7 +1669,7 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(120_000);
   });
 
-  it('clears sessionTimeoutOverrides when user manually closes the automation container', async () => {
+  it('clears session overrides when user manually closes the automation container', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -1664,7 +1677,7 @@ describe('background tab isolation', () => {
 
     // Set up a session with window ID 42 and a custom timeout override
     mod.__test__.setAutomationWindowId(browserKey('default'), 42);
-    mod.__test__.sessionTimeoutOverrides.set(browserKey('default'), 180_000);
+    mod.__test__.sessionOverrides.set(browserKey('default'), { idleTimeoutMs: 180_000 });
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(180_000);
 
     // Simulate user closing the window — invoke the onRemoved listener
@@ -1673,7 +1686,7 @@ describe('background tab isolation', () => {
 
     // Session and override should both be cleaned up
     expect(mod.__test__.getSession(browserKey('default'))).toBeNull();
-    expect(mod.__test__.sessionTimeoutOverrides.has(browserKey('default'))).toBe(false);
+    expect(mod.__test__.sessionOverrides.has(browserKey('default'))).toBe(false);
     // Should fall back to default interactive timeout
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(600_000);
   });

@@ -62,6 +62,31 @@ function effectiveCommandTimeoutSeconds(params: Omit<DaemonCommand, 'id' | 'acti
 }
 
 /**
+ * First extension version with the command journal (see extension/src/
+ * journal.ts). From this version on, re-sending the SAME command id is safe:
+ * the executor replays the recorded result instead of re-executing.
+ */
+const MIN_JOURNAL_EXTENSION_VERSION = '1.0.22';
+
+function versionAtLeast(version: string | null | undefined, min: string): boolean {
+  if (!version) return false;
+  const a = version.replace(/^v/, '').split('-')[0].split('.').map(Number);
+  const b = min.split('.').map(Number);
+  if (a.length < 3 || a.some(Number.isNaN)) return false;
+  for (let i = 0; i < 3; i++) {
+    const d = a[i] - (b[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
+/** Error codes meaning the executor's outcome is genuinely unknown — never auto-retry. */
+const UNKNOWN_OUTCOME_CODES = new Set(['command_result_unknown', 'command_lost', 'result_evicted']);
+
+/** Max transport attempts for one logical command (same id throughout). */
+const TRANSPORT_MAX_ATTEMPTS = 4;
+
+/**
  * undici surfaces network failures as `TypeError: fetch failed` with the real
  * error in `.cause` (possibly an AggregateError). Only failures that happen
  * before the request could reach the daemon are safe to auto-retry — a reset
@@ -135,10 +160,16 @@ export interface DaemonCommand {
   contextId?: string;
   /**
    * Daemon-side command timeout in seconds. Set by the transport layer from
-   * the effective command deadline; the extension derives its CDP deadline
-   * from the same value.
+   * the effective command deadline; kept for older daemons — new code prefers
+   * `deadlineAt`.
    */
   timeout?: number;
+  /**
+   * Absolute command deadline (epoch ms). All hops run on one machine, so
+   * every layer derives its remaining budget as `deadlineAt - Date.now()`,
+   * absorbing queueing and service-worker wake latency.
+   */
+  deadlineAt?: number;
 }
 
 export interface DaemonResult {
@@ -171,40 +202,67 @@ export {
 /**
  * Internal: send a command to the daemon and return the raw `DaemonResult`.
  *
- * Retry policy is explicit:
- * - pre-dispatch bridge/profile errors: run the full daemon/extension ensure
- *   path, then resend with a fresh transport id;
- * - fetch TypeError whose cause is a pre-connect failure (ECONNREFUSED etc.):
- *   same full ensure path, because the daemon may be stopped/stale and needs
- *   spawn/replacement — the request never reached it, so resending is safe;
- * - fetch TypeError after connect (ECONNRESET / socket hang-up): NOT retried —
- *   the daemon may have already dispatched the command to the browser, so this
- *   surfaces as `command_result_unknown` instead of risking a double write;
- * - `command_result_unknown` and AbortError: never retry automatically.
+ * There are exactly two retry classes, with different id semantics:
+ *
+ * TRANSPORT retries — the SAME command id, so the executor's journal replays
+ * an already-executed command instead of re-running it:
+ * - fetch failures (daemon down/replaced/crashed): run the ensure path (which
+ *   also spawns the daemon and tells us the extension version), then resend.
+ *   Requires a journaling extension unless the failure was pre-connect;
+ * - pre-dispatch bridge/profile errors and `daemon_shutting_down`;
+ * - a duplicate id landing on a still-pending command attaches to it in the
+ *   daemon (no re-dispatch), so same-id resends never double-execute.
+ *
+ * SEMANTIC retry — ONE new logical attempt with a NEW id, only for executor
+ * errors that happened before any page code ran (`attach_failed`/`tab_gone`).
+ * `target_navigated` is the page layer's decision, not ours.
+ *
+ * Never retried: `command_result_unknown` / `command_lost` / `result_evicted`
+ * (the outcome is genuinely unknown) and client-side AbortError (the shared
+ * deadline is already exhausted).
  */
 async function sendCommandRaw(
   action: DaemonCommand['action'],
   params: Omit<DaemonCommand, 'id' | 'action'>,
 ): Promise<DaemonResult> {
-  const maxAttempts = 4;
-  let dispatchRecoveryUsed = false;
-  let duplicateIdRetryUsed = false;
-  let transientRetryUsed = false;
+  const timeoutSeconds = effectiveCommandTimeoutSeconds(params);
+  const deadlineAt = Date.now() + timeoutSeconds * 1000;
+  const rawWindowMode = process.env.OPENCLI_WINDOW;
+  const envWindowMode = rawWindowMode === 'foreground' || rawWindowMode === 'background'
+    ? rawWindowMode
+    : undefined;
+  const contextId = params.contextId ?? resolveProfileContextId();
+  const windowMode = params.windowMode ?? envWindowMode;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const id = generateId();
-    const rawWindowMode = process.env.OPENCLI_WINDOW;
-    const envWindowMode = rawWindowMode === 'foreground' || rawWindowMode === 'background'
-      ? rawWindowMode
-      : undefined;
-    const contextId = params.contextId ?? resolveProfileContextId();
-    const windowMode = params.windowMode ?? envWindowMode;
-    const timeoutSeconds = effectiveCommandTimeoutSeconds(params);
+  let id = generateId();
+  let ensureUsed = false;
+  let semanticRetryUsed = false;
+  let executorJournaled: boolean | null = null;
+
+  const ensureBridge = async (): Promise<void> => {
+    const ready = await ensureBrowserBridgeReady({
+      timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
+      contextId,
+      verbose: false,
+    });
+    executorJournaled = versionAtLeast(ready.health.status?.extensionVersion, MIN_JOURNAL_EXTENSION_VERSION);
+  };
+
+  for (let attempt = 1; attempt <= TRANSPORT_MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1 && Date.now() >= deadlineAt) {
+      throw new BrowserCommandError(
+        'Browser command deadline exhausted across transport retries.',
+        COMMAND_RESULT_UNKNOWN_CODE,
+        COMMAND_RESULT_UNKNOWN_HINT,
+      );
+    }
+    const remainingMs = Math.max(1000, deadlineAt - Date.now());
     const command: DaemonCommand = {
       id,
       action,
       ...params,
       timeout: timeoutSeconds,
+      deadlineAt,
       ...(contextId && { contextId }),
       ...(windowMode && { windowMode }),
     };
@@ -213,38 +271,27 @@ async function sendCommandRaw(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
-        timeout: timeoutSeconds * 1000 + HTTP_TIMEOUT_MARGIN_MS,
+        timeout: remainingMs + HTTP_TIMEOUT_MARGIN_MS,
       });
 
       const result = (await res.json()) as DaemonResult;
 
       if (result.ok) return result;
 
-      if (result.errorCode === 'command_result_unknown') {
+      if (result.errorCode && UNKNOWN_OUTCOME_CODES.has(result.errorCode)) {
         throw new BrowserCommandError(result.error ?? 'Browser command result is unknown', result.errorCode, result.errorHint);
       }
 
-      if (!dispatchRecoveryUsed && isPreDispatchError(result.errorCode)) {
-        dispatchRecoveryUsed = true;
-        await ensureBrowserBridgeReady({
-          timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
-          contextId,
-          verbose: false,
-        });
+      if ((isPreDispatchError(result.errorCode) || result.errorCode === 'daemon_shutting_down') && !ensureUsed) {
+        ensureUsed = true;
+        await ensureBridge();
         continue;
       }
 
-      const isDuplicateCommandId = res.status === 409
-        && !result.errorCode
-        && (result.error ?? '').includes('Duplicate command id');
-      if (isDuplicateCommandId && !duplicateIdRetryUsed) {
-        duplicateIdRetryUsed = true;
-        continue;
-      }
-
-      const advice = classifyBrowserError(new Error(result.error ?? ''));
-      if (advice.retryable && !transientRetryUsed) {
-        transientRetryUsed = true;
+      const advice = classifyBrowserError(new BrowserCommandError(result.error ?? '', result.errorCode));
+      if (advice.kind === 'extension-transient' && !semanticRetryUsed) {
+        semanticRetryUsed = true;
+        id = generateId();
         await sleep(advice.delayMs);
         continue;
       }
@@ -256,40 +303,24 @@ async function sendCommandRaw(
       if (err instanceof Error && err.name === 'AbortError') {
         throw new BrowserCommandError(
           'Browser command timed out client-side; the page may still have applied it.',
-          'command_result_unknown',
-          'Inspect the page state before retrying. Idempotent reads are safe to retry; non-idempotent writes may have already happened.',
+          COMMAND_RESULT_UNKNOWN_CODE,
+          COMMAND_RESULT_UNKNOWN_HINT,
         );
       }
 
       if (err instanceof TypeError) {
-        if (!isPreConnectFetchError(err)) {
-          // Connection dropped after the request may have reached the daemon
-          // (ECONNRESET / socket hang-up) — the command may already be running
-          // in the browser, so resending would risk a double write.
-          throw new BrowserCommandError(
-            'Connection to the daemon was lost mid-command; it may have already been applied.',
-            COMMAND_RESULT_UNKNOWN_CODE,
-            COMMAND_RESULT_UNKNOWN_HINT,
-          );
-        }
-        if (!dispatchRecoveryUsed) {
-          dispatchRecoveryUsed = true;
-          await ensureBrowserBridgeReady({
-            timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
-            contextId,
-            verbose: false,
-          });
-          continue;
-        }
-      }
-
-      if (err instanceof Error) {
-        const advice = classifyBrowserError(err);
-        if (advice.retryable && !transientRetryUsed) {
-          transientRetryUsed = true;
-          await sleep(advice.delayMs);
-          continue;
-        }
+        // Transport failure — the request may or may not have reached the
+        // daemon. Bring the bridge back up (spawns a daemon if none is
+        // running) and learn whether the extension journals command ids.
+        await ensureBridge();
+        // Same-id resend is safe when the request never connected, or when
+        // the executor dedupes ids. Otherwise the outcome is unknown.
+        if (executorJournaled || isPreConnectFetchError(err)) continue;
+        throw new BrowserCommandError(
+          'Connection to the daemon was lost mid-command; it may have already been applied.',
+          COMMAND_RESULT_UNKNOWN_CODE,
+          COMMAND_RESULT_UNKNOWN_HINT,
+        );
       }
 
       throw err;

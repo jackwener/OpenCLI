@@ -230,47 +230,38 @@ export async function evaluate(
   aggressiveRetry: boolean = false,
   timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
 ): Promise<unknown> {
-  // Retry the entire evaluate (attach + command).
-  // Normal: 2 retries. Browser: 3 retries (tolerates extension interference).
-  const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
-  for (let attempt = 1; attempt <= MAX_EVAL_RETRIES; attempt++) {
-    try {
-      await ensureAttached(tabId, aggressiveRetry);
+  // No retry loop here: failures carry a machine-readable errorCode (see
+  // classifyExtensionError in background.ts) and the CLI decides whether a
+  // NEW logical attempt is safe. ensureAttached still does its own local
+  // attach retries; a debugger error mid-evaluate invalidates the attach
+  // cache so the next attempt re-attaches.
+  try {
+    await ensureAttached(tabId, aggressiveRetry);
 
-      const result = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
-        expression,
-        returnByValue: true,
-        awaitPromise: true,
-      }, timeoutMs) as {
-        result?: { type: string; value?: unknown; description?: string; subtype?: string };
-        exceptionDetails?: { exception?: { description?: string }; text?: string };
-      };
+    const result = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    }, timeoutMs) as {
+      result?: { type: string; value?: unknown; description?: string; subtype?: string };
+      exceptionDetails?: { exception?: { description?: string }; text?: string };
+    };
 
-      if (result.exceptionDetails) {
-        const errMsg = result.exceptionDetails.exception?.description
-          || result.exceptionDetails.text
-          || 'Eval error';
-        throw new Error(errMsg);
-      }
-
-      return result.result?.value;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      // Only retry on attach/debugger errors, not on JS eval errors
-      const isNavigateError = msg.includes('Inspected target navigated') || msg.includes('Target closed');
-      const isAttachError = isNavigateError || msg.includes('attach failed') || msg.includes('Debugger is not attached')
-        || msg.includes('chrome-extension://');
-      if (isAttachError && attempt < MAX_EVAL_RETRIES) {
-        attached.delete(tabId); // Force re-attach on next attempt
-        // SPA navigations recover quickly; debugger detach needs longer
-        const retryMs = isNavigateError ? 200 : 500;
-        await new Promise(resolve => setTimeout(resolve, retryMs));
-        continue;
-      }
-      throw e;
+    if (result.exceptionDetails) {
+      const errMsg = result.exceptionDetails.exception?.description
+        || result.exceptionDetails.text
+        || 'Eval error';
+      throw new Error(errMsg);
     }
+
+    return result.result?.value;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('Detached') || msg.includes('Debugger is not attached') || msg.includes('Target closed')) {
+      attached.delete(tabId); // Force re-attach on the next command
+    }
+    throw e;
   }
-  throw new Error('evaluate: max retries exhausted');
 }
 
 export const evaluateAsync = evaluate;

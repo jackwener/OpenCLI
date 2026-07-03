@@ -81,8 +81,16 @@ export interface Command {
    * Daemon-side command timeout in seconds, set by the CLI transport. The
    * extension derives its CDP deadline from this so it fails just before the
    * daemon timer and its (more specific) error wins.
+   * Kept alongside `deadlineAt` for older daemons; new code prefers deadlineAt.
    */
   timeout?: number;
+  /**
+   * Absolute command deadline (epoch ms), set by the CLI transport. All hops
+   * run on the same machine, so every layer derives its remaining budget as
+   * `deadlineAt - Date.now()` — queueing and service-worker wake latency are
+   * absorbed instead of silently shrinking the innermost budget.
+   */
+  deadlineAt?: number;
 }
 
 export interface Result {

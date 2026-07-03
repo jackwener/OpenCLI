@@ -221,14 +221,13 @@ describe('daemon-client', () => {
     expect(body.windowMode).toBe('background');
   });
 
-  it('sendCommand retries with a new id when daemon reports a duplicate pending id', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_123);
+  it('sendCommand retries executor-transient errors ONCE with a NEW id (re-execution is a new logical attempt)', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock
       .mockResolvedValueOnce({
         ok: false,
-        status: 409,
-        json: () => Promise.resolve({ ok: false, error: 'Duplicate command id already pending; retry' }),
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: false, error: 'attach failed: interference', errorCode: 'attach_failed' }),
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
@@ -244,6 +243,21 @@ describe('daemon-client', () => {
       return body.id;
     });
     expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('sendCommand does NOT retry mid-execution failures (detached_mid_command) — outcome is unknown', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: false, error: 'Detached while handling command', errorCode: 'detached_mid_command' }),
+    } as Response);
+
+    await expect(sendCommand('exec', { code: 'submit()' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'detached_mid_command',
+    } satisfies Partial<BrowserCommandError>);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('sendCommand does not retry command_result_unknown even when the message looks transient', async () => {
@@ -268,9 +282,8 @@ describe('daemon-client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('sendCommand runs full bridge ensure on a pre-dispatch failure, then resends with a fresh id', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_321);
-    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
+  function mockEnsureReady(extensionVersion?: string) {
+    return vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
       health: {
         state: 'ready',
         status: {
@@ -278,6 +291,7 @@ describe('daemon-client', () => {
           pid: 1,
           uptime: 1,
           extensionConnected: true,
+          ...(extensionVersion && { extensionVersion }),
           pending: 0,
           memoryMB: 0,
           port: 19825,
@@ -285,6 +299,11 @@ describe('daemon-client', () => {
       },
       spawnedProcess: null,
     });
+  }
+
+  it('sendCommand runs full bridge ensure on a pre-dispatch failure, then resends the SAME id', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_321);
+    const ensureSpy = mockEnsureReady('1.0.22');
     const fetchMock = vi.mocked(fetch);
     fetchMock
       .mockResolvedValueOnce({
@@ -307,25 +326,12 @@ describe('daemon-client', () => {
     expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ contextId: 'work', verbose: false }));
     const ids = fetchMock.mock.calls.map(([, init]) => (JSON.parse(String(init?.body)) as { id: string }).id);
     expect(ids).toHaveLength(2);
-    expect(ids[0]).not.toBe(ids[1]);
+    // Transport retries keep the id stable so the executor's journal can dedupe.
+    expect(ids[0]).toBe(ids[1]);
   });
 
   it('sendCommand runs full bridge ensure on a pre-connect TypeError (ECONNREFUSED) before resending', async () => {
-    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
-      health: {
-        state: 'ready',
-        status: {
-          ok: true,
-          pid: 1,
-          uptime: 1,
-          extensionConnected: true,
-          pending: 0,
-          memoryMB: 0,
-          port: 19825,
-        },
-      },
-      spawnedProcess: null,
-    });
+    const ensureSpy = mockEnsureReady();
     const refused = new TypeError('fetch failed');
     (refused as { cause?: unknown }).cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:19825'), { code: 'ECONNREFUSED' });
     const fetchMock = vi.mocked(fetch);
@@ -343,8 +349,28 @@ describe('daemon-client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('sendCommand does NOT resend on a post-connect TypeError (ECONNRESET) — surfaces command_result_unknown', async () => {
-    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady');
+  it('sendCommand retries a post-connect drop with the SAME id when the extension journals ids', async () => {
+    mockEnsureReady('1.0.22');
+    const reset = new TypeError('fetch failed');
+    (reset as { cause?: unknown }).cause = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockRejectedValueOnce(reset)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 'replayed' }),
+      } as Response);
+
+    await expect(sendCommand('navigate', { url: 'https://example.com' })).resolves.toBe('replayed');
+
+    const ids = fetchMock.mock.calls.map(([, init]) => (JSON.parse(String(init?.body)) as { id: string }).id);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(ids[1]);
+  });
+
+  it('sendCommand does NOT resend a post-connect drop when the extension predates the journal', async () => {
+    const ensureSpy = mockEnsureReady('1.0.21');
     const reset = new TypeError('fetch failed');
     (reset as { cause?: unknown }).cause = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
     vi.mocked(fetch).mockRejectedValueOnce(reset);
@@ -354,12 +380,12 @@ describe('daemon-client', () => {
       code: 'command_result_unknown',
     } satisfies Partial<BrowserCommandError>);
 
-    expect(ensureSpy).not.toHaveBeenCalled();
+    expect(ensureSpy).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('sendCommand does NOT resend on a bare TypeError with no pre-connect cause', async () => {
-    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady');
+  it('sendCommand does NOT resend a bare TypeError on a legacy extension', async () => {
+    const ensureSpy = mockEnsureReady('1.0.15');
     vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'));
 
     await expect(sendCommand('exec', { code: 'window.__mutate = true' })).rejects.toMatchObject({
@@ -367,7 +393,7 @@ describe('daemon-client', () => {
       code: 'command_result_unknown',
     } satisfies Partial<BrowserCommandError>);
 
-    expect(ensureSpy).not.toHaveBeenCalled();
+    expect(ensureSpy).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 

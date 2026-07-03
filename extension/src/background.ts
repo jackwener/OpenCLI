@@ -11,6 +11,7 @@ import type { Command, Result } from './protocol';
 import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL } from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
+import { executeWithJournal } from './journal';
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -122,7 +123,8 @@ async function connectAttempt(): Promise<void> {
       scheduleReconnect();
       return; // unexpected response — not our daemon, but keep polling.
     }
-    notifyDaemonReachable();
+    // Daemon is reachable — proceed straight to the WebSocket below.
+    reconnectAttempts = 0;
   } catch {
     scheduleReconnect();
     return; // daemon not running — keep polling until the next daemon spawn.
@@ -145,12 +147,10 @@ async function connectAttempt(): Promise<void> {
     if (ws !== thisWs) return;
     console.log('[opencli] Connected to daemon');
     reconnectAttempts = 0; // Reset on successful connection
-    reconnectPhaseStartedAt = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    reconnectTimerDelayMs = null;
     // Send version + compatibility range so the daemon can report mismatches to the CLI
     safeSend(thisWs, {
       type: 'hello',
@@ -158,21 +158,30 @@ async function connectAttempt(): Promise<void> {
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
     });
+    // Application-level keepalive. Chrome (116+) extends the service worker's
+    // lifetime on WebSocket ACTIVITY — an idle OPEN socket does not count, so
+    // without this the worker lives on a knife-edge between the 30s idle kill
+    // and the 30s keepalive alarm. The daemon ignores `ping` messages.
+    startWsKeepalive(thisWs);
   };
 
   thisWs.onmessage = async (event) => {
     if (ws !== thisWs) return;
     try {
       const command = JSON.parse(event.data as string) as Command;
-      const result = await handleCommand(command);
-      if (ws !== thisWs) return;
-      safeSend(thisWs, result);
+      const result = await executeWithJournal(command, handleCommand);
+      // The socket may have been replaced while a long command ran. Deliver
+      // the result on the freshest open socket — the daemon correlates by id,
+      // and the journal replays it if this delivery is lost too.
+      const target = ws && ws.readyState === WebSocket.OPEN ? ws : thisWs;
+      safeSend(target, result);
     } catch (err) {
       console.error('[opencli] Message handling error:', err);
     }
   };
 
   thisWs.onclose = () => {
+    stopWsKeepalive(thisWs);
     if (ws !== thisWs) return;
     console.log('[opencli] Disconnected from daemon');
     ws = null;
@@ -184,55 +193,55 @@ async function connectAttempt(): Promise<void> {
   };
 }
 
+// ─── WebSocket keepalive ─────────────────────────────────────────────
+
+const WS_KEEPALIVE_INTERVAL_MS = 20_000;
+let wsKeepaliveTimer: ReturnType<typeof setInterval> | null = null;
+let wsKeepaliveSocket: WebSocket | null = null;
+
+function startWsKeepalive(socket: WebSocket): void {
+  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
+  wsKeepaliveSocket = socket;
+  wsKeepaliveTimer = setInterval(() => {
+    if (socket !== ws || socket.readyState !== WebSocket.OPEN) {
+      stopWsKeepalive(socket);
+      return;
+    }
+    safeSend(socket, { type: 'ping', ts: Date.now() });
+  }, WS_KEEPALIVE_INTERVAL_MS);
+}
+
+function stopWsKeepalive(socket: WebSocket): void {
+  if (wsKeepaliveSocket !== socket) return;
+  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
+  wsKeepaliveTimer = null;
+  wsKeepaliveSocket = null;
+}
+
 /**
- * Reconnect cadence is phased and never gives up while Chrome keeps the
- * service worker alive:
- *
- * - fast phase: every 3s for 30s after a disconnect/failure;
- * - slow phase: every 15s after the fast window expires;
- * - durable wake path: chrome.alarms. Production Chrome currently enforces a
- *   30s minimum alarm interval, so alarms wake the service worker after idle
- *   eviction while setTimeout provides the faster path only when the worker
- *   remains alive.
+ * Reconnect cadence: plain exponential backoff with jitter, never giving up
+ * while Chrome keeps the service worker alive. 1s → 2s → 4s → … capped at 15s
+ * (+0-500ms jitter); attempts reset on a successful WS open. The durable wake
+ * path is chrome.alarms: production Chrome enforces a ~30s minimum alarm
+ * interval, so alarms wake the worker after idle eviction while setTimeout
+ * provides the faster path only when the worker remains alive.
  */
-const RECONNECT_FAST_INTERVAL_MS = 3000;
-const RECONNECT_FAST_WINDOW_MS = 30000;
-const RECONNECT_SLOW_INTERVAL_MS = 15000;
-let reconnectPhaseStartedAt = 0;
-let reconnectTimerDelayMs: number | null = null;
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 15000;
 
 function nextReconnectDelayMs(): number {
-  const sinceLoss = Date.now() - reconnectPhaseStartedAt;
-  return sinceLoss < RECONNECT_FAST_WINDOW_MS
-    ? RECONNECT_FAST_INTERVAL_MS
-    : RECONNECT_SLOW_INTERVAL_MS;
+  const exp = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * 2 ** Math.min(reconnectAttempts, 6));
+  return exp + Math.floor(Math.random() * 500);
 }
 
-function scheduleReconnect(opts: { replaceExisting?: boolean } = {}): void {
-  if (reconnectTimer) {
-    if (!opts.replaceExisting) return;
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-    reconnectTimerDelayMs = null;
-  }
-  reconnectAttempts++;
-  if (reconnectPhaseStartedAt === 0) {
-    reconnectPhaseStartedAt = Date.now();
-  }
+function scheduleReconnect(): void {
+  if (reconnectTimer) return;
   const delay = nextReconnectDelayMs();
-  reconnectTimerDelayMs = delay;
+  reconnectAttempts++;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    reconnectTimerDelayMs = null;
     void connect();
   }, delay);
-}
-
-function notifyDaemonReachable(): void {
-  reconnectPhaseStartedAt = Date.now();
-  if (reconnectTimer && reconnectTimerDelayMs !== RECONNECT_FAST_INTERVAL_MS) {
-    scheduleReconnect({ replaceExisting: true });
-  }
 }
 
 // ─── Browser target leases ───────────────────────────────────────────
@@ -308,10 +317,24 @@ class CommandFailure extends Error {
   }
 }
 
-/** Per-session custom timeout overrides set via command.idleTimeout */
-const sessionTimeoutOverrides = new Map<string, number>();
-const sessionWindowModeOverrides = new Map<string, WindowMode>();
-const sessionLifecycleOverrides = new Map<string, LeaseLifecycle>();
+/**
+ * Per-session overrides set via command fields (idleTimeout / windowMode /
+ * siteSession). One record per lease key — a single map so create/clear
+ * stay in lockstep.
+ */
+type SessionOverrides = {
+  idleTimeoutMs?: number;
+  windowMode?: WindowMode;
+  lifecycle?: LeaseLifecycle;
+};
+const sessionOverrides = new Map<string, SessionOverrides>();
+
+function setSessionOverride(key: string, patch: SessionOverrides): void {
+  sessionOverrides.set(key, { ...sessionOverrides.get(key), ...patch });
+}
+
+/** Commands currently executing per lease — idle release is deferred while > 0. */
+const activeCommandCounts = new Map<string, number>();
 const LEASE_KEY_SEPARATOR = '\u0000';
 
 function getLeaseKey(session: string, surface: BrowserSurface): string {
@@ -349,17 +372,17 @@ function getSessionFromKey(key: string): string {
 function getIdleTimeout(key: string): number {
   const session = automationSessions.get(key);
   if (session?.kind === 'bound') return IDLE_TIMEOUT_NONE;
+  const overrides = sessionOverrides.get(key);
   const adapterPersistent = getSurfaceFromKey(key) === 'adapter'
-    && (session?.lifecycle === 'persistent' || sessionLifecycleOverrides.get(key) === 'persistent');
+    && (session?.lifecycle === 'persistent' || overrides?.lifecycle === 'persistent');
   if (adapterPersistent) return IDLE_TIMEOUT_NONE;
-  const override = sessionTimeoutOverrides.get(key);
-  if (override !== undefined) return override;
+  if (overrides?.idleTimeoutMs !== undefined) return overrides.idleTimeoutMs;
   return getSurfaceFromKey(key) === 'browser' ? IDLE_TIMEOUT_INTERACTIVE : IDLE_TIMEOUT_DEFAULT;
 }
 
 function getLeaseLifecycle(key: string, kind: LeaseKind): LeaseLifecycle {
   if (kind === 'bound') return 'pinned';
-  const override = sessionLifecycleOverrides.get(key);
+  const override = sessionOverrides.get(key)?.lifecycle;
   if (override) return override;
   return getSurfaceFromKey(key) === 'browser' ? 'persistent' : 'ephemeral';
 }
@@ -373,7 +396,7 @@ function getWindowRole(key: string, ownership: LeaseOwnership): WindowRole {
 }
 
 function getWindowMode(key: string): WindowMode {
-  return sessionWindowModeOverrides.get(key)
+  return sessionOverrides.get(key)?.windowMode
     ?? (getOwnedWindowRole(key) === 'interactive' ? 'foreground' : 'background');
 }
 
@@ -527,9 +550,7 @@ async function removeLeaseSession(leaseKey: string): Promise<void> {
   const existing = automationSessions.get(leaseKey);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
   automationSessions.delete(leaseKey);
-  sessionTimeoutOverrides.delete(leaseKey);
-  sessionWindowModeOverrides.delete(leaseKey);
-  sessionLifecycleOverrides.delete(leaseKey);
+  sessionOverrides.delete(leaseKey);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
 }
@@ -557,6 +578,11 @@ function resetWindowIdleTimer(leaseKey: string, remainingMs?: number): void {
   session.idleDeadlineAt = Date.now() + interval;
   void persistRuntimeState();
   session.idleTimer = setTimeout(async () => {
+    if ((activeCommandCounts.get(leaseKey) ?? 0) > 0) {
+      // A command is still executing on this lease — never tear the tab down
+      // from under it. Its completion re-arms the timer.
+      return;
+    }
     await releaseLease(leaseKey, 'idle timeout');
   }, interval);
 }
@@ -1061,9 +1087,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
       console.log(`[opencli] ${session.surface} container closed (session=${session.session})`);
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(leaseKey);
-      sessionTimeoutOverrides.delete(leaseKey);
-      sessionWindowModeOverrides.delete(leaseKey);
-      sessionLifecycleOverrides.delete(leaseKey);
+      sessionOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     }
   }
@@ -1077,9 +1101,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
     if (session.preferredTabId === tabId) {
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(leaseKey);
-      sessionTimeoutOverrides.delete(leaseKey);
-      sessionWindowModeOverrides.delete(leaseKey);
-      sessionLifecycleOverrides.delete(leaseKey);
+      sessionOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
       console.log(`[opencli] Session ${session.session} detached from tab ${tabId} (tab closed)`);
     }
@@ -1126,7 +1148,14 @@ initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'keepalive') void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
-  if (leaseKey) await releaseLease(leaseKey, 'idle alarm');
+  if (!leaseKey) return;
+  if ((activeCommandCounts.get(leaseKey) ?? 0) > 0) {
+    // A command is mid-flight (the alarm can fire while a long command runs
+    // in a woken worker) — defer; command completion re-arms the idle timer.
+    resetWindowIdleTimer(leaseKey);
+    return;
+  }
+  await releaseLease(leaseKey, 'idle alarm');
 });
 
 // ─── Popup status API ───────────────────────────────────────────────
@@ -1178,17 +1207,21 @@ async function handleCommand(cmd: Command): Promise<Result> {
   const surface = getCommandSurface(cmd);
   const leaseKey = getLeaseKey(session, surface);
   if (cmd.windowMode === 'foreground' || cmd.windowMode === 'background') {
-    sessionWindowModeOverrides.set(leaseKey, cmd.windowMode);
+    setSessionOverride(leaseKey, { windowMode: cmd.windowMode });
   }
   if (surface === 'adapter' && (cmd.siteSession === 'persistent' || cmd.siteSession === 'ephemeral')) {
-    sessionLifecycleOverrides.set(leaseKey, cmd.siteSession);
+    setSessionOverride(leaseKey, { lifecycle: cmd.siteSession });
   }
   // Apply custom idle timeout if specified in the command
   if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
-    sessionTimeoutOverrides.set(leaseKey, cmd.idleTimeout * 1000);
+    setSessionOverride(leaseKey, { idleTimeoutMs: cmd.idleTimeout * 1000 });
   }
-  // Reset idle timer on every command (window stays alive while active)
+  // Reset idle timer on every command (window stays alive while active).
+  // The in-flight refcount below additionally blocks idle release while a
+  // long command is still executing — otherwise a 30s idle timer could tear
+  // the tab down mid-command.
   resetWindowIdleTimer(leaseKey);
+  activeCommandCounts.set(leaseKey, (activeCommandCounts.get(leaseKey) ?? 0) + 1);
   try {
     switch (cmd.action) {
       case 'exec':
@@ -1223,13 +1256,13 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return { id: cmd.id, ok: false, error: `Unknown action: ${cmd.action}` };
     }
   } catch (err) {
-    return {
-      id: cmd.id,
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-      ...(err instanceof CommandFailure ? { errorCode: err.code } : {}),
-      ...(err instanceof CommandFailure && err.hint ? { errorHint: err.hint } : {}),
-    };
+    return errorResult(cmd.id, err);
+  } finally {
+    const remaining = (activeCommandCounts.get(leaseKey) ?? 1) - 1;
+    if (remaining <= 0) activeCommandCounts.delete(leaseKey);
+    else activeCommandCounts.set(leaseKey, remaining);
+    // Grant a fresh idle window measured from command COMPLETION, not start.
+    resetWindowIdleTimer(leaseKey);
   }
 }
 
@@ -1491,17 +1524,49 @@ async function listAutomationWebTabs(leaseKey: string): Promise<chrome.tabs.Tab[
 }
 
 /**
- * Derive the per-command CDP deadline from the daemon-side timeout (seconds)
- * the CLI transport put on the command. Undercut it by 5s so this (more
+ * Derive the per-command CDP deadline from the command's absolute deadline
+ * (preferred — remaining budget absorbs service-worker wake and queueing
+ * latency) or the legacy duration field. Undercut by 5s so this (more
  * specific) error reaches the CLI before the daemon's generic timer fires.
- * Returns undefined when the command carries no timeout — callers fall back
- * to the executor's default deadline.
+ * Returns undefined when the command carries neither — callers fall back to
+ * the executor's default deadline.
  */
 function commandCdpTimeoutMs(cmd: Command): number | undefined {
+  if (typeof cmd.deadlineAt === 'number' && cmd.deadlineAt > 0) {
+    return Math.max(10_000, cmd.deadlineAt - Date.now() - 5_000);
+  }
   if (typeof cmd.timeout === 'number' && cmd.timeout > 0) {
     return Math.max(10_000, cmd.timeout * 1000 - 5_000);
   }
   return undefined;
+}
+
+/**
+ * Map an executor error to a machine-readable code so the CLI can decide
+ * retry safety without regex-matching message text:
+ * - `attach_failed` / `tab_gone`: failed BEFORE any page code ran — a new
+ *   logical attempt is safe;
+ * - `target_navigated`: the document changed under the command — the page
+ *   layer decides whether to settle-retry;
+ * - `detached_mid_command` / `cdp_timeout`: died MID-execution — the outcome
+ *   is unknown, a blind re-run could double-apply a write.
+ */
+function classifyExtensionError(message: string): string | undefined {
+  if (/Inspected target navigated|Target closed/.test(message)) return 'target_navigated';
+  if (/Detached while handling command/.test(message)) return 'detached_mid_command';
+  if (/CDP command .* timed out/.test(message)) return 'cdp_timeout';
+  if (/attach failed|Debugger is not attached/.test(message)) return 'attach_failed';
+  if (/No tab with id|no longer exists|No window with id/.test(message)) return 'tab_gone';
+  return undefined;
+}
+
+function errorResult(id: string, err: unknown): Result {
+  const message = err instanceof Error ? err.message : String(err);
+  if (err instanceof CommandFailure) {
+    return { id, ok: false, error: message, errorCode: err.code, ...(err.hint ? { errorHint: err.hint } : {}) };
+  }
+  const errorCode = classifyExtensionError(message);
+  return { id, ok: false, error: message, ...(errorCode ? { errorCode } : {}) };
 }
 
 async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
@@ -1522,7 +1587,7 @@ async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
     const data = await executor.evaluateAsync(tabId, cmd.code, aggressive, commandCdpTimeoutMs(cmd));
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1533,7 +1598,7 @@ async function handleFrames(cmd: Command, leaseKey: string): Promise<Result> {
     const tree = await executor.getFrameTree(tabId);
     return { id: cmd.id, ok: true, data: enumerateCrossOriginFrames(tree) };
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1773,7 +1838,7 @@ async function handleScreenshot(cmd: Command, leaseKey: string): Promise<Result>
     });
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1832,7 +1897,7 @@ async function handleCdp(cmd: Command, leaseKey: string): Promise<Result> {
       );
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1858,7 +1923,7 @@ async function handleSetFileInput(cmd: Command, leaseKey: string): Promise<Resul
     await executor.setFileInputFiles(tabId, cmd.files, cmd.selector);
     return pageScopedResult(cmd.id, tabId, { count: cmd.files.length });
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1872,7 +1937,7 @@ async function handleInsertText(cmd: Command, leaseKey: string): Promise<Result>
     await executor.insertText(tabId, cmd.text);
     return pageScopedResult(cmd.id, tabId, { inserted: true });
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1883,7 +1948,7 @@ async function handleNetworkCaptureStart(cmd: Command, leaseKey: string): Promis
     await executor.startNetworkCapture(tabId, cmd.pattern);
     return pageScopedResult(cmd.id, tabId, { started: true });
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1894,7 +1959,7 @@ async function handleNetworkCaptureRead(cmd: Command, leaseKey: string): Promise
     const data = await executor.readNetworkCapture(tabId);
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
@@ -1903,16 +1968,14 @@ async function handleWaitDownload(cmd: Command): Promise<Result> {
     const data = await executor.waitForDownload(cmd.pattern ?? '', cmd.timeoutMs ?? 30000);
     return { id: cmd.id, ok: true, data };
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 
 async function releaseLease(leaseKey: string, reason: string = 'released'): Promise<void> {
   const session = automationSessions.get(leaseKey);
   if (!session) {
-    sessionTimeoutOverrides.delete(leaseKey);
-    sessionWindowModeOverrides.delete(leaseKey);
-    sessionLifecycleOverrides.delete(leaseKey);
+    sessionOverrides.delete(leaseKey);
     scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     await persistRuntimeState();
     return;
@@ -1955,9 +2018,7 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
   }
 
   automationSessions.delete(leaseKey);
-  sessionTimeoutOverrides.delete(leaseKey);
-  sessionWindowModeOverrides.delete(leaseKey);
-  sessionLifecycleOverrides.delete(leaseKey);
+  sessionOverrides.delete(leaseKey);
 
   await persistRuntimeState();
 }
@@ -1986,7 +2047,7 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
       const tab = await chrome.tabs.get(tabId);
       if (!isDebuggableUrl(tab.url)) continue;
       if (stored.lifecycle === 'ephemeral' || stored.lifecycle === 'persistent' || stored.lifecycle === 'pinned') {
-        sessionLifecycleOverrides.set(leaseKey, stored.lifecycle);
+        setSessionOverride(leaseKey, { lifecycle: stored.lifecycle });
       }
       const session = makeSession(leaseKey, {
         session: typeof stored.session === 'string' ? stored.session : getSessionFromKey(leaseKey),
@@ -2084,20 +2145,21 @@ export const __test__ = {
   getCommandSurface,
   getIdleTimeout,
   getLeaseKey,
-  sessionTimeoutOverrides,
+  sessionOverrides,
   reconcileTargetLeaseRegistry,
   ensureOwnedContainerGroup,
   connectForTest: connect,
   scheduleReconnectForTest: () => scheduleReconnect(),
-  notifyDaemonReachableForTest: notifyDaemonReachable,
-  getReconnectTimerDelay: () => reconnectTimerDelayMs,
-  setReconnectPhaseStartedAt: (value: number) => { reconnectPhaseStartedAt = value; },
+  getReconnectAttempts: () => reconnectAttempts,
+  setReconnectAttempts: (value: number) => { reconnectAttempts = value; },
+  nextReconnectDelayMs,
   resetReconnectState: () => {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = null;
-    reconnectTimerDelayMs = null;
     reconnectAttempts = 0;
-    reconnectPhaseStartedAt = 0;
+    if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
+    wsKeepaliveTimer = null;
+    wsKeepaliveSocket = null;
     connectInFlight = null;
     ws = null;
   },
