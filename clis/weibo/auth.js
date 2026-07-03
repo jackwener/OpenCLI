@@ -1,6 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
-import { getSelfUid } from './utils.js';
+import { getSelfUid, unwrapEvaluateResult } from './utils.js';
 
 async function hasWeiboSessionCookie(page) {
   const cookies = await page.getCookies({ url: 'https://weibo.com' });
@@ -40,11 +40,18 @@ async function verifyWeiboIdentity(page) {
   await page.wait(3);
   // getSelfUid throws AuthRequiredError when no logged-in uid can be resolved.
   const uid = await getSelfUid(page);
-  const result = await page.evaluate(buildWeiboIdentityProbe(uid));
+  if (typeof uid !== 'string' || !uid.trim()) {
+    throw new CommandExecutionError('Weibo uid resolver returned a malformed uid');
+  }
+  const result = unwrapEvaluateResult(await page.evaluate(buildWeiboIdentityProbe(uid)));
   if (result?.kind === 'auth') throw new AuthRequiredError('weibo.com', result.detail);
   if (result?.kind === 'http') throw new CommandExecutionError(`HTTP ${result.httpStatus} from /ajax/profile/info`);
   if (result?.kind === 'exception') throw new CommandExecutionError(`Weibo whoami failed: ${result.detail}`);
+  if (!result || Array.isArray(result) || typeof result !== 'object') {
+    throw new CommandExecutionError('Weibo whoami returned malformed probe payload');
+  }
   if (!result?.ok) throw new CommandExecutionError(`Unexpected Weibo probe: ${JSON.stringify(result)}`);
+  if (!result.user_id) throw new CommandExecutionError('Weibo whoami returned no user id');
   return { user_id: result.user_id, screen_name: result.screen_name, profile_url: result.profile_url };
 }
 

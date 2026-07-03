@@ -37,6 +37,32 @@ describe('weibo auth identity probe', () => {
         expect(page.evaluate.mock.calls[1][0]).toContain('/ajax/profile/info?uid=12345');
     });
 
+    it('unwraps Browser Bridge envelopes from uid and profile probes', async () => {
+        const page = makePage({
+            evalResults: [
+                { session: 's1', data: '12345' },
+                { session: 's1', data: { ok: true, user_id: '12345', screen_name: 'Alice', profile_url: '/u/12345' } },
+            ],
+        });
+        await expect(__test__.verifyWeiboIdentity(page)).resolves.toEqual({
+            user_id: '12345',
+            screen_name: 'Alice',
+            profile_url: '/u/12345',
+        });
+        expect(page.evaluate.mock.calls[1][0]).toContain('/ajax/profile/info?uid=12345');
+    });
+
+    it('typed-fails malformed uid payloads instead of probing /ajax/profile/info with garbage', async () => {
+        const page = makePage({ evalResults: [{ uid: '12345' }] });
+        await expect(__test__.verifyWeiboIdentity(page)).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('typed-fails malformed probe payloads', async () => {
+        const page = makePage({ evalResults: ['12345', null] });
+        await expect(__test__.verifyWeiboIdentity(page)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('throws AuthRequiredError when SUB/SUBP cookies are missing, before navigating', async () => {
         const page = makePage({ cookies: [{ name: 'SUB' }] });
         await expect(__test__.verifyWeiboIdentity(page)).rejects.toBeInstanceOf(AuthRequiredError);
@@ -60,6 +86,11 @@ describe('weibo auth identity probe', () => {
 
     it('maps an exception-kind probe response to CommandExecutionError', async () => {
         const page = makePage({ evalResults: ['12345', { kind: 'exception', detail: 'boom' }] });
+        await expect(__test__.verifyWeiboIdentity(page)).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('typed-fails success-shaped probes missing user_id', async () => {
+        const page = makePage({ evalResults: ['12345', { ok: true, screen_name: 'Alice', profile_url: '/u/12345' }] });
         await expect(__test__.verifyWeiboIdentity(page)).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
