@@ -517,17 +517,23 @@ httpServer.on('error', (err: NodeJS.ErrnoException) => {
 // Graceful shutdown
 function shutdown(): void {
   // Reject all pending requests so the CLI gets a structured response it can
-  // act on (spawn a replacement daemon, retry the same id) instead of a
-  // socket hang-up it must treat as result-unknown.
+  // act on instead of a socket hang-up it must treat as result-unknown.
+  // Not-yet-dispatched commands get the pre-dispatch contract (safe to resend
+  // anywhere); dispatched ones get `daemon_shutting_down`, which the client
+  // only resends when the extension journals ids.
   for (const [id, p] of pending) {
-    settlePending(id, p, {
-      error: new DaemonCommandFailure(
+    const failure = p.dispatched
+      ? new DaemonCommandFailure(
         'Daemon shutting down before the command completed.',
         'daemon_shutting_down',
-        'The daemon is being replaced; the command can be retried with the same id once a daemon is running again.',
+        'The daemon is being replaced; a journaling extension replays the command result on retry.',
         503,
-      ),
-    });
+      )
+      : (() => {
+        const contract = buildCommandDispatchFailure(p.contextId);
+        return new DaemonCommandFailure(contract.message, contract.errorCode, contract.errorHint, contract.status);
+      })();
+    settlePending(id, p, { error: failure });
   }
   pending.clear();
   for (const profile of extensionProfiles.values()) profile.ws.close();

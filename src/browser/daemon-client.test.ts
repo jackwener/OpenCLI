@@ -384,6 +384,44 @@ describe('daemon-client', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('sendCommand retries daemon_shutting_down with the same id when the extension journals ids', async () => {
+    mockEnsureReady('1.0.22');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({ ok: false, errorCode: 'daemon_shutting_down', error: 'Daemon shutting down before the command completed.' }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 'replayed' }),
+      } as Response);
+
+    await expect(sendCommand('navigate', { url: 'https://example.com' })).resolves.toBe('replayed');
+
+    const ids = fetchMock.mock.calls.map(([, init]) => (JSON.parse(String(init?.body)) as { id: string }).id);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(ids[1]);
+  });
+
+  it('sendCommand does NOT resend daemon_shutting_down on a legacy extension — outcome unknown', async () => {
+    mockEnsureReady('1.0.21');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({ ok: false, errorCode: 'daemon_shutting_down', error: 'Daemon shutting down before the command completed.' }),
+    } as Response);
+
+    await expect(sendCommand('navigate', { url: 'https://example.com' })).rejects.toMatchObject({
+      name: 'BrowserCommandError',
+      code: 'command_result_unknown',
+    } satisfies Partial<BrowserCommandError>);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('sendCommand does NOT resend a bare TypeError on a legacy extension', async () => {
     const ensureSpy = mockEnsureReady('1.0.15');
     vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'));

@@ -240,8 +240,11 @@ async function sendCommandRaw(
   let executorJournaled: boolean | null = null;
 
   const ensureBridge = async (): Promise<void> => {
+    // Bound the connect wait by the command's remaining budget so repeated
+    // daemon failures cannot stretch the total wall time far past --timeout.
+    const remainingSeconds = Math.ceil((deadlineAt - Date.now()) / 1000);
     const ready = await ensureBrowserBridgeReady({
-      timeoutSeconds: DEFAULT_BROWSER_CONNECT_TIMEOUT,
+      timeoutSeconds: Math.max(1, Math.min(DEFAULT_BROWSER_CONNECT_TIMEOUT, remainingSeconds)),
       contextId,
       verbose: false,
     });
@@ -282,10 +285,25 @@ async function sendCommandRaw(
         throw new BrowserCommandError(result.error ?? 'Browser command result is unknown', result.errorCode, result.errorHint);
       }
 
-      if ((isPreDispatchError(result.errorCode) || result.errorCode === 'daemon_shutting_down') && !ensureUsed) {
+      if (isPreDispatchError(result.errorCode) && !ensureUsed) {
+        // Never dispatched — resending the same id is safe on any extension.
         ensureUsed = true;
         await ensureBridge();
         continue;
+      }
+
+      if (result.errorCode === 'daemon_shutting_down' && !ensureUsed) {
+        // The command WAS dispatched and the daemon died before the result
+        // came back. Resending the same id is only safe when the extension
+        // journals ids; otherwise the outcome is genuinely unknown.
+        ensureUsed = true;
+        await ensureBridge();
+        if (executorJournaled) continue;
+        throw new BrowserCommandError(
+          result.error ?? 'Daemon shut down mid-command; the command may have already been applied.',
+          COMMAND_RESULT_UNKNOWN_CODE,
+          COMMAND_RESULT_UNKNOWN_HINT,
+        );
       }
 
       const advice = classifyBrowserError(new BrowserCommandError(result.error ?? '', result.errorCode));
