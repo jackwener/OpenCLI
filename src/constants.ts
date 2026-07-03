@@ -12,6 +12,20 @@ export function unsupportedDaemonPortEnvMessage(value?: string): string {
     'Unset OPENCLI_DAEMON_PORT and rerun opencli.';
 }
 
+/**
+ * True when OPENCLI_DAEMON_PORT carries no real configuration: unset, empty,
+ * or equal to the default port. Launchers (notably OpenCLIApp) inject the
+ * variable with the default value into every CLI they manage — rejecting that
+ * harmless redundancy bricked all commands on fresh installs (#2068). Only a
+ * NON-default value is a genuine misconfiguration worth failing on.
+ */
+export function isIgnorableDaemonPortEnv(value: string | undefined): boolean {
+  if (value === undefined) return true;
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  return Number(trimmed) === DEFAULT_DAEMON_PORT;
+}
+
 /** URL query params that are volatile/ephemeral and should be stripped from patterns */
 export const VOLATILE_PARAMS = new Set([
   'w_rid', 'wts', '_', 'callback', 'timestamp', 't', 'nonce', 'sign',

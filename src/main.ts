@@ -22,7 +22,7 @@ import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 import { PKG_VERSION } from './version.js';
 import { EXIT_CODES } from './errors.js';
 import { isSupportedNodeVersion, MIN_SUPPORTED_NODE_MAJOR } from './runtime-detect.js';
-import { unsupportedDaemonPortEnvMessage } from './constants.js';
+import { isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,7 +47,7 @@ if (typeof (globalThis as { Bun?: unknown }).Bun === 'undefined' && !isSupported
   process.exit(EXIT_CODES.CONFIG_ERROR);
 }
 
-if (process.env.OPENCLI_DAEMON_PORT) {
+if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
   process.stderr.write(`error: ${unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT)}\n`);
   process.exit(EXIT_CODES.CONFIG_ERROR);
 }

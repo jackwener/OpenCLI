@@ -64,7 +64,7 @@ Each Chrome profile runs its own OpenCLI extension instance. If you use multiple
 opencli profile list
 opencli profile rename <contextId> work
 opencli profile use work
-opencli --profile work browser state
+opencli --profile work browser main state
 ```
 
 With only one connected profile, OpenCLI uses it automatically. With multiple connected profiles and no default, OpenCLI asks you to choose instead of guessing.

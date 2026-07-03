@@ -173,6 +173,27 @@ describe('daemon-client', () => {
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
+  it('tolerates OPENCLI_DAEMON_PORT when it equals the default port (launchers inject it, #2068)', async () => {
+    vi.resetModules();
+    vi.stubEnv('OPENCLI_DAEMON_PORT', '19825');
+    const status = {
+      ok: true,
+      pid: 1,
+      uptime: 0,
+      extensionConnected: true,
+      pending: 0,
+      memoryMB: 1,
+      port: 19825,
+    };
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(status),
+    } as Response);
+
+    const freshClient = await import('./daemon-client.js');
+    await expect(freshClient.fetchDaemonStatus()).resolves.toEqual(status);
+  });
+
   it('sendCommand includes the current pid in generated command ids', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_000);
     vi.mocked(fetch).mockResolvedValue({

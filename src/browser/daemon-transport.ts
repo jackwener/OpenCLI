@@ -1,4 +1,4 @@
-import { DEFAULT_DAEMON_PORT, unsupportedDaemonPortEnvMessage } from '../constants.js';
+import { DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from '../constants.js';
 
 const DAEMON_PORT = DEFAULT_DAEMON_PORT;
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
@@ -13,7 +13,7 @@ class UnsupportedDaemonPortEnvError extends Error {
 
 function assertSupportedDaemonPortEnv(): void {
   const value = process.env.OPENCLI_DAEMON_PORT;
-  if (value !== undefined && value !== '') throw new UnsupportedDaemonPortEnvError(value);
+  if (!isIgnorableDaemonPortEnv(value)) throw new UnsupportedDaemonPortEnvError(value!);
 }
 
 export interface DaemonStatus {

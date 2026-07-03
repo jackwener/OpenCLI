@@ -22,7 +22,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
-import { DEFAULT_DAEMON_PORT, unsupportedDaemonPortEnvMessage } from './constants.js';
+import { DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
 import { PKG_VERSION } from './version.js';
@@ -36,7 +36,7 @@ import {
 } from './daemon-utils.js';
 
 const PORT = DEFAULT_DAEMON_PORT;
-if (process.env.OPENCLI_DAEMON_PORT) {
+if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
   log.error(unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT));
   process.exit(EXIT_CODES.USAGE_ERROR);
 }
