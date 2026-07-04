@@ -15,7 +15,7 @@ function makePage({ data = [] }) {
 const notif = (id, viewed = 1) => ({ id, viewed, comment_id: id * 10, floor_id: id, created_at: 't', commenter_name: 'u', title: `n${id}`, post_id: 100 + id });
 
 describe('nodeseek notifications', () => {
-    it('maps an at-me entry into a row with a deep link to the comment', () => {
+    it('maps an at-me entry into a row with a deep link to the comment floor', () => {
         const row = __test__.mapNotification({
             id: 3132107, viewed: 1, comment_id: 10738205, floor_id: 58,
             created_at: '2026-06-18T02:02:17.000Z', commenter_id: 47407,
@@ -27,8 +27,15 @@ describe('nodeseek notifications', () => {
             title: '香港归来港卡收获与踩坑记录',
             post_id: 781551,
             floor_id: 58,
-            link: 'https://www.nodeseek.com/post-781551-1#10738205',
+            // Site format: post-<id>-<page>#<floor>, floors paged 10/page —
+            // floor 58 lives on page 6 (matches NodeSeek's own notification link).
+            link: 'https://www.nodeseek.com/post-781551-6#58',
         });
+    });
+
+    it('falls back to page 1 without an anchor when floor_id is missing', () => {
+        expect(__test__.mapNotification({ viewed: 1, post_id: 7, comment_id: 9 }).link)
+            .toBe('https://www.nodeseek.com/post-7-1');
     });
 
     it('flags unread entries as NEW', () => {
@@ -46,6 +53,6 @@ describe('nodeseek notifications', () => {
 
     it('rejects an out-of-range limit before fetching', async () => {
         await expect(command.func(makePage({ data: [] }), { limit: 0 })).rejects.toThrow();
-        await expect(command.func(makePage({ data: [] }), { limit: 101 })).rejects.toThrow();
+        await expect(command.func(makePage({ data: [] }), { limit: 51 })).rejects.toThrow();
     });
 });

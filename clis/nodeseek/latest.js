@@ -6,21 +6,19 @@
 // (server-side), and `--limit` walks pages (50 posts each) as needed.
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
-import { log } from '@jackwener/opencli/logger';
-import { ensureNsHome, readLimit as readLimitShared, NS_HOME, scrapePostList, finalizeListRows } from './client.js';
+import { collectPaged, ensureNsHome, readLimit as readLimitShared, NS_HOME, scrapePostList, finalizeListRows } from './client.js';
+import { CATEGORIES as BOARDS } from './categories.js';
 
-// Known NodeSeek category slugs (from the site's category bar).
-export const CATEGORIES = [
-    'daily', 'tech', 'info', 'review', 'trade', 'carpool',
-    'promotion', 'life', 'dev', 'photo-share', 'expose', 'inside', 'sandbox',
-];
+// Known NodeSeek category slugs, derived from the canonical board table in
+// categories.js so `nodeseek categories` and `--category` validation can't drift.
+export const CATEGORIES = BOARDS.map((c) => c.slug);
 const CATEGORY_SET = new Set(CATEGORIES);
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const PAGE_CAP = 5; // 50 posts/page → MAX_LIMIT in ≤2 pages; small buffer.
 
-const readLimit = (value) => readLimitShared(value, { max: MAX_LIMIT, def: DEFAULT_LIMIT, command: 'nodeseek latest' });
+const readLimit = (value) => readLimitShared(value, { max: MAX_LIMIT, def: DEFAULT_LIMIT });
 
 /** Resolve the board to browse from the --category argument. */
 function resolveBoard(category) {
@@ -28,7 +26,7 @@ function resolveBoard(category) {
     if (!c)
         return { isCategory: false };
     if (!CATEGORY_SET.has(c))
-        throw new ArgumentError('nodeseek latest', `Unknown board "${c}". Options: ${CATEGORIES.join(', ')}`);
+        throw new ArgumentError(`Unknown board "${c}"`, `Options: ${CATEGORIES.join(', ')}`);
     return { isCategory: true, slug: c };
 }
 
@@ -57,25 +55,15 @@ cli({
         const board = resolveBoard(kwargs.category);
         await ensureNsHome(page); // pass Cloudflare on home first
 
-        const collected = [];
-        const seen = new Set();
-        for (let pageNo = 1; pageNo <= PAGE_CAP && collected.length < limit; pageNo++) {
-            await page.goto(pageUrl(board, pageNo));
-            await page.wait(2);
-            const rows = await scrapePostList(page);
-            let fresh = 0;
-            for (const r of rows) {
-                if (!r.title || !r.post_id || seen.has(r.post_id))
-                    continue;
-                seen.add(r.post_id);
-                collected.push(r);
-                fresh++;
-            }
-            if (fresh === 0)
-                break; // reached the end (empty page or all duplicates)
-            if (collected.length < limit)
-                log.status(`nodeseek latest: fetched page ${pageNo} (${collected.length} posts)`);
-        }
+        const collected = await collectPaged(page, {
+            urlFor: (pageNo) => pageUrl(board, pageNo),
+            scrape: scrapePostList,
+            keyOf: (r) => (r.title && r.post_id) ? r.post_id : null,
+            limit,
+            pageCap: PAGE_CAP,
+            label: 'nodeseek latest',
+            skipFirstNav: !board.isCategory, // ensureNsHome already landed on home = page 1
+        });
 
         const out = finalizeListRows(collected, limit);
         if (out.length === 0)

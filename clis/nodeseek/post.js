@@ -10,8 +10,7 @@
 // MAX_LIMIT), so a runaway thread can never crawl unbounded.
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
-import { log } from '@jackwener/opencli/logger';
-import { ensureNsHome, hasNsSessionCookie, readLimit as readLimitShared, NS_HOME } from './client.js';
+import { collectPaged, ensureNsHome, hasNsSessionCookie, readLimit as readLimitShared, NS_HOME } from './client.js';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 500;
@@ -25,11 +24,11 @@ function parsePostId(raw) {
     // input is digits — otherwise a /space/<id> or #<n> in a URL wins wrongly.
     const m = s.match(/post-(\d+)/) || (/^\d+$/.test(s) ? [null, s] : null);
     if (!m)
-        throw new ArgumentError('nodeseek post', `Cannot parse post id from "${raw}" (give a numeric id or post-xxxxx-1)`);
+        throw new ArgumentError(`Cannot parse post id from "${raw}"`, 'Give a numeric id, post-xxxxx-1, or a full post link');
     return m[1];
 }
 
-const readLimit = (value) => readLimitShared(value, { max: MAX_LIMIT, def: DEFAULT_LIMIT, command: 'nodeseek post' });
+const readLimit = (value) => readLimitShared(value, { max: MAX_LIMIT, def: DEFAULT_LIMIT });
 
 /** Dedupe by comment id, sort by numeric floor, truncate unless `full`. */
 function dedupeAndSort(floors, full) {
@@ -55,10 +54,8 @@ function dedupeAndSort(floors, full) {
         }));
 }
 
-/** Scrape the floors rendered on one post page. */
-async function scrapePage(page, id, pageNo) {
-    await page.goto(`${NS_HOME}/post-${id}-${pageNo}`);
-    await page.wait(2);
+/** Scrape the floors rendered on the current post page. */
+async function scrapeFloors(page) {
     return page.evaluate(`(() => {
         const items = [...document.querySelectorAll('li.content-item, .content-item')];
         return items.map((it) => {
@@ -93,31 +90,16 @@ cli({
         const limit = readLimit(kwargs.limit);
         await ensureNsHome(page); // pass Cloudflare on home first
         if (!await hasNsSessionCookie(page))
-            throw new AuthRequiredError('nodeseek', 'post requires login — run `opencli nodeseek login`');
+            throw new AuthRequiredError('nodeseek.com', 'post requires login — run `opencli nodeseek login`');
 
-        const collected = [];
-        const seen = new Set();
-        let reachedEnd = false;
-        let pageNo = 1;
-        for (; pageNo <= PAGE_CAP && collected.length < limit; pageNo++) {
-            const floors = await scrapePage(page, id, pageNo);
-            if (!Array.isArray(floors) || floors.length === 0) { reachedEnd = true; break; }
-            let fresh = 0;
-            for (const f of floors) {
-                const key = f.comment_id || `${f.floor}:${f.author}`;
-                if (seen.has(key)) continue;
-                seen.add(key);
-                collected.push(f);
-                fresh++;
-            }
-            if (fresh === 0) { reachedEnd = true; break; } // page repeated — no new floors
-            if (collected.length < limit) // more wanted — show progress for long walks
-                log.status(`nodeseek post ${id}: fetched page ${pageNo} (${collected.length} floors)`);
-        }
-        // Hit the page backstop before satisfying --limit: the thread is longer
-        // than this command walks. Tell the user results are truncated.
-        if (!reachedEnd && collected.length < limit)
-            log.warn(`nodeseek post ${id}: stopped at the ${PAGE_CAP}-page backstop with ${collected.length} floors; the thread is longer than this command fetches`);
+        const collected = await collectPaged(page, {
+            urlFor: (pageNo) => `${NS_HOME}/post-${id}-${pageNo}`,
+            scrape: scrapeFloors,
+            keyOf: (f) => f.comment_id || `${f.floor}:${f.author}`,
+            limit,
+            pageCap: PAGE_CAP,
+            label: `nodeseek post ${id}`,
+        });
 
         if (collected.length === 0)
             throw new EmptyResultError('nodeseek post', `Post ${id} has no parseable floors (post missing or not accessible)`);

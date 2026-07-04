@@ -7,14 +7,15 @@
 // endpoints (e.g. /api/account/getInfo/<id>, /api/notification/at-me/list) are
 // fetched from within the authenticated page context.
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { log } from '@jackwener/opencli/logger';
 
 export const NS_HOME = 'https://www.nodeseek.com';
 
 /** Validate a `--limit` argument (1..max), throwing ArgumentError otherwise. */
-export function readLimit(value, { max = 100, def = 20, command = 'nodeseek' } = {}) {
+export function readLimit(value, { max = 100, def = 20 } = {}) {
     const n = value == null ? def : Number(value);
     if (!Number.isInteger(n) || n < 1 || n > max)
-        throw new ArgumentError(command, `limit must be an integer between 1 and ${max}`);
+        throw new ArgumentError(`limit must be an integer between 1 and ${max}`);
     return n;
 }
 
@@ -24,7 +25,7 @@ export function readLimit(value, { max = 100, def = 20, command = 'nodeseek' } =
  * `.post-title a` (title + /post-<id>-1 href), category, author, <time>.
  */
 export async function scrapePostList(page) {
-    return page.evaluate(`(() => {
+    const rows = await page.evaluate(`(() => {
         return [...document.querySelectorAll('.post-list-item')].map((it) => {
             const a = it.querySelector('.post-title a');
             const t = it.querySelector('time');
@@ -42,6 +43,7 @@ export async function scrapePostList(page) {
             };
         });
     })()`);
+    return Array.isArray(rows) ? rows : [];
 }
 
 /** Drop incomplete/duplicate rows (by post_id) and cap at `limit`. */
@@ -64,24 +66,74 @@ export function finalizeListRows(rows, limit) {
  * interstitial or a failed load — surface that instead of letting downstream
  * scrapers return an empty DOM that reads as "no results".
  */
+const RENDER_CHECK = `(() => { try { return !!window.__config__; } catch (e) { return false; } })()`;
+
 export async function ensureNsHome(page) {
     if (!page)
         throw new CommandExecutionError('Browser page required');
+    // The runtime pre-navigates cookie commands to the site (navigateBefore), so
+    // skip the second full page load when we're already on a rendered NodeSeek page.
+    if (page.getCurrentUrl) {
+        const url = await page.getCurrentUrl();
+        if (typeof url === 'string' && /^https?:\/\/([^/]+\.)?nodeseek\.com\//.test(url)
+            && await page.evaluate(RENDER_CHECK))
+            return;
+    }
     await page.goto(NS_HOME + '/');
     await page.wait(2);
-    for (let attempt = 0; attempt < 2; attempt++) {
-        const rendered = await page.evaluate(`(() => { try { return !!window.__config__; } catch (e) { return false; } })()`);
-        if (rendered)
-            return;
-        await page.wait(2);
-    }
+    if (await page.evaluate(RENDER_CHECK))
+        return;
+    await page.wait(2);
+    if (await page.evaluate(RENDER_CHECK))
+        return;
     throw new CommandExecutionError('NodeSeek did not render — Cloudflare challenge not passed or network issue');
+}
+
+/** The NodeSeek session cookie (pjwt) value, or null when anonymous. */
+export async function getNsSessionCookie(page) {
+    const cookies = await page.getCookies({ url: NS_HOME });
+    return cookies.find((c) => c.name === 'pjwt' && c.value)?.value ?? null;
 }
 
 /** True if the NodeSeek session cookie (pjwt) is present. */
 export async function hasNsSessionCookie(page) {
-    const cookies = await page.getCookies({ url: NS_HOME });
-    return cookies.some((c) => c.name === 'pjwt' && c.value);
+    return (await getNsSessionCookie(page)) !== null;
+}
+
+/**
+ * Walk numbered pages, scraping each and deduping by `keyOf`, until `limit`
+ * rows are collected, a page yields nothing new, or `pageCap` is hit. Shared
+ * by `latest`, `search`, and `post` — NodeSeek renders all three as paged
+ * lists. `skipFirstNav` reuses the page the caller already navigated to
+ * (e.g. ensureNsHome landing on home) instead of reloading it.
+ */
+export async function collectPaged(page, { urlFor, scrape, keyOf, limit, pageCap, label, skipFirstNav = false }) {
+    const collected = [];
+    const seen = new Set();
+    let reachedEnd = false;
+    for (let pageNo = 1; pageNo <= pageCap && collected.length < limit; pageNo++) {
+        if (!(skipFirstNav && pageNo === 1)) {
+            await page.goto(urlFor(pageNo));
+            await page.wait(2);
+        }
+        const rows = await scrape(page);
+        let fresh = 0;
+        for (const r of Array.isArray(rows) ? rows : []) {
+            const key = keyOf(r);
+            if (!key || seen.has(key))
+                continue;
+            seen.add(key);
+            collected.push(r);
+            fresh++;
+        }
+        if (fresh === 0) { reachedEnd = true; break; } // empty page or all duplicates
+        if (collected.length < limit)
+            log.status(`${label}: fetched page ${pageNo} (${collected.length} rows)`);
+    }
+    // Hit the page cap before satisfying `limit`: tell the user results are truncated.
+    if (!reachedEnd && collected.length < limit)
+        log.warn(`${label}: stopped at the ${pageCap}-page cap with ${collected.length} rows; more may exist`);
+    return collected;
 }
 
 /** Read the SSR-injected current user object, or null if anonymous. */
@@ -110,7 +162,7 @@ export async function fetchNsJson(page, apiPath, { skipNavigate = false } = {}) 
     if (!res || res.status === 0)
         throw new CommandExecutionError(`NodeSeek ${apiPath} request failed: ${res?.error || 'unknown'}`);
     if (res.status === 401 || res.status === 403)
-        throw new AuthRequiredError('nodeseek', `NodeSeek ${apiPath} HTTP ${res.status} — not logged in or session expired`);
+        throw new AuthRequiredError('nodeseek.com', `NodeSeek ${apiPath} HTTP ${res.status} — not logged in or session expired`);
     if (!res.ok)
         throw new CommandExecutionError(`NodeSeek ${apiPath} HTTP ${res.status}`);
     return res.data;

@@ -22847,14 +22847,14 @@
         "type": "boolean",
         "default": false,
         "required": false,
-        "help": "Only show unread"
+        "help": "Only show unread (within the most recent 50)"
       },
       {
         "name": "limit",
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of notifications"
+        "help": "Number of notifications (API caps at the most recent 50)"
       }
     ],
     "columns": [
@@ -22935,7 +22935,7 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of results"
+        "help": "Number of results, paging as needed (1-100)"
       }
     ],
     "columns": [

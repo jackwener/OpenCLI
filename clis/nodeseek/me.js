@@ -34,7 +34,7 @@ cli({
     func: async (page) => {
         const u = await readCurrentUser(page);
         if (!u || !u.member_id)
-            throw new AuthRequiredError('nodeseek', 'Not logged in to NodeSeek');
+            throw new AuthRequiredError('nodeseek.com', 'Not logged in to NodeSeek');
         return [mapMe(u)];
     },
 });

@@ -4,16 +4,12 @@
 // Strategy.COOKIE: the endpoint sits behind Cloudflare and is fetched with the
 // logged-in session (credentials:'include'), so it needs an authenticated browser.
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { EmptyResultError } from '@jackwener/opencli/errors';
+import { normalizeNumericId } from '../_shared/common.js';
 import { fetchNsJson } from './client.js';
 
 /** Validate and normalize a member id argument. */
-function parseMemberId(raw) {
-    const id = String(raw ?? '').trim();
-    if (!/^\d+$/.test(id))
-        throw new ArgumentError('nodeseek user', `member id must be numeric, got "${raw}"`);
-    return id;
-}
+const parseMemberId = (raw) => normalizeNumericId(raw, 'member id', '6467');
 
 /** Project an /api/account/getInfo detail object into the `user` row shape. */
 function mapUser(d) {

@@ -28,9 +28,9 @@ opencli nodeseek latest --category tech --limit 10
 opencli nodeseek categories
 
 # A thread with its comment floors (not just the first post)
-opencli nodeseek post 779413
-opencli nodeseek post 779413 --limit 300        # walk pages to collect up to 300 floors (max 500)
-opencli nodeseek post post-779413-1 --full
+opencli nodeseek post 387328
+opencli nodeseek post 387328 --limit 300        # walk pages to collect up to 300 floors (max 500)
+opencli nodeseek post post-387328-1 --full
 
 # Search posts
 opencli nodeseek search kamatera --limit 10

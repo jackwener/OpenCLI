@@ -5,7 +5,7 @@
 // `latest --category <slug>` is self-documenting without a login or browser.
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
-const CATEGORIES = [
+export const CATEGORIES = [
     { slug: 'daily', name: '日常' },
     { slug: 'tech', name: '技术' },
     { slug: 'info', name: '情报' },
