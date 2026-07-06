@@ -989,10 +989,19 @@ async function currentComposerMediaCount(page) {
         .map((sel) => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find((el) => visibleBox(el));
-      const root = titleEl?.closest('form, [class*="publish"], [class*="editor"], [class*="note"]') || document.body;
+      // Search from the widest container to ensure we find media items even
+      // when the title input's closest form/editor ancestor does not encompass
+      // the image area (common in XHS's text-image card flow).
+      const root = titleEl?.closest('[class*="publish"], [class*="editor"], [class*="note"], form') || document.body;
+      const widerRoot = root?.parentElement || document.body;
       const seen = new Set();
       let count = 0;
-      for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
+      // Try the direct style/class-based selectors first.
+      for (const el of Array.from(widerRoot.querySelectorAll(
+        'img, video, canvas, [style*="background"], [class*="upload-image"], ' +
+        '[class*="image-item"], [class*="media"], [data-testid*="image"], ' +
+        '[class*="preview-image"], [class*="cover-item"]'
+      ))) {
         if (!visibleMedia(el)) continue;
         const rect = el.getBoundingClientRect();
         const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
@@ -1001,13 +1010,40 @@ async function currentComposerMediaCount(page) {
         seen.add(key);
         count += 1;
       }
+      // Fallback: if no media found via selectors, check for any element with
+      // a computed background-image within the editor area (XHS may render
+      // card images as plain <div>s styled via CSS classes).
+      if (count === 0) {
+        for (const el of Array.from(widerRoot.querySelectorAll('div'))) {
+          if (!visibleMedia(el)) continue;
+          const bg = getComputedStyle(el).backgroundImage;
+          if (bg && bg !== 'none' && bg !== '' && bg !== 'initial') {
+            const rect = el.getBoundingClientRect();
+            const key = bg + ':' + String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
+            if (seen.has(key)) continue;
+            seen.add(key);
+            count += 1;
+          }
+        }
+      }
       return { ok: true, count };
     })()
   `);
     return unwrapBrowserResult(result);
 }
 async function assertComposerMediaCount(page, expectedCount, label) {
-    const state = await currentComposerMediaCount(page);
+    // Retry a few times with short pauses — media elements may still be
+    // rendering/lazy-loading after the editor form appears.
+    const maxRetries = 4;
+    const retryDelayMs = 750;
+    let state;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        state = await currentComposerMediaCount(page);
+        if (state && typeof state.count === 'number' && state.count >= expectedCount)
+            return;
+        if (attempt < maxRetries - 1)
+            await page.wait({ time: retryDelayMs / 1_000 });
+    }
     if (!state || typeof state.count !== 'number') {
         throw new CommandExecutionError(`${label}: could not verify current composer media count`);
     }
@@ -1057,7 +1093,28 @@ async function runTextImageFlow(page, cards, cardStyle) {
         throw new CommandExecutionError(`文字配图: could not click "${PREVIEW_NEXT_LABEL}". ` +
             'Debug: /tmp/xhs_publish_next_debug.png');
     }
-    await page.wait({ time: 2 }); // editor render
+    // Instead of a fixed 2-second wait, poll for the title editor to appear
+    // (the editor is rendered only after images are fully processed).
+    // Then wait for media elements to actually render before returning.
+    const editorReady = await waitForEditForm(page);
+    if (!editorReady) {
+        // Not a fatal error — the caller's own waitForEditForm will catch it.
+        // Just give the page a moment and return.
+        await page.wait({ time: 2 });
+    } else {
+        // After the editor renders, poll for visible media items to appear.
+        // XHS may take extra time to render the generated card images as
+        // <div>/<img> elements in the composer, and a fixed sleep is fragile.
+        const maxWaitMs = 10_000;
+        const pollMs = 500;
+        const maxAttempts = Math.ceil(maxWaitMs / pollMs);
+        for (let i = 0; i < maxAttempts; i++) {
+            const state = await currentComposerMediaCount(page);
+            if (state.count >= 1)
+                break;
+            await page.wait({ time: pollMs / 1_000 });
+        }
+    }
     return appliedStyle;
 }
 async function inspectPublishSurfaceState(page) {
