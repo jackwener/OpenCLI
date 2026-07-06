@@ -3,7 +3,10 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 export const DEEPSEEK_DOMAIN = 'chat.deepseek.com';
 export const DEEPSEEK_URL = 'https://chat.deepseek.com/';
 export const TEXTAREA_SELECTOR = 'textarea[placeholder*="DeepSeek"]';
-export const MESSAGE_SELECTOR = '.ds-message';
+// DeepSeek renders messages inside a virtualised list. The container has a
+// stable ds-virtual-list-visible-items class; individual turns are direct
+// children with hashed CSS-module class names that change per build.
+export const MESSAGE_SELECTOR = '.ds-virtual-list-visible-items > *';
 const CONVERSATION_ID_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 /**
@@ -59,12 +62,14 @@ export async function getPageState(page) {
         const url = window.location.href;
         const title = document.title;
         const textarea = document.querySelector('${TEXTAREA_SELECTOR}');
-        const avatar = document.querySelector('img[src*="user-avatar"]');
+        // If the composer textarea is visible the user is logged in;
+        // DeepSeek's login page renders a different UI without a textarea.
+        const isLoggedIn = !!textarea;
         return {
             url,
             title,
             hasTextarea: !!textarea,
-            isLoggedIn: !!avatar,
+            isLoggedIn,
         };
     })()`);
 }
@@ -108,21 +113,15 @@ export async function sendMessage(page, prompt) {
         document.execCommand('insertText', false, ${promptJson});
         await new Promise(r => setTimeout(r, 800));
 
-        // Find the send button: last non-toggle button in the textarea's container
-        var container = box.parentElement;
-        while (container && !container.querySelector('div[role="button"]')) {
-            container = container.parentElement;
-        }
-        if (container) {
-            var btns = container.querySelectorAll('div[role="button"]:not(.ds-toggle-button)');
-            var sendBtn = btns[btns.length - 1];
-            if (sendBtn && sendBtn.getAttribute('aria-disabled') === 'false'
-                && sendBtn.querySelectorAll('svg').length > 0) {
-                sendBtn.click();
-                return { ok: true };
-            }
+        // Direct selector: DeepSeek's send button is the filled-circle primary
+        // button inside the composer row (2026-07 DOM).
+        var sendBtn = document.querySelector('div[role="button"].ds-button--primary.ds-button--filled.ds-button--circle');
+        if (sendBtn && sendBtn.querySelectorAll('svg').length > 0) {
+            sendBtn.click();
+            return { ok: true, method: 'direct-click' };
         }
 
+        // Fallback: Enter key
         box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
         return { ok: true, method: 'enter' };
     })()`);
@@ -170,6 +169,15 @@ export async function waitForResponse(page, baselineCount, prompt, timeoutMs, pa
 
     while (Date.now() - startTime < timeoutMs) {
         await page.wait(3);
+
+        // Virtual list: scroll to bottom so off-screen responses become visible
+        await page.evaluate(`(() => {
+            const list = document.querySelector('.ds-virtual-list-visible-items');
+            if (list) {
+                const parent = list.parentElement;
+                if (parent) parent.scrollTop = parent.scrollHeight;
+            }
+        })()`);
 
         let result;
         try {

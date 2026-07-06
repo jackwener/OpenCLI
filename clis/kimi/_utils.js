@@ -85,6 +85,9 @@ export function clickBySvgNameScript(svgName, opts = {}) {
       if (!parent) break;
       target = parent;
       if (target.tagName === 'BUTTON' || target.getAttribute('role') === 'button' || target.onclick || target.tagName === 'A') break;
+      // 2026-07 Kimi: send button is a plain DIV (chat-editor-action) with
+      // React event delegation — no onclick / role / button tag.
+      if (target.className && typeof target.className === 'string' && /chat-editor-action/i.test(target.className)) break;
     }
     const r = target.getBoundingClientRect();
     const opts = { bubbles: true, cancelable: true, clientX: r.x + r.width/2, clientY: r.y + r.height/2 };

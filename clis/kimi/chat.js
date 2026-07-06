@@ -247,9 +247,12 @@ async function sendKimiMessage(page, text) {
     const prompt = String(text || '').trim();
     if (!prompt) throw new ArgumentError('text', 'is required');
     await ensureOnKimi(page);
+    // Kimi's home page has NO .chat-content-list — it only appears after
+    // SPA-navigating into a conversation.  Use a broader selector so the
+    // before-count is meaningful on the home page too.
     const beforeUsers = await page.evaluate(`(() => {
-      return Array.from(document.querySelectorAll('.chat-content-list .chat-content-item, .message-list > *, .segment'))
-        .filter((row) => /user|sent-by-user|me-/i.test(String(row.className || ''))).length;
+      return Array.from(document.querySelectorAll('.chat-content-item, .message-list > *, .segment'))
+        .filter((row) => /user|sent-by-user|chat-content-item-user|me-/i.test(String(row.className || ''))).length;
     })()`);
     const typeRes = await page.evaluate(`(() => {
       ${IS_VISIBLE_JS}
@@ -265,14 +268,16 @@ async function sendKimiMessage(page, text) {
     const sendRes = await page.evaluate(clickBySvgNameScript('Send'));
     if (!sendRes?.ok) throw new CommandExecutionError(sendRes?.reason || 'Send button click failed', '');
 
-    const deadline = Date.now() + 3000;
+    // Kimi's SPA navigates to /chat/<id> after sending; give it 15 s to
+    // settle instead of the old 3 s which was too tight for cold loads.
+    const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
         const verified = await page.evaluate(`(() => {
       const normalize = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
       const prompt = normalize(${JSON.stringify(prompt)});
       const before = Number(${JSON.stringify(beforeUsers)}) || 0;
-      const rows = Array.from(document.querySelectorAll('.chat-content-list .chat-content-item, .message-list > *, .segment'))
-        .filter((row) => /user|sent-by-user|me-/i.test(String(row.className || '')));
+      const rows = Array.from(document.querySelectorAll('.chat-content-item, .message-list > *, .segment'))
+        .filter((row) => /user|sent-by-user|chat-content-item-user|me-/i.test(String(row.className || '')));
       return rows.slice(before).some((row) => normalize(row.innerText || row.textContent).includes(prompt));
     })()`);
         if (verified) return { prompt };

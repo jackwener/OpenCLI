@@ -1024,9 +1024,34 @@ export async function sendChatGPTMessage(page, text) {
         if (sent?.sendBtnFound) break;
     }
 
+    let sendMethod = 'click';
     if (!sent?.sendBtnFound) {
-        return false;
-    }
+        // ChatGPT no longer ships a dedicated send-button in the DOM;
+        // the composer submits on Enter in the contenteditable / textarea.
+        const enterResult = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
+            (() => {
+                const isVisible = (el) => {
+                    if (!(el instanceof HTMLElement)) return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                };
+                const sels = ${JSON.stringify(COMPOSER_SELECTORS)};
+                let composer = null;
+                for (let si = 0; si < sels.length; si++) { composer = document.querySelector(sels[si]); if (composer && isVisible(composer)) break; }
+                if (!composer) return { ok: false, reason: 'composer not found for Enter fallback' };
+                composer.focus();
+                composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, composed: true }));
+                composer.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, composed: true }));
+                return { ok: true };
+            })()
+        `)), 'chatgpt enter fallback');
+        if (!enterResult?.ok) {
+            return false;
+        }
+        sendMethod = 'enter';
+    } else {
 
     await page.evaluate(`
         (() => {
@@ -1057,6 +1082,7 @@ export async function sendChatGPTMessage(page, text) {
             if (sendBtn) sendBtn.click();
         })()
     `);
+    }
     return true;
 }
 
