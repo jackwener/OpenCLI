@@ -651,12 +651,6 @@ describe('xiaohongshu publish', () => {
                 focusCalls.push(true);
                 return true;
             }
-            // topicSuggestionScript click-based suggestion selection.
-            // The new addTopics logic tries clicking the best match before
-            // falling back to Enter. Simulate a successful click here.
-            if (code.includes("replace(/^#/, '')") && code.includes('SUGGESTION_SELECTORS')) {
-                return { ok: true, count: 1 };
-            }
             // Body-scoped chip-marker postcondition. Each topic checks count
             // before and after Enter; simulate one new marker after selection.
             if (code.includes('__opencli_xhs_topic_marker_count')) {
@@ -700,12 +694,12 @@ describe('xiaohongshu publish', () => {
         // Each topic is typed as "#<topic>" via page.insertText.
         expect(insertText).toHaveBeenCalledWith('#AI');
         expect(insertText).toHaveBeenCalledWith('#效率提升');
-        // Body editor was focused once per topic before typing.
-        expect(focusCalls.length).toBe(2);
-        // pressKey was called once per topic for the separator Enter
-        // (suggestion is now accepted by clicking the dropdown item, not Enter).
+        // Body editor was focused once per topic before typing (plus one
+        // extra focus from the body re-activation step before topics).
+        expect(focusCalls.length).toBe(3);
+        // pressKey was called at least twice per topic (separator + accept).
         const enterCount = pressKey.mock.calls.filter(args => args[0] === 'Enter').length;
-        expect(enterCount).toBeGreaterThanOrEqual(2);
+        expect(enterCount).toBeGreaterThanOrEqual(4);
         // Chip-marker postcondition checked before and after each topic.
         expect(markerChecks).toBe(4);
         expect(result).toEqual([

@@ -595,51 +595,32 @@ async function addTopics(page, bodySelectors, topics) {
         catch {
             throw new CommandExecutionError(`Could not attach topic "${topic}": failed to type inline topic query`);
         }
-        await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
-        // Try clicking the best-matching suggestion from the light DOM first.
-        // The dropdown is typically a popup list rendered inside a shadow root,
-        // but XHS often clones items into the light DOM for accessibility.
-        // If a match is found and clickable, click it; otherwise fall back to
-        // pressing Enter (which accepts the first auto-highlighted suggestion).
-        let suggestionClicked = false;
-        const suggestion = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic, { click: true })));
-        if (suggestion?.ok && suggestion.count > 0) {
-            suggestionClicked = true;
+        await page.wait({ time: 1.5 }); // Let the suggestion dropdown render.
+        // XHS auto-highlights the first matching suggestion when the query is
+        // typed. Press Enter to accept it (suggestion items are in shadow DOM).
+        if (typeof page.pressKey !== 'function') {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
         }
-        if (!suggestionClicked) {
-            // Fallback: press Enter to accept the first auto-highlighted suggestion.
-            if (typeof page.pressKey !== 'function') {
-                throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
-            }
-            try {
-                await page.pressKey('Enter');
-            }
-            catch (err) {
-                throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
-            }
+        try {
+            await page.pressKey('Enter');
         }
-        await page.wait({ time: 0.8 });
-        // Verify the topic chip actually rendered. The chip lives in a closed
-        // shadow root so we cannot count `<a>` elements, but XHS exposes a
-        // stable "#<topic>[话题]" marker in the body editor's innerText once
-        // the suggestion is accepted. Require the scoped marker count to
-        // increase so an existing marker elsewhere cannot satisfy the write.
+        catch (err) {
+            throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
+        }
+        await page.wait({ time: 1.0 });
+        // Verify the topic chip rendered. The chip is in a closed shadow root, so
+        // we check for the "#<topic>[话题]" marker in the body editor's innerText.
         const afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
         if (afterMarkerCount <= beforeMarkerCount) {
-            // If clicking the suggestion didn't produce a marker, try Enter as
-            // a last resort (the dropdown may still be open from the query).
-            if (suggestionClicked && typeof page.pressKey === 'function') {
-                try {
-                    await page.pressKey('Enter');
-                }
-                catch { /* non-fatal */ }
-                await page.wait({ time: 0.8 });
-                const retryCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
-                if (retryCount > beforeMarkerCount) {
-                    added.push(topic);
-                    await page.wait({ time: 0.4 });
-                    continue;
-                }
+            // Retry once more with extra delay — topic dropdown may be slow.
+            await page.wait({ time: 1.0 });
+            try { await page.pressKey('Enter'); } catch { /* non-fatal */ }
+            await page.wait({ time: 0.8 });
+            const retryCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+            if (retryCount > beforeMarkerCount) {
+                added.push(topic);
+                await page.wait({ time: 0.4 });
+                continue;
             }
             throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
         }
@@ -1327,6 +1308,14 @@ cli({
         // ── Step 5: Fill content / body ────────────────────────────────────────────
         await fillField(page, BODY_SELECTORS, content, 'content');
         await page.wait({ time: 0.5 });
+        // After fillField (especially after card-text flow), the body contenteditable
+        // may need extra time to settle before its inline suggestion dropdown responds.
+        if (topics.length > 0) {
+            await page.wait({ time: 1.5 });
+            // Re-focus the body to ensure keyup handlers are active.
+            await focusBodyEnd(page, BODY_SELECTORS);
+            await page.wait({ time: 0.5 });
+        }
         // ── Step 6: Add topic hashtags ─────────────────────────────────────────────
         // XHS converts a "#keyword" typed into the body editor into a real topic
         // entity only when the user picks an item from the inline suggestion
