@@ -228,17 +228,17 @@ describe('twitter switch-account — switch mode', () => {
         expect(rows[0].message).toBe('@semonxue is already the current account.');
     });
 
-    it('raises EmptyResultError with available list when the target button is not found', async () => {
+    it('raises EmptyResultError with available list when the target handle is not in the menu', async () => {
         const page = createPageMock((code) => {
             // Trigger check
             if (code.includes('SideNav_AccountSwitcher_Button') && code.includes('return el ? true : false')) return true;
             // Menu open check
             if (code.includes('UserCell') && code.includes('return true')) return true;
             // Match the NOT_FOUND return site precisely (the message is unique to that path)
-            if (code.includes('Could not find "Switch to @')) {
+            if (code.includes('not found in switcher menu')) {
                 return {
                     error: 'NOT_FOUND',
-                    message: 'Could not find "Switch to @missing" button. Menu UserCells: ... . Available: @semonxue, @ai__cream, @2nd_ai50196',
+                    message: 'Target handle "@missing" not found in switcher menu. Available: @semonxue, @2nd_ai50196, @news_bot',
                 };
             }
             if (code.includes('UserAvatar-Container-')) {

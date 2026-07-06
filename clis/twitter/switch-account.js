@@ -17,18 +17,23 @@ function isSwitchMode(kwargs) {
 
 /**
  * Read the open account-switcher menu and return one row per listed account.
- * Uses avatar containers inside UserCells to enumerate accounts; the "current"
- * account is identified by the first <li data-testid="UserCell"> (no Switch button inside).
- * "Add existing account" rows (have "Follow" text) are excluded.
+ *
+ * Detection is fully locale-independent:
+ *   - The current account cell is rendered as `<li data-testid="UserCell">`;
+ *     every switchable account cell is `<button data-testid="UserCell">`. So
+ *     `cell.tagName === 'LI'` is the current marker (no need to read aria-label
+ *     text, which X localizes — e.g. "Switch to @…" / "切换到 @…").
+ *   - Handles come from `data-testid="UserAvatar-Container-{handle}"`, which is
+ *     a normalized English screen-name and never localized.
+ *   - "Add existing account" lives at a separate `data-testid="AccountSwitcher_
+ *     AddAccount_Button"` and is not inside any UserCell, so enumerating
+ *     `[data-testid="UserCell"]` is naturally exclusive.
  */
 export async function readAccountMenu(page) {
     const result = unwrapBrowserResult(await page.evaluate(`
         () => {
             const menuCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
-            const currentCell = menuCells.find(cell =>
-                cell.tagName === 'LI' &&
-                !cell.querySelector('button[aria-label^="Switch to @"]')
-            );
+            const currentCell = menuCells.find(cell => cell.tagName === 'LI');
             const currentAvatar = currentCell?.querySelector('[data-testid^="UserAvatar-Container-"]');
             const currentHandle = currentAvatar
                 ? currentAvatar.getAttribute('data-testid').replace('UserAvatar-Container-', '')
@@ -44,13 +49,6 @@ export async function readAccountMenu(page) {
                 const avHandle = av.getAttribute('data-testid').replace('UserAvatar-Container-', '');
                 if (!avHandle || seen.has(avHandle)) continue;
                 seen.add(avHandle);
-
-                let hasFollow = false;
-                let parent = av.parentElement;
-                for (let i = 0; i < 5 && parent; i++, parent = parent.parentElement) {
-                    if (parent.textContent?.includes('Follow')) { hasFollow = true; break; }
-                }
-                if (hasFollow) continue;
 
                 const isCurrent = Boolean(currentHandle) && avHandle.toLowerCase() === currentHandle.toLowerCase();
                 const displayNameEl = av.closest('[data-testid="UserCell"]')?.querySelector('span')
@@ -140,11 +138,10 @@ cli({
                     return { error: 'AUTH_REQUIRED', message: 'Account-switcher trigger not found. Are you logged in?' };
                 }
 
+                // Pre-open snapshot: current cell = the only <li data-testid="UserCell">.
+                // Locale-independent: switch targets are <button>, current is <li>.
                 const menuCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
-                const currentCell = menuCells.find(cell =>
-                    cell.tagName === 'LI' &&
-                    !cell.querySelector('button[aria-label^="Switch to @"]')
-                );
+                const currentCell = menuCells.find(cell => cell.tagName === 'LI');
                 const currentAvatar = currentCell?.querySelector('[data-testid^="UserAvatar-Container-"]');
                 const currentHandle = currentAvatar
                     ? currentAvatar.getAttribute('data-testid').replace('UserAvatar-Container-', '')
@@ -167,10 +164,7 @@ cli({
 
                 // Re-read currentHandle after menu opened (menu may have re-rendered).
                 const menuCellsAfterOpen = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
-                const currentCellAfter = menuCellsAfterOpen.find(cell =>
-                    cell.tagName === 'LI' &&
-                    !cell.querySelector('button[aria-label^="Switch to @"]')
-                );
+                const currentCellAfter = menuCellsAfterOpen.find(cell => cell.tagName === 'LI');
                 const currentAvatarAfter = currentCellAfter?.querySelector('[data-testid^="UserAvatar-Container-"]');
                 const currentHandleAfter = currentAvatarAfter
                     ? currentAvatarAfter.getAttribute('data-testid').replace('UserAvatar-Container-', '')
@@ -187,19 +181,12 @@ cli({
                     if (!avHandle || seen.has(avHandle)) continue;
                     seen.add(avHandle);
 
-                    let hasFollow = false;
-                    let parent = av.parentElement;
-                    for (let i = 0; i < 5 && parent; i++, parent = parent.parentElement) {
-                        if (parent.textContent?.includes('Follow')) { hasFollow = true; break; }
-                    }
-                    if (hasFollow) continue;
-
                     const isCurrent = Boolean(currentHandleAfter) && avHandle.toLowerCase() === currentHandleAfter.toLowerCase();
                     const displayNameEl = av.closest('[data-testid="UserCell"]')?.querySelector('span')
                         || av.querySelector('span');
                     const displayName = displayNameEl ? displayNameEl.textContent.trim() : avHandle;
 
-                accounts.push({ handle: avHandle, display_name: displayName, is_current: isCurrent, unread: 0 });
+                    accounts.push({ handle: avHandle, display_name: displayName, is_current: isCurrent, unread: 0 });
                 }
 
                 if (accounts.length === 0) {
@@ -220,30 +207,42 @@ cli({
                     return { error: 'EMPTY', message: 'No accounts found in the switcher menu' };
                 }
 
-                // If target is already current, no "Switch to @target" button will exist
-                // (current account renders as <li> instead). Detect this from the accounts list.
-                const alreadyCurrentAccount = accounts.find(a =>
-                    a.is_current && a.handle.toLowerCase() === targetHandle.toLowerCase()
+                // Locate the target cell by avatar testid (handle is normalized English,
+                // never localized) — then disambiguate current vs switchable by tagName.
+                const targetAvatar = document.querySelector(
+                    '[data-testid="UserAvatar-Container-' + targetHandle + '"]'
                 );
-                if (alreadyCurrentAccount) {
+
+                if (!targetAvatar) {
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                    await new Promise(r => setTimeout(r, 200));
+                    const available = accounts.map(a => '@' + a.handle).join(', ');
+                    return {
+                        error: 'NOT_FOUND',
+                        message: 'Target handle "@' + targetHandle + '" not found in switcher menu. Available: ' + available,
+                    };
+                }
+
+                const targetCell = targetAvatar.closest('[data-testid="UserCell"]');
+
+                // Current account cell renders as <li> (no button inside); switch targets
+                // render as <button data-testid="UserCell"> themselves.
+                if (targetCell?.tagName === 'LI') {
                     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                     await new Promise(r => setTimeout(r, 200));
                     return { ok: true, status: 'already_current', handle: targetHandle };
                 }
 
-                const targetAriaLabel = 'Switch to @' + targetHandle;
-                const switchBtn = Array.from(document.querySelectorAll('[data-testid="UserCell"]'))
-                    .find(cell => cell.getAttribute('aria-label') === targetAriaLabel);
-
+                const switchBtn = targetCell?.tagName === 'BUTTON'
+                    ? targetCell
+                    : targetCell?.querySelector('button');
                 if (!switchBtn) {
                     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                     await new Promise(r => setTimeout(r, 200));
-                    const allCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'))
-                        .map(c => c.getAttribute('aria-label') || ('LI' + c.tagName));
                     const available = accounts.map(a => '@' + a.handle).join(', ');
                     return {
                         error: 'NOT_FOUND',
-                        message: 'Could not find "Switch to @' + targetHandle + '" button. Menu UserCells: ' + allCells.slice(0, 10).join(', ') + '. Available: ' + available,
+                        message: 'Could not locate switch button for @' + targetHandle + ' in menu. Available: ' + available,
                     };
                 }
 
