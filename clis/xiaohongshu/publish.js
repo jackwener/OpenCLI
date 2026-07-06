@@ -584,9 +584,8 @@ async function addTopics(page, bodySelectors, topics) {
             catch { /* non-fatal */ }
         }
         // Type the inline "#<topic>" query so XHS pops the inline suggestion
-        // dropdown. We must use `page.insertText` (CDP) rather than the legacy
-        // `execCommand` path, otherwise XHS's editor doesn't fire its keyup
-        // listener and no dropdown appears.
+        // dropdown. We must use `page.insertText` (CDP), otherwise XHS's
+        // editor doesn't fire its keyup listener and no dropdown appears.
         if (typeof page.insertText !== 'function') {
             throw new CommandExecutionError(`Could not attach topic "${topic}": page.insertText is unavailable`);
         }
@@ -597,29 +596,51 @@ async function addTopics(page, bodySelectors, topics) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": failed to type inline topic query`);
         }
         await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
-        // The suggestion dropdown lives inside the editor's closed shadow root,
-        // so light-DOM queries cannot enumerate its items. XHS auto-highlights
-        // the first matching suggestion as soon as the query is typed, so
-        // pressing Enter accepts it directly. `page.nativeClick` would also
-        // work but is not always wired up in the browser-bridge wrapper.
-        if (typeof page.pressKey !== 'function') {
-            throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
+        // Try clicking the best-matching suggestion from the light DOM first.
+        // The dropdown is typically a popup list rendered inside a shadow root,
+        // but XHS often clones items into the light DOM for accessibility.
+        // If a match is found and clickable, click it; otherwise fall back to
+        // pressing Enter (which accepts the first auto-highlighted suggestion).
+        let suggestionClicked = false;
+        const suggestion = unwrapBrowserResult(await page.evaluate(topicSuggestionScript(topic, { click: true })));
+        if (suggestion?.ok && suggestion.count > 0) {
+            suggestionClicked = true;
         }
-        try {
-            await page.pressKey('Enter');
-        }
-        catch (err) {
-            throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
+        if (!suggestionClicked) {
+            // Fallback: press Enter to accept the first auto-highlighted suggestion.
+            if (typeof page.pressKey !== 'function') {
+                throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
+            }
+            try {
+                await page.pressKey('Enter');
+            }
+            catch (err) {
+                throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
+            }
         }
         await page.wait({ time: 0.8 });
-        // Verify the topic chip actually rendered. The chip itself lives in a
-        // closed shadow root so we cannot count `<a>` elements, but XHS exposes
-        // a stable "#<topic>[话题]" marker in the body editor's innerText once
+        // Verify the topic chip actually rendered. The chip lives in a closed
+        // shadow root so we cannot count `<a>` elements, but XHS exposes a
+        // stable "#<topic>[话题]" marker in the body editor's innerText once
         // the suggestion is accepted. Require the scoped marker count to
-        // increase so an existing marker elsewhere cannot satisfy the write
-        // postcondition.
+        // increase so an existing marker elsewhere cannot satisfy the write.
         const afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
         if (afterMarkerCount <= beforeMarkerCount) {
+            // If clicking the suggestion didn't produce a marker, try Enter as
+            // a last resort (the dropdown may still be open from the query).
+            if (suggestionClicked && typeof page.pressKey === 'function') {
+                try {
+                    await page.pressKey('Enter');
+                }
+                catch { /* non-fatal */ }
+                await page.wait({ time: 0.8 });
+                const retryCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+                if (retryCount > beforeMarkerCount) {
+                    added.push(topic);
+                    await page.wait({ time: 0.4 });
+                    continue;
+                }
+            }
             throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
         }
         added.push(topic);
