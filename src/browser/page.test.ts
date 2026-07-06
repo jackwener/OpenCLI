@@ -1,3 +1,6 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { sendCommandMock, sendCommandFullMock } = vi.hoisted(() => ({
@@ -505,5 +508,56 @@ describe('Page.screenshot', () => {
     expect(args.width).toBeUndefined();
     expect(args.height).toBeUndefined();
     expect(args.fullPage).toBeUndefined();
+  });
+});
+
+describe('Page.pasteFiles', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('base64-encodes provided files and forwards them as clipboardFiles', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-paste-'));
+    const filePath = path.join(dir, 'note.png');
+    fs.writeFileSync(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+    try {
+      sendCommandMock.mockResolvedValueOnce({ count: 1 });
+
+      const page = new Page('default');
+      await expect(page.pasteFiles([filePath], '#composer')).resolves.toBeUndefined();
+
+      const call = sendCommandMock.mock.calls.at(-1);
+      expect(call?.[0]).toBe('paste-files');
+      const args = call?.[1] as Record<string, unknown>;
+      expect(args.selector).toBe('#composer');
+      expect(args.clipboardFiles).toEqual([
+        { name: 'note.png', mimeType: 'image/png', base64: 'iVBORw==' },
+      ]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an empty files list before reaching the daemon', async () => {
+    const page = new Page('default');
+    await expect(page.pasteFiles([])).rejects.toThrow('pasteFiles requires at least one file path');
+    expect(sendCommandMock).not.toHaveBeenCalled();
+  });
+
+  it('throws when the extension returns no count (unsupported action)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-paste-'));
+    const filePath = path.join(dir, 'note.txt');
+    fs.writeFileSync(filePath, 'hi');
+
+    try {
+      sendCommandMock.mockResolvedValueOnce({});
+      const page = new Page('default');
+      await expect(page.pasteFiles([filePath])).rejects.toThrow(/no count/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -1242,6 +1242,8 @@ async function handleCommand(cmd: Command): Promise<Result> {
         return await handleSetFileInput(cmd, leaseKey);
       case 'insert-text':
         return await handleInsertText(cmd, leaseKey);
+      case 'paste-files':
+        return await handlePasteFiles(cmd, leaseKey);
       case 'bind':
         return await handleBind(cmd, leaseKey);
       case 'network-capture-start':
@@ -1938,6 +1940,21 @@ async function handleInsertText(cmd: Command, leaseKey: string): Promise<Result>
     return pageScopedResult(cmd.id, tabId, { inserted: true });
   } catch (err) {
     return errorResult(cmd.id, err);
+  }
+}
+
+async function handlePasteFiles(cmd: Command, leaseKey: string): Promise<Result> {
+  const files = cmd.clipboardFiles;
+  if (!Array.isArray(files) || files.length === 0) {
+    return { id: cmd.id, ok: false, error: 'Missing or empty clipboardFiles array' };
+  }
+  const cmdTabId = await resolveCommandTabId(cmd);
+  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  try {
+    const count = await executor.pasteClipboardFiles(tabId, files, cmd.selector);
+    return pageScopedResult(cmd.id, tabId, { count });
+  } catch (err) {
+    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
