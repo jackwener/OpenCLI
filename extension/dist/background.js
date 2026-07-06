@@ -742,6 +742,8 @@ const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
 let connectInFlight = null;
+let workerReady = Promise.resolve();
+let workerRecovered = true;
 async function getCurrentContextId() {
   if (contextIdPromise) return contextIdPromise;
   contextIdPromise = (async () => {
@@ -820,7 +822,8 @@ function isDaemonSocketActive(socket = ws) {
 function connect() {
   if (isDaemonSocketActive()) return Promise.resolve();
   if (connectInFlight) return connectInFlight;
-  connectInFlight = connectAttempt().finally(() => {
+  const attempt = workerRecovered ? connectAttempt() : workerReady.then(() => connectAttempt());
+  connectInFlight = attempt.finally(() => {
     connectInFlight = null;
   });
   return connectInFlight;
@@ -938,8 +941,8 @@ const CONTAINER_TAB_GROUP_TITLE = {
 const OWNED_TAB_GROUP_COLOR = "orange";
 let leaseMutationQueue = Promise.resolve();
 const ownedContainers = {
-  interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
-  automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
+  interactive: { windowId: null, groupId: null, groupIds: /* @__PURE__ */ new Set(), promise: null, groupPromise: null },
+  automation: { windowId: null, groupId: null, groupIds: /* @__PURE__ */ new Set(), promise: null, groupPromise: null }
 };
 class CommandFailure extends Error {
   constructor(code, message, hint) {
@@ -1039,7 +1042,8 @@ function emptyRegistry() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
+        groupId: ownedContainers.interactive.groupId,
+        groupIds: [...ownedContainers.interactive.groupIds]
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
@@ -1063,7 +1067,8 @@ async function readRegistry() {
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
-          groupId: typeof storedContainers.interactive?.groupId === "number" ? storedContainers.interactive.groupId : null
+          groupId: typeof storedContainers.interactive?.groupId === "number" ? storedContainers.interactive.groupId : null,
+          groupIds: Array.isArray(storedContainers.interactive?.groupIds) ? storedContainers.interactive.groupIds.filter((id) => typeof id === "number") : []
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null,
@@ -1106,7 +1111,8 @@ async function persistRuntimeState() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
+        groupId: ownedContainers.interactive.groupId,
+        groupIds: [...ownedContainers.interactive.groupIds]
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
@@ -1210,6 +1216,15 @@ async function collectOwnedGroupCandidates(role) {
       container.groupId = null;
     }
   }
+  for (const groupId of [...container.groupIds]) {
+    if (groupsById.has(groupId)) continue;
+    try {
+      const group = await chrome.tabGroups.get(groupId);
+      groupsById.set(group.id, group);
+    } catch {
+      container.groupIds.delete(groupId);
+    }
+  }
   for (const title of getOwnedContainerGroupTitles(role)) {
     const groups = await chrome.tabGroups.query({ title });
     for (const group of groups) groupsById.set(group.id, group);
@@ -1306,6 +1321,7 @@ async function createOwnedGroup(role, windowId, ids) {
   const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
   ownedContainers[role].groupId = groupId;
   ownedContainers[role].windowId = windowId;
+  ownedContainers[role].groupIds.add(groupId);
   await persistRuntimeState();
   const group = await chrome.tabGroups.update(groupId, {
     color: OWNED_TAB_GROUP_COLOR,
@@ -1342,6 +1358,7 @@ async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
     if (canonical) {
       ownedContainers[role].windowId = canonical.windowId;
       ownedContainers[role].groupId = canonical.id;
+      ownedContainers[role].groupIds.add(canonical.id);
     } else {
       ownedContainers[role].groupId = null;
       if (fallbackWindowId === null) ownedContainers[role].windowId = null;
@@ -1515,6 +1532,7 @@ async function getAutomationWindow(leaseKey, initialUrl) {
   return (await ensureOwnedContainerWindow(role, initialUrl, getWindowMode(leaseKey))).windowId;
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
+  await workerReady;
   for (const container of Object.values(ownedContainers)) {
     if (container.windowId === windowId) {
       container.windowId = null;
@@ -1533,6 +1551,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
   await persistRuntimeState();
 });
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await workerReady;
   evictTab(tabId);
   for (const [leaseKey, session] of automationSessions.entries()) {
     if (session.preferredTabId === tabId) {
@@ -1556,11 +1575,16 @@ function initialize() {
     registerFrameTracking$1?.();
   } catch {
   }
-  void (async () => {
+  workerRecovered = false;
+  workerReady = (async () => {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
-    await connect();
-  })();
+  })().catch((err) => {
+    console.warn(`[opencli] Startup recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+  }).finally(() => {
+    workerRecovered = true;
+  });
+  void workerReady.then(() => connect());
   console.log("[opencli] OpenCLI extension initialized");
 }
 chrome.runtime.onInstalled.addListener(() => {
@@ -1571,6 +1595,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  await workerReady;
   if (alarm.name === "keepalive") void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
   if (!leaseKey) return;
@@ -2296,6 +2321,9 @@ async function reconcileTargetLeaseRegistry() {
   for (const role of Object.keys(ownedContainers)) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
     ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
+    if (role === "interactive") {
+      ownedContainers.interactive.groupIds = new Set(registry.ownedContainers.interactive?.groupIds ?? []);
+    }
     const windowId = ownedContainers[role].windowId;
     if (windowId !== null) {
       try {
@@ -2349,6 +2377,11 @@ async function reconcileTargetLeaseRegistry() {
       }
     } catch {
     }
+  }
+  try {
+    await ensureOwnedContainerGroup("interactive", null, []);
+  } catch (err) {
+    console.warn(`[opencli] Startup interactive group convergence failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   await persistRuntimeState();
 }

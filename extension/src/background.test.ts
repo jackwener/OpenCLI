@@ -249,7 +249,14 @@ describe('background tab isolation', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    vi.useRealTimers();
+    // Let each module's fire-and-forget startup recovery + connect() settle
+    // under THIS test's fetch stub. Otherwise a slow recovery can spill its
+    // connect into the next test and open a stray socket against that test's
+    // stub, corrupting the shared MockWebSocket.instances count.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -1808,7 +1815,7 @@ describe('background tab isolation', () => {
     mod.__test__.setSession(browserKey('default'), { windowId: 2, owned: false, preferredTabId: 2 });
 
     const onRemovedListener = chrome.tabs.onRemoved.addListener.mock.calls[0][0];
-    onRemovedListener(2);
+    await onRemovedListener(2);
 
     expect(mod.__test__.getSession(browserKey('default'))).toBeNull();
     expect(chrome.windows.remove).not.toHaveBeenCalled();
@@ -1895,5 +1902,185 @@ describe('background tab isolation', () => {
     }));
     expect(chrome.tabs.update).toHaveBeenCalledWith(2, expect.objectContaining({ url: 'https://other.example' }));
     expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+
+  const REGISTRY_KEY = 'opencli_target_lease_registry_v2';
+
+  // Gate the registry read so the startup recovery chain (workerReady) stays
+  // pending on demand. Every other storage read (context id) resolves normally.
+  // `readDirect` bypasses the gate so a test can inspect stored state without
+  // blocking on (or releasing) the gate.
+  function gateRegistryRead(chrome: any) {
+    const gate = deferred<void>();
+    const originalGet = chrome.storage.local.get;
+    chrome.storage.local.get = vi.fn(async (key: string) => {
+      if (key === REGISTRY_KEY) await gate.promise;
+      return originalGet(key);
+    });
+    return {
+      gate,
+      readDirect: async (key: string) => (await originalGet(key))[key],
+    };
+  }
+
+  it('does not wipe the persisted registry when a lease idle alarm fires before recovery', async () => {
+    const { chrome, groups } = createChromeMock();
+    const deadline = Date.now() + 30_000;
+    groups.push({ id: 200, windowId: 5, title: 'OpenCLI Browser', color: 'orange', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      [REGISTRY_KEY]: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: {
+          interactive: { windowId: null, groupId: 200, groupIds: [200] },
+          automation: { windowId: 1, groupId: null },
+        },
+        leases: {
+          [adapterKey('twitter')]: {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            windowRole: 'automation',
+            idleDeadlineAt: deadline,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+    });
+    const { gate, readDirect } = gateRegistryRead(chrome);
+
+    const mod = await import('./background');
+
+    // Wake the worker via the idle alarm before recovery has restored state.
+    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
+    const alarmDone = onAlarmListener({ name: `opencli:lease-idle:${encodeURIComponent(adapterKey('twitter'))}` });
+
+    // Drain runnable tasks while recovery stays gated. A pre-fix worker would
+    // have persisted its empty snapshot by now, wiping the registry; the gated
+    // worker must leave storage untouched.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const midFlight = await readDirect(REGISTRY_KEY);
+    expect(midFlight.ownedContainers.interactive.groupId).toBe(200);
+    expect(midFlight.leases[adapterKey('twitter')]).toBeDefined();
+
+    gate.resolve();
+    await alarmDone;
+
+    const finalRegistry = await readDirect(REGISTRY_KEY);
+    // groupId self-heal pointer survived recovery instead of being nulled.
+    expect(finalRegistry.ownedContainers.interactive.groupId).toBe(200);
+    // The lease was released down the proper owned-placeholder path, not wiped.
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
+  });
+
+  it('does not wipe the persisted registry when tabs.onRemoved fires before recovery', async () => {
+    const { chrome, groups } = createChromeMock();
+    const deadline = Date.now() + 30_000;
+    groups.push({ id: 200, windowId: 5, title: 'OpenCLI Browser', color: 'orange', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      [REGISTRY_KEY]: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: {
+          interactive: { windowId: null, groupId: 200, groupIds: [200] },
+          automation: { windowId: 1, groupId: null },
+        },
+        leases: {
+          [adapterKey('twitter')]: {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            windowRole: 'automation',
+            idleDeadlineAt: deadline,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+    });
+    const { gate, readDirect } = gateRegistryRead(chrome);
+
+    await import('./background');
+
+    // Wake the worker via an unrelated tab-close before recovery.
+    const onRemovedListener = chrome.tabs.onRemoved.addListener.mock.calls[0][0];
+    const removedDone = onRemovedListener(999);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const midFlight = await readDirect(REGISTRY_KEY);
+    expect(midFlight.ownedContainers.interactive.groupId).toBe(200);
+    expect(midFlight.leases[adapterKey('twitter')]).toBeDefined();
+
+    gate.resolve();
+    await removedDone;
+
+    const finalRegistry = await readDirect(REGISTRY_KEY);
+    expect(finalRegistry.ownedContainers.interactive.groupId).toBe(200);
+    // The unrelated lease survived the unrelated tab-close.
+    expect(finalRegistry.leases[adapterKey('twitter')]).toBeDefined();
+  });
+
+  it('adopts an untitled orphan group through the ledger instead of creating a new one', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    tabs.push({ id: 50, windowId: 5, url: 'about:blank', title: 'blank', active: true, status: 'complete', groupId: 200 });
+    groups.push({ id: 200, windowId: 5, title: '', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      [REGISTRY_KEY]: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: {
+          interactive: { windowId: null, groupId: null, groupIds: [200] },
+          automation: { windowId: null, groupId: null },
+        },
+        leases: {},
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    // The orphan was adopted and titled — no second "OpenCLI Browser" spawned.
+    expect(groups).toHaveLength(1);
+    expect(groups[0].title).toBe('OpenCLI Browser');
+    const createGroupCalls = chrome.tabs.group.mock.calls.filter((call: any[]) => call[0]?.createProperties);
+    expect(createGroupCalls).toHaveLength(0);
+    const container = mod.__test__.getInteractiveContainer();
+    expect(container.groupId).toBe(200);
+    expect(container.groupIds).toContain(200);
+  });
+
+  it('prunes a vanished group id from the ledger on convergence', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      [REGISTRY_KEY]: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: {
+          interactive: { windowId: null, groupId: null, groupIds: [300] },
+          automation: { windowId: null, groupId: null },
+        },
+        leases: {},
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    const createGroupCalls = chrome.tabs.group.mock.calls.filter((call: any[]) => call[0]?.createProperties);
+    expect(createGroupCalls).toHaveLength(0);
+    expect(mod.__test__.getInteractiveContainer().groupIds).not.toContain(300);
+    const finalRegistry = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
+    expect(finalRegistry.ownedContainers.interactive.groupIds).toEqual([]);
   });
 });

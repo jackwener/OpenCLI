@@ -20,6 +20,19 @@ const CONTEXT_ID_KEY = 'opencli_context_id_v1';
 let currentContextId = 'default';
 let contextIdPromise: Promise<string> | null = null;
 let connectInFlight: Promise<void> | null = null;
+// Startup readiness gate. A MV3 service worker can be woken by an event
+// (alarm, window/tab removal) before initialize()'s recovery chain has
+// rehydrated in-memory lease/container state from storage. Event handlers that
+// persist state must `await workerReady` first, or an empty snapshot overwrites
+// the persisted registry (wiping self-heal pointers and lease records).
+// initialize() replaces this with the real recovery promise; it always
+// resolves (never rejects) so gated handlers can never wedge permanently.
+let workerReady: Promise<void> = Promise.resolve();
+// Synchronous mirror of workerReady's settled state. Lets connect() skip the
+// `await workerReady` microtask hop once recovery is done, so the steady-state
+// (post-recovery) connect path is byte-for-byte the original — only the
+// pre-recovery wake is gated.
+let workerRecovered = true;
 
 async function getCurrentContextId(): Promise<string> {
   if (contextIdPromise) return contextIdPromise;
@@ -108,7 +121,14 @@ function isDaemonSocketActive(socket: WebSocket | null | undefined = ws): boolea
 function connect(): Promise<void> {
   if (isDaemonSocketActive()) return Promise.resolve();
   if (connectInFlight) return connectInFlight;
-  connectInFlight = connectAttempt().finally(() => {
+  // Gate on startup recovery so a keepalive/reconnect wake never opens the
+  // socket into an un-rehydrated worker (daemon commands would then run against
+  // empty lease state). Once recovered, skip straight to connectAttempt so the
+  // steady-state path adds no extra tick. connectInFlight is set synchronously
+  // either way, so concurrent callers still coalesce; workerReady excludes
+  // connect itself, so no deadlock.
+  const attempt = workerRecovered ? connectAttempt() : workerReady.then(() => connectAttempt());
+  connectInFlight = attempt.finally(() => {
     connectInFlight = null;
   });
   return connectInFlight;
@@ -291,11 +311,17 @@ let leaseMutationQueue: Promise<void> = Promise.resolve();
 const ownedContainers: Record<OwnedWindowRole, {
   windowId: number | null;
   groupId: number | null;
+  // Ledger of every group id we have ever owned for this role, kept so an
+  // orphan group (created by `chrome.tabs.group` but never titled because the
+  // worker died before the `tabGroups.update`) stays discoverable even when the
+  // cached `groupId` and lease/title layers can't see it. Only used for
+  // 'interactive'; 'automation' owns no visible group and leaves it empty.
+  groupIds: Set<number>;
   promise: Promise<{ windowId: number; initialTabId?: number }> | null;
   groupPromise: Promise<OwnedContainerGroup | null> | null;
 }> = {
-  interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
-  automation: { windowId: null, groupId: null, promise: null, groupPromise: null },
+  interactive: { windowId: null, groupId: null, groupIds: new Set(), promise: null, groupPromise: null },
+  automation: { windowId: null, groupId: null, groupIds: new Set(), promise: null, groupPromise: null },
 };
 
 type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
@@ -306,7 +332,7 @@ type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
 type StoredRegistry = {
   version: 2;
   contextId: BrowserContextId;
-  ownedContainers: Record<OwnedWindowRole, { windowId: number | null; groupId?: number | null }>;
+  ownedContainers: Record<OwnedWindowRole, { windowId: number | null; groupId?: number | null; groupIds?: number[] }>;
   leases: Record<string, StoredLease>;
 };
 
@@ -441,6 +467,7 @@ function emptyRegistry(): StoredRegistry {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
         groupId: ownedContainers.interactive.groupId,
+        groupIds: [...ownedContainers.interactive.groupIds],
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
@@ -468,6 +495,9 @@ async function readRegistry(): Promise<StoredRegistry> {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === 'number' ? storedContainers.interactive.windowId : null,
           groupId: typeof storedContainers.interactive?.groupId === 'number' ? storedContainers.interactive.groupId : null,
+          groupIds: Array.isArray(storedContainers.interactive?.groupIds)
+            ? storedContainers.interactive.groupIds.filter((id): id is number => typeof id === 'number')
+            : [],
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === 'number' ? storedContainers.automation.windowId : null,
@@ -514,6 +544,7 @@ async function persistRuntimeState(): Promise<void> {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
         groupId: ownedContainers.interactive.groupId,
+        groupIds: [...ownedContainers.interactive.groupIds],
       },
       automation: {
         windowId: ownedContainers.automation.windowId,
@@ -647,6 +678,20 @@ async function collectOwnedGroupCandidates(role: OwnedWindowRole): Promise<Owned
       groupsById.set(group.id, group);
     } catch {
       container.groupId = null;
+    }
+  }
+
+  // Ledger layer: every group id we ever created for this role. Catches the
+  // untitled orphan that all title/lease/color layers miss. A missing id means
+  // the group has been closed or converged away — drop it so the ledger stays
+  // bounded and never resurrects a dead id.
+  for (const groupId of [...container.groupIds]) {
+    if (groupsById.has(groupId)) continue;
+    try {
+      const group = await chrome.tabGroups.get(groupId);
+      groupsById.set(group.id, group);
+    } catch {
+      container.groupIds.delete(groupId);
     }
   }
 
@@ -786,6 +831,9 @@ async function createOwnedGroup(
   // we must not `tabs.ungroup` on failure or the persisted id dangles.
   ownedContainers[role].groupId = groupId;
   ownedContainers[role].windowId = windowId;
+  // Record in the ledger before the (only) persist here so a crash between
+  // `tabs.group` and the title update still leaves the orphan discoverable.
+  ownedContainers[role].groupIds.add(groupId);
   await persistRuntimeState();
   const group = await chrome.tabGroups.update(groupId, {
     color: OWNED_TAB_GROUP_COLOR,
@@ -843,6 +891,9 @@ async function ensureOwnedContainerGroupUnlocked(
     if (canonical) {
       ownedContainers[role].windowId = canonical.windowId;
       ownedContainers[role].groupId = canonical.id;
+      // Adopt into the ledger — covers canonicals we found via the title/lease
+      // layers (e.g. a legacy group) that createOwnedGroup never recorded.
+      ownedContainers[role].groupIds.add(canonical.id);
     } else {
       ownedContainers[role].groupId = null;
       if (fallbackWindowId === null) ownedContainers[role].windowId = null;
@@ -1076,6 +1127,9 @@ async function getAutomationWindow(leaseKey: string, initialUrl?: string): Promi
 
 // Clean up when an owned container window is closed
 chrome.windows.onRemoved.addListener(async (windowId) => {
+  // A window-close event can wake the worker before recovery; persisting the
+  // empty pre-recovery snapshot here would wipe the registry.
+  await workerReady;
   for (const container of Object.values(ownedContainers)) {
     if (container.windowId === windowId) {
       container.windowId = null;
@@ -1096,6 +1150,8 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
 
 // Evict identity mappings when tabs are closed
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  // Same wake-before-recovery hazard as windows.onRemoved.
+  await workerReady;
   identity.evictTab(tabId);
   for (const [leaseKey, session] of automationSessions.entries()) {
     if (session.preferredTabId === tabId) {
@@ -1124,11 +1180,22 @@ function initialize(): void {
   } catch {
     // Some focused tests mock only the cdp functions they exercise.
   }
-  void (async () => {
+  // Rehydrate context + lease/container state before any event handler that
+  // persists is allowed to run (see workerReady). connect() is deliberately
+  // outside this promise — it awaits workerReady on its own, so keeping it out
+  // avoids a self-wait while still ordering the socket after recovery.
+  workerRecovered = false;
+  workerReady = (async () => {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
-    await connect();
-  })();
+  })().catch((err) => {
+    // Never leave workerReady rejected/pending: a wedged gate would freeze
+    // every gated handler for the life of the worker.
+    console.warn(`[opencli] Startup recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+  }).finally(() => {
+    workerRecovered = true;
+  });
+  void workerReady.then(() => connect());
   console.log('[opencli] OpenCLI extension initialized');
 }
 
@@ -1146,6 +1213,9 @@ chrome.runtime.onStartup.addListener(() => {
 initialize();
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  // Idle-lease alarms and keepalive can both fire in a freshly woken worker;
+  // gate on recovery so releaseLease never persists an empty snapshot.
+  await workerReady;
   if (alarm.name === 'keepalive') void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
   if (!leaseKey) return;
@@ -2028,6 +2098,12 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
   for (const role of Object.keys(ownedContainers) as OwnedWindowRole[]) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
     ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
+    // Restore the orphan-group ledger independent of window staleness: a stored
+    // orphan may live in a window other than the persisted container window, so
+    // clearing it on a stale windowId would lose the self-heal pointer.
+    if (role === 'interactive') {
+      ownedContainers.interactive.groupIds = new Set(registry.ownedContainers.interactive?.groupIds ?? []);
+    }
     const windowId = ownedContainers[role].windowId;
     if (windowId !== null) {
       try {
@@ -2086,6 +2162,17 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
       // Registry is semantic state, not truth. If Chrome no longer has the tab,
       // drop the lease record and never close unrelated user resources.
     }
+  }
+
+  // Converge the interactive owned group on startup: adopt/title an orphan the
+  // ledger surfaces, or clear a dangling groupId when none survives. Runs even
+  // with no leases so orphans left by a mid-create crash get repaired instead
+  // of accumulating as untitled "OpenCLI Browser" duplicates (#2097). Best
+  // effort — reconcile must still persist restored leases if this fails.
+  try {
+    await ensureOwnedContainerGroup('interactive', null, []);
+  } catch (err) {
+    console.warn(`[opencli] Startup interactive group convergence failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   await persistRuntimeState();
@@ -2148,6 +2235,11 @@ export const __test__ = {
   sessionOverrides,
   reconcileTargetLeaseRegistry,
   ensureOwnedContainerGroup,
+  getInteractiveContainer: () => ({
+    windowId: ownedContainers.interactive.windowId,
+    groupId: ownedContainers.interactive.groupId,
+    groupIds: [...ownedContainers.interactive.groupIds],
+  }),
   connectForTest: connect,
   scheduleReconnectForTest: () => scheduleReconnect(),
   getReconnectAttempts: () => reconnectAttempts,
