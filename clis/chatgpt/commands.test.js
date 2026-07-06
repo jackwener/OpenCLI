@@ -2,12 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './ask.js';
 import './send.js';
 import './read.js';
 import './history.js';
 import './detail.js';
+import './deep-research-result.js';
 import './new.js';
 import './status.js';
 import './image.js';
@@ -50,6 +52,7 @@ describe('chatgpt browser command registration', () => {
             read: 'read',
             history: 'read',
             detail: 'read',
+            'deep-research-result': 'read',
             new: 'read',
             status: 'read',
             image: 'write',
@@ -119,6 +122,133 @@ describe('chatgpt browser command registration', () => {
         expect(detail.columns).toEqual(['Index', 'Role', 'Text', 'Generating', 'StableSeconds']);
     });
 
+    it('registers deep research result command with wait options', () => {
+        const command = getRegistry().get('chatgpt/deep-research-result');
+        expect(command.args).toEqual(expect.arrayContaining([
+            expect.objectContaining({ name: 'id', positional: true, required: true }),
+            expect.objectContaining({ name: 'wait', type: 'boolean', default: false }),
+            expect.objectContaining({ name: 'timeout', type: 'int', default: 120 }),
+            expect.objectContaining({ name: 'stable', type: 'int', default: 6 }),
+        ]));
+        expect(command.columns).toEqual(['conversationId', 'status', 'report', 'sources', 'url', 'method', 'diagnostics']);
+    });
+
+    it('does not return a success row when no completed deep research report exists', async () => {
+        const command = getRegistry().get('chatgpt/deep-research-result');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            startNetworkCapture: vi.fn().mockResolvedValue(true),
+            readNetworkCapture: vi.fn().mockResolvedValue([]),
+            getCookies: vi.fn().mockResolvedValue([]),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s === 'window.location.href') return Promise.resolve('https://chatgpt.com/');
+                if (s.includes("fetch('/backend-api/conversation/requested123'")) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        contentType: 'application/json',
+                        text: JSON.stringify({ mapping: {} }),
+                    });
+                }
+                if (s.includes("document.querySelectorAll('iframe')")) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/requested123',
+                        title: 'ChatGPT',
+                        iframes: [],
+                        deepResearchIframe: null,
+                    });
+                }
+                if (s.includes('composerSelectors') && s.includes('hasComposer')) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/requested123',
+                        title: 'ChatGPT',
+                        hasComposer: true,
+                        isLoggedIn: true,
+                        hasLoginGate: false,
+                    });
+                }
+                if (s.includes('Stop generating') || s.includes('Thinking')) return Promise.resolve(false);
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(command.func(page, { id: 'requested123' }))
+            .rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('typed-fails malformed deep research source rows instead of falling back to empty success', async () => {
+        const command = getRegistry().get('chatgpt/deep-research-result');
+        const report = `# Executive Summary\n\n${'Completed Deep Research report paragraph with enough detail to pass extraction heuristics. '.repeat(12)}\n\n## Sources`;
+        const payload = {
+            conversation_id: 'requested123',
+            mapping: {
+                report_node: {
+                    message: {
+                        metadata: {
+                            chatgpt_sdk: {
+                                widget_state: JSON.stringify({
+                                    status: 'completed',
+                                    report_message: {
+                                        id: 'report-msg',
+                                        content: { parts: [report] },
+                                        metadata: {
+                                            search_result_groups: [
+                                                { entries: [{ title: 'Source without URL' }] },
+                                            ],
+                                        },
+                                    },
+                                }),
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            startNetworkCapture: vi.fn().mockResolvedValue(true),
+            readNetworkCapture: vi.fn().mockResolvedValue([]),
+            getCookies: vi.fn().mockResolvedValue([]),
+            evaluate: vi.fn((script) => {
+                const s = String(script);
+                if (s === 'window.location.href') return Promise.resolve('https://chatgpt.com/');
+                if (s.includes("fetch('/backend-api/conversation/requested123'")) {
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        contentType: 'application/json',
+                        text: JSON.stringify(payload),
+                    });
+                }
+                if (s.includes("document.querySelectorAll('iframe')")) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/requested123',
+                        title: 'ChatGPT',
+                        iframes: [],
+                        deepResearchIframe: null,
+                    });
+                }
+                if (s.includes('composerSelectors') && s.includes('hasComposer')) {
+                    return Promise.resolve({
+                        url: 'https://chatgpt.com/c/requested123',
+                        title: 'ChatGPT',
+                        hasComposer: true,
+                        isLoggedIn: true,
+                        hasLoginGate: false,
+                    });
+                }
+                if (s.includes('Stop generating') || s.includes('Thinking')) return Promise.resolve(false);
+                return Promise.resolve(undefined);
+            }),
+        };
+
+        await expect(command.func(page, { id: 'requested123' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
     it('registers project routing on chat-starting commands', () => {
         for (const name of ['new', 'image', 'model']) {
             const cmd = getRegistry().get(`chatgpt/${name}`);
@@ -144,7 +274,7 @@ describe('chatgpt browser command registration', () => {
                 name: 'model',
                 positional: true,
                 required: true,
-                choices: ['instant', 'medium', 'high', 'extra-high', 'pro', 'thinking'],
+                choices: expect.arrayContaining(['fast', 'speed', 'instant', 'balanced', 'balance', 'advanced', 'high', 'thinking', 'very-high', 'ultra', 'xhigh', 'x-high', 'pro', 'professional']),
             }),
             expect.objectContaining({ name: 'project', valueRequired: true }),
         ]));

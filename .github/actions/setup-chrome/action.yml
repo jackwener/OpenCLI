@@ -13,7 +13,9 @@ runs:
       uses: browser-actions/setup-chrome@v2
       id: setup-chrome
       with:
-        chrome-version: latest
+        # Stable Chrome for Testing keeps headed E2E on a released browser.
+        # `latest` pulls Chromium snapshots, which can break extension startup.
+        chrome-version: stable
 
     - name: Verify Chrome installation
       shell: bash
