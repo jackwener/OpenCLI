@@ -1236,10 +1236,23 @@ cli({
         // After fillField (especially after card-text flow), the body contenteditable
         // may need extra time to settle before its inline suggestion dropdown responds.
         if (topics.length > 0) {
-            await page.wait({ time: 1.5 });
-            // Re-focus the body to ensure keyup handlers are active.
             await focusBodyEnd(page, BODY_SELECTORS);
-            await page.wait({ time: 0.5 });
+            await page.wait({ time: 0.3 });
+            // Type a tiny nudge (space + backspace) to kick XHS's editor into a
+            // "dirty" state where keyup listeners fire for the topic suggestion
+            // dropdown. The card-text wizard transition creates a fresh editor
+            // instance that needs this nudge.
+            if (typeof page.insertText === 'function') {
+                try { await page.insertText(' '); } catch { }
+                await page.wait({ time: 0.2 });
+                if (typeof page.pressKey === 'function') {
+                    try {
+                        await page.pressKey('Backspace');
+                    } catch { }
+                    await page.wait({ time: 0.3 });
+                }
+            }
+            await page.wait({ time: 1.0 });
         }
         // ── Step 6: Add topic hashtags ─────────────────────────────────────────────
         // XHS converts a "#keyword" typed into the body editor into a real topic
