@@ -610,18 +610,19 @@ async function addTopics(page, bodySelectors, topics) {
         await page.wait({ time: 1.0 });
         // Verify the topic chip rendered. The chip is in a closed shadow root, so
         // we check for the "#<topic>[话题]" marker in the body editor's innerText.
-        const afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+        // Marker propagation can lag behind a successful selection. Poll instead
+        // of pressing Enter again: once the dropdown closes, another Enter would
+        // edit the post body rather than retrying the selection.
+        let afterMarkerCount = 0;
+        const markerPollAttempts = 4;
+        for (let attempt = 0; attempt < markerPollAttempts; attempt++) {
+            afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+            if (afterMarkerCount > beforeMarkerCount)
+                break;
+            if (attempt < markerPollAttempts - 1)
+                await page.wait({ time: 0.6 });
+        }
         if (afterMarkerCount <= beforeMarkerCount) {
-            // Retry once more with extra delay — topic dropdown may be slow.
-            await page.wait({ time: 1.0 });
-            try { await page.pressKey('Enter'); } catch { /* non-fatal */ }
-            await page.wait({ time: 0.8 });
-            const retryCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
-            if (retryCount > beforeMarkerCount) {
-                added.push(topic);
-                await page.wait({ time: 0.4 });
-                continue;
-            }
             throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
         }
         added.push(topic);
@@ -998,7 +999,7 @@ async function currentComposerMediaCount(page) {
       const widerRoot = root?.parentElement || document.body;
       const seen = new Set();
       let count = 0;
-      // Try the direct style/class-based selectors first.
+      // First pass: target known media elements and inline-style backgrounds.
       for (const el of Array.from(widerRoot.querySelectorAll(
         'img, video, canvas, [style*="background"], [class*="upload-image"], ' +
         '[class*="image-item"], [class*="media"], [data-testid*="image"], ' +
@@ -1012,9 +1013,7 @@ async function currentComposerMediaCount(page) {
         seen.add(key);
         count += 1;
       }
-      // Fallback: if no media found via selectors, check for any element with
-      // a computed background-image within the editor area (XHS may render
-      // card images as plain <div>s styled via CSS classes).
+      // Second pass: catch CSS-class-rendered divs (no inline style).
       if (count === 0) {
         for (const el of Array.from(widerRoot.querySelectorAll('div'))) {
           if (!visibleMedia(el)) continue;
@@ -1029,6 +1028,7 @@ async function currentComposerMediaCount(page) {
         }
       }
       return { ok: true, count };
+      return { ok: true, count: leafCandidates.length };
     })()
   `);
     return unwrapBrowserResult(result);

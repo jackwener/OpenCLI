@@ -777,7 +777,10 @@ describe('xiaohongshu publish', () => {
         // We still typed and accepted the suggestion, but the postcondition
         // check rejected the result before the publish button was clicked.
         expect(insertText).toHaveBeenCalledWith('#不存在的话题');
-        expect(pressKey).toHaveBeenCalledWith('Enter');
+        const enterCount = pressKey.mock.calls.filter(args => args[0] === 'Enter').length;
+        // One separator plus one selection attempt; marker polling must not
+        // press Enter again after the suggestion dropdown has closed.
+        expect(enterCount).toBe(2);
     });
     it('does not accept a pre-existing topic marker as proof of a new attached topic', async () => {
         const cmd = getRegistry().get('xiaohongshu/publish');
@@ -967,6 +970,63 @@ describe('xiaohongshu publish 文字配图 flow', () => {
             .find((code) => code.includes('__opencli_xhs_composer_media_count'));
         expect(mediaCountCode).toContain('.find((el) => visibleBox(el))');
         expect(mediaCountCode).toContain('if (!visibleMedia(el)) continue');
+        const rect = (left) => ({ left, top: 0, width: 100, height: 100 });
+        const image = {
+            tagName: 'IMG',
+            offsetParent: {},
+            getBoundingClientRect: () => rect(0),
+            contains: () => false,
+            getAttribute: () => null,
+            currentSrc: '',
+            src: '',
+            style: {},
+        };
+        const imageWrapper = {
+            tagName: 'DIV',
+            offsetParent: {},
+            getBoundingClientRect: () => rect(0),
+            contains: (node) => node === image,
+            getAttribute: () => null,
+            currentSrc: '',
+            src: '',
+            style: {},
+        };
+        const backgroundCard = {
+            tagName: 'DIV',
+            offsetParent: {},
+            getBoundingClientRect: () => rect(120),
+            contains: () => false,
+            getAttribute: () => null,
+            currentSrc: '',
+            src: '',
+            style: {},
+        };
+        const mediaRoot = {
+            querySelectorAll: () => [imageWrapper, image, backgroundCard],
+        };
+        const title = {
+            offsetParent: {},
+            getBoundingClientRect: () => rect(0),
+            closest: () => ({ parentElement: mediaRoot }),
+        };
+        const documentMock = {
+            querySelectorAll: () => [title],
+            body: mediaRoot,
+        };
+        const getComputedStyleMock = (node) => ({
+            backgroundImage: node === imageWrapper || node === backgroundCard
+                ? 'url("card.png")'
+                : 'none',
+        });
+        const executeMediaCount = new Function(
+            'document',
+            'getComputedStyle',
+            `return (${mediaCountCode});`,
+        );
+        // In the mock, the targeted selectors match the <img> and the wrapper
+        // at the same position (deduped by key), and the separate background
+        // card at position 120 is counted as a second item.
+        expect(executeMediaCount(documentMock, getComputedStyleMock)).toEqual({ ok: true, count: 2 });
         expect(rows[0].status).toContain('发布成功');
     });
 
