@@ -1,0 +1,173 @@
+/**
+ * Per-(surface, session) write-command arbitration for the daemon.
+ *
+ * A long adapter write command (e.g. `chatgpt ask`, 10-20 min) is hundreds of
+ * short 'exec' round-trips against ONE persistent site session. When an outer
+ * agent times out and retries while the first process is still alive, both
+ * processes drive the same Chrome tab, multiplying renderer load — there is no
+ * arbitration at the exec level because two interleaved asks rarely have an
+ * exec in flight at the same instant.
+ *
+ * This registry grants ONE logical write lease per (surface, session) that
+ * spans the whole CLI command run. A second concurrent write fails fast, and a
+ * lease whose holder died (kill -9, crash) self-expires after TTL of inactivity
+ * so a retry succeeds within a bounded time. Each exec that flows through
+ * refreshes the lease, so a live long-running holder keeps it indefinitely.
+ *
+ * The daemon is the arbiter because it is the single local process that sees
+ * every CLI client; keeping the logic here (pure, no I/O) makes it testable
+ * without Chrome.
+ */
+
+/** Inactivity window after which a lease is considered abandoned. */
+export const SESSION_LEASE_TTL_MS = 45_000;
+
+/** Machine-readable error code for the fast-fail busy response. */
+export const SESSION_BUSY_CODE = 'session_busy';
+
+export interface SessionLeaseHolder {
+  /** Stable per logical CLI command run (NOT the per-exec command id). */
+  runId: string;
+  /** Human command name, e.g. `chatgpt ask`. */
+  command: string;
+  /** CLI process pid recovered from the runId, for the "kill it" hint. */
+  pid: number | null;
+  /** When the current holder first acquired the lease. */
+  startedAt: number;
+  /** Last time an exec from the holder refreshed the lease (heartbeat). */
+  lastSeenAt: number;
+}
+
+/**
+ * Lease key = `${surface}␟${encodeURIComponent(session)}`, matching the
+ * extension's own lease-key shape so both layers partition sessions the same
+ * way. The unit separator (U+241F) cannot appear in a surface value.
+ */
+export function getSessionLeaseKey(surface: string, session: string): string {
+  return `${surface}␟${encodeURIComponent(session)}`;
+}
+
+/** CLI runIds are `run_<pid>_<ts>_<rand>`; recover the pid for the busy hint. */
+export function parsePidFromRunId(runId: string): number | null {
+  const match = /^run_(\d+)_/.exec(runId);
+  if (!match) return null;
+  const pid = Number(match[1]);
+  return Number.isInteger(pid) && pid > 0 ? pid : null;
+}
+
+export type SessionLeaseCommand = {
+  surface?: unknown;
+  siteSession?: unknown;
+  access?: unknown;
+  session?: unknown;
+  runId?: unknown;
+};
+
+/**
+ * A command is subject to lease arbitration only when it is an adapter write
+ * against a persistent site session and carries the identity needed to own a
+ * lease. Read commands, ephemeral sessions, and non-adapter surfaces are never
+ * arbitrated — a user mid-ask must still be able to check state.
+ */
+export function isSessionLeaseCommand<T extends SessionLeaseCommand>(
+  command: T,
+): command is T & { surface: 'adapter'; siteSession: 'persistent'; access: 'write'; session: string; runId: string } {
+  return (
+    command.surface === 'adapter' &&
+    command.siteSession === 'persistent' &&
+    command.access === 'write' &&
+    typeof command.session === 'string' && command.session.length > 0 &&
+    typeof command.runId === 'string' && command.runId.length > 0
+  );
+}
+
+export interface LeaseTouchResult {
+  granted: boolean;
+  holder: SessionLeaseHolder;
+}
+
+export class SessionLeaseRegistry {
+  private readonly leases = new Map<string, SessionLeaseHolder>();
+
+  constructor(private readonly ttlMs: number = SESSION_LEASE_TTL_MS) {}
+
+  /**
+   * Acquire or refresh the lease for `key`.
+   *
+   * - Free key, or the current holder's lease has gone stale (holder died
+   *   without releasing): the caller takes it — `granted: true`.
+   * - Same runId as the current holder: refresh (heartbeat) — `granted: true`.
+   * - A different runId while the holder is still alive: `granted: false`, and
+   *   `holder` describes who to wait for or kill.
+   */
+  touch(key: string, input: { runId: string; command: string; now: number }): LeaseTouchResult {
+    const current = this.leases.get(key);
+    const alive = current !== undefined && input.now - current.lastSeenAt <= this.ttlMs;
+    if (current !== undefined && alive && current.runId !== input.runId) {
+      return { granted: false, holder: current };
+    }
+    const holder: SessionLeaseHolder = current !== undefined && current.runId === input.runId
+      ? { ...current, command: input.command, lastSeenAt: input.now }
+      : {
+        runId: input.runId,
+        command: input.command,
+        pid: parsePidFromRunId(input.runId),
+        startedAt: input.now,
+        lastSeenAt: input.now,
+      };
+    this.leases.set(key, holder);
+    return { granted: true, holder };
+  }
+
+  /** Release the lease only if `runId` still owns it (idempotent otherwise). */
+  release(key: string, runId: string): void {
+    const current = this.leases.get(key);
+    if (current !== undefined && current.runId === runId) this.leases.delete(key);
+  }
+
+  /** Active (non-expired) holder for `key`, lazily evicting a stale one. */
+  get(key: string, now: number): SessionLeaseHolder | undefined {
+    const current = this.leases.get(key);
+    if (current === undefined) return undefined;
+    if (now - current.lastSeenAt > this.ttlMs) {
+      this.leases.delete(key);
+      return undefined;
+    }
+    return current;
+  }
+
+  /** Snapshot of active holders for status surfaces (who owns each session). */
+  list(now: number): Array<{ key: string } & SessionLeaseHolder> {
+    const out: Array<{ key: string } & SessionLeaseHolder> = [];
+    for (const [key, holder] of this.leases) {
+      if (now - holder.lastSeenAt <= this.ttlMs) out.push({ key, ...holder });
+    }
+    return out;
+  }
+}
+
+export interface SessionBusyFailure {
+  message: string;
+  errorCode: string;
+  errorHint: string;
+  status: number;
+}
+
+/** Build the fast-fail response naming the holder, its pid, and hold time. */
+export function buildSessionBusyFailure(
+  session: string,
+  holder: SessionLeaseHolder,
+  now: number,
+): SessionBusyFailure {
+  const heldSeconds = Math.max(0, Math.round((now - holder.startedAt) / 1000));
+  const who = holder.pid != null ? `${holder.command} (pid ${holder.pid})` : holder.command;
+  const stop = holder.pid != null
+    ? `Wait for it to finish, or stop it with \`kill ${holder.pid}\` if it is stuck.`
+    : 'Wait for it to finish, or stop that process if it is stuck.';
+  return {
+    message: `Session "${session}" is busy: ${who} has been driving it for ${heldSeconds}s.`,
+    errorCode: SESSION_BUSY_CODE,
+    errorHint: `${stop} Read-only commands are not blocked.`,
+    status: 409,
+  };
+}

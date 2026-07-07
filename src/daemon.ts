@@ -36,6 +36,12 @@ import {
   getResponseCorsHeaders,
   resolveProfileRoute,
 } from './daemon-utils.js';
+import {
+  SessionLeaseRegistry,
+  buildSessionBusyFailure,
+  getSessionLeaseKey,
+  isSessionLeaseCommand,
+} from './session-lease.js';
 
 const PORT = DEFAULT_DAEMON_PORT;
 if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
@@ -72,6 +78,11 @@ type PendingEntry = {
   timer: ReturnType<typeof setTimeout>;
 };
 const pending = new Map<string, PendingEntry>();
+
+// One logical write lease per (surface, persistent site session). Serializes
+// concurrent adapter write commands so a retry can't drive the same Chrome tab
+// as a still-running command. Stale leases self-expire (see session-lease.ts).
+const sessionLeases = new SessionLeaseRegistry();
 
 function settlePending(id: string, entry: PendingEntry, outcome: { data?: unknown; error?: Error }): void {
   clearTimeout(entry.timer);
@@ -286,6 +297,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       profileDisconnected: route.errorCode === 'profile_disconnected',
       profiles,
       pending: pending.size,
+      sessionLeases: sessionLeases.list(Date.now()),
       commandResultUnknown: commandResultUnknownCount,
       memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
       port: PORT,
@@ -321,6 +333,45 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (!body.id) {
         jsonResponse(res, 400, { ok: false, error: 'Missing command id' });
         return;
+      }
+
+      // ─── Session write lease ──────────────────────────────────────────
+      // Explicit release on normal command completion — daemon-local, never
+      // dispatched to the extension.
+      if (body.action === 'lease-release') {
+        if (typeof body.runId === 'string' && typeof body.surface === 'string' && typeof body.session === 'string') {
+          sessionLeases.release(getSessionLeaseKey(body.surface, body.session), body.runId);
+        }
+        jsonResponse(res, 200, { id: body.id, ok: true });
+        return;
+      }
+      // Arbitrate write commands on a persistent site session: the first
+      // acquires, same-runId execs refresh (heartbeat), a concurrent
+      // different-runId write fails fast BEFORE any page is driven. Read and
+      // ephemeral commands are never arbitrated.
+      if (isSessionLeaseCommand(body)) {
+        const now = Date.now();
+        const key = getSessionLeaseKey(body.surface, body.session);
+        const outcome = sessionLeases.touch(key, {
+          runId: body.runId,
+          command: typeof body.command === 'string' && body.command ? body.command : body.action,
+          now,
+        });
+        if (!outcome.granted) {
+          const failure = buildSessionBusyFailure(body.session, outcome.holder, now);
+          log.warn(
+            `[daemon] Session ${key} busy — rejected ${body.command ?? body.action} ` +
+            `(runId=${body.runId}); held by ${outcome.holder.command} (runId=${outcome.holder.runId})`,
+          );
+          jsonResponse(res, failure.status, {
+            id: body.id,
+            ok: false,
+            errorCode: failure.errorCode,
+            error: failure.message,
+            errorHint: failure.errorHint,
+          });
+          return;
+        }
       }
 
       const route = resolveExtensionConnection(

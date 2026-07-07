@@ -26,11 +26,11 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
-import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
+import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
-import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
+import { generateRunId, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
@@ -265,6 +265,15 @@ export async function executeCommand(
       const session = resolveAdapterBrowserSession(cmd, siteSession);
       const keepTab = resolveKeepTab(siteSession, opts.keepTab);
       const windowMode = resolveBrowserWindowMode(cmd.defaultWindowMode ?? 'background', opts.windowMode);
+      // Persistent-session write commands take a logical lease on the site
+      // session so a concurrent retry fails fast instead of driving the same
+      // Chrome tab. The runId flows to the daemon on every command (acquire +
+      // heartbeat); we release it explicitly when the command settles. Read and
+      // ephemeral commands are never leased.
+      const leaseRun = siteSession === 'persistent' && cmd.access === 'write'
+        ? { runId: generateRunId(), session }
+        : null;
+      if (leaseRun) setDaemonRunContext({ runId: leaseRun.runId, command: fullName(cmd), access: 'write' });
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
@@ -309,6 +318,9 @@ export async function executeCommand(
               data: { url: preNavUrl },
             });
           } catch (err) {
+            // A busy-session rejection is the whole point of the arbitration —
+            // surface it verbatim instead of burying it in a pre-nav wrapper.
+            if (err instanceof SessionBusyError) throw err;
             observation?.record({
               stream: 'action',
               name: 'pre_navigate',
@@ -379,7 +391,14 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession });
+      }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession }).finally(async () => {
+        // Release the lease and clear the run identity whether the command
+        // succeeded or failed. Best-effort: TTL reclaims it if release is lost.
+        if (leaseRun) {
+          setDaemonRunContext(null);
+          await releaseSiteSessionLease({ runId: leaseRun.runId, session: leaseRun.session, surface: 'adapter' });
+        }
+      });
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that
