@@ -2182,12 +2182,13 @@ export async function isGenerating(page) {
     return requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
         (() => {
             if (document.querySelector('[data-testid="stop-button"]')) return true;
+            // No bare 'Thinking' here: the model picker renders 'Thinking' as
+            // an idle model label (see CHATGPT_MODEL_TARGETS.advanced), and an
+            // English streaming state always comes with the stop button above.
             const controls = Array.from(document.querySelectorAll('button, [role="button"], [aria-label]'));
             for (const control of controls) {
                 const label = control.getAttribute('aria-label') || '';
-                if (label === 'Stop generating'
-                    || label.includes('Stop generating')
-                    || label.includes('Thinking')
+                if (label.includes('Stop generating')
                     || label.includes('停止生成')
                     || label.includes('正在思考')) return true;
             }
@@ -2199,26 +2200,28 @@ export async function isGenerating(page) {
             // prefer the article turn (the wider container, so a pill outside
             // the message div is still seen), fall back to bare
             // [data-message-author-role] nodes when articles are absent.
+            // Bare 'Thinking' only counts inside the last turn — the composer
+            // area shows 'Thinking' as an idle model label.
             const turns = document.querySelectorAll('article[data-testid*="conversation-turn"]');
             const messages = turns.length ? turns : document.querySelectorAll('[data-message-author-role]');
-            if (messages.length) scopes.push(messages[messages.length - 1]);
+            if (messages.length) scopes.push([messages[messages.length - 1], /正在思考|停止生成|Thinking/]);
             const composer = document.querySelector('#prompt-textarea, [aria-label="Chat with ChatGPT"]');
             if (composer) {
                 let root = composer;
                 for (let i = 0; i < 4 && root.parentElement; i += 1) root = root.parentElement;
-                scopes.push(root);
+                scopes.push([root, /正在思考|停止生成/]);
             }
             // Only a short leaf element OUTSIDE rendered message content
             // counts as a status pill. Testing whole scope text would flag any
             // answer that merely *mentions* "Thinking" (prose or a backticked
             // code span in a conversation about this very code) as still
             // generating, permanently blocking follow-up sends.
-            for (const scope of scopes) {
+            for (const [scope, pattern] of scopes) {
                 for (const el of [scope, ...scope.querySelectorAll('*')]) {
                     if (el.children.length) continue;
                     if (el.closest('.markdown, pre, code')) continue;
                     const text = (el.textContent || '').trim();
-                    if (text && text.length <= 40 && /正在思考|停止生成|Thinking/.test(text)) return true;
+                    if (text && text.length <= 40 && pattern.test(text)) return true;
                 }
             }
             return false;

@@ -918,6 +918,23 @@ describe('chatgpt generation state', () => {
         await expect(isGenerating(page)).resolves.toBe(false);
     });
 
+    it('stays idle when the composer shows Thinking as the selected model', async () => {
+        // Regression: 'Thinking' is a supported idle model label (see
+        // CHATGPT_MODEL_TARGETS.advanced), rendered as a composer-form button
+        // with or without an aria-label. It must not read as generating.
+        const page = createDomEvaluatePage(`
+            <article data-testid="conversation-turn-2">
+              <div data-message-author-role="assistant"><div class="markdown"><p>done answer</p></div></div>
+            </article>
+            <form>
+              <div id="prompt-textarea" contenteditable="true"></div>
+              <button aria-label="Thinking"><span data-testid="model-switcher-gpt-5-5-thinking">Thinking</span></button>
+            </form>
+        `);
+
+        await expect(isGenerating(page)).resolves.toBe(false);
+    });
+
     it('ignores answers that merely mention Thinking in prose or code spans', async () => {
         // Regression: a finished review of isGenerating itself contains the
         // literal words "Thinking" / "正在思考" in prose and backticked code
