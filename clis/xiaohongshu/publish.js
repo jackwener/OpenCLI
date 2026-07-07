@@ -449,18 +449,29 @@ function topicMarkerCountScript(topic, bodySelectors) {
     return `
     ((topicName, selectors) => {
       const __opencli_xhs_topic_marker_count = true;
-      const marker = '#' + topicName + '[话题]';
+      // XHS may pick a broader suggestion (e.g. "#秋招攻略" for query "#秋招").
+      // Match any "#<topicFamilure>[话题"] marker whose text includes our topic.
+      const want = (topicName || '').replace(/^#/, '').trim().toLowerCase();
       const editor = selectors
         .map(sel => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find(node => node && node.offsetParent !== null && node.isContentEditable);
-      if (!editor || !marker) return 0;
+      if (!editor || !want) return 0;
       const text = editor.innerText || editor.textContent || '';
       let count = 0;
-      let index = text.indexOf(marker);
-      while (index !== -1) {
-        count += 1;
-        index = text.indexOf(marker, index + marker.length);
+      const token = '[话题]';
+      let pos = 0;
+      while (true) {
+        const tIdx = text.indexOf(token, pos);
+        if (tIdx === -1) break;
+        const before = text.slice(0, tIdx);
+        const hashIdx = before.lastIndexOf('#');
+        if (hashIdx !== -1) {
+          const candidate = before.slice(hashIdx + 1).trim().toLowerCase();
+          if (candidate && (candidate === want || candidate.includes(want) || want.includes(candidate)))
+            count += 1;
+        }
+        pos = tIdx + token.length;
       }
       return count;
     })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
