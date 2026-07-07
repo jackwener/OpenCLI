@@ -1915,12 +1915,11 @@ describe('background tab isolation', () => {
   });
 
   const REGISTRY_KEY = 'opencli_target_lease_registry_v2';
-  const LEDGER_KEY = 'opencli_interactive_group_ledger_v1';
 
-  // Gate the registry read (now in storage.session) so the startup recovery
+  // Gate the registry read (in storage.session) so the startup recovery
   // chain (workerReady) stays pending on demand. Every other storage read
-  // (context id, ledger) resolves normally. `readDirect` bypasses the gate so
-  // a test can inspect stored state without blocking on (or releasing) it.
+  // (context id) resolves normally. `readDirect` bypasses the gate so a test
+  // can inspect stored state without blocking on (or releasing) it.
   function gateRegistryRead(chrome: any) {
     const gate = deferred<void>();
     const originalGet = chrome.storage.session.get;
@@ -2053,13 +2052,12 @@ describe('background tab isolation', () => {
         version: 2,
         contextId: 'user-default',
         ownedContainers: {
-          interactive: { windowId: null, groupId: null },
-          automation: { windowId: null, groupId: null },
+          interactive: { windowId: null, groupIds: [200] },
+          automation: { windowId: null },
         },
         leases: {},
       },
     });
-    await chrome.storage.session.set({ [LEDGER_KEY]: [200] });
 
     const mod = await import('./background');
     await mod.__test__.reconcileTargetLeaseRegistry();
@@ -2082,13 +2080,12 @@ describe('background tab isolation', () => {
         version: 2,
         contextId: 'user-default',
         ownedContainers: {
-          interactive: { windowId: null, groupId: null },
-          automation: { windowId: null, groupId: null },
+          interactive: { windowId: null, groupIds: [300] },
+          automation: { windowId: null },
         },
         leases: {},
       },
     });
-    await chrome.storage.session.set({ [LEDGER_KEY]: [300] });
 
     const mod = await import('./background');
     await mod.__test__.reconcileTargetLeaseRegistry();
@@ -2097,12 +2094,9 @@ describe('background tab isolation', () => {
     const createGroupCalls = chrome.tabs.group.mock.calls.filter((call: any[]) => call[0]?.createProperties);
     expect(createGroupCalls).toHaveLength(0);
     expect(mod.__test__.getInteractiveContainer().groupIds).not.toContain(300);
-    const finalLedger = (await chrome.storage.session.get(LEDGER_KEY) as any)[LEDGER_KEY];
-    expect(finalLedger).toEqual([]);
-    // The v2 registry stays free of ledger data — group ids never persist
-    // beyond the browser session.
+    // The pruned id is gone from the persisted session registry too.
     const finalRegistry = (await chrome.storage.session.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
-    expect(finalRegistry.ownedContainers.interactive.groupIds).toBeUndefined();
+    expect(finalRegistry.ownedContainers.interactive.groupIds).toEqual([]);
   });
 
   it('ignores legacy groupIds persisted in the local registry so a recycled id cannot hijack a user group', async () => {

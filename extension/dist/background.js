@@ -944,29 +944,7 @@ const ownedContainers = {
   interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
   automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
 };
-const INTERACTIVE_GROUP_LEDGER_KEY = "opencli_interactive_group_ledger_v1";
 const interactiveGroupLedger = /* @__PURE__ */ new Set();
-async function restoreInteractiveGroupLedger() {
-  try {
-    const session = chrome.storage?.session;
-    if (!session) return;
-    const raw = await session.get(INTERACTIVE_GROUP_LEDGER_KEY);
-    const stored = raw[INTERACTIVE_GROUP_LEDGER_KEY];
-    interactiveGroupLedger.clear();
-    if (Array.isArray(stored)) {
-      for (const id of stored) {
-        if (typeof id === "number") interactiveGroupLedger.add(id);
-      }
-    }
-  } catch {
-  }
-}
-async function persistInteractiveGroupLedger() {
-  try {
-    await chrome.storage?.session?.set({ [INTERACTIVE_GROUP_LEDGER_KEY]: [...interactiveGroupLedger] });
-  } catch {
-  }
-}
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -1063,7 +1041,10 @@ function emptyRegistry() {
     version: 2,
     contextId: currentContextId,
     ownedContainers: {
-      interactive: { windowId: ownedContainers.interactive.windowId },
+      interactive: {
+        windowId: ownedContainers.interactive.windowId,
+        groupIds: [...interactiveGroupLedger]
+      },
       automation: { windowId: ownedContainers.automation.windowId }
     },
     leases: {}
@@ -1082,7 +1063,8 @@ async function readRegistry() {
       contextId: currentContextId,
       ownedContainers: {
         interactive: {
-          windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null
+          windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
+          groupIds: Array.isArray(storedContainers.interactive?.groupIds) ? storedContainers.interactive.groupIds.filter((id) => typeof id === "number") : []
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null
@@ -1122,7 +1104,10 @@ async function persistRuntimeState() {
     version: 2,
     contextId: currentContextId,
     ownedContainers: {
-      interactive: { windowId: ownedContainers.interactive.windowId },
+      interactive: {
+        windowId: ownedContainers.interactive.windowId,
+        groupIds: [...interactiveGroupLedger]
+      },
       automation: { windowId: ownedContainers.automation.windowId }
     },
     leases
@@ -1233,7 +1218,7 @@ async function collectOwnedGroupCandidates(role) {
       ledgerPruned = true;
     }
   }
-  if (ledgerPruned) await persistInteractiveGroupLedger();
+  if (ledgerPruned) await persistRuntimeState();
   for (const title of getOwnedContainerGroupTitles(role)) {
     const groups = await chrome.tabGroups.query({ title });
     for (const group of groups) groupsById.set(group.id, group);
@@ -1330,10 +1315,7 @@ async function createOwnedGroup(role, windowId, ids) {
   const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
   ownedContainers[role].groupId = groupId;
   ownedContainers[role].windowId = windowId;
-  if (role === "interactive") {
-    interactiveGroupLedger.add(groupId);
-    await persistInteractiveGroupLedger();
-  }
+  if (role === "interactive") interactiveGroupLedger.add(groupId);
   await persistRuntimeState();
   const group = await chrome.tabGroups.update(groupId, {
     color: OWNED_TAB_GROUP_COLOR,
@@ -1372,7 +1354,7 @@ async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
       ownedContainers[role].groupId = canonical.id;
       if (!interactiveGroupLedger.has(canonical.id)) {
         interactiveGroupLedger.add(canonical.id);
-        await persistInteractiveGroupLedger();
+        await persistRuntimeState();
       }
     } else {
       ownedContainers[role].groupId = null;
@@ -2338,7 +2320,8 @@ async function releaseLease(leaseKey, reason = "released") {
 }
 async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
-  await restoreInteractiveGroupLedger();
+  interactiveGroupLedger.clear();
+  for (const id of registry.ownedContainers.interactive.groupIds) interactiveGroupLedger.add(id);
   for (const role of Object.keys(ownedContainers)) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
     const windowId = ownedContainers[role].windowId;
