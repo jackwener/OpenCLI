@@ -438,11 +438,16 @@ export async function executeCommand(
           if (adapterStillRunning && adapterRun) {
             const runId = leaseRun.runId;
             const session = leaseRun.session;
-            const settle = () => {
+            const settle = (err?: unknown) => {
               clearDaemonRunContext(runId);
-              void releaseSiteSessionLease({ runId, session, surface: 'adapter' });
+              // Same rule as the immediate path below: an unknown-outcome
+              // ending means the browser side may still be busy — skip the
+              // explicit release and leave the lease to TTL reclamation.
+              if (!isUnknownOutcomeError(err)) {
+                void releaseSiteSessionLease({ runId, session, surface: 'adapter' });
+              }
             };
-            adapterRun.then(settle, settle);
+            adapterRun.then(() => settle(), (err) => settle(err));
           } else {
             setDaemonRunContext(null);
             if (!isUnknownOutcomeError(browserRunError)) {

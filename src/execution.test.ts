@@ -836,6 +836,38 @@ describe('executeCommand — persistent write lease release', () => {
     }
   });
 
+  it('skips the deferred release when a timed-out adapter ends with an unknown outcome', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const releaseSpy = vi.spyOn(daemonClient, 'releaseSiteSessionLease').mockResolvedValue(undefined);
+    const runCtxSpy = vi.spyOn(daemonClient, 'setDaemonRunContext');
+    const clearCtxSpy = vi.spyOn(daemonClient, 'clearDaemonRunContext');
+
+    try {
+      // Same rule as the immediate path: if the zombie's last browser command
+      // ends result-unknown, the browser side may still be busy — the lease
+      // must lapse via TTL, not an explicit release.
+      let failAdapter!: (err: Error) => void;
+      const adapterGate = new Promise<never>((_resolve, reject) => { failAdapter = reject; });
+      const cmd = persistentWriteCmd(async () => adapterGate);
+      const rejection = expect(executeCommand(cmd, {})).rejects.toThrow('timed out');
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+      await rejection;
+
+      failAdapter(new BrowserCommandError('late result unknown', 'command_result_unknown'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      const runId = runCtxSpy.mock.calls[0][0]?.runId;
+      expect(clearCtxSpy).toHaveBeenCalledWith(runId);
+      expect(releaseSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+      daemonClient.setDaemonRunContext(null);
+    }
+  });
+
   it('does NOT release the lease when pre-navigation fails with an unknown outcome', async () => {
     const mockPage = {
       goto: vi.fn().mockRejectedValue(new BrowserCommandError('navigate result unknown', 'command_result_unknown')),
