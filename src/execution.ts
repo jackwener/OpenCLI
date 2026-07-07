@@ -30,7 +30,7 @@ import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyErro
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
-import { generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
+import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
@@ -275,7 +275,11 @@ export async function executeCommand(
         : null;
       if (leaseRun) setDaemonRunContext({ runId: leaseRun.runId, command: fullName(cmd), access: 'write' });
       let browserRunError: unknown;
-      let adapterStillRunning = false;
+      // `as` casts defeat literal narrowing: both are assigned only inside the
+      // browserSession callback, which TS's flow analysis does not see from the
+      // finally block below.
+      let adapterStillRunning = false as boolean;
+      let adapterRun = null as Promise<unknown> | null;
       try {
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
@@ -356,6 +360,7 @@ export async function executeCommand(
           ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
           : DEFAULT_BROWSER_COMMAND_TIMEOUT;
         const commandRun = runCommand(cmd, page, kwargs, debug);
+        adapterRun = commandRun;
         // runWithTimeout races but never cancels: when the CLI-layer timeout
         // wins, the adapter promise keeps driving the tab from this process.
         // Track settledness so the lease-release decision can tell a finished
@@ -415,21 +420,34 @@ export async function executeCommand(
         // release the lease so a retry succeeds immediately. Best-effort: TTL
         // reclaims it if the release is lost.
         //
-        // Exceptions — cases where the session may still be driven and the TTL
-        // must reclaim the lease instead of an explicit release:
+        // Exceptions — cases where the session may still be driven, so an
+        // immediate explicit release would hand the lease to a challenger that
+        // then collides with the stale work (the very collision this lease
+        // prevents):
+        // - A CLI-layer timeout does not cancel the adapter promise, and the
+        //   process only exits when the event loop drains, so the adapter may
+        //   keep driving the tab for minutes. Keep the run identity bound: its
+        //   follow-up commands heartbeat the lease (challengers stay blocked
+        //   past the TTL), and cleanup runs when the adapter finally settles.
+        //   If the process dies first, the daemon TTL reclaims the lease.
         // - An unknown-outcome failure (result-unknown / command-lost /
         //   result-evicted, anywhere in the cause chain) means the browser-side
-        //   command may STILL be running against the persistent tab.
-        // - A CLI-layer timeout does not cancel the adapter promise, so the
-        //   adapter may keep issuing browser commands from this process after
-        //   the run has already failed.
-        // Releasing in either state would let a manual rerun acquire the lease
-        // and collide with the stale work — the very collision this lease
-        // prevents.
+        //   command may STILL be running against the persistent tab; there is
+        //   nothing to await client-side, so the TTL is the quiet period.
         if (leaseRun) {
-          setDaemonRunContext(null);
-          if (!isUnknownOutcomeError(browserRunError) && !adapterStillRunning) {
-            await releaseSiteSessionLease({ runId: leaseRun.runId, session: leaseRun.session, surface: 'adapter' });
+          if (adapterStillRunning && adapterRun) {
+            const runId = leaseRun.runId;
+            const session = leaseRun.session;
+            const settle = () => {
+              clearDaemonRunContext(runId);
+              void releaseSiteSessionLease({ runId, session, surface: 'adapter' });
+            };
+            adapterRun.then(settle, settle);
+          } else {
+            setDaemonRunContext(null);
+            if (!isUnknownOutcomeError(browserRunError)) {
+              await releaseSiteSessionLease({ runId: leaseRun.runId, session: leaseRun.session, surface: 'adapter' });
+            }
           }
         }
       }

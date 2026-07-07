@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BrowserCommandError,
+  clearDaemonRunContext,
   fetchDaemonStatus,
   getDaemonHealth,
   isUnknownOutcomeError,
@@ -235,6 +236,25 @@ describe('daemon-client', () => {
       expect(body.command).toBe('chatgpt ask');
       expect(body.access).toBe('write');
     }
+  });
+
+  it('clearDaemonRunContext only clears the context that still belongs to the runId', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+    setDaemonRunContext({ runId: 'run_4242_1_a', command: 'chatgpt ask', access: 'write' });
+
+    // A stale run's deferred cleanup must not strip a different owner's context.
+    clearDaemonRunContext('run_9999_2_b');
+    await sendCommand('exec', { code: '1 + 1', surface: 'adapter', session: 'site:chatgpt', siteSession: 'persistent' });
+    const kept = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { runId?: string };
+    expect(kept.runId).toBe('run_4242_1_a');
+
+    clearDaemonRunContext('run_4242_1_a');
+    await sendCommand('exec', { code: '2 + 2', surface: 'adapter', session: 'site:chatgpt', siteSession: 'persistent' });
+    const cleared = JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body)) as { runId?: string };
+    expect(cleared.runId).toBeUndefined();
   });
 
   it('omits run-context fields when no run context is set (read/ephemeral commands)', async () => {

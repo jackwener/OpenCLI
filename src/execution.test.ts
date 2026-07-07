@@ -797,27 +797,42 @@ describe('executeCommand — persistent write lease release', () => {
     vi.restoreAllMocks();
   });
 
-  it('does NOT release the lease when the CLI-layer timeout fires with the adapter still running', async () => {
+  it('keeps the run identity bound through a CLI-layer timeout and cleans up when the adapter settles', async () => {
     vi.useFakeTimers();
     vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
     vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
     const releaseSpy = vi.spyOn(daemonClient, 'releaseSiteSessionLease').mockResolvedValue(undefined);
     const runCtxSpy = vi.spyOn(daemonClient, 'setDaemonRunContext');
+    const clearCtxSpy = vi.spyOn(daemonClient, 'clearDaemonRunContext');
 
     try {
-      // runWithTimeout does not cancel the adapter promise: after the timeout
-      // wins, the adapter can keep driving the tab, so the lease must lapse
-      // via TTL instead of being handed to a challenger immediately.
-      const cmd = persistentWriteCmd(() => new Promise(() => {}));
+      // runWithTimeout does not cancel the adapter promise, and the process
+      // only exits when the event loop drains — the adapter can keep driving
+      // the tab well past the lease TTL. The run context must stay bound (its
+      // follow-up commands heartbeat the lease, blocking challengers) and the
+      // lease released only when the adapter actually settles.
+      let finishAdapter!: () => void;
+      const adapterGate = new Promise<void>((resolve) => { finishAdapter = resolve; });
+      const cmd = persistentWriteCmd(async () => { await adapterGate; return [{ ok: true }]; });
       const rejection = expect(executeCommand(cmd, {})).rejects.toThrow('timed out');
       await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
       await rejection;
 
       expect(releaseSpy).not.toHaveBeenCalled();
-      expect(runCtxSpy).toHaveBeenLastCalledWith(null);
+      expect(runCtxSpy).not.toHaveBeenCalledWith(null);
+      expect(clearCtxSpy).not.toHaveBeenCalled();
+
+      finishAdapter();
+      await vi.advanceTimersByTimeAsync(0);
+
+      const runId = runCtxSpy.mock.calls[0][0]?.runId;
+      expect(clearCtxSpy).toHaveBeenCalledWith(runId);
+      expect(releaseSpy).toHaveBeenCalledTimes(1);
+      expect(releaseSpy).toHaveBeenCalledWith(expect.objectContaining({ runId }));
     } finally {
       vi.useRealTimers();
       vi.restoreAllMocks();
+      daemonClient.setDaemonRunContext(null);
     }
   });
 

@@ -55,6 +55,16 @@ export function setDaemonRunContext(ctx: DaemonRunContext | null): void {
 }
 
 /**
+ * Clear the run context only if it still belongs to `runId`. Used by deferred
+ * cleanup (an adapter that outlived its CLI timeout settles later): by then a
+ * newer run may own the context, and unconditionally nulling it would strip
+ * that run's lease heartbeats mid-flight.
+ */
+export function clearDaemonRunContext(runId: string): void {
+  if (_runContext?.runId === runId) _runContext = null;
+}
+
+/**
  * Best-effort release of a persistent site-session lease on command completion.
  * A direct one-shot POST (no bridge ensure / retry): if it never lands, the
  * daemon's TTL reclaims the lease anyway, so this must never block the caller.
