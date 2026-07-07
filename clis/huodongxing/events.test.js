@@ -216,6 +216,11 @@ describe('huodongxing events adapter', () => {
       .toThrow(EmptyResultError);
   });
 
+  it('keeps generic empty-state copy with later-follow-up wording as empty results', () => {
+    expect(() => withDocument('<html><body>暂无活动，敬请稍后关注</body></html>', () => extractEventRows(10)))
+      .toThrow(EmptyResultError);
+  });
+
   it('throws CommandExecutionError when event cards cannot produce stable rows', () => {
     expect(() => withDocument(MALFORMED_CARD_HTML, () => extractEventRows(10)))
       .toThrow(CommandExecutionError);
@@ -224,6 +229,47 @@ describe('huodongxing events adapter', () => {
   it('classifies Huodongxing rate-limit pages separately from empty results', () => {
     expect(() => withDocument('<html><head><title>操作过于频繁</title></head><body>操作过于频繁</body></html>', () => extractEventRows(10)))
       .toThrow(CommandExecutionError);
+  });
+
+  it('classifies transient Huodongxing access errors separately from empty results', () => {
+    expect(() => withDocument('<html><head><title>系统加载中</title></head><body>系统加载中 当前访问人数过多 请休息片刻重试 不要频繁刷新 ERROR CODE</body></html>', () => extractEventRows(10)))
+      .toThrow(CommandExecutionError);
+  });
+
+  it('waits for event cards and extracts again after a transient access page', async () => {
+    const command = getRegistry().get('huodongxing/events');
+    const row = {
+      rank: 1,
+      id: '7864377535500',
+      title: 'AI Meetup',
+      time: '06/24 周三 14:00',
+      eventType: 'offline',
+      city: '浙江杭州',
+      location: '浙江杭州',
+      organizer: 'Org',
+      url: 'https://www.huodongxing.com/event/7864377535500',
+    };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          code: 'TRANSIENT_ACCESS',
+          message: 'huodongxing events page returned a temporary busy/access page',
+        })
+        .mockResolvedValueOnce({ ok: true, rows: [row] }),
+    };
+
+    await expect(command.func(page, { limit: 5, city: '全部' })).resolves.toEqual([row]);
+    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(page.goto).toHaveBeenCalledWith(
+      'https://www.huodongxing.com/events?orderby=o&d=ts&city=%E5%85%A8%E9%83%A8',
+      { settleMs: 5000 },
+    );
+    expect(page.wait).toHaveBeenNthCalledWith(1, { selector: '.search-tab-content-item-mesh', timeout: 10 });
+    expect(page.wait).toHaveBeenNthCalledWith(2, { selector: '.search-tab-content-item-mesh', timeout: 10 });
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
   });
 
   it('throws typed errors from structured browser extraction failures', async () => {
