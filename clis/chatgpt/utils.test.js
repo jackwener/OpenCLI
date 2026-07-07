@@ -886,6 +886,37 @@ describe('chatgpt generation state', () => {
 
         await expect(isGenerating(page)).resolves.toBe(true);
     });
+
+    it('detects a plain-text thinking pill inside a bare [data-message-author-role] turn', async () => {
+        // Regression: the scoped scan must cover both message shapes from
+        // CONVERSATION_MESSAGE_SELECTOR, not just article conversation turns —
+        // with no stop button and no aria-label, a plain-text pill in the
+        // role-attribute shape must still read as generating.
+        const page = createDomEvaluatePage(`
+            <div data-message-author-role="assistant">正在思考中…部分回答内容</div>
+        `);
+
+        await expect(isGenerating(page)).resolves.toBe(true);
+    });
+
+    it('detects a plain-text Thinking pill inside the last article turn', async () => {
+        const page = createDomEvaluatePage(`
+            <article data-testid="conversation-turn-2">
+              <div data-message-author-role="assistant">partial answer</div>
+              <div>Thinking</div>
+            </article>
+        `);
+
+        await expect(isGenerating(page)).resolves.toBe(true);
+    });
+
+    it('reports idle when no generation indicator is present in either shape', async () => {
+        const page = createDomEvaluatePage(`
+            <div data-message-author-role="assistant">done answer</div>
+        `);
+
+        await expect(isGenerating(page)).resolves.toBe(false);
+    });
 });
 
 describe('chatgpt current model detection', () => {

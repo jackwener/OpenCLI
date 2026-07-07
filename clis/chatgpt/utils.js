@@ -2195,8 +2195,13 @@ export async function isGenerating(page) {
             // aria-label. Scope the text scan to small containers and use
             // textContent (does not trigger layout) instead of body.innerText.
             const scopes = [];
+            // Cover both message shapes from CONVERSATION_MESSAGE_SELECTOR:
+            // prefer the article turn (the wider container, so a pill outside
+            // the message div is still seen), fall back to bare
+            // [data-message-author-role] nodes when articles are absent.
             const turns = document.querySelectorAll('article[data-testid*="conversation-turn"]');
-            if (turns.length) scopes.push(turns[turns.length - 1]);
+            const messages = turns.length ? turns : document.querySelectorAll('[data-message-author-role]');
+            if (messages.length) scopes.push(messages[messages.length - 1]);
             const composer = document.querySelector('#prompt-textarea, [aria-label="Chat with ChatGPT"]');
             if (composer) {
                 let root = composer;
