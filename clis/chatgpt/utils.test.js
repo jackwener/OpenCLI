@@ -917,6 +917,25 @@ describe('chatgpt generation state', () => {
 
         await expect(isGenerating(page)).resolves.toBe(false);
     });
+
+    it('ignores answers that merely mention Thinking in prose or code spans', async () => {
+        // Regression: a finished review of isGenerating itself contains the
+        // literal words "Thinking" / "正在思考" in prose and backticked code
+        // spans inside .markdown. That is message content, not a status pill —
+        // reading it as generating would block every follow-up send.
+        const page = createDomEvaluatePage(`
+            <article data-testid="conversation-turn-2">
+              <div data-message-author-role="assistant">
+                <div class="markdown">
+                  <p>这个 PR 修改了检测逻辑，旧代码对全页文本匹配 Thinking 与正在思考，存在误报，建议改为在局部范围内检查停止生成按钮的状态。</p>
+                  <p>位置见 <code>isGenerating</code>，匹配词是 <code>Thinking</code> 和 <code>正在思考</code>。</p>
+                </div>
+              </div>
+            </article>
+        `);
+
+        await expect(isGenerating(page)).resolves.toBe(false);
+    });
 });
 
 describe('chatgpt current model detection', () => {

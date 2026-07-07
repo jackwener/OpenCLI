@@ -2208,8 +2208,18 @@ export async function isGenerating(page) {
                 for (let i = 0; i < 4 && root.parentElement; i += 1) root = root.parentElement;
                 scopes.push(root);
             }
+            // Only a short leaf element OUTSIDE rendered message content
+            // counts as a status pill. Testing whole scope text would flag any
+            // answer that merely *mentions* "Thinking" (prose or a backticked
+            // code span in a conversation about this very code) as still
+            // generating, permanently blocking follow-up sends.
             for (const scope of scopes) {
-                if (/正在思考|停止生成|Thinking/.test(scope.textContent || '')) return true;
+                for (const el of [scope, ...scope.querySelectorAll('*')]) {
+                    if (el.children.length) continue;
+                    if (el.closest('.markdown, pre, code')) continue;
+                    const text = (el.textContent || '').trim();
+                    if (text && text.length <= 40 && /正在思考|停止生成|Thinking/.test(text)) return true;
+                }
             }
             return false;
         })()
