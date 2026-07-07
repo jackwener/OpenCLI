@@ -1029,6 +1029,18 @@ export abstract class BasePage implements IPage {
     return [];
   }
 
+  /**
+   * Pure client-side sleep — a bare setTimeout with no page evaluation.
+   *
+   * Unlike `wait(n)`, this never installs a MutationObserver or touches the
+   * renderer, so poll loops that already re-check state each iteration don't
+   * pay for a whole-body DOM-stable probe on every tick. Use this for fixed
+   * poll intervals; use `wait(n)` when DOM-stable early return is desired.
+   */
+  async sleep(seconds: number): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+  }
+
   async wait(options: number | WaitOptions): Promise<void> {
     if (typeof options === 'number') {
       if (options >= 1) {

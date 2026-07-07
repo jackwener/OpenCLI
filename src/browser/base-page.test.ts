@@ -927,3 +927,15 @@ describe('BasePage.evaluateWithArgs scoping', () => {
     `, { value: 20 })).resolves.toBe(42);
   });
 });
+
+describe('BasePage.sleep', () => {
+  it('is a pure client-side sleep that never evaluates page script', async () => {
+    const page = new ActionPage();
+    const evalSpy = vi.spyOn(page, 'evaluate');
+
+    await page.sleep(0);
+
+    expect(evalSpy).not.toHaveBeenCalled();
+    expect(page.scripts).toHaveLength(0);
+  });
+});

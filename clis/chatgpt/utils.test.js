@@ -20,6 +20,7 @@ function createPageMock({ location = '', generating = [], imageUrls = [] } = {})
     let imageIndex = 0;
     return {
         wait: vi.fn().mockResolvedValue(undefined),
+        sleep: vi.fn().mockResolvedValue(undefined),
         goto: vi.fn().mockResolvedValue(undefined),
         evaluate: vi.fn((script) => {
             if (script === 'window.location.href') return Promise.resolve(location);
@@ -662,6 +663,7 @@ describe('chatgpt detail completion state', () => {
     function createDetailPageMock({ generating = false, messages = [] } = {}) {
         return {
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
                 if (script.includes('Stop generating') || script.includes('Thinking')) {
                     return Promise.resolve(generating);
@@ -721,6 +723,7 @@ describe('chatgpt ask response extraction boundary', () => {
         let messageIndex = 0;
         return {
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve(url);
                 if (script.includes('Stop generating') || script.includes('Thinking')) {
@@ -855,6 +858,20 @@ describe('chatgpt ask response extraction boundary', () => {
         await expect(waitForChatGPTResponse(page, 0, 'hello', 4, {
             conversationUrl: 'https://chatgpt.com/c/demo',
         })).rejects.toThrow(/navigated away from the target conversation/);
+    });
+
+    it('polls with pure client-side sleeps instead of the DOM-stable numeric wait', async () => {
+        mockAdvancingClock();
+        const page = createResponseWaitPage([[], [], []]);
+
+        await expect(waitForChatGPTResponse(page, 0, 'unmatched prompt', 4, {}))
+            .rejects.toThrow(/chatgpt ask timed out/);
+
+        // The poll interval must not hit page.wait(number), whose DOM-stable
+        // path installs a whole-body MutationObserver and pins renderer CPU
+        // for the full 10-20 min a streamed answer takes to settle.
+        expect(page.sleep).toHaveBeenCalled();
+        expect(page.wait).not.toHaveBeenCalled();
     });
 });
 
@@ -1203,6 +1220,7 @@ describe('chatgpt image upload helper', () => {
         const page = {
             setFileInput: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn().mockResolvedValue(true),
         };
 
@@ -1254,6 +1272,7 @@ describe('chatgpt image upload helper', () => {
         const page = {
             setFileInput: vi.fn().mockRejectedValue(new Error('No element found')),
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
                 if (String(script).includes('new DataTransfer()')) {
                     return Promise.resolve({ ok: true });
@@ -1289,6 +1308,7 @@ describe('chatgpt image upload helper', () => {
         const page = {
             setFileInput: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
         };
 
@@ -1319,6 +1339,7 @@ describe('chatgpt image upload helper', () => {
         const page = {
             setFileInput: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
         };
 

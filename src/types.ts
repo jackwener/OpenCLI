@@ -105,6 +105,8 @@ export interface IPage {
   scrollTo(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<any>;
   getFormState(): Promise<any>;
   wait(options: number | WaitOptions): Promise<void>;
+  /** Pure client-side sleep (bare setTimeout, no page evaluation). */
+  sleep(seconds: number): Promise<void>;
   waitForDownload?(pattern?: string, timeoutMs?: number): Promise<BrowserDownloadWaitResult>;
   tabs(): Promise<any>;
   closeTab?(target?: number | string): Promise<void>;
