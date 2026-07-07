@@ -1071,9 +1071,9 @@ function emptyRegistry() {
 }
 async function readRegistry() {
   try {
-    const local = chrome.storage?.local;
-    if (!local) return emptyRegistry();
-    const raw = await local.get(REGISTRY_KEY);
+    const session = chrome.storage?.session;
+    if (!session) return emptyRegistry();
+    const raw = await session.get(REGISTRY_KEY);
     const stored = raw[REGISTRY_KEY];
     if (!stored || stored.version !== 2 || typeof stored.leases !== "object") return emptyRegistry();
     const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === "object" ? stored.ownedContainers : emptyRegistry().ownedContainers;
@@ -1096,7 +1096,7 @@ async function readRegistry() {
 }
 async function writeRegistry(registry) {
   try {
-    await chrome.storage?.local?.set({ [REGISTRY_KEY]: registry });
+    await chrome.storage?.session?.set({ [REGISTRY_KEY]: registry });
   } catch {
   }
 }
@@ -1588,6 +1588,11 @@ function initialize() {
   try {
     const registerFrameTracking$1 = registerFrameTracking;
     registerFrameTracking$1?.();
+  } catch {
+  }
+  try {
+    void chrome.storage?.local?.remove?.(REGISTRY_KEY)?.catch?.(() => {
+    });
   } catch {
   }
   workerRecovered = false;

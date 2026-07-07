@@ -360,13 +360,17 @@ type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
   updatedAt: number;
 };
 
+// The registry lives in chrome.storage.session, never chrome.storage.local:
+// every id it carries (window, tab, group) is a Chrome runtime number that is
+// only valid within one browser session. Persisting them across a browser
+// restart never enabled real recovery — a recycled id could instead collide
+// with a user-created window/tab/group and let the restore path claim it.
+// storage.session survives MV3 service-worker restarts (the case recovery
+// exists for) and is cleared exactly when the ids die. initialize() also
+// best-effort removes the legacy storage.local copy older versions wrote.
 type StoredRegistry = {
   version: 2;
   contextId: BrowserContextId;
-  // Deliberately windowId-only: tab group ids are browser-session scoped, so
-  // the durable registry must never store or trust one (a recycled id could
-  // hijack a user-created group after a browser restart). Within one browser
-  // session, group recovery is covered by the session ledger + title layer.
   ownedContainers: Record<OwnedWindowRole, { windowId: number | null }>;
   leases: Record<string, StoredLease>;
 };
@@ -508,9 +512,9 @@ function emptyRegistry(): StoredRegistry {
 
 async function readRegistry(): Promise<StoredRegistry> {
   try {
-    const local = chrome.storage?.local;
-    if (!local) return emptyRegistry();
-    const raw = await local.get(REGISTRY_KEY) as Record<string, unknown>;
+    const session = chrome.storage?.session;
+    if (!session) return emptyRegistry(); // no session storage — degrade to memory-only
+    const raw = await session.get(REGISTRY_KEY) as Record<string, unknown>;
     const stored = raw[REGISTRY_KEY] as Partial<StoredRegistry> | undefined;
     if (!stored || stored.version !== 2 || typeof stored.leases !== 'object') return emptyRegistry();
     const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === 'object'
@@ -536,7 +540,7 @@ async function readRegistry(): Promise<StoredRegistry> {
 
 async function writeRegistry(registry: StoredRegistry): Promise<void> {
   try {
-    await chrome.storage?.local?.set({ [REGISTRY_KEY]: registry });
+    await chrome.storage?.session?.set({ [REGISTRY_KEY]: registry });
   } catch {
     // Registry persistence is a recovery aid; command execution should not fail on storage errors.
   }
@@ -1205,6 +1209,16 @@ function initialize(): void {
     registerFrameTracking?.();
   } catch {
     // Some focused tests mock only the cdp functions they exercise.
+  }
+  // Migration cleanup: older versions persisted the registry in
+  // chrome.storage.local, where its browser-session-scoped ids go stale after
+  // a browser restart (see StoredRegistry). Remove that one legacy key —
+  // nothing else in local — so it can never be trusted again. Fire-and-forget:
+  // nothing reads the local copy anymore, so ordering does not matter.
+  try {
+    void chrome.storage?.local?.remove?.(REGISTRY_KEY)?.catch?.(() => {});
+  } catch {
+    // Best-effort cleanup.
   }
   // Rehydrate context + lease/container state before any event handler that
   // persists is allowed to run (see workerReady). connect() is deliberately
@@ -2121,12 +2135,11 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
 
 async function reconcileTargetLeaseRegistry(): Promise<void> {
   const registry = await readRegistry();
-  // Restore the orphan-group ledger from session storage (browser-session
-  // scoped by design — see the ledger declaration). Deliberately NOT from the
-  // local registry: group ids from a previous browser session are stale.
+  // Restore the orphan-group ledger (session-scoped by design — see the
+  // ledger declaration).
   await restoreInteractiveGroupLedger();
-  // Only windowId is restored from the durable registry; the in-memory groupId
-  // cache stays null (a fresh worker) and repopulates via the session ledger,
+  // Only windowId is restored from the registry; the in-memory groupId cache
+  // stays null (a fresh worker) and repopulates via the session ledger,
   // title, and lease layers during the convergence below.
   for (const role of Object.keys(ownedContainers) as OwnedWindowRole[]) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
