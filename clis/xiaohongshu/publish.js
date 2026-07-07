@@ -445,85 +445,6 @@ async function focusBodyEnd(page, bodySelectors) {
     })(${JSON.stringify(bodySelectors)})
   `));
 }
-function topicSuggestionScript(topic, { click = false } = {}) {
-    // Returns the best matching suggestion's screen coordinates (center) so the
-    // caller can issue a real click.
-    return `
-    (topicName => {
-      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
-      const want = norm(topicName);
-      const SUGGESTION_SELECTORS = [
-        '[class*="topic-item"]',
-        '[class*="hashtag-item"]',
-        '[class*="suggest-item"]',
-        '[class*="suggestion"] li',
-        '[class*="mention"] li',
-        '[class*="dropdown"] li',
-        '[id*="topic"] li',
-        '[class*="topic"] li',
-      ];
-      const seen = new Set();
-      const items = [];
-      for (const sel of SUGGESTION_SELECTORS) {
-        for (const node of document.querySelectorAll(sel)) {
-          if (!node || seen.has(node)) continue;
-          if (node.offsetParent === null) continue;
-          const rect = node.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) continue;
-          seen.add(node);
-          items.push(node);
-        }
-      }
-      if (!items.length) return { ok: false, count: 0 };
-      let target = items.find(node => norm(node.innerText || node.textContent) === want);
-      if (!target) target = items.find(node => norm(node.innerText || node.textContent).includes(want));
-      if (!target) target = items[0];
-      const rect = target.getBoundingClientRect();
-      ${click ? "try { target.click(); } catch (e) { return { ok: false, count: items.length, message: String(e) }; }" : ''}
-      return {
-        ok: true,
-        count: items.length,
-        x: Math.round(rect.left + rect.width / 2),
-        y: Math.round(rect.top + rect.height / 2),
-        text: (target.innerText || target.textContent || '').trim().slice(0, 40),
-      };
-    })(${JSON.stringify(topic)})
-  `;
-}
-function topicEntityCountScript(topic, bodySelectors) {
-    return `
-    ((topicName, selectors) => {
-      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
-      const want = norm(topicName);
-      const editor = selectors
-        .map(sel => Array.from(document.querySelectorAll(sel)))
-        .flat()
-        .find(node => node && node.offsetParent !== null && node.isContentEditable);
-      if (!editor || !want) return 0;
-      const hasTopicSignal = (node) => {
-        const tag = (node.tagName || '').toLowerCase();
-        const role = (node.getAttribute && node.getAttribute('role')) || '';
-        const cls = String(node.className || '');
-        const id = String(node.id || '');
-        const href = (node.getAttribute && node.getAttribute('href')) || '';
-        const dataKeys = node.dataset ? Object.keys(node.dataset).join(' ') : '';
-        const haystack = [tag, role, cls, id, href, dataKeys].join(' ');
-        return tag === 'a'
-          || /link/i.test(role)
-          || /topic|hashtag|hash-tag|tag|mention|keyword/i.test(haystack)
-          || node.isContentEditable === false;
-      };
-      let count = 0;
-      for (const node of Array.from(editor.querySelectorAll('*'))) {
-        if (!node || node.offsetParent === null) continue;
-        if (!hasTopicSignal(node)) continue;
-        const text = norm(node.innerText || node.textContent || '');
-        if (text === want || text === '#' + want) count += 1;
-      }
-      return count;
-    })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
-  `;
-}
 function topicMarkerCountScript(topic, bodySelectors) {
     return `
     ((topicName, selectors) => {
@@ -1013,9 +934,14 @@ async function currentComposerMediaCount(page) {
         seen.add(key);
         count += 1;
       }
-      // Second pass: catch CSS-class-rendered divs (no inline style).
+      // Second pass: catch CSS-class-rendered divs (no inline style). Scope to
+      // divs whose class hints at media rendering so we don't run
+      // getComputedStyle across every div on the page.
       if (count === 0) {
-        for (const el of Array.from(widerRoot.querySelectorAll('div'))) {
+        for (const el of Array.from(widerRoot.querySelectorAll(
+          'div[class*="card"], div[class*="image"], div[class*="cover"], ' +
+          'div[class*="preview"], div[class*="thumb"], div[class*="pic"]'
+        ))) {
           if (!visibleMedia(el)) continue;
           const bg = getComputedStyle(el).backgroundImage;
           if (bg && bg !== 'none' && bg !== '' && bg !== 'initial') {
@@ -1028,7 +954,6 @@ async function currentComposerMediaCount(page) {
         }
       }
       return { ok: true, count };
-      return { ok: true, count: leafCandidates.length };
     })()
   `);
     return unwrapBrowserResult(result);

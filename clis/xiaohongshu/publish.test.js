@@ -733,10 +733,6 @@ describe('xiaohongshu publish', () => {
                 return true;
             if (code.includes('node.isContentEditable') && code.includes('selectNodeContents'))
                 return true;
-            // topicSuggestionScript click-based suggestion selection.
-            if (code.includes("replace(/^#/, '')") && code.includes('SUGGESTION_SELECTORS')) {
-                return { ok: true, count: 1 };
-            }
             // Chip marker count does not increase → topic attachment failed.
             if (code.includes('__opencli_xhs_topic_marker_count')) {
                 return 0;
@@ -805,10 +801,6 @@ describe('xiaohongshu publish', () => {
                 return true;
             if (code.includes('node.isContentEditable') && code.includes('selectNodeContents'))
                 return true;
-            // topicSuggestionScript click-based suggestion selection.
-            if (code.includes("replace(/^#/, '')") && code.includes('SUGGESTION_SELECTORS')) {
-                return { ok: true, count: 1 };
-            }
             // Existing marker before selection, but Enter does not attach a new
             // entity; count remains unchanged and must fail.
             if (code.includes('__opencli_xhs_topic_marker_count')) {
