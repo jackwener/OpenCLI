@@ -3,6 +3,7 @@ import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwen
 
 const BASE_URL = 'https://www.huodongxing.com/events';
 const MAX_LIMIT = 50;
+const RESULT_CARD_SELECTOR = '.search-tab-content-item-mesh';
 export const EVENTS_COLUMNS = [
   'rank',
   'id',
@@ -241,6 +242,14 @@ export function extractEventRowsPayload(limit = 20) {
         hint: 'Wait a few minutes and retry from a real browser session.',
       };
     }
+    if (/系统加载中|当前访问人数过多|请休息片刻重试|不要频繁刷新|系统繁忙|系统忙|系统异常|服务异常|服务繁忙|访问失败|访问异常|页面出错|系统维护|error\s*code/i.test(pageText)) {
+      return {
+        ok: false,
+        code: 'TRANSIENT_ACCESS',
+        message: 'huodongxing events page returned a temporary busy/access page',
+        hint: 'Huodongxing returned a temporary busy/access page instead of event cards. Wait and retry from the same browser session.',
+      };
+    }
     if (cards.length > 0) {
       return {
         ok: false,
@@ -259,6 +268,10 @@ export function extractEventRowsPayload(limit = 20) {
   return { ok: true, rows };
 }
 
+function isTransientAccessPayload(result) {
+  return unwrapEvaluateResult(result)?.code === 'TRANSIENT_ACCESS';
+}
+
 function requireExtractionRows(result) {
   const payload = unwrapEvaluateResult(result);
   if (payload?.ok === true && Array.isArray(payload.rows)) return payload.rows;
@@ -272,6 +285,12 @@ function requireExtractionRows(result) {
     throw new CommandExecutionError(
       payload.message || 'huodongxing events was rate limited by www.huodongxing.com',
       payload.hint || 'Wait a few minutes and retry from a real browser session.',
+    );
+  }
+  if (payload?.code === 'TRANSIENT_ACCESS') {
+    throw new CommandExecutionError(
+      payload.message || 'huodongxing events page returned a temporary busy/access page',
+      payload.hint || 'Wait and retry from the same browser session.',
     );
   }
   if (payload?.code === 'INVALID_LIMIT') {
@@ -291,6 +310,22 @@ function requireExtractionRows(result) {
 
 export function extractEventRows(limit = 20) {
   return requireExtractionRows(extractEventRowsPayload(limit));
+}
+
+async function extractEventRowsFromPage(page, limit) {
+  return page.evaluate(`(${extractEventRowsPayload.toString()})(${limit})`);
+}
+
+async function waitForEventCards(page) {
+  await page.wait({ selector: RESULT_CARD_SELECTOR, timeout: 10 }).catch(async () => {
+    await page.wait({ time: 1 });
+  });
+}
+
+async function navigateAndExtractEventRowsPayload(page, url, limit) {
+  await page.goto(url, { settleMs: 5000 });
+  await waitForEventCards(page);
+  return extractEventRowsFromPage(page, limit);
 }
 
 cli({
@@ -314,9 +349,11 @@ cli({
   func: async (page, args) => {
     const limit = requireLimit(args.limit);
     const url = buildEventsUrl(args);
-    await page.goto(url);
-    await page.wait(2);
-    const result = await page.evaluate(`(${extractEventRowsPayload.toString()})(${limit})`);
+    let result = await navigateAndExtractEventRowsPayload(page, url, limit);
+    if (isTransientAccessPayload(result)) {
+      await waitForEventCards(page);
+      result = await extractEventRowsFromPage(page, limit);
+    }
     return filterRowsByDateRange(requireExtractionRows(result), args);
   },
 });
