@@ -796,4 +796,57 @@ describe('executeCommand — persistent write lease release', () => {
     expect(runCtxSpy).toHaveBeenLastCalledWith(null);
     vi.restoreAllMocks();
   });
+
+  it('does NOT release the lease when the CLI-layer timeout fires with the adapter still running', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const releaseSpy = vi.spyOn(daemonClient, 'releaseSiteSessionLease').mockResolvedValue(undefined);
+    const runCtxSpy = vi.spyOn(daemonClient, 'setDaemonRunContext');
+
+    try {
+      // runWithTimeout does not cancel the adapter promise: after the timeout
+      // wins, the adapter can keep driving the tab, so the lease must lapse
+      // via TTL instead of being handed to a challenger immediately.
+      const cmd = persistentWriteCmd(() => new Promise(() => {}));
+      const rejection = expect(executeCommand(cmd, {})).rejects.toThrow('timed out');
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+      await rejection;
+
+      expect(releaseSpy).not.toHaveBeenCalled();
+      expect(runCtxSpy).toHaveBeenLastCalledWith(null);
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('does NOT release the lease when pre-navigation fails with an unknown outcome', async () => {
+    const mockPage = {
+      goto: vi.fn().mockRejectedValue(new BrowserCommandError('navigate result unknown', 'command_result_unknown')),
+    } as any;
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+    const releaseSpy = vi.spyOn(daemonClient, 'releaseSiteSessionLease').mockResolvedValue(undefined);
+    const runCtxSpy = vi.spyOn(daemonClient, 'setDaemonRunContext');
+
+    // The pre-nav wrapper must keep the original error on the cause chain so
+    // the release decision still sees the unknown outcome.
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'lease-prenav-unknown', access: 'write',
+      description: 'test pre-nav unknown outcome keeps the lease',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      siteSession: 'persistent',
+      navigateBefore: 'https://example.com/inbox',
+      func: async () => [{ ok: true }],
+    });
+    await expect(executeCommand(cmd, {})).rejects.toThrow('Pre-navigation to https://example.com/inbox failed');
+
+    expect(mockPage.goto).toHaveBeenCalledWith('https://example.com/inbox');
+    expect(releaseSpy).not.toHaveBeenCalled();
+    expect(runCtxSpy).toHaveBeenLastCalledWith(null);
+    vi.restoreAllMocks();
+  });
 });

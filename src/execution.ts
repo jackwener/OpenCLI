@@ -275,6 +275,7 @@ export async function executeCommand(
         : null;
       if (leaseRun) setDaemonRunContext({ runId: leaseRun.runId, command: fullName(cmd), access: 'write' });
       let browserRunError: unknown;
+      let adapterStillRunning = false;
       try {
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
@@ -333,6 +334,10 @@ export async function executeCommand(
               `Pre-navigation to ${preNavUrl} failed: ${err instanceof Error ? err.message : err}`,
               'Check that the site is reachable and the browser extension is running.',
             );
+            // Keep the original error reachable: the lease-release decision walks
+            // the cause chain, and a pre-nav navigate/exec can itself end with an
+            // unknown outcome while still running against the persistent tab.
+            wrapped.cause = err;
             if (observation && (traceMode === 'on' || traceMode === 'retain-on-failure')) {
               observation.record({
                 stream: 'error',
@@ -347,11 +352,18 @@ export async function executeCommand(
             throw wrapped;
           }
         }
+        const browserTimeout = userTimeoutSec !== null
+          ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
+          : DEFAULT_BROWSER_COMMAND_TIMEOUT;
+        const commandRun = runCommand(cmd, page, kwargs, debug);
+        // runWithTimeout races but never cancels: when the CLI-layer timeout
+        // wins, the adapter promise keeps driving the tab from this process.
+        // Track settledness so the lease-release decision can tell a finished
+        // adapter apart from one still running behind a timeout.
+        let commandSettled = false;
+        commandRun.then(() => { commandSettled = true; }, () => { commandSettled = true; });
         try {
-          const browserTimeout = userTimeoutSec !== null
-            ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
-            : DEFAULT_BROWSER_COMMAND_TIMEOUT;
-          const result = await runWithTimeout(runCommand(cmd, page, kwargs, debug), {
+          const result = await runWithTimeout(commandRun, {
             timeout: browserTimeout,
             label: fullName(cmd),
           });
@@ -370,6 +382,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
+          if (!commandSettled) adapterStillRunning = true;
           if (observation) {
             observation.record({
               stream: 'action',
@@ -402,15 +415,20 @@ export async function executeCommand(
         // release the lease so a retry succeeds immediately. Best-effort: TTL
         // reclaims it if the release is lost.
         //
-        // Exception: an unknown-outcome failure (result-unknown / command-lost /
-        // result-evicted) means the browser-side command may STILL be running
-        // against the persistent tab. Releasing now would let a manual rerun
-        // acquire the lease and collide with the stale command — the very
-        // collision this lease prevents. Skip the explicit release and let the
-        // TTL reclaim it after a bounded quiet period.
+        // Exceptions — cases where the session may still be driven and the TTL
+        // must reclaim the lease instead of an explicit release:
+        // - An unknown-outcome failure (result-unknown / command-lost /
+        //   result-evicted, anywhere in the cause chain) means the browser-side
+        //   command may STILL be running against the persistent tab.
+        // - A CLI-layer timeout does not cancel the adapter promise, so the
+        //   adapter may keep issuing browser commands from this process after
+        //   the run has already failed.
+        // Releasing in either state would let a manual rerun acquire the lease
+        // and collide with the stale work — the very collision this lease
+        // prevents.
         if (leaseRun) {
           setDaemonRunContext(null);
-          if (!isUnknownOutcomeError(browserRunError)) {
+          if (!isUnknownOutcomeError(browserRunError) && !adapterStillRunning) {
             await releaseSiteSessionLease({ runId: leaseRun.runId, session: leaseRun.session, surface: 'adapter' });
           }
         }
