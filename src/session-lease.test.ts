@@ -24,9 +24,13 @@ function writeCommand(over: Record<string, unknown> = {}): Record<string, unknow
 }
 
 describe('getSessionLeaseKey', () => {
-  it('partitions by surface and encoded session', () => {
-    expect(getSessionLeaseKey('adapter', 'site:chatgpt')).toBe('adapter␟site%3Achatgpt');
-    expect(getSessionLeaseKey('adapter', 'site:x')).not.toBe(getSessionLeaseKey('browser', 'site:x'));
+  it('partitions by profile, surface, and encoded session', () => {
+    expect(getSessionLeaseKey('default', 'adapter', 'site:chatgpt')).toBe('default␟adapter␟site%3Achatgpt');
+    expect(getSessionLeaseKey('default', 'adapter', 'site:x')).not.toBe(getSessionLeaseKey('default', 'browser', 'site:x'));
+  });
+  it('keeps the same session in different Chrome profiles on different keys', () => {
+    expect(getSessionLeaseKey('work', 'adapter', 'site:chatgpt'))
+      .not.toBe(getSessionLeaseKey('personal', 'adapter', 'site:chatgpt'));
   });
 });
 
@@ -58,7 +62,7 @@ describe('isSessionLeaseCommand', () => {
 });
 
 describe('SessionLeaseRegistry', () => {
-  const KEY = getSessionLeaseKey('adapter', 'site:chatgpt');
+  const KEY = getSessionLeaseKey('default', 'adapter', 'site:chatgpt');
 
   it('grants the first write and rejects a concurrent write on the same key', () => {
     const reg = new SessionLeaseRegistry();
@@ -74,12 +78,30 @@ describe('SessionLeaseRegistry', () => {
   it('does not block a write on a different session key', () => {
     const reg = new SessionLeaseRegistry();
     reg.touch(KEY, { runId: 'run_111_1_a', command: 'chatgpt ask', now: T0 });
-    const other = reg.touch(getSessionLeaseKey('adapter', 'site:claude'), {
+    const other = reg.touch(getSessionLeaseKey('default', 'adapter', 'site:claude'), {
       runId: 'run_222_2_b',
       command: 'claude ask',
       now: T0,
     });
     expect(other.granted).toBe(true);
+  });
+
+  it('does not block the same session in a different Chrome profile', () => {
+    const reg = new SessionLeaseRegistry();
+    reg.touch(getSessionLeaseKey('work', 'adapter', 'site:chatgpt'), {
+      runId: 'run_111_1_a', command: 'chatgpt ask', now: T0,
+    });
+    // Same session name, different profile → different browser → no conflict.
+    const other = reg.touch(getSessionLeaseKey('personal', 'adapter', 'site:chatgpt'), {
+      runId: 'run_222_2_b', command: 'chatgpt ask', now: T0,
+    });
+    expect(other.granted).toBe(true);
+    // But a rival within the SAME profile is still busy.
+    const rival = reg.touch(getSessionLeaseKey('work', 'adapter', 'site:chatgpt'), {
+      runId: 'run_333_3_c', command: 'chatgpt ask', now: T0 + 1,
+    });
+    expect(rival.granted).toBe(false);
+    expect(rival.holder.runId).toBe('run_111_1_a');
   });
 
   it('treats same-runId execs as heartbeats that keep the holder alive past the TTL', () => {
@@ -109,23 +131,72 @@ describe('SessionLeaseRegistry', () => {
     expect(retry.holder.runId).toBe('run_222_2_b');
   });
 
-  it('releases the lease so a retry succeeds immediately on normal completion', () => {
+  it('releases by runId alone so a retry succeeds immediately on normal completion', () => {
     const reg = new SessionLeaseRegistry();
     reg.touch(KEY, { runId: 'run_111_1_a', command: 'chatgpt ask', now: T0 });
-    reg.release(KEY, 'run_111_1_a');
+    // No key/contextId needed — the profile may have disconnected by now.
+    reg.releaseByRunId('run_111_1_a');
 
     const retry = reg.touch(KEY, { runId: 'run_222_2_b', command: 'chatgpt ask', now: T0 + 1 });
     expect(retry.granted).toBe(true);
   });
 
-  it('ignores a release from a run that no longer owns the lease', () => {
+  it('ignores a release from a run that holds nothing', () => {
     const reg = new SessionLeaseRegistry();
     reg.touch(KEY, { runId: 'run_111_1_a', command: 'chatgpt ask', now: T0 });
     // A stale/late release from a different run must not free the live holder.
-    reg.release(KEY, 'run_999_9_z');
+    reg.releaseByRunId('run_999_9_z');
 
     const rival = reg.touch(KEY, { runId: 'run_222_2_b', command: 'chatgpt ask', now: T0 + 1 });
     expect(rival.granted).toBe(false);
+  });
+
+  it('keeps a TTL-stale holder with an in-flight command alive against a challenger', () => {
+    const reg = new SessionLeaseRegistry();
+    reg.touch(KEY, { runId: 'run_111_1_a', command: 'chatgpt ask', now: T0 });
+
+    // One slow exec (e.g. a long navigate) produces no heartbeat past the TTL,
+    // but the daemon reports it as pending work — the challenger stays blocked.
+    const rival = reg.touch(KEY, {
+      runId: 'run_222_2_b',
+      command: 'chatgpt ask',
+      now: T0 + SESSION_LEASE_TTL_MS + 10_000,
+      hasPendingWork: (runId) => runId === 'run_111_1_a',
+    });
+    expect(rival.granted).toBe(false);
+    expect(rival.holder.runId).toBe('run_111_1_a');
+  });
+
+  it('lets a challenger acquire once the pending command settled and the TTL truly lapsed', () => {
+    const reg = new SessionLeaseRegistry();
+    reg.touch(KEY, { runId: 'run_111_1_a', command: 'chatgpt ask', now: T0 });
+
+    // The slow exec settles → the daemon heartbeats the lease → TTL restarts.
+    const settledAt = T0 + SESSION_LEASE_TTL_MS + 10_000;
+    reg.heartbeat(KEY, 'run_111_1_a', settledAt);
+
+    // Just after settle the holder is fresh again.
+    const early = reg.touch(KEY, {
+      runId: 'run_222_2_b', command: 'chatgpt ask', now: settledAt + 1, hasPendingWork: () => false,
+    });
+    expect(early.granted).toBe(false);
+
+    // With no further activity and no pending work, the TTL finally expires.
+    const late = reg.touch(KEY, {
+      runId: 'run_222_2_b', command: 'chatgpt ask', now: settledAt + SESSION_LEASE_TTL_MS + 1, hasPendingWork: () => false,
+    });
+    expect(late.granted).toBe(true);
+    expect(late.holder.runId).toBe('run_222_2_b');
+  });
+
+  it('heartbeat never lets a non-owner resurrect or steal the lease', () => {
+    const reg = new SessionLeaseRegistry();
+    reg.touch(KEY, { runId: 'run_111_1_a', command: 'chatgpt ask', now: T0 });
+    reg.heartbeat(KEY, 'run_999_9_z', T0 + 1);
+
+    const holder = reg.get(KEY, T0 + 2);
+    expect(holder?.runId).toBe('run_111_1_a');
+    expect(holder?.lastSeenAt).toBe(T0);
   });
 
   it('lists and evicts holders by liveness for status surfaces', () => {

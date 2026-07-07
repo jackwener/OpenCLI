@@ -76,17 +76,36 @@ type PendingEntry = {
    */
   settlers: PendingSettler[];
   timer: ReturnType<typeof setTimeout>;
+  /**
+   * Set for lease-eligible commands: while this entry is pending, the holder
+   * is alive even past the lease TTL (a single exec can outlast it), and
+   * settling refreshes the lease so the TTL clock restarts cleanly.
+   */
+  leaseKey?: string;
+  runId?: string;
 };
 const pending = new Map<string, PendingEntry>();
 
-// One logical write lease per (surface, persistent site session). Serializes
-// concurrent adapter write commands so a retry can't drive the same Chrome tab
-// as a still-running command. Stale leases self-expire (see session-lease.ts).
+// One logical write lease per (contextId, surface, persistent site session).
+// Serializes concurrent adapter write commands so a retry can't drive the same
+// Chrome tab as a still-running command. Stale leases self-expire (see
+// session-lease.ts).
 const sessionLeases = new SessionLeaseRegistry();
+
+/** A TTL-stale lease holder with a command still in flight is alive, not dead. */
+function runHasPendingWork(runId: string): boolean {
+  for (const entry of pending.values()) {
+    if (entry.runId === runId) return true;
+  }
+  return false;
+}
 
 function settlePending(id: string, entry: PendingEntry, outcome: { data?: unknown; error?: Error }): void {
   clearTimeout(entry.timer);
   pending.delete(id);
+  // A settling command is proof of holder liveness — restart the TTL clock so
+  // an exec that outlived the TTL hands over to normal heartbeats seamlessly.
+  if (entry.leaseKey && entry.runId) sessionLeases.heartbeat(entry.leaseKey, entry.runId, Date.now());
   for (const settler of entry.settlers) {
     if (outcome.error) settler.reject(outcome.error);
     else settler.resolve(outcome.data);
@@ -335,27 +354,50 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
-      // ─── Session write lease ──────────────────────────────────────────
-      // Explicit release on normal command completion — daemon-local, never
-      // dispatched to the extension.
+      // ─── Session write lease: explicit release ───────────────────────
+      // Daemon-local, never dispatched to the extension. Keyed by runId alone:
+      // runIds are globally unique, and re-resolving the profile route here
+      // could fail (the profile may have disconnected since acquire).
       if (body.action === 'lease-release') {
-        if (typeof body.runId === 'string' && typeof body.surface === 'string' && typeof body.session === 'string') {
-          sessionLeases.release(getSessionLeaseKey(body.surface, body.session), body.runId);
-        }
+        if (typeof body.runId === 'string') sessionLeases.releaseByRunId(body.runId);
         jsonResponse(res, 200, { id: body.id, ok: true });
         return;
       }
-      // Arbitrate write commands on a persistent site session: the first
-      // acquires, same-runId execs refresh (heartbeat), a concurrent
-      // different-runId write fails fast BEFORE any page is driven. Read and
-      // ephemeral commands are never arbitrated.
+
+      const route = resolveExtensionConnection(
+        typeof body.contextId === 'string' ? body.contextId : undefined,
+        typeof body.preferredContextId === 'string' ? body.preferredContextId : undefined,
+      );
+      if (!route.connection) {
+        jsonResponse(res, route.errorCode === 'profile_required' ? 409 : 503, {
+          id: body.id,
+          ok: false,
+          errorCode: route.errorCode,
+          error: route.error,
+          ...(route.errorHint ? { errorHint: route.errorHint } : {}),
+        });
+        return;
+      }
+
+      // ─── Session write lease: arbitration ────────────────────────────
+      // Runs AFTER profile routing (the resolved contextId is part of the
+      // lease key — the same site session in two Chrome profiles drives two
+      // different browsers) but BEFORE any dispatch to the extension. The
+      // first write acquires, same-runId execs refresh (heartbeat), and a
+      // concurrent different-runId write fails fast. Read and ephemeral
+      // commands are never arbitrated.
+      let leaseKey: string | undefined;
+      let leaseRunId: string | undefined;
       if (isSessionLeaseCommand(body)) {
         const now = Date.now();
-        const key = getSessionLeaseKey(body.surface, body.session);
+        const key = getSessionLeaseKey(route.connection.contextId, body.surface, body.session);
         const outcome = sessionLeases.touch(key, {
           runId: body.runId,
           command: typeof body.command === 'string' && body.command ? body.command : body.action,
           now,
+          // A holder past the TTL whose exec is still in flight is alive — a
+          // single slow command produces no heartbeat until it settles.
+          hasPendingWork: runHasPendingWork,
         });
         if (!outcome.granted) {
           const failure = buildSessionBusyFailure(body.session, outcome.holder, now);
@@ -372,21 +414,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           });
           return;
         }
-      }
-
-      const route = resolveExtensionConnection(
-        typeof body.contextId === 'string' ? body.contextId : undefined,
-        typeof body.preferredContextId === 'string' ? body.preferredContextId : undefined,
-      );
-      if (!route.connection) {
-        jsonResponse(res, route.errorCode === 'profile_required' ? 409 : 503, {
-          id: body.id,
-          ok: false,
-          errorCode: route.errorCode,
-          error: route.error,
-          ...(route.errorHint ? { errorHint: route.errorHint } : {}),
-        });
-        return;
+        leaseKey = key;
+        leaseRunId = body.runId;
       }
 
       // Absolute deadline wins over the legacy duration field: all hops share
@@ -423,6 +452,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           dispatched: false,
           settlers: [{ resolve, reject }],
           timer,
+          ...(leaseKey && leaseRunId ? { leaseKey, runId: leaseRunId } : {}),
         };
         pending.set(body.id, entry);
         const failBeforeDispatch = (err: unknown) => {
