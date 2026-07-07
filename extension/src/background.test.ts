@@ -66,6 +66,7 @@ function createChromeMock() {
   let nextTabId = 10;
   let nextGroupId = 100;
   const storageState: Record<string, unknown> = {};
+  const sessionStorageState: Record<string, unknown> = {};
   const tabs: MockTab[] = [
     { id: 1, windowId: 1, url: 'https://automation.example', title: 'automation', active: true, status: 'complete', groupId: -1 },
     { id: 2, windowId: 2, url: 'https://user.example', title: 'user', active: true, status: 'complete', groupId: -1 },
@@ -213,6 +214,12 @@ function createChromeMock() {
         get: vi.fn(async (key: string) => ({ [key]: storageState[key] })),
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.assign(storageState, items);
+        }),
+      },
+      session: {
+        get: vi.fn(async (key: string) => ({ [key]: sessionStorageState[key] })),
+        set: vi.fn(async (items: Record<string, unknown>) => {
+          Object.assign(sessionStorageState, items);
         }),
       },
     },
@@ -1905,6 +1912,7 @@ describe('background tab isolation', () => {
   });
 
   const REGISTRY_KEY = 'opencli_target_lease_registry_v2';
+  const LEDGER_KEY = 'opencli_interactive_group_ledger_v1';
 
   // Gate the registry read so the startup recovery chain (workerReady) stays
   // pending on demand. Every other storage read (context id) resolves normally.
@@ -1933,7 +1941,7 @@ describe('background tab isolation', () => {
         version: 2,
         contextId: 'user-default',
         ownedContainers: {
-          interactive: { windowId: null, groupId: 200, groupIds: [200] },
+          interactive: { windowId: null, groupId: 200 },
           automation: { windowId: 1, groupId: null },
         },
         leases: {
@@ -1988,7 +1996,7 @@ describe('background tab isolation', () => {
         version: 2,
         contextId: 'user-default',
         ownedContainers: {
-          interactive: { windowId: null, groupId: 200, groupIds: [200] },
+          interactive: { windowId: null, groupId: 200 },
           automation: { windowId: 1, groupId: null },
         },
         leases: {
@@ -2028,7 +2036,7 @@ describe('background tab isolation', () => {
     expect(finalRegistry.leases[adapterKey('twitter')]).toBeDefined();
   });
 
-  it('adopts an untitled orphan group through the ledger instead of creating a new one', async () => {
+  it('adopts an untitled orphan group through the session ledger instead of creating a new one', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     tabs.push({ id: 50, windowId: 5, url: 'about:blank', title: 'blank', active: true, status: 'complete', groupId: 200 });
     groups.push({ id: 200, windowId: 5, title: '', collapsed: false });
@@ -2038,12 +2046,13 @@ describe('background tab isolation', () => {
         version: 2,
         contextId: 'user-default',
         ownedContainers: {
-          interactive: { windowId: null, groupId: null, groupIds: [200] },
+          interactive: { windowId: null, groupId: null },
           automation: { windowId: null, groupId: null },
         },
         leases: {},
       },
     });
+    await chrome.storage.session.set({ [LEDGER_KEY]: [200] });
 
     const mod = await import('./background');
     await mod.__test__.reconcileTargetLeaseRegistry();
@@ -2058,7 +2067,7 @@ describe('background tab isolation', () => {
     expect(container.groupIds).toContain(200);
   });
 
-  it('prunes a vanished group id from the ledger on convergence', async () => {
+  it('prunes a vanished group id from the session ledger on convergence', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
     await chrome.storage.local.set({
@@ -2066,7 +2075,42 @@ describe('background tab isolation', () => {
         version: 2,
         contextId: 'user-default',
         ownedContainers: {
-          interactive: { windowId: null, groupId: null, groupIds: [300] },
+          interactive: { windowId: null, groupId: null },
+          automation: { windowId: null, groupId: null },
+        },
+        leases: {},
+      },
+    });
+    await chrome.storage.session.set({ [LEDGER_KEY]: [300] });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    const createGroupCalls = chrome.tabs.group.mock.calls.filter((call: any[]) => call[0]?.createProperties);
+    expect(createGroupCalls).toHaveLength(0);
+    expect(mod.__test__.getInteractiveContainer().groupIds).not.toContain(300);
+    const finalLedger = (await chrome.storage.session.get(LEDGER_KEY) as any)[LEDGER_KEY];
+    expect(finalLedger).toEqual([]);
+    // The v2 registry stays free of ledger data — group ids never persist
+    // beyond the browser session.
+    const finalRegistry = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
+    expect(finalRegistry.ownedContainers.interactive.groupIds).toBeUndefined();
+  });
+
+  it('ignores legacy groupIds persisted in the local registry so a recycled id cannot hijack a user group', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    // A user-created group from THIS browser session whose id happens to match
+    // a ledger entry a previous OpenCLI version persisted across restarts.
+    tabs.push({ id: 70, windowId: 7, url: 'https://vacation.example', title: 'trip', active: true, status: 'complete', groupId: 400 });
+    groups.push({ id: 400, windowId: 7, title: 'Vacation', color: 'blue', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      [REGISTRY_KEY]: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: {
+          interactive: { windowId: null, groupId: null, groupIds: [400] },
           automation: { windowId: null, groupId: null },
         },
         leases: {},
@@ -2076,11 +2120,12 @@ describe('background tab isolation', () => {
     const mod = await import('./background');
     await mod.__test__.reconcileTargetLeaseRegistry();
 
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    const createGroupCalls = chrome.tabs.group.mock.calls.filter((call: any[]) => call[0]?.createProperties);
-    expect(createGroupCalls).toHaveLength(0);
-    expect(mod.__test__.getInteractiveContainer().groupIds).not.toContain(300);
-    const finalRegistry = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
-    expect(finalRegistry.ownedContainers.interactive.groupIds).toEqual([]);
+    // The user group is untouched: no retitle, no merge, no group mutation.
+    expect(groups.find((group) => group.id === 400)?.title).toBe('Vacation');
+    expect(tabs.find((tab) => tab.id === 70)?.groupId).toBe(400);
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    // And the stale id never entered the in-memory ledger.
+    expect(mod.__test__.getInteractiveContainer().groupIds).not.toContain(400);
   });
 });
