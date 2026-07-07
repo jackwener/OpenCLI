@@ -9,6 +9,8 @@ import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 import * as runtime from './runtime.js';
 import * as capRouting from './capabilityRouting.js';
+import * as daemonClient from './browser/daemon-client.js';
+import { BrowserCommandError } from './browser/daemon-client.js';
 
 describe('executeCommand — non-browser timeout', () => {
   it('applies the user --timeout arg as the ceiling for non-browser commands', async () => {
@@ -735,5 +737,63 @@ describe('executeCommand — non-browser timeout', () => {
       fs.rmSync(baseDir, { recursive: true, force: true });
       vi.restoreAllMocks();
     }
+  });
+});
+
+describe('executeCommand — persistent write lease release', () => {
+  function persistentWriteCmd(func: () => Promise<unknown>): CliCommand {
+    return cli({
+      site: 'test-execution',
+      name: 'lease-write', access: 'write',
+      description: 'test persistent write lease release',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      siteSession: 'persistent',
+      func,
+    });
+  }
+
+  it('releases the lease after a successful persistent write', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const releaseSpy = vi.spyOn(daemonClient, 'releaseSiteSessionLease').mockResolvedValue(undefined);
+    const runCtxSpy = vi.spyOn(daemonClient, 'setDaemonRunContext');
+
+    await executeCommand(persistentWriteCmd(async () => [{ ok: true }]), {});
+
+    expect(releaseSpy).toHaveBeenCalledTimes(1);
+    expect(runCtxSpy).toHaveBeenLastCalledWith(null);
+    vi.restoreAllMocks();
+  });
+
+  it('releases the lease after an ordinary persistent write failure', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const releaseSpy = vi.spyOn(daemonClient, 'releaseSiteSessionLease').mockResolvedValue(undefined);
+    const runCtxSpy = vi.spyOn(daemonClient, 'setDaemonRunContext');
+
+    const cmd = persistentWriteCmd(async () => { throw new BrowserCommandError('boom', 'attach_failed'); });
+    await expect(executeCommand(cmd, {})).rejects.toThrow('boom');
+
+    expect(releaseSpy).toHaveBeenCalledTimes(1);
+    expect(runCtxSpy).toHaveBeenLastCalledWith(null);
+    vi.restoreAllMocks();
+  });
+
+  it('does NOT release the lease after an unknown-outcome failure but still clears the run context', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const releaseSpy = vi.spyOn(daemonClient, 'releaseSiteSessionLease').mockResolvedValue(undefined);
+    const runCtxSpy = vi.spyOn(daemonClient, 'setDaemonRunContext');
+
+    // The browser-side command may still be running against the persistent tab,
+    // so releasing now would let a manual rerun collide with it — the TTL must
+    // reclaim the lease instead.
+    const cmd = persistentWriteCmd(async () => { throw new BrowserCommandError('result unknown', 'command_result_unknown'); });
+    await expect(executeCommand(cmd, {})).rejects.toThrow('result unknown');
+
+    expect(releaseSpy).not.toHaveBeenCalled();
+    expect(runCtxSpy).toHaveBeenLastCalledWith(null);
+    vi.restoreAllMocks();
   });
 });

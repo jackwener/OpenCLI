@@ -170,11 +170,19 @@ export class SessionLeaseRegistry {
     return current;
   }
 
-  /** Snapshot of active holders for status surfaces (who owns each session). */
-  list(now: number): Array<{ key: string } & SessionLeaseHolder> {
+  /**
+   * Snapshot of active holders for status surfaces (who owns each session).
+   * Uses the same aliveness rule as `touch()`: a TTL-stale holder with a
+   * command still in flight is alive, not dead, so `hasPendingWork` keeps it
+   * listed. Without it, `/status` would show no holder while challengers are
+   * still being rejected — misleading during a single long exec. Read-only:
+   * never lazily evicts.
+   */
+  list(now: number, hasPendingWork?: (runId: string) => boolean): Array<{ key: string } & SessionLeaseHolder> {
     const out: Array<{ key: string } & SessionLeaseHolder> = [];
     for (const [key, holder] of this.leases) {
-      if (now - holder.lastSeenAt <= this.ttlMs) out.push({ key, ...holder });
+      const alive = now - holder.lastSeenAt <= this.ttlMs || hasPendingWork?.(holder.runId) === true;
+      if (alive) out.push({ key, ...holder });
     }
     return out;
   }

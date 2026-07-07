@@ -4,6 +4,7 @@ import {
   BrowserCommandError,
   fetchDaemonStatus,
   getDaemonHealth,
+  isUnknownOutcomeError,
   requestDaemonShutdown,
   sendCommand,
   setDaemonCommandTimeoutSeconds,
@@ -651,5 +652,25 @@ describe('daemon-client', () => {
 
     expect(ensureSpy).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('isUnknownOutcomeError', () => {
+  it('is true for each unknown-outcome code', () => {
+    for (const code of ['command_result_unknown', 'command_lost', 'result_evicted']) {
+      expect(isUnknownOutcomeError(new BrowserCommandError('unknown', code))).toBe(true);
+    }
+  });
+
+  it('is false for an ordinary failure code and for a success (no error)', () => {
+    expect(isUnknownOutcomeError(new BrowserCommandError('boom', 'attach_failed'))).toBe(false);
+    expect(isUnknownOutcomeError(new Error('plain failure'))).toBe(false);
+    expect(isUnknownOutcomeError(undefined)).toBe(false);
+    expect(isUnknownOutcomeError(null)).toBe(false);
+  });
+
+  it('unwraps an unknown-outcome error nested in a cause chain', () => {
+    const wrapped = new Error('adapter failed', { cause: new BrowserCommandError('lost', 'command_lost') });
+    expect(isUnknownOutcomeError(wrapped)).toBe(true);
   });
 });

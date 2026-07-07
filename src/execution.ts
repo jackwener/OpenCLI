@@ -30,7 +30,7 @@ import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyErro
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
-import { generateRunId, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
+import { generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
@@ -274,6 +274,8 @@ export async function executeCommand(
         ? { runId: generateRunId(), session }
         : null;
       if (leaseRun) setDaemonRunContext({ runId: leaseRun.runId, command: fullName(cmd), access: 'write' });
+      let browserRunError: unknown;
+      try {
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
@@ -391,14 +393,28 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession }).finally(async () => {
-        // Release the lease and clear the run identity whether the command
-        // succeeded or failed. Best-effort: TTL reclaims it if release is lost.
+      }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession });
+      } catch (err) {
+        browserRunError = err;
+        throw err;
+      } finally {
+        // Clear the run identity whether the command succeeded or failed, then
+        // release the lease so a retry succeeds immediately. Best-effort: TTL
+        // reclaims it if the release is lost.
+        //
+        // Exception: an unknown-outcome failure (result-unknown / command-lost /
+        // result-evicted) means the browser-side command may STILL be running
+        // against the persistent tab. Releasing now would let a manual rerun
+        // acquire the lease and collide with the stale command — the very
+        // collision this lease prevents. Skip the explicit release and let the
+        // TTL reclaim it after a bounded quiet period.
         if (leaseRun) {
           setDaemonRunContext(null);
-          await releaseSiteSessionLease({ runId: leaseRun.runId, session: leaseRun.session, surface: 'adapter' });
+          if (!isUnknownOutcomeError(browserRunError)) {
+            await releaseSiteSessionLease({ runId: leaseRun.runId, session: leaseRun.session, surface: 'adapter' });
+          }
         }
-      });
+      }
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that

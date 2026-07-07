@@ -316,7 +316,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       profileDisconnected: route.errorCode === 'profile_disconnected',
       profiles,
       pending: pending.size,
-      sessionLeases: sessionLeases.list(Date.now()),
+      sessionLeases: sessionLeases.list(Date.now(), runHasPendingWork),
       commandResultUnknown: commandResultUnknownCount,
       memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
       port: PORT,

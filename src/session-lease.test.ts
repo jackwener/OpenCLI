@@ -208,6 +208,25 @@ describe('SessionLeaseRegistry', () => {
     expect(reg.get(KEY, T0 + SESSION_LEASE_TTL_MS + 1)).toBeUndefined();
     expect(reg.list(T0 + SESSION_LEASE_TTL_MS + 1)).toEqual([]);
   });
+
+  it('lists a TTL-stale holder that still has pending work (matches touch aliveness)', () => {
+    const reg = new SessionLeaseRegistry();
+    reg.touch(KEY, { runId: 'run_111_1_a', command: 'chatgpt ask', now: T0 });
+    const staleNow = T0 + SESSION_LEASE_TTL_MS + 10_000;
+
+    // Without the predicate the TTL-stale holder is hidden, so /status would
+    // wrongly show no holder while a long exec still rejects challengers.
+    expect(reg.list(staleNow)).toEqual([]);
+
+    // With a pending in-flight command it stays listed, matching touch()'s
+    // aliveness rule so /status and arbitration agree.
+    expect(reg.list(staleNow, (runId) => runId === 'run_111_1_a')).toEqual([
+      expect.objectContaining({ key: KEY, runId: 'run_111_1_a' }),
+    ]);
+
+    // A predicate that reports no pending work drops the stale holder again.
+    expect(reg.list(staleNow, () => false)).toEqual([]);
+  });
 });
 
 describe('buildSessionBusyFailure', () => {

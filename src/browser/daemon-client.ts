@@ -137,6 +137,25 @@ function versionAtLeast(version: string | null | undefined, min: string): boolea
 /** Error codes meaning the executor's outcome is genuinely unknown — never auto-retry. */
 const UNKNOWN_OUTCOME_CODES = new Set(['command_result_unknown', 'command_lost', 'result_evicted']);
 
+/**
+ * True when a thrown error carries an unknown-outcome code — the browser-side
+ * command may still be running even though the client gave up. Callers use this
+ * to decide whether it is safe to release a persistent site-session lease: it is
+ * not, because the still-running command keeps mutating the tab. Walks the cause
+ * chain so a wrapped `BrowserCommandError` is still recognized.
+ */
+export function isUnknownOutcomeError(err: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = err;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string' && UNKNOWN_OUTCOME_CODES.has(code)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 /** Max transport attempts for one logical command (same id throughout). */
 const TRANSPORT_MAX_ATTEMPTS = 4;
 
