@@ -363,7 +363,11 @@ type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
 type StoredRegistry = {
   version: 2;
   contextId: BrowserContextId;
-  ownedContainers: Record<OwnedWindowRole, { windowId: number | null; groupId?: number | null }>;
+  // Deliberately windowId-only: tab group ids are browser-session scoped, so
+  // the durable registry must never store or trust one (a recycled id could
+  // hijack a user-created group after a browser restart). Within one browser
+  // session, group recovery is covered by the session ledger + title layer.
+  ownedContainers: Record<OwnedWindowRole, { windowId: number | null }>;
   leases: Record<string, StoredLease>;
 };
 
@@ -495,14 +499,8 @@ function emptyRegistry(): StoredRegistry {
     version: 2,
     contextId: currentContextId,
     ownedContainers: {
-      interactive: {
-        windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId,
-      },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: null,
-      },
+      interactive: { windowId: ownedContainers.interactive.windowId },
+      automation: { windowId: ownedContainers.automation.windowId },
     },
     leases: {},
   };
@@ -524,11 +522,9 @@ async function readRegistry(): Promise<StoredRegistry> {
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === 'number' ? storedContainers.interactive.windowId : null,
-          groupId: typeof storedContainers.interactive?.groupId === 'number' ? storedContainers.interactive.groupId : null,
         },
         automation: {
           windowId: typeof storedContainers.automation?.windowId === 'number' ? storedContainers.automation.windowId : null,
-          groupId: null,
         },
       },
       leases: stored.leases as Record<string, StoredLease>,
@@ -568,14 +564,8 @@ async function persistRuntimeState(): Promise<void> {
     version: 2,
     contextId: currentContextId,
     ownedContainers: {
-      interactive: {
-        windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId,
-      },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: null,
-      },
+      interactive: { windowId: ownedContainers.interactive.windowId },
+      automation: { windowId: ownedContainers.automation.windowId },
     },
     leases,
   });
@@ -855,15 +845,13 @@ async function createOwnedGroup(
   if (ids.length === 0) throw new Error(`Cannot create ${role} tab group without tabs`);
   await ensureTabsInWindow(ids, windowId);
   const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
-  // Persist groupId before the title/color update so a worker crash between
-  // the two API calls can self-heal on resume. `ensureCanonicalGroupTitle`
-  // will repair the title on the next ensure cycle if the update never lands;
-  // we must not `tabs.ungroup` on failure or the persisted id dangles.
   ownedContainers[role].groupId = groupId;
   ownedContainers[role].windowId = windowId;
-  // Record in the session ledger before the title update lands so a crash
-  // between `tabs.group` and `tabGroups.update` still leaves the orphan
-  // discoverable on the next worker start.
+  // Record in the session ledger before the title/color update lands so a
+  // worker crash between the two API calls can self-heal on resume:
+  // `ensureCanonicalGroupTitle` repairs the title on the next ensure cycle
+  // once the ledger surfaces the untitled orphan. We must not `tabs.ungroup`
+  // on failure or the recorded id dangles.
   if (role === 'interactive') {
     interactiveGroupLedger.add(groupId);
     await persistInteractiveGroupLedger();
@@ -2137,16 +2125,17 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
   // scoped by design — see the ledger declaration). Deliberately NOT from the
   // local registry: group ids from a previous browser session are stale.
   await restoreInteractiveGroupLedger();
+  // Only windowId is restored from the durable registry; the in-memory groupId
+  // cache stays null (a fresh worker) and repopulates via the session ledger,
+  // title, and lease layers during the convergence below.
   for (const role of Object.keys(ownedContainers) as OwnedWindowRole[]) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
-    ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
     const windowId = ownedContainers[role].windowId;
     if (windowId !== null) {
       try {
         await chrome.windows.get(windowId);
       } catch {
         ownedContainers[role].windowId = null;
-        ownedContainers[role].groupId = null;
       }
     }
   }

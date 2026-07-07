@@ -1063,14 +1063,8 @@ function emptyRegistry() {
     version: 2,
     contextId: currentContextId,
     ownedContainers: {
-      interactive: {
-        windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
-      },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: null
-      }
+      interactive: { windowId: ownedContainers.interactive.windowId },
+      automation: { windowId: ownedContainers.automation.windowId }
     },
     leases: {}
   };
@@ -1088,12 +1082,10 @@ async function readRegistry() {
       contextId: currentContextId,
       ownedContainers: {
         interactive: {
-          windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
-          groupId: typeof storedContainers.interactive?.groupId === "number" ? storedContainers.interactive.groupId : null
+          windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null
         },
         automation: {
-          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null,
-          groupId: null
+          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null
         }
       },
       leases: stored.leases
@@ -1130,14 +1122,8 @@ async function persistRuntimeState() {
     version: 2,
     contextId: currentContextId,
     ownedContainers: {
-      interactive: {
-        windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
-      },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: null
-      }
+      interactive: { windowId: ownedContainers.interactive.windowId },
+      automation: { windowId: ownedContainers.automation.windowId }
     },
     leases
   });
@@ -2350,14 +2336,12 @@ async function reconcileTargetLeaseRegistry() {
   await restoreInteractiveGroupLedger();
   for (const role of Object.keys(ownedContainers)) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
-    ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
     const windowId = ownedContainers[role].windowId;
     if (windowId !== null) {
       try {
         await chrome.windows.get(windowId);
       } catch {
         ownedContainers[role].windowId = null;
-        ownedContainers[role].groupId = null;
       }
     }
   }

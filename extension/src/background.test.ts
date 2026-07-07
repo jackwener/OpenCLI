@@ -1979,8 +1979,10 @@ describe('background tab isolation', () => {
     await alarmDone;
 
     const finalRegistry = await readDirect(REGISTRY_KEY);
-    // groupId self-heal pointer survived recovery instead of being nulled.
-    expect(finalRegistry.ownedContainers.interactive.groupId).toBe(200);
+    // Group ids never re-enter the durable registry (browser-session scoped);
+    // the canonical group is re-found in memory via the title layer instead.
+    expect(finalRegistry.ownedContainers.interactive.groupId).toBeUndefined();
+    expect(mod.__test__.getInteractiveContainer().groupId).toBe(200);
     // The lease was released down the proper owned-placeholder path, not wiped.
     expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
@@ -2016,7 +2018,7 @@ describe('background tab isolation', () => {
     });
     const { gate, readDirect } = gateRegistryRead(chrome);
 
-    await import('./background');
+    const mod = await import('./background');
 
     // Wake the worker via an unrelated tab-close before recovery.
     const onRemovedListener = chrome.tabs.onRemoved.addListener.mock.calls[0][0];
@@ -2031,7 +2033,9 @@ describe('background tab isolation', () => {
     await removedDone;
 
     const finalRegistry = await readDirect(REGISTRY_KEY);
-    expect(finalRegistry.ownedContainers.interactive.groupId).toBe(200);
+    // Group ids never re-enter the durable registry (browser-session scoped).
+    expect(finalRegistry.ownedContainers.interactive.groupId).toBeUndefined();
+    expect(mod.__test__.getInteractiveContainer().groupId).toBe(200);
     // The unrelated lease survived the unrelated tab-close.
     expect(finalRegistry.leases[adapterKey('twitter')]).toBeDefined();
   });
@@ -2127,5 +2131,37 @@ describe('background tab isolation', () => {
     expect(chrome.tabs.group).not.toHaveBeenCalled();
     // And the stale id never entered the in-memory ledger.
     expect(mod.__test__.getInteractiveContainer().groupIds).not.toContain(400);
+  });
+
+  it('ignores a legacy interactive groupId persisted in the local registry so a recycled id cannot hijack a user group', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    // Same hazard as the plural groupIds ledger, through the singular cached
+    // pointer: group ids are browser-session scoped, so a groupId persisted by
+    // a previous browser session can collide with a user-created group here.
+    tabs.push({ id: 70, windowId: 7, url: 'https://vacation.example', title: 'trip', active: true, status: 'complete', groupId: 400 });
+    groups.push({ id: 400, windowId: 7, title: 'Vacation', color: 'blue', collapsed: false });
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      [REGISTRY_KEY]: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: {
+          interactive: { windowId: null, groupId: 400 },
+          automation: { windowId: null, groupId: null },
+        },
+        leases: {},
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    // The user group is untouched: no retitle, no merge, no group mutation.
+    expect(groups.find((group) => group.id === 400)?.title).toBe('Vacation');
+    expect(tabs.find((tab) => tab.id === 70)?.groupId).toBe(400);
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    // And the stale pointer was never adopted into memory.
+    expect(mod.__test__.getInteractiveContainer().groupId).toBeNull();
   });
 });
