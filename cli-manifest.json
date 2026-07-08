@@ -39509,6 +39509,51 @@
   },
   {
     "site": "weixin",
+    "name": "create-sticker",
+    "description": "创建微信公众号贴图草稿",
+    "access": "write",
+    "domain": "mp.weixin.qq.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "content",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "贴图描述 (最多1000字)"
+      },
+      {
+        "name": "image",
+        "type": "str",
+        "required": true,
+        "help": "贴图图片路径 (bmp/gif/jpg/png/webp)"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "贴图标题 (最多20字，选填)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Max seconds for the overall command (default: 180)"
+      }
+    ],
+    "columns": [
+      "status",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "weixin/create-sticker.js",
+    "sourceFile": "weixin/create-sticker.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "weixin",
     "name": "download",
     "description": "下载微信公众号文章为 Markdown 格式",
     "access": "read",
