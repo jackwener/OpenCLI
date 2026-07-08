@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const { mockApiGet, mockDownloadMedia, mockCheckYtdlp } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
@@ -116,5 +116,58 @@ describe('bilibili download paid-content pre-check', () => {
 
     expect(rows[0].status).toBe('success');
     expect(mockDownloadMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('targets the selected 分P part URL (?p=N) when --page is given', async () => {
+    mockApiGet
+      .mockResolvedValueOnce(viewPayload({
+        pages: [
+          { cid: 1001, page: 1, part: 'P1' },
+          { cid: 1003, page: 3, part: 'P3 标题' },
+        ],
+      }))
+      .mockResolvedValueOnce(viewPayload());
+
+    await command.func(page, { bvid: 'BV1h6V16SEpg', output: './o', quality: 'best', force: false, page: '3' });
+
+    // goto 与 yt-dlp 下载 URL 都应带 ?p=3
+    expect(page.goto).toHaveBeenCalledWith('https://www.bilibili.com/video/BV1h6V16SEpg?p=3');
+    const job = mockDownloadMedia.mock.calls[0][0][0];
+    expect(job.url).toBe('https://www.bilibili.com/video/BV1h6V16SEpg?p=3');
+    expect(job.filename).toContain('_p3_P3 标题');
+  });
+
+  it('rejects malformed --page before download side effects', async () => {
+    await expect(
+      command.func(page, { bvid: 'BV1h6V16SEpg', output: './o', quality: 'best', force: false, page: '1e2' }),
+    ).rejects.toBeInstanceOf(ArgumentError);
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockApiGet).not.toHaveBeenCalled();
+    expect(mockDownloadMedia).not.toHaveBeenCalled();
+  });
+
+  it('fails before yt-dlp when selected --page is absent from view API pages', async () => {
+    mockApiGet.mockResolvedValueOnce(viewPayload({
+      pages: [{ cid: 1001, page: 1, part: 'P1' }],
+    }));
+
+    await expect(
+      command.func(page, { bvid: 'BV1h6V16SEpg', output: './o', quality: 'best', force: false, page: '9' }),
+    ).rejects.toBeInstanceOf(CommandExecutionError);
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockDownloadMedia).not.toHaveBeenCalled();
+  });
+
+  it('downloads default P1 (no ?p=) when --page is omitted', async () => {
+    mockApiGet.mockResolvedValueOnce(viewPayload());
+
+    await command.func(page, { bvid: 'BV1xx411c7mD', output: './o', quality: 'best', force: false });
+
+    expect(page.goto).toHaveBeenCalledWith('https://www.bilibili.com/video/BV1xx411c7mD');
+    const job = mockDownloadMedia.mock.calls[0][0][0];
+    expect(job.url).toBe('https://www.bilibili.com/video/BV1xx411c7mD');
+    expect(job.filename).not.toContain('_p');
   });
 });

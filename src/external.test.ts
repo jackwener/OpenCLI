@@ -146,3 +146,54 @@ describe('installExternalCli', () => {
     expect(mockExecFileSync).toHaveBeenCalledTimes(1);
   });
 });
+
+const { spawnSync } = await import('node:child_process');
+const { executeExternalCli } = await import('./external.js');
+
+describe('executeExternalCli passthrough', () => {
+  const spawnMock = vi.mocked(spawnSync);
+  const cli: ExternalCliConfig = { name: 'tg', binary: 'tg', description: '' } as ExternalCliConfig;
+
+  beforeEach(() => {
+    spawnMock.mockReset();
+    mockExecFileSync.mockReset();
+    mockExecFileSync.mockReturnValue(Buffer.from('')); // isBinaryInstalled → true
+    process.exitCode = undefined;
+  });
+
+  it('retries through the shell on Windows when the binary is a .cmd shim (EINVAL)', () => {
+    mockPlatform.mockReturnValue('win32');
+    const einval = Object.assign(new Error('spawnSync tg EINVAL'), { code: 'EINVAL' });
+    spawnMock
+      .mockReturnValueOnce({ error: einval, status: null, signal: null } as unknown as ReturnType<typeof spawnSync>)
+      .mockReturnValueOnce({ status: 0, signal: null } as unknown as ReturnType<typeof spawnSync>);
+
+    executeExternalCli('tg', ['send', 'hello world', '--to', 'a"b'], [cli]);
+
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    expect(spawnMock).toHaveBeenNthCalledWith(1, 'tg', ['send', 'hello world', '--to', 'a"b'], { stdio: 'inherit' });
+    // Shell fallback: one quoted command string, tokens with spaces/quotes wrapped for cmd.exe.
+    expect(spawnMock).toHaveBeenNthCalledWith(2, 'tg send "hello world" --to "a""b"', { stdio: 'inherit', shell: true });
+    expect(process.exitCode).toBe(0);
+  });
+
+  it('does not retry through the shell on non-Windows platforms', () => {
+    mockPlatform.mockReturnValue('darwin');
+    const einval = Object.assign(new Error('spawnSync tg EINVAL'), { code: 'EINVAL' });
+    spawnMock.mockReturnValueOnce({ error: einval, status: null, signal: null } as unknown as ReturnType<typeof spawnSync>);
+
+    executeExternalCli('tg', [], [cli]);
+
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('reports a non-zero exit code when the child dies from a signal', () => {
+    mockPlatform.mockReturnValue('darwin');
+    spawnMock.mockReturnValueOnce({ status: null, signal: 'SIGKILL' } as unknown as ReturnType<typeof spawnSync>);
+
+    executeExternalCli('tg', [], [cli]);
+
+    expect(process.exitCode).toBe(1);
+  });
+});

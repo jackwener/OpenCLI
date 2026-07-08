@@ -27,6 +27,7 @@ import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type Fi
 import { inferShape } from './browser/shape.js';
 import { assignKeys } from './browser/network-key.js';
 import { DEFAULT_TTL_MS, findEntry, loadNetworkCache, saveNetworkCache, type CachedNetworkEntry } from './browser/network-cache.js';
+import { NETWORK_INTERCEPTOR_JS } from './browser/network-interceptor.js';
 import { parseFilter, shapeMatchesFilter } from './browser/shape-filter.js';
 import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
@@ -34,9 +35,11 @@ import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { registerAuthCommands } from './commands/auth.js';
 import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
-import { bindTab, BrowserCommandError, fetchDaemonStatus, sendCommand } from './browser/daemon-client.js';
-import { aliasForContextId, loadProfileConfig, renameProfile, resolveProfileContextId, setDefaultProfile } from './browser/profile.js';
+import { bindTab, BrowserCommandError, sendCommand } from './browser/daemon-client.js';
+import { fetchDaemonStatus } from './browser/daemon-transport.js';
+import { aliasForContextId, loadProfileConfig, profileRouteParams, renameProfile, resolveProfileSelection, setDefaultProfile, type ProfileSelection } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
+import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
 import type { BrowserWindowMode } from './runtime.js';
 
@@ -516,7 +519,7 @@ async function resolveStoredBrowserTarget(page: import('./types.js').IPage, scop
 async function getBrowserPage(
   session: string,
   targetPage?: string,
-  contextId?: string,
+  profileSelection?: ProfileSelection,
   opts: { windowMode?: BrowserWindowMode } = {},
 ): Promise<import('./types.js').IPage> {
   const { BrowserBridge } = await import('./browser/index.js');
@@ -525,14 +528,14 @@ async function getBrowserPage(
   const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
   const page = await bridge.connect({
-    timeout: 30,
+    timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
     session,
     surface: 'browser',
-    ...(contextId && { contextId }),
+    ...profileRouteParams(profileSelection),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
     windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'foreground'),
   });
-  const targetScope = getBrowserScope(session, contextId);
+  const targetScope = getBrowserScope(session, profileSelection?.contextId);
   const resolvedTargetPage = targetPage
     ? await resolveBrowserTargetInSession(page, targetPage, { scope: targetScope, source: 'explicit' })
     : await resolveStoredBrowserTarget(page, targetScope);
@@ -588,9 +591,9 @@ function getBrowserSession(command?: Command): string {
   throw new Error('<session> is a required positional argument: opencli browser <session> <command>');
 }
 
-function getBrowserContextId(command?: Command): string | undefined {
+function getBrowserProfileSelection(command?: Command): ProfileSelection | undefined {
   const raw = getCommandOption(command, 'profile');
-  return resolveProfileContextId(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
+  return resolveProfileSelection(typeof raw === 'string' && raw.trim() ? raw.trim() : undefined);
 }
 
 function getPageSession(page: import('./types.js').IPage): string {
@@ -600,8 +603,15 @@ function getPageSession(page: import('./types.js').IPage): string {
 }
 
 function getPageScope(page: import('./types.js').IPage): string {
-  const contextId = (page as unknown as { contextId?: unknown }).contextId;
-  return getBrowserScope(getPageSession(page), typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined);
+  // Scope is keyed by the SELECTED profile (explicit or preferred), matching
+  // getBrowserPage's targetScope — reading only the explicit contextId would
+  // save and look up the remembered tab under different keys whenever the
+  // profile came from the config default.
+  const { contextId, preferredContextId } = page as unknown as { contextId?: unknown; preferredContextId?: unknown };
+  const selected = typeof contextId === 'string' && contextId.trim()
+    ? contextId.trim()
+    : (typeof preferredContextId === 'string' && preferredContextId.trim() ? preferredContextId.trim() : undefined);
+  return getBrowserScope(getPageSession(page), selected);
 }
 
 type SnapshotSource = 'dom' | 'ax';
@@ -736,18 +746,19 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         return;
       }
 
-      // Table (default) — grouped by site
-      const sites = new Map<string, CliCommand[]>();
+      // Table (default) — grouped by adapter kind (app vs site), then by site name.
+      // classifyAdapter() reads the `domain` field: DNS-style domains are sites;
+      // localhost/loopback endpoints and bare app names are apps.
+      const appsBySite = new Map<string, CliCommand[]>();
+      const sitesBySite = new Map<string, CliCommand[]>();
       for (const cmd of commands) {
-        const g = sites.get(cmd.site) ?? [];
+        const target = classifyAdapter(cmd.domain) === 'app' ? appsBySite : sitesBySite;
+        const g = target.get(cmd.site) ?? [];
         g.push(cmd);
-        sites.set(cmd.site, g);
+        target.set(cmd.site, g);
       }
 
-      console.log();
-      console.log('  opencli' + ' — available commands');
-      console.log();
-      for (const [site, cmds] of sites) {
+      const renderSiteGroup = (site: string, cmds: CliCommand[]): void => {
         console.log(`  ${site}`);
         for (const cmd of cmds) {
           const label = strategyLabel(cmd);
@@ -758,6 +769,22 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
           console.log(`    ${cmd.name} ${tag}${aliases}${cmd.description ? ` — ${cmd.description}` : ''}`);
         }
         console.log();
+      };
+
+      console.log();
+      console.log('  opencli' + ' — available commands');
+      console.log();
+
+      if (appsBySite.size > 0) {
+        console.log('  App adapters');
+        console.log();
+        for (const [site, cmds] of appsBySite) renderSiteGroup(site, cmds);
+      }
+
+      if (sitesBySite.size > 0) {
+        console.log('  Site adapters');
+        console.log();
+        for (const [site, cmds] of sitesBySite) renderSiteGroup(site, cmds);
       }
 
       const externalClis = loadExternalClis();
@@ -771,7 +798,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
         console.log();
       }
 
-      console.log(`  ${commands.length} built-in commands across ${sites.size} sites, ${externalClis.length} external CLIs`);
+      console.log(`  ${commands.length} built-in commands across ${appsBySite.size} apps + ${sitesBySite.size} sites, ${externalClis.length} external CLIs`);
       console.log();
     });
 
@@ -961,6 +988,22 @@ Examples:
     }, null, 2));
   }
 
+  function emitBrowserCommandErrorEnvelope(err: BrowserCommandError): void {
+    if (!err.code) return;
+    console.log(JSON.stringify({
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.hint ? { hint: err.hint } : {}),
+      },
+    }, null, 2));
+  }
+
+  function logBrowserCommandError(err: BrowserCommandError): void {
+    log.error(err.message);
+    if (err.hint) log.error(`Hint: ${err.hint}`);
+  }
+
   /** Wrap browser actions with error handling and optional --json output */
   function browserAction<Args extends unknown[]>(fn: (page: Awaited<ReturnType<typeof getBrowserPage>>, ...args: Args) => Promise<unknown>) {
     return async (...args: Args) => {
@@ -969,9 +1012,9 @@ Examples:
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
         const targetPage = getBrowserTargetId(command);
         const session = getBrowserSession(command);
-        const contextId = getBrowserContextId(command);
+        const profileSelection = getBrowserProfileSelection(command);
         const windowMode = getBrowserWindowMode(command, 'foreground');
-        page = await getBrowserPage(session, targetPage, contextId, { windowMode });
+        page = await getBrowserPage(session, targetPage, profileSelection, { windowMode });
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -980,17 +1023,10 @@ Examples:
         } else if (err instanceof BrowserCommandError) {
           if (isJavaScriptDialogMessage(err.message)) {
             emitJavaScriptDialogError(err.message);
-          } else if (err.code) {
-            console.log(JSON.stringify({
-              error: {
-                code: err.code,
-                message: err.message,
-                ...(err.hint ? { hint: err.hint } : {}),
-              },
-            }, null, 2));
+          } else {
+            emitBrowserCommandErrorEnvelope(err);
           }
-          log.error(err.message);
-          if (err.hint) log.error(`Hint: ${err.hint}`);
+          logBrowserCommandError(err);
         } else if (err instanceof TargetError) {
           // Agent-facing structured envelope on stdout + short human line on stderr.
           emitTargetError(err);
@@ -1012,63 +1048,49 @@ Examples:
     };
   }
 
-  browser.command('bind')
-    .description('Bind the current Chrome tab/window to the browser session named by <session>')
-    .action(async (optsOrCommand, maybeCommand?: Command) => {
+  type BrowserSessionCommandContext = {
+    session: string;
+    contextId?: string;
+  };
+
+  function browserSessionCommandAction(fn: (ctx: BrowserSessionCommandContext) => Promise<void>) {
+    return async (optsOrCommand: unknown, maybeCommand?: Command) => {
       const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
       const session = getBrowserSession(command);
+      const profileSelection = getBrowserProfileSelection(command);
+      const contextId = profileSelection?.contextId;
       try {
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
-        const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
-        const data = await bindTab(session, { ...(contextId && { contextId }) });
-        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
-        console.log(JSON.stringify({ session, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
+        await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...profileRouteParams(profileSelection) });
+        await fn({ session, contextId });
       } catch (err) {
-        if (err instanceof BrowserCommandError && err.code) {
-          console.log(JSON.stringify({
-            error: {
-              code: err.code,
-              message: err.message,
-              ...(err.hint ? { hint: err.hint } : {}),
-            },
-          }, null, 2));
+        if (err instanceof BrowserCommandError) {
+          emitBrowserCommandErrorEnvelope(err);
+          logBrowserCommandError(err);
+        } else {
+          log.error(err instanceof Error ? err.message : String(err));
         }
-        log.error(err instanceof Error ? err.message : String(err));
-        if (err instanceof BrowserCommandError && err.hint) log.error(`Hint: ${err.hint}`);
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
       }
-    });
+    };
+  }
+
+  browser.command('bind')
+    .description('Bind the current Chrome tab/window to the browser session named by <session>')
+    .action(browserSessionCommandAction(async ({ session, contextId }) => {
+      const data = await bindTab(session, { ...(contextId && { contextId }) });
+      saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+      console.log(JSON.stringify({ session, ...((data && typeof data === 'object') ? data as Record<string, unknown> : { data }) }, null, 2));
+    }));
 
   browser.command('unbind')
     .description('Detach the bound browser session named by <session> without closing the user tab/window')
-    .action(async (optsOrCommand, maybeCommand?: Command) => {
-      const command = optsOrCommand instanceof Command ? optsOrCommand : maybeCommand;
-      const session = getBrowserSession(command);
-      try {
-        const { BrowserBridge } = await import('./browser/index.js');
-        const bridge = new BrowserBridge();
-        const contextId = getBrowserContextId(command);
-        await bridge.connect({ timeout: 30, session, surface: 'browser', ...(contextId && { contextId }) });
-        await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
-        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
-        console.log(JSON.stringify({ unbound: true, session }, null, 2));
-      } catch (err) {
-        if (err instanceof BrowserCommandError && err.code) {
-          console.log(JSON.stringify({
-            error: {
-              code: err.code,
-              message: err.message,
-              ...(err.hint ? { hint: err.hint } : {}),
-            },
-          }, null, 2));
-        }
-        log.error(err instanceof Error ? err.message : String(err));
-        if (err instanceof BrowserCommandError && err.hint) log.error(`Hint: ${err.hint}`);
-        process.exitCode = EXIT_CODES.GENERIC_ERROR;
-      }
-    });
+    .action(browserSessionCommandAction(async ({ session, contextId }) => {
+      await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
+      saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+      console.log(JSON.stringify({ unbound: true, session }, null, 2));
+    }));
 
   const browserTab = browser
     .command('tab')
@@ -1135,18 +1157,6 @@ Examples:
     }));
 
   // ── Navigation ──
-
-  /**
-   * Network interceptor JS — injected on every open/navigate to capture
-   * fetch/XHR bodies when the session-level capture channel (CDP/extension)
-   * isn't available. Keeps parity with the CDP path's truncation contract:
-   * when a body exceeds the per-entry cap, we keep a string prefix and set
-   * `bodyTruncated: true` + `bodyFullSize: <original length>` so `browser
-   * network` can propagate a visible signal to the agent instead of
-   * silently dropping the body. Per-entry cap is 1 MiB and the ring is
-   * capped at 200 entries, bounding worst-case in-page memory.
-   */
-  const NETWORK_INTERCEPTOR_JS = `(function(){if(window.__opencli_net)return;window.__opencli_net=[];var M=200,B=1048576,F=window.fetch;function capture(url,method,status,text,ct){if(window.__opencli_net.length>=M)return;var full=text?text.length:0,trunc=full>B,stored=trunc?text.slice(0,B):text,body=null;if(stored){if(trunc){body=stored}else{try{body=JSON.parse(stored)}catch(e){body=stored}}}var e={url:url,method:method||'GET',status:status,size:full,ct:ct,body:body,timestamp:Date.now()};if(trunc){e.bodyTruncated=true;e.bodyFullSize=full}window.__opencli_net.push(e)}window.fetch=async function(){var r=await F.apply(this,arguments);try{var ct=r.headers.get('content-type')||'';if(ct.includes('json')||ct.includes('text')){var c=r.clone(),t=await c.text();capture(r.url||(arguments[0]&&arguments[0].url)||String(arguments[0]),(arguments[1]&&arguments[1].method)||'GET',r.status,t,ct)}}catch(e){}return r};var X=XMLHttpRequest.prototype,O=X.open,S=X.send;X.open=function(m,u){this._om=m;this._ou=u;return O.apply(this,arguments)};X.send=function(){var x=this;x.addEventListener('load',function(){try{var ct=x.getResponseHeader('content-type')||'';if(ct.includes('json')||ct.includes('text')){capture(x._ou,x._om||'GET',x.status,x.responseText||'',ct)}}catch(e){}});return S.apply(this,arguments)}})()`;
 
   addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in the browser session'))
     .action(browserAction(async (page, url, opts) => {

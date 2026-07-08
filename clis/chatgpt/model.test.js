@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./utils.js', () => ({
     CHATGPT_DOMAIN: 'chatgpt.com',
-    CHATGPT_MODEL_CHOICES: ['instant', 'medium', 'high', 'extra-high', 'pro', 'thinking'],
+    CHATGPT_MODEL_CHOICES: ['fast', 'speed', 'instant', 'balanced', 'advanced', 'high', 'thinking', 'very-high', 'pro'],
     navigateToProject: mocks.navigateToProject,
     selectChatGPTModel: mocks.selectChatGPTModel,
 }));

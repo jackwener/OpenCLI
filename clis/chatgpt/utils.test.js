@@ -49,6 +49,8 @@ function createDomEvaluatePage(html) {
     }
     return {
         dom,
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
         evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(script))),
     };
 }
@@ -129,6 +131,131 @@ describe('chatgpt conversation navigation', () => {
     });
 });
 
+function makeDeepResearchReport() {
+    return [
+        '# Executive Summary',
+        '',
+        'This completed Deep Research report is intentionally long enough to pass extraction heuristics.',
+        'It summarizes findings, constraints, evidence, and recommendations from multiple public sources.',
+        'The extraction path should read this markdown from metadata.chatgpt_sdk.widget_state.report_message.content.parts[0].',
+        'Using the conversation payload avoids the cross-origin internal deep research iframe boundary.',
+        'The report body includes repeated detail so the parser treats it as a real report, not a short UI preview.',
+        'Findings show that reliable automation should prefer captured backend conversation JSON over iframe DOM access.',
+        'Recommendations include returning diagnostics when no report is present and bounding source extraction.',
+        'References and Sources are represented in metadata content references, safe URLs, and search result groups.',
+        'Additional detail confirms that source de-duplication should key by URL and keep a readable title.',
+        'This paragraph pads the fixture with realistic report text for the minimum-length guard.',
+        'Another paragraph pads the fixture with realistic report text for the minimum-length guard.',
+        'A final paragraph pads the fixture with realistic report text for the minimum-length guard.',
+        '',
+        '## Sources',
+        '',
+        '- Example source',
+    ].join('\n');
+}
+
+function makeDeepResearchPayload(report = makeDeepResearchReport(), { conversationId = '' } = {}) {
+    const payload = {
+        mapping: {
+            report_node: {
+                message: {
+                    metadata: {
+                        chatgpt_sdk: {
+                            widget_state: JSON.stringify({
+                                status: 'completed',
+                                report_message: {
+                                    id: 'report-msg',
+                                    content: { parts: [report] },
+                                    metadata: {
+                                        content_references: [
+                                            { title: 'Reference A', url: 'https://example.com/a' },
+                                            { matched_text: 'Matched B', url: 'https://example.com/b' },
+                                        ],
+                                        safe_urls: ['https://example.com/c'],
+                                        search_result_groups: [
+                                            { entries: [{ title: 'Reference D', url: 'https://example.com/d' }] },
+                                        ],
+                                    },
+                                },
+                            }),
+                        },
+                    },
+                },
+            },
+        },
+    };
+    if (conversationId) payload.conversation_id = conversationId;
+    return payload;
+}
+
+describe('chatgpt deep research result extraction', () => {
+    it('extracts report markdown and sources from conversation widget_state', () => {
+        const result = __test__.extractDeepResearchFromConversationPayload(makeDeepResearchPayload());
+
+        expect(result).toMatchObject({
+            status: 'completed',
+            method: 'conversation-widget-state',
+            reportMessageId: 'report-msg',
+            reportLength: expect.any(Number),
+        });
+        expect(result.report).toContain('Executive Summary');
+        expect(result.sources).toEqual(expect.arrayContaining([
+            { title: 'Reference A', url: 'https://example.com/a' },
+            { title: 'Matched B', url: 'https://example.com/b' },
+            { title: '', url: 'https://example.com/c' },
+            { title: 'Reference D', url: 'https://example.com/d' },
+        ]));
+    });
+
+    it('extracts the requested report from captured conversation network entries', () => {
+        const shorterReport = `${makeDeepResearchReport()}\n\nshort`;
+        const longerReport = `${makeDeepResearchReport()}\n\nAdditional longer section.`;
+        const result = __test__.extractDeepResearchFromNetworkEntries([
+            { url: 'https://chatgpt.com/backend-api/bootstrap', responsePreview: '{}' },
+            {
+                url: 'https://chatgpt.com/backend-api/conversation/requested123',
+                responsePreview: JSON.stringify(makeDeepResearchPayload(shorterReport, { conversationId: 'requested123' })),
+            },
+            {
+                url: 'https://chatgpt.com/backend-api/conversation/stale45678',
+                responsePreview: JSON.stringify(makeDeepResearchPayload(longerReport, { conversationId: 'stale45678' })),
+            },
+        ], { expectedConversationId: 'requested123' });
+
+        expect(result.method).toBe('network-conversation-widget-state');
+        expect(result.networkUrl).toContain('/conversation/requested123');
+        expect(result.report).not.toContain('Additional longer section');
+    });
+
+    it('typed-fails when the conversation payload id does not match the requested id', () => {
+        expect(() => __test__.extractDeepResearchFromConversationPayload(
+            makeDeepResearchPayload(makeDeepResearchReport(), { conversationId: 'stale45678' }),
+            { expectedConversationId: 'requested123' },
+        )).toThrow(CommandExecutionError);
+    });
+
+    it('typed-fails malformed source rows instead of silently dropping them', () => {
+        const payload = makeDeepResearchPayload();
+        const widget = JSON.parse(payload.mapping.report_node.message.metadata.chatgpt_sdk.widget_state);
+        widget.report_message.metadata.search_result_groups = [
+            { entries: [{ title: 'Source without URL' }] },
+        ];
+        payload.mapping.report_node.message.metadata.chatgpt_sdk.widget_state = JSON.stringify(widget);
+
+        expect(() => __test__.extractDeepResearchFromConversationPayload(payload))
+            .toThrow(CommandExecutionError);
+    });
+
+    it('typed-fails malformed conversation payloads instead of treating them as empty reports', () => {
+        expect(() => __test__.extractDeepResearchFromConversationPayload({}))
+            .toThrow(CommandExecutionError);
+    });
+
+    it('ignores short widget previews that are not completed reports', () => {
+        expect(__test__.extractDeepResearchFromConversationPayload(makeDeepResearchPayload('short preview'))).toBeNull();
+    });
+});
+
 describe('chatgpt model selection validation', () => {
     it('rejects unknown model names', async () => {
         await expect(selectChatGPTModel({ nativeClick: vi.fn() }, 'unknown'))
@@ -147,23 +274,130 @@ describe('chatgpt model selection validation', () => {
     it('clicks the model selector and verifies the selected postcondition', async () => {
         let objectCall = 0;
         const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
             nativeClick: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
-                if (objectCall === 2) return Promise.resolve({ model: 'instant', label: 'Instant' });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
                 if (objectCall === 3) return Promise.resolve({ found: true, x: 10, y: 20 });
                 if (objectCall === 4) return Promise.resolve({ found: true, x: 30, y: 40 });
-                if (objectCall === 5) return Promise.resolve({ model: 'pro', label: 'Pro' });
+                if (objectCall === 5) return Promise.resolve({ model: 'fast', label: 'Fast' });
                 return Promise.resolve({});
             }),
         };
 
-        await expect(selectChatGPTModel(page, 'pro')).resolves.toEqual({ Status: 'Success', Model: 'Pro' });
+        await expect(selectChatGPTModel(page, 'fast')).resolves.toEqual({ Status: 'Success', Model: 'Fast' });
         expect(page.nativeClick).toHaveBeenNthCalledWith(1, 10, 20);
         expect(page.nativeClick).toHaveBeenNthCalledWith(2, 30, 40);
+    });
+
+    it('sets Advanced through the ChatGPT model config API when browser cookies are available', async () => {
+        const fetchMock = vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 3) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 4) return Promise.resolve({ model: 'advanced', label: 'Advanced' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'thinking')).resolves.toEqual({ Status: 'Success', Model: 'Advanced' });
+        expect(fetchMock.mock.calls[1][0]).toContain('/backend-api/settings/user_last_used_model_config');
+        expect(fetchMock.mock.calls[1][0]).toContain('model_slug=gpt-5-5-thinking');
+        expect(fetchMock.mock.calls[1][0]).toContain('thinking_effort=extended');
+        expect(page.nativeClick).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the visible picker when the model config API does not prove selection', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 3) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 4) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 5) return Promise.resolve({ found: true, x: 10, y: 20 });
+                if (objectCall === 6) return Promise.resolve({ found: true, x: 30, y: 40 });
+                if (objectCall === 7) return Promise.resolve({ model: 'advanced', label: 'Advanced' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'advanced')).resolves.toEqual({ Status: 'Success', Model: 'Advanced' });
+        expect(page.nativeClick).toHaveBeenNthCalledWith(1, 10, 20);
+        expect(page.nativeClick).toHaveBeenNthCalledWith(2, 30, 40);
+    });
+
+    it('falls back to the picker when the session API response is malformed', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response('{', { status: 200 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 3) return Promise.resolve({ found: true, x: 10, y: 20 });
+                if (objectCall === 4) return Promise.resolve({ found: true, x: 30, y: 40 });
+                if (objectCall === 5) return Promise.resolve({ model: 'advanced', label: 'Advanced' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'advanced')).resolves.toEqual({ Status: 'Success', Model: 'Advanced' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps ChatGPT preference API auth rejection to AuthRequiredError', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'advanced')).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
     it('selects current Chinese intelligence options by exact visible menu text', async () => {
@@ -185,11 +419,11 @@ describe('chatgpt model selection validation', () => {
         page.nativeClick = vi.fn().mockImplementation(async () => {
             clickCount += 1;
             if (clickCount === 2) {
-                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'GPT-5.5 高级'`);
+                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'GPT-5.5 超高'`);
             }
         });
 
-        await expect(selectChatGPTModel(page, 'high')).resolves.toEqual({ Status: 'Success', Model: 'High' });
+        await expect(selectChatGPTModel(page, 'very-high')).resolves.toEqual({ Status: 'Success', Model: 'Very High' });
         expect(page.nativeClick).toHaveBeenCalledTimes(2);
     });
 
@@ -200,17 +434,16 @@ describe('chatgpt model selection validation', () => {
               <div id="prompt-textarea" contenteditable="true"></div>
             </form>
             <div role="menu">
-              <div role="menuitemradio">高级</div>
+              <div role="menuitemradio">极速</div>
             </div>
         `);
         let clickCount = 0;
-        page.wait = vi.fn().mockResolvedValue(undefined);
         page.nativeClick = vi.fn().mockImplementation(async () => {
             clickCount += 1;
             if (clickCount === 2) {
                 await page.evaluate(`
                     const button = document.querySelector('[data-testid="model-switcher-dropdown-button"]');
-                    button.innerHTML = '<span data-testid="model-switcher-gpt-5-5-thinking">Mode raisonnement</span>';
+                    button.innerHTML = '<span data-testid="model-switcher-gpt-5-5">Mode rapide</span>';
                 `);
                 for (const node of page.dom.window.document.querySelectorAll('[data-testid]')) {
                     node.getBoundingClientRect = () => ({ width: 120, height: 36 });
@@ -219,7 +452,7 @@ describe('chatgpt model selection validation', () => {
             }
         });
 
-        await expect(selectChatGPTModel(page, 'thinking')).resolves.toEqual({ Status: 'Success', Model: 'High' });
+        await expect(selectChatGPTModel(page, 'instant')).resolves.toEqual({ Status: 'Success', Model: 'Fast' });
         expect(page.nativeClick).toHaveBeenCalledTimes(2);
     });
 
@@ -240,7 +473,6 @@ describe('chatgpt model selection validation', () => {
             </div>
         `);
         let clickCount = 0;
-        page.wait = vi.fn().mockResolvedValue(undefined);
         page.nativeClick = vi.fn().mockImplementation(async () => {
             clickCount += 1;
             if (clickCount === 2) {
@@ -248,7 +480,7 @@ describe('chatgpt model selection validation', () => {
             }
         });
 
-        await expect(selectChatGPTModel(page, 'extra-high')).resolves.toEqual({ Status: 'Success', Model: 'Extra High' });
+        await expect(selectChatGPTModel(page, 'extra-high')).resolves.toEqual({ Status: 'Success', Model: 'Very High' });
         expect(page.nativeClick).toHaveBeenCalledTimes(2);
     });
 
@@ -269,7 +501,6 @@ describe('chatgpt model selection validation', () => {
             </div>
         `);
         let clickCount = 0;
-        page.wait = vi.fn().mockResolvedValue(undefined);
         page.nativeClick = vi.fn().mockImplementation(async () => {
             clickCount += 1;
             if (clickCount === 2) {
@@ -277,11 +508,11 @@ describe('chatgpt model selection validation', () => {
             }
         });
 
-        await expect(selectChatGPTModel(page, 'instant')).resolves.toEqual({ Status: 'Success', Model: 'Instant' });
+        await expect(selectChatGPTModel(page, 'instant')).resolves.toEqual({ Status: 'Success', Model: 'Fast' });
         expect(page.nativeClick).toHaveBeenCalledTimes(2);
     });
 
-    it('selects High when the current precise level is Extra High', async () => {
+    it('selects Balanced when the current precise level is Extra High', async () => {
         const page = createDomEvaluatePage(`
             <form>
               <button type="button" data-testid="model-switcher-dropdown-button">Extra High</button>
@@ -298,44 +529,14 @@ describe('chatgpt model selection validation', () => {
             </div>
         `);
         let clickCount = 0;
-        page.wait = vi.fn().mockResolvedValue(undefined);
         page.nativeClick = vi.fn().mockImplementation(async () => {
             clickCount += 1;
             if (clickCount === 2) {
-                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'High'`);
+                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'Medium'`);
             }
         });
 
-        await expect(selectChatGPTModel(page, 'high')).resolves.toEqual({ Status: 'Success', Model: 'High' });
-        expect(page.nativeClick).toHaveBeenCalledTimes(2);
-    });
-
-    it('thinking alias selects the High intelligence level', async () => {
-        const page = createDomEvaluatePage(`
-            <form>
-              <button type="button" data-testid="model-switcher-dropdown-button">Instant</button>
-              <div id="prompt-textarea" contenteditable="true"></div>
-            </form>
-            <div role="menu" data-testid="composer-intelligence-picker-content">
-              <div role="group">
-                <div role="menuitemradio">Instant</div>
-                <div role="menuitemradio">Medium</div>
-                <div role="menuitemradio">High</div>
-                <div role="menuitemradio">Extra High</div>
-                <div role="menuitemradio">Pro</div>
-              </div>
-            </div>
-        `);
-        let clickCount = 0;
-        page.wait = vi.fn().mockResolvedValue(undefined);
-        page.nativeClick = vi.fn().mockImplementation(async () => {
-            clickCount += 1;
-            if (clickCount === 2) {
-                page.evaluate(`document.querySelector('[data-testid="model-switcher-dropdown-button"]').textContent = 'High'`);
-            }
-        });
-
-        await expect(selectChatGPTModel(page, 'thinking')).resolves.toEqual({ Status: 'Success', Model: 'High' });
+        await expect(selectChatGPTModel(page, 'balanced')).resolves.toEqual({ Status: 'Success', Model: 'Balanced' });
         expect(page.nativeClick).toHaveBeenCalledTimes(2);
     });
 
@@ -356,7 +557,6 @@ describe('chatgpt model selection validation', () => {
             </div>
         `);
         let clickCount = 0;
-        page.wait = vi.fn().mockResolvedValue(undefined);
         page.nativeClick = vi.fn().mockImplementation(async () => {
             clickCount += 1;
             if (clickCount === 2) {
@@ -366,7 +566,7 @@ describe('chatgpt model selection validation', () => {
             }
         });
 
-        await expect(selectChatGPTModel(page, 'extra-high')).resolves.toEqual({ Status: 'Success', Model: 'Extra High' });
+        await expect(selectChatGPTModel(page, 'extra-high')).resolves.toEqual({ Status: 'Success', Model: 'Very High' });
         expect(page.nativeClick).toHaveBeenCalledTimes(4);
     });
 
@@ -386,12 +586,11 @@ describe('chatgpt model selection validation', () => {
               </div>
             </div>
         `);
-        page.wait = vi.fn().mockResolvedValue(undefined);
         page.nativeClick = vi.fn().mockResolvedValue(undefined);
 
         await expect(selectChatGPTModel(page, 'extra-high')).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
-            message: expect.stringContaining('Could not click the ChatGPT Extra High model option'),
+            message: expect.stringContaining('Could not click the ChatGPT Very High model option'),
         });
     });
 
@@ -410,35 +609,35 @@ describe('chatgpt model selection validation', () => {
               </div>
             </div>
         `);
-        page.wait = vi.fn().mockResolvedValue(undefined);
         page.nativeClick = vi.fn().mockResolvedValue(undefined);
 
-        await expect(selectChatGPTModel(page, 'pro')).rejects.toMatchObject({
+        await expect(selectChatGPTModel(page, 'very-high')).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
-            message: expect.stringContaining('Could not click the ChatGPT Pro model option'),
+            message: expect.stringContaining('Could not click the ChatGPT Very High model option'),
         });
     });
 
     it('fails closed when the postcondition does not prove the requested model', async () => {
         let objectCall = 0;
         const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
             nativeClick: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
                 if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
                 objectCall += 1;
                 if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
-                if (objectCall === 2) return Promise.resolve({ model: 'instant', label: 'Instant' });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
                 if (objectCall === 3) return Promise.resolve({ found: true, x: 10, y: 20 });
                 if (objectCall === 4) return Promise.resolve({ found: true, x: 30, y: 40 });
-                if (objectCall === 5) return Promise.resolve({ model: 'instant', label: 'Instant' });
+                if (objectCall === 5) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
                 return Promise.resolve({});
             }),
         };
 
-        await expect(selectChatGPTModel(page, 'pro')).rejects.toMatchObject({
+        await expect(selectChatGPTModel(page, 'fast')).rejects.toMatchObject({
             code: 'COMMAND_EXEC',
-            message: expect.stringContaining('did not switch to Pro'),
+            message: expect.stringContaining('did not switch to Fast'),
         });
     });
 });
@@ -674,16 +873,16 @@ describe('chatgpt generation state', () => {
 
 describe('chatgpt current model detection', () => {
     it.each([
-        ['Instant', { model: 'instant', label: 'Instant' }],
-        ['Medium', { model: 'medium', label: 'Medium' }],
-        ['Thinking', { model: 'high', label: 'High' }],
-        ['High', { model: 'high', label: 'High' }],
-        ['Extra High', { model: 'extra-high', label: 'Extra High' }],
+        ['Instant', { model: 'fast', label: 'Fast' }],
+        ['Medium', { model: 'balanced', label: 'Balanced' }],
+        ['Thinking', { model: 'advanced', label: 'Advanced' }],
+        ['High', { model: 'advanced', label: 'Advanced' }],
+        ['Extra High', { model: 'very-high', label: 'Very High' }],
         ['Pro', { model: 'pro', label: 'Pro' }],
-        ['GPT-5.5 极速', { model: 'instant', label: 'Instant' }],
-        ['GPT-5.5 均衡', { model: 'medium', label: 'Medium' }],
-        ['智能水平 高级', { model: 'high', label: 'High' }],
-        ['GPT-5.5 超高', { model: 'extra-high', label: 'Extra High' }],
+        ['GPT-5.5 极速', { model: 'fast', label: 'Fast' }],
+        ['GPT-5.5 均衡', { model: 'balanced', label: 'Balanced' }],
+        ['智能水平 高级', { model: 'advanced', label: 'Advanced' }],
+        ['GPT-5.5 超高', { model: 'very-high', label: 'Very High' }],
         ['GPT-5.5 专业', { model: 'pro', label: 'Pro' }],
         ['进阶专业', { model: 'pro', label: 'Pro' }],
     ])('detects the visible %s model label', async (label, expected) => {

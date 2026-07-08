@@ -73,6 +73,7 @@ export default defineConfig({
                 { text: 'Booking.com', link: '/adapters/browser/booking' },
                 { text: 'GeoGebra', link: '/adapters/browser/geogebra' },
                 { text: 'Reuters', link: '/adapters/browser/reuters' },
+                { text: 'HLTV', link: '/adapters/browser/hltv' },
                 { text: 'SMZDM', link: '/adapters/browser/smzdm' },
                 { text: 'Jike', link: '/adapters/browser/jike' },
                 { text: 'Jimeng', link: '/adapters/browser/jimeng' },
@@ -104,6 +105,7 @@ export default defineConfig({
                 { text: 'Instagram', link: '/adapters/browser/instagram' },
                 { text: 'JD.com', link: '/adapters/browser/jd' },
                 { text: 'Medium', link: '/adapters/browser/medium' },
+                { text: 'Mercury', link: '/adapters/browser/mercury' },
                 { text: 'Mubu', link: '/adapters/browser/mubu' },
                 { text: 'TikTok', link: '/adapters/browser/tiktok' },
                 { text: 'Web (Generic)', link: '/adapters/browser/web' },
@@ -125,6 +127,7 @@ export default defineConfig({
               items: [
                 { text: 'HackerNews', link: '/adapters/browser/hackernews' },
                 { text: 'Dev.to', link: '/adapters/browser/devto' },
+                { text: 'Juejin', link: '/adapters/browser/juejin' },
                 { text: 'Dictionary', link: '/adapters/browser/dictionary' },
                 { text: 'BBC', link: '/adapters/browser/bbc' },
                 { text: 'Apple Podcasts', link: '/adapters/browser/apple-podcasts' },

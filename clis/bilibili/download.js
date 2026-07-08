@@ -11,7 +11,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
 import { checkYtdlp, sanitizeFilename } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { apiGet, resolveBvid } from './utils.js';
+import { apiGet, resolveBvid, parsePageArg, selectVideoPart } from './utils.js';
 
 const PAYMENT_LABELS = {
     vip: '大会员专享/付费 OGV',
@@ -78,6 +78,21 @@ async function assertNotPaidContent(page, bvid) {
         EXIT_CODES.NOPERM,
     );
 }
+
+async function loadSelectedPart(page, bvid, pageNum) {
+    let payload;
+    try {
+        payload = await apiGet(page, '/x/web-interface/view', { params: { bvid } });
+    }
+    catch (error) {
+        throw new CommandExecutionError(`获取视频分P信息失败: ${error?.message || error}`);
+    }
+    if (!isObject(payload) || payload.code !== 0) {
+        throw new CommandExecutionError(`获取视频分P信息失败: ${payload?.message ?? 'unknown'} (${payload?.code ?? 'malformed'})`);
+    }
+    return selectVideoPart(payload.data, pageNum);
+}
+
 cli({
     site: 'bilibili',
     name: 'download',
@@ -90,12 +105,19 @@ cli({
         { name: 'output', default: './bilibili-downloads', help: 'Output directory' },
         { name: 'quality', default: 'best', help: 'Video quality (best, 1080p, 720p, 480p)' },
         { name: 'force', type: 'boolean', default: false, help: '跳过付费内容预检直接下载（已购买/已充电/已开通会员时用）' },
+        { name: 'page', required: false, help: '分P 选集序号（从 1 开始）。多 P 视频下载该集；缺省下载默认 P1' },
     ],
     columns: ['bvid', 'title', 'status', 'size'],
     func: async (page, kwargs) => {
         const bvid = await resolveBvid(kwargs.bvid);
         const output = kwargs.output;
         const quality = kwargs.quality;
+        const selectedPage = parsePageArg(kwargs.page);
+        const selectedPart = selectedPage != null ? await loadSelectedPart(page, bvid, selectedPage) : null;
+        // yt-dlp 原生支持分P URL（?p=N），直接拼到 watch URL 即可定位到该集。
+        const watchUrl = selectedPage != null
+            ? `https://www.bilibili.com/video/${bvid}?p=${selectedPage}`
+            : `https://www.bilibili.com/video/${bvid}`;
         // Check yt-dlp availability
         if (!checkYtdlp()) {
             return [{
@@ -105,8 +127,8 @@ cli({
                     size: 'yt-dlp not installed. Run: pip install yt-dlp',
                 }];
         }
-        // Navigate to video page to get title and cookies
-        await page.goto(`https://www.bilibili.com/video/${bvid}`);
+        // Navigate to video page to get title and cookies（分P 时定位到该集）
+        await page.goto(watchUrl);
         await page.wait(3);
         // 付费内容预检（--force 跳过）
         if (!kwargs.force) {
@@ -120,7 +142,9 @@ cli({
         return { title, author };
       })()
     `);
-        const title = sanitizeFilename(data?.title || 'video');
+        const partTitle = typeof selectedPart?.part === 'string' ? selectedPart.part.trim() : '';
+        const displayTitle = partTitle || data?.title || 'video';
+        const title = sanitizeFilename(displayTitle);
         // Extract cookies for yt-dlp
         const browserCookies = await page.getCookies({ domain: 'bilibili.com' });
         // Build yt-dlp format string based on quality
@@ -134,8 +158,8 @@ cli({
         else if (quality === '480p') {
             format = 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]';
         }
-        const videoUrl = `https://www.bilibili.com/video/${bvid}`;
-        const filename = `${bvid}_${title}.mp4`;
+        const videoUrl = watchUrl;
+        const filename = selectedPage != null ? `${bvid}_p${selectedPage}_${title}.mp4` : `${bvid}_${title}.mp4`;
         const results = await downloadMedia([{ type: 'video-ytdlp', url: videoUrl, filename }], {
             output,
             browserCookies,
@@ -146,7 +170,7 @@ cli({
         const r = results[0] || { status: 'failed', size: '-' };
         return [{
                 bvid,
-                title: data?.title || 'video',
+                title: displayTitle,
                 status: r.status,
                 size: r.size,
             }];
