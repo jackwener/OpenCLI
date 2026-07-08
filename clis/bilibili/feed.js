@@ -65,6 +65,7 @@ function parseItem(item) {
 cli({
     site: 'bilibili',
     name: 'feed',
+    access: 'read',
     description: '动态时间线（不传 uid 查关注时间线，传 uid 查指定用户动态）',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,
@@ -134,6 +135,7 @@ cli({
 cli({
     site: 'bilibili',
     name: 'feed-detail',
+    access: 'read',
     description: '查看 Bilibili 动态详情（支持充电专属内容）',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

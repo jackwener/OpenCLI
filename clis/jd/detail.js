@@ -3,6 +3,7 @@ import { normalizeNumericId } from '../_shared/common.js';
 cli({
     site: 'jd',
     name: 'detail',
+    access: 'read',
     description: '京东商品详情',
     domain: 'item.jd.com',
     strategy: Strategy.COOKIE,

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'hackernews',
     name: 'user',
+    access: 'read',
     description: 'Hacker News user profile',
     domain: 'news.ycombinator.com',
     strategy: Strategy.PUBLIC,

@@ -26,9 +26,9 @@ describe('network-cache', () => {
         fs.rmSync(baseDir, { recursive: true, force: true });
     });
 
-    it('sanitizes workspace names into safe filenames', () => {
-        const p = getCachePath('browser:default', baseDir);
-        expect(path.basename(p)).toBe('browser_default.json');
+    it('sanitizes session names into safe filenames', () => {
+        const p = getCachePath('twitter/agent 1', baseDir);
+        expect(path.basename(p)).toBe('twitter_agent_1.json');
     });
 
     it('round-trips entries through save + load', () => {
@@ -67,10 +67,31 @@ describe('network-cache', () => {
 
     it('findEntry returns matching entry or null', () => {
         const file: NetworkCacheFile = {
-            version: 1, workspace: 'ws', savedAt: new Date().toISOString(),
+            version: 1, session: 'ws', savedAt: new Date().toISOString(),
             entries: [makeEntry('A'), makeEntry('B')],
         };
         expect(findEntry(file, 'B')?.key).toBe('B');
         expect(findEntry(file, 'missing')).toBeNull();
+    });
+
+    it.skipIf(process.platform === 'win32')('writes the cache file with 0o600 owner-only permissions', () => {
+        saveNetworkCache('ws', [makeEntry('UserTweets')], baseDir);
+        const target = getCachePath('ws', baseDir);
+        const mode = fs.statSync(target).mode & 0o777;
+        expect(mode).toBe(0o600);
+    });
+
+    it.skipIf(process.platform === 'win32')('tightens an existing cache file before rewriting it', () => {
+        const target = getCachePath('ws', baseDir);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, '{"version":1,"session":"ws","savedAt":"old","entries":[]}', { mode: 0o644 });
+
+        saveNetworkCache('ws', [makeEntry('UserTweets')], baseDir);
+
+        const mode = fs.statSync(target).mode & 0o777;
+        expect(mode).toBe(0o600);
+        const reloaded = loadNetworkCache('ws', { baseDir });
+        expect(reloaded.status).toBe('ok');
+        expect(reloaded.file?.entries[0].key).toBe('UserTweets');
     });
 });

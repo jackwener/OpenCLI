@@ -3,6 +3,7 @@ import { ensureZsxqAuth, ensureZsxqPage, fetchFirstJson, getTopicText, getTopicA
 cli({
     site: 'zsxq',
     name: 'dynamics',
+    access: 'read',
     description: '获取所有星球的最新动态',
     domain: 'wx.zsxq.com',
     strategy: Strategy.COOKIE,

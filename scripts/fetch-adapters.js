@@ -29,9 +29,6 @@ const USER_CLIS_DIR = join(OPENCLI_DIR, 'clis');
 const MANIFEST_PATH = join(OPENCLI_DIR, 'adapter-manifest.json');
 const PACKAGE_ROOT = resolve(import.meta.dirname, '..');
 const BUILTIN_CLIS = join(PACKAGE_ROOT, 'clis');
-const BUILTIN_CLIS = join(PACKAGE_ROOT, 'dist', 'clis');
-const SOURCE_CLIS = join(PACKAGE_ROOT, 'clis');
-const SOURCE_SRC = join(PACKAGE_ROOT, 'src');
 
 function log(msg) {
   console.log(`[opencli] ${msg}`);
@@ -224,7 +221,7 @@ export function fetchAdapters() {
 
   // 3b. Clean up stale .yaml/.yml adapter files left by older versions (pre-1.7.0)
   // Older versions shipped adapters as YAML; current versions use .js only.
-  // These cause "Ignoring YAML adapter" warnings on every run (issue #953).
+  // These are no longer discoverable and can shadow the current .js adapter layout.
   let yamlCleaned = 0;
   for (const relPath of walkFiles(USER_CLIS_DIR)) {
     if (relPath.endsWith('.yaml') || relPath.endsWith('.yml')) {

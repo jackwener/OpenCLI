@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveFixture, expandFixtureArgs, validateRows, type Fixture } from './verify-fixture.js';
+import { deriveFixture, expandFixtureArgs, parseSeedArgs, validateRows, validateRowShape, type Fixture } from './verify-fixture.js';
 
 describe('validateRows', () => {
     it('passes when rows meet all expectations', () => {
@@ -150,6 +150,53 @@ describe('validateRows', () => {
     });
 });
 
+describe('validateRowShape', () => {
+    it('passes flat rows with a compact key set', () => {
+        const failures = validateRowShape([
+            { id: '1', title: 'A', author: { name: 'Ada' }, tags: ['ai', 'web'] },
+        ]);
+        expect(failures).toEqual([]);
+    });
+
+    it('reports rows with too many top-level keys', () => {
+        const row = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`k${i}`, i]));
+        const failures = validateRowShape([row]);
+        expect(failures).toEqual([
+            {
+                rule: 'shapeKeyCount',
+                detail: 'row has 13 top-level keys, expected at most 12',
+                rowIndex: 0,
+            },
+        ]);
+    });
+
+    it('reports nesting deeper than one level', () => {
+        const failures = validateRowShape([
+            { title: 'A', stats: { author: { name: 'Ada' } } },
+        ]);
+        expect(failures).toEqual([
+            {
+                rule: 'shapeDepth',
+                detail: '"stats" nesting depth is 2, expected at most 1',
+                rowIndex: 0,
+            },
+        ]);
+    });
+
+    it('reports nested id-shaped fields even when one-level nesting is otherwise allowed', () => {
+        const failures = validateRowShape([
+            { title: 'A', author: { user_id: 'u1', name: 'Ada' } },
+        ]);
+        expect(failures).toEqual([
+            {
+                rule: 'shapeNestedId',
+                detail: 'id-shaped field "author.user_id" must be a top-level row key',
+                rowIndex: 0,
+            },
+        ]);
+    });
+});
+
 describe('deriveFixture', () => {
     it('returns rowCount.min=0 when rows are empty', () => {
         expect(deriveFixture([])).toEqual({ expect: { rowCount: { min: 0 } } });
@@ -219,5 +266,24 @@ describe('expandFixtureArgs', () => {
             '--comments',
             '5',
         ]);
+    });
+});
+
+describe('parseSeedArgs', () => {
+    it('treats plain text as one positional arg', () => {
+        expect(parseSeedArgs('opencli-verify')).toEqual(['opencli-verify']);
+    });
+
+    it('accepts JSON array seed args', () => {
+        expect(parseSeedArgs('["subject", "--limit", 3]')).toEqual(['subject', '--limit', 3]);
+    });
+
+    it('accepts JSON object seed args', () => {
+        expect(parseSeedArgs('{"limit":3,"sort":"hot"}')).toEqual({ limit: 3, sort: 'hot' });
+    });
+
+    it('ignores empty input', () => {
+        expect(parseSeedArgs(undefined)).toBeUndefined();
+        expect(parseSeedArgs('   ')).toBeUndefined();
     });
 });

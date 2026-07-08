@@ -3,6 +3,7 @@ import { loadSinaBlogHot } from './utils.js';
 cli({
     site: 'sinablog',
     name: 'hot',
+    access: 'read',
     description: '获取新浪博客热门文章/推荐',
     domain: 'blog.sina.com.cn',
     strategy: Strategy.COOKIE,

@@ -1,9 +1,12 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
+import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
+import { extractCard, extractQuotedTweet, extractMedia, describeTwitterApiError } from './shared.js';
 
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 const LIST_TWEETS_QUERY_ID = 'RlZzktZY_9wJynoepm8ZsA';
 const OPERATION_NAME = 'ListLatestTweetsTimeline';
+const MAX_PAGINATION_PAGES = 100;
 
 const FEATURES = {
     rweb_video_screen_enabled: false,
@@ -59,17 +62,22 @@ export function extractTimelineTweet(result, seen) {
     const user = tw.core?.user_results?.result;
     const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';
     const displayName = user?.legacy?.name || user?.core?.name || '';
+    const bio = user?.legacy?.description || '';
     const noteText = tw.note_tweet?.note_tweet_results?.result?.text;
     return {
         id: tw.rest_id,
         author: screenName,
         name: displayName,
+        bio,
         text: noteText || legacy.full_text || '',
         likes: legacy.favorite_count || 0,
         retweets: legacy.retweet_count || 0,
         replies: legacy.reply_count || 0,
         created_at: legacy.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
+        ...extractMedia(legacy),
+        card: extractCard(tw),
+        quoted_tweet: extractQuotedTweet(tw),
     };
 }
 
@@ -107,29 +115,32 @@ export function parseListTimeline(data, seen) {
 cli({
     site: 'twitter',
     name: 'list-tweets',
+    access: 'read',
     description: 'Fetch tweets from a Twitter/X list timeline',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'listId', positional: true, type: 'string', required: true },
+        { name: 'listId', positional: true, type: 'string', required: true, help: 'Numeric ID of a Twitter/X list (e.g. from `opencli twitter lists`)' },
         { name: 'limit', type: 'int', default: 50 },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the list timeline by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the list\'s native (recency) ordering.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url'],
+    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'replies', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet'],
     func: async (page, kwargs) => {
         const listId = String(kwargs.listId || '').trim();
         if (!listId || !/^\d+$/.test(listId)) {
             throw new CommandExecutionError(`Invalid listId: ${JSON.stringify(kwargs.listId)}. Expected a numeric ID (see \`opencli twitter lists\`).`);
         }
         const limit = kwargs.limit || 50;
-        await page.goto('https://x.com');
-        await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-        }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        const queryId = await page.evaluate(`async () => {
+        // opencli >=1.7.x wraps primitive page.evaluate returns as { session, data: <value> }.
+        // Without unwrap, the string queryId becomes "[object Object]" when interpolated into the URL,
+        // causing HTTP 400 "queryId may have expired".
+        const unwrap = (v) => (v && typeof v === 'object' && 'session' in v && 'data' in v ? v.data : v);
+        const queryIdRaw = await page.evaluate(`async () => {
             try {
                 const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
                 if (ghResp.ok) {
@@ -152,9 +163,10 @@ cli({
                 }
             } catch {}
             return null;
-        }`) || LIST_TWEETS_QUERY_ID;
+        }`);
+        const queryId = unwrap(queryIdRaw) || LIST_TWEETS_QUERY_ID;
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
@@ -162,16 +174,17 @@ cli({
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 10 && allTweets.length < limit; i++) {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildUrl(queryId, listId, fetchCount, cursor);
-            const data = await page.evaluate(`async () => {
-                const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
-                return r.ok ? await r.json() : { error: r.status };
-            }`);
+            const data = throwIfLoginWall(await page.evaluate(`async () => {
+                ${BROWSER_JSON_SNIFF_FN}
+                return await fetchJsonOrLoginWall(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
+            }`), { url: apiUrl });
             if (data?.error) {
                 if (allTweets.length === 0)
-                    throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch list timeline. queryId may have expired or list may be private.`);
+                    throw new CommandExecutionError(describeTwitterApiError('ListLatestTweetsTimeline', data.error, 'list may be private'));
                 break;
             }
             const { tweets, nextCursor } = parseListTimeline(data, seen);
@@ -180,6 +193,7 @@ cli({
                 break;
             cursor = nextCursor;
         }
-        return allTweets.slice(0, limit);
+        const trimmed = allTweets.slice(0, limit);
+        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     },
 });

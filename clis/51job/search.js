@@ -20,6 +20,7 @@ import {
 cli({
     site: '51job',
     name: 'search',
+    access: 'read',
     description: '51job 前程无忧关键词职位搜索',
     domain: 'we.51job.com',
     strategy: Strategy.COOKIE,

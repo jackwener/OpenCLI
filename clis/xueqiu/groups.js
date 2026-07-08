@@ -4,6 +4,7 @@ import { fetchXueqiuJson } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'groups',
+    access: 'read',
     description: '获取雪球自选股分组列表（含模拟组合）',
     domain: 'xueqiu.com',
     browser: true,

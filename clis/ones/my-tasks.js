@@ -39,6 +39,7 @@ async function peekTasks(page, team, query, cap) {
 cli({
     site: 'ones',
     name: 'my-tasks',
+    access: 'read',
     description: 'ONES — my work items (filters/peek + strict must query). Default: assignee=me. Use --mode if your site uses field004 for assignee.',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

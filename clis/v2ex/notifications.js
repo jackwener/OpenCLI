@@ -6,6 +6,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'v2ex',
     name: 'notifications',
+    access: 'read',
     description: 'V2EX 获取提醒 (回复/由于)',
     domain: 'www.v2ex.com',
     strategy: Strategy.COOKIE,

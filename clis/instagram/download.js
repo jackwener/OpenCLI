@@ -196,6 +196,7 @@ async function downloadInstagramMedia(items, outputDir) {
 cli({
     site: 'instagram',
     name: 'download',
+    access: 'read',
     description: 'Download images and videos from Instagram posts and reels',
     domain: 'www.instagram.com',
     strategy: Strategy.COOKIE,

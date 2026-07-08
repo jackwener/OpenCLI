@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'unsave',
+    access: 'write',
     description: 'Unsave (remove bookmark) an Instagram post',
     domain: 'www.instagram.com',
     args: [

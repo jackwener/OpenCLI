@@ -4,6 +4,7 @@ import { fetchJson, getSelfUid, resolveUid } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'following',
+    access: 'read',
     description: '获取 Bilibili 用户的关注列表',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

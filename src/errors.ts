@@ -13,12 +13,13 @@
  *   1   Generic / unexpected error
  *   2   Argument / usage error          (ArgumentError)
  *  66   No input / empty result         (EmptyResultError)
- *  69   Service unavailable             (BrowserConnectError, AdapterLoadError)
+ *  69   Service unavailable             (BrowserConnectError, adapter load failures)
  *  75   Temporary failure, retry later  (TimeoutError)   EX_TEMPFAIL
  *  77   Permission denied / auth needed (AuthRequiredError)
  *  78   Configuration error             (ConfigError)
  * 130   Interrupted by Ctrl-C           (set by tui.ts SIGINT handler)
  */
+import type { ObservationTraceReceipt } from './observation/events.js';
 
 // ── Exit code table ──────────────────────────────────────────────────────────
 
@@ -55,21 +56,36 @@ export class CliError extends Error {
   }
 }
 
+const TRACE_RECEIPT_SYMBOL = Symbol.for('opencli.traceReceipt');
+
+export function attachTraceReceipt(err: unknown, receipt: ObservationTraceReceipt): void {
+  if (!err || (typeof err !== 'object' && typeof err !== 'function')) return;
+  try {
+    Object.defineProperty(err, TRACE_RECEIPT_SYMBOL, {
+      value: receipt,
+      enumerable: false,
+      configurable: true,
+    });
+  } catch {
+    // Non-extensible thrown objects are rare; trace export should never mask the
+    // original adapter error just because metadata attachment failed.
+  }
+}
+
+export function getTraceReceipt(err: unknown): ObservationTraceReceipt | undefined {
+  if (!err || (typeof err !== 'object' && typeof err !== 'function')) return undefined;
+  return (err as Record<PropertyKey, unknown>)[TRACE_RECEIPT_SYMBOL] as ObservationTraceReceipt | undefined;
+}
+
 // ── Typed subclasses ─────────────────────────────────────────────────────────
 
-export type BrowserConnectKind = 'daemon-not-running' | 'extension-not-connected' | 'command-failed' | 'unknown';
+export type BrowserConnectKind = 'daemon-not-running' | 'extension-not-connected' | 'profile-required' | 'profile-disconnected' | 'command-failed' | 'unknown';
 
 export class BrowserConnectError extends CliError {
   readonly kind: BrowserConnectKind;
   constructor(message: string, hint?: string, kind: BrowserConnectKind = 'unknown') {
     super('BROWSER_CONNECT', message, hint, EXIT_CODES.SERVICE_UNAVAIL);
     this.kind = kind;
-  }
-}
-
-export class AdapterLoadError extends CliError {
-  constructor(message: string, hint?: string) {
-    super('ADAPTER_LOAD', message, hint, EXIT_CODES.SERVICE_UNAVAIL);
   }
 }
 
@@ -103,7 +119,7 @@ export class TimeoutError extends CliError {
     super(
       'TIMEOUT',
       `${label} timed out after ${seconds}s`,
-      hint ?? 'Try again, or increase timeout with OPENCLI_BROWSER_COMMAND_TIMEOUT env var',
+      hint ?? 'Try again, or increase timeout with --timeout <seconds> (or OPENCLI_BROWSER_COMMAND_TIMEOUT for the global default)',
       EXIT_CODES.TEMPFAIL,
     );
   }
@@ -126,20 +142,56 @@ export class EmptyResultError extends CliError {
   }
 }
 
-export class SelectorError extends CliError {
-  constructor(selector: string, hint?: string) {
-    super(
-      'SELECTOR',
-      `Could not find element: ${selector}`,
-      hint ?? 'The page UI may have changed. Please report this issue.',
-      EXIT_CODES.GENERIC_ERROR,
-    );
-  }
+export function adapterLoadError(message: string, hint?: string): CliError {
+  return new CliError('ADAPTER_LOAD', message, hint, EXIT_CODES.SERVICE_UNAVAIL);
+}
+
+export function selectorError(selector: string, hint?: string): CliError {
+  return new CliError(
+    'SELECTOR',
+    `Could not find element: ${selector}`,
+    hint ?? 'The page UI may have changed. Please report this issue.',
+    EXIT_CODES.GENERIC_ERROR,
+  );
 }
 
 export class PluginError extends CliError {
   constructor(message: string, hint?: string) {
     super('PLUGIN', message, hint, EXIT_CODES.GENERIC_ERROR);
+  }
+}
+
+/**
+ * Thrown when a JSON endpoint returns HTML instead of JSON — typically a login
+ * wall, rate-limit page, or WAF challenge. Surfaced as a structured error so
+ * callers can show "re-login or wait out the rate limit" guidance instead of
+ * the cryptic `SyntaxError: Unexpected token '<', "<!DOCTYPE "...` that a naive
+ * JSON.parse on an HTML body produces.
+ *
+ * `bodyPreview` is the first 100 chars of the response body (after trimming
+ * leading whitespace) — useful for logs / debugging without dumping the full
+ * page.
+ */
+export class LoginWallError extends CliError {
+  readonly status: number;
+  readonly url: string;
+  readonly bodyPreview: string;
+  constructor(
+    message: string,
+    status: number,
+    url: string,
+    bodyPreview: string,
+    hint?: string,
+  ) {
+    super(
+      'LOGIN_WALL',
+      message,
+      hint ?? 'The server returned an HTML page instead of JSON — likely a login wall, rate limit, or WAF challenge. Try re-logging in via your browser, or wait a few minutes before retrying.',
+      EXIT_CODES.NOPERM,
+    );
+    this.status = status;
+    this.url = url;
+    this.bodyPreview = bodyPreview;
   }
 }
 
@@ -155,6 +207,13 @@ export interface ErrorEnvelope {
     exitCode: number;
     stack?: string;
     cause?: string;
+  };
+  trace?: {
+    traceId: string;
+    dir: string;
+    summaryPath: string;
+    receiptPath: string;
+    status: ObservationTraceReceipt['status'];
   };
 }
 
@@ -179,6 +238,14 @@ function serializeCause(cause: unknown, depth: number = 0): string {
 /** Build an ErrorEnvelope from any caught value. */
 export function toEnvelope(err: unknown): ErrorEnvelope {
   const cause = err instanceof Error && err.cause ? serializeCause(err.cause) : undefined;
+  const traceReceipt = getTraceReceipt(err);
+  const trace = traceReceipt ? {
+    traceId: traceReceipt.traceId,
+    dir: traceReceipt.traceDir,
+    summaryPath: traceReceipt.summaryPath,
+    receiptPath: traceReceipt.receiptPath,
+    status: traceReceipt.status,
+  } : undefined;
   if (err instanceof CliError) {
     return {
       ok: false,
@@ -189,6 +256,7 @@ export function toEnvelope(err: unknown): ErrorEnvelope {
         exitCode: err.exitCode,
         ...(cause ? { cause } : {}),
       },
+      ...(trace ? { trace } : {}),
     };
   }
   const msg = getErrorMessage(err);
@@ -200,5 +268,6 @@ export function toEnvelope(err: unknown): ErrorEnvelope {
       exitCode: EXIT_CODES.GENERIC_ERROR,
       ...(cause ? { cause } : {}),
     },
+    ...(trace ? { trace } : {}),
   };
 }

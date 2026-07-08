@@ -8,6 +8,8 @@
 
 ## 活例子：convertible.js
 
+> **注意（2026-05 起）**：下面这份 `convertible.js` 的 limit clamp 和 `CliError('HTTP_ERROR' / 'NO_DATA')` 是 grandfathered 写法（在 [`scripts/typed-error-lint-baseline.json`](../../../scripts/typed-error-lint-baseline.json) 里）。结构布局（cli 声明 / args / columns / map）仍然是好范本，但 **error 处理 + limit 校验请按下文 §3 + [`typed-errors.md`](./typed-errors.md) 写**。新写 adapter 抄这个文件别连 `Math.max(1, Math.min(...))` 和 `CliError(...)` 一起抄过去。
+
 ```javascript
 // eastmoney convertible — on-market convertible bond listing.
 import { cli, Strategy } from '@jackwener/opencli/registry';
@@ -37,7 +39,7 @@ cli({
   columns: ['rank', 'bondCode', 'bondName', 'bondPrice', 'bondChangePct',
             'stockCode', 'stockName', 'stockPrice', 'stockChangePct',
             'convPrice', 'convValue', 'convPremiumPct', 'remainingYears', 'ytm', 'listDate'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const sortKey = String(args.sort ?? 'turnover').toLowerCase();
     const sort = SORTS[sortKey];
     if (!sort) throw new CliError('INVALID_ARGUMENT', `Unknown sort "${sortKey}". Valid: ${Object.keys(SORTS).join(', ')}`);
@@ -94,8 +96,8 @@ cli({
   name: 'convertible',        // 第二级，CLI 上的子命令
   description: '...',         // 一句话，出现在 `opencli list` 和 `opencli <site> -h`
   domain: 'push2.eastmoney.com',  // 主要请求域名（诊断面板用）
-  strategy: Strategy.PUBLIC,  // PUBLIC / COOKIE / HEADER / INTERCEPT / UI
-  browser: false,             // PUBLIC 几乎总是 false；COOKIE/HEADER 一律 true
+  strategy: Strategy.PUBLIC,  // PUBLIC / COOKIE / INTERCEPT / UI
+  browser: false,             // PUBLIC 几乎总是 false；COOKIE/INTERCEPT/UI 一律 true
   ...
 });
 ```
@@ -116,26 +118,37 @@ columns: ['rank', 'bondCode', 'bondName', /* ... */ ],
 - `default` 必填（缺失的命令会拒绝启动）
 - `columns` 数组必须跟 `func` 返回的 object keys 完全对上，顺序也一致（决定表格列顺序）
 - 列名 camelCase，跟 `cli({...})` 其他 adapter 保持统一
+- **中间解析对象 key 不能跟 columns 任一项重叠** —— 否则 `silent-column-drop` audit 会把它当 row 候选误判。`{pid, html, start}` 这类中间结构改成 `{postId, body, offset}`，最后在 push row 时再 destructure aliasing 回 column 命名。背景：PR #1329 R1 codex-mini0 catch 的（[before](https://github.com/jackwener/OpenCLI/blob/384bcd6fdd93f3075bd2c835e82689c42bfe4b2f/clis/1point3acres/thread.js#L50-L63) → [after](../../../clis/1point3acres/thread.js#L50-L65)）
 
 ### 3. func — 主体
 
 ```javascript
-func: async (_page, args) => {
-  // 1. 解析参数
-  const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
+func: async (args) => {
+  // 1. 解析参数 — 越界一律抛，不要 silent clamp
+  const n = Number(args.limit ?? 20);
+  if (!Number.isInteger(n) || n <= 0) throw new ArgumentError('limit must be a positive integer');
+  if (n > 100) throw new ArgumentError('limit must be <= 100');
+  const limit = n;
 
   // 2. 构造 URL / 请求
   const url = new URL(...);
   url.searchParams.set(...);
 
-  // 3. 发请求
-  const resp = await fetch(url, { headers: {...} });
-  if (!resp.ok) throw new CliError('HTTP_ERROR', `... HTTP ${resp.status}`);
+  // 3. 发请求 — fetch 抛 / HTTP 非 2xx 都归 CommandExecutionError
+  let resp;
+  try {
+    resp = await fetch(url, { headers: { /* ... */ } });
+  } catch (error) {
+    throw new CommandExecutionError(`request failed: ${error?.message || error}`);
+  }
+  if (!resp.ok) throw new CommandExecutionError(`request failed: HTTP ${resp.status}`);
 
-  // 4. 解析 + 业务校验
+  // 4. 解析 + 业务校验 — 业务空 → EmptyResultError，不要 sentinel row 也不要 return []
   const data = await resp.json();
   const diff = Array.isArray(data?.data?.diff) ? data.data.diff : [];
-  if (diff.length === 0) throw new CliError('NO_DATA', '...');
+  if (diff.length === 0) throw new EmptyResultError('site command', 'API returned no rows');
 
   // 5. map 到 columns 同名 keys
   return diff.slice(0, limit).map((it, i) => ({
@@ -146,22 +159,15 @@ func: async (_page, args) => {
 },
 ```
 
-**参数形态**：
+**站点级 helper**：≥ 2 个同站 adapter 都做相同 limit / page 校验时，把校验抽成 `clis/<site>/utils.js` 的 `normalizeLimit(value, default, max, label)` / `normalizePositiveInteger(value, default, label, { min })`，避免每个 adapter 都 inline 一遍。模板见 [`typed-errors.md` §2](./typed-errors.md) 和 [`clis/1point3acres/utils.js`](../../../clis/1point3acres/utils.js)。1 个 adapter 用就直接 inline，不要为 1 处单点抽 helper。
 
-- `page` — 仅当 `browser: true` 时有用；`PUBLIC` 模式传一个 no-op 占位
-- `args` — 所有 `args[]` 声明的参数解析后的 object
+**参数形态**（**踩过最多次的坑**：搞反签名后 `args` 实际是 `debug` flag，所有 `args.foo` 静默 undefined → fallback 到 default。#1329 upstream 之前 8 个 non-browser adapter 写错过签名，全部 silently fallback 到默认参数）：
 
-**错误处理**：
+- `browser: false`：`func: async (args, debug?) => { ... }` —— **单参 args**，不会收到 `page`
+- `browser: true`：`func: async (page, args, debug?) => { ... }` —— **双参 (page, args)**，第一参是浏览器上下文
+- `args`：所有 `args[]` 声明的参数解析后的 object
 
-| 场景 | 写法 |
-|------|------|
-| 参数不合法 | `throw new CliError('INVALID_ARGUMENT', '...')` |
-| HTTP 非 2xx | `throw new CliError('HTTP_ERROR', 'HTTP <status>')` |
-| 业务返回空 | `throw new CliError('NO_DATA', '...')` 或 `'EMPTY_RESULT'` |
-| 需要登录 | `throw new AuthRequiredError(domain)`（从 `@jackwener/opencli/errors` 引） |
-| 接口约束失败 | `throw new CliError('API_ERROR', '...')` |
-
-不要 `return []` 了事。autofix skill 靠 CliError 的 code 决定要不要重试。
+**错误处理**：用 typed error 5-classification（参见 [`typed-errors.md`](./typed-errors.md)），**不要** `CliError('XXX', ...)` 直传，**不要** `return []` 了事，**不要** `return [{sentinel}]` 装一行业务数据冒充 empty。autofix skill 靠 typed error 的 exit code（66 = empty / 77 = auth / 75 = timeout / 2 = argument / 1 = exec）决定要不要重试。
 
 ---
 
@@ -175,7 +181,7 @@ PUBLIC 模式不够（接口 401 / 302 到 login / 响应是"请登录"页）就
 
 ```javascript
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 const BASE = 'https://www.example.com';
 const HOST = 'www.example.com';
@@ -195,17 +201,22 @@ async function readCookie(page) {
 }
 
 async function fetchHtml(url, { cookie, encoding = 'utf-8', headers = {} } = {}) {
-    const resp = await fetch(url, {
-        headers: {
-            'User-Agent': 'Mozilla/5.0',
-            'Accept-Language': 'zh-CN,zh;q=0.9',
-            Referer: `${BASE}/`,
-            ...(cookie ? { Cookie: cookie } : {}),
-            ...headers,
-        },
-        redirect: 'follow',
-    });
-    if (!resp.ok) throw new CliError('HTTP_ERROR', `HTTP ${resp.status}`);
+    let resp;
+    try {
+        resp = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0',
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+                Referer: `${BASE}/`,
+                ...(cookie ? { Cookie: cookie } : {}),
+                ...headers,
+            },
+            redirect: 'follow',
+        });
+    } catch (error) {
+        throw new CommandExecutionError(`example request failed: ${error?.message || error}`);
+    }
+    if (!resp.ok) throw new CommandExecutionError(`example request failed: HTTP ${resp.status}`);
     const buf = await resp.arrayBuffer();
     return new TextDecoder(encoding).decode(buf);
 }
@@ -213,6 +224,7 @@ async function fetchHtml(url, { cookie, encoding = 'utf-8', headers = {} } = {})
 cli({
     site: 'example',
     name: 'me',
+    access: 'read',
     description: '示例：需要登录的私有页面',
     domain: HOST,
     strategy: Strategy.COOKIE,
@@ -221,6 +233,9 @@ cli({
     args: [{ name: 'limit', type: 'int', default: 20, help: '返回条数' }],
     columns: ['index', 'title', 'time'],
     func: async (page, args) => {
+        const limit = Number(args.limit ?? 20);
+        if (!Number.isInteger(limit) || limit <= 0) throw new ArgumentError('limit must be a positive integer');
+
         const cookie = await readCookie(page);
         const html = await fetchHtml(`${BASE}/inbox`, { cookie, encoding: 'gbk' });
 
@@ -229,12 +244,40 @@ cli({
         }
 
         // parse html → rows
-        return rows.slice(0, Math.max(1, Number(args.limit) || 20));
+        if (!rows.length) throw new EmptyResultError('example me', 'inbox is empty');
+        return rows.slice(0, limit);
     },
 });
 ```
 
-### 为什么不走 `page.evaluate(fetch(...))`
+### JSON API 用 `page.fetchJson()`，不要手写 `page.evaluate(fetch(...))`
+
+如果接口必须在浏览器上下文里请求（依赖当前页面 cookie / CORS / origin），用内置 primitive：
+
+```javascript
+const data = await page.fetchJson(`${BASE}/api/list`, {
+  method: 'POST',
+  headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  body: { page: 1, size: limit },
+});
+```
+
+它固定 `credentials: 'include'`，带 timeout，HTTP 非 2xx / 非 JSON 会抛统一 runtime error。adapter 里不用再手写 `page.evaluate(fetch(...))`；如果你需要额外包一层业务语义，按 [`typed-errors.md`](./typed-errors.md) 映射到 `CommandExecutionError` / `AuthRequiredError` / `EmptyResultError`。
+
+### 页面内 DOM 逻辑用 `page.evaluate(fn, ...args)`
+
+新 adapter 优先写函数形式，外部变量通过参数传入：
+
+```javascript
+const href = await page.evaluate((selector) => {
+  const link = document.querySelector(selector);
+  return link ? link.getAttribute('href') : null;
+}, 'a[data-testid="profile"]');
+```
+
+`fn` 在浏览器页面上下文执行，不能读取 Node 侧闭包变量；参数必须能被 `JSON.stringify` 序列化。字符串形式 `page.evaluate('document.title')` 仍可用于简单表达式和既有代码，但不要再写依赖隐式 auto-IIFE 的模板字符串函数。
+
+### HTML 不走 browser fetch
 
 三个坑，踩一个就重写：
 
@@ -242,7 +285,49 @@ cli({
 - **`navigateBefore: false` 时当前 tab 不在目标站**：页面 origin 可能是 `about:blank` 或上一条命令留下的别处，从那儿发 fetch 到目标域就是 cross-origin，浏览器 CORS 一挡就是 "Failed to fetch"。
 - **非 UTF-8 编码解码麻烦**：GBK / Big5 / Shift-JIS 的站（Discuz / phpBB 老版 / 日站）在 `page.evaluate` 里用 `response.text()` 拿到的是乱码，`TextDecoder('gbk').decode(buf)` 的写法只在 Node 侧干净。
 
-**规则**：HTML 型 COOKIE adapter 一律 Node 侧 `fetch`，浏览器只当 cookie jar 用。
+**规则**：JSON 型浏览器接口用 `page.fetchJson()`；HTML 型 COOKIE adapter 一律 Node 侧 `fetch`，浏览器只当 cookie jar 用。
+
+### Selector 稳定性 — 不要 select 用户可见文本
+
+issue #1474 触发：同一个发送按钮在英文 Chrome 是 `aria-label="Submit"`，在中文 Chrome（`chrome://settings/languages` 设中文）变 `aria-label="提交"`，CSS 选择器 `button[aria-label="Submit"]` 在中文环境下直接 0 匹配，silent empty result。
+
+根因不是 i18n bug，是**选择器的 anchor 选错了**。把页面 DOM 属性按 "locale-stable vs locale-dependent" 分两类：
+
+| 类 | 例子 | locale 切换会变吗 | 用作 primary selector？ |
+|----|------|----------------|---------------------|
+| **locale-stable 标识** | `data-testid`、`data-*`、稳定 `id` / `class` | 通常不变（开发者内部 ID） | ✅ 首选，但要先确认不是 hash / A-B test |
+| **semantic / scope anchor** | `role`、结构关系、邻近稳定容器 | 不按 locale 翻译，但常常不唯一 | ⚠️ 只作 scope/filter；不要单独用 `button[role="button"]` |
+| **locale-dependent 文本** | `aria-label`、`title`、`placeholder`、`alt`、`textContent` | 变（被 i18n 框架翻译） | ❌ 仅当 stable 选择器全都不存在时的兜底 |
+
+ChatGPT 的 web 端就是反例驱动的：有些 controls 暴露稳定 `data-testid`，有些 surfaces 只暴露 `aria-label` / `placeholder`。这种站必须先用 stable selector，再用多语言 fallback list：
+
+```javascript
+// clis/chatgpt/utils.js（简化活例）
+const COMPOSER_SELECTORS = [
+  '#prompt-textarea',
+  '[data-testid="composer"] [contenteditable="true"]',
+  '[aria-label="Chat with ChatGPT"]',   // en
+  '[aria-label="与 ChatGPT 聊天"]',      // zh-CN
+  '[placeholder="Ask anything"]',
+  '[placeholder="有问题，尽管问"]',       // zh-CN
+];
+const SEND_BUTTON_SELECTORS = [
+  'button[data-testid="send-button"]:not([disabled])',
+  'button[aria-label="Send prompt"]:not([disabled])',
+  'button[aria-label="发送提示"]:not([disabled])',
+];
+```
+
+写 fallback list 的纪律：
+
+1. **stable selector 放最前**（`#prompt-textarea` / `[data-testid="send-button"]`），locale-dependent 的放后面当兜底
+2. **`role` 只能当 semantic / scope filter**：`dialog [role="textbox"]` 可以；裸 `button` / `[role="button"]` 不够，因为同页可能有多个按钮
+3. **每种 locale 至少列一条**（en + zh-CN 是底线；扩到 ja / ko / ar 看站点用户分布）
+4. **commit 前 grep `aria-label=` / `placeholder=` / `title=` 看是不是漏了 fallback locale**——见 success-rate-pitfalls.md §11
+5. **失败要 typed fail-fast**：找不到 control 应该 `CommandExecutionError` / send-failed，不要返回空 rows 或假成功
+6. **不要给 framework 加 `--i18n "zh:提交,ja:送信"` 这种 flag** —— 等于把 fallback list 从 adapter 挪到 CLI，多一层 indirection 还要维护翻译字典。这是 over-engineering，已经在评审时被否
+
+为什么不在 daemon 端固定 Chrome locale？因为 opencli **不启动 Chrome**——daemon 是连用户已经在跑的 Chrome（CDP via extension），用户可能就是中文 UI / 中文资料检索需求。强制 en-US 会破坏用户的正当工作流。
 
 ### Cookie 域的双查
 
@@ -260,15 +345,25 @@ for (const opts of [{ domain: HOST }, { domain: ROOT }]) { ... }
 
 双查成本很低，不确定就两个都查，用 Map 去重第一次出现的 name。
 
-### 明确的空态要返回哨兵行，不要 `[]`
+### 空态抛 `EmptyResultError`，**不**塞 sentinel 行
 
-空态（"暂时没有提醒内容" / "暂无通知" / "No results"）返回 `[]`，下游 agent 会当成"接口挂了"而重试。正确做法是返回**一行明确写着当前状态的数据**：
+历史上这里写的是"返回一行说明 row 比 `return []` 安全"。**这条已经反过来了**——见 PR #1329 R3 的 four anti-pattern fixes。现在的契约：
 
 ```javascript
+import { EmptyResultError } from '@jackwener/opencli/errors';
+
+// ❌ 老写法：sentinel 行污染 row 合同，让 listing→detail round-trip 拿到 tid='' 白跑
 if (/暂时没有提醒内容/.test(html)) {
     return [{ index: 0, from: '', summary: '暂时没有提醒内容', time: '', threadUrl: '' }];
 }
+
+// ✅ 新写法：empty 是合法状态，但不是 row。exit code 66 让 agent 直接 branch
+if (/暂时没有提醒内容/.test(html)) {
+    throw new EmptyResultError('1point3acres notifications', '暂时没有提醒内容');
+}
 ```
+
+更多反例和详细 routing 见 [`typed-errors.md` §3](./typed-errors.md)。
 
 ---
 

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const newCommand = cli({
     site: 'antigravity',
     name: 'new',
+    access: 'read',
     description: 'Start a new conversation / clear context in Antigravity',
     domain: 'localhost',
     strategy: Strategy.UI,

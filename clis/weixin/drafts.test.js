@@ -3,6 +3,7 @@ import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './create-draft.js';
 import './drafts.js';
+import './search.js';
 
 function createPageMock(overrides = {}) {
     return {
@@ -18,7 +19,10 @@ describe('weixin command registration', () => {
         const registry = getRegistry();
         const values = [...registry.values()];
         expect(values.find(c => c.site === 'weixin' && c.name === 'create-draft')).toBeDefined();
-        expect(values.find(c => c.site === 'weixin' && c.name === 'drafts')).toBeDefined();
+        const draftsCommand = values.find(c => c.site === 'weixin' && c.name === 'drafts');
+        expect(draftsCommand).toBeDefined();
+        expect(draftsCommand.args.find((arg) => arg.name === 'timeout')).toMatchObject({ type: 'int', default: 60 });
+        expect(values.find(c => c.site === 'weixin' && c.name === 'search')).toBeDefined();
     });
 });
 

@@ -7,6 +7,7 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 cli({
     site: 'youtube',
     name: 'history',
+    access: 'read',
     description: 'Get YouTube watch history',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,

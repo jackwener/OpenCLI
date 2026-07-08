@@ -17,8 +17,16 @@ export interface ExternalCliInstall {
 }
 
 export interface ExternalCliConfig {
+  /** User-facing OpenCLI subcommand and, by default, the executable name. */
   name: string;
   binary: string;
+  /**
+   * Display alias rendered alongside `name` in help/listing as `name(package)`.
+   * Use either the upstream distribution/project name (e.g. `tg-cli`, `discord-cli`)
+   * or a human-readable brand label (e.g. `notion`, `企业微信`) when the bare
+   * executable name is ambiguous.
+   */
+  package?: string;
   description?: string;
   homepage?: string;
   tags?: string[];
@@ -84,6 +92,10 @@ export function getInstallCmd(installConfig?: ExternalCliInstall): string | null
   if (platform === 'win32' && installConfig.windows) return installConfig.windows;
   if (installConfig.default) return installConfig.default;
   return null;
+}
+
+export function formatExternalCliLabel(cli: ExternalCliConfig): string {
+  return cli.package && cli.package !== cli.name ? `${cli.name}(${cli.package})` : cli.name;
 }
 
 /**
@@ -185,16 +197,46 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
   }
 
   // 3. Passthrough execution with stdio inherited
-  const result = spawnSync(cli.binary, args, { stdio: 'inherit' });
+  const result = spawnPassthrough(cli.binary, args);
   if (result.error) {
     log.error(`Failed to execute '${cli.binary}': ${result.error.message}`);
     process.exitCode = EXIT_CODES.GENERIC_ERROR;
     return;
   }
-  
+
+  if (result.signal) {
+    // Killed by a signal — never report success to the calling shell/agent.
+    process.exitCode = EXIT_CODES.GENERIC_ERROR;
+    return;
+  }
   if (result.status !== null) {
     process.exitCode = result.status;
   }
+}
+
+/** Quote a token for cmd.exe: wrap when it contains shell-significant chars, doubling inner quotes. */
+function quoteForCmdShell(token: string): string {
+  if (token !== '' && !/[\s"^&|<>%()]/.test(token)) return token;
+  return `"${token.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Run an external CLI with stdio inherited.
+ *
+ * On Windows, npm-installed CLIs are `.cmd` shims: `where` finds them (so the
+ * installed-check passes), but Node refuses to spawn them directly since the
+ * CVE-2024-27980 hardening — spawnSync fails with EINVAL (or ENOENT when
+ * PATHEXT resolution is skipped). Fall back to running through the shell in
+ * that case, quoting each token for cmd.exe.
+ */
+function spawnPassthrough(binary: string, args: string[]): ReturnType<typeof spawnSync> {
+  const direct = spawnSync(binary, args, { stdio: 'inherit' });
+  const errorCode = (direct.error as NodeJS.ErrnoException | undefined)?.code;
+  if (os.platform() === 'win32' && (errorCode === 'EINVAL' || errorCode === 'ENOENT')) {
+    const command = [binary, ...args].map(quoteForCmdShell).join(' ');
+    return spawnSync(command, { stdio: 'inherit', shell: true });
+  }
+  return direct;
 }
 
 export interface RegisterOptions {

@@ -10,6 +10,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'edit',
+    access: 'write',
     description: 'Edit images with AI text prompts (Qwen image edit)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

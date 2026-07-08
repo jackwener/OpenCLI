@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { wrapForEval } from '@jackwener/opencli/browser/utils';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { buildCoverCheckPanelTextJs } from './draft.js';
+import { createPageMock } from '../test-utils.js';
 // ─── Shared test helpers ────────────────────────────────────────────
 const tempDirs = [];
 function createTempVideo(name = 'demo.mp4') {
@@ -48,36 +49,6 @@ function createFakeTree(text, children = []) {
         child.parentElement = node;
     }
     return node;
-}
-function createPageMock(evaluateResults, overrides = {}) {
-    const evaluate = vi.fn();
-    for (const result of evaluateResults) {
-        evaluate.mockResolvedValueOnce(result);
-    }
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate,
-        getCookies: vi.fn().mockResolvedValue([]),
-        snapshot: vi.fn().mockResolvedValue(undefined),
-        click: vi.fn().mockResolvedValue(undefined),
-        typeText: vi.fn().mockResolvedValue(undefined),
-        pressKey: vi.fn().mockResolvedValue(undefined),
-        scrollTo: vi.fn().mockResolvedValue(undefined),
-        getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-        wait: vi.fn().mockResolvedValue(undefined),
-        tabs: vi.fn().mockResolvedValue([]),
-        selectTab: vi.fn().mockResolvedValue(undefined),
-        networkRequests: vi.fn().mockResolvedValue([]),
-        consoleMessages: vi.fn().mockResolvedValue([]),
-        scroll: vi.fn().mockResolvedValue(undefined),
-        autoScroll: vi.fn().mockResolvedValue(undefined),
-        installInterceptor: vi.fn().mockResolvedValue(undefined),
-        getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        waitForCapture: vi.fn().mockResolvedValue(undefined),
-        screenshot: vi.fn().mockResolvedValue(''),
-        setFileInput: vi.fn().mockResolvedValue(undefined),
-        ...overrides,
-    };
 }
 describe('douyin draft registration', () => {
     it('registers the draft command', () => {

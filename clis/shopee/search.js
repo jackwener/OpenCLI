@@ -150,6 +150,7 @@ async function readSearchResults(page, query, sortby, limit, origin) {
 cli({
     site: 'shopee',
     name: 'search',
+    access: 'read',
     description: 'Search Shopee products and output product links',
     domain: 'shopee.com.my',
     strategy: Strategy.COOKIE,

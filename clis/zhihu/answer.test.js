@@ -2,80 +2,53 @@ import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './answer.js';
 describe('zhihu answer', () => {
-    it('rejects create mode when the current user already answered the question', async () => {
+    it('registers as a cookie browser command', () => {
         const cmd = getRegistry().get('zhihu/answer');
-        expect(cmd?.func).toBeTypeOf('function');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn()
-                .mockResolvedValueOnce({ slug: 'alice' })
-                .mockResolvedValueOnce({ entryPathSafe: false, hasExistingAnswerByCurrentUser: true }),
-        };
-        await expect(cmd.func(page, { target: 'question:1', text: 'hello', execute: true })).rejects.toMatchObject({ code: 'ACTION_NOT_AVAILABLE' });
+        expect(cmd).toBeDefined();
+        expect(cmd.strategy).toBe('cookie');
+        expect(cmd.browser).toBe(true);
     });
-    it('rejects anonymous mode instead of toggling it', async () => {
+    it('creates an answer via API and returns result', async () => {
         const cmd = getRegistry().get('zhihu/answer');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn()
                 .mockResolvedValueOnce({ slug: 'alice' })
-                .mockResolvedValueOnce({ entryPathSafe: true, hasExistingAnswerByCurrentUser: false })
-                .mockResolvedValueOnce({ editorState: 'fresh_empty', anonymousMode: 'on' }),
+                .mockResolvedValueOnce({ ok: true, id: '42', url: 'https://www.zhihu.com/question/1/answer/42' }),
         };
-        await expect(cmd.func(page, { target: 'question:1', text: 'hello', execute: true })).rejects.toMatchObject({ code: 'ACTION_NOT_AVAILABLE' });
-    });
-    it('rejects when a unique safe answer composer cannot be proven', async () => {
-        const cmd = getRegistry().get('zhihu/answer');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn()
-                .mockResolvedValueOnce({ slug: 'alice' })
-                .mockResolvedValueOnce({ entryPathSafe: false, hasExistingAnswerByCurrentUser: false }),
-        };
-        await expect(cmd.func(page, { target: 'question:1', text: 'hello', execute: true })).rejects.toMatchObject({ code: 'ACTION_NOT_AVAILABLE' });
-    });
-    it('rejects when anonymous mode cannot be proven off', async () => {
-        const cmd = getRegistry().get('zhihu/answer');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn()
-                .mockResolvedValueOnce({ slug: 'alice' })
-                .mockResolvedValueOnce({ entryPathSafe: true, hasExistingAnswerByCurrentUser: false })
-                .mockResolvedValueOnce({ editorState: 'fresh_empty', anonymousMode: 'unknown' }),
-        };
-        await expect(cmd.func(page, { target: 'question:1', text: 'hello', execute: true })).rejects.toMatchObject({ code: 'ACTION_NOT_AVAILABLE' });
-    });
-    it('requires a side-effect-free entry path and exact editor content before publish', async () => {
-        const cmd = getRegistry().get('zhihu/answer');
-        const page = {
-            goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn()
-                .mockResolvedValueOnce({ slug: 'alice' })
-                .mockResolvedValueOnce({ entryPathSafe: true })
-                .mockResolvedValueOnce({ editorState: 'fresh_empty', anonymousMode: 'off' })
-                .mockResolvedValueOnce({ editorContent: 'hello', bodyMatches: true })
-                .mockResolvedValueOnce({
-                createdTarget: 'answer:1:2',
-                createdUrl: 'https://www.zhihu.com/question/1/answer/2',
-                authorIdentity: 'alice',
-                bodyMatches: true,
-            }),
-        };
-        await expect(cmd.func(page, { target: 'question:1', text: 'hello', execute: true })).resolves.toEqual([
+        const rows = await cmd.func(page, { target: 'question:1', text: 'hello', execute: true });
+        expect(rows).toEqual([
             expect.objectContaining({
                 outcome: 'created',
-                created_target: 'answer:1:2',
-                created_url: 'https://www.zhihu.com/question/1/answer/2',
+                created_target: 'answer:1:42',
                 author_identity: 'alice',
             }),
         ]);
-        expect(page.evaluate.mock.calls[1][0]).toContain('composerCandidates.length === 1');
-        expect(page.evaluate.mock.calls[1][0]).not.toContain('writeAnswerButton');
-        expect(page.evaluate.mock.calls[1][0]).toContain('const readAnswerAuthorSlug = (node) =>');
-        expect(page.evaluate.mock.calls[1][0]).toContain('const answerAuthorScopeSelector = ".AuthorInfo, .AnswerItem-authorInfo, .ContentItem-meta, [itemprop=\\"author\\"]"');
-        expect(page.evaluate.mock.calls[1][0]).not.toContain("node.querySelector('a[href^=\"/people/\"]')");
-        expect(page.evaluate.mock.calls[3][0]).toContain('composerCandidates.length !== 1');
-        expect(page.evaluate.mock.calls[4][0]).toContain('const readAnswerAuthorSlug = (node) =>');
-        expect(page.evaluate.mock.calls[4][0]).not.toContain("answerContainer?.querySelector('a[href^=\"/people/\"]')");
+    });
+    it('throws on API error', async () => {
+        const cmd = getRegistry().get('zhihu/answer');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ slug: 'alice' })
+                .mockResolvedValueOnce({ ok: false, status: 400, message: 'already answered' }),
+        };
+        await expect(cmd.func(page, { target: 'question:1', text: 'hello', execute: true }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+    it('requires the answer API response to include the created id', async () => {
+        const cmd = getRegistry().get('zhihu/answer');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ slug: 'alice' })
+                .mockResolvedValueOnce({ ok: false, status: 200, message: 'Answer API response did not include a created answer id' }),
+        };
+        await expect(cmd.func(page, { target: 'question:1', text: 'hello', execute: true }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+        expect(page.evaluate.mock.calls[1][0]).toContain('Answer API response did not include a created answer id');
     });
 });

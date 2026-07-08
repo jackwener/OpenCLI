@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     getDoubanPhotoExtension,
     inferDoubanSearchResultType,
+    loadDoubanMovieHot,
     loadDoubanSubjectDetail,
     loadDoubanSubjectPhotos,
     normalizeDoubanBookSubject,
@@ -10,6 +11,7 @@ import {
     promoteDoubanPhotoUrl,
     resolveDoubanPhotoAssetUrl,
     searchDouban,
+    splitDoubanTitle,
 } from './utils.js';
 
 function createFakeNode(text = '', attrs = {}) {
@@ -42,6 +44,39 @@ function createFakeSearchItem({ title, url, rating, abstract, cover }) {
             return null;
         },
     };
+}
+
+function createFakeMovieHotItem({ title, url, info, rating, votes, cover }) {
+    return {
+        querySelector(selector) {
+            if (selector === '.pl2 a') {
+                return createFakeNode(title, { href: url });
+            }
+            if (selector === '.pl2 p') {
+                return createFakeNode(info);
+            }
+            if (selector === '.star .pl') {
+                return createFakeNode(votes);
+            }
+            if (selector === '.rating_nums') {
+                return createFakeNode(rating);
+            }
+            if (selector === 'img') {
+                return createFakeNode('', { src: cover });
+            }
+            return null;
+        },
+    };
+}
+
+function runMovieHotEvaluate(script, items) {
+    const document = {
+        querySelectorAll(selector) {
+            return selector === '.item' ? items : [];
+        },
+    };
+
+    return vm.runInNewContext(script, { document, URL });
 }
 
 async function runSearchEvaluate(script, rawItems, domItems) {
@@ -242,6 +277,51 @@ ISBN: 9787544270871
         });
     });
 
+    it('parses movie-hot rows with real chart fields only', async () => {
+        const items = [
+            createFakeMovieHotItem({
+                title: ' 少年与犬 ',
+                url: '/subject/36840171/',
+                info: '2025-03-20 / 日本 / 剧情',
+                rating: '6.8',
+                votes: '(12345人评价)',
+                cover: 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p1.jpg',
+            }),
+        ];
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '豆瓣电影排行榜', href: 'https://movie.douban.com/chart' })
+                .mockImplementationOnce((script) => runMovieHotEvaluate(script, items)),
+        };
+
+        await expect(loadDoubanMovieHot(page, 20)).resolves.toEqual([
+            {
+                rank: 1,
+                id: '36840171',
+                title: '少年与犬',
+                rating: 6.8,
+                votes: 12345,
+                year: '2025',
+                url: 'https://movie.douban.com/subject/36840171/',
+                cover: 'https://img1.doubanio.com/view/photo/s_ratio_poster/public/p1.jpg',
+            },
+        ]);
+    });
+
+    it('throws EmptyResultError when movie-hot parses no chart rows', async () => {
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn()
+                .mockResolvedValueOnce({ blocked: false, title: '豆瓣电影排行榜', href: 'https://movie.douban.com/chart' })
+                .mockResolvedValueOnce([]),
+        };
+
+        await expect(loadDoubanMovieHot(page, 20)).rejects.toThrow('douban movie-hot returned no data');
+    });
+
     it('loads book subject details from book.douban.com when type=book', async () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
@@ -355,5 +435,54 @@ describe('inferDoubanSearchResultType', () => {
             moreUrl: '',
             labels: [{ text: '图书' }],
         })).toBe('book');
+    });
+});
+
+// Regression for #1851: splitDoubanTitle must be self-contained so its
+// .toString()-injected form runs inside page.evaluate, where the module scope
+// (and therefore the module-level normalizeText) is unavailable. Pre-fix the
+// injected copy threw `ReferenceError: normalizeText is not defined`.
+describe('splitDoubanTitle — page.evaluate injection (#1851)', () => {
+    // Rebuild the function from its source in a fresh scope that, like the
+    // browser page context, has no access to the module-level normalizeText.
+    function injectViaToString(fn) {
+        // eslint-disable-next-line no-new-func
+        return new Function(`return (${fn.toString()})`)();
+    }
+
+    it('does not throw when injected into page.evaluate (normalizeText is not defined there)', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        expect(() => injected('盗梦空间 Inception')).not.toThrow();
+    });
+
+    it('splits a CJK + Latin title correctly when injected', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        expect(injected('盗梦空间 Inception')).toEqual({
+            title: '盗梦空间',
+            originalTitle: 'Inception',
+        });
+    });
+
+    it('returns the same result whether called directly or via injection', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        const samples = [
+            '盗梦空间 Inception',
+            '千与千寻 千と千尋の神隠し',
+            "哈尔的移动城堡 Howl's Moving Castle",
+            '无名之辈',
+            '',
+            '   ',
+        ];
+        for (const input of samples) {
+            expect(injected(input)).toEqual(splitDoubanTitle(input));
+        }
+    });
+
+    it('collapses internal whitespace in the injected copy', () => {
+        const injected = injectViaToString(splitDoubanTitle);
+        expect(injected('  流浪地球   The   Wandering   Earth  ')).toEqual({
+            title: '流浪地球',
+            originalTitle: 'The Wandering Earth',
+        });
     });
 });

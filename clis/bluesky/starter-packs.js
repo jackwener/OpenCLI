@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'bluesky',
     name: 'starter-packs',
+    access: 'read',
     description: 'Get starter packs created by a Bluesky user',
     domain: 'public.api.bsky.app',
     strategy: Strategy.PUBLIC,

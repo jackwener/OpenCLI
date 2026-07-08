@@ -18,6 +18,7 @@ export type Action =
   | 'bind'
   | 'network-capture-start'
   | 'network-capture-read'
+  | 'wait-download'
   | 'cdp'
   | 'frames';
 
@@ -30,8 +31,12 @@ export interface Command {
   page?: string;
   /** JS code to evaluate in page context (exec action) */
   code?: string;
-  /** Logical workspace for automation session reuse */
-  workspace?: string;
+  /** Browser session name for tab/page continuity. */
+  session?: string;
+  /** Runtime surface selecting owned container policy. */
+  surface?: 'browser' | 'adapter';
+  /** Adapter site session lifecycle. Persistent site sessions do not idle-expire. */
+  siteSession?: 'ephemeral' | 'persistent';
   /** URL to navigate to (navigate action) */
   url?: string;
   /** Sub-operation for tabs: list, new, close, select */
@@ -40,16 +45,16 @@ export interface Command {
   index?: number;
   /** Cookie domain filter */
   domain?: string;
-  /** Optional hostname/domain to require for current-tab binding */
-  matchDomain?: string;
-  /** Optional pathname prefix to require for current-tab binding */
-  matchPathPrefix?: string;
   /** Screenshot format: png (default) or jpeg */
   format?: 'png' | 'jpeg';
   /** JPEG quality (0-100), only for jpeg format */
   quality?: number;
   /** Whether to capture full page (not just viewport) */
   fullPage?: boolean;
+  /** Override viewport width in CSS pixels for screenshot (0 / undefined = use current) */
+  width?: number;
+  /** Override viewport height in CSS pixels for screenshot (0 / undefined = use current; ignored when fullPage) */
+  height?: number;
   /** Local file paths for set-file-input action */
   files?: string[];
   /** CSS selector for file input element (set-file-input action) */
@@ -58,18 +63,40 @@ export interface Command {
   text?: string;
   /** URL substring filter pattern for network capture actions */
   pattern?: string;
+  /** Download wait timeout in milliseconds */
+  timeoutMs?: number;
   /** CDP method name for 'cdp' action (e.g. 'Accessibility.getFullAXTree') */
   cdpMethod?: string;
   /** CDP method params for 'cdp' action */
   cdpParams?: Record<string, unknown>;
-  /** When true, automation windows are created in the foreground (focused) */
-  windowFocused?: boolean;
-  /** Custom idle timeout in seconds for this workspace session. Overrides the default. */
+  /** Window foreground/background policy for owned Browser Bridge containers. */
+  windowMode?: 'foreground' | 'background';
+  /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
-  /** Explicitly allow navigation inside a borrowed bound-current tab. */
-  allowBoundNavigation?: boolean;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
+  /** Browser profile/context REQUIRED by the CLI (--profile / env). Used by the daemon for strict routing. */
+  contextId?: string;
+  /**
+   * Browser profile/context PREFERRED by the CLI (persisted config default).
+   * Daemon-only routing hint: used when connected, otherwise the daemon falls
+   * back to the only connected profile. The extension ignores this field.
+   */
+  preferredContextId?: string;
+  /**
+   * Daemon-side command timeout in seconds, set by the CLI transport. The
+   * extension derives its CDP deadline from this so it fails just before the
+   * daemon timer and its (more specific) error wins.
+   * Kept alongside `deadlineAt` for older daemons; new code prefers deadlineAt.
+   */
+  timeout?: number;
+  /**
+   * Absolute command deadline (epoch ms), set by the CLI transport. All hops
+   * run on the same machine, so every layer derives its remaining budget as
+   * `deadlineAt - Date.now()` — queueing and service-worker wake latency are
+   * absorbed instead of silently shrinking the innermost budget.
+   */
+  deadlineAt?: number;
 }
 
 export interface Result {

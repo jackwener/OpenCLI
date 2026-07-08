@@ -3,6 +3,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'twitter',
     name: 'unfollow',
+    access: 'write',
     description: 'Unfollow a Twitter user',
     domain: 'x.com',
     strategy: Strategy.UI,

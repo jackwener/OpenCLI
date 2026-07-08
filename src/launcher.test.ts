@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ElectronAppEntry } from './electron-apps.js';
-import { detectProcess, discoverAppPath, launchDetachedApp, launchElectronApp, probeCDP, resolveExecutableCandidates } from './launcher.js';
+import { detectProcess, discoverAppPath, electronLaunchArgs, launchDetachedApp, launchElectronApp, probeCDP, resolveExecutableCandidates } from './launcher.js';
 
 interface MockChildProcess {
   once: ReturnType<typeof vi.fn>;
@@ -131,6 +131,23 @@ describe('resolveExecutableCandidates', () => {
     expect(resolveExecutableCandidates('/Applications/Antigravity.app', app)).toEqual([
       '/Applications/Antigravity.app/Contents/MacOS/Electron',
       '/Applications/Antigravity.app/Contents/MacOS/Antigravity',
+    ]);
+  });
+});
+
+describe('electronLaunchArgs', () => {
+  it('includes Chromium 142 WebSocket origin allow-list for auto-launched Electron apps', () => {
+    expect(electronLaunchArgs(9234)).toEqual([
+      '--remote-debugging-port=9234',
+      '--remote-allow-origins=*',
+    ]);
+  });
+
+  it('preserves app-specific extra launch args after the required CDP flags', () => {
+    expect(electronLaunchArgs(9234, ['--foo=bar'])).toEqual([
+      '--remote-debugging-port=9234',
+      '--remote-allow-origins=*',
+      '--foo=bar',
     ]);
   });
 });

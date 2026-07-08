@@ -4,6 +4,7 @@ import { cityUrl, gotoKe } from './utils.js';
 cli({
     site: 'ke',
     name: 'ershoufang',
+    access: 'read',
     description: '贝壳找房二手房列表',
     domain: 'ke.com',
     strategy: Strategy.COOKIE,

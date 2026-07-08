@@ -4,6 +4,7 @@ import { mubuPost, htmlToText } from './utils.js';
 cli({
   site: 'mubu',
   name: 'search',
+    access: 'read',
   description: '全局搜索幕布文档和文件夹（标题+内容，服务端全量匹配）。结果含 type/id/name/path/hits/snippet 字段。',
   domain: 'mubu.com',
   strategy: Strategy.COOKIE,

@@ -5,6 +5,7 @@ import { getOptions } from './profiles.js';
 cli({
   site: 'maybeai-video-app',
   name: 'schema',
+  access: 'read',
   description: 'Show local unified input schema and workflow output mapping for a MaybeAI video app',
   strategy: Strategy.PUBLIC,
   browser: false,

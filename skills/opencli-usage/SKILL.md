@@ -10,10 +10,10 @@ OpenCLI turns any website, Electron desktop app, or external CLI into a uniform 
 
 ## The three pillars
 
-- **Adapter commands** — `opencli <site> <command> [...]`. Built-in adapters live in `clis/`, user adapters in `~/.opencli/clis/`. Each is backed by a strategy (`PUBLIC | COOKIE | HEADER | INTERCEPT | UI | LOCAL`) that tells you whether a Chrome session is needed.
+- **Adapter commands** — `opencli <site> <command> [...]`. Built-in adapters live in `clis/`, user adapters in `~/.opencli/clis/`. Each is backed by a strategy (`PUBLIC | COOKIE | INTERCEPT | UI | LOCAL`) that tells you whether a Chrome session is needed.
 - **Browser driving** — `opencli browser *` subcommands (`open`, `state`, `click`, `type`, `select`, `find`, `extract`, `network`, …) for ad-hoc interaction and scraping when no adapter covers the task. See `opencli-browser`.
-- **Current-tab binding** — `opencli browser bind --domain <host>` attaches a `bound:*` workspace to the Chrome tab the user already opened/logged into. Follow-up commands use `opencli browser --workspace bound:default ...`. See `opencli-browser` before using it; bound workspaces have stricter navigation/tab-mutation safety rules.
-- **External CLI passthrough** — `opencli gh`, `opencli docker`, `opencli vercel`, etc. Registered via `opencli install <name>` (auto-install from `external-clis.yaml`) or `opencli register <name>` (bring your own).
+- **Current-tab binding** — `opencli browser <session> bind` attaches the Chrome tab the user already opened/logged into to that browser session. Follow-up commands use `opencli browser <session> ...`. See `opencli-browser` before using it; bound sessions still block tab mutation.
+- **External CLI passthrough** — `opencli gh`, `opencli docker`, `opencli vercel`, etc. Managed via `opencli external install <name>` (auto-install from `external-clis.yaml`) or `opencli external register <name>` (bring your own).
 
 ## Install
 
@@ -28,19 +28,19 @@ cd OpenCLI && npm install
 npx tsx src/main.ts <command>               # same surface, no global install
 ```
 
-`opencli doctor` prints a structured `DoctorReport` — daemon status, extension connection, version checks. Scope is narrow: it diagnoses the **browser bridge** (daemon + extension + Chrome wiring). `PUBLIC` / `LOCAL` adapters, `opencli list`, `validate`, `verify`, plugin commands, and external-CLI passthrough don't need it to be green — only `COOKIE` / `HEADER` / `INTERCEPT` / `UI` adapters and the `opencli browser *` subcommands do. Flags: `--no-live` (skip live browser test), `--sessions` (list active automation sessions), `-v` (verbose).
+`opencli doctor` prints a structured `DoctorReport` — daemon status, extension connection, version checks, and a live browser connectivity probe. Scope is narrow: it diagnoses the **browser bridge** (daemon + extension + Chrome wiring). `PUBLIC` / `LOCAL` adapters, `opencli list`, `validate`, `verify`, plugin commands, and external-CLI passthrough don't need it to be green — only `COOKIE` / `INTERCEPT` / `UI` adapters and the `opencli browser *` subcommands do. Flag: `-v` (verbose).
 
 ## Prerequisites by command type
 
 | Strategy tag on `opencli list` | What it needs |
 |--------------------------------|---------------|
 | `PUBLIC` | Nothing — pure HTTP, no browser. |
-| `COOKIE` / `HEADER` | Chrome logged into the target site + **OpenCLI** extension installed from the [Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk). Command captures the credential from your live session — no re-login. |
+| `COOKIE` | Chrome logged into the target site + **OpenCLI** extension installed from the [Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk). Command captures the credential from your live session — no re-login. |
 | `INTERCEPT` | Same as COOKIE, plus opencli opens an automation window to capture a signed request. |
 | `UI` | Same as COOKIE, full DOM interaction. |
 | `LOCAL` | No browser; talks to a local/dev endpoint. |
 
-Electron desktop apps (cursor, codex, chatwise, notion, discord-app, doubao-app, antigravity, chatgpt-app) route through CDP against the running app — same cookie-less flow as a logged-in browser. Make sure the app is running before invoking.
+Electron desktop apps (cursor, codex, chatwise, discord-app, doubao-app, antigravity, chatgpt-app) route through CDP against the running app — same cookie-less flow as a logged-in browser. Make sure the app is running before invoking.
 
 ## Discover what's installed — don't read this file, run a command
 
@@ -53,6 +53,8 @@ opencli <site> <command> --help # see positional args and command-specific flags
 ```
 
 Do not hard-code adapter lists — there are 100+ sites and the count moves every week. `opencli list -f json` is the source of truth; it emits one entry per command with `{site, name, aliases, description, strategy, browser, args, columns, ...}`. For an agent, that is always better than grepping a doc.
+
+Before falling back to raw `opencli browser` commands on high-change authenticated sites, check whether a site adapter already exposes the workflow. For example, ChatGPT web has higher-level commands for conversation reads and Deep Research result extraction; discover the current surface with `opencli chatgpt --help` or `opencli list -f json`.
 
 ## Universal flags (work on every adapter command)
 
@@ -77,19 +79,16 @@ A few commands override the default via `cmd.defaultFormat` (e.g. chat commands 
 
 | variable | default | purpose |
 |----------|---------|---------|
-| `OPENCLI_DAEMON_PORT` | `19825` | Daemon ↔ extension bridge port. |
-| `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for the browser bridge. |
+| `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | Seconds to wait for the browser bridge. |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Per-command timeout. |
-| `OPENCLI_BROWSER_EXPLORE_TIMEOUT` | `120` | For long-running recon (plugin/adapter scaffolding). |
 | `OPENCLI_CDP_ENDPOINT` | — | Manual CDP endpoint override (dev / remote Chrome / Electron). |
 | `OPENCLI_CACHE_DIR` | `~/.opencli/cache` | Network capture + browser-state cache. |
-| `OPENCLI_WINDOW_FOCUSED` | `false` | `1` → automation window opens in the foreground. |
+| `OPENCLI_WINDOW` | command-specific | `foreground` or `background` browser window mode. |
 | `OPENCLI_VERBOSE` | `false` | Verbose logging (also triggered by `-v`). |
-| `OPENCLI_DIAGNOSTIC` | `false` | `1` → emit structured `RepairContext` JSON on adapter failure. Required for `opencli-autofix`. |
 
 ## Self-repair
 
-When an adapter command fails because the site changed (selectors drifted, API rotated, response schema shifted), the CLI emits a hint: `# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 ...`. Do that, read the `RepairContext`, patch the adapter at `RepairContext.adapter.sourcePath`, and retry. Max 3 repair rounds. The full flow is in `opencli-autofix`.
+When an adapter command fails because the site changed (selectors drifted, API rotated, response schema shifted), re-run with `--trace retain-on-failure`. The error envelope includes a `trace` block pointing at `summary.md`; patch only the `adapterSourcePath` from that summary and retry. Max 3 repair rounds. The full flow is in `opencli-autofix`.
 
 ## Writing your own adapter
 
@@ -126,16 +125,19 @@ opencli plugin create <name>               # scaffold a new plugin
 Wraps external command-line tools so you can discover + invoke them through the same `opencli …` entrypoint:
 
 ```bash
-opencli install gh             # auto-install via brew/apt/npm per external-clis.yaml
-opencli register my-tool \
+opencli external install gh    # auto-install via brew/apt/npm per external-clis.yaml
+opencli external register my-tool \
     --binary my-tool \
     --install "npm i -g my-tool" \
     --desc "My internal CLI"
+opencli external list
 opencli gh pr list --limit 5   # passthrough; stdio is inherited, exit code propagated
 opencli docker ps
 ```
 
-Built-in entries live in `src/external-clis.yaml`; user overrides and additions in `~/.opencli/external-clis.yaml`. Commonly shipped: `gh`, `docker`, `vercel`, `lark-cli`, `dws`, `wecom-cli`, `obsidian`.
+Built-in entries live in `src/external-clis.yaml`; user overrides and additions in `~/.opencli/external-clis.yaml`. Commonly shipped: `gh`, `docker`, `vercel`, `lark-cli`, `longbridge`, `dws`, `wecom-cli`, `obsidian`, `ntn`, `tg(tg-cli)`, `discord(discord-cli)`, `wx(wx-cli)`.
+
+Some official CLIs use shell-script installers instead of a shell-free package-manager command. Entries without an `install` config, such as `ntn`, must be installed manually from their homepage before passthrough use.
 
 ## Shell completion
 
@@ -165,4 +167,4 @@ The following were removed in the PR #1094 consolidation — don't try to invoke
 
 - Don't paste this skill's command list into your plan; it will rot. Call `opencli list -f json` at the start of a task instead.
 - Don't assume every adapter needs a browser — strategy `PUBLIC` and `LOCAL` don't. Check the `strategy` field.
-- Don't silently fall back from a failing adapter to a hand-rolled `fetch` — `OPENCLI_DIAGNOSTIC=1` almost always tells you exactly what to change in the adapter. Do that first.
+- Don't silently fall back from a failing adapter to a hand-rolled `fetch` — `--trace retain-on-failure` gives you the browser evidence and adapter source path. Do that first.

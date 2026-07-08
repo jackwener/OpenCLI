@@ -4,6 +4,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'taobao',
     name: 'search',
+    access: 'read',
     description: '淘宝商品搜索',
     domain: 's.taobao.com',
     strategy: Strategy.COOKIE,

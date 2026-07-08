@@ -60,6 +60,7 @@ async function fetchTiebaPagePc(page, kwargs, limit) {
 cli({
     site: 'tieba',
     name: 'posts',
+    access: 'read',
     description: 'Browse posts in a tieba forum',
     domain: 'tieba.baidu.com',
     strategy: Strategy.COOKIE,

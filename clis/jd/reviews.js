@@ -3,6 +3,7 @@ import { clampInt, normalizeNumericId } from '../_shared/common.js';
 cli({
     site: 'jd',
     name: 'reviews',
+    access: 'read',
     description: '京东商品评价',
     domain: 'item.jd.com',
     strategy: Strategy.COOKIE,

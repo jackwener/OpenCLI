@@ -30,6 +30,7 @@ function strip(html) {
 cli({
     site: 'linux-do',
     name: 'user-posts',
+    access: 'read',
     description: 'linux.do 用户的帖子',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,

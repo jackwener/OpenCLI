@@ -44,7 +44,7 @@ describe('xiaoyuzhou podcast-episodes', () => {
             ],
         });
 
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             id: 'podcast-1',
             limit: 3,
         });
@@ -66,7 +66,7 @@ describe('xiaoyuzhou podcast-episodes', () => {
     });
 
     it('rejects non-positive limits before hitting the API', async () => {
-        await expect(cmd.func(null, {
+        await expect(cmd.func({
             id: 'podcast-1',
             limit: 0,
         })).rejects.toMatchObject({

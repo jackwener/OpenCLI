@@ -3,6 +3,7 @@ import { readMessagesScript } from './utils.js';
 export const readCommand = cli({
     site: 'doubao-app',
     name: 'read',
+    access: 'read',
     description: 'Read chat history from Doubao desktop app',
     domain: 'doubao-app',
     strategy: Strategy.UI,

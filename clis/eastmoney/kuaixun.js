@@ -17,6 +17,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
   site: 'eastmoney',
   name: 'kuaixun',
+    access: 'read',
   description: '东方财富 7x24 财经快讯',
   domain: 'np-listapi.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -26,7 +27,7 @@ cli({
     { name: 'limit',  type: 'int',    default: 20,    help: '返回数量 (max 100)' },
   ],
   columns: ['time', 'title', 'summary', 'stocks'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const column = String(args.column ?? '102').trim();
     const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));
 

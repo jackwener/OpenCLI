@@ -3,6 +3,7 @@ import { buildSubstackBrowseUrl, loadSubstackFeed } from './utils.js';
 cli({
     site: 'substack',
     name: 'feed',
+    access: 'read',
     description: 'Substack 热门文章 Feed',
     domain: 'substack.com',
     strategy: Strategy.COOKIE,

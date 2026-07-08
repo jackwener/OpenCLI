@@ -2,7 +2,7 @@
  * Weibo feed — for-you or following timeline.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { getSelfUid } from './utils.js';
+import { getSelfUid, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 const TIMELINE_ENDPOINTS = {
     'for-you': 'unreadfriendstimeline',
     following: 'friendstimeline',
@@ -10,6 +10,7 @@ const TIMELINE_ENDPOINTS = {
 cli({
     site: 'weibo',
     name: 'feed',
+    access: 'read',
     description: 'Fetch Weibo timeline (for-you or following)',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
@@ -22,7 +23,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 15, help: 'Number of posts (max 50)' },
     ],
-    columns: ['author', 'text', 'reposts', 'comments', 'likes', 'time', 'url'],
+    columns: ['id', 'author', 'text', 'reposts', 'comments', 'likes', 'time', 'url'],
     func: async (page, kwargs) => {
         const count = Math.min(kwargs.limit || 15, 50);
         const timelineType = kwargs.type === 'following' ? 'following' : 'for-you';
@@ -30,7 +31,7 @@ cli({
         await page.goto('https://weibo.com');
         await page.wait(2);
         const uid = await getSelfUid(page);
-        const data = await page.evaluate(`
+        const data = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
         const uid = ${JSON.stringify(uid)};
         const count = ${count};
@@ -46,6 +47,7 @@ cli({
         return (data.statuses || []).slice(0, count).map(s => {
           const u = s.user || {};
           const item = {
+            id: s.mblogid || s.idstr || String(s.id || ''),
             author: u.screen_name || '',
             text: (s.text_raw || strip(s.text || '')).substring(0, 200),
             reposts: s.reposts_count || 0,
@@ -61,9 +63,7 @@ cli({
           return item;
         });
       })()
-    `);
-        if (!Array.isArray(data))
-            return [];
+    `)), 'weibo feed');
         return data;
     },
 });

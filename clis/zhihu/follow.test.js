@@ -2,44 +2,41 @@ import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './follow.js';
 describe('zhihu follow', () => {
-    it('rejects missing --execute before any browser write path', async () => {
+    it('registers as a cookie browser command', () => {
         const cmd = getRegistry().get('zhihu/follow');
-        expect(cmd?.func).toBeTypeOf('function');
-        const page = { goto: vi.fn(), evaluate: vi.fn() };
-        await expect(cmd.func(page, { target: 'question:123' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
-        expect(page.goto).not.toHaveBeenCalled();
-        expect(page.evaluate).not.toHaveBeenCalled();
+        expect(cmd).toBeDefined();
+        expect(cmd.strategy).toBe('cookie');
     });
-    it('rejects user pages where the primary follow control is not uniquely anchored', async () => {
+    it('follows via API and returns result', async () => {
         const cmd = getRegistry().get('zhihu/follow');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue({ state: 'ambiguous_user_follow' }),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValueOnce({ ok: true }),
         };
-        await expect(cmd.func(page, { target: 'user:alice', execute: true })).rejects.toMatchObject({
-            code: 'ACTION_NOT_AVAILABLE',
-        });
+        const rows = await cmd.func(page, { target: 'question:123', execute: true });
+        expect(rows).toEqual([expect.objectContaining({ outcome: 'applied' })]);
     });
-    it('returns already_applied when already following', async () => {
+    it('uses the parsed user slug for user follow API calls', async () => {
         const cmd = getRegistry().get('zhihu/follow');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue({ state: 'already_following' }),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValueOnce({ ok: true }),
         };
-        await expect(cmd.func(page, { target: 'question:123', execute: true })).resolves.toEqual([
-            expect.objectContaining({ outcome: 'already_applied', target_type: 'question', target: 'question:123' }),
-        ]);
+        await cmd.func(page, { target: 'user:alice', execute: true });
+        expect(page.evaluate.mock.calls[0][0]).toContain("'https://www.zhihu.com/api/v4/members/' + targetId + '/followers'");
+        expect(page.evaluate.mock.calls[0][0]).toContain('var targetId = "alice"');
+        expect(page.evaluate.mock.calls[0][0]).not.toContain('undefined');
     });
-    it('rejects question pages where the question follow control is not uniquely anchored', async () => {
+    it('throws on API error', async () => {
         const cmd = getRegistry().get('zhihu/follow');
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
-            evaluate: vi.fn().mockResolvedValue({ state: 'ambiguous_question_follow' }),
+            wait: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValueOnce({ ok: false, message: 'already following' }),
         };
-        await expect(cmd.func(page, { target: 'question:123', execute: true })).rejects.toMatchObject({
-            code: 'ACTION_NOT_AVAILABLE',
-        });
-        expect(page.evaluate.mock.calls[0][0]).toContain('QuestionHeader');
-        expect(page.evaluate.mock.calls[0][0]).toContain('new Set(');
+        await expect(cmd.func(page, { target: 'question:123', execute: true }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC' });
     });
 });

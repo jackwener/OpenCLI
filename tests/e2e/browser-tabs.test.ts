@@ -1,9 +1,25 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseJsonOutput, runCli } from './helpers.js';
+
+// Match the running CLI's package version so BrowserBridge does not classify
+// this fake daemon as stale (PR #1399 auto-restarts daemons whose
+// daemonVersion does not match PKG_VERSION; the fake daemon does not implement
+// /shutdown, so a mismatch makes every test exit with code 1).
+const PKG_VERSION: string = (() => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  // tests/e2e -> repo root: ../..
+  const pkgPath = path.resolve(here, '..', '..', 'package.json');
+  try {
+    return JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).version;
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 type FakeTab = {
   page: string;
@@ -13,10 +29,47 @@ type FakeTab = {
 };
 
 type FakeDaemon = {
-  port: number;
   close: () => Promise<void>;
   maxInFlightExec: () => number;
 };
+
+const DAEMON_PORT = 19825;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function shutdownExistingDaemon(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const req = request({
+      host: '127.0.0.1',
+      port: DAEMON_PORT,
+      path: '/shutdown',
+      method: 'POST',
+      headers: { 'X-OpenCLI': '1' },
+      timeout: 500,
+    }, (res) => {
+      res.resume();
+      res.on('end', finish);
+      res.on('close', finish);
+    });
+
+    req.on('timeout', () => req.destroy());
+    req.on('error', finish);
+    req.on('close', finish);
+    req.end();
+  });
+
+  await sleep(100);
+}
 
 async function readBody(req: IncomingMessage): Promise<string> {
   return await new Promise((resolve, reject) => {
@@ -33,6 +86,8 @@ function json(res: ServerResponse, status: number, payload: unknown): void {
 }
 
 async function startFakeDaemon(): Promise<FakeDaemon> {
+  await shutdownExistingDaemon();
+
   const tabs = new Map<string, FakeTab>([
     ['tab-1', { page: 'tab-1', url: 'https://one.example/', title: 'tab-one', active: true }],
     ['tab-2', { page: 'tab-2', url: 'https://two.example/', title: 'tab-two', active: false }],
@@ -45,17 +100,16 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
     const pathname = req.url?.split('?')[0] ?? '/';
 
     if (req.method === 'GET' && pathname === '/status') {
-      const port = typeof server.address() === 'object' && server.address() ? server.address().port : 0;
       json(res, 200, {
         ok: true,
         pid: process.pid,
         uptime: 1,
-        daemonVersion: 'test',
+        daemonVersion: PKG_VERSION,
         extensionConnected: true,
         extensionVersion: 'test',
         pending: 0,
         memoryMB: 1,
-        port,
+        port: DAEMON_PORT,
       });
       return;
     }
@@ -168,17 +222,38 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
     }
   });
 
-  await new Promise<void>((resolve) => {
-    server.listen(0, '127.0.0.1', () => resolve());
-  });
+  let lastBindError: unknown;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(DAEMON_PORT, '127.0.0.1', () => {
+          server.off('error', reject);
+          resolve();
+        });
+      });
+      lastBindError = undefined;
+      break;
+    } catch (err: any) {
+      lastBindError = err;
+      if (err?.code !== 'EADDRINUSE') {
+        break;
+      }
+      await shutdownExistingDaemon();
+      await sleep(100);
+    }
+  }
+
+  if (lastBindError) {
+    throw lastBindError;
+  }
 
   const address = server.address();
   if (!address || typeof address !== 'object') {
-    throw new Error('Failed to bind fake daemon port');
+    throw new Error(`Failed to bind fake daemon port ${DAEMON_PORT}`);
   }
 
   return {
-    port: address.port,
     close: async () => {
       await new Promise<void>((resolve, reject) => {
         server.close((err) => err ? reject(err) : resolve());
@@ -191,6 +266,7 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
 describe('browser tab CLI e2e', () => {
   const daemons: FakeDaemon[] = [];
   const cacheDirs: string[] = [];
+  const browserArgs = (session: string, ...args: string[]) => ['browser', session, ...args];
 
   afterEach(async () => {
     while (daemons.length > 0) {
@@ -204,9 +280,9 @@ describe('browser tab CLI e2e', () => {
   it('lists, creates, and closes tabs through the built CLI', async () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
-    const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
+    const session = 'tabs-basic';
 
-    const listed = await runCli(['browser', 'tab', 'list'], { env });
+    const listed = await runCli(browserArgs(session, 'tab', 'list'));
     expect(listed.code).toBe(0);
     const listData = parseJsonOutput(listed.stdout);
     expect(listData).toEqual(expect.arrayContaining([
@@ -214,7 +290,7 @@ describe('browser tab CLI e2e', () => {
       expect.objectContaining({ page: 'tab-2', title: 'tab-two' }),
     ]));
 
-    const created = await runCli(['browser', 'tab', 'new', 'https://three.example/'], { env });
+    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'));
     expect(created.code).toBe(0);
     const createdData = parseJsonOutput(created.stdout);
     expect(createdData).toEqual(expect.objectContaining({
@@ -222,12 +298,12 @@ describe('browser tab CLI e2e', () => {
       url: 'https://three.example/',
     }));
 
-    const closed = await runCli(['browser', 'tab', 'close', 'tab-3'], { env });
+    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-3'));
     expect(closed.code).toBe(0);
     const closedData = parseJsonOutput(closed.stdout);
     expect(closedData).toEqual({ closed: 'tab-3' });
 
-    const relisted = await runCli(['browser', 'tab', 'list'], { env });
+    const relisted = await runCli(browserArgs(session, 'tab', 'list'));
     expect(relisted.code).toBe(0);
     const relistedData = parseJsonOutput(relisted.stdout);
     expect(relistedData).toHaveLength(2);
@@ -237,11 +313,11 @@ describe('browser tab CLI e2e', () => {
   it('routes concurrent browser commands to their requested tabs', async () => {
     const daemon = await startFakeDaemon();
     daemons.push(daemon);
-    const env = { OPENCLI_DAEMON_PORT: String(daemon.port) };
+    const session = 'tabs-concurrent';
 
     const [left, right] = await Promise.all([
-      runCli(['browser', 'eval', '--tab', 'tab-1', 'window.__delay = "left"'], { env, timeout: 30_000 }),
-      runCli(['browser', 'eval', '--tab', 'tab-2', 'window.__delay = "right"'], { env, timeout: 30_000 }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-1', 'window.__delay = "left"'), { timeout: 30_000 }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-2', 'window.__delay = "right"'), { timeout: 30_000 }),
     ]);
 
     expect(left.code).toBe(0);
@@ -261,15 +337,15 @@ describe('browser tab CLI e2e', () => {
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
     const env = {
-      OPENCLI_DAEMON_PORT: String(daemon.port),
       OPENCLI_CACHE_DIR: cacheDir,
     };
+    const session = 'tabs-default-new';
 
-    const created = await runCli(['browser', 'tab', 'new', 'https://three.example/'], { env });
+    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'), { env });
     expect(created.code).toBe(0);
     expect(parseJsonOutput(created.stdout)).toEqual(expect.objectContaining({ page: 'tab-3' }));
 
-    const untargeted = await runCli(['browser', 'eval', 'document.title'], { env });
+    const untargeted = await runCli(browserArgs(session, 'eval', 'document.title'), { env });
     expect(untargeted.code).toBe(0);
     expect(parseJsonOutput(untargeted.stdout)).toEqual(expect.objectContaining({ page: 'tab-1', title: 'tab-one' }));
   }, 30_000);
@@ -280,23 +356,23 @@ describe('browser tab CLI e2e', () => {
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
     const env = {
-      OPENCLI_DAEMON_PORT: String(daemon.port),
       OPENCLI_CACHE_DIR: cacheDir,
     };
+    const session = 'tabs-selected-default';
 
-    const selected = await runCli(['browser', 'tab', 'select', 'tab-2'], { env });
+    const selected = await runCli(browserArgs(session, 'tab', 'select', 'tab-2'), { env });
     expect(selected.code).toBe(0);
     expect(parseJsonOutput(selected.stdout)).toEqual({ selected: 'tab-2' });
 
-    const untargeted = await runCli(['browser', 'eval', 'document.title'], { env });
+    const untargeted = await runCli(browserArgs(session, 'eval', 'document.title'), { env });
     expect(untargeted.code).toBe(0);
     expect(parseJsonOutput(untargeted.stdout)).toEqual(expect.objectContaining({ page: 'tab-2', title: 'tab-two' }));
 
-    const closed = await runCli(['browser', 'tab', 'close', 'tab-2'], { env });
+    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-2'), { env });
     expect(closed.code).toBe(0);
     expect(parseJsonOutput(closed.stdout)).toEqual({ closed: 'tab-2' });
 
-    const fallback = await runCli(['browser', 'eval', 'document.title'], { env });
+    const fallback = await runCli(browserArgs(session, 'eval', 'document.title'), { env });
     expect(fallback.code).toBe(0);
     expect(parseJsonOutput(fallback.stdout)).toEqual(expect.objectContaining({ page: 'tab-1', title: 'tab-one' }));
   }, 30_000);

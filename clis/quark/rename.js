@@ -4,6 +4,7 @@ import { DRIVE_API, apiPost } from './utils.js';
 cli({
     site: 'quark',
     name: 'rename',
+    access: 'write',
     description: 'Rename a file in your Quark Drive',
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,

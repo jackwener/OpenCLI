@@ -106,6 +106,7 @@ async function readOfferPayload(page, input) {
 cli({
     site: 'amazon',
     name: 'offer',
+    access: 'read',
     description: 'Amazon seller, buy box, and fulfillment facts from the product page',
     domain: 'amazon.com',
     strategy: Strategy.COOKIE,

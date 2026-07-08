@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'unsave',
+    access: 'write',
     description: 'Remove a TikTok video from Favorites',
     domain: 'www.tiktok.com',
     args: [

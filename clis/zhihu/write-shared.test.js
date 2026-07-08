@@ -163,6 +163,7 @@ describe('zhihu write shared helpers', () => {
         const documentRoot = new FakeRoot({
             'header, nav, [role="banner"], [role="navigation"]': [],
             'a[href^="/people/"]': [],
+            'header img[alt*="\u4e3b\u9875"]': [],
         });
         const page = createPageForDom(documentRoot);
         await expect(__test__.resolveCurrentUserIdentity(page)).rejects.toMatchObject({

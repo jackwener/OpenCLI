@@ -713,6 +713,7 @@ function mapProductRecordToRow(item, shopeeUrl, loginMessage) {
 cli({
   site: 'shopdora',
   name: 'product',
+  access: 'read',
   description: 'Query Shopdora product data from a Shopee product URL',
   domain: 'www.shopdora.com',
   strategy: Strategy.COOKIE,

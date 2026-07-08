@@ -2,12 +2,13 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'bilibili',
     name: 'hot',
+    access: 'read',
     description: 'B站热门视频',
     domain: 'www.bilibili.com',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of videos' },
     ],
-    columns: ['rank', 'title', 'author', 'play', 'danmaku'],
+    columns: ['rank', 'title', 'author', 'play', 'danmaku', 'bvid', 'url'],
     pipeline: [
         { navigate: 'https://www.bilibili.com' },
         { evaluate: `(async () => {
@@ -20,6 +21,8 @@ cli({
     author: item.owner?.name,
     play: item.stat?.view,
     danmaku: item.stat?.danmaku,
+    bvid: item.bvid,
+    url: item.bvid ? 'https://www.bilibili.com/video/' + item.bvid : '',
   }));
 })()
 ` },
@@ -29,6 +32,8 @@ cli({
                 author: '${{ item.author }}',
                 play: '${{ item.play }}',
                 danmaku: '${{ item.danmaku }}',
+                bvid: '${{ item.bvid }}',
+                url: '${{ item.url }}',
             } },
         { limit: '${{ args.limit }}' },
     ],

@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import yaml from 'js-yaml';
 
 const { mockExecFileSync, mockPlatform } = vi.hoisted(() => ({
   mockExecFileSync: vi.fn(),
@@ -18,7 +22,9 @@ vi.mock('node:os', async () => {
   };
 });
 
-import { installExternalCli, parseCommand, type ExternalCliConfig } from './external.js';
+import { formatExternalCliLabel, installExternalCli, parseCommand, type ExternalCliConfig } from './external.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe('parseCommand', () => {
   it('splits binaries and quoted arguments without invoking a shell', () => {
@@ -40,6 +46,51 @@ describe('parseCommand', () => {
     );
     expect(() => parseCommand('brew install gh\nrm -rf /')).toThrow(
       'Install command contains unsafe shell operators',
+    );
+  });
+
+  it('keeps built-in install commands compatible with the shell-free parser', () => {
+    const raw = fs.readFileSync(path.join(__dirname, 'external-clis.yaml'), 'utf8');
+    const entries = (yaml.load(raw) || []) as ExternalCliConfig[];
+
+    for (const entry of entries) {
+      for (const command of Object.values(entry.install ?? {})) {
+        if (command) expect(() => parseCommand(command)).not.toThrow();
+      }
+    }
+  });
+
+  it('registers Longbridge with safe package-manager installers only', () => {
+    const raw = fs.readFileSync(path.join(__dirname, 'external-clis.yaml'), 'utf8');
+    const entries = (yaml.load(raw) || []) as ExternalCliConfig[];
+    const longbridge = entries.find((entry) => entry.name === 'longbridge');
+
+    expect(longbridge).toMatchObject({
+      binary: 'longbridge',
+      homepage: 'https://open.longbridge.com/zh-CN/docs/cli/',
+      install: {
+        mac: 'brew install --cask longbridge/tap/longbridge-terminal',
+        windows: 'scoop install https://open.longbridge.com/longbridge/longbridge-terminal/longbridge.json',
+      },
+    });
+    expect(longbridge?.install?.linux).toBeUndefined();
+    expect(longbridge?.install?.default).toBeUndefined();
+  });
+});
+
+describe('formatExternalCliLabel', () => {
+  it('shows the package name when the executable name differs', () => {
+    expect(formatExternalCliLabel({ name: 'wx', binary: 'wx', package: 'wx-cli' })).toBe('wx(wx-cli)');
+  });
+
+  it('keeps the label compact when package and name match', () => {
+    expect(formatExternalCliLabel({ name: 'docker', binary: 'docker', package: 'docker' })).toBe('docker');
+  });
+
+  it('renders a human-readable brand alias for ambiguous executable names', () => {
+    expect(formatExternalCliLabel({ name: 'ntn', binary: 'ntn', package: 'notion' })).toBe('ntn(notion)');
+    expect(formatExternalCliLabel({ name: 'wecom-cli', binary: 'wecom-cli', package: '企业微信' })).toBe(
+      'wecom-cli(企业微信)',
     );
   });
 });
@@ -93,5 +144,56 @@ describe('installExternalCli', () => {
 
     expect(installExternalCli(cli)).toBe(false);
     expect(mockExecFileSync).toHaveBeenCalledTimes(1);
+  });
+});
+
+const { spawnSync } = await import('node:child_process');
+const { executeExternalCli } = await import('./external.js');
+
+describe('executeExternalCli passthrough', () => {
+  const spawnMock = vi.mocked(spawnSync);
+  const cli: ExternalCliConfig = { name: 'tg', binary: 'tg', description: '' } as ExternalCliConfig;
+
+  beforeEach(() => {
+    spawnMock.mockReset();
+    mockExecFileSync.mockReset();
+    mockExecFileSync.mockReturnValue(Buffer.from('')); // isBinaryInstalled → true
+    process.exitCode = undefined;
+  });
+
+  it('retries through the shell on Windows when the binary is a .cmd shim (EINVAL)', () => {
+    mockPlatform.mockReturnValue('win32');
+    const einval = Object.assign(new Error('spawnSync tg EINVAL'), { code: 'EINVAL' });
+    spawnMock
+      .mockReturnValueOnce({ error: einval, status: null, signal: null } as unknown as ReturnType<typeof spawnSync>)
+      .mockReturnValueOnce({ status: 0, signal: null } as unknown as ReturnType<typeof spawnSync>);
+
+    executeExternalCli('tg', ['send', 'hello world', '--to', 'a"b'], [cli]);
+
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    expect(spawnMock).toHaveBeenNthCalledWith(1, 'tg', ['send', 'hello world', '--to', 'a"b'], { stdio: 'inherit' });
+    // Shell fallback: one quoted command string, tokens with spaces/quotes wrapped for cmd.exe.
+    expect(spawnMock).toHaveBeenNthCalledWith(2, 'tg send "hello world" --to "a""b"', { stdio: 'inherit', shell: true });
+    expect(process.exitCode).toBe(0);
+  });
+
+  it('does not retry through the shell on non-Windows platforms', () => {
+    mockPlatform.mockReturnValue('darwin');
+    const einval = Object.assign(new Error('spawnSync tg EINVAL'), { code: 'EINVAL' });
+    spawnMock.mockReturnValueOnce({ error: einval, status: null, signal: null } as unknown as ReturnType<typeof spawnSync>);
+
+    executeExternalCli('tg', [], [cli]);
+
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('reports a non-zero exit code when the child dies from a signal', () => {
+    mockPlatform.mockReturnValue('darwin');
+    spawnMock.mockReturnValueOnce({ status: null, signal: 'SIGKILL' } as unknown as ReturnType<typeof spawnSync>);
+
+    executeExternalCli('tg', [], [cli]);
+
+    expect(process.exitCode).toBe(1);
   });
 });

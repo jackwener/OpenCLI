@@ -5,6 +5,7 @@
  * returns one summary row per note, suitable for quick review or downstream JSON use.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { fetchCreatorNotes } from './creator-notes.js';
 import { fetchCreatorNoteDetailRows } from './creator-note-detail.js';
 function findDetailValue(rows, metric) {
@@ -46,6 +47,7 @@ export function summarizeCreatorNote(note, rows, rank) {
 cli({
     site: 'xiaohongshu',
     name: 'creator-notes-summary',
+    access: 'read',
     description: '小红书最近笔记批量摘要 (列表 + 单篇关键数据汇总)',
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,
@@ -53,14 +55,14 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 3, help: 'Number of recent notes to summarize' },
+        { name: 'timeout', type: 'int', required: false, default: 180, help: 'Max seconds for the overall command (default: 180)' },
     ],
     columns: ['rank', 'id', 'title', 'views', 'likes', 'collects', 'comments', 'shares', 'avg_view_time', 'rise_fans', 'top_source', 'top_interest', 'url'],
-    timeoutSeconds: 180,
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 3;
         const notes = await fetchCreatorNotes(page, limit);
         if (!notes.length) {
-            throw new Error('No notes found. Are you logged into creator.xiaohongshu.com?');
+            throw new EmptyResultError('xiaohongshu creator-notes-summary', 'No notes found. Ensure you are logged into creator.xiaohongshu.com and the account has published notes.');
         }
         const results = [];
         for (const [index, note] of notes.entries()) {

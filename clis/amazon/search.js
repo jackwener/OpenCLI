@@ -49,6 +49,7 @@ async function readSearchPayload(page, query) {
 cli({
     site: 'amazon',
     name: 'search',
+    access: 'read',
     description: 'Amazon search results for product discovery and coarse filtering',
     domain: 'amazon.com',
     strategy: Strategy.COOKIE,

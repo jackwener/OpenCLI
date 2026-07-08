@@ -85,6 +85,7 @@ async function readDiscussionPayload(page, input, limit) {
 cli({
     site: 'amazon',
     name: 'discussion',
+    access: 'read',
     description: 'Amazon review summary and sample customer discussion from product review pages',
     domain: 'amazon.com',
     strategy: Strategy.COOKIE,

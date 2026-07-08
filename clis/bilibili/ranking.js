@@ -3,6 +3,7 @@ import { apiGet } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'ranking',
+    access: 'read',
     description: 'Get Bilibili video ranking board',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

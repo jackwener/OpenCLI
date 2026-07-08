@@ -4,6 +4,7 @@ import { normalizeNumericId } from '../_shared/common.js';
 cli({
     site: 'taobao',
     name: 'add-cart',
+    access: 'write',
     description: '淘宝加入购物车',
     domain: 'item.taobao.com',
     strategy: Strategy.COOKIE,

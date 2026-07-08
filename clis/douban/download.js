@@ -13,6 +13,7 @@ function buildDoubanPhotoFilename(subjectId, photo) {
 cli({
     site: 'douban',
     name: 'download',
+    access: 'read',
     description: '下载电影海报/剧照图片',
     domain: 'movie.douban.com',
     strategy: Strategy.COOKIE,

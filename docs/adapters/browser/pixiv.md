@@ -13,6 +13,18 @@
 | `opencli pixiv detail <id>` | View illustration details |
 | `opencli pixiv download <illust-id>` | Download original-quality images |
 
+## Output Columns
+
+| Command | Columns |
+|---------|---------|
+| `ranking` | `rank, title, author, user_id, illust_id, pages, bookmarks, url` |
+| `search` | `rank, title, author, user_id, illust_id, pages, bookmarks, tags, url` |
+| `illusts` | `rank, title, illust_id, pages, bookmarks, tags, created, url` |
+| `user` | `user_id, name, premium, following, illusts, manga, novels, comment, url` |
+| `detail` | `illust_id, title, author, type, pages, bookmarks, likes, views, tags, created, url` |
+
+`illust_id` round-trips from `ranking` / `search` / `illusts` into `detail` / `download`. `user_id` round-trips from `ranking` / `search` into `user` / `illusts`.
+
 ## Usage Examples
 
 ### Ranking

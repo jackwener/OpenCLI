@@ -5,9 +5,10 @@ import { buildResultRow, requireExecute } from './write-shared.js';
 cli({
     site: 'zhihu',
     name: 'follow',
+    access: 'write',
     description: 'Follow a Zhihu user or question',
     domain: 'www.zhihu.com',
-    strategy: Strategy.UI,
+    strategy: Strategy.COOKIE,
     browser: true,
     args: [
         { name: 'target', positional: true, required: true, help: 'Zhihu target URL or typed target' },
@@ -20,61 +21,30 @@ cli({
         requireExecute(kwargs);
         const rawTarget = String(kwargs.target);
         const target = assertAllowedKinds('follow', parseTarget(rawTarget));
-        await page.goto(target.url);
-        const result = await page.evaluate(`(async () => {
-      const targetKind = ${JSON.stringify(target.kind)};
-      const mainRoot = document.querySelector('main') || document;
-      let followBtn = null;
-
-      if (targetKind === 'question') {
-        const questionRoots = Array.from(mainRoot.querySelectorAll('.QuestionHeader, .Question-main, [data-zop-question-id], [class*="QuestionHeader"]'));
-        const scopedRoots = questionRoots.length ? questionRoots : [mainRoot];
-        const candidates = Array.from(new Set(scopedRoots.flatMap((root) => Array.from(root.querySelectorAll('button, a'))))).filter((node) => {
-          const text = (node.textContent || '').trim();
-          const inAside = Boolean(node.closest('aside, [data-testid*="recommend"], .Recommendations'));
-          const inAnswerBlock = Boolean(node.closest('article, .AnswerItem, [data-zop-question-answer]'));
-          return /关注问题|已关注/.test(text) && !inAside && !inAnswerBlock;
-        });
-        if (candidates.length !== 1) return { state: 'ambiguous_question_follow' };
-        followBtn = candidates[0];
-      } else {
-        const candidates = Array.from(mainRoot.querySelectorAll('button, a')).filter((node) => {
-          const text = (node.textContent || '').trim();
-          const inAside = Boolean(node.closest('aside, [data-testid*="recommend"], .Recommendations'));
-          return /关注|已关注/.test(text) && !/邀请|收藏|评论/.test(text) && !inAside;
-        });
-
-        if (candidates.length !== 1) return { state: 'ambiguous_user_follow' };
-        followBtn = candidates[0];
-      }
-
-      if (!followBtn) return { state: 'missing' };
-      if ((followBtn.textContent || '').includes('已关注') || followBtn.getAttribute('aria-pressed') === 'true') {
-        return { state: 'already_following' };
-      }
-
-      followBtn.click();
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      return ((followBtn.textContent || '').includes('已关注') || followBtn.getAttribute('aria-pressed') === 'true')
-        ? { state: 'followed' }
-        : { state: 'unknown' };
-    })()`);
-        if (result?.state === 'already_following') {
-            return buildResultRow(`Already followed ${target.kind}`, target.kind, rawTarget, 'already_applied');
+        await page.goto('https://www.zhihu.com');
+        await page.wait(2);
+        const apiResult = await page.evaluate(`(async () => {
+            var targetKind = ${JSON.stringify(target.kind)};
+            var targetId = ${JSON.stringify(target.kind === 'user' ? target.slug : target.id)};
+            var url;
+            if (targetKind === 'question') {
+                url = 'https://www.zhihu.com/api/v4/questions/' + targetId + '/followers';
+            } else if (targetKind === 'user') {
+                url = 'https://www.zhihu.com/api/v4/members/' + targetId + '/followers';
+            } else {
+                return { ok: false, message: 'unsupported target type: ' + targetKind };
+            }
+            var resp = await fetch(url, { method: 'POST', credentials: 'include' });
+            if (!resp.ok) {
+                var data = {};
+                try { data = await resp.json(); } catch(e) {}
+                return { ok: false, message: data.error ? data.error.message : 'HTTP ' + resp.status };
+            }
+            return { ok: true };
+        })()`);
+        if (!apiResult?.ok) {
+            throw new CliError('COMMAND_EXEC', apiResult?.message || 'Failed to follow');
         }
-        if (result?.state === 'ambiguous_question_follow') {
-            throw new CliError('ACTION_NOT_AVAILABLE', 'Question follow control was not uniquely anchored on the requested question page');
-        }
-        if (result?.state === 'ambiguous_user_follow') {
-            throw new CliError('ACTION_NOT_AVAILABLE', 'User follow control was not uniquely anchored on the requested profile page');
-        }
-        if (result?.state === 'missing') {
-            throw new CliError('ACTION_FAILED', 'Zhihu follow control was missing before any write was dispatched');
-        }
-        if (result?.state !== 'followed') {
-            throw new CliError('OUTCOME_UNKNOWN', 'Zhihu follow click was dispatched, but the final state could not be verified safely');
-        }
-        return buildResultRow(`Followed ${target.kind}`, target.kind, rawTarget, 'applied');
+        return buildResultRow(`Followed ${target.kind} ${target.kind === 'user' ? target.slug : target.id}`, target.kind, rawTarget, 'applied');
     },
 });

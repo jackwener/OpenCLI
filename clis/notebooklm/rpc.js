@@ -1,5 +1,13 @@
 import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN } from './shared.js';
+
+export function unwrapNotebooklmEvaluateResult(payload) {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload) && 'session' in payload && 'data' in payload) {
+        return payload.data;
+    }
+    return payload;
+}
+
 export function extractNotebooklmPageAuthFromHtml(html, sourcePath = '/', preferredTokens) {
     const csrfMatch = html.match(/"SNlM0e":"([^"]+)"/);
     const sessionMatch = html.match(/"FdrFJe":"([^"]+)"/);
@@ -8,26 +16,30 @@ export function extractNotebooklmPageAuthFromHtml(html, sourcePath = '/', prefer
     if (!csrfToken || !sessionId) {
         throw new CliError('NOTEBOOKLM_TOKENS', 'NotebookLM page tokens were not found in the current page HTML', 'Open the NotebookLM notebook page in Chrome, wait for it to finish loading, then retry with --verbose if it still fails.');
     }
-    return { csrfToken, sessionId, sourcePath: sourcePath || '/' };
+    return { csrfToken, sessionId, sourcePath: sourcePath || '/', authuser: preferredTokens?.authuser ?? '' };
 }
 async function probeNotebooklmPageAuth(page) {
-    const raw = await page.evaluate(`(() => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
     const wiz = window.WIZ_global_data || {};
     const html = document.documentElement.innerHTML;
+    const authMatch = (location.search || '').match(/[?&]authuser=(\\d+)/);
+    const pathMatch = (location.pathname || '').match(/^\\/u\\/(\\d+)\\//);
     return {
       html,
       sourcePath: location.pathname || '/',
       readyState: document.readyState || '',
       csrfToken: typeof wiz.SNlM0e === 'string' ? wiz.SNlM0e : '',
       sessionId: typeof wiz.FdrFJe === 'string' ? wiz.FdrFJe : '',
+      authuser: authMatch ? authMatch[1] : (pathMatch ? pathMatch[1] : ''),
     };
-  })()`);
+  })()`));
     return {
         html: String(raw?.html ?? ''),
         sourcePath: String(raw?.sourcePath ?? '/'),
         readyState: String(raw?.readyState ?? ''),
         csrfToken: String(raw?.csrfToken ?? ''),
         sessionId: String(raw?.sessionId ?? ''),
+        authuser: String(raw?.authuser ?? ''),
     };
 }
 export async function getNotebooklmPageAuth(page) {
@@ -35,7 +47,7 @@ export async function getNotebooklmPageAuth(page) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
         const probe = await probeNotebooklmPageAuth(page);
         try {
-            return extractNotebooklmPageAuthFromHtml(probe.html, probe.sourcePath, { csrfToken: probe.csrfToken, sessionId: probe.sessionId });
+            return extractNotebooklmPageAuthFromHtml(probe.html, probe.sourcePath, { csrfToken: probe.csrfToken, sessionId: probe.sessionId, authuser: probe.authuser });
         }
         catch (error) {
             lastError = error;
@@ -130,7 +142,7 @@ export async function fetchNotebooklmInPage(page, url, options = {}) {
     const method = options.method ?? 'GET';
     const headers = options.headers ?? {};
     const body = options.body ?? '';
-    const raw = await page.evaluate(`(async () => {
+    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(async () => {
     const request = {
       url: ${JSON.stringify(url)},
       method: ${JSON.stringify(method)},
@@ -151,7 +163,7 @@ export async function fetchNotebooklmInPage(page, url, options = {}) {
       body: await response.text(),
       finalUrl: response.url,
     };
-  })()`);
+  })()`));
     return {
         ok: Boolean(raw?.ok),
         status: Number(raw?.status ?? 0),
@@ -162,8 +174,10 @@ export async function fetchNotebooklmInPage(page, url, options = {}) {
 export async function callNotebooklmRpc(page, rpcId, params, options = {}) {
     const auth = await getNotebooklmPageAuth(page);
     const requestBody = buildNotebooklmRpcBody(rpcId, params, auth.csrfToken);
+    const authuser = auth.authuser || '';
     const url = `https://${NOTEBOOKLM_DOMAIN}/_/LabsTailwindUi/data/batchexecute` +
         `?rpcids=${rpcId}&source-path=${encodeURIComponent(auth.sourcePath)}` +
+        (authuser ? `&authuser=${encodeURIComponent(authuser)}` : '') +
         `&hl=${encodeURIComponent(options.hl ?? 'en')}` +
         `&f.sid=${encodeURIComponent(auth.sessionId)}&rt=c`;
     const response = await fetchNotebooklmInPage(page, url, {

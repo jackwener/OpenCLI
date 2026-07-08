@@ -3,10 +3,12 @@
  * Reuses Chrome login session to search for candidates on maimai.cn
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
 cli({
   site: 'maimai',
   name: 'search-talents',
+    access: 'read',
   description: 'Search for candidates on Maimai with multi-dimensional filters',
   domain: 'maimai.cn',
   strategy: Strategy.COOKIE,
@@ -79,17 +81,21 @@ cli({
       },
     };
 
+    // Read csrftoken directly from the cookie store via CDP — zero page.evaluate round-trip
+    const cookies = await page.getCookies({ url: 'https://maimai.cn' });
+    const csrftokenFromCookie = cookies.find((c) => c.name === 'csrftoken')?.value || '';
+
     // Execute the search API call in browser context
-    const data = await page.evaluate(async (body) => {
-      // Get CSRF token from cookie or meta tag
-      let csrftoken = document.cookie.split('; ')
-        .find(row => row.startsWith('csrftoken='))
-        ?.split('=')[1] || '';
+    const data = await page.evaluate(`async () => {
+      // Prefer cookie-derived csrftoken (hoisted from CDP); fall back to meta tag
+      let csrftoken = ${JSON.stringify(csrftokenFromCookie)};
 
       if (!csrftoken) {
         const meta = document.querySelector('meta[name="csrf-token"]');
         if (meta) csrftoken = meta.getAttribute('content') || '';
       }
+
+      const body = ${JSON.stringify(requestBody)};
 
       const res = await fetch('https://maimai.cn/api/ent/discover/search?channel=www&data_version=3.0&version=1.0.0', {
         method: 'POST',
@@ -116,13 +122,27 @@ cli({
       }
 
       return result;
-    }, requestBody);
+    }`);
 
-    // Extract talent list from response
-    const talentList = data.data?.list || data.data?.talent_list || data.list || data.talent_list || [];
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new CommandExecutionError('Maimai search returned malformed API payload');
+    }
 
-    if (!talentList || talentList.length === 0) {
-      return [{ error: '未找到匹配的候选人', query: query }];
+    // Extract talent list from response. Missing list fields mean the API
+    // shape drifted; only an explicit empty array is a true empty result.
+    const talentListCandidates = [
+      data.data?.list,
+      data.data?.talent_list,
+      data.list,
+      data.talent_list,
+    ];
+    const talentList = talentListCandidates.find((value) => Array.isArray(value));
+    if (!talentList) {
+      throw new CommandExecutionError('Maimai search API payload missing talent list');
+    }
+
+    if (talentList.length === 0) {
+      throw new EmptyResultError('maimai search-talents', `未找到匹配 "${query}" 的候选人`);
     }
 
     // Map to output format

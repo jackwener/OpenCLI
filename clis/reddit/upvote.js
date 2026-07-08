@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'upvote',
+    access: 'write',
     description: 'Upvote or downvote a Reddit post',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,

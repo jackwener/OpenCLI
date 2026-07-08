@@ -4,6 +4,7 @@ import { getPlatformRule, listPlatformRules } from './platform-profiles.js';
 cli({
   site: 'maybeai-video-app',
   name: 'rules',
+  access: 'read',
   description: 'Show local platform-aware ratio and duration defaults for video generation',
   strategy: Strategy.PUBLIC,
   browser: false,

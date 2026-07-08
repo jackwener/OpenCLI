@@ -183,6 +183,7 @@ export async function extractAssetsForInput(page, input) {
 cli({
     site: '1688',
     name: 'assets',
+    access: 'read',
     description: '列出 1688 商品页可提取的图片/视频素材',
     domain: 'www.1688.com',
     strategy: Strategy.COOKIE,

@@ -9,6 +9,7 @@ import { fetchFeed } from './utils.js';
 cli({
     site: 'producthunt',
     name: 'today',
+    access: 'read',
     description: "Today's Product Hunt launches (most recent day in feed)",
     domain: 'www.producthunt.com',
     strategy: Strategy.PUBLIC,
@@ -16,7 +17,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Max results' },
     ],
     columns: ['rank', 'name', 'tagline', 'author', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const count = Math.min(Number(args.limit) || 20, 50);
         const posts = await fetchFeed();
         if (posts.length === 0)

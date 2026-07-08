@@ -3,10 +3,12 @@ import { DOUBAO_DOMAIN, getDoubaoPageState } from './utils.js';
 export const statusCommand = cli({
     site: 'doubao',
     name: 'status',
+    access: 'read',
     description: 'Check Doubao chat page availability and login state',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [],
     columns: ['Status', 'Login', 'Url', 'Title'],

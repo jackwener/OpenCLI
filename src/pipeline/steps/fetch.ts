@@ -36,27 +36,7 @@ async function fetchSingle(
     return resp.json();
   }
 
-  const headersJs = JSON.stringify(renderedHeaders);
-  const urlJs = JSON.stringify(finalUrl);
-  const methodJs = JSON.stringify(method.toUpperCase());
-  // Return error status instead of throwing inside evaluate to avoid CDP wrapper
-  // rewriting the message (CDP prepends "Evaluate error: " to thrown errors).
-  const result = await page.evaluate(`
-    async () => {
-      const resp = await fetch(${urlJs}, {
-        method: ${methodJs}, headers: ${headersJs}, credentials: "include"
-      });
-      if (!resp.ok) {
-        return { __httpError: resp.status, statusText: resp.statusText };
-      }
-      return await resp.json();
-    }
-  `);
-  if (result && typeof result === 'object' && '__httpError' in result) {
-    const { __httpError: status, statusText } = result as { __httpError: number; statusText: string };
-    throw new CliError('FETCH_ERROR', `HTTP ${status} ${statusText} from ${finalUrl}`);
-  }
-  return result;
+  return page.fetchJson(finalUrl, { method: method.toUpperCase(), headers: renderedHeaders });
 }
 
 /**

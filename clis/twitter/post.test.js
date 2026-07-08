@@ -11,6 +11,7 @@ vi.mock('node:fs', async (importOriginal) => {
                 return undefined;
             return { isFile: () => true };
         }),
+        readFileSync: vi.fn(() => Buffer.from([0x89, 0x50, 0x4e, 0x47])),
     };
 });
 
@@ -46,6 +47,11 @@ function makePage(evaluateResults = [], overrides = {}) {
 describe('twitter post command', () => {
     const getCommand = () => getRegistry().get('twitter/post');
 
+    it('registers created tweet id/url columns', () => {
+        const command = getCommand();
+        expect(command?.columns).toEqual(['status', 'message', 'text', 'id', 'url']);
+    });
+
     it('posts text-only tweet successfully through the current compose route', async () => {
         const command = getCommand();
         const page = makePage([
@@ -61,6 +67,31 @@ describe('twitter post command', () => {
         expect(page.goto).toHaveBeenCalledWith('https://x.com/compose/post', { waitUntil: 'load', settleMs: 2500 });
         expect(page.wait).toHaveBeenNthCalledWith(1, { selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
         expect(page.insertText).toHaveBeenCalledWith('hello world');
+    });
+
+    it('returns the created tweet URL from the success toast when available', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true },
+            { ok: true },
+            { ok: true },
+            {
+                ok: true,
+                message: 'Tweet posted successfully.',
+                id: '2054239044884693381',
+                url: 'https://x.com/darthjajaj6z/status/2054239044884693381',
+            },
+        ]);
+
+        const result = await command.func(page, { text: 'with url' });
+
+        expect(result).toEqual([{
+            status: 'success',
+            message: 'Tweet posted successfully.',
+            text: 'with url',
+            id: '2054239044884693381',
+            url: 'https://x.com/darthjajaj6z/status/2054239044884693381',
+        }]);
     });
 
     it('returns failed when text area not found', async () => {
@@ -93,10 +124,41 @@ describe('twitter post command', () => {
         await expect(command.func(page, { text: 'hi', images: 'photo.bmp' })).rejects.toThrow('Unsupported image format');
     });
 
-    it('throws when page.setFileInput is not available', async () => {
+    it('falls back to DataTransfer upload when page.setFileInput is not available', async () => {
         const command = getCommand();
-        const page = makePage([], { setFileInput: undefined });
-        await expect(command.func(page, { text: 'hi', images: 'a.png' })).rejects.toThrow('Browser extension does not support file upload');
+        const page = makePage([
+            { ok: true }, // DataTransfer fallback
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput: undefined });
+
+        const result = await command.func(page, { text: 'hi', images: 'a.png' });
+
+        expect(result).toEqual([{ status: 'success', message: 'Tweet posted successfully.', text: 'hi' }]);
+        expect(page.evaluate.mock.calls[0][0]).toContain('new DataTransfer()');
+        expect(page.evaluate.mock.calls[0][0]).toContain('Could not assign files to input');
+    });
+
+    it('falls back to DataTransfer upload when CDP rejects file input as not allowed', async () => {
+        const command = getCommand();
+        const setFileInput = vi.fn().mockRejectedValue(new Error('NotAllowedError: Not allowed'));
+        const page = makePage([
+            { ok: true }, // DataTransfer fallback
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput });
+
+        const result = await command.func(page, { text: 'with fallback', images: 'a.png' });
+
+        expect(result).toEqual([{ status: 'success', message: 'Tweet posted successfully.', text: 'with fallback' }]);
+        expect(setFileInput).toHaveBeenCalledWith(['/abs/a.png'], 'input[type="file"][data-testid="fileInput"]');
+        expect(page.evaluate.mock.calls[0][0]).toContain('new DataTransfer()');
     });
 
     it('uploads images before inserting text so media re-renders cannot erase the tweet text', async () => {
@@ -153,6 +215,23 @@ describe('twitter post command', () => {
         const submitScript = page.evaluate.mock.calls[3][0];
         expect(submitScript).toContain('successToast');
         expect(submitScript).toContain('your post was sent');
+    });
+
+    it('does not let global timeline tweetPhoto nodes keep the submit poll pending', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ]);
+
+        await command.func(page, { text: 'global media should not block' });
+
+        const submitScript = page.evaluate.mock.calls[3][0];
+        expect(submitScript).toContain("document.querySelector('[data-testid=\"attachments\"]')");
+        expect(submitScript).not.toContain("[data-testid=\"attachments\"], [data-testid=\"tweetPhoto\"]");
+        expect(submitScript).not.toContain("document.querySelectorAll('[data-testid=\"tweetPhoto\"]");
     });
 
     it('returns failed when image upload times out', async () => {

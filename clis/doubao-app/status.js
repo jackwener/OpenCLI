@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const statusCommand = cli({
     site: 'doubao-app',
     name: 'status',
+    access: 'read',
     description: 'Check CDP connection to Doubao desktop app',
     domain: 'doubao-app',
     strategy: Strategy.UI,

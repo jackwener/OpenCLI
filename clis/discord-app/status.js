@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const statusCommand = cli({
     site: 'discord-app',
     name: 'status',
+    access: 'read',
     description: 'Check active CDP connection to Discord Desktop',
     domain: 'localhost',
     strategy: Strategy.UI,

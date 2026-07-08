@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'save',
+    access: 'write',
     description: 'Save (bookmark) an Instagram post',
     domain: 'www.instagram.com',
     args: [

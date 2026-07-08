@@ -3,6 +3,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'referral',
+    access: 'read',
     description: 'Internal referral posts',
     domain: 'www.nowcoder.com',
     args: [

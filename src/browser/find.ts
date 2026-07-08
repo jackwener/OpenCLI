@@ -74,7 +74,7 @@ export interface FindResult {
 
 export interface FindError {
   error: {
-    code: 'invalid_selector' | 'selector_not_found';
+    code: 'invalid_selector' | 'selector_not_found' | 'semantic_not_found';
     message: string;
     hint?: string;
   };
@@ -85,6 +85,14 @@ export interface FindOptions {
   limit?: number;
   /** Max chars of trimmed text per entry. Default 120. */
   textMax?: number;
+}
+
+export interface SemanticFindOptions extends FindOptions {
+  role?: string;
+  name?: string;
+  label?: string;
+  text?: string;
+  testid?: string;
 }
 
 /**
@@ -215,6 +223,227 @@ export function buildFindJs(selector: string, opts: FindOptions = {}): string {
 
       return {
         matches_n: matches.length,
+        entries,
+      };
+    })()
+  `;
+}
+
+export function buildSemanticFindJs(opts: SemanticFindOptions): string {
+  const criteria = JSON.stringify({
+    role: opts.role ?? '',
+    name: opts.name ?? '',
+    label: opts.label ?? '',
+    text: opts.text ?? '',
+    testid: opts.testid ?? '',
+  });
+  const limit = opts.limit ?? 50;
+  const textMax = opts.textMax ?? 120;
+  const whitelist = JSON.stringify(FIND_ATTR_WHITELIST);
+
+  return `
+    (() => {
+      const CRITERIA = ${criteria};
+      const LIMIT = ${limit};
+      const TEXT_MAX = ${textMax};
+      const ATTR_WHITELIST = ${whitelist};
+
+      ${COMPOUND_INFO_JS}
+
+      function normalize(value) {
+        return String(value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      }
+
+      function includesNeedle(value, needle) {
+        const n = normalize(needle);
+        if (!n) return true;
+        return normalize(value).includes(n);
+      }
+
+      function nativeRole(el) {
+        const explicit = el.getAttribute('role');
+        if (explicit) return explicit;
+        const tag = el.tagName.toLowerCase();
+        const type = (el.getAttribute('type') || '').toLowerCase();
+        if (tag === 'button') return 'button';
+        if (tag === 'a' && el.getAttribute('href')) return 'link';
+        if (tag === 'textarea') return 'textbox';
+        if (tag === 'select') return 'combobox';
+        if (tag === 'option') return 'option';
+        if (tag === 'input') {
+          if (type === 'button' || type === 'submit' || type === 'reset') return 'button';
+          if (type === 'checkbox') return 'checkbox';
+          if (type === 'radio') return 'radio';
+          if (type === 'range') return 'slider';
+          if (type === 'search') return 'searchbox';
+          return 'textbox';
+        }
+        return '';
+      }
+
+      function labelText(el) {
+        const parts = [];
+        function cssEscape(value) {
+          try {
+            if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
+          } catch (_) {}
+          return String(value).replace(/["\\\\]/g, '\\\\$&');
+        }
+        if (el.id) {
+          try {
+            const label = document.querySelector('label[for="' + cssEscape(el.id) + '"]');
+            if (label) parts.push(label.textContent || '');
+          } catch (_) {}
+        }
+        const parentLabel = el.closest?.('label');
+        if (parentLabel) parts.push(parentLabel.textContent || '');
+        return parts.join(' ');
+      }
+
+      function byIdText(ids) {
+        if (!ids) return '';
+        const parts = [];
+        for (const id of String(ids).split(/\\s+/)) {
+          if (!id) continue;
+          try {
+            const el = document.getElementById(id);
+            if (el) parts.push(el.textContent || '');
+          } catch (_) {}
+        }
+        return parts.join(' ');
+      }
+
+      function accessibleName(el) {
+        return [
+          el.getAttribute('aria-label') || '',
+          byIdText(el.getAttribute('aria-labelledby')),
+          labelText(el),
+          el.getAttribute('alt') || '',
+          el.getAttribute('title') || '',
+          el.getAttribute('placeholder') || '',
+          el.getAttribute('value') || '',
+          el.textContent || '',
+        ].filter(Boolean).join(' ');
+      }
+
+      function pickAttrs(el) {
+        const out = {};
+        for (const key of ATTR_WHITELIST) {
+          const v = el.getAttribute(key);
+          if (v != null && v !== '') out[key] = v;
+        }
+        return out;
+      }
+
+      function isVisible(el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return false;
+        try {
+          const style = getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden') return false;
+          if (parseFloat(style.opacity || '1') === 0) return false;
+        } catch (_) {}
+        return true;
+      }
+
+      function fingerprintOf(el) {
+        return {
+          tag: el.tagName.toLowerCase(),
+          role: el.getAttribute('role') || '',
+          text: (el.textContent || '').trim().slice(0, 30),
+          ariaLabel: el.getAttribute('aria-label') || '',
+          id: el.id || '',
+          testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
+        };
+      }
+
+      function matches(el) {
+        const role = nativeRole(el);
+        const name = accessibleName(el);
+        const label = labelText(el);
+        const text = el.textContent || '';
+        const testid = el.getAttribute('data-testid') || el.getAttribute('data-test') || el.getAttribute('test-id') || '';
+        if (CRITERIA.role && normalize(role) !== normalize(CRITERIA.role)) return false;
+        if (CRITERIA.name && !includesNeedle(name, CRITERIA.name)) return false;
+        if (CRITERIA.label && !includesNeedle(label, CRITERIA.label)) return false;
+        if (CRITERIA.text && !includesNeedle(text, CRITERIA.text)) return false;
+        if (CRITERIA.testid && !includesNeedle(testid, CRITERIA.testid)) return false;
+        return true;
+      }
+
+      const candidates = Array.from(document.querySelectorAll([
+        'a[href]',
+        'button',
+        'input',
+        'textarea',
+        'select',
+        'option',
+        '[role]',
+        '[aria-label]',
+        '[aria-labelledby]',
+        '[data-testid]',
+        '[data-test]',
+        '[test-id]',
+        'label',
+        '[contenteditable="true"]',
+      ].join(',')));
+      const matchesList = candidates.filter(matches);
+
+      if (matchesList.length === 0) {
+        return {
+          error: {
+            code: 'semantic_not_found',
+            message: 'Semantic locator matched 0 elements',
+            hint: 'Try browser state, --source ax, or relax --role/--name/--label/--text/--testid.',
+          },
+        };
+      }
+
+      const identity = (window.__opencli_ref_identity = window.__opencli_ref_identity || {});
+      let maxRef = 0;
+      for (const k in identity) {
+        const n = parseInt(k, 10);
+        if (!isNaN(n) && n > maxRef) maxRef = n;
+      }
+      try {
+        const tagged = document.querySelectorAll('[data-opencli-ref]');
+        for (let t = 0; t < tagged.length; t++) {
+          const v = tagged[t].getAttribute('data-opencli-ref');
+          const n = v != null && /^\\d+$/.test(v) ? parseInt(v, 10) : NaN;
+          if (!isNaN(n) && n > maxRef) maxRef = n;
+        }
+      } catch (_) {}
+
+      const take = Math.min(matchesList.length, LIMIT);
+      const entries = [];
+      for (let i = 0; i < take; i++) {
+        const el = matchesList[i];
+        const refAttr = el.getAttribute('data-opencli-ref');
+        let refNum = refAttr != null && /^\\d+$/.test(refAttr) ? parseInt(refAttr, 10) : null;
+        if (refNum === null) {
+          refNum = ++maxRef;
+          try { el.setAttribute('data-opencli-ref', '' + refNum); } catch (_) {}
+          identity['' + refNum] = fingerprintOf(el);
+        } else if (!identity['' + refNum]) {
+          identity['' + refNum] = fingerprintOf(el);
+        }
+        const text = (el.textContent || '').trim();
+        const entry = {
+          nth: i,
+          ref: refNum,
+          tag: el.tagName.toLowerCase(),
+          role: nativeRole(el),
+          text: text.length > TEXT_MAX ? text.slice(0, TEXT_MAX) : text,
+          attrs: pickAttrs(el),
+          visible: isVisible(el),
+        };
+        const compound = compoundInfoOf(el);
+        if (compound) entry.compound = compound;
+        entries.push(entry);
+      }
+
+      return {
+        matches_n: matchesList.length,
         entries,
       };
     })()

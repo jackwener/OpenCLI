@@ -3,6 +3,7 @@ import { loadSubstackArchive } from './utils.js';
 cli({
     site: 'substack',
     name: 'publication',
+    access: 'read',
     description: '获取特定 Substack Newsletter 的最新文章',
     domain: 'substack.com',
     strategy: Strategy.COOKIE,

@@ -4,6 +4,7 @@ import { fetchXueqiuJson } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'hot-stock',
+    access: 'read',
     description: '获取雪球热门股票榜',
     domain: 'xueqiu.com',
     browser: true,

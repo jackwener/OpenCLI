@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const historyCommand = cli({
     site: 'chatwise',
     name: 'history',
+    access: 'read',
     description: 'List conversation history in ChatWise sidebar',
     domain: 'localhost',
     strategy: Strategy.UI,

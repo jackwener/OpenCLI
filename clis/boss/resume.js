@@ -14,6 +14,7 @@ import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList } fr
 cli({
     site: 'boss',
     name: 'resume',
+    access: 'read',
     description: 'BOSS直聘查看候选人简历（招聘端）',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

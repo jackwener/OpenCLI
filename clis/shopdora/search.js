@@ -578,6 +578,7 @@ function mapSearchResultWithUrls(result, site) {
 cli({
   site: 'shopdora',
   name: 'search',
+  access: 'read',
   description: 'Search Shopdora hot products by keyword',
   domain: 'www.shopdora.com',
   strategy: Strategy.COOKIE,

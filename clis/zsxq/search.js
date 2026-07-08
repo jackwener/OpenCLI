@@ -3,6 +3,7 @@ import { getActiveGroupId, ensureZsxqAuth, ensureZsxqPage, fetchFirstJson, getGr
 cli({
     site: 'zsxq',
     name: 'search',
+    access: 'read',
     description: '搜索星球内容',
     domain: 'wx.zsxq.com',
     strategy: Strategy.COOKIE,

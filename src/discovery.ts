@@ -15,9 +15,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { type InternalCliCommand, Strategy, registerCommand } from './registry.js';
 import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
-import type { ManifestEntry } from './build-manifest.js';
+import type { ManifestEntry } from './manifest-types.js';
 import { findPackageRoot, getCliManifestPath } from './package-paths.js';
-import { extractStaticCliCommands } from './static-cli.js';
 
 /** User runtime directory: ~/.opencli */
 export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
@@ -26,8 +25,7 @@ export const USER_CLIS_DIR = path.join(USER_OPENCLI_DIR, 'clis');
 /** Plugins directory: ~/.opencli/plugins/ */
 export const PLUGINS_DIR = path.join(USER_OPENCLI_DIR, 'plugins');
 /** Matches files that register commands via cli() or lifecycle hooks */
-const PLUGIN_MODULE_PATTERN = /\b(?:cli|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
-const PLUGIN_HOOK_PATTERN = /\b(?:onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
+const PLUGIN_MODULE_PATTERN = /\b(?:cli|registerSiteAuthCommands|onStartup|onBeforeExecute|onAfterExecute)\s*\(/;
 
 function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Strategy.COOKIE): Strategy {
   if (!rawStrategy) return fallback;
@@ -120,24 +118,24 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
     for (const entry of manifest) {
       if (!entry.modulePath) continue;
       const modulePath = path.resolve(clisDir, entry.modulePath);
-      const sourcePath = entry.sourceFile ? resolveManifestSourcePath(clisDir, entry.sourceFile) : modulePath;
       const cmd: InternalCliCommand = {
         site: entry.site,
         name: entry.name,
-        workspace: entry.workspace,
         aliases: entry.aliases,
         description: entry.description ?? '',
+        access: entry.access,
+        example: entry.example,
         domain: entry.domain,
         strategy: parseStrategy(entry.strategy),
         browser: entry.browser,
         args: entry.args ?? [],
         columns: entry.columns,
+        defaultFormat: entry.defaultFormat,
         pipeline: entry.pipeline,
-        timeoutSeconds: entry.timeout,
-        source: sourcePath,
-        deprecated: entry.deprecated,
-        replacedBy: entry.replacedBy,
+        source: entry.sourceFile ? path.resolve(clisDir, entry.sourceFile) : modulePath,
         navigateBefore: entry.navigateBefore,
+        siteSession: entry.siteSession,
+        defaultWindowMode: entry.defaultWindowMode,
         _lazy: true,
         _modulePath: modulePath,
       };
@@ -149,16 +147,6 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
     log.warn(`Failed to load manifest ${manifestPath}: ${getErrorMessage(err)}`);
     return false;
   }
-}
-
-function resolveManifestSourcePath(clisDir: string, sourceFile: string): string {
-  const sameDirPath = path.resolve(clisDir, sourceFile);
-  if (fs.existsSync(sameDirPath)) return sameDirPath;
-
-  const distSiblingPath = path.resolve(clisDir, '..', '..', 'clis', sourceFile);
-  if (fs.existsSync(distSiblingPath)) return distSiblingPath;
-
-  return sameDirPath;
 }
 
 /**
@@ -177,7 +165,6 @@ async function discoverClisFromFs(dir: string): Promise<void> {
       await Promise.all(files.map(async (file) => {
         const filePath = path.join(siteDir, file);
         if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-          log.warn(`Ignoring YAML adapter ${filePath} — YAML format is no longer supported. Convert to JavaScript using cli() from '@jackwener/opencli/registry'.`);
           return;
         }
         if (file.endsWith('.ts') && !file.endsWith('.d.ts') && !file.endsWith('.test.ts')) {
@@ -186,7 +173,6 @@ async function discoverClisFromFs(dir: string): Promise<void> {
         }
         if (file.endsWith('.js') && !file.endsWith('.d.js') && !file.endsWith('.test.js')) {
           if (!(await isCliModule(filePath))) return;
-          if (await registerStaticLazyCommands(filePath, site)) return;
           await import(pathToFileURL(filePath).href).catch((err) => {
             log.warn(`Failed to load module ${filePath}: ${getErrorMessage(err)}`);
           });
@@ -221,12 +207,10 @@ async function discoverPluginDir(dir: string, site: string): Promise<void> {
   await Promise.all(files.map(async (file) => {
     const filePath = path.join(dir, file);
     if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-      log.warn(`Ignoring YAML plugin ${filePath} — YAML format is no longer supported. Convert to JavaScript using cli() from '@jackwener/opencli/registry'.`);
       return;
     }
     if (file.endsWith('.js') && !file.endsWith('.d.js')) {
       if (!(await isCliModule(filePath))) return;
-      if (await registerStaticLazyCommands(filePath, site)) return;
       await import(pathToFileURL(filePath).href).catch((err) => {
         log.warn(`Plugin ${site}/${file}: ${getErrorMessage(err)}`);
       });
@@ -250,30 +234,6 @@ async function isCliModule(filePath: string): Promise<boolean> {
   try {
     const source = await fs.promises.readFile(filePath, 'utf-8');
     return PLUGIN_MODULE_PATTERN.test(source);
-  } catch (err) {
-    log.warn(`Failed to inspect module ${filePath}: ${getErrorMessage(err)}`);
-    return false;
-  }
-}
-
-async function registerStaticLazyCommands(filePath: string, site: string): Promise<boolean> {
-  try {
-    const source = await fs.promises.readFile(filePath, 'utf-8');
-    if (PLUGIN_HOOK_PATTERN.test(source)) return false;
-
-    const commands = extractStaticCliCommands(source, filePath, site);
-    if (!commands?.length) return false;
-
-    for (const command of commands) {
-      const lazyCommand: InternalCliCommand = {
-        ...command,
-        source: filePath,
-        _lazy: true,
-        _modulePath: filePath,
-      };
-      registerCommand(lazyCommand);
-    }
-    return true;
   } catch (err) {
     log.warn(`Failed to inspect module ${filePath}: ${getErrorMessage(err)}`);
     return false;

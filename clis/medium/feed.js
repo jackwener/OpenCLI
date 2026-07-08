@@ -3,6 +3,7 @@ import { buildMediumTagUrl, loadMediumPosts } from './utils.js';
 cli({
     site: 'medium',
     name: 'feed',
+    access: 'read',
     description: 'Medium 热门文章 Feed',
     domain: 'medium.com',
     strategy: Strategy.COOKIE,

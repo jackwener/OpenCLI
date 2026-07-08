@@ -3,6 +3,7 @@ import { SEL, injectTextScript, clickSendScript, pollResponseScript } from './ut
 export const askCommand = cli({
     site: 'doubao-app',
     name: 'ask',
+    access: 'write',
     description: 'Send a message to Doubao desktop app and wait for the AI response',
     domain: 'doubao-app',
     strategy: Strategy.UI,

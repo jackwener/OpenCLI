@@ -4,6 +4,7 @@ import { DESC_MAX_LEN, wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
     name: 'trending',
+    access: 'read',
     description: 'Most-read Wikipedia articles (yesterday)',
     strategy: Strategy.PUBLIC,
     browser: false,
@@ -12,7 +13,7 @@ cli({
         { name: 'lang', default: 'en', help: 'Language code (e.g. en, zh, ja)' },
     ],
     columns: ['rank', 'title', 'description', 'views'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const lang = args.lang || 'en';
         const limit = Math.max(1, Math.min(Number(args.limit), 50));
         // Use yesterday's UTC date — Wikipedia API expects UTC and yesterday
@@ -25,10 +26,14 @@ cli({
         const articles = data?.mostread?.articles;
         if (!articles?.length)
             throw new CliError('NOT_FOUND', 'No trending articles available', 'Try a different language with --lang');
-        return articles.slice(0, limit).map((a, i) => ({
+        const selectedArticles = articles.slice(0, limit);
+        if (selectedArticles.some((article) => !String(article?.title || '').trim())) {
+            throw new CliError('PARSE_ERROR', 'Wikipedia trending returned an article without title', 'Trending rows require a title so they can be opened with wikipedia page.');
+        }
+        return selectedArticles.map((a, i) => ({
             rank: i + 1,
-            title: a.title ?? '-',
-            description: (a.description ?? '-').slice(0, DESC_MAX_LEN),
+            title: a.title,
+            description: (a.description ?? '').slice(0, DESC_MAX_LEN),
             views: a.views ?? 0,
         }));
     },

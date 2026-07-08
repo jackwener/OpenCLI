@@ -3,6 +3,7 @@ import { fetchBloombergFeed } from './utils.js';
 cli({
     site: 'bloomberg',
     name: 'main',
+    access: 'read',
     description: 'Bloomberg homepage top stories (RSS)',
     domain: 'feeds.bloomberg.com',
     strategy: Strategy.PUBLIC,
@@ -11,7 +12,7 @@ cli({
         { name: 'limit', type: 'int', default: 1, help: 'Number of feed items to return (max 20)' },
     ],
     columns: ['title', 'summary', 'link', 'mediaLinks'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         return fetchBloombergFeed('main', kwargs.limit ?? 1);
     },
 });

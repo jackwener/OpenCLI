@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
-import './comments.js';
+import { buildCommentsExtractJs, buildXhsProfileUrl, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -25,6 +26,41 @@ function createPageMock(evaluateResult) {
         waitForCapture: vi.fn().mockResolvedValue(undefined),
     };
 }
+
+async function runCommentsExtract(html) {
+    const dom = new JSDOM(html, { url: 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok' });
+    const previousDocument = globalThis.document;
+    const previousLocation = globalThis.location;
+    globalThis.document = dom.window.document;
+    globalThis.location = dom.window.location;
+    try {
+        return await eval(buildCommentsExtractJs(false));
+    } finally {
+        globalThis.document = previousDocument;
+        globalThis.location = previousLocation;
+    }
+}
+
+describe('parseXhsLikeCountText', () => {
+    it('parses exact integer and shortform like counts', () => {
+        expect(parseXhsLikeCountText('0')).toBe(0);
+        expect(parseXhsLikeCountText('42')).toBe(42);
+        expect(parseXhsLikeCountText('1,234')).toBe(1234);
+        expect(parseXhsLikeCountText('1，234+')).toBe(1234);
+        expect(parseXhsLikeCountText('2.1w')).toBe(21000);
+        expect(parseXhsLikeCountText('1.5万')).toBe(15000);
+        expect(parseXhsLikeCountText('1.2k')).toBe(1200);
+        expect(parseXhsLikeCountText('3千')).toBe(3000);
+        expect(parseXhsLikeCountText(' 2.1 w + ')).toBe(21000);
+    });
+
+    it('returns 0 for unknown shapes without overparsing arbitrary text', () => {
+        for (const raw of ['', null, undefined, '赞', 'likes 2.1w', '2w人', '1,23', '1.2.3k', '.', '1.5']) {
+            expect(parseXhsLikeCountText(raw)).toBe(0);
+        }
+    });
+});
+
 describe('xiaohongshu comments', () => {
     const command = getRegistry().get('xiaohongshu/comments');
     it('returns ranked comment rows for signed full URLs', async () => {
@@ -120,6 +156,56 @@ describe('xiaohongshu comments', () => {
         expect(script).toContain("const afterCount = scroller.querySelectorAll('.parent-comment').length");
         expect(script).toContain('if (afterCount <= beforeCount) break');
     });
+    it('extracts shortform like counts from the shared xiaohongshu/rednote DOM script', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <div class="author-wrapper"><span class="name">Alice</span></div>
+                <div class="content">Great note</div>
+                <span class="count">2.1w</span>
+                <span class="date">today</span>
+              </div>
+            </section>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <span class="user-name">Bob</span>
+                <div class="note-text">Malformed count</div>
+                <span class="count">likes 2.1w</span>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(data.results).toEqual([
+            { author: 'Alice', authorHrefRaw: '', text: 'Great note', likes: 21000, time: 'today', is_reply: false, reply_to: '' },
+            { author: 'Bob', authorHrefRaw: '', text: 'Malformed count', likes: 0, time: '', is_reply: false, reply_to: '' },
+        ]);
+    });
+    it('extracts authorHrefRaw from /user/profile/ anchor wrapping the name', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <div class="author-wrapper"><a class="name" href="/user/profile/5e8a1b2c3d4e5f6a7b8c9d0e?xsec_token=tok">Alice</a></div>
+                <div class="content">Hi</div>
+                <span class="count">1</span>
+                <span class="date">today</span>
+              </div>
+            </section>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <a class="user-name" href="https://www.xiaohongshu.com/user/profile/abc123def456">Bob</a>
+                <div class="note-text">Hey</div>
+              </div>
+            </section>
+          </main>
+        `);
+        expect(data.results[0].author).toBe('Alice');
+        expect(data.results[0].authorHrefRaw).toBe('/user/profile/5e8a1b2c3d4e5f6a7b8c9d0e?xsec_token=tok');
+        expect(data.results[1].author).toBe('Bob');
+        expect(data.results[1].authorHrefRaw).toBe('https://www.xiaohongshu.com/user/profile/abc123def456');
+    });
     it('respects the limit for top-level comments', async () => {
         const manyComments = Array.from({ length: 10 }, (_, i) => ({
             author: `User${i}`,
@@ -137,6 +223,44 @@ describe('xiaohongshu comments', () => {
         expect(result).toHaveLength(3);
         expect(result[0].rank).toBe(1);
         expect(result[2].rank).toBe(3);
+    });
+    it('enriches each row with userId and profileUrl derived from authorHrefRaw', async () => {
+        const page = createPageMock({
+            loginWall: false,
+            results: [
+                { author: 'Alice', authorHrefRaw: '/user/profile/abc123?xsec_token=tok', text: 'hi', likes: 1, time: 't', is_reply: false, reply_to: '' },
+                { author: 'Bob', authorHrefRaw: 'https://www.xiaohongshu.com/user/profile/xyz789', text: 'hey', likes: 0, time: '', is_reply: false, reply_to: '' },
+                { author: 'Anon', authorHrefRaw: '', text: 'no link', likes: 0, time: '', is_reply: false, reply_to: '' },
+            ],
+        });
+        const result = (await command.func(page, {
+            'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
+            limit: 5,
+        }));
+        expect(result).toHaveLength(3);
+        expect(result[0]).toMatchObject({ rank: 1, author: 'Alice', userId: 'abc123', profileUrl: 'https://www.xiaohongshu.com/user/profile/abc123' });
+        expect(result[1]).toMatchObject({ rank: 2, author: 'Bob', userId: 'xyz789', profileUrl: 'https://www.xiaohongshu.com/user/profile/xyz789' });
+        expect(result[2]).toMatchObject({ rank: 3, author: 'Anon', userId: '', profileUrl: '' });
+        // the raw transport field must not leak into the final row shape
+        for (const row of result) {
+            expect(row).not.toHaveProperty('authorHrefRaw');
+            expect(row).not.toHaveProperty('authorHref');
+        }
+    });
+    it('buildXhsProfileUrl handles trusted relative/absolute inputs and rejects host/path drift', () => {
+        expect(parseXhsProfileHref('/user/profile/abc123')).toBe('abc123');
+        expect(parseXhsProfileHref('https://www.xiaohongshu.com/user/profile/xyz?xsec_token=tok')).toBe('xyz');
+        expect(buildXhsProfileUrl('/user/profile/abc123')).toBe('https://www.xiaohongshu.com/user/profile/abc123');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/xyz?xsec_token=tok')).toBe('https://www.xiaohongshu.com/user/profile/xyz');
+        expect(buildXhsProfileUrl('')).toBe('');
+        expect(buildXhsProfileUrl(null)).toBe('');
+        expect(buildXhsProfileUrl('/user/profile/zzz', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/zzz');
+        expect(buildXhsProfileUrl('http://www.xiaohongshu.com/user/profile/abc123')).toBe('');
+        expect(buildXhsProfileUrl('https://evil.test/user/profile/abc123')).toBe('');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/abc123/extra')).toBe('');
+        expect(buildXhsProfileUrl('/user/profile/abc123/extra')).toBe('');
+        expect(buildXhsProfileUrl('https://www.rednote.com/user/profile/zzz', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/zzz');
+        expect(buildXhsProfileUrl('https://www.xiaohongshu.com/user/profile/zzz', 'www.rednote.com')).toBe('');
     });
     it('clamps invalid negative limits to a safe minimum', async () => {
         const page = createPageMock({

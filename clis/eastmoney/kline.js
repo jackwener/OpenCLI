@@ -25,6 +25,7 @@ const ADJUST_MAP = {
 cli({
   site: 'eastmoney',
   name: 'kline',
+    access: 'read',
   description: 'K线历史数据（分/日/周/月/前复权/后复权）',
   domain: 'push2his.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -36,7 +37,7 @@ cli({
     { name: 'limit',  type: 'int',    default: 30,        help: '返回最近 N 根（末尾）' },
   ],
   columns: ['date', 'open', 'close', 'high', 'low', 'volume', 'turnover', 'amplitude', 'changePercent', 'change', 'turnoverRate'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const secid = resolveSecid(args.symbol);
     const periodKey = String(args.period ?? 'day').toLowerCase();
     const klt = PERIOD_MAP[periodKey];

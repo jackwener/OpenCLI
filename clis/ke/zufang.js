@@ -4,6 +4,7 @@ import { gotoKe } from './utils.js';
 cli({
     site: 'ke',
     name: 'zufang',
+    access: 'read',
     description: '贝壳找房租房列表',
     domain: 'ke.com',
     strategy: Strategy.COOKIE,

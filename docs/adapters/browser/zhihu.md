@@ -7,8 +7,13 @@
 | Command | Description |
 |---------|-------------|
 | `opencli zhihu hot` | Read Zhihu hot topics |
+| `opencli zhihu recommend` | Read Zhihu home recommendations |
 | `opencli zhihu search` | Search Zhihu content |
 | `opencli zhihu question` | Read question answers by question ID |
+| `opencli zhihu answer-detail <id>` | Read one full answer by answer ID, typed target, or answer URL |
+| `opencli zhihu answer-comments <id>` | Read flattened comments for one answer |
+| `opencli zhihu collections` | List your Zhihu favorite collections |
+| `opencli zhihu collection <collection_id>` | List content from a Zhihu favorite collection |
 | `opencli zhihu download` | Export a Zhihu article to Markdown |
 | `opencli zhihu follow <target> --execute` | Follow a user or question |
 | `opencli zhihu like <target> --execute` | Like an answer or article |
@@ -40,7 +45,15 @@
 ```bash
 # Read flows
 opencli zhihu hot --limit 5
+opencli zhihu recommend --limit 20
+opencli zhihu search codex --type answer --limit 20
+opencli zhihu search "Claude Code vs Codex?" --type all --limit 20
 opencli zhihu question 123456 --limit 3
+opencli zhihu answer-detail answer:123456:789012
+opencli zhihu answer-detail "https://www.zhihu.com/question/123456/answer/789012" --max-content 2000
+opencli zhihu answer-comments answer:123456:789012 --limit 20 --replies-limit 3
+opencli zhihu collections --limit 20
+opencli zhihu collection 83283292 --limit 20
 opencli zhihu download "https://zhuanlan.zhihu.com/p/998877" --download-images
 
 # Write flows
@@ -56,6 +69,18 @@ opencli zhihu answer question:123456 --file ./answer.txt --execute
 # JSON output
 opencli zhihu hot -f json
 ```
+
+## Search Notes
+
+- Quote queries that contain spaces or shell-special characters, for example `opencli zhihu search "Claude Code vs Codex?"`
+- `search --type` supports `all`, `answer`, `article`, and `question`
+- `search --limit` supports up to 1000 results, but normal-sized requests are recommended
+
+## Comment Notes
+
+- `answer-comments --limit` counts top-level comments
+- `answer-comments --replies-limit` expands up to that many replies per top-level comment
+- Comment rows are flattened in Zhihu order. Zhihu's comments API does not expose stable parent comment ids here, so `parent_id` stays empty and `depth` does not claim nested-thread evidence; use `reply_to`, `comment_rank`, and `reply_rank` only as display hints within the flat stream.
 
 ## Prerequisites
 

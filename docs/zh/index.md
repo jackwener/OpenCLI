@@ -16,7 +16,7 @@ hero:
 features:
   - icon: 🖥️
     title: 桌面应用控制
-    details: 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT、Notion 等）。
+    details: 通过 CDP 直接在终端驱动 Electron 应用（Cursor、Codex、ChatGPT 等）。
   - icon: 🌐
     title: 浏览器自动化
     details: AI Agent 直接控制浏览器：点击、输入、提取、截图 — 任何交互，完全可编程。
@@ -25,7 +25,7 @@ features:
     details: 复用 Chrome 登录态，凭证永远不会离开浏览器 — 无 token，无密码泄露。
   - icon: 🤖
     title: AI Agent 就绪
-    details: explore 发现 API，synthesize 生成适配器，cascade 查找认证策略。为 AI 优先工作流而生。
+    details: Browser 原语加上适配器编写 skill，让 AI Agent 可以稳定完成侦察、提取、验证和适配器落地。
   - icon: 💰
     title: 零 LLM 成本
     details: 运行时不消耗模型 token。跑 10,000 次也不花一分钱。

@@ -5,6 +5,7 @@ import { buildVideoAppPlan, RUN_EXTRA_ARGS } from './planner.js';
 cli({
   site: 'maybeai-video-app',
   name: 'select',
+  access: 'read',
   description: 'Select the best MaybeAI video app and compose normalized input locally',
   strategy: Strategy.PUBLIC,
   browser: false,

@@ -7,6 +7,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
     site: 'google',
     name: 'suggest',
+    access: 'read',
     description: 'Get Google search suggestions',
     strategy: Strategy.PUBLIC,
     browser: false,
@@ -15,7 +16,7 @@ cli({
         { name: 'lang', default: 'zh-CN', help: 'Language code' },
     ],
     columns: ['suggestion'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const keyword = encodeURIComponent(args.keyword);
         const lang = encodeURIComponent(args.lang);
         const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${keyword}&hl=${lang}`;

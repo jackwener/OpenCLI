@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
 
 const {
   mockEnsureOnDeepSeek,
@@ -11,6 +11,7 @@ const {
   mockWaitForResponse,
   mockParseBoolFlag,
   mockWithRetry,
+  mockPickResumeUrl,
 } = vi.hoisted(() => ({
   mockEnsureOnDeepSeek: vi.fn(),
   mockSelectModel: vi.fn(),
@@ -21,6 +22,7 @@ const {
   mockWaitForResponse: vi.fn(),
   mockParseBoolFlag: vi.fn((v) => v === true || v === 'true'),
   mockWithRetry: vi.fn(async (fn) => fn()),
+  mockPickResumeUrl: vi.fn(),
 }));
 
 vi.mock('./utils.js', () => ({
@@ -35,6 +37,7 @@ vi.mock('./utils.js', () => ({
   waitForResponse: mockWaitForResponse,
   parseBoolFlag: mockParseBoolFlag,
   withRetry: mockWithRetry,
+  pickResumeUrl: mockPickResumeUrl,
 }));
 
 import { askCommand } from './ask.js';
@@ -185,9 +188,8 @@ describe('deepseek ask conversation resume', () => {
 
   it('resumes the most recent conversation and skips model selection', async () => {
     mockEnsureOnDeepSeek.mockResolvedValue(true);
-    // first evaluate: sidebar resume click (returns undefined)
-    page.evaluate.mockResolvedValueOnce(undefined);
-    // second evaluate: URL check (now inside a conversation)
+    mockPickResumeUrl.mockResolvedValue('https://chat.deepseek.com/a/chat/s/abc-123');
+    // URL check after resume navigation: now inside a conversation.
     page.evaluate.mockResolvedValueOnce('https://chat.deepseek.com/a/chat/s/abc-123');
 
     const rows = await askCommand.func(page, {
@@ -200,6 +202,7 @@ describe('deepseek ask conversation resume', () => {
     });
 
     expect(rows).toEqual([{ response: 'follow-up reply' }]);
+    expect(page.goto).toHaveBeenCalledWith('https://chat.deepseek.com/a/chat/s/abc-123');
     expect(mockSelectModel).not.toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalled();
   });
@@ -243,24 +246,154 @@ describe('deepseek ask conversation resume', () => {
     expect(mockSelectModel).not.toHaveBeenCalled();
   });
 
-  it('still selects model when no conversation to resume', async () => {
+  it('fails fast when the workspace was recycled but no conversation surfaces in time', async () => {
     mockEnsureOnDeepSeek.mockResolvedValue(true);
-    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
-    // first evaluate: sidebar resume click (no link found)
-    page.evaluate.mockResolvedValueOnce(undefined);
-    // second evaluate: URL check (still on root page)
-    page.evaluate.mockResolvedValueOnce('https://chat.deepseek.com/');
+    mockPickResumeUrl.mockResolvedValue(null);
 
-    const rows = await askCommand.func(page, {
+    await expect(askCommand.func(page, {
       prompt: 'hello',
       timeout: 120,
       new: false,
       model: 'instant',
       think: false,
       search: false,
+    })).rejects.toBeInstanceOf(CommandExecutionError);
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('skips search toggle in vision mode when search is not requested', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(0);
+    mockWaitForResponse.mockResolvedValue('vision reply');
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+
+    const rows = await askCommand.func(page, {
+      prompt: 'describe',
+      timeout: 120,
+      new: false,
+      model: 'vision',
+      think: false,
+      search: false,
     });
 
-    expect(rows).toEqual([{ response: 'follow-up reply' }]);
-    expect(mockSelectModel).toHaveBeenCalled();
+    expect(rows).toEqual([{ response: 'vision reply' }]);
+    expect(mockSetFeature).toHaveBeenCalledTimes(1);
+    expect(mockSetFeature).toHaveBeenCalledWith(expect.anything(), 'DeepThink', false);
+  });
+
+  it('fails fast instead of silently ignoring --search in vision mode', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+
+    await expect(askCommand.func(page, {
+      prompt: 'describe',
+      timeout: 120,
+      new: false,
+      model: 'vision',
+      think: false,
+      search: true,
+    })).rejects.toMatchObject(new CliError(
+      'ARGUMENT',
+      'DeepSeek vision mode does not support --search.',
+      'Run without --search, or use --model instant for web search.',
+      EXIT_CODES.USAGE_ERROR,
+    ));
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockEnsureOnDeepSeek).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSetFeature).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockSendWithFile).not.toHaveBeenCalled();
+  });
+
+  it('skips search toggle in expert mode when search is not requested', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(0);
+    mockWaitForResponse.mockResolvedValue('expert reply');
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+
+    const rows = await askCommand.func(page, {
+      prompt: 'analyze',
+      timeout: 120,
+      new: false,
+      model: 'expert',
+      think: false,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'expert reply' }]);
+    expect(mockSetFeature).toHaveBeenCalledTimes(1);
+    expect(mockSetFeature).toHaveBeenCalledWith(expect.anything(), 'DeepThink', false);
+  });
+
+  it('fails fast instead of silently ignoring --search in expert mode', async () => {
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+
+    await expect(askCommand.func(page, {
+      prompt: 'analyze',
+      timeout: 120,
+      new: false,
+      model: 'expert',
+      think: false,
+      search: true,
+    })).rejects.toMatchObject(new CliError(
+      'ARGUMENT',
+      'DeepSeek expert mode does not support --search.',
+      'Run without --search, or use --model instant for web search.',
+      EXIT_CODES.USAGE_ERROR,
+    ));
+
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockEnsureOnDeepSeek).not.toHaveBeenCalled();
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSetFeature).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockSendWithFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('deepseek ask timeout surfaces TimeoutError (not a silent sentinel row)', () => {
+  const page = {
+    wait: vi.fn().mockResolvedValue(undefined),
+    goto: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue('https://chat.deepseek.com/'),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+    mockEnsureOnDeepSeek.mockResolvedValue(false);
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockSendWithFile.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(3);
+    // No reply within the window.
+    mockWaitForResponse.mockResolvedValue(null);
+  });
+
+  it('throws TimeoutError on the normal send path when no reply arrives', async () => {
+    await expect(askCommand.func(page, {
+      prompt: 'hello', timeout: 30, new: false, model: 'default', think: false, search: false,
+    })).rejects.toThrow(TimeoutError);
+  });
+
+  it('throws TimeoutError on the --file path when no reply arrives', async () => {
+    await expect(askCommand.func(page, {
+      prompt: 'summarize', timeout: 30, file: './report.pdf', new: false, model: 'instant', think: false, search: false,
+    })).rejects.toThrow(TimeoutError);
   });
 });

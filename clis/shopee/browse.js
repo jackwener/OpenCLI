@@ -312,6 +312,7 @@ export async function runBrowseSession(page, args, options = {}) {
 cli({
   site: 'shopee',
   name: 'browse',
+  access: 'read',
   workspace: 'browser:shopee-browse-{pid}',
   description: 'Read-only Shopee browse rehearsal across search, product, and shop pages',
   domain: 'shopee.sg',

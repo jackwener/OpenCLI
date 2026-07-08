@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'user',
+    access: 'read',
     description: 'Get recent posts from an Instagram user',
     domain: 'www.instagram.com',
     args: [

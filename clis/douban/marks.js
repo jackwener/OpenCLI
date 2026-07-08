@@ -3,6 +3,7 @@ import { getSelfUid } from './utils.js';
 cli({
     site: 'douban',
     name: 'marks',
+    access: 'read',
     description: '导出个人观影标记',
     domain: 'movie.douban.com',
     strategy: Strategy.COOKIE,

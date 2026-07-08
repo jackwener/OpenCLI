@@ -31,6 +31,7 @@ function getWeekRange() {
 cli({
     site: 'hf',
     name: 'top',
+    access: 'read',
     description: 'Top upvoted Hugging Face papers',
     domain: 'huggingface.co',
     strategy: Strategy.PUBLIC,
@@ -41,6 +42,7 @@ cli({
         { name: 'date', type: 'str', required: false, help: 'Date (YYYY-MM-DD), defaults to most recent' },
         { name: 'period', type: 'str', default: 'daily', choices: ['daily', 'weekly', 'monthly'], help: 'Time period: daily, weekly, or monthly' },
     ],
+    columns: ['rank', 'id', 'title', 'upvotes', 'authors'],
     footerExtra: (kwargs) => {
         if (kwargs._footerDate)
             return kwargs._footerDate;
@@ -50,7 +52,7 @@ cli({
             return getWeekRange();
         return kwargs.date ?? new Date().toISOString().slice(0, 10);
     },
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const period = String(kwargs.period ?? 'daily');
         const all = Boolean(kwargs.all);
         const endpoint = process.env.HF_ENDPOINT?.replace(/\/+$/, '') || 'https://huggingface.co';

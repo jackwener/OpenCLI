@@ -3,10 +3,12 @@ import { DOUBAO_DOMAIN, getDoubaoConversationList } from './utils.js';
 export const historyCommand = cli({
     site: 'doubao',
     name: 'history',
+    access: 'read',
     description: 'List conversation history from Doubao sidebar',
     domain: DOUBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [
         { name: 'limit', required: false, help: 'Max number of conversations to show', default: '50' },

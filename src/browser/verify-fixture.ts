@@ -64,12 +64,48 @@ export type Fixture = {
 };
 
 export type ValidationFailure = {
-  rule: 'rowCount' | 'column' | 'type' | 'pattern' | 'notEmpty' | 'mustNotContain' | 'mustBeTruthy';
+  rule:
+    | 'rowCount'
+    | 'column'
+    | 'type'
+    | 'pattern'
+    | 'notEmpty'
+    | 'mustNotContain'
+    | 'mustBeTruthy'
+    | 'shapeKeyCount'
+    | 'shapeDepth'
+    | 'shapeNestedId';
   detail: string;
   rowIndex?: number;
 };
 
 export type Row = Record<string, unknown>;
+
+export type RowShapeOptions = {
+  maxTopLevelKeys?: number;
+  maxNestedDepth?: number;
+};
+
+const DEFAULT_MAX_TOP_LEVEL_KEYS = 12;
+const DEFAULT_MAX_NESTED_DEPTH = 1;
+const ID_SHAPED_KEY_PATTERNS = [
+  /^id$/i,
+  /_id$/i,
+  /Id$/,
+  /^short_id$/i,
+  /^bvid$/i,
+  /^aid$/i,
+  /^tid$/i,
+  /^asin$/i,
+  /^sku$/i,
+  /^isbn$/i,
+  /^doi$/i,
+  /^slug$/i,
+  /^hn_id$/i,
+  /^username$/i,
+  /^handle$/i,
+  /^uri$/i,
+];
 
 export function fixturePath(site: string, command: string): string {
   return path.join(os.homedir(), '.opencli', 'sites', site, 'verify', `${command}.json`);
@@ -224,6 +260,44 @@ export function validateRows(rows: Row[], fixture: Fixture): ValidationFailure[]
   return failures;
 }
 
+export function validateRowShape(rows: Row[], opts: RowShapeOptions = {}): ValidationFailure[] {
+  const failures: ValidationFailure[] = [];
+  const maxTopLevelKeys = opts.maxTopLevelKeys ?? DEFAULT_MAX_TOP_LEVEL_KEYS;
+  const maxNestedDepth = opts.maxNestedDepth ?? DEFAULT_MAX_NESTED_DEPTH;
+
+  rows.forEach((row, i) => {
+    const keys = Object.keys(row);
+    if (keys.length > maxTopLevelKeys) {
+      failures.push({
+        rule: 'shapeKeyCount',
+        detail: `row has ${keys.length} top-level keys, expected at most ${maxTopLevelKeys}`,
+        rowIndex: i,
+      });
+    }
+
+    for (const [key, value] of Object.entries(row)) {
+      const depth = nestedDepth(value);
+      if (depth > maxNestedDepth) {
+        failures.push({
+          rule: 'shapeDepth',
+          detail: `"${key}" nesting depth is ${depth}, expected at most ${maxNestedDepth}`,
+          rowIndex: i,
+        });
+      }
+
+      for (const path of nestedIdPaths(value, key)) {
+        failures.push({
+          rule: 'shapeNestedId',
+          detail: `id-shaped field "${path}" must be a top-level row key`,
+          rowIndex: i,
+        });
+      }
+    }
+  });
+
+  return failures;
+}
+
 /**
  * Convert fixture args into argv tokens appended after the command name.
  * - Array form is passed through verbatim (stringified), supporting positional subjects.
@@ -239,10 +313,58 @@ export function expandFixtureArgs(args: FixtureArgs | undefined): string[] {
   return out;
 }
 
+export function parseSeedArgs(raw: string | undefined): FixtureArgs | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed !== null && typeof parsed === 'object') return parsed as Record<string, unknown>;
+    return [parsed];
+  } catch {
+    return [raw];
+  }
+}
+
 function jsType(v: unknown): string {
   if (v === null) return 'null';
   if (Array.isArray(v)) return 'array';
   return typeof v;
+}
+
+function nestedDepth(value: unknown): number {
+  if (value === null || value === undefined || typeof value !== 'object') return 0;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 1;
+    return 1 + Math.max(...value.map(nestedDepth));
+  }
+  const values = Object.values(value as Record<string, unknown>);
+  if (values.length === 0) return 1;
+  return 1 + Math.max(...values.map(nestedDepth));
+}
+
+function nestedIdPaths(value: unknown, prefix: string): string[] {
+  if (value === null || value === undefined || typeof value !== 'object') return [];
+  const paths: string[] = [];
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      paths.push(...nestedIdPaths(item, `${prefix}[${index}]`));
+    });
+    return paths;
+  }
+
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    const childPath = `${prefix}.${key}`;
+    if (isIdShapedKey(key)) paths.push(childPath);
+    paths.push(...nestedIdPaths(nested, childPath));
+  }
+  return paths;
+}
+
+function isIdShapedKey(key: string): boolean {
+  return ID_SHAPED_KEY_PATTERNS.some((pattern) => pattern.test(key));
 }
 
 function typeMatches(actual: string, declared: string): boolean {

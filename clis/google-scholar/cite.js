@@ -5,6 +5,7 @@ import { requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'google-scholar',
     name: 'cite',
+    access: 'read',
     description: 'Get citation for a Google Scholar paper',
     domain: 'scholar.google.com',
     strategy: Strategy.PUBLIC,
@@ -15,7 +16,6 @@ cli({
         { name: 'index', type: 'int', default: 1, help: 'Which search result to cite (1-based)' },
     ],
     columns: ['title', 'format', 'citation'],
-    navigateBefore: false,
     func: async (page, kwargs) => {
         const query = requireNonEmptyQuery(kwargs.query);
         const format = kwargs.style || 'bibtex';

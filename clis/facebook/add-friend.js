@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'add-friend',
+    access: 'write',
     description: 'Send a friend request on Facebook',
     domain: 'www.facebook.com',
     args: [

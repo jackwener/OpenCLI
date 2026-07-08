@@ -9,6 +9,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'upscale',
+    access: 'write',
     description: 'Upscale image resolution with AI (1 credit)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildFindJs, FIND_ATTR_WHITELIST, isFindError, type FindError } from './find.js';
+import { JSDOM } from 'jsdom';
+import { buildFindJs, buildSemanticFindJs, FIND_ATTR_WHITELIST, isFindError, type FindError } from './find.js';
 
 /**
  * These tests validate the shape and options of the generated JS string
@@ -130,5 +131,76 @@ describe('isFindError', () => {
     expect(isFindError(null)).toBe(false);
     expect(isFindError(undefined)).toBe(false);
     expect(isFindError('string')).toBe(false);
+  });
+});
+
+describe('buildSemanticFindJs', () => {
+  function runSemanticFind(html: string, opts: Parameters<typeof buildSemanticFindJs>[0]) {
+    const dom = new JSDOM(html, { runScripts: 'outside-only' });
+    return {
+      dom,
+      result: dom.window.eval(buildSemanticFindJs(opts)),
+    };
+  }
+
+  it('produces syntactically valid JS and embeds semantic criteria safely', () => {
+    const js = buildSemanticFindJs({ role: 'button', name: 'Save "now"', testid: 'submit' });
+    expect(() => new Function(`return (${js});`)).not.toThrow();
+    expect(js).toContain(JSON.stringify({
+      role: 'button',
+      name: 'Save "now"',
+      label: '',
+      text: '',
+      testid: 'submit',
+    }));
+  });
+
+  it('matches native roles, accessible name, labels, text, and test ids', () => {
+    const js = buildSemanticFindJs({ role: 'button', name: 'Save', label: 'Category', text: 'Travel', testid: 'category' });
+    expect(js).toContain('function nativeRole(el)');
+    expect(js).toContain('function accessibleName(el)');
+    expect(js).toContain('function labelText(el)');
+    expect(js).toContain('CRITERIA.role');
+    expect(js).toContain('CRITERIA.name');
+    expect(js).toContain('CRITERIA.label');
+    expect(js).toContain('CRITERIA.text');
+    expect(js).toContain('CRITERIA.testid');
+  });
+
+  it('allocates refs exactly like CSS find so downstream actions can click them', () => {
+    const js = buildSemanticFindJs({ role: 'button', name: 'Save' });
+    expect(js).toContain("el.setAttribute('data-opencli-ref'");
+    expect(js).toContain('__opencli_ref_identity');
+    expect(js).toContain("identity['' + refNum] = fingerprintOf(el)");
+    expect(js).toContain("document.querySelectorAll('[data-opencli-ref]')");
+  });
+
+  it('executes semantic role/name/testid matching and allocates a clickable ref', () => {
+    const { dom, result } = runSemanticFind(
+      '<button aria-label="Save expense" data-testid="save-button">Ignored copy</button>',
+      { role: 'button', name: 'Save', testid: 'save' },
+    );
+    expect(result).toMatchObject({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 1, tag: 'button', role: 'button', attrs: { 'aria-label': 'Save expense', 'data-testid': 'save-button' } },
+      ],
+    });
+    const button = dom.window.document.querySelector('button')!;
+    expect(button.getAttribute('data-opencli-ref')).toBe('1');
+    expect((dom.window as any).__opencli_ref_identity['1']).toMatchObject({ tag: 'button', ariaLabel: 'Save expense' });
+  });
+
+  it('matches associated labels and placeholders for form controls', () => {
+    const { result } = runSemanticFind(
+      '<label for="category">Category</label><input id="category" placeholder="Expense category" value="Travel" />',
+      { role: 'textbox', label: 'Category', name: 'Expense category' },
+    );
+    expect(result).toMatchObject({
+      matches_n: 1,
+      entries: [
+        { nth: 0, ref: 1, tag: 'input', role: 'textbox' },
+      ],
+    });
   });
 });

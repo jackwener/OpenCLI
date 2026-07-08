@@ -1,5 +1,5 @@
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { bindCurrentTab } from '@jackwener/opencli/browser/daemon-client';
+import { bindTab } from '@jackwener/opencli/browser/daemon-client';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { simulateHumanBehavior, waitRandomDuration } from './shared.js';
 
@@ -23,6 +23,10 @@ const PRODUCT_STOCK_COLUMNS = [
   'stock',
   'stock_source',
 ];
+
+async function bindCurrentTabCompat(session, _opts = {}) {
+  return bindTab(session);
+}
 
 function normalizeText(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -216,12 +220,12 @@ function upsertStockRow(rowsByKey, row) {
   }
 }
 
-async function ensureShopeeProductPage(page, productUrl, bindFn = bindCurrentTab) {
+async function ensureShopeeProductPage(page, productUrl, bindFn = bindCurrentTabCompat) {
   await bindShopeeProductTab(productUrl, bindFn);
   await page.goto(productUrl, { waitUntil: 'load' });
 }
 
-async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTab) {
+async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTabCompat) {
   try {
     await bindFn(SHOPEE_WORKSPACE, { matchUrl: productUrl });
     return true;
@@ -525,6 +529,7 @@ async function collectVariantRowsOnce(page, productUrl, captureMode) {
 cli({
   site: 'shopee',
   name: 'product-sku',
+  access: 'read',
   description: 'Get Shopee SKU stock by clicking enabled variation buttons on a product page',
   domain: 'shopee.sg',
   strategy: Strategy.COOKIE,

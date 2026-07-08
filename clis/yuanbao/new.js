@@ -50,10 +50,12 @@ async function startNewYuanbaoChat(page) {
 export const newCommand = cli({
     site: 'yuanbao',
     name: 'new',
+    access: 'read',
     description: 'Start a new conversation in Yuanbao web chat',
     domain: YUANBAO_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
     args: [],
     columns: ['Status', 'Action'],

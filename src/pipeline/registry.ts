@@ -6,7 +6,7 @@
 import type { IPage } from '../types.js';
 
 // Import core steps
-import { stepNavigate, stepClick, stepType, stepWait, stepPress, stepSnapshot, stepEvaluate } from './steps/browser.js';
+import { stepNavigate, stepClick, stepType, stepFill, stepWait, stepPress, stepSnapshot, stepEvaluate } from './steps/browser.js';
 import { stepFetch } from './steps/fetch.js';
 import { stepSelect, stepMap, stepFilter, stepSort, stepLimit } from './steps/transform.js';
 import { stepIntercept } from './steps/intercept.js';
@@ -35,6 +35,18 @@ export function getStep(name: string): StepHandler | undefined {
 }
 
 /**
+ * List all currently registered step names. Used by `validate.ts` to allowlist
+ * step names without maintaining a parallel hand-coded list.
+ *
+ * Note: this depends on registerStep() side effects below already having run.
+ * Importing this module triggers all core registrations at the bottom of the
+ * file, so the returned array reflects every core + plugin step at call time.
+ */
+export function getRegisteredStepNames(): string[] {
+  return [..._stepRegistry.keys()];
+}
+
+/**
  * Register a new custom step handler for the YAML pipeline.
  */
 export function registerStep(name: string, handler: StepHandler): void {
@@ -51,6 +63,7 @@ registerStep('evaluate', stepEvaluate);
 registerStep('snapshot', stepSnapshot);
 registerStep('click', stepClick);
 registerStep('type', stepType);
+registerStep('fill', stepFill);
 registerStep('wait', stepWait);
 registerStep('press', stepPress);
 registerStep('map', stepMap);

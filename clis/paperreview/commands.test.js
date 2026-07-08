@@ -38,7 +38,7 @@ describe('paperreview submit command', () => {
             resolvedPath: '/tmp/paper.pdf',
             sizeBytes: 4096,
         });
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             pdf: './paper.pdf',
             email: 'wang2629651228@gmail.com',
             venue: 'RAL',
@@ -80,7 +80,7 @@ describe('paperreview submit command', () => {
                 message: 'Submission accepted',
             },
         });
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             pdf: './paper.pdf',
             email: 'wang2629651228@gmail.com',
             venue: 'RAL',
@@ -112,7 +112,7 @@ describe('paperreview submit command', () => {
                 s3_key: 'uploads/paper.pdf',
             },
         });
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             pdf: './paper.pdf',
             email: 'wang2629651228@gmail.com',
             venue: 'RAL',
@@ -153,7 +153,7 @@ describe('paperreview submit command', () => {
                 message: 'Submission accepted',
             },
         });
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             pdf: './paper.pdf',
             email: 'wang2629651228@gmail.com',
             venue: 'RAL',
@@ -190,7 +190,7 @@ describe('paperreview review command', () => {
             response: { status: 202 },
             payload: { detail: 'Review is still processing.' },
         });
-        const result = await cmd.func(null, { token: 'tok_123' });
+        const result = await cmd.func({ token: 'tok_123' });
         expect(result).toMatchObject({
             status: 'processing',
             token: 'tok_123',
@@ -214,7 +214,7 @@ describe('paperreview feedback command', () => {
             response: { ok: true, status: 200 },
             payload: { message: 'Thanks for the feedback.' },
         });
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             token: 'tok_123',
             helpfulness: 4,
             'critical-error': 'yes',

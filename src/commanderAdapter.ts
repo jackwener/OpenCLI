@@ -14,17 +14,24 @@ import { Command } from 'commander';
 import { log } from './logger.js';
 import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
-import { formatRegistryHelpText } from './serialization.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
+import {
+  commandHelpData,
+  formatCommandHelpText,
+  formatCommandListTerm,
+  formatSiteCommandDescription,
+  formatSiteHelpText,
+  getRequestedHelpFormat,
+  installStructuredHelp,
+  renderStructuredHelp,
+  siteHelpData,
+} from './help.js';
 import {
   CliError,
   EXIT_CODES,
   toEnvelope,
 } from './errors.js';
-import { getDaemonHealth } from './browser/daemon-client.js';
-import { MAYBE_BROWSER_SCRAPER_ID } from './browser/extension-detect.js';
-import { isDiagnosticEnabled } from './diagnostic.js';
 
 /**
  * Register a single CliCommand as a Commander subcommand.
@@ -32,8 +39,7 @@ import { isDiagnosticEnabled } from './diagnostic.js';
 export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): void {
   if (siteCmd.commands.some((c: Command) => c.name() === cmd.name)) return;
 
-  const deprecatedSuffix = cmd.deprecated ? ' [deprecated]' : '';
-  const subCmd = siteCmd.command(cmd.name).description(`${cmd.description}${deprecatedSuffix}`);
+  const subCmd = siteCmd.command(cmd.name).description(formatSiteCommandDescription(cmd));
   if (cmd.aliases?.length) subCmd.aliases(cmd.aliases);
 
   // Register positional args first, then named options
@@ -53,9 +59,24 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
   }
   subCmd
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
+    .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
     .option('-v, --verbose', 'Debug output', false);
+  if (cmd.browser) {
+    subCmd
+      .option('--window <mode>', 'Browser window mode: foreground or background')
+      .option('--site-session <mode>', 'Adapter site session lifecycle: ephemeral or persistent')
+      .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes');
+  }
 
-  subCmd.addHelpText('after', formatRegistryHelpText(cmd));
+  const originalHelpInformation = subCmd.helpInformation.bind(subCmd);
+  subCmd.helpInformation = ((contextOptions?: unknown) => {
+    const format = getRequestedHelpFormat();
+    if (format) return renderStructuredHelp(commandHelpData(cmd), format);
+    // Keep a fallback reference so future Commander upgrades still initialize
+    // internal help state before we render the cleaner grouped command help.
+    void originalHelpInformation(contextOptions as never);
+    return formatCommandHelpText(cmd);
+  }) as Command['helpInformation'];
 
   subCmd.action(async (...actionArgs: unknown[]) => {
     const actionOpts = actionArgs[positionalArgs.length] ?? {};
@@ -92,13 +113,15 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
       const formatExplicit = subCmd.getOptionValueSource('format') === 'cli';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
-      if (cmd.deprecated) {
-        const message = typeof cmd.deprecated === 'string' ? cmd.deprecated : `${fullName(cmd)} is deprecated.`;
-        const replacement = cmd.replacedBy ? ` Use ${cmd.replacedBy} instead.` : '';
-        log.warn(`Deprecated: ${message}${replacement}`);
-      }
-
-      const result = await executeCommand(cmd, kwargs, verbose, { prepared: true });
+      const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};
+      const result = await executeCommand(cmd, kwargs, verbose, {
+        prepared: true,
+        ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
+        ...(typeof optionsRecord.trace === 'string' && optionsRecord.trace !== 'off' ? { trace: optionsRecord.trace } : {}),
+        ...(cmd.browser && typeof optionsRecord.window === 'string' ? { windowMode: optionsRecord.window } : {}),
+        ...(cmd.browser && typeof optionsRecord.siteSession === 'string' ? { siteSession: optionsRecord.siteSession } : {}),
+        ...(cmd.browser && typeof optionsRecord.keepTab === 'string' ? { keepTab: optionsRecord.keepTab } : {}),
+      });
       if (result === null || result === undefined) {
         return;
       }
@@ -121,7 +144,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         footerExtra: resolved.footerExtra?.(kwargs),
       });
     } catch (err) {
-      renderError(err, fullName(cmd), optionsRecord.verbose === true);
+      renderError(err, fullName(cmd), optionsRecord.verbose === true, optionsRecord.trace);
       process.exitCode = resolveExitCode(err);
     }
   });
@@ -135,34 +158,17 @@ function resolveExitCode(err: unknown): number {
 }
 
 // ── Error rendering ─────────────────────────────────────────────────────────
-/** Render a status line for BrowserConnectError based on real-time or kind-derived state. */
-function renderBridgeStatus(running: boolean, extensionConnected: boolean): void {
-  const ok = '✓';
-  const fail = '✗';
-  console.error(`  Daemon    ${running ? ok : fail} ${running ? 'running' : 'not running'}`);
-  console.error(`  Extension ${extensionConnected ? ok : fail} ${extensionConnected ? 'connected' : 'not connected'}`);
-  console.error();
-  if (!running) {
-    console.error('  Run the command again — daemon should auto-start.');
-    console.error('  Still failing? Run: opencli doctor');
-  } else if (!extensionConnected) {
-    console.error('  Install the Browser Bridge extension to continue:');
-    console.error('    1. Download from github.com/jackwener/opencli/releases');
-    console.error('    2. chrome://extensions → Enable Developer Mode → Load unpacked');
-    console.error(`    3. Confirm extension ID: ${MAYBE_BROWSER_SCRAPER_ID}`);
-  } else {
-    console.error('  Connection failed despite extension being active.');
-    console.error('  Try reloading the extension, or run: opencli doctor');
-  }
+
+/** Emit AutoFix hint for repairable adapter errors (skipped if trace already exported). */
+function emitAutoFixHint(envelope: string, cmdName: string, traceMode: unknown): string {
+  if (traceMode === 'on' || traceMode === 'retain-on-failure') return envelope;
+  const runnable = cmdName.replace('/', ' ');
+  return envelope
+    + `# AutoFix: re-run with --trace=retain-on-failure for trace artifact\n`
+    + `# opencli ${runnable} --trace retain-on-failure\n`;
 }
 
-/** Emit AutoFix hint for repairable adapter errors (skipped if already in diagnostic mode). */
-function emitAutoFixHint(envelope: string, cmdName: string): string {
-  if (isDiagnosticEnabled()) return envelope;
-  return envelope + `# AutoFix: re-run with OPENCLI_DIAGNOSTIC=1 for repair context\n# OPENCLI_DIAGNOSTIC=1 ${cmdName}\n`;
-}
-
-function renderError(err: unknown, cmdName: string, verbose: boolean): void {
+function renderError(err: unknown, cmdName: string, verbose: boolean, traceMode?: unknown): void {
   const envelope = toEnvelope(err);
 
   // In verbose mode, include stack trace for debugging
@@ -175,7 +181,7 @@ function renderError(err: unknown, cmdName: string, verbose: boolean): void {
   // Append AutoFix hint for repairable errors
   const code = envelope.error.code;
   if (code === 'SELECTOR' || code === 'EMPTY_RESULT' || code === 'ADAPTER_LOAD' || code === 'UNKNOWN') {
-    output = emitAutoFixHint(output, cmdName);
+    output = emitAutoFixHint(output, cmdName, traceMode);
   }
 
   process.stderr.write(output);
@@ -187,16 +193,37 @@ function renderError(err: unknown, cmdName: string, verbose: boolean): void {
 export function registerAllCommands(
   program: Command,
   siteGroups: Map<string, Command>,
-): void {
+): string[] {
   const seen = new Set<CliCommand>();
+  const commandsBySite = new Map<string, CliCommand[]>();
   for (const [, cmd] of getRegistry()) {
     if (seen.has(cmd)) continue;
     seen.add(cmd);
-    let siteCmd = siteGroups.get(cmd.site);
-    if (!siteCmd) {
-      siteCmd = program.command(cmd.site).description(`${cmd.site} commands`);
-      siteGroups.set(cmd.site, siteCmd);
-    }
-    registerCommandToProgram(siteCmd, cmd);
+    const commands = commandsBySite.get(cmd.site) ?? [];
+    commands.push(cmd);
+    commandsBySite.set(cmd.site, commands);
   }
+
+  for (const [site, commands] of commandsBySite) {
+    let siteCmd = siteGroups.get(site);
+    if (!siteCmd) {
+      siteCmd = program.command(site);
+      siteGroups.set(site, siteCmd);
+    }
+    for (const cmd of commands) {
+      registerCommandToProgram(siteCmd, cmd);
+    }
+    const commandTerms = new Map(commands.map(cmd => [cmd.name, formatCommandListTerm(cmd)]));
+    siteCmd.configureHelp({
+      subcommandTerm: command => commandTerms.get(command.name()) ?? command.name(),
+    });
+    const originalSiteHelpInformation = siteCmd.helpInformation.bind(siteCmd);
+    siteCmd.helpInformation = ((contextOptions?: unknown) => {
+      const format = getRequestedHelpFormat();
+      if (format) return renderStructuredHelp(siteHelpData(site, commands), format);
+      void originalSiteHelpInformation(contextOptions as never);
+      return formatSiteHelpText(site, commands);
+    }) as Command['helpInformation'];
+  }
+  return [...commandsBySite.keys()].sort((a, b) => a.localeCompare(b));
 }

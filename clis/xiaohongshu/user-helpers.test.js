@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { assertReadableUserSnapshot } from './user.js';
 import { buildXhsNoteUrl, extractXhsUserNotes, flattenXhsNoteGroups, normalizeXhsUserId, } from './user-helpers.js';
 describe('normalizeXhsUserId', () => {
     it('extracts the profile id from a full Xiaohongshu URL', () => {
@@ -19,6 +21,9 @@ describe('flattenXhsNoteGroups', () => {
 describe('buildXhsNoteUrl', () => {
     it('includes xsec token when available', () => {
         expect(buildXhsNoteUrl('user123', 'note456', 'token789')).toBe('https://www.xiaohongshu.com/user/profile/user123/note456?xsec_token=token789&xsec_source=pc_user');
+    });
+    it('emits a rednote URL when webHost is overridden', () => {
+        expect(buildXhsNoteUrl('user123', 'note456', 'token789', 'www.rednote.com')).toBe('https://www.rednote.com/user/profile/user123/note456?xsec_token=token789&xsec_source=pc_user');
     });
 });
 describe('extractXhsUserNotes', () => {
@@ -95,5 +100,61 @@ describe('extractXhsUserNotes', () => {
         }, 'fallback-user');
         expect(rows).toHaveLength(1);
         expect(rows[0]?.title).toBe('keep me');
+    });
+    it('emits rednote-hosted URLs when webHost is overridden', () => {
+        const rows = extractXhsUserNotes({
+            noteGroups: [
+                [
+                    {
+                        xsecToken: 'tok',
+                        noteCard: {
+                            noteId: 'note-red',
+                            displayTitle: 'rednote note',
+                            user: { userId: 'user-red' },
+                        },
+                    },
+                ],
+            ],
+        }, 'fallback-user', 'www.rednote.com');
+        expect(rows[0]?.url).toBe('https://www.rednote.com/user/profile/user-red/note-red?xsec_token=tok&xsec_source=pc_user');
+    });
+});
+
+describe('assertReadableUserSnapshot', () => {
+    it('accepts an explicit empty notes array from a readable user store', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: true,
+            pageDataPresent: false,
+            noteGroups: [],
+            pageData: {},
+        })).not.toThrow();
+    });
+    it('fails typed when the user store is missing instead of treating parser drift as empty', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: false,
+            notesPresent: false,
+            pageDataPresent: false,
+            noteGroups: [],
+            pageData: {},
+        })).toThrow(CommandExecutionError);
+    });
+    it('fails typed when profile metadata exists but the notes array is missing', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: false,
+            pageDataPresent: true,
+            noteGroups: [],
+            pageData: { user: { nickname: 'Alice' } },
+        })).toThrow(CommandExecutionError);
+    });
+    it('fails typed when notesPresent metadata and cloned noteGroups disagree', () => {
+        expect(() => assertReadableUserSnapshot({
+            storePresent: true,
+            notesPresent: true,
+            pageDataPresent: false,
+            noteGroups: null,
+            pageData: {},
+        })).toThrow(CommandExecutionError);
     });
 });

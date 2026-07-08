@@ -4,6 +4,7 @@ import { stripHtml } from './utils.js';
 cli({
     site: 'hupu',
     name: 'mentions',
+    access: 'read',
     aliases: ['mention'],
     description: '查看虎扑提到我的回复 (需要登录)',
     domain: 'my.hupu.com',
@@ -27,7 +28,7 @@ cli({
             help: '分页游标；不传时从第一页开始'
         }
     ],
-    columns: ['time', 'username', 'thread_title', 'post_content', 'quote_content', 'reply_url'],
+    columns: ['time', 'username', 'thread_title', 'tid', 'pid', 'post_content', 'quote_content', 'url', 'reply_url'],
     func: async (page, kwargs) => {
         const plate = '1';
         const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 100));

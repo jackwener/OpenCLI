@@ -111,6 +111,7 @@ function buildExtractReadEvaluate() {
 cli({
     site: 'tieba',
     name: 'read',
+    access: 'read',
     description: 'Read a tieba thread',
     domain: 'tieba.baidu.com',
     strategy: Strategy.COOKIE,

@@ -5,6 +5,7 @@ import { getNotebooklmPageState, getNotebooklmSummaryViaRpc, readNotebooklmSumma
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'summary',
+    access: 'read',
     description: 'Get the summary block from the currently opened NotebookLM notebook',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,
@@ -16,7 +17,7 @@ cli({
         await requireNotebooklmSession(page);
         const state = await getNotebooklmPageState(page);
         if (state.kind !== 'notebook') {
-            throw new EmptyResultError('opencli notebooklm summary', 'No NotebookLM notebook is open in the automation workspace. Run `opencli notebooklm open <notebook>` first.');
+            throw new EmptyResultError('opencli notebooklm summary', 'No NotebookLM notebook is open in the adapter session. Run `opencli notebooklm open <notebook>` first.');
         }
         const domSummary = await readNotebooklmSummaryFromPage(page);
         if (domSummary)

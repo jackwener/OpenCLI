@@ -1,51 +1,45 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-function extractTweetId(url) {
-    let pathname = '';
-    try {
-        pathname = new URL(url).pathname;
-    }
-    catch {
-        throw new Error(`Invalid tweet URL: ${url}`);
-    }
-    const match = pathname.match(/\/status\/(\d+)/);
-    if (!match?.[1]) {
-        throw new Error(`Could not extract tweet ID from URL: ${url}`);
-    }
-    return match[1];
-}
+import { parseTweetUrl, buildTwitterArticleScopeSource, unwrapBrowserResult } from './shared.js';
+
 function buildDeleteScript(tweetId) {
     return `(async () => {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-          const tweetId = ${JSON.stringify(tweetId)};
-          const targetArticle = Array.from(document.querySelectorAll('article')).find((article) =>
-              Array.from(article.querySelectorAll('a[href*="/status/"]')).some((link) => {
-                  try {
-                      return new URL(link.href, window.location.origin).pathname.includes('/status/' + tweetId);
-                  } catch {
-                      return false;
-                  }
-              })
-          );
+          ${buildTwitterArticleScopeSource(tweetId)}
+          // The article's self-referential /status/<id> link can hydrate late on
+          // slow networks, so poll findTargetArticle() for ~5s before giving up.
+          let targetArticle = findTargetArticle();
+          for (let i = 0; i < 20 && !targetArticle; i++) {
+              await new Promise(r => setTimeout(r, 250));
+              targetArticle = findTargetArticle();
+          }
 
           if (!targetArticle) {
               return { ok: false, message: 'Could not find the tweet card matching the requested URL.' };
           }
 
-          const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]'));
-          const moreMenu = buttons.find((el) => visible(el) && (el.getAttribute('aria-label') || '').trim() === 'More');
+          const belongsToTargetArticle = (el) => el.closest('article') === targetArticle;
+          const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]')).filter(belongsToTargetArticle);
+          // X localizes the "More" caret aria-label (zh-Hans: 更多), so prefer the
+          // language-agnostic data-testid and fall back to a multilingual label match.
+          const moreMenu = Array.from(targetArticle.querySelectorAll('[data-testid="caret"]')).filter(belongsToTargetArticle).find(visible)
+              || buttons.find((el) => visible(el) && /^(More|更多)/.test((el.getAttribute('aria-label') || '').trim()));
           if (!moreMenu) {
               return { ok: false, message: 'Could not find the "More" context menu on the matched tweet. Are you sure you are logged in and looking at a valid tweet?' };
           }
 
+          const beforeMenuItems = new Set(document.querySelectorAll('[role="menuitem"]'));
           moreMenu.click();
           await new Promise(r => setTimeout(r, 1000));
 
-          const items = Array.from(document.querySelectorAll('[role="menuitem"]'));
+          const items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+              .filter((item) => visible(item) && !beforeMenuItems.has(item));
           const deleteBtn = items.find((item) => {
               const text = (item.textContent || '').trim();
-              return text.includes('Delete') && !text.includes('List');
+              // X localizes the menu item (zh-Hans: 删除); exclude the "Add/remove
+              // from Lists" item in both languages so we never click the wrong row.
+              return (text.includes('Delete') || text.includes('删除')) && !text.includes('List') && !text.includes('列表');
           });
 
           if (!deleteBtn) {
@@ -70,6 +64,7 @@ function buildDeleteScript(tweetId) {
 cli({
     site: 'twitter',
     name: 'delete',
+    access: 'write',
     description: 'Delete a specific tweet by URL',
     domain: 'x.com',
     strategy: Strategy.UI, // Utilizes internal DOM flows for interaction
@@ -81,17 +76,14 @@ cli({
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter delete');
-        let tweetId = '';
-        try {
-            tweetId = extractTweetId(kwargs.url);
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            throw new CommandExecutionError(message);
-        }
-        await page.goto(kwargs.url);
+        // parseTweetUrl throws ArgumentError on malformed/off-domain inputs —
+        // this replaces the ad-hoc local extractTweetId which only checked
+        // the path shape and accepted any host (silent: would try to act on
+        // attacker-controlled redirect URLs).
+        const target = parseTweetUrl(kwargs.url);
+        await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely
-        const result = await page.evaluate(buildDeleteScript(tweetId));
+        const result = unwrapBrowserResult(await page.evaluate(buildDeleteScript(target.id)));
         if (result.ok) {
             // Wait for the deletion request to be processed
             await page.wait(2);
@@ -104,5 +96,4 @@ cli({
 });
 export const __test__ = {
     buildDeleteScript,
-    extractTweetId,
 };

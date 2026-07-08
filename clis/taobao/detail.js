@@ -3,6 +3,7 @@ import { normalizeNumericId } from '../_shared/common.js';
 cli({
     site: 'taobao',
     name: 'detail',
+    access: 'read',
     description: '淘宝商品详情',
     domain: 'item.taobao.com',
     strategy: Strategy.COOKIE,

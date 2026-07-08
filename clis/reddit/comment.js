@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'comment',
+    access: 'write',
     description: 'Post a comment on a Reddit post',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,

@@ -11,9 +11,9 @@
 import { WebSocket, type RawData } from 'ws';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import type { BrowserCookie, IPage, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserEvaluateFunction, IPage, ScreenshotOptions } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
-import { wrapForEval } from './utils.js';
+import { buildEvaluateExpression } from './utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
@@ -53,7 +53,7 @@ export class CDPBridge implements IBrowserFactory {
   private _pending = new Map<number, { resolve: (val: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private _eventListeners = new Map<string, Set<(params: unknown) => void>>();
 
-  async connect(opts?: { timeout?: number; workspace?: string; cdpEndpoint?: string }): Promise<IPage> {
+  async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
 
     const endpoint = opts?.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
@@ -221,8 +221,10 @@ class CDPPage extends BasePage {
     }
   }
 
-  async evaluate(js: string): Promise<unknown> {
-    const expression = wrapForEval(js);
+  async evaluate<T = unknown>(js: string): Promise<T>;
+  async evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
+  async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>, ...args: unknown[]): Promise<unknown> {
+    const expression = buildEvaluateExpression(input, args);
     const result = await this.bridge.send('Runtime.evaluate', {
       expression,
       returnByValue: true,
@@ -244,16 +246,58 @@ class CDPPage extends BasePage {
   }
 
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
-    const result = await this.bridge.send('Page.captureScreenshot', {
-      format: options.format ?? 'png',
-      quality: options.format === 'jpeg' ? (options.quality ?? 80) : undefined,
-      captureBeyondViewport: options.fullPage ?? false,
-    });
-    const base64 = isRecord(result) && typeof result.data === 'string' ? result.data : '';
-    if (options.path) {
-      await saveBase64ToFile(base64, options.path);
+    const fullPage = options.fullPage === true;
+    const overrideWidth = options.width && options.width > 0 ? Math.ceil(options.width) : undefined;
+    // height is ignored under fullPage so the captureBeyondViewport path stays unchanged for users who pass --height alongside --full-page.
+    const overrideHeight = !fullPage && options.height && options.height > 0 ? Math.ceil(options.height) : undefined;
+    const needsOverride = overrideWidth !== undefined || overrideHeight !== undefined;
+
+    if (needsOverride) {
+      if (overrideWidth !== undefined && fullPage) {
+        await this.bridge.send('Emulation.setDeviceMetricsOverride', {
+          mobile: false,
+          width: overrideWidth,
+          height: 0,
+          deviceScaleFactor: 1,
+        });
+      }
+      let finalWidth = overrideWidth ?? 0;
+      let finalHeight = overrideHeight ?? 0;
+      if (fullPage) {
+        const metrics = await this.bridge.send('Page.getLayoutMetrics');
+        const m = isRecord(metrics) ? metrics : {};
+        const css = isRecord(m.cssContentSize) ? m.cssContentSize : undefined;
+        const fb = isRecord(m.contentSize) ? m.contentSize : undefined;
+        const size = css ?? fb;
+        if (size && typeof size.width === 'number' && typeof size.height === 'number') {
+          if (finalWidth === 0) finalWidth = Math.ceil(size.width);
+          finalHeight = Math.ceil(size.height);
+        }
+      }
+      await this.bridge.send('Emulation.setDeviceMetricsOverride', {
+        mobile: false,
+        width: finalWidth,
+        height: finalHeight,
+        deviceScaleFactor: 1,
+      });
     }
-    return base64;
+
+    try {
+      const result = await this.bridge.send('Page.captureScreenshot', {
+        format: options.format ?? 'png',
+        quality: options.format === 'jpeg' ? (options.quality ?? 80) : undefined,
+        captureBeyondViewport: !needsOverride && fullPage,
+      });
+      const base64 = isRecord(result) && typeof result.data === 'string' ? result.data : '';
+      if (options.path) {
+        await saveBase64ToFile(base64, options.path);
+      }
+      return base64;
+    } finally {
+      if (needsOverride) {
+        await this.bridge.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+      }
+    }
   }
 
   async startNetworkCapture(pattern: string = ''): Promise<boolean> {
@@ -274,7 +318,7 @@ class CDPPage extends BasePage {
           const idx = this._networkEntries.push({
             url: p.request.url,
             method: p.request.method,
-            timestamp: p.timestamp,
+            timestamp: Date.now(),
           }) - 1;
           this._pendingRequests.set(p.requestId, idx);
         }
@@ -340,14 +384,14 @@ class CDPPage extends BasePage {
       this.bridge.on('Runtime.consoleAPICalled', (params: unknown) => {
         const p = params as { type: string; args: Array<{ value?: unknown; description?: string }>; timestamp: number };
         const text = (p.args || []).map(a => a.value !== undefined ? String(a.value) : (a.description || '')).join(' ');
-        this._consoleMessages.push({ type: p.type, text, timestamp: p.timestamp });
+        this._consoleMessages.push({ type: p.type, text, timestamp: Date.now() });
         if (this._consoleMessages.length > 500) this._consoleMessages.shift();
       });
       // Capture uncaught exceptions as error-level messages
       this.bridge.on('Runtime.exceptionThrown', (params: unknown) => {
         const p = params as { timestamp: number; exceptionDetails?: { exception?: { description?: string }; text?: string } };
         const desc = p.exceptionDetails?.exception?.description || p.exceptionDetails?.text || 'Unknown exception';
-        this._consoleMessages.push({ type: 'error', text: desc, timestamp: p.timestamp });
+        this._consoleMessages.push({ type: 'error', text: desc, timestamp: Date.now() });
         if (this._consoleMessages.length > 500) this._consoleMessages.shift();
       });
       this._consoleCapturing = true;
@@ -364,6 +408,67 @@ class CDPPage extends BasePage {
 
   async selectTab(_target: number | string): Promise<void> {
     // Not supported in direct CDP mode
+  }
+
+  async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    return this.bridge.send(method, params);
+  }
+
+  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
+    await this.cdp('Page.handleJavaScriptDialog', {
+      accept,
+      ...(promptText !== undefined && { promptText }),
+    });
+  }
+
+  async nativeClick(x: number, y: number): Promise<void> {
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x,
+      y,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x,
+      y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x,
+      y,
+      button: 'left',
+      clickCount: 1,
+    });
+  }
+
+  async nativeType(text: string): Promise<void> {
+    await this.cdp('Input.insertText', { text });
+  }
+
+  async insertText(text: string): Promise<void> {
+    await this.nativeType(text);
+  }
+
+  async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
+    let modifierFlags = 0;
+    for (const mod of modifiers) {
+      if (mod === 'Alt') modifierFlags |= 1;
+      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
+      if (mod === 'Meta') modifierFlags |= 4;
+      if (mod === 'Shift') modifierFlags |= 8;
+    }
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      modifiers: modifierFlags,
+    });
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      modifiers: modifierFlags,
+    });
   }
 }
 

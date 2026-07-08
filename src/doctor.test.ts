@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetDaemonHealth, mockListSessions, mockConnect, mockClose } = vi.hoisted(() => ({
+const { mockGetDaemonHealth, mockConnect, mockClose, mockFindShadowedUserAdapters } = vi.hoisted(() => ({
   mockGetDaemonHealth: vi.fn(),
-  mockListSessions: vi.fn(),
   mockConnect: vi.fn(),
   mockClose: vi.fn(),
+  mockFindShadowedUserAdapters: vi.fn(),
 }));
 
-vi.mock('./browser/daemon-client.js', () => ({
-  getDaemonHealth: mockGetDaemonHealth,
-  listSessions: mockListSessions,
-}));
+vi.mock('./browser/daemon-transport.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./browser/daemon-transport.js')>();
+  return {
+    ...actual,
+    getDaemonHealth: mockGetDaemonHealth,
+  };
+});
 
 vi.mock('./browser/index.js', () => ({
   BrowserBridge: class {
@@ -19,6 +22,14 @@ vi.mock('./browser/index.js', () => ({
   },
 }));
 
+vi.mock('./adapter-shadow.js', async () => {
+  const actual = await vi.importActual<typeof import('./adapter-shadow.js')>('./adapter-shadow.js');
+  return {
+    ...actual,
+    findShadowedUserAdapters: mockFindShadowedUserAdapters,
+  };
+});
+
 import { renderBrowserDoctorReport, runBrowserDoctor } from './doctor.js';
 
 describe('doctor report rendering', () => {
@@ -26,19 +37,46 @@ describe('doctor report rendering', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFindShadowedUserAdapters.mockReturnValue([]);
+    // Doctor always runs live connectivity. Tests that want connect to fail override.
+    mockConnect.mockResolvedValue({
+      evaluate: vi.fn().mockResolvedValue(2),
+      closeWindow: vi.fn().mockResolvedValue(undefined),
+    });
+    mockClose.mockResolvedValue(undefined);
   });
 
   it('renders OK-style report when daemon and extension connected', () => {
     const text = strip(renderBrowserDoctorReport({
+      cliVersion: '1.7.9',
       daemonRunning: true,
+      daemonVersion: '1.7.9',
       extensionConnected: true,
       extensionVersion: '1.6.8',
       issues: [],
     }));
 
     expect(text).toContain('[OK] Daemon: running on port 19825');
+    expect(text).toContain('(v1.7.9)');
     expect(text).toContain('[OK] Extension: connected (v1.6.8)');
     expect(text).toContain('Everything looks good!');
+    expect(text).not.toContain('opencli browser analyze <url>');
+  });
+
+  it('renders a warning when daemon version is stale', () => {
+    const text = strip(renderBrowserDoctorReport({
+      cliVersion: '1.7.9',
+      daemonRunning: true,
+      daemonVersion: '1.7.6',
+      daemonStale: true,
+      extensionConnected: true,
+      extensionVersion: '1.0.3',
+      issues: ['Stale daemon detected: daemon v1.7.6 != CLI v1.7.9.\n  Run: opencli daemon restart'],
+    }));
+
+    expect(text).toContain('[WARN] Daemon: running on port 19825 (v1.7.6, stale; CLI v1.7.9)');
+    expect(text).toContain('Run: opencli daemon restart');
+    expect(text).not.toContain('Everything looks good!');
   });
 
   it('renders MISSING when daemon not running', () => {
@@ -87,14 +125,20 @@ describe('doctor report rendering', () => {
     expect(text).toContain('[OK] Connectivity: connected in 1.2s');
   });
 
-  it('renders connectivity SKIP when not tested', () => {
+  it('renders connected profiles when multiple are present', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
-      extensionConnected: true,
+      extensionConnected: false,
+      profiles: [
+        { contextId: 'work', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
+        { contextId: 'personal', extensionConnected: true, extensionVersion: '1.2.3', pending: 0 },
+      ],
       issues: [],
     }));
 
-    expect(text).toContain('[SKIP] Connectivity: skipped (--no-live)');
+    expect(text).toContain('Profiles:');
+    expect(text).toContain('work: connected v1.2.3');
+    expect(text).toContain('personal: connected v1.2.3');
   });
 
   it('renders unstable extension state when live connectivity and status disagree', () => {
@@ -123,29 +167,56 @@ describe('doctor report rendering', () => {
     expect(text).toContain('Daemon connectivity is unstable.');
   });
 
-  it('reports daemon not running when no-live and auto-start fails', async () => {
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
+  it('reports daemon not running when connectivity fails and daemon stays stopped', async () => {
     mockConnect.mockRejectedValueOnce(new Error('Could not start daemon'));
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
-    const report = await runBrowserDoctor({ live: false });
+    const report = await runBrowserDoctor();
 
     expect(report.daemonRunning).toBe(false);
     expect(report.extensionConnected).toBe(false);
-    expect(mockGetDaemonHealth).toHaveBeenCalledTimes(2);
+    expect(report.connectivity?.ok).toBe(false);
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Daemon is not running'),
     ]));
   });
 
+  it('reports a stale default profile when it is not among the connected profiles', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-doctor-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: { work: 'zvypsyje' }, defaultContextId: 'zvypsyje' }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
+    try {
+      mockGetDaemonHealth.mockResolvedValueOnce({
+        state: 'ready',
+        status: {
+          extensionConnected: true,
+          extensionVersion: '1.0.22',
+          profiles: [{ contextId: 'pavmrekj', extensionConnected: true }],
+        },
+      });
+
+      const report = await runBrowserDoctor();
+
+      expect(report.issues).toEqual(expect.arrayContaining([
+        expect.stringContaining('Default browser profile is stale: work (zvypsyje)'),
+      ]));
+      expect(report.issues.join('\n')).toContain('fall back to the only connected profile: pavmrekj');
+    } finally {
+      vi.unstubAllEnvs();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  });
+
   it('reports flapping when live check succeeds but final status shows extension disconnected', async () => {
-    mockConnect.mockResolvedValueOnce({
-      evaluate: vi.fn().mockResolvedValue(2),
-    });
-    mockClose.mockResolvedValueOnce(undefined);
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
 
-    const report = await runBrowserDoctor({ live: true });
+    const report = await runBrowserDoctor();
 
     expect(report.daemonRunning).toBe(true);
     expect(report.extensionConnected).toBe(false);
@@ -156,13 +227,9 @@ describe('doctor report rendering', () => {
   });
 
   it('reports daemon flapping when live check succeeds but daemon disappears afterward', async () => {
-    mockConnect.mockResolvedValueOnce({
-      evaluate: vi.fn().mockResolvedValue(2),
-    });
-    mockClose.mockResolvedValueOnce(undefined);
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
-    const report = await runBrowserDoctor({ live: true });
+    const report = await runBrowserDoctor();
 
     expect(report.daemonRunning).toBe(false);
     expect(report.daemonFlaky).toBe(true);
@@ -174,29 +241,22 @@ describe('doctor report rendering', () => {
 
   it('uses the fast default timeout for live connectivity checks', async () => {
     let timeoutSeen: number | undefined;
-    mockConnect.mockImplementationOnce(async (opts?: { timeout?: number }) => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    mockConnect.mockImplementationOnce(async (opts?: { timeout?: number; session?: string; surface?: string }) => {
       timeoutSeen = opts?.timeout;
+      expect(opts?.session).toBe('__doctor__');
+      expect(opts?.surface).toBe('browser');
       return {
         evaluate: vi.fn().mockResolvedValue(2),
+        closeWindow,
       };
     });
-    mockClose.mockResolvedValueOnce(undefined);
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'ready', status: { extensionConnected: true } });
 
-    await runBrowserDoctor({ live: true });
+    await runBrowserDoctor();
 
     expect(timeoutSeen).toBe(8);
-  });
-
-  it('skips auto-start in no-live mode when daemon is already running', async () => {
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
-    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
-
-    const report = await runBrowserDoctor({ live: false });
-
-    expect(mockConnect).not.toHaveBeenCalled();
-    expect(report.daemonRunning).toBe(true);
-    expect(report.extensionConnected).toBe(false);
+    expect(closeWindow).toHaveBeenCalledTimes(1);
   });
 
   it('reports an issue when the extension is connected but does not report a version', async () => {
@@ -207,14 +267,82 @@ describe('doctor report rendering', () => {
         extensionVersion: undefined,
       },
     };
-    mockGetDaemonHealth
-      .mockResolvedValueOnce(status)
-      .mockResolvedValueOnce(status);
+    mockGetDaemonHealth.mockResolvedValue(status);
 
-    const report = await runBrowserDoctor({ live: false });
+    const report = await runBrowserDoctor();
 
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('did not report a version'),
+    ]));
+  });
+
+  it('reports an issue when daemon version differs from CLI version', async () => {
+    const status = {
+      state: 'ready' as const,
+      status: {
+        daemonVersion: '1.7.6',
+        extensionConnected: true,
+        extensionVersion: '1.0.3',
+      },
+    };
+    mockGetDaemonHealth.mockResolvedValue(status);
+
+    const report = await runBrowserDoctor({ cliVersion: '1.7.9' });
+
+    expect(report.daemonStale).toBe(true);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Stale daemon detected: daemon v1.7.6 != CLI v1.7.9'),
+    ]));
+  });
+
+  it('reports local adapter shadows as a warning issue', async () => {
+    const status = {
+      state: 'ready' as const,
+      status: {
+        daemonVersion: '1.7.9',
+        extensionConnected: true,
+        extensionVersion: '1.0.3',
+      },
+    };
+    mockGetDaemonHealth.mockResolvedValue(status);
+    mockFindShadowedUserAdapters.mockReturnValueOnce([
+      {
+        name: 'instagram/saved',
+        userPath: '/home/me/.opencli/clis/instagram/saved.js',
+        builtinPath: '/pkg/clis/instagram/saved.js',
+      },
+    ]);
+
+    const report = await runBrowserDoctor({ cliVersion: '1.7.9' });
+
+    expect(report.adapterShadows).toHaveLength(1);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Local adapter overrides shadow packaged adapters'),
+    ]));
+  });
+
+  it('reports profile-required when multiple profiles are connected without a selection', async () => {
+    const status = {
+      state: 'profile-required' as const,
+      status: {
+        extensionConnected: false,
+        profileRequired: true,
+        profiles: [
+          { contextId: 'work', extensionConnected: true, pending: 0 },
+          { contextId: 'personal', extensionConnected: true, pending: 0 },
+        ],
+      },
+    };
+    mockGetDaemonHealth.mockResolvedValue(status);
+    // Real connectivity would fail in profile-required state; force it here so
+    // the test exercises the profile-required issue path, not the flaky path.
+    mockConnect.mockRejectedValueOnce(new Error('profile required'));
+
+    const report = await runBrowserDoctor();
+
+    expect(report.profiles).toHaveLength(2);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Multiple Chrome profiles are connected'),
     ]));
   });
 });

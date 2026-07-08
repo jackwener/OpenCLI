@@ -5,6 +5,7 @@ import { resolveImageAppInput } from './resolver.js';
 cli({
   site: 'maybeai-image-app',
   name: 'resolve',
+  access: 'read',
   description: 'Resolve local MaybeAI image app defaults and platform/model rules',
   strategy: Strategy.PUBLIC,
   browser: false,

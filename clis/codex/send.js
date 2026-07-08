@@ -1,16 +1,22 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { selectorError } from '@jackwener/opencli/errors';
+import { conversationSelectionArgs, openCodexConversation } from './sidebar.js';
 export const sendCommand = cli({
     site: 'codex',
     name: 'send',
-    description: 'Send text/commands to the Codex AI composer',
+    access: 'write',
+    description: 'Send text/commands to the current or selected Codex AI composer',
     domain: 'localhost',
     strategy: Strategy.UI,
     browser: true,
-    args: [{ name: 'text', required: true, positional: true, help: 'Text, command (e.g. /review), or skill (e.g. $imagegen)' }],
-    columns: ['Status', 'InjectedText'],
+    args: [
+        { name: 'text', required: true, positional: true, help: 'Text, command (e.g. /review), or skill (e.g. $imagegen)' },
+        ...conversationSelectionArgs,
+    ],
+    columns: ['Status', 'Project', 'Conversation', 'InjectedText'],
     func: async (page, kwargs) => {
         const textToInsert = kwargs.text;
+        const selected = await openCodexConversation(page, kwargs);
         const injected = await page.evaluate(`
       (function(text) {
         let composer = document.querySelector('textarea, [contenteditable="true"]');
@@ -28,7 +34,7 @@ export const sendCommand = cli({
       })(${JSON.stringify(textToInsert)})
     `);
         if (!injected)
-            throw new SelectorError('Codex Composer input element');
+            throw selectorError('Codex Composer input element');
         // Wait for the UI to register the input
         await page.wait(0.5);
         // Simulate Enter key to submit
@@ -36,6 +42,8 @@ export const sendCommand = cli({
         return [
             {
                 Status: 'Success',
+                Project: selected?.project || '',
+                Conversation: selected?.conversation || '',
                 InjectedText: textToInsert,
             },
         ];

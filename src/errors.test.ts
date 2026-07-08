@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   CliError,
   BrowserConnectError,
-  AdapterLoadError,
+  adapterLoadError,
   CommandExecutionError,
   ConfigError,
   AuthRequiredError,
   TimeoutError,
   ArgumentError,
   EmptyResultError,
-  SelectorError,
+  selectorError,
   toEnvelope,
 } from './errors.js';
 
@@ -17,14 +17,14 @@ describe('Error type hierarchy', () => {
   it('all error types extend CliError', () => {
     const errors = [
       new BrowserConnectError('test'),
-      new AdapterLoadError('test'),
+      adapterLoadError('test'),
       new CommandExecutionError('test'),
       new ConfigError('test'),
       new AuthRequiredError('example.com'),
       new TimeoutError('test', 30),
       new ArgumentError('test'),
       new EmptyResultError('test/cmd'),
-      new SelectorError('.btn'),
+      selectorError('.btn'),
     ];
 
     for (const err of errors) {
@@ -66,8 +66,8 @@ describe('Error type hierarchy', () => {
     expect(err.hint).toBeTruthy();
   });
 
-  it('SelectorError has default hint about page changes', () => {
-    const err = new SelectorError('.submit-btn');
+  it('selectorError has default hint about page changes', () => {
+    const err = selectorError('.submit-btn');
     expect(err.code).toBe('SELECTOR');
     expect(err.message).toContain('.submit-btn');
     expect(err.hint).toContain('report');

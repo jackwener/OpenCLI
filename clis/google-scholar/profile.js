@@ -5,6 +5,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'google-scholar',
     name: 'profile',
+    access: 'read',
     description: 'View a Google Scholar author profile',
     domain: 'scholar.google.com',
     strategy: Strategy.PUBLIC,
@@ -14,7 +15,6 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Max papers to show (max 20)' },
     ],
     columns: ['rank', 'title', 'cited', 'year'],
-    navigateBefore: false,
     func: async (page, kwargs) => {
         const author = requireNonEmptyQuery(kwargs.author, 'author');
         const limit = clampInt(kwargs.limit, 10, 1, 20);

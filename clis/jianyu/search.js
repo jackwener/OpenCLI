@@ -526,6 +526,7 @@ function collectApiRowsFromResponses(responses) {
 cli({
     site: SITE,
     name: 'search',
+    access: 'read',
     description: '搜索剑鱼标讯公告',
     domain: DOMAIN,
     strategy: Strategy.COOKIE,

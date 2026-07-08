@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
   site: 'binance',
   name: 'price',
+    access: 'read',
   description: 'Quick price check for a trading pair',
   domain: 'data-api.binance.vision',
   strategy: Strategy.PUBLIC,

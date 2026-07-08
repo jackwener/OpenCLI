@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
   site: 'binance',
   name: 'klines',
+    access: 'read',
   description: 'Candlestick/kline data for a trading pair',
   domain: 'data-api.binance.vision',
   strategy: Strategy.PUBLIC,

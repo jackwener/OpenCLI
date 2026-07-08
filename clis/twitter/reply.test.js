@@ -1,43 +1,21 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './reply.js';
-function createPageMock(evaluateResults, overrides = {}) {
-    const evaluate = vi.fn();
-    for (const result of evaluateResults) {
-        evaluate.mockResolvedValueOnce(result);
-    }
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        evaluate,
-        snapshot: vi.fn().mockResolvedValue(undefined),
-        click: vi.fn().mockResolvedValue(undefined),
-        typeText: vi.fn().mockResolvedValue(undefined),
-        pressKey: vi.fn().mockResolvedValue(undefined),
-        scrollTo: vi.fn().mockResolvedValue(undefined),
-        getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
-        wait: vi.fn().mockResolvedValue(undefined),
-        tabs: vi.fn().mockResolvedValue([]),
-        selectTab: vi.fn().mockResolvedValue(undefined),
-        networkRequests: vi.fn().mockResolvedValue([]),
-        consoleMessages: vi.fn().mockResolvedValue([]),
-        scroll: vi.fn().mockResolvedValue(undefined),
-        autoScroll: vi.fn().mockResolvedValue(undefined),
-        installInterceptor: vi.fn().mockResolvedValue(undefined),
-        getInterceptedRequests: vi.fn().mockResolvedValue([]),
-        getCookies: vi.fn().mockResolvedValue([]),
-        screenshot: vi.fn().mockResolvedValue(''),
-        waitForCapture: vi.fn().mockResolvedValue(undefined),
-        ...overrides,
-    };
-}
+import { __test__ as utilsTest } from './utils.js';
+import { createPageMock } from '../test-utils.js';
+
 describe('twitter reply command', () => {
     it('uses the dedicated reply composer for text-only replies too', async () => {
         const cmd = getRegistry().get('twitter/reply');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
+            { ok: true },
+            { ok: true },
             { ok: true, message: 'Reply posted successfully.' },
         ]);
         const result = await cmd.func(page, {
@@ -63,6 +41,8 @@ describe('twitter reply command', () => {
         const setFileInput = vi.fn().mockResolvedValue(undefined);
         const page = createPageMock([
             { ok: true, previewCount: 1 },
+            { ok: true },
+            { ok: true },
             { ok: true, message: 'Reply posted successfully.' },
         ], {
             setFileInput,
@@ -99,6 +79,8 @@ describe('twitter reply command', () => {
         const setFileInput = vi.fn().mockResolvedValue(undefined);
         const page = createPageMock([
             { ok: true, previewCount: 1 },
+            { ok: true },
+            { ok: true },
             { ok: true, message: 'Reply posted successfully.' },
         ], {
             setFileInput,
@@ -111,7 +93,11 @@ describe('twitter reply command', () => {
         expect(fetchMock).toHaveBeenCalledWith('https://example.com/qr');
         expect(setFileInput).toHaveBeenCalledTimes(1);
         const uploadedPath = setFileInput.mock.calls[0][0][0];
-        expect(uploadedPath).toMatch(/opencli-twitter-reply-.*\/image\.png$/);
+        // Tmp dir is created by utils.downloadRemoteImage with the
+        // 'opencli-twitter-' prefix; final extension comes from Content-Type.
+        expect(uploadedPath).toMatch(/opencli-twitter-.*\/image\.png$/);
+        // Per-call tmp dir is removed in the adapter's finally block, so the
+        // downloaded file no longer exists once the command returns.
         expect(fs.existsSync(uploadedPath)).toBe(false);
         expect(result).toEqual([
             {
@@ -123,9 +109,54 @@ describe('twitter reply command', () => {
         ]);
         vi.unstubAllGlobals();
     });
-    it('rejects invalid image paths early', async () => {
-        await expect(() => __test__.resolveImagePath('/tmp/does-not-exist.png'))
-            .toThrow('Image file not found');
+    it('falls back to the target tweet page when the dedicated composer route does not expose a textarea', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        expect(cmd?.func).toBeTypeOf('function');
+        const wait = vi.fn()
+            .mockRejectedValueOnce(new Error('Selector not found: [data-testid="tweetTextarea_0"]'))
+            .mockResolvedValue(undefined);
+        const page = createPageMock([
+            { ok: true }, // click target tweet page Reply button
+            { ok: true }, // insert reply text
+            { ok: true }, // click composer Reply button
+            { ok: true, message: 'Reply posted successfully.' }, // submit completed
+        ], { wait });
+
+        const url = 'https://x.com/_kop6/status/2040254679301718161?s=20';
+        const result = await cmd.func(page, { url, text: 'fallback reply' });
+
+        expect(page.goto).toHaveBeenNthCalledWith(1, 'https://x.com/compose/post?in_reply_to=2040254679301718161', { waitUntil: 'load', settleMs: 2500 });
+        expect(page.goto).toHaveBeenNthCalledWith(2, url, { waitUntil: 'load', settleMs: 2500 });
+        expect(page.evaluate.mock.calls[0][0]).toContain('[data-testid="reply"]');
+        expect(wait).toHaveBeenLastCalledWith({ selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
+        expect(result).toEqual([{ status: 'success', message: 'Reply posted successfully.', text: 'fallback reply' }]);
+    });
+    it('treats an X success toast as success after a Promise was collected error', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        expect(cmd?.func).toBeTypeOf('function');
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce({ ok: true }) // insert reply text
+            .mockResolvedValueOnce({ ok: true }) // click Reply
+            .mockRejectedValueOnce(new Error('{"code":-32000,"message":"Promise was collected"}'))
+            .mockResolvedValueOnce({
+                ok: true,
+                message: 'Reply posted successfully.',
+                url: 'https://x.com/me/status/123',
+            });
+        const page = createPageMock([], { evaluate });
+
+        const result = await cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161?s=20',
+            text: 'toast recovery',
+        });
+
+        expect(page.wait).toHaveBeenCalledWith(2);
+        expect(result).toEqual([{
+            status: 'success',
+            message: 'Reply posted successfully.',
+            text: 'toast recovery',
+            url: 'https://x.com/me/status/123',
+        }]);
     });
     it('rejects using --image and --image-url together', async () => {
         const cmd = getRegistry().get('twitter/reply');
@@ -136,16 +167,71 @@ describe('twitter reply command', () => {
             text: 'nope',
             image: '/tmp/a.png',
             'image-url': 'https://example.com/a.png',
-        })).rejects.toThrow('Use either --image or --image-url, not both.');
+        })).rejects.toThrow(CommandExecutionError);
     });
-    it('extracts tweet ids from both user and i/status URLs', () => {
-        expect(__test__.extractTweetId('https://x.com/_kop6/status/2040254679301718161?s=20')).toBe('2040254679301718161');
-        expect(__test__.extractTweetId('https://x.com/i/status/2040318731105313143')).toBe('2040318731105313143');
+    it('rejects malformed tweet URLs before any browser interaction', () => {
+        // buildReplyComposerUrl runs parseTweetUrl synchronously; substring matches
+        // and off-domain hosts now throw ArgumentError instead of silently
+        // producing a wrong-host /compose/post URL.
+        expect(() => __test__.buildReplyComposerUrl('https://x.com/alice/home')).toThrow(ArgumentError);
+        expect(() => __test__.buildReplyComposerUrl('https://x.com.evil.com/alice/status/2040254679301718161')).toThrow(ArgumentError);
+        expect(() => __test__.buildReplyComposerUrl('not a url')).toThrow(ArgumentError);
+    });
+    it('builds the reply composer URL for both /<user>/status/<id> and /i/status/<id> shapes', () => {
+        expect(__test__.buildReplyComposerUrl('https://x.com/_kop6/status/2040254679301718161?s=20'))
+            .toBe('https://x.com/compose/post?in_reply_to=2040254679301718161');
         expect(__test__.buildReplyComposerUrl('https://x.com/i/status/2040318731105313143'))
             .toBe('https://x.com/compose/post?in_reply_to=2040318731105313143');
     });
+});
+
+describe('twitter image helpers (utils.js)', () => {
+    it('rejects invalid image paths early', () => {
+        expect(() => utilsTest.resolveImagePath('/tmp/does-not-exist.png'))
+            .toThrow(ArgumentError);
+    });
     it('prefers content-type when resolving remote image extensions', () => {
-        expect(__test__.resolveImageExtension('https://example.com/no-ext', 'image/webp')).toBe('.webp');
-        expect(__test__.resolveImageExtension('https://example.com/a.jpeg?x=1', null)).toBe('.jpeg');
+        expect(utilsTest.resolveImageExtension('https://example.com/no-ext', 'image/webp')).toBe('.webp');
+        expect(utilsTest.resolveImageExtension('https://example.com/a.jpeg?x=1', null)).toBe('.jpeg');
+    });
+
+    it('classifies CDP NotAllowed file-input failures as recoverable', () => {
+        expect(utilsTest.isRecoverableFileInputError(new Error('NotAllowedError: Not allowed'))).toBe(true);
+        expect(utilsTest.isRecoverableFileInputError(new Error('ProtocolError: not-allowed'))).toBe(true);
+        expect(utilsTest.isRecoverableFileInputError(new Error('Permission denied'))).toBe(false);
+    });
+
+    it('fails closed when a composer image preview never appears', async () => {
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-twitter-helper-'));
+        const imagePath = path.join(tempDir, 'missing-preview.png');
+        fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        const page = createPageMock([{ ok: false, message: 'Image upload timed out (30s).' }], {
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+        });
+
+        await expect(utilsTest.attachComposerImage(page, imagePath)).rejects.toThrow('Image upload timed out');
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('does not treat an empty attachments container as uploaded media', async () => {
+        const runMediaReadyProbe = async (html) => {
+            const dom = new JSDOM(`<!doctype html><body>${html}</body>`, {
+                url: 'https://x.com/compose/post',
+                runScripts: 'outside-only',
+            });
+            dom.window.setTimeout = (callback) => {
+                callback();
+                return 0;
+            };
+            const page = {
+                evaluate: vi.fn(async (script) => dom.window.eval(script)),
+            };
+            return utilsTest.waitForComposerMediaReady(page, 1);
+        };
+
+        await expect(runMediaReadyProbe('<div data-testid="attachments"></div>'))
+            .resolves.toMatchObject({ ok: false });
+        await expect(runMediaReadyProbe('<div data-testid="attachments"><img src="blob:https://x.com/1"></div>'))
+            .resolves.toMatchObject({ ok: true, previewCount: 1 });
     });
 });

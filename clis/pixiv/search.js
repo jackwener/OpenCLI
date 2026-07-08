@@ -8,6 +8,7 @@ import { pixivFetch } from './utils.js';
 cli({
     site: 'pixiv',
     name: 'search',
+    access: 'read',
     description: 'Search Pixiv illustrations by keyword',
     domain: 'www.pixiv.net',
     strategy: Strategy.COOKIE,
@@ -18,7 +19,7 @@ cli({
         { name: 'mode', type: 'str', default: 'all', help: 'Search mode', choices: ['all', 'safe', 'r18'] },
         { name: 'page', type: 'int', default: 1, help: 'Page number' },
     ],
-    columns: ['rank', 'title', 'author', 'illust_id', 'pages', 'bookmarks', 'tags'],
+    columns: ['rank', 'title', 'author', 'user_id', 'illust_id', 'pages', 'bookmarks', 'tags', 'url'],
     func: async (page, kwargs) => {
         const { query, limit = 20, order = 'date_d', mode = 'all', page: pageNum = 1 } = kwargs;
         const encoded = encodeURIComponent(query);

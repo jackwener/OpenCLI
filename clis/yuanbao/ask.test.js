@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { __test__ } from './ask.js';
 import { askCommand } from './ask.js';
 describe('yuanbao ask helpers', () => {
@@ -101,7 +101,7 @@ function createAskPageMock(overrides = {}) {
 describe('yuanbao ask command', () => {
     it('throws AuthRequiredError when Yuanbao shows a login gate before sending', async () => {
         const page = createAskPageMock({ hasLoginGate: true });
-        await expect(askCommand.func(page, { prompt: '你好', timeout: '60', search: true, think: false }))
+        await expect(askCommand.func(page, { prompt: '你好', timeout: 60, search: true, think: false }))
             .rejects.toBeInstanceOf(AuthRequiredError);
     });
     it('throws CommandExecutionError when the prompt cannot be sent', async () => {
@@ -111,14 +111,14 @@ describe('yuanbao ask command', () => {
                 reason: 'Yuanbao composer was not found.',
             },
         });
-        await expect(askCommand.func(page, { prompt: '你好', timeout: '60', search: true, think: false }))
+        await expect(askCommand.func(page, { prompt: '你好', timeout: 60, search: true, think: false }))
             .rejects.toBeInstanceOf(CommandExecutionError);
     });
     it('throws TimeoutError when no response arrives before timeout', async () => {
         const page = createAskPageMock({
             sendResult: { ok: true, action: 'click' },
         });
-        await expect(askCommand.func(page, { prompt: '你好', timeout: '-1', search: true, think: false }))
-            .rejects.toBeInstanceOf(TimeoutError);
+        await expect(askCommand.func(page, { prompt: '你好', timeout: -1, search: true, think: false }))
+            .rejects.toBeInstanceOf(ArgumentError);
     });
 });

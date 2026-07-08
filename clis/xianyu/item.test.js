@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, EmptyResultError, SelectorError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './item.js';
 import './item.js';
@@ -49,8 +49,8 @@ describe('xianyu item command', () => {
         const page = createPageMock({ error: 'blocked' });
         await expect(command.func(page, { item_id: '1040754408976' })).rejects.toBeInstanceOf(EmptyResultError);
     });
-    it('keeps SelectorError for true mtop initialization failures', async () => {
+    it('keeps SELECTOR code for true mtop initialization failures', async () => {
         const page = createPageMock({ error: 'mtop-not-ready' });
-        await expect(command.func(page, { item_id: '1040754408976' })).rejects.toBeInstanceOf(SelectorError);
+        await expect(command.func(page, { item_id: '1040754408976' })).rejects.toMatchObject({ code: 'SELECTOR' });
     });
 });

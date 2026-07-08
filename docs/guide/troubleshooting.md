@@ -25,8 +25,7 @@ OPENCLI_CDP_TARGET=detail.1688.com opencli 1688 item 841141931191 -f json
 
 ### Node API errors
 
-- Make sure you are using **Node.js >= 21**. Some features require `node:util` styleText (stable in Node 21+).
-- Run `node --version` to verify.
+- Make sure you are using **Node.js >= 20**. Run `node --version` to verify.
 
 ### Daemon issues
 
@@ -42,6 +41,8 @@ opencli doctor
 ```
 
 > The daemon is persistent and stays alive until explicitly stopped (`opencli daemon stop`) or the package is uninstalled.
+
+> When the CLI detects a stale daemon (version mismatch after `npm install -g @jackwener/opencli@latest`), it first asks the daemon to shut down via `/shutdown`, then falls back to `SIGKILL` if the daemon does not release the port within 3 seconds. Manual `opencli daemon stop` is only needed if SIGKILL itself is rejected (cross-user owner / cross-machine PID file).
 
 ### Desktop adapter connection issues
 

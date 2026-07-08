@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const dumpCommand = cli({
     site: 'doubao-app',
     name: 'dump',
+    access: 'read',
     description: 'Dump Doubao desktop app DOM and snapshot to /tmp for debugging',
     domain: 'doubao-app',
     strategy: Strategy.UI,

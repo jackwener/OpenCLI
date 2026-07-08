@@ -9,6 +9,7 @@ import { downloadArticle } from '@jackwener/opencli/download/article-download';
 cli({
     site: 'zhihu',
     name: 'download',
+    access: 'read',
     description: '导出知乎文章为 Markdown 格式',
     domain: 'zhuanlan.zhihu.com',
     strategy: Strategy.COOKIE,
@@ -40,7 +41,7 @@ cli({
 
         // Get author
         const authorEl = document.querySelector('.AuthorInfo-name, .UserLink-link');
-        result.author = authorEl?.textContent?.trim() || 'unknown';
+        result.author = authorEl?.textContent?.trim() || '';
 
         // Get publish time
         const timeEl = document.querySelector('.ContentItem-time, .Post-Time');

@@ -4,6 +4,7 @@ import { listApps } from './catalog.js';
 cli({
   site: 'maybeai-video-app',
   name: 'apps',
+  access: 'read',
   description: 'List local MaybeAI video apps available in opencli',
   strategy: Strategy.PUBLIC,
   browser: false,

@@ -8,9 +8,11 @@
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 cli({
     site: 'xiaohongshu',
     name: 'creator-stats',
+    access: 'read',
     description: '小红书创作者数据总览 (观看/点赞/收藏/评论/分享/涨粉，含每日趋势)',
     domain: 'creator.xiaohongshu.com',
     strategy: Strategy.COOKIE,
@@ -51,7 +53,7 @@ cli({
         }
         const stats = data.data[period];
         if (!stats) {
-            throw new Error(`No data for period "${period}". Available: ${Object.keys(data.data).join(', ')}`);
+            throw new EmptyResultError('xiaohongshu creator-stats', `No data for period "${period}". Available: ${Object.keys(data.data).join(', ')}`);
         }
         // Format daily trend as sparkline-like summary
         const formatTrend = (list) => {

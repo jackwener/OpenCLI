@@ -3,6 +3,7 @@ import { apiGet, payloadData } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'history',
+    access: 'read',
     description: '我的观看历史',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

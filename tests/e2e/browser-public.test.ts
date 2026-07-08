@@ -9,8 +9,10 @@
 import { describe, it, expect } from 'vitest';
 import { runCli, parseJsonOutput, type CliResult } from './helpers.js';
 
+const BROWSER_UNAVAILABLE_ENV = { OPENCLI_BROWSER_CONNECT_TIMEOUT: '5' };
+
 async function tryBrowserCommand(args: string[]): Promise<any[] | null> {
-  const { stdout, code } = await runCli(args, { timeout: 60_000 });
+  const { stdout, code } = await runCli(args, { timeout: 60_000, env: BROWSER_UNAVAILABLE_ENV });
   if (code !== 0) return null;
   try {
     const data = parseJsonOutput(stdout);
@@ -35,7 +37,7 @@ function isImdbChallenge(result: CliResult): boolean {
 
 function isBrowserBridgeUnavailable(result: CliResult): boolean {
   const text = `${result.stderr}\n${result.stdout}`;
-  return /Browser Bridge.*not connected|Extension.*not connected/i.test(text);
+  return /Browser Bridge.*not connected|Extension.*not connected|Browser profile .*not connected/i.test(text);
 }
 
 function isBaiduChallengeText(text: string): boolean {
@@ -53,9 +55,9 @@ function isTransientBrowserDetach(result: CliResult): boolean {
 }
 
 async function runCliWithTransientRetry(args: string[], timeout: number): Promise<CliResult> {
-  let result = await runCli(args, { timeout });
+  let result = await runCli(args, { timeout, env: BROWSER_UNAVAILABLE_ENV });
   if (result.code !== 0 && isTransientBrowserDetach(result)) {
-    result = await runCli(args, { timeout });
+    result = await runCli(args, { timeout, env: BROWSER_UNAVAILABLE_ENV });
   }
   return result;
 }
@@ -63,7 +65,7 @@ async function runCliWithTransientRetry(args: string[], timeout: number): Promis
 async function runJsonCliOrThrow(args: string[], label: string, timeout: number, opts: { retryTransient?: boolean } = {}): Promise<any[] | null> {
   const result = opts.retryTransient
     ? await runCliWithTransientRetry(args, timeout)
-    : await runCli(args, { timeout });
+    : await runCli(args, { timeout, env: BROWSER_UNAVAILABLE_ENV });
   if (result.code !== 0) {
     if (isBrowserBridgeUnavailable(result)) {
       console.warn(`${label}: skipped — Browser Bridge extension is unavailable in this environment`);
@@ -234,7 +236,7 @@ describe('tieba e2e helper guards', () => {
 });
 
 async function expectImdbDataOrChallengeSkip(args: string[], label: string): Promise<any[] | null> {
-  const result = await runCli(args, { timeout: 60_000 });
+  const result = await runCli(args, { timeout: 60_000, env: BROWSER_UNAVAILABLE_ENV });
   if (result.code !== 0) {
     if (isImdbChallenge(result)) {
       console.warn(`${label}: skipped — IMDb challenge page detected`);

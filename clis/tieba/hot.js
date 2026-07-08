@@ -4,15 +4,15 @@ import { normalizeTiebaLimit } from './utils.js';
 cli({
     site: 'tieba',
     name: 'hot',
+    access: 'read',
     description: 'Tieba hot topics',
     domain: 'tieba.baidu.com',
     strategy: Strategy.PUBLIC,
     browser: true,
-    navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of items to return' },
     ],
-    columns: ['rank', 'title', 'discussions', 'description'],
+    columns: ['rank', 'title', 'discussions', 'description', 'url'],
     func: async (page, kwargs) => {
         const limit = normalizeTiebaLimit(kwargs.limit);
         // Use the default browser settle path so we do not scrape the previous page.

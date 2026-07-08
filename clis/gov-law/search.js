@@ -5,6 +5,7 @@ import { extractLawResults, navigateViaVueRouter } from './shared.js';
 cli({
     site: 'gov-law',
     name: 'search',
+    access: 'read',
     description: '国家法律法规数据库搜索',
     domain: 'flk.npc.gov.cn',
     strategy: Strategy.PUBLIC,
@@ -14,7 +15,6 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: '返回结果数量 (max 20)' },
     ],
     columns: ['rank', 'title', 'status', 'publish_date', 'type', 'department'],
-    navigateBefore: false,
     func: async (page, kwargs) => {
         const limit = clampInt(kwargs.limit, 10, 1, 20);
         const query = requireNonEmptyQuery(kwargs.query);

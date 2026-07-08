@@ -4,6 +4,7 @@ import { loadDoubanSubjectDetail } from './utils.js';
 cli({
     site: 'douban',
     name: 'subject',
+    access: 'read',
     description: '获取豆瓣条目详情',
     domain: 'movie.douban.com',
     strategy: Strategy.COOKIE,

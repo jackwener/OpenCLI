@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 export const dumpCommand = cli({
     site: 'antigravity',
     name: 'dump',
+    access: 'read',
     description: 'Dump the DOM to help AI understand the UI',
     domain: 'localhost',
     strategy: Strategy.UI,

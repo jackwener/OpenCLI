@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { ArgumentError, CommandExecutionError, getErrorMessage, } from '@jackwener/opencli/errors';
-import { bindCurrentTab } from '@jackwener/opencli/browser/daemon-client';
+import { bindTab } from '@jackwener/opencli/browser/daemon-client';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { appendShopdoraLoginMessage, readShopdoraLoginState, SHOPDORA_NOT_LOGGED_IN_MESSAGE, simulateHumanBehavior, simulatePointerAway, waitRandomDuration, } from './shared.js';
 const RESOLVED_TARGET_ATTRIBUTE = 'data-opencli-shopee-product-shopdora-download-target';
@@ -26,6 +26,9 @@ const EXPORT_REVIEW_PRE_HOVER_SCROLL_SEGMENT_PX = 40;
 const EXPORT_REVIEW_PRE_HOVER_SCROLL_MIN_STEPS = 6;
 const EXPORT_REVIEW_PRE_HOVER_SCROLL_MIN_DURATION_MS = 2200;
 const TIME_PERIOD_STEP_WAIT_SECONDS = 1;
+async function bindCurrentTabCompat(session, _opts = {}) {
+    return bindTab(session);
+}
 function normalizeShopeeReviewUrl(value) {
     const raw = String(value ?? '').trim();
     if (!raw) {
@@ -156,7 +159,7 @@ async function resolveTargetSelector(page, target, label) {
     }
     return result.selector;
 }
-async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTab) {
+async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTabCompat) {
     try {
         await bindFn(SHOPEE_WORKSPACE, { matchUrl: productUrl });
         return true;
@@ -165,7 +168,7 @@ async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTab) {
         return false;
     }
 }
-async function ensureShopeeProductPage(page, productUrl, bindFn = bindCurrentTab) {
+async function ensureShopeeProductPage(page, productUrl, bindFn = bindCurrentTabCompat) {
     const reusedExistingTab = await bindShopeeProductTab(productUrl, bindFn);
     // await clearLocalStorageForUrlHost(page, productUrl);
     await page.goto(productUrl, { waitUntil: 'load' });
@@ -408,6 +411,7 @@ async function applyCheckboxStep(page, checked, label, opts = {}) {
 cli({
     site: 'shopee',
     name: 'product-shopdora-download',
+    access: 'read',
     description: 'Export Shopee product Shopdora data with the recorded good-detail review workflow',
     domain: 'shopee.sg',
     strategy: Strategy.COOKIE,

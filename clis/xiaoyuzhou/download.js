@@ -9,6 +9,7 @@ import { loadXiaoyuzhouCredentials, requestXiaoyuzhouJson } from './auth.js';
 cli({
     site: 'xiaoyuzhou',
     name: 'download',
+    access: 'read',
     description: 'Download Xiaoyuzhou episode audio',
     domain: 'www.xiaoyuzhoufm.com',
     strategy: Strategy.LOCAL,
@@ -18,7 +19,7 @@ cli({
         { name: 'output', default: './xiaoyuzhou-downloads', help: 'Output directory' },
     ],
     columns: ['title', 'podcast', 'status', 'size', 'file'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const credentials = loadXiaoyuzhouCredentials();
         const response = await requestXiaoyuzhouJson('/v1/episode/get', {
             query: { eid: args.id },
@@ -44,7 +45,7 @@ cli({
         });
         return [{
                 title,
-                podcast: ep.podcast?.title || '-',
+                podcast: ep.podcast?.title || '',
                 status: result.success ? 'success' : 'failed',
                 size: result.success ? formatBytes(result.size) : (result.error || 'unknown error'),
                 file: result.success ? destPath : '-',

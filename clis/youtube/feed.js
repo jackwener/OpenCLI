@@ -8,13 +8,14 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 cli({
     site: 'youtube',
     name: 'feed',
+    access: 'read',
     description: 'Get YouTube homepage recommended videos',
     domain: 'www.youtube.com',
     strategy: Strategy.COOKIE,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Max videos to return (default 20, max 100)' },
     ],
-    columns: ['rank', 'title', 'channel', 'views', 'duration', 'published', 'url'],
+    columns: ['rank', 'title', 'channel', 'video_id', 'views', 'duration', 'published', 'url'],
     func: async (page, kwargs) => {
         const limit = Math.min(kwargs.limit || 20, 100);
         await page.goto('https://www.youtube.com');
@@ -48,7 +49,7 @@ cli({
               views: parts[1] || '',
               duration,
               published: parts[2] || '',
-              videoId: lvm.contentId,
+              video_id: lvm.contentId,
             };
           }
 
@@ -61,7 +62,7 @@ cli({
               views: v.viewCountText?.simpleText || v.shortViewCountText?.simpleText || '',
               duration: v.lengthText?.simpleText || '',
               published: v.publishedTimeText?.simpleText || '',
-              videoId: v.videoId,
+              video_id: v.videoId,
             };
           }
           return null;
@@ -74,8 +75,8 @@ cli({
         for (const item of richContents) {
           if (videos.length >= limit) break;
           const v = extractFromItem(item);
-          if (v?.videoId) {
-            videos.push({ rank: videos.length + 1, ...v, url: 'https://www.youtube.com/watch?v=' + v.videoId });
+          if (v?.video_id) {
+            videos.push({ rank: videos.length + 1, ...v, url: 'https://www.youtube.com/watch?v=' + v.video_id });
           }
         }
 
@@ -97,8 +98,8 @@ cli({
             for (const item of newItems) {
               if (videos.length >= limit) break;
               const v = extractFromItem(item);
-              if (v?.videoId) {
-                videos.push({ rank: videos.length + 1, ...v, url: 'https://www.youtube.com/watch?v=' + v.videoId });
+              if (v?.video_id) {
+                videos.push({ rank: videos.length + 1, ...v, url: 'https://www.youtube.com/watch?v=' + v.video_id });
               }
             }
             contItem = newItems[newItems.length - 1];

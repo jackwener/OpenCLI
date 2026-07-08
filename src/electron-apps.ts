@@ -27,9 +27,8 @@ export interface ElectronAppEntry {
 
 export const builtinApps: Record<string, ElectronAppEntry> = {
   cursor:        { port: 9226, processName: 'Cursor',      bundleId: 'com.todesktop.runtime.Cursor',   displayName: 'Cursor' },
-  codex:         { port: 9222, processName: 'Codex',        bundleId: 'com.openai.codex',               displayName: 'Codex' },
+  codex:         { port: 9238, processName: 'Codex',        bundleId: 'com.openai.codex',               displayName: 'Codex' },
   chatwise:      { port: 9228, processName: 'ChatWise',     bundleId: 'com.chatwise.app',               displayName: 'ChatWise' },
-  notion:        { port: 9230, processName: 'Notion',       bundleId: 'notion.id',                      displayName: 'Notion' },
   'discord-app': { port: 9232, processName: 'Discord',      bundleId: 'com.discord.app',                 displayName: 'Discord' },
   'doubao-app':  { port: 9225, processName: 'Doubao',       bundleId: 'com.volcengine.doubao',          displayName: 'Doubao' },
   antigravity:   {
@@ -40,6 +39,27 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
     displayName: 'Antigravity',
   },
   'chatgpt-app': { port: 9236, processName: 'ChatGPT',      bundleId: 'com.openai.chat',                displayName: 'ChatGPT' },
+  qoder:         {
+    port: 9237,
+    processName: 'Qoder',
+    executableNames: ['Electron'],
+    bundleId: 'com.qoder.ide',
+    displayName: 'Qoder',
+  },
+  'trae-solo':   {
+    port: 9235,
+    processName: 'TRAE SOLO',
+    executableNames: ['Electron', 'TRAE SOLO'],
+    bundleId: 'com.trae.solo.app',
+    displayName: 'Trae SOLO',
+  },
+  'trae-cn':      {
+    port: 39240,
+    processName: 'Trae CN',
+    executableNames: ['Electron'],
+    bundleId: 'cn.trae.app',
+    displayName: 'Trae CN',
+  },
 };
 
 /** Merge builtin + user-defined apps. User entries are additive only. */

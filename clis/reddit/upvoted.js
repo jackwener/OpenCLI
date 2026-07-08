@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'upvoted',
+    access: 'read',
     description: 'Browse your upvoted Reddit posts',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,
@@ -29,7 +30,7 @@ cli({
         });
         const d = await res.json();
         return (d?.data?.children || []).map(c => ({
-          title: c.data.title || '-',
+          title: c.data.title || '',
           subreddit: c.data.subreddit_name_prefixed || 'r/' + (c.data.subreddit || '?'),
           score: c.data.score || 0,
           comments: c.data.num_comments || 0,

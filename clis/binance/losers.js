@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
   site: 'binance',
   name: 'losers',
+    access: 'read',
   description: 'Top losing trading pairs by 24h price change',
   domain: 'data-api.binance.vision',
   strategy: Strategy.PUBLIC,

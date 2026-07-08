@@ -4,6 +4,7 @@ import { onesFetchInPage } from './common.js';
 cli({
     site: 'ones',
     name: 'me',
+    access: 'read',
     description: 'ONES Project API — current user (GET users/me) via Chrome Bridge',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

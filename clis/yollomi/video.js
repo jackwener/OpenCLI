@@ -10,6 +10,7 @@ import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.j
 cli({
     site: 'yollomi',
     name: 'video',
+    access: 'write',
     description: 'Generate videos with AI (text-to-video or image-to-video)',
     domain: YOLLOMI_DOMAIN,
     strategy: Strategy.COOKIE,

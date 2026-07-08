@@ -11,6 +11,7 @@ const TOOL_CHAIN_ARGS = [
 cli({
   site: 'maybeai-video-app',
   name: 'generate',
+  access: 'write',
   description: 'Generate videos with an explicit MaybeAI video app and run workflows directly',
   strategy: Strategy.PUBLIC,
   browser: false,

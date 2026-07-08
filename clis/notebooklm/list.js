@@ -5,6 +5,7 @@ import { ensureNotebooklmHome, listNotebooklmLinks, listNotebooklmViaRpc, readCu
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'list',
+    access: 'read',
     description: 'List NotebookLM notebooks via in-page batchexecute RPC in the current logged-in session',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,

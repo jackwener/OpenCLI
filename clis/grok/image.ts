@@ -259,6 +259,7 @@ function toRow(img: BubbleImage, savedPath = '') {
 export const imageCommand = cli({
   site: 'grok',
   name: 'image',
+  access: 'write',
   description: 'Generate images on grok.com and return image URLs',
   domain: 'grok.com',
   strategy: Strategy.COOKIE,

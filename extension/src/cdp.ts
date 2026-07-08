@@ -9,6 +9,9 @@
 const attached = new Set<number>();
 
 const tabFrameContexts = new Map<number, Map<string, number>>();
+const frameTargets = new Map<string, string>();
+const frameTargetKeys = new Map<string, string>();
+let frameTargetCleanupRegistered = false;
 
 // Large cap so agents stop hitting silent JSON.parse failures on real API bodies.
 // See src/browser/cdp.ts CDP_RESPONSE_BODY_CAPTURE_LIMIT for the matching constant
@@ -40,7 +43,66 @@ type NetworkCaptureState = {
   requestToIndex: Map<string, number>;
 };
 
+export type DownloadWaitResult = {
+  downloaded: boolean;
+  id?: number;
+  filename?: string;
+  url?: string;
+  finalUrl?: string;
+  mime?: string;
+  totalBytes?: number;
+  state?: string;
+  danger?: string;
+  error?: string;
+  elapsedMs: number;
+};
+
 const networkCaptures = new Map<number, NetworkCaptureState>();
+
+/**
+ * Default deadline for a single chrome.debugger command. chrome.debugger has
+ * no timeout of its own: a page-blocking native dialog (alert/confirm/print/
+ * beforeunload) makes Runtime.evaluate hang forever, wedging every later
+ * command on the tab. Long enough for legitimate in-page waits (default 30s
+ * plus headroom), short enough to fail before the daemon's 120s timer.
+ */
+const CDP_COMMAND_TIMEOUT_MS = 60_000;
+/** Health-check probe deadline — a blocked probe should fail fast. */
+const CDP_PROBE_TIMEOUT_MS = 2_000;
+
+/**
+ * chrome.debugger.sendCommand with a deadline. The underlying command cannot
+ * be cancelled — this only unblocks the caller so the CLI gets an error
+ * instead of an infinite hang.
+ */
+export async function sendDebuggerCommand<T = unknown>(
+  target: chrome.debugger.Debuggee,
+  method: string,
+  params?: Record<string, unknown>,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const commandPromise = (params === undefined
+    ? chrome.debugger.sendCommand(target, method)
+    : chrome.debugger.sendCommand(target, method, params)) as Promise<T>;
+  // If the timeout wins the race, the command promise may still reject much
+  // later (e.g. debugger detach on tab close) — swallow that on a side branch
+  // so it never surfaces as an unhandled rejection in the service worker.
+  commandPromise.catch(() => {});
+  try {
+    return await Promise.race([
+      commandPromise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(
+          `CDP command ${method} timed out after ${Math.round(timeoutMs / 1000)}s — the page may be blocked by a native dialog (alert/confirm/print)`,
+        )), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 /** Check if a URL can be attached via CDP — only allow http(s) and blank pages. */
 function isDebuggableUrl(url?: string): boolean {
   if (!url) return true;  // empty/undefined = tab still loading, allow it
@@ -66,9 +128,9 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   if (attached.has(tabId)) {
     // Verify the debugger is still actually attached by sending a harmless command
     try {
-      await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
         expression: '1', returnByValue: true,
-      });
+      }, CDP_PROBE_TIMEOUT_MS);
       return; // Still attached and working
     } catch {
       // Stale cache entry — need to re-attach
@@ -83,6 +145,15 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   const MAX_ATTACH_RETRIES = aggressiveRetry ? 5 : 2;
   const RETRY_DELAY_MS = aggressiveRetry ? 1500 : 500;
   let lastError = '';
+
+  // The forced detach below fires chrome.debugger.onDetach, whose handler wipes
+  // this tab's armed network-capture state; detaching also disables the CDP
+  // Network domain. Snapshot the capture so we can restore it after a successful
+  // re-attach instead of silently dropping in-flight capture — otherwise any
+  // non-navigate command that triggers a re-attach (a stale-attach health-check
+  // failure during SPA navigation or third-party debugger interference) leaves
+  // network-capture-read returning [] even though requests fired.
+  const preservedNetworkCapture = networkCaptures.get(tabId);
 
   for (let attempt = 1; attempt <= MAX_ATTACH_RETRIES; attempt++) {
     try {
@@ -132,54 +203,65 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
   attached.add(tabId);
 
   try {
-    await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable');
+    await sendDebuggerCommand({ tabId }, 'Runtime.enable');
   } catch {
     // Some pages may not need explicit enable
   }
-}
 
-export async function evaluate(tabId: number, expression: string, aggressiveRetry: boolean = false): Promise<unknown> {
-  // Retry the entire evaluate (attach + command).
-  // Normal: 2 retries. Browser: 3 retries (tolerates extension interference).
-  const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
-  for (let attempt = 1; attempt <= MAX_EVAL_RETRIES; attempt++) {
+  // Restore network capture that the re-attach (detach + onDetach) tore down.
+  // The detach always disables the CDP Network domain, so re-enable it and put
+  // the accumulated capture state back unconditionally. Done last (after the
+  // awaits above) so it wins over the onDetach handler's delete, which fires
+  // while those awaits yield to the event loop.
+  if (preservedNetworkCapture) {
     try {
-      await ensureAttached(tabId, aggressiveRetry);
-
-      const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-        expression,
-        returnByValue: true,
-        awaitPromise: true,
-      }) as {
-        result?: { type: string; value?: unknown; description?: string; subtype?: string };
-        exceptionDetails?: { exception?: { description?: string }; text?: string };
-      };
-
-      if (result.exceptionDetails) {
-        const errMsg = result.exceptionDetails.exception?.description
-          || result.exceptionDetails.text
-          || 'Eval error';
-        throw new Error(errMsg);
-      }
-
-      return result.result?.value;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      // Only retry on attach/debugger errors, not on JS eval errors
-      const isNavigateError = msg.includes('Inspected target navigated') || msg.includes('Target closed');
-      const isAttachError = isNavigateError || msg.includes('attach failed') || msg.includes('Debugger is not attached')
-        || msg.includes('chrome-extension://');
-      if (isAttachError && attempt < MAX_EVAL_RETRIES) {
-        attached.delete(tabId); // Force re-attach on next attempt
-        // SPA navigations recover quickly; debugger detach needs longer
-        const retryMs = isNavigateError ? 200 : 500;
-        await new Promise(resolve => setTimeout(resolve, retryMs));
-        continue;
-      }
-      throw e;
+      await sendDebuggerCommand({ tabId }, 'Network.enable');
+      networkCaptures.set(tabId, preservedNetworkCapture);
+    } catch {
+      // Leave capture cleared rather than arm a half-attached Network domain;
+      // the next start-capture re-arms cleanly.
     }
   }
-  throw new Error('evaluate: max retries exhausted');
+}
+
+export async function evaluate(
+  tabId: number,
+  expression: string,
+  aggressiveRetry: boolean = false,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
+): Promise<unknown> {
+  // No retry loop here: failures carry a machine-readable errorCode (see
+  // classifyExtensionError in background.ts) and the CLI decides whether a
+  // NEW logical attempt is safe. ensureAttached still does its own local
+  // attach retries; a debugger error mid-evaluate invalidates the attach
+  // cache so the next attempt re-attaches.
+  try {
+    await ensureAttached(tabId, aggressiveRetry);
+
+    const result = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    }, timeoutMs) as {
+      result?: { type: string; value?: unknown; description?: string; subtype?: string };
+      exceptionDetails?: { exception?: { description?: string }; text?: string };
+    };
+
+    if (result.exceptionDetails) {
+      const errMsg = result.exceptionDetails.exception?.description
+        || result.exceptionDetails.text
+        || 'Eval error';
+      throw new Error(errMsg);
+    }
+
+    return result.result?.value;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('Detached') || msg.includes('Debugger is not attached') || msg.includes('Target closed')) {
+      attached.delete(tabId); // Force re-attach on the next command
+    }
+    throw e;
+  }
 }
 
 export const evaluateAsync = evaluate;
@@ -190,29 +272,46 @@ export const evaluateAsync = evaluate;
  */
 export async function screenshot(
   tabId: number,
-  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean } = {},
+  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean; width?: number; height?: number } = {},
 ): Promise<string> {
   await ensureAttached(tabId);
 
   const format = options.format ?? 'png';
+  const fullPage = options.fullPage === true;
+  const overrideWidth = options.width && options.width > 0 ? Math.ceil(options.width) : undefined;
+  // height is ignored under fullPage so the existing measure-from-content path stays unchanged for users who pass --height alongside --full-page.
+  const overrideHeight = !fullPage && options.height && options.height > 0 ? Math.ceil(options.height) : undefined;
+  const needsOverride = fullPage || overrideWidth !== undefined || overrideHeight !== undefined;
 
-  // For full-page screenshots, get the full page dimensions first
-  if (options.fullPage) {
-    // Get full page metrics
-    const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
-      contentSize?: { width: number; height: number };
-      cssContentSize?: { width: number; height: number };
-    };
-    const size = metrics.cssContentSize || metrics.contentSize;
-    if (size) {
-      // Set device metrics to full page size
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+  if (needsOverride) {
+    // When width is set, apply it first so layout reflows before we read content size.
+    if (overrideWidth !== undefined && fullPage) {
+      await sendDebuggerCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
         mobile: false,
-        width: Math.ceil(size.width),
-        height: Math.ceil(size.height),
+        width: overrideWidth,
+        height: 0,
         deviceScaleFactor: 1,
       });
     }
+    let finalWidth = overrideWidth ?? 0;
+    let finalHeight = overrideHeight ?? 0;
+    if (fullPage) {
+      const metrics = await sendDebuggerCommand({ tabId }, 'Page.getLayoutMetrics') as {
+        contentSize?: { width: number; height: number };
+        cssContentSize?: { width: number; height: number };
+      };
+      const size = metrics.cssContentSize || metrics.contentSize;
+      if (size) {
+        if (finalWidth === 0) finalWidth = Math.ceil(size.width);
+        finalHeight = Math.ceil(size.height);
+      }
+    }
+    await sendDebuggerCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+      mobile: false,
+      width: finalWidth,
+      height: finalHeight,
+      deviceScaleFactor: 1,
+    });
   }
 
   try {
@@ -221,15 +320,14 @@ export async function screenshot(
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
 
-    const result = await chrome.debugger.sendCommand({ tabId }, 'Page.captureScreenshot', params) as {
+    const result = await sendDebuggerCommand({ tabId }, 'Page.captureScreenshot', params) as {
       data: string; // base64-encoded
     };
 
     return result.data;
   } finally {
-    // Reset device metrics if we changed them for full-page
-    if (options.fullPage) {
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
+    if (needsOverride) {
+      await sendDebuggerCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
     }
   }
 }
@@ -251,16 +349,16 @@ export async function setFileInputFiles(
   await ensureAttached(tabId);
 
   // Enable DOM domain (required for DOM.querySelector and DOM.setFileInputFiles)
-  await chrome.debugger.sendCommand({ tabId }, 'DOM.enable');
+  await sendDebuggerCommand({ tabId }, 'DOM.enable');
 
   // Get the document root
-  const doc = await chrome.debugger.sendCommand({ tabId }, 'DOM.getDocument') as {
+  const doc = await sendDebuggerCommand({ tabId }, 'DOM.getDocument') as {
     root: { nodeId: number };
   };
 
   // Find the file input element
   const query = selector || 'input[type="file"]';
-  const result = await chrome.debugger.sendCommand({ tabId }, 'DOM.querySelector', {
+  const result = await sendDebuggerCommand({ tabId }, 'DOM.querySelector', {
     nodeId: doc.root.nodeId,
     selector: query,
   }) as { nodeId: number };
@@ -270,10 +368,203 @@ export async function setFileInputFiles(
   }
 
   // Set files directly via CDP — Chrome reads from local filesystem
-  await chrome.debugger.sendCommand({ tabId }, 'DOM.setFileInputFiles', {
+  await sendDebuggerCommand({ tabId }, 'DOM.setFileInputFiles', {
     files,
     nodeId: result.nodeId,
   });
+}
+
+function matchesDownloadPattern(item: chrome.downloads.DownloadItem, pattern: string): boolean {
+  if (!pattern) return true;
+  const haystack = [
+    item.filename,
+    item.url,
+    item.finalUrl,
+    item.mime,
+  ].filter(Boolean).join('\n').toLowerCase();
+  return haystack.includes(pattern.toLowerCase());
+}
+
+function downloadResult(item: chrome.downloads.DownloadItem, startedAt: number): DownloadWaitResult {
+  return {
+    downloaded: item.state === 'complete',
+    id: item.id,
+    filename: item.filename,
+    url: item.url,
+    finalUrl: item.finalUrl,
+    mime: item.mime,
+    totalBytes: item.totalBytes,
+    state: item.state,
+    danger: item.danger,
+    error: item.error,
+    elapsedMs: Date.now() - startedAt,
+  };
+}
+
+export async function waitForDownload(pattern: string = '', timeoutMs: number = 30000): Promise<DownloadWaitResult> {
+  const startedAt = Date.now();
+  const timeout = Math.max(1, timeoutMs);
+
+  return await new Promise<DownloadWaitResult>((resolve) => {
+    let done = false;
+    const inProgressIds = new Set<number>();
+    const finish = (result: DownloadWaitResult) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      chrome.downloads.onCreated.removeListener(onCreated);
+      chrome.downloads.onChanged.removeListener(onChanged);
+      resolve(result);
+    };
+
+    const inspectById = async (id: number) => {
+      const items = await chrome.downloads.search({ id });
+      const item = items[0];
+      if (!item || !matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+
+    const onCreated = (item: chrome.downloads.DownloadItem) => {
+      if (!matchesDownloadPattern(item, pattern)) return;
+      inProgressIds.add(item.id);
+      if (item.state === 'complete' || item.state === 'interrupted') finish(downloadResult(item, startedAt));
+    };
+    const onChanged = (delta: chrome.downloads.DownloadDelta) => {
+      if (!delta.id) return;
+      if (!inProgressIds.has(delta.id) && !delta.filename && !delta.url) return;
+      if (delta.filename?.current || delta.url?.current) {
+        void inspectById(delta.id);
+        return;
+      }
+      if (delta.state?.current === 'complete' || delta.state?.current === 'interrupted') {
+        void inspectById(delta.id);
+      }
+    };
+    const timer = setTimeout(() => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: `No download matched "${pattern || '*'}" within ${timeout}ms`,
+        elapsedMs: Date.now() - startedAt,
+      });
+    }, timeout);
+
+    chrome.downloads.onCreated.addListener(onCreated);
+    chrome.downloads.onChanged.addListener(onChanged);
+
+    void chrome.downloads.search({
+      limit: 50,
+      orderBy: ['-startTime'],
+      startedAfter: new Date(startedAt - Math.max(timeout, 1000)).toISOString(),
+    }).then((recent) => {
+      if (done) return;
+      const completed = recent.find((item) => item.state === 'complete' && matchesDownloadPattern(item, pattern));
+      if (completed) {
+        finish(downloadResult(completed, startedAt));
+        return;
+      }
+      for (const item of recent) {
+        if (item.state === 'in_progress' && matchesDownloadPattern(item, pattern)) inProgressIds.add(item.id);
+      }
+    }).catch((err) => {
+      finish({
+        downloaded: false,
+        state: 'interrupted',
+        error: err instanceof Error ? err.message : String(err),
+        elapsedMs: Date.now() - startedAt,
+      });
+    });
+  });
+}
+
+function frameTargetKey(tabId: number, frameId: string): string {
+  return `${tabId}:${frameId}`;
+}
+
+function registerFrameTargetCleanup(): void {
+  if (frameTargetCleanupRegistered) return;
+  frameTargetCleanupRegistered = true;
+  chrome.debugger.onEvent.addListener((_source, method, params: any) => {
+    if (method === 'Target.detachedFromTarget') {
+      const targetId = String(params?.targetId || '');
+      clearFrameTarget(targetId);
+    }
+  });
+}
+
+function clearFrameTarget(targetId: string): void {
+  if (!targetId) return;
+  const key = frameTargetKeys.get(targetId);
+  if (key) frameTargets.delete(key);
+  frameTargetKeys.delete(targetId);
+}
+
+async function ensureFrameTarget(
+  tabId: number,
+  frameId: string,
+  aggressiveRetry: boolean = false,
+  targetUrl?: string,
+): Promise<string> {
+  registerFrameTargetCleanup();
+  await ensureAttached(tabId, aggressiveRetry);
+  const key = frameTargetKey(tabId, frameId);
+  const existing = frameTargets.get(key);
+  if (existing) return existing;
+
+  await sendDebuggerCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
+  await sendDebuggerCommand({ tabId }, 'Target.setAutoAttach', {
+    autoAttach: true,
+    waitForDebuggerOnStart: false,
+    flatten: true,
+    filter: [{ type: 'iframe', exclude: false }],
+  }).catch(() => {});
+  const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
+  try {
+    await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes('Another debugger is already attached')) throw err;
+  }
+  frameTargets.set(key, targetId);
+  frameTargetKeys.set(targetId, key);
+  return targetId;
+}
+
+async function resolveFrameTargetId(tabId: number, frameId: string, targetUrl?: string): Promise<string> {
+  const result = await sendDebuggerCommand({ tabId }, 'Target.getTargets').catch(() => null) as
+    | { targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string }> }
+    | null;
+  const targets = result?.targetInfos ?? [];
+  const frameTarget = targets.find((candidate) => {
+    const candidateId = candidate.targetId || candidate.id;
+    return candidate.type === 'iframe'
+      && (
+        candidateId === frameId
+        || (!!targetUrl && candidate.url === targetUrl)
+      );
+  });
+  const targetId = frameTarget?.targetId || frameTarget?.id;
+  if (targetId) return targetId;
+  const candidates = targets
+    .filter((target) => target.type === 'iframe')
+    .map((target) => `${target.targetId || target.id || '?'} ${target.url || ''}`)
+    .join('; ');
+  throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ''}. Candidates: ${candidates || 'none'}`);
+}
+
+export async function sendCommandInFrameTarget(
+  tabId: number,
+  frameId: string,
+  method: string,
+  params: Record<string, unknown> = {},
+  aggressiveRetry: boolean = false,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
+  targetUrl?: string,
+): Promise<unknown> {
+  const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
+  const target = { targetId } as chrome.debugger.Debuggee;
+  return sendDebuggerCommand(target, method, params, timeoutMs);
 }
 
 export async function insertText(
@@ -281,7 +572,116 @@ export async function insertText(
   text: string,
 ): Promise<void> {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text });
+  await sendDebuggerCommand({ tabId }, 'Input.insertText', { text });
+}
+
+export function registerFrameTracking(): void {
+  registerFrameTargetCleanup();
+  chrome.debugger.onEvent.addListener((source, method, params: any) => {
+    const tabId = source.tabId;
+    if (!tabId) return;
+
+    if (method === 'Runtime.executionContextCreated') {
+      const context = params.context;
+      if (!context?.auxData?.frameId || context.auxData.isDefault !== true) return;
+      const frameId = context.auxData.frameId as string;
+      if (!tabFrameContexts.has(tabId)) {
+        tabFrameContexts.set(tabId, new Map());
+      }
+      tabFrameContexts.get(tabId)!.set(frameId, context.id);
+    }
+
+    if (method === 'Runtime.executionContextDestroyed') {
+      const ctxId = params.executionContextId;
+      const contexts = tabFrameContexts.get(tabId);
+      if (contexts) {
+        for (const [fid, cid] of contexts) {
+          if (cid === ctxId) { contexts.delete(fid); break; }
+        }
+      }
+    }
+
+    if (method === 'Runtime.executionContextsCleared') {
+      tabFrameContexts.delete(tabId);
+    }
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    tabFrameContexts.delete(tabId);
+  });
+}
+
+export async function getFrameTree(tabId: number): Promise<any> {
+  await ensureAttached(tabId);
+  return sendDebuggerCommand({ tabId }, 'Page.getFrameTree');
+}
+
+export async function evaluateInFrame(
+  tabId: number,
+  expression: string,
+  frameId: string,
+  aggressiveRetry: boolean = false,
+  timeoutMs: number = CDP_COMMAND_TIMEOUT_MS,
+): Promise<unknown> {
+  await ensureAttached(tabId, aggressiveRetry);
+
+  await sendDebuggerCommand({ tabId }, 'Runtime.enable').catch(() => {});
+
+  const contexts = tabFrameContexts.get(tabId);
+  const contextId = contexts?.get(frameId);
+
+  if (contextId !== undefined) {
+    try {
+      const result = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
+        expression,
+        contextId,
+        returnByValue: true,
+        awaitPromise: true,
+      }, timeoutMs) as {
+        result?: { type: string; value?: unknown; description?: string; subtype?: string };
+        exceptionDetails?: { exception?: { description?: string }; text?: string };
+      };
+      if (result.exceptionDetails) {
+        const errMsg = result.exceptionDetails.exception?.description
+          || result.exceptionDetails.text
+          || 'Eval error';
+        throw new Error(errMsg);
+      }
+      return result.result?.value;
+    } catch (err) {
+      // A navigated/reloaded frame invalidates its cached context id, but the
+      // Runtime.executionContextDestroyed event may not have been processed
+      // yet — the cache still holds the stale id and Runtime.evaluate rejects
+      // with "Cannot find context with specified id". Drop the stale id and
+      // fall through to the frame-target path instead of failing (evaluate()
+      // likewise re-resolves on a dead context). Re-throw genuine page errors.
+      const msg = String((err as { message?: string })?.message || err);
+      if (!/Cannot find context|context with specified id|Execution context was destroyed/i.test(msg)) {
+        throw err;
+      }
+      contexts?.delete(frameId);
+    }
+  }
+
+  // No cached context, or the cached one went stale: resolve via the frame target.
+  await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry, timeoutMs).catch(() => undefined);
+  const result = await sendCommandInFrameTarget(tabId, frameId, 'Runtime.evaluate', {
+    expression,
+    returnByValue: true,
+    awaitPromise: true,
+  }, aggressiveRetry, timeoutMs) as {
+    result?: { type: string; value?: unknown; description?: string; subtype?: string };
+    exceptionDetails?: { exception?: { description?: string }; text?: string };
+  };
+
+  if (result.exceptionDetails) {
+    const errMsg = result.exceptionDetails.exception?.description
+      || result.exceptionDetails.text
+      || 'Eval error';
+    throw new Error(errMsg);
+  }
+
+  return result.result?.value;
 }
 
 export function registerFrameTracking(): void {
@@ -413,7 +813,7 @@ export async function startNetworkCapture(
   pattern?: string,
 ): Promise<void> {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, 'Network.enable');
+  await sendDebuggerCommand({ tabId }, 'Network.enable');
   networkCaptures.set(tabId, {
     patterns: normalizeCapturePatterns(pattern),
     entries: [],
@@ -434,7 +834,17 @@ export function hasActiveNetworkCapture(tabId: number): boolean {
   return networkCaptures.has(tabId);
 }
 
+function clearFrameTargetsForTab(tabId: number): void {
+  for (const [key, targetId] of [...frameTargets.entries()]) {
+    if (!key.startsWith(`${tabId}:`)) continue;
+    frameTargets.delete(key);
+    frameTargetKeys.delete(targetId);
+    chrome.debugger.detach({ targetId } as chrome.debugger.Debuggee).catch(() => {});
+  }
+}
+
 export async function detach(tabId: number): Promise<void> {
+  clearFrameTargetsForTab(tabId);
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
   networkCaptures.delete(tabId);
@@ -447,13 +857,17 @@ export function registerListeners(): void {
     attached.delete(tabId);
     networkCaptures.delete(tabId);
     tabFrameContexts.delete(tabId);
+    clearFrameTargetsForTab(tabId);
   });
   chrome.debugger.onDetach.addListener((source) => {
     if (source.tabId) {
       attached.delete(source.tabId);
       networkCaptures.delete(source.tabId);
       tabFrameContexts.delete(source.tabId);
+      clearFrameTargetsForTab(source.tabId);
+      return;
     }
+    if (source.targetId) clearFrameTarget(source.targetId);
   });
   // Invalidate attached cache when tab URL changes to non-debuggable
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
@@ -483,28 +897,35 @@ export function registerListeners(): void {
         requestHeaders: normalizeHeaders(request?.headers),
       });
       if (!entry) return;
-      entry.requestBodyKind = request?.hasPostData ? 'string' : 'empty';
-      {
-        const raw = String(request?.postData || '');
-        const fullSize = raw.length;
-        const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
-        entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
-        entry.requestBodyFullSize = fullSize;
-        entry.requestBodyTruncated = truncated;
-      }
-      try {
-        const postData = await chrome.debugger.sendCommand({ tabId }, 'Network.getRequestPostData', { requestId }) as { postData?: string };
-        if (postData?.postData) {
-          const raw = postData.postData;
+      // On an HTTP 30x, CDP re-fires requestWillBeSent with the SAME requestId
+      // (the prior hop is carried in `redirectResponse`) for the redirect
+      // target — typically a GET with no postData. Overwriting the body here
+      // would wipe the original request's captured POST body, so only populate
+      // the body on the initial send.
+      if (!eventParams?.redirectResponse) {
+        entry.requestBodyKind = request?.hasPostData ? 'string' : 'empty';
+        {
+          const raw = String(request?.postData || '');
           const fullSize = raw.length;
           const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
-          entry.requestBodyKind = 'string';
           entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
           entry.requestBodyFullSize = fullSize;
           entry.requestBodyTruncated = truncated;
         }
-      } catch {
-        // Optional; some requests do not expose postData.
+        try {
+          const postData = await sendDebuggerCommand({ tabId }, 'Network.getRequestPostData', { requestId }) as { postData?: string };
+          if (postData?.postData) {
+            const raw = postData.postData;
+            const fullSize = raw.length;
+            const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
+            entry.requestBodyKind = 'string';
+            entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
+            entry.requestBodyFullSize = fullSize;
+            entry.requestBodyTruncated = truncated;
+          }
+        } catch {
+          // Optional; some requests do not expose postData.
+        }
       }
       return;
     }
@@ -517,9 +938,14 @@ export function registerListeners(): void {
         status?: number;
         headers?: Record<string, unknown>;
       } | undefined;
-      const entry = getOrCreateNetworkCaptureEntry(tabId, requestId, {
-        url: response?.url,
-      });
+      // Lookup-only (like loadingFinished below): never create an entry from a
+      // response. If the matching requestWillBeSent was already drained by a
+      // readNetworkCapture() while the request was in flight, creating one here
+      // produces an orphan half-entry with a defaulted method ('GET') and no
+      // request data.
+      const stateEntryIndex = state.requestToIndex.get(requestId);
+      if (stateEntryIndex === undefined) return;
+      const entry = state.entries[stateEntryIndex];
       if (!entry) return;
       entry.responseStatus = response?.status;
       entry.responseContentType = response?.mimeType || '';
@@ -534,7 +960,7 @@ export function registerListeners(): void {
       const entry = state.entries[stateEntryIndex];
       if (!entry) return;
       try {
-        const body = await chrome.debugger.sendCommand({ tabId }, 'Network.getResponseBody', { requestId }) as {
+        const body = await sendDebuggerCommand({ tabId }, 'Network.getResponseBody', { requestId }) as {
           body?: string;
           base64Encoded?: boolean;
         };

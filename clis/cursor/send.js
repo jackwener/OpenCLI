@@ -1,8 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { SelectorError } from '@jackwener/opencli/errors';
+import { selectorError } from '@jackwener/opencli/errors';
 export const sendCommand = cli({
     site: 'cursor',
     name: 'send',
+    access: 'write',
     description: 'Send a prompt directly into Cursor Composer/Chat',
     domain: 'localhost',
     strategy: Strategy.UI,
@@ -24,7 +25,7 @@ export const sendCommand = cli({
         return true;
       })(${JSON.stringify(textToInsert)})`);
         if (!injected) {
-            throw new SelectorError('Cursor Composer input element');
+            throw selectorError('Cursor Composer input element');
         }
         // Submit the command. In Cursor, Enter usually submits the chat.
         await page.wait(0.5);

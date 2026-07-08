@@ -167,6 +167,7 @@ function hasAnyEvidence(storePayload, contactPayload, seed) {
 cli({
     site: '1688',
     name: 'store',
+    access: 'read',
     description: '1688 店铺/供应商公开信息（联系方式、主营、入驻年限、公开服务信号）',
     domain: 'www.1688.com',
     strategy: Strategy.COOKIE,

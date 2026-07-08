@@ -7,6 +7,7 @@ import { INPUT_ARGS, readJsonObjectInput } from '../maybeai/shared/options.js';
 cli({
   site: 'maybeai-video-app',
   name: 'payload',
+  access: 'read',
   description: 'Build local workflow variables and step payload previews for a MaybeAI video app',
   strategy: Strategy.PUBLIC,
   browser: false,

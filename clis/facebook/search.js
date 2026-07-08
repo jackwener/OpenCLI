@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'search',
+    access: 'read',
     description: 'Search Facebook for people, pages, or posts',
     domain: 'www.facebook.com',
     args: [

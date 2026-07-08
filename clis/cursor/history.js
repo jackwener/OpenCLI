@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const historyCommand = cli({
     site: 'cursor',
     name: 'history',
+    access: 'read',
     description: 'List recent chat sessions from the Cursor sidebar',
     domain: 'localhost',
     strategy: Strategy.UI,

@@ -3,6 +3,7 @@ import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'jd',
     name: 'search',
+    access: 'read',
     description: '京东商品搜索',
     domain: 'search.jd.com',
     strategy: Strategy.COOKIE,

@@ -2361,6 +2361,7 @@ async function waitForTaskKey(page, expected, timeoutSeconds = RESULT_TIMEOUT_SE
 cli({
   site: 'shopdora',
   name: 'product-shopdora-download',
+  access: 'read',
   description: 'Submit or reuse a Shopdora comment-analysis task for a Shopee product URL and download comments',
   domain: 'www.shopdora.com',
   strategy: Strategy.COOKIE,

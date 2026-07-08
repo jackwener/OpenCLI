@@ -5,6 +5,7 @@ import { buildImageAppPlan, RUN_EXTRA_ARGS } from './planner.js';
 cli({
   site: 'maybeai-image-app',
   name: 'select',
+  access: 'read',
   description: 'Select the best MaybeAI image app and compose normalized input locally',
   strategy: Strategy.PUBLIC,
   browser: false,

@@ -6,7 +6,7 @@
  * stable references to request bodies after running other commands,
  * so every `browser network` call snapshots its results to disk.
  *
- * Layout: <cacheDir>/browser-network/<workspace>.json
+ * Layout: <cacheDir>/browser-network/<session>.json
  * Entries expire after DEFAULT_TTL_MS (24h).
  */
 
@@ -31,11 +31,12 @@ export interface CachedNetworkEntry {
      */
     body_truncated?: boolean;
     body_full_size?: number;
+    timestamp?: number;
 }
 
 export interface NetworkCacheFile {
     version: 1;
-    workspace: string;
+    session: string;
     savedAt: string;
     entries: CachedNetworkEntry[];
 }
@@ -44,25 +45,36 @@ function getDefaultCacheDir(): string {
     return process.env.OPENCLI_CACHE_DIR || path.join(os.homedir(), '.opencli', 'cache');
 }
 
-export function getCachePath(workspace: string, baseDir: string = getDefaultCacheDir()): string {
-    const safe = workspace.replace(/[^a-zA-Z0-9_-]+/g, '_');
+export function getCachePath(session: string, baseDir: string = getDefaultCacheDir()): string {
+    const safe = session.replace(/[^a-zA-Z0-9_-]+/g, '_');
     return path.join(baseDir, 'browser-network', `${safe}.json`);
 }
 
 export function saveNetworkCache(
-    workspace: string,
+    session: string,
     entries: CachedNetworkEntry[],
     baseDir?: string,
 ): void {
-    const target = getCachePath(workspace, baseDir);
+    const target = getCachePath(session, baseDir);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     const payload: NetworkCacheFile = {
         version: 1,
-        workspace,
+        session,
         savedAt: new Date().toISOString(),
         entries,
     };
-    fs.writeFileSync(target, JSON.stringify(payload), 'utf-8');
+    // 0o600: entries can include auth tokens and PII from captured response
+    // bodies. fchmod before writing also tightens a pre-existing broad file.
+    let fd: number | undefined;
+    try {
+        fd = fs.openSync(target, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC, 0o600);
+        fs.fchmodSync(fd, 0o600);
+        fs.writeFileSync(fd, JSON.stringify(payload), 'utf8');
+    } finally {
+        if (fd !== undefined) {
+            fs.closeSync(fd);
+        }
+    }
 }
 
 export interface LoadOptions {
@@ -77,8 +89,8 @@ export interface LoadResult {
     ageMs?: number;
 }
 
-export function loadNetworkCache(workspace: string, opts: LoadOptions = {}): LoadResult {
-    const target = getCachePath(workspace, opts.baseDir);
+export function loadNetworkCache(session: string, opts: LoadOptions = {}): LoadResult {
+    const target = getCachePath(session, opts.baseDir);
     let raw: string;
     try { raw = fs.readFileSync(target, 'utf-8'); }
     catch { return { status: 'missing' }; }

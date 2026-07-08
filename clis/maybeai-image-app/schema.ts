@@ -6,6 +6,7 @@ import { inferImageKind } from './resolver.js';
 cli({
   site: 'maybeai-image-app',
   name: 'schema',
+  access: 'read',
   description: 'Show local unified input schema and backend variable mapping for a MaybeAI image app',
   strategy: Strategy.PUBLIC,
   browser: false,

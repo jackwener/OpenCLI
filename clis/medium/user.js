@@ -3,6 +3,7 @@ import { buildMediumUserUrl, loadMediumPosts } from './utils.js';
 cli({
     site: 'medium',
     name: 'user',
+    access: 'read',
     description: '获取 Medium 用户的文章列表',
     domain: 'medium.com',
     strategy: Strategy.COOKIE,

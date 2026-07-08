@@ -5,6 +5,7 @@ import { inferImageKind } from './resolver.js';
 cli({
   site: 'maybeai-image-app',
   name: 'apps',
+  access: 'read',
   description: 'List local MaybeAI image apps available in opencli',
   strategy: Strategy.PUBLIC,
   browser: false,

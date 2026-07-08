@@ -13,6 +13,7 @@ function parseArticleId(input) {
 cli({
     site: '36kr',
     name: 'article',
+    access: 'read',
     description: '获取36氪文章正文内容',
     domain: 'www.36kr.com',
     strategy: Strategy.INTERCEPT,
@@ -51,12 +52,15 @@ cli({
         if (!data?.title) {
             throw new CliError('NOT_FOUND', 'Article not found or failed to load', 'Check the article ID');
         }
+        if (!data.body) {
+            throw new CliError('PARSE_ERROR', 'Article body not found', '36kr page loaded but no article body paragraphs were extracted');
+        }
         return [
             { field: 'title', value: data.title },
-            { field: 'author', value: data.author || '-' },
-            { field: 'date', value: data.date || '-' },
+            { field: 'author', value: data.author || '' },
+            { field: 'date', value: data.date || '' },
             { field: 'url', value: `https://36kr.com/p/${articleId}` },
-            { field: 'body', value: data.body || '-' },
+            { field: 'body', value: data.body || '' },
         ];
     },
 });

@@ -1,10 +1,11 @@
-import { execSync } from 'node:child_process';
+import { statSync } from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ConfigError } from '@jackwener/opencli/errors';
+import { ArgumentError, ConfigError, TimeoutError } from '@jackwener/opencli/errors';
 import { activateChatGPT, getVisibleChatMessages, selectModel, MODEL_CHOICES, isGenerating, sendPrompt } from './ax.js';
 export const askCommand = cli({
     site: 'chatgpt-app',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt and wait for the AI response (send + wait + read)',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,
@@ -12,16 +13,33 @@ export const askCommand = cli({
     args: [
         { name: 'text', required: true, positional: true, help: 'Prompt to send' },
         { name: 'model', required: false, help: 'Model/mode to use: auto, instant, thinking, 5.2-instant, 5.2-thinking', choices: MODEL_CHOICES },
-        { name: 'timeout', required: false, help: 'Max seconds to wait for response (default: 30)', default: '30' },
+        { name: 'timeout', type: 'int', required: false, help: 'Max seconds to wait for response (default: 30)', default: 30 },
+        { name: 'image', required: false, help: 'Path to local image to attach (optional)' },
     ],
     columns: ['Role', 'Text'],
-    func: async (page, kwargs) => {
+    func: async (kwargs) => {
         if (process.platform !== 'darwin') {
             throw new ConfigError('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
         }
         const text = kwargs.text;
         const model = kwargs.model;
-        const timeout = parseInt(kwargs.timeout, 10) || 30;
+        const timeout = kwargs.timeout;
+        const image = kwargs.image;
+        if (image) {
+            let stat;
+            try {
+                stat = statSync(image);
+            }
+            catch {
+                throw new ArgumentError(`The specified image path does not exist: ${image}`);
+            }
+            if (!stat.isFile()) {
+                throw new ArgumentError(`The specified image path is not a file: ${image}`);
+            }
+        }
+        if (!Number.isInteger(timeout) || timeout < 1) {
+            throw new ArgumentError('--timeout must be a positive integer (seconds)');
+        }
         // Switch model before sending if requested
         if (model) {
             activateChatGPT();
@@ -30,7 +48,7 @@ export const askCommand = cli({
         const messagesBefore = getVisibleChatMessages();
         // Send the message
         activateChatGPT();
-        sendPrompt(text);
+        sendPrompt(text, image);
         // Wait for response: poll until ChatGPT stops generating ("Stop generating" button disappears),
         // then read the final response text.
         const pollInterval = 2;
@@ -38,7 +56,7 @@ export const askCommand = cli({
         let response = '';
         let generationStarted = false;
         for (let i = 0; i < maxPolls; i++) {
-            execSync(`sleep ${pollInterval}`);
+            await new Promise((resolve) => setTimeout(resolve, pollInterval * 1000));
             const generating = isGenerating();
             if (generating) {
                 generationStarted = true;
@@ -59,10 +77,7 @@ export const askCommand = cli({
             break;
         }
         if (!response) {
-            return [
-                { Role: 'User', Text: text },
-                { Role: 'System', Text: `No response within ${timeout}s. ChatGPT may still be generating.` },
-            ];
+            throw new TimeoutError('chatgpt-app/ask', timeout, 'ChatGPT may still be generating; rerun read or increase --timeout');
         }
         return [
             { Role: 'User', Text: text },

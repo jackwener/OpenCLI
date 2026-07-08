@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'twitter',
     name: 'block',
+    access: 'write',
     description: 'Block a Twitter user',
     domain: 'x.com',
     strategy: Strategy.UI,

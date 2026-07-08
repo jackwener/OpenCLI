@@ -3,6 +3,7 @@ import { EmptyResultError } from '@jackwener/opencli/errors';
 export const readCommand = cli({
     site: 'cursor',
     name: 'read',
+    access: 'read',
     description: 'Read the current Cursor chat/composer conversation history',
     domain: 'localhost',
     strategy: Strategy.UI,

@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'instagram',
     name: 'comment',
+    access: 'write',
     description: 'Comment on an Instagram post',
     domain: 'www.instagram.com',
     args: [

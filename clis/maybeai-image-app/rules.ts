@@ -4,6 +4,7 @@ import { getPlatformRule, listPlatformRules } from './platform-profiles.js';
 cli({
   site: 'maybeai-image-app',
   name: 'rules',
+  access: 'read',
   description: 'Show local platform-aware ratio, resolution, angle, and source rules',
   strategy: Strategy.PUBLIC,
   browser: false,

@@ -4,6 +4,7 @@ import { getModelProfile, listModelProfiles } from './model-profiles.js';
 cli({
   site: 'maybeai-image-app',
   name: 'models',
+  access: 'read',
   description: 'Show local MaybeAI image model priority and supported aspect ratios',
   strategy: Strategy.PUBLIC,
   browser: false,

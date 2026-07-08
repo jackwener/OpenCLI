@@ -2,7 +2,6 @@
  * Output formatting: table, JSON, Markdown, CSV, YAML.
  */
 
-import { styleText } from 'node:util';
 import Table from 'cli-table3';
 import yaml from 'js-yaml';
 
@@ -49,12 +48,12 @@ export function render(data: unknown, opts: RenderOptions = {}): void {
 
 function renderTable(data: unknown, opts: RenderOptions): void {
   const rows = normalizeRows(data);
-  if (!rows.length) { console.log(styleText('dim', '(no data)')); return; }
+  if (!rows.length) { console.log('(no data)'); return; }
   const columns = resolveColumns(rows, opts);
 
   const header = columns.map(c => capitalize(c));
   const table = new Table({
-    head: header.map(h => styleText('bold', h)),
+    head: header.map(h => h),
     style: { head: [], border: [] },
     wordWrap: true,
     wrapOnWordBoundary: true,
@@ -68,14 +67,14 @@ function renderTable(data: unknown, opts: RenderOptions): void {
   }
 
   console.log();
-  if (opts.title) console.log(styleText('dim', `  ${opts.title}`));
+  if (opts.title) console.log(`  ${opts.title}`);
   console.log(table.toString());
   const footer: string[] = [];
   footer.push(`${rows.length} items`);
   if (opts.elapsed !== undefined) footer.push(`${opts.elapsed.toFixed(1)}s`);
   if (opts.source) footer.push(opts.source);
   if (opts.footerExtra) footer.push(opts.footerExtra);
-  console.log(styleText('dim', footer.join(' · ')));
+  console.log(footer.join(' · '));
 }
 
 function renderJson(data: unknown): void {
@@ -91,7 +90,7 @@ function renderPlain(data: unknown, opts: RenderOptions): void {
     const entries = Object.entries(row);
     if (entries.length === 1) {
       const [key, value] = entries[0];
-      if (key === 'response' || key === 'content' || key === 'text' || key === 'value') {
+      if (key === 'response' || key === 'content' || key === 'markdown' || key === 'text' || key === 'value') {
         console.log(String(value ?? ''));
         return;
       }
@@ -111,6 +110,16 @@ function renderPlain(data: unknown, opts: RenderOptions): void {
 function renderMarkdown(data: unknown, opts: RenderOptions): void {
   const rows = normalizeRows(data);
   if (!rows.length) return;
+  if (rows.length === 1) {
+    const entries = Object.entries(rows[0]);
+    if (entries.length === 1) {
+      const [key, value] = entries[0];
+      if (key === 'content' || key === 'markdown' || key === 'text' || key === 'value') {
+        console.log(String(value ?? ''));
+        return;
+      }
+    }
+  }
   const columns = resolveColumns(rows, opts);
   console.log('| ' + columns.join(' | ') + ' |');
   console.log('| ' + columns.map(() => '---').join(' | ') + ' |');

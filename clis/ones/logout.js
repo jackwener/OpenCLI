@@ -3,6 +3,7 @@ import { onesFetchInPage } from './common.js';
 cli({
     site: 'ones',
     name: 'logout',
+    access: 'write',
     description: 'ONES Project API — invalidate current token (GET auth/logout) via Chrome Bridge',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

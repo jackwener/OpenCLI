@@ -34,6 +34,16 @@ export async function stepType(page: IPage | null, params: unknown, data: unknow
   return data;
 }
 
+export async function stepFill(page: IPage | null, params: unknown, data: unknown, args: Record<string, unknown>): Promise<unknown> {
+  if (isRecord(params)) {
+    const ref = String(render(params.ref ?? '', { args, data })).replace(/^@/, '');
+    const text = String(render(params.text ?? '', { args, data }));
+    await page!.fillText(ref, text);
+    if (params.submit) await page!.pressKey('Enter');
+  }
+  return data;
+}
+
 export async function stepWait(page: IPage | null, params: unknown, data: unknown, args: Record<string, unknown>): Promise<unknown> {
   if (typeof params === 'number') await page!.wait(params);
   else if (isRecord(params)) {

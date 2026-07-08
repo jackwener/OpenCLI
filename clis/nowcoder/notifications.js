@@ -3,6 +3,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'notifications',
+    access: 'read',
     description: 'Unread message summary',
     domain: 'www.nowcoder.com',
     args: [],

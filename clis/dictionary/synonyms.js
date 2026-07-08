@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'dictionary',
     name: 'synonyms',
+    access: 'read',
     description: 'Find synonyms for a specific word',
     domain: 'api.dictionaryapi.dev',
     strategy: Strategy.PUBLIC,

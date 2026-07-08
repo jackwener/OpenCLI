@@ -73,6 +73,7 @@ function buildDeleteScript(messageId) {
 cli({
     site: 'discord-app',
     name: 'delete',
+    access: 'write',
     description: 'Delete a message by its ID in the active Discord channel',
     domain: 'localhost',
     strategy: Strategy.UI,

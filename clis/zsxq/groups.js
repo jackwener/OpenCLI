@@ -3,6 +3,7 @@ import { ensureZsxqAuth, ensureZsxqPage, fetchFirstJson, getGroupsFromResponse, 
 cli({
     site: 'zsxq',
     name: 'groups',
+    access: 'read',
     description: '列出当前账号加入的星球',
     domain: 'wx.zsxq.com',
     strategy: Strategy.COOKIE,

@@ -4,6 +4,7 @@ import { DRIVE_API, apiPost } from './utils.js';
 cli({
     site: 'quark',
     name: 'rm',
+    access: 'write',
     description: 'Delete files from your Quark Drive',
     domain: 'pan.quark.cn',
     strategy: Strategy.COOKIE,

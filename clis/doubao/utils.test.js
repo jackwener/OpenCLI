@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
@@ -145,9 +146,31 @@ describe('doubao send strategy', () => {
     });
 });
 describe('doubao receive strategy', () => {
+    function runTurnsScript(html) {
+        const dom = new JSDOM(html, { url: 'https://www.doubao.com/chat', runScripts: 'outside-only' });
+        Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                return this.textContent || '';
+            },
+        });
+        dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({
+            width: 100,
+            height: 24,
+            top: 0,
+            left: 0,
+            right: 100,
+            bottom: 24,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        });
+        return dom.window.eval(__test__.getTurnsScript());
+    }
+
     it('keeps both the new skin selectors and the older structural fallbacks in the turns script', () => {
         const turnsScript = __test__.getTurnsScript();
-        expect(turnsScript).toContain('[class*="message-list-S2Fv2S"]');
+        expect(turnsScript).toContain('[class*="message-list-"]');
         expect(turnsScript).toContain('.container-PvPoAn');
         expect(turnsScript).toContain('[data-testid="message-list"]');
         expect(turnsScript).toContain('[class*="bg-g-receive-msg-bubble"]');
@@ -155,6 +178,96 @@ describe('doubao receive strategy', () => {
         expect(turnsScript).toContain('[data-foundation-type="receive-message-action-bar"]');
         expect(turnsScript).toContain('[data-testid="union_message"]');
         expect(turnsScript).toContain('[data-testid="message-block-container"]');
+    });
+
+    it('includes the 2026-05 doubao DOM-refactor inner-item / top-item wrappers and the flow-markdown-body assistant fallback', () => {
+        const turnsScript = __test__.getTurnsScript();
+        // New wrappers added to itemSelectors so message roots resolve under the
+        // refactored DOM where the legacy item-kDun2N / union_message / message-block-container
+        // / data-message-id selectors no longer match.
+        expect(turnsScript).toContain('[class*="inner-item-"]');
+        expect(turnsScript).toContain('[class*="top-item-"]');
+        // Assistant fallback: post-refactor doubao no longer emits receive-message /
+        // bg-g-receive-msg-bubble markup. Only signal is .flow-markdown-body content
+        // container without send-bubble.
+        expect(turnsScript).toContain('.flow-markdown-body');
+        expect(turnsScript).toContain('.md-box-root');
+    });
+
+    it('extracts clean assistant turns from the 2026-05 wrapper DOM without using whole-page chrome', () => {
+        const turns = runTurnsScript(`
+          <main>
+            <aside>历史对话</aside>
+            <section class="message-list-S2Fv2S">
+              <div class="top-item-user">
+                <div class="inner-item-user">
+                  <div class="bg-g-send-msg-bubble">测试一下，只回复OK</div>
+                </div>
+              </div>
+              <div class="top-item-assistant">
+                <div class="inner-item-assistant">
+                  <div class="flow-markdown-body"><p>OK</p></div>
+                </div>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(turns).toEqual([
+            { Role: 'User', Text: '测试一下，只回复OK' },
+            { Role: 'Assistant', Text: 'OK' },
+        ]);
+    });
+
+    it('extracts turns from the current hashed message list and markdown box DOM', () => {
+        const turns = runTurnsScript(`
+          <main>
+            <aside>历史对话</aside>
+            <section class="message-list-zLoNs1 opacity-100">
+              <div class="top-item-bAlX0F"></div>
+              <div class="inner-item-BjaxFt">
+                <div data-message-id="46370507058831106" class="flex-row flex w-full justify-end">
+                  <div class="bg-g-send-msg-bubble-bg">请联网查找太原红星天铂</div>
+                </div>
+              </div>
+              <div class="inner-item-BjaxFt">
+                <div data-message-id="46370507058842882" class="relative flex-row flex w-full">
+                  <div class="container-qX9Csx md-box-root"><h3>太原红星天铂公开信息整理</h3><p>项目位于南内环东街与东中环交汇处东北角。</p></div>
+                </div>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(turns).toEqual([
+            { Role: 'User', Text: '请联网查找太原红星天铂' },
+            { Role: 'Assistant', Text: '太原红星天铂公开信息整理项目位于南内环东街与东中环交汇处东北角。' },
+        ]);
+    });
+
+    it('does not let a stale hidden hashed message list mask the visible current one', () => {
+        const turns = runTurnsScript(`
+          <main>
+            <section class="message-list-old" style="display:none">
+              <div class="inner-item-old">
+                <div class="bg-g-send-msg-bubble-bg">旧问题</div>
+              </div>
+            </section>
+            <section class="message-list-current">
+              <div class="inner-item-current">
+                <div class="bg-g-send-msg-bubble-bg">当前问题</div>
+              </div>
+              <div class="inner-item-current">
+                <div class="md-box-root"><p>当前回答</p></div>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(turns).toEqual([
+            { Role: 'User', Text: '当前问题' },
+            { Role: 'Assistant', Text: '当前回答' },
+        ]);
     });
 
     it('extends transcript-noise cleanup for the current zh-CN chrome copy', () => {

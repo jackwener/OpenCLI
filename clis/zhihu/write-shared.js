@@ -194,7 +194,14 @@ function buildResolveCurrentUserIdentityJs() {
 
     const navScopes = Array.from(document.querySelectorAll(navScopeSelector));
     const slug = findCurrentUserSlugFromRoots(navScopes, true) || findCurrentUserSlugFromRoots([document], false);
-    return slug ? { slug } : null;
+    if (slug) return { slug };
+
+    var avatarImgs = document.querySelectorAll('header img[alt*="\\u4e3b\\u9875"]');
+    for (var ai = 0; ai < avatarImgs.length; ai++) {
+      var altMatch = (avatarImgs[ai].alt || '').match(/\\u70b9\\u51fb\\u6253\\u5f00(.+?)\\u7684\\u4e3b\\u9875/);
+      if (altMatch) return { slug: altMatch[1] };
+    }
+    return null;
   })()`;
 }
 export async function resolveCurrentUserIdentity(page) {

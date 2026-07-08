@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'bluesky',
     name: 'search',
+    access: 'read',
     description: 'Search Bluesky users',
     domain: 'public.api.bsky.app',
     strategy: Strategy.PUBLIC,

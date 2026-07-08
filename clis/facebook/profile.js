@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'facebook',
     name: 'profile',
+    access: 'read',
     description: 'Get Facebook user/page profile info',
     domain: 'www.facebook.com',
     args: [

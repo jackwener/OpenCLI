@@ -1,6 +1,6 @@
 # Success-Rate Pitfalls
 
-10 个**静默失败**（adapter 看起来能跑、verify 能过，但数据是错的）的坑。每条给：现象 → 根因 → 防御手段。
+11 个**静默失败**（adapter 看起来能跑、verify 能过，但数据是错的）的坑。每条给：现象 → 根因 → 防御手段。
 
 不是风格建议。每条都对应过一次真实翻车。
 
@@ -135,10 +135,28 @@
 
 ---
 
+## 11. `aria-label` / `placeholder` / `title` 是 locale-dependent 文本
+
+**现象**：你本地英文 Chrome 测 `button[aria-label="Submit"]` 一切正常，verify fixture 也是英文环境抓的。用户把 `chrome://settings/languages` 切中文，同一个按钮变 `aria-label="提交"`，adapter silent 0 匹配——退化成 `notEmpty` / `types` 都没法 fire 的"adapter 跑完返 0 行"。
+
+**根因**：`aria-label` / `title` / `placeholder` / `alt` / `textContent` 都是页面的**用户可见文本**，被站点 i18n 框架翻译。用它们当 selector anchor 等于 "select by visible text"，locale 一动整个选择器就废。
+
+**防御**：
+- 优先用 locale-stable 标识：`data-testid` / `data-*` / 稳定 `id` / `class`。先确认不是 hash / A-B test 产物
+- `role` 不按 locale 翻译，但通常不唯一；只能当 semantic / scope filter，不能用裸 `[role="button"]` 当 primary
+- 站点只暴露 `aria-label`（典型如 ChatGPT web 某些 control）时，写 fallback list，至少 en + zh-CN：`'[aria-label="Send"], [aria-label="发送"]'`
+- commit 前 grep `aria-label=` / `placeholder=` / `title=` 的硬编码字符串，确认每条都有兜底 locale
+- 找不到 control 要 typed fail-fast（例如 `CommandExecutionError` / send-failed），不要把 selector miss 变成空 rows 或假成功
+- 详细 framework + 活例见 `adapter-template.md §Selector 稳定性`
+
+不要去给 framework 加 `--i18n` flag 自动展开——多一层 indirection 还要维护翻译字典，纯 over-engineering。
+
+---
+
 ## 总结：静默失败的共同特征
 
 1. **verify 绿 ≠ 数据对**。verify 只能证"结构没坏"，证不出"值对不对"。Step 11 肉眼比对是必须的。
 2. **"字段有值"是个比"字段为空"更危险的失败态**。空你会去查，有值你会 fallthrough。
 3. **fixture 四件套一起上**：`patterns` + `notEmpty` + `mustNotContain` + `mustBeTruthy`——每件挡一类问题，缺一个就漏。
 
-回写 `notes.md` 时把你踩的新坑写进去。下次就有第 11 条了。
+回写 `notes.md` 时把你踩的新坑写进去。下次就有第 12 条了。

@@ -9,6 +9,7 @@ function toLocalTime(utcStr) {
 cli({
     site: 'linux-do',
     name: 'user-topics',
+    access: 'read',
     description: 'linux.do 用户创建的话题',
     domain: 'linux.do',
     strategy: Strategy.COOKIE,

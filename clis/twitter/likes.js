@@ -1,9 +1,10 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId, extractMedia } from './shared.js';
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
-const LIKES_QUERY_ID = 'RozQdCp4CilQzrcuU0NY5w';
-const USER_BY_SCREEN_NAME_QUERY_ID = 'qRednkZG-rn1P6b48NINmQ';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
+import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
+const LIKES_QUERY_ID = 'CDWHmpZeSdIJ3HGeRbNm0w';
+const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
+const MAX_PAGINATION_PAGES = 100;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -137,77 +138,99 @@ function parseLikes(data, seen) {
 cli({
     site: 'twitter',
     name: 'likes',
-    description: 'Fetch liked tweets of a Twitter user',
+    access: 'read',
+    description: 'Fetch liked tweets of a Twitter user (defaults to the logged-in user when no username is given)',
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (without @). Defaults to logged-in user.' },
-        { name: 'limit', type: 'int', default: 20 },
+        { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
+        { name: 'limit', type: 'int', default: 20, help: 'Maximum number of liked tweets to return (default 20).' },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the liked tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (recency) ordering.' },
     ],
-    columns: ['author', 'name', 'text', 'likes', 'url', 'has_media', 'media_urls'],
+    columns: ['id', 'author', 'name', 'text', 'likes', 'retweets', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
-        let username = (kwargs.username || '').replace(/^@/, '');
-        await page.goto('https://x.com');
-        await page.wait(3);
-        const ct0 = await page.evaluate(`() => {
-      return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-    }`);
+        const rawUsername = String(kwargs.username ?? '').trim();
+        let username = normalizeTwitterScreenName(rawUsername);
+        if (rawUsername && !username) {
+            throw new ArgumentError('twitter likes username must be a valid Twitter/X handle', 'Example: opencli twitter likes @jack --limit 20');
+        }
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        // If no username provided, detect the logged-in user
+        // If no username provided, detect the logged-in user.
+        // Bridge wraps primitive page.evaluate returns as { session, data:<value> };
+        // unwrap so the href string is usable downstream.
         if (!username) {
-            const href = await page.evaluate(`() => {
+            // Force a navigation to the home surface so the AppTabBar sidebar
+            // is rendered; the framework pre-nav lands on bare x.com which
+            // does not always expose AppTabBar_Profile_Link.
+            await page.goto('https://x.com/home');
+            await page.wait({ selector: '[data-testid="primaryColumn"]' });
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
         const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
         return link ? link.getAttribute('href') : null;
-      }`);
-            if (!href)
+      }`));
+            if (!href || typeof href !== 'string')
                 throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
-            username = href.replace('/', '');
+            username = normalizeTwitterScreenName(href);
+            if (!username)
+                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
         }
         const likesQueryId = await resolveTwitterQueryId(page, 'Likes', LIKES_QUERY_ID);
         const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
         });
         // Get userId from screen_name
-        const userId = await page.evaluate(`async () => {
+        const userId = unwrapBrowserResult(await page.evaluate(`async () => {
       const screenName = ${JSON.stringify(username)};
       const url = ${JSON.stringify(buildUserByScreenNameUrl(userByScreenNameQueryId, username))};
       const resp = await fetch(url, { headers: ${headers}, credentials: 'include' });
       if (!resp.ok) return null;
       const d = await resp.json();
       return d.data?.user?.result?.rest_id || null;
-    }`);
+    }`));
         if (!userId) {
             throw new CommandExecutionError(`Could not find user @${username}`);
         }
         const allTweets = [];
         const seen = new Set();
         let cursor = null;
-        for (let i = 0; i < 5 && allTweets.length < limit; i++) {
+        let lastRawResponse = null;
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
             const fetchCount = Math.min(100, limit - allTweets.length + 10);
             const apiUrl = buildLikesUrl(likesQueryId, userId, fetchCount, cursor);
-            const data = await page.evaluate(`async () => {
+            const data = unwrapBrowserResult(await page.evaluate(`async () => {
         const r = await fetch("${apiUrl}", { headers: ${headers}, credentials: 'include' });
         return r.ok ? await r.json() : { error: r.status };
-      }`);
+      }`));
             if (data?.error) {
                 if (allTweets.length === 0)
-                    throw new CommandExecutionError(`HTTP ${data.error}: Failed to fetch likes. queryId may have expired.`);
+                    throw new CommandExecutionError(describeTwitterApiError('Likes', data.error));
                 break;
             }
+            lastRawResponse = data;
             const { tweets, nextCursor } = parseLikes(data, seen);
             allTweets.push(...tweets);
             if (!nextCursor || nextCursor === cursor)
                 break;
             cursor = nextCursor;
         }
-        return allTweets.slice(0, limit);
+        if (allTweets.length === 0) {
+            if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
+                throw new EmptyResultError('twitter likes', `No likes returned for @${username} (Likes are private by default on X; only the account owner can view their own likes)`);
+            }
+            throw new EmptyResultError('twitter likes', `No likes found for @${username}`);
+        }
+        const trimmed = allTweets.slice(0, limit);
+        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     },
 });
 export const __test__ = {

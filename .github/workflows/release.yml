@@ -26,6 +26,17 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # Build before the manifest drift gate: adapter modules import
+      # @jackwener/opencli/* through package exports, which resolve to dist/.
+      # A fresh release checkout has no dist/ until the full build runs.
+      - name: Build package and verify cli-manifest.json is up-to-date
+        run: |
+          npm run build
+          if ! git diff --exit-code -- cli-manifest.json; then
+            echo "::error::cli-manifest.json drift detected at release time. Run 'npm run build' locally and commit the result before tagging."
+            exit 1
+          fi
+
       - name: Install extension dependencies
         run: npm ci
         working-directory: extension
@@ -40,7 +51,7 @@ jobs:
 
       - name: Create extension ZIP
         run: |
-          EXT_VERSION=$(node -p "require('./extension/package.json').version")
+          EXT_VERSION=$(jq -r .version extension/package.json)
           cd extension-package
           zip -r ../opencli-extension-v${EXT_VERSION}.zip .
 

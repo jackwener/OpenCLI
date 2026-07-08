@@ -10,6 +10,7 @@ import {
 cli({
   site: 'uiverse',
   name: 'preview',
+    access: 'read',
   description: 'Capture a screenshot of the Uiverse preview element',
   domain: 'uiverse.io',
   strategy: Strategy.PUBLIC,

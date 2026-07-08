@@ -53,52 +53,53 @@ describe('gemini/deep-research-result', () => {
             structuredTurnsTrusted: true,
         });
     });
+    const runCommand = (kwargs) => deepResearchResultCommand.func(page, { timeout: 120, ...kwargs });
     it('uses latest conversation when query is empty', async () => {
-        const result = await deepResearchResultCommand.func(page, { query: '   ' });
+        const result = await runCommand({ query: '   ' });
         expect(page.goto).toHaveBeenCalledWith('https://gemini.google.com/app/abc', { waitUntil: 'load', settleMs: 2500 });
         expect(result).toEqual([{ response: 'https://files.example.com/report.md' }]);
     });
     it('falls back to current page response when query is empty and sidebar has no conversations', async () => {
         mockGetGeminiConversationList.mockResolvedValue([]);
         mockResolveGeminiConversationForQuery.mockReturnValue(null);
-        const result = await deepResearchResultCommand.func(page, { query: '' });
+        const result = await runCommand({ query: '' });
         expect(page.goto).not.toHaveBeenCalled();
         expect(result).toEqual([{ response: 'https://files.example.com/report.md' }]);
     });
     it('returns a validation message when match mode is invalid', async () => {
-        const result = await deepResearchResultCommand.func(page, { query: 'A', match: 'prefix' });
+        const result = await runCommand({ query: 'A', match: 'prefix' });
         expect(result).toEqual([{ response: 'Invalid match mode. Use contains or exact.' }]);
     });
     it('returns a signed-out message when Gemini page state indicates logged out', async () => {
         mockGetGeminiPageState.mockResolvedValue({ isSignedIn: false });
-        const result = await deepResearchResultCommand.func(page, { query: 'A' });
+        const result = await runCommand({ query: 'A' });
         expect(result).toEqual([{ response: 'Not signed in to Gemini.' }]);
     });
     it('opens matched conversation by URL and returns exported report url', async () => {
-        const result = await deepResearchResultCommand.func(page, { query: 'A title', match: 'exact' });
+        const result = await runCommand({ query: 'A title', match: 'exact' });
         expect(page.goto).toHaveBeenCalledWith('https://gemini.google.com/app/abc', { waitUntil: 'load', settleMs: 2500 });
         expect(result).toEqual([{ response: 'https://files.example.com/report.md' }]);
     });
     it('accepts a direct conversation URL and reads response from that page', async () => {
         const url = 'https://gemini.google.com/app/direct-id';
-        const result = await deepResearchResultCommand.func(page, { query: url, match: 'contains' });
+        const result = await runCommand({ query: url, match: 'contains' });
         expect(page.goto).toHaveBeenCalledWith(url, { waitUntil: 'load', settleMs: 2500 });
         expect(result).toEqual([{ response: 'https://files.example.com/report.md' }]);
     });
     it('passes query and mode into resolveGeminiConversationForQuery', async () => {
-        const result = await deepResearchResultCommand.func(page, { query: 'title', match: 'contains' });
+        const result = await runCommand({ query: 'title', match: 'contains' });
         expect(mockResolveGeminiConversationForQuery).toHaveBeenCalledWith([{ Title: 'A title', Url: 'https://gemini.google.com/app/abc' }], 'title', 'contains');
         expect(result).toEqual([{ response: 'https://files.example.com/report.md' }]);
     });
     it('falls back to click-by-title and returns not-found when click fails', async () => {
         mockResolveGeminiConversationForQuery.mockReturnValue(null);
         mockClickGeminiConversationByTitle.mockResolvedValue(false);
-        const result = await deepResearchResultCommand.func(page, { query: 'missing', match: 'contains' });
+        const result = await runCommand({ query: 'missing', match: 'contains' });
         expect(result).toEqual([{ response: 'No conversation matched: missing' }]);
     });
     it('returns pending message when export url is unavailable and completion is not confirmed', async () => {
         mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
-        const result = await deepResearchResultCommand.func(page, { query: 'A title' });
+        const result = await runCommand({ query: 'A title' });
         expect(result).toEqual([{ response: 'Deep Research may still be running or preparing export. Please wait and retry later.' }]);
     });
     it('returns waiting message when deep research is still generating', async () => {
@@ -110,13 +111,13 @@ describe('gemini/deep-research-result', () => {
             isGenerating: true,
             structuredTurnsTrusted: true,
         });
-        const result = await deepResearchResultCommand.func(page, { query: 'A title' });
+        const result = await runCommand({ query: 'A title' });
         expect(result).toEqual([{ response: 'Deep Research is still running. Please wait and retry later.' }]);
     });
     it('returns waiting message when assistant response indicates research in progress', async () => {
         mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
         mockGetLatestGeminiAssistantResponse.mockResolvedValue('正在研究中，请稍候。');
-        const result = await deepResearchResultCommand.func(page, { query: 'A title' });
+        const result = await runCommand({ query: 'A title' });
         expect(result).toEqual([{ response: 'Deep Research is still running. Please wait and retry later.' }]);
     });
     it('returns waiting message when transcript indicates in-progress status', async () => {
@@ -129,7 +130,7 @@ describe('gemini/deep-research-result', () => {
             isGenerating: false,
             structuredTurnsTrusted: true,
         });
-        const result = await deepResearchResultCommand.func(page, { query: 'A title' });
+        const result = await runCommand({ query: 'A title' });
         expect(result).toEqual([{ response: 'Deep Research is still running. Please wait and retry later.' }]);
     });
     it('returns no-docs message when text indicates completed state', async () => {
@@ -142,13 +143,13 @@ describe('gemini/deep-research-result', () => {
             isGenerating: false,
             structuredTurnsTrusted: true,
         });
-        const result = await deepResearchResultCommand.func(page, { query: 'A title' });
+        const result = await runCommand({ query: 'A title' });
         expect(result).toEqual([{ response: 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.' }]);
     });
     it('returns pending message when assistant response is empty', async () => {
         mockExportGeminiDeepResearchReport.mockResolvedValue({ url: '', source: 'none' });
         mockGetLatestGeminiAssistantResponse.mockResolvedValue('');
-        const result = await deepResearchResultCommand.func(page, { query: 'A title' });
+        const result = await runCommand({ query: 'A title' });
         expect(result).toEqual([{ response: 'Deep Research may still be running or preparing export. Please wait and retry later.' }]);
     });
 });

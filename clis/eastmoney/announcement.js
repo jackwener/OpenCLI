@@ -9,6 +9,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
   site: 'eastmoney',
   name: 'announcement',
+    access: 'read',
   description: '上市公司公告（按交易所筛选）',
   domain: 'np-anotice-stock.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -18,7 +19,7 @@ cli({
     { name: 'limit',  type: 'int',    default: 20,            help: '返回数量 (max 100)' },
   ],
   columns: ['time', 'code', 'name', 'title', 'category', 'url'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const market = String(args.market ?? 'SHA,SZA,BJA').trim() || 'SHA,SZA,BJA';
     const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));
 

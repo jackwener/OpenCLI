@@ -3,7 +3,6 @@
  *
  * Uses raw stdin mode + ANSI escape codes for interactive prompts.
  */
-import { styleText } from 'node:util';
 import { EXIT_CODES } from './errors.js';
 
 export interface CheckboxItem {
@@ -12,7 +11,6 @@ export interface CheckboxItem {
   checked: boolean;
   /** Optional status to display after the label */
   status?: string;
-  statusColor?: 'green' | 'yellow' | 'red' | 'dim';
 }
 
 /**
@@ -40,35 +38,23 @@ export async function checkboxPrompt(
   let cursor = 0;
   const state = items.map(i => ({ ...i }));
 
-  function colorStatus(status: string | undefined, color: CheckboxItem['statusColor']): string {
-    if (!status) return '';
-    switch (color) {
-      case 'green': return styleText('green', status);
-      case 'yellow': return styleText('yellow', status);
-      case 'red': return styleText('red', status);
-      case 'dim': return styleText('dim', status);
-      default: return styleText('dim', status);
-    }
-  }
-
   function render() {
     // Move cursor to start and clear
     let out = '';
 
     if (opts.title) {
-      out += `\n${styleText('bold', opts.title)}\n\n`;
+      out += `\n${opts.title}\n\n`;
     }
 
     for (let i = 0; i < state.length; i++) {
       const item = state[i];
-      const pointer = i === cursor ? styleText('cyan', '❯') : ' ';
-      const checkbox = item.checked ? styleText('green', '◉') : styleText('dim', '○');
-      const label = i === cursor ? styleText('bold', item.label) : item.label;
-      const status = colorStatus(item.status, item.statusColor);
-      out += `  ${pointer} ${checkbox} ${label}${status ? `  ${status}` : ''}\n`;
+      const pointer = i === cursor ? '❯' : ' ';
+      const checkbox = item.checked ? '◉' : '○';
+      const status = item.status ?? '';
+      out += `  ${pointer} ${checkbox} ${item.label}${status ? `  ${status}` : ''}\n`;
     }
 
-    out += `\n  ${styleText('dim', '↑↓ navigate  ·  Space toggle  ·  a all  ·  Enter confirm  ·  q cancel')}\n`;
+    out += `\n  ↑↓ navigate  ·  Space toggle  ·  a all  ·  Enter confirm  ·  q cancel\n`;
 
     return out;
   }
@@ -146,7 +132,7 @@ export async function checkboxPrompt(
         cleanup();
         const selected = state.filter(i => i.checked).map(i => i.value);
         // Show summary
-        stdout.write(`  ${styleText('green', '✓')} ${styleText('bold', `${selected.length} file(s) selected`)}\n\n`);
+        stdout.write(`  ✓ ${selected.length} file(s) selected\n\n`);
         resolve(selected);
         return;
       }
@@ -154,7 +140,7 @@ export async function checkboxPrompt(
       // q / Esc — cancel
       if (key === 'q' || key === '\x1b') {
         cleanup();
-        stdout.write(`  ${styleText('yellow', '✗')} ${styleText('dim', 'Cancelled')}\n\n`);
+        stdout.write(`  ✗ Cancelled\n\n`);
         resolve([]);
         return;
       }
@@ -185,7 +171,7 @@ export async function confirmPrompt(
   if (!stdin.isTTY) return defaultYes;
 
   const hint = defaultYes ? '[Y/n]' : '[y/N]';
-  stdout.write(`  ${message} ${styleText('dim', hint)} `);
+  stdout.write(`  ${message} ${hint} `);
 
   return new Promise<boolean>((resolve) => {
     const wasRaw = stdin.isRaw;

@@ -64,11 +64,36 @@ function errorMessage(err: unknown): string {
 }
 
 /**
+ * Machine-readable error codes set by the extension at the failure site.
+ * These are authoritative — the message-pattern tables below are only a
+ * fallback for extensions that predate error codes.
+ *
+ * `detached_mid_command` and `cdp_timeout` are deliberately non-retryable:
+ * both mean execution died MID-command, so a blind re-run could double-apply
+ * a write. (The legacy pattern table still retries "Detached while handling
+ * command" because old extensions cannot distinguish pre- from mid-execution.)
+ */
+const ERROR_CODE_ADVICE: Record<string, RetryAdvice> = {
+  attach_failed: { kind: 'extension-transient', retryable: true, delayMs: 1500 },
+  tab_gone: { kind: 'extension-transient', retryable: true, delayMs: 1500 },
+  target_navigated: { kind: 'target-navigation', retryable: true, delayMs: 200 },
+  detached_mid_command: { kind: 'non-retryable', retryable: false, delayMs: 0 },
+  cdp_timeout: { kind: 'non-retryable', retryable: false, delayMs: 0 },
+};
+
+/**
  * Classify a browser error and return retry advice.
  *
  * Single source of truth for "is this error transient?" across all layers.
+ * Prefers the machine-readable `code` carried by BrowserCommandError; falls
+ * back to message patterns for legacy extensions.
  */
 export function classifyBrowserError(err: unknown): RetryAdvice {
+  const code = err && typeof err === 'object' ? (err as { code?: unknown }).code : undefined;
+  if (typeof code === 'string' && ERROR_CODE_ADVICE[code]) {
+    return ERROR_CODE_ADVICE[code];
+  }
+
   const msg = errorMessage(err);
 
   // Extension/daemon transient errors — longer recovery time
@@ -81,8 +106,10 @@ export function classifyBrowserError(err: unknown): RetryAdvice {
     return { kind: 'target-navigation', retryable: true, delayMs: 200 };
   }
 
-  // CDP protocol error with target context (e.g., -32000 "target closed")
-  if (msg.includes('-32000') && msg.toLowerCase().includes('target')) {
+  // CDP protocol error with target/context invalidation (e.g., -32000 "target closed" or
+  // -32000 "Cannot find default execution context" — both indicate the inspected target
+  // went away and a fresh attach should recover).
+  if (msg.includes('-32000') && /target|context/i.test(msg)) {
     return { kind: 'target-navigation', retryable: true, delayMs: 200 };
   }
 
@@ -105,7 +132,7 @@ export function formatBrowserConnectError(kind: ConnectFailureKind, detail?: str
     case 'daemon-not-running':
       return new BrowserConnectError(
         'Cannot connect to opencli daemon.' + (detail ? `\n\n${detail}` : ''),
-        `The daemon should auto-start. If it keeps failing, make sure port ${DEFAULT_DAEMON_PORT} is available.`,
+        `Run \`opencli doctor\` to diagnose, or \`opencli daemon restart\` to force a fresh daemon. Default port is ${DEFAULT_DAEMON_PORT}.`,
         kind,
       );
     case 'extension-not-connected':

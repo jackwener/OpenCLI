@@ -16,6 +16,7 @@ import {
 cli({
   site: 'maybeai-image-app',
   name: 'plan',
+  access: 'read',
   description: 'Plan MaybeAI image app execution and return OpenClaw-friendly missing-input questions',
   strategy: Strategy.PUBLIC,
   browser: false,

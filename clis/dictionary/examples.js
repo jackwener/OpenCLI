@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'dictionary',
     name: 'examples',
+    access: 'read',
     description: 'Read real-world example sentences utilizing the word',
     domain: 'api.dictionaryapi.dev',
     strategy: Strategy.PUBLIC,

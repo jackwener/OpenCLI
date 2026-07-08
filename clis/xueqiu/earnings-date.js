@@ -1,9 +1,10 @@
 import { cli } from '@jackwener/opencli/registry';
 import { EmptyResultError } from '@jackwener/opencli/errors';
-import { fetchXueqiuJson } from './utils.js';
+import { fetchXueqiuJson, formatChinaDate } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'earnings-date',
+    access: 'read',
     description: '获取股票预计财报发布日期（公司大事）',
     domain: 'xueqiu.com',
     browser: true,
@@ -31,7 +32,7 @@ cli({
             .filter((item) => item.subtype === 2)
             .map((item) => {
             const ts = item.timestamp;
-            const dateStr = ts ? new Date(ts).toISOString().split('T')[0] : null;
+            const dateStr = ts ? formatChinaDate(ts) : null;
             const isFuture = ts && ts > now;
             return { date: dateStr, report: item.message, status: isFuture ? '⏳ 未发布' : '✅ 已发布', _ts: ts, _future: isFuture };
         });

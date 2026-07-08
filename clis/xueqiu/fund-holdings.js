@@ -3,6 +3,7 @@ import { fetchDanjuanAll } from './danjuan-utils.js';
 cli({
     site: 'xueqiu',
     name: 'fund-holdings',
+    access: 'read',
     description: '获取蛋卷基金持仓明细（可用 --account 按子账户过滤）',
     domain: 'danjuanfunds.com',
     strategy: Strategy.COOKIE,

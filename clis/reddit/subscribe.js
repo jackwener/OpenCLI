@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'subscribe',
+    access: 'write',
     description: 'Subscribe or unsubscribe to a subreddit',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,

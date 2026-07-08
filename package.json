@@ -1,6 +1,6 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.7.8",
+  "version": "1.8.6",
   "publishConfig": {
     "access": "public"
   },
@@ -34,6 +34,7 @@
   "files": [
     "dist/src/",
     "clis/",
+    "skills/opencli-*/**",
     "cli-manifest.json",
     "scripts/",
     "README.md",
@@ -42,13 +43,14 @@
   "scripts": {
     "dev": "tsx src/main.ts",
     "dev:bun": "bun src/main.ts",
-    "build": "npm run clean-dist && tsc && npm run copy-yaml && npm run build-manifest",
-    "build-manifest": "node dist/src/build-manifest.js",
+    "build": "npm run clean-dist && npm run copy-yaml && npm run build-manifest",
+    "prebuild-manifest": "tsc --build && node -e \"require('fs').chmodSync('dist/src/main.js', 0o755)\"",
+    "build-manifest": "tsx src/build-manifest.ts",
     "clean-dist": "node scripts/clean-dist.cjs",
     "copy-yaml": "node scripts/copy-yaml.cjs",
     "start": "node dist/src/main.js",
     "start:bun": "bun dist/src/main.js",
-    "preuninstall": "node -e \"fetch('http://127.0.0.1:'+(process.env.OPENCLI_DAEMON_PORT||'19825')+'/shutdown',{method:'POST',headers:{'X-OpenCLI':'1'},signal:AbortSignal.timeout(3000)}).catch(()=>{})\" || true",
+    "preuninstall": "node -e \"fetch('http://127.0.0.1:19825/shutdown',{method:'POST',headers:{'X-OpenCLI':'1'},signal:AbortSignal.timeout(3000)}).catch(()=>{})\" || true",
     "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
     "prepare": "[ -d src ] && npm run build || true",
@@ -57,7 +59,10 @@
     "test:bun": "bun vitest run --project unit --project extension --project adapter",
     "test:adapter": "vitest run --project adapter",
     "test:all": "vitest run",
-    "test:e2e": "vitest run --project e2e",
+    "test:e2e": "vitest run --project e2e-fixed-port --project e2e",
+    "advise:listing-id-pairing": "node scripts/check-listing-id-pairing.mjs",
+    "check:silent-column-drop": "node scripts/check-silent-column-drop.mjs",
+    "check:typed-error-lint": "node scripts/check-typed-error-lint.mjs",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
@@ -81,7 +86,7 @@
     "js-yaml": "^4.1.0",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
-    "undici": "^8.0.2",
+    "undici": "^6.27.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -95,5 +100,11 @@
     "typescript": "^6.0.2",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.10",
+    "vitepress": {
+      "vite": "6.4.2"
+    }
   }
 }

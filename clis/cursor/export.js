@@ -4,6 +4,7 @@ function makeExportCommand(site, readSelector) {
     return cli({
         site,
         name: 'export',
+    access: 'read',
         description: `Export the current ${site} conversation to a Markdown file`,
         domain: 'localhost',
         strategy: Strategy.UI,

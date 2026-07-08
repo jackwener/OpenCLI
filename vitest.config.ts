@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
 const includeExtendedE2e = process.env.OPENCLI_E2E === '1';
+const includeAxChromeE2e = process.env.OPENCLI_AX_E2E === '1';
 
 export default defineConfig({
   test: {
@@ -29,6 +30,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'e2e-fixed-port',
+          include: ['tests/e2e/browser-tabs.test.ts', 'tests/e2e/daemon-transport.test.ts'],
+          fileParallelism: false,
+          sequence: { groupOrder: 2 },
+        },
+      },
+      {
+        test: {
           name: 'e2e',
           include: [
             'tests/e2e/browser-public.test.ts',
@@ -37,21 +46,21 @@ export default defineConfig({
             'tests/e2e/management.test.ts',
             'tests/e2e/output-formats.test.ts',
             'tests/e2e/plugin-management.test.ts',
-            'tests/e2e/browser-tabs.test.ts',
             'tests/e2e/article-download-pipeline.test.ts',
+            ...(includeAxChromeE2e ? ['tests/e2e/browser-ax-chrome.test.ts'] : []),
             // Extended browser tests (20+ sites) — opt-in only:
             //   OPENCLI_E2E=1 npx vitest run
             ...(includeExtendedE2e ? ['tests/e2e/browser-public-extended.test.ts', 'tests/e2e/browser-auth.test.ts', 'tests/e2e/douban.test.ts'] : []),
           ],
           maxWorkers: 2,
-          sequence: { groupOrder: 2 },
+          sequence: { groupOrder: 3 },
         },
       },
       {
         test: {
           name: 'smoke',
           include: ['tests/smoke/**/*.test.ts'],
-          sequence: { groupOrder: 3 },
+          sequence: { groupOrder: 4 },
         },
       },
     ],

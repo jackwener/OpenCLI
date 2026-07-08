@@ -4,6 +4,7 @@ import { clampInt, normalizeNumericId } from '../_shared/common.js';
 cli({
     site: 'jd',
     name: 'add-cart',
+    access: 'write',
     description: '京东加入购物车',
     domain: 'item.jd.com',
     strategy: Strategy.COOKIE,

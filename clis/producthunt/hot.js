@@ -9,6 +9,7 @@ import { pickVoteCount } from './utils.js';
 cli({
     site: 'producthunt',
     name: 'hot',
+    access: 'read',
     description: "Today's top Product Hunt launches with vote counts",
     domain: 'www.producthunt.com',
     strategy: Strategy.INTERCEPT,

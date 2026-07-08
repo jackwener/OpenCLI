@@ -3,6 +3,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'experience',
+    access: 'read',
     description: 'Interview experience posts',
     domain: 'www.nowcoder.com',
     args: [

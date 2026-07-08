@@ -15,7 +15,7 @@ describe('twitter list-tweets parser', () => {
             core: {
                 user_results: {
                     result: {
-                        legacy: { screen_name: 'bob', name: 'Bob' },
+                        legacy: { screen_name: 'bob', name: 'Bob', description: 'List author bio' },
                     },
                 },
             },
@@ -24,13 +24,103 @@ describe('twitter list-tweets parser', () => {
             id: '99',
             author: 'bob',
             name: 'Bob',
+            bio: 'List author bio',
             text: 'hello list',
             likes: 3,
             retweets: 1,
             replies: 2,
             created_at: 'Wed Apr 16 10:00:00 +0000 2026',
             url: 'https://x.com/bob/status/99',
+            has_media: false,
+            media_urls: [],
+            media_posters: [],
+            card: null,
+            quoted_tweet: null,
         });
+    });
+
+    it('surfaces quoted_tweet field on quote tweets (mini-tweet shape)', () => {
+        // 1778721843 stale-snapshot case from ml-scout — downstream consumers
+        // need quote-tweet content to render the embedded preview card.
+        const tweet = extractTimelineTweet({
+            rest_id: '500',
+            legacy: {
+                full_text: '总的来说，还是有个好爹',
+                is_quote_status: true,
+                quoted_status_id_str: '499',
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'rwayne' } } } },
+            quoted_status_result: {
+                result: {
+                    rest_id: '499',
+                    legacy: {
+                        full_text: '罗某官二代背景考',
+                        created_at: 'Wed May 13 22:00:00 +0000 2026',
+                        extended_entities: {
+                            media: [{ type: 'photo', media_url_https: 'https://pbs.twimg.com/media/x.jpg' }],
+                        },
+                    },
+                    core: { user_results: { result: { legacy: { screen_name: 'alice', name: 'Alice' } } } },
+                },
+            },
+        }, new Set());
+        expect(tweet?.quoted_tweet).toEqual({
+            id: '499',
+            author: 'alice',
+            name: 'Alice',
+            text: '罗某官二代背景考',
+            created_at: 'Wed May 13 22:00:00 +0000 2026',
+            url: 'https://x.com/alice/status/499',
+            has_media: true,
+            media_urls: ['https://pbs.twimg.com/media/x.jpg'],
+            media_posters: ['https://pbs.twimg.com/media/x.jpg'],
+        });
+    });
+
+    it('includes photo media URLs from extended_entities', () => {
+        const tweet = extractTimelineTweet({
+            rest_id: '101',
+            legacy: {
+                full_text: 'pic post',
+                extended_entities: {
+                    media: [
+                        { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/abc.jpg' },
+                        { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/def.jpg' },
+                    ],
+                },
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'dave' } } } },
+        }, new Set());
+        expect(tweet?.has_media).toBe(true);
+        expect(tweet?.media_urls).toEqual([
+            'https://pbs.twimg.com/media/abc.jpg',
+            'https://pbs.twimg.com/media/def.jpg',
+        ]);
+    });
+
+    it('extracts mp4 variant URL for video media', () => {
+        const tweet = extractTimelineTweet({
+            rest_id: '102',
+            legacy: {
+                full_text: 'video post',
+                extended_entities: {
+                    media: [{
+                        type: 'video',
+                        media_url_https: 'https://pbs.twimg.com/amplify_video_thumb/thumb.jpg',
+                        video_info: {
+                            variants: [
+                                { content_type: 'application/x-mpegURL', url: 'https://video.twimg.com/playlist.m3u8' },
+                                { content_type: 'video/mp4', bitrate: 832000, url: 'https://video.twimg.com/low.mp4' },
+                                { content_type: 'video/mp4', bitrate: 2176000, url: 'https://video.twimg.com/high.mp4' },
+                            ],
+                        },
+                    }],
+                },
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'erin' } } } },
+        }, new Set());
+        expect(tweet?.has_media).toBe(true);
+        expect(tweet?.media_urls?.[0]).toMatch(/\.mp4$/);
     });
 
     it('prefers long-form note_tweet text over truncated legacy full_text', () => {

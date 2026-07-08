@@ -5,13 +5,14 @@ import { getVisibleChatMessages } from './ax.js';
 export const readCommand = cli({
     site: 'chatgpt-app',
     name: 'read',
+    access: 'read',
     description: 'Read the last visible message from the focused ChatGPT Desktop window',
     domain: 'localhost',
     strategy: Strategy.PUBLIC,
     browser: false,
     args: [],
     columns: ['Role', 'Text'],
-    func: async (page) => {
+    func: async () => {
         if (process.platform !== 'darwin') {
             throw new ConfigError('ChatGPT Desktop integration requires macOS (osascript is not available on this platform)');
         }

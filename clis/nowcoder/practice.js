@@ -3,6 +3,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'practice',
+    access: 'read',
     description: 'Categorized practice questions with progress',
     domain: 'www.nowcoder.com',
     args: [

@@ -4,6 +4,7 @@ import { postHupuJson } from './utils.js';
 cli({
     site: 'hupu',
     name: 'reply',
+    access: 'write',
     description: '回复虎扑帖子 (需要登录)',
     domain: 'bbs.hupu.com',
     strategy: Strategy.COOKIE, // 需要Cookie认证

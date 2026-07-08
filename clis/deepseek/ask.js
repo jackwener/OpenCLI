@@ -1,24 +1,26 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
 import {
     DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
+    pickResumeUrl, TEXTAREA_SELECTOR,
 } from './utils.js';
 
 export const askCommand = cli({
     site: 'deepseek',
     name: 'ask',
+    access: 'write',
     description: 'Send a prompt to DeepSeek and get the response',
     domain: DEEPSEEK_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
+    siteSession: 'persistent',
     navigateBefore: false,
-    timeoutSeconds: 180,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for response' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
-        { name: 'model', default: 'instant', choices: ['instant', 'expert'], help: 'Model to use: instant or expert' },
+        { name: 'model', default: 'instant', choices: ['instant', 'expert', 'vision'], help: 'Model to use: instant, expert, or vision' },
         { name: 'think', type: 'boolean', default: false, help: 'Enable DeepThink mode' },
         { name: 'search', type: 'boolean', default: false, help: 'Enable web search' },
         { name: 'file', help: 'Attach a file (PDF, image, text) with the prompt' },
@@ -30,24 +32,47 @@ export const askCommand = cli({
         const timeoutMs = (kwargs.timeout || 120) * 1000;
         const wantThink = parseBoolFlag(kwargs.think);
         const wantSearch = parseBoolFlag(kwargs.search);
+        const wantModel = kwargs.model || 'instant';
+
+        if ((wantModel === 'vision' || wantModel === 'expert') && wantSearch) {
+            throw new CliError(
+                'ARGUMENT',
+                `DeepSeek ${wantModel} mode does not support --search.`,
+                'Run without --search, or use --model instant for web search.',
+                EXIT_CODES.USAGE_ERROR,
+            );
+        }
 
         if (parseBoolFlag(kwargs.new)) {
             await page.goto(DEEPSEEK_URL);
-            await page.wait(3);
+            // Wait for the composer to mount instead of a fixed 3 s sleep.
+            try {
+                await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 8 });
+            } catch {
+                // Selector still missing → downstream selectModel/sendMessage
+                // will surface the failure with a typed error.
+            }
         } else {
             const navigated = await ensureOnDeepSeek(page);
             if (navigated) {
-                // Workspace was recycled; try to resume the most recent
-                // conversation instead of starting a new one.
-                await page.evaluate(`(() => {
-                    var link = document.querySelector('a[href*="/a/chat/s/"]');
-                    if (link) link.click();
-                })()`);
-                await page.wait(2);
+                // Pinned conversations sit in their own DOM section and are
+                // skipped so the resume never lands on a topped chat.
+                const resumeUrl = await pickResumeUrl(page);
+                if (!resumeUrl) {
+                    throw new CommandExecutionError(
+                        'Workspace was recycled but no prior conversation could be loaded',
+                        'Pass --new to start a fresh chat, or wait for the sidebar to populate before retrying.',
+                    );
+                }
+                await page.goto(resumeUrl);
+                try {
+                    await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 5 });
+                } catch {
+                    // Conversation page may still be loading; subsequent steps
+                    // will retry or report.
+                }
             }
         }
-
-        await page.wait(2);
 
         // Model selector is only available on the new-chat page, not inside
         // an existing conversation. Skip it when we resumed a prior thread.
@@ -55,7 +80,6 @@ export const askCommand = cli({
         const inConversation = currentUrl.includes('/a/chat/s/');
         const modelExplicit = kwargs.__opencliOptionSources?.model === 'cli';
 
-        const wantModel = kwargs.model || 'instant';
         if (inConversation && modelExplicit) {
             throw new CliError(
                 'ARGUMENT',
@@ -70,7 +94,9 @@ export const askCommand = cli({
             if (!modelResult?.ok) {
                 throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
             }
-            if (modelResult?.toggled) await page.wait(0.5);
+            // The 0.5 s settle previously here was redundant: each subsequent
+            // step (setFeature, sendMessage) issues a fresh CDP eval, giving
+            // React more than enough time to flush the toggle's state update.
         }
 
         const thinkResult = await withRetry(() => setFeature(page, 'DeepThink', wantThink));
@@ -78,12 +104,17 @@ export const askCommand = cli({
             throw new CommandExecutionError('Could not enable DeepThink');
         }
 
-        const searchResult = await withRetry(() => setFeature(page, 'Search', wantSearch));
-        if (!searchResult?.ok && wantSearch) {
-            throw new CommandExecutionError('Could not enable Search');
+        // Only instant mode has the Search toggle in the DeepSeek UI.
+        let searchResult;
+        if (wantModel !== 'vision' && wantModel !== 'expert') {
+            searchResult = await withRetry(() => setFeature(page, 'Search', wantSearch));
+            if (!searchResult?.ok && wantSearch) {
+                throw new CommandExecutionError('Could not enable Search');
+            }
         }
 
-        if (thinkResult?.toggled || searchResult?.toggled) await page.wait(0.5);
+        // No settle wait after toggles: the next CDP eval below already gives
+        // React time to flush the aria-checked state.
 
         if (kwargs.file) {
             const baseline = await withRetry(() => getBubbleCount(page));
@@ -96,10 +127,11 @@ export const askCommand = cli({
                 // SPA navigates after send; "Promise was collected" means send succeeded
                 if (!String(err?.message || err).includes('Promise was collected')) throw err;
             }
-            await page.wait(3);
+            // waitForResponse polls every 3 s for new bubbles, so the previous
+            // 3 s settle here was a redundant sleep on top of the first poll.
             const result = await waitForResponse(page, baseline, prompt, timeoutMs, wantThink);
             if (!result) {
-                return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
+                throw new TimeoutError('deepseek ask', kwargs.timeout, 'No DeepSeek reply observed before timeout. Retry with --timeout increased.');
             }
             if (wantThink && typeof result === 'object' && result.response !== undefined) {
                 return [result];
@@ -115,7 +147,7 @@ export const askCommand = cli({
 
         const result = await waitForResponse(page, baseline, prompt, timeoutMs, wantThink);
         if (!result) {
-            return [{ response: `[NO RESPONSE] No reply within ${kwargs.timeout}s.` }];
+            throw new TimeoutError('deepseek ask', kwargs.timeout, 'No DeepSeek reply observed before timeout. Retry with --timeout increased.');
         }
 
         if (wantThink && typeof result === 'object' && result.response !== undefined) {

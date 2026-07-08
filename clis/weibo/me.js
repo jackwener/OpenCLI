@@ -3,10 +3,11 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { getSelfUid } from './utils.js';
+import { getSelfUid, requireObjectEvaluateResult, unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',
     name: 'me',
+    access: 'read',
     description: 'My Weibo profile info',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
@@ -16,7 +17,7 @@ cli({
         await page.goto('https://weibo.com');
         await page.wait(2);
         const uid = await getSelfUid(page);
-        const data = await page.evaluate(`
+        const data = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
         const uid = ${JSON.stringify(uid)};
 
@@ -66,9 +67,7 @@ cli({
           profile_url: 'https://weibo.com' + (p.profile_url || '/u/' + p.id),
         };
       })()
-    `);
-        if (!data || typeof data !== 'object')
-            throw new CommandExecutionError('Failed to fetch profile');
+    `)), 'weibo me');
         if (data.error)
             throw new CommandExecutionError(String(data.error));
         return data;

@@ -4,6 +4,7 @@ import { getOptions } from './profiles.js';
 cli({
   site: 'maybeai-image-app',
   name: 'options',
+  access: 'read',
   description: 'List local supported platforms, countries, categories, angles, ratios, resolutions, models, and image kinds',
   strategy: Strategy.PUBLIC,
   browser: false,

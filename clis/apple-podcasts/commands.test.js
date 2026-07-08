@@ -24,7 +24,7 @@ describe('apple-podcasts search command', () => {
             }),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             query: 'machine learning',
             keyword: 'sports',
             limit: 5,
@@ -40,6 +40,26 @@ describe('apple-podcasts search command', () => {
                 url: '',
             }),
         ]);
+    });
+    it('emits empty-string for missing trackCount and primaryGenreName instead of a sentinel', async () => {
+        const cmd = getRegistry().get('apple-podcasts/search');
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                results: [
+                    {
+                        collectionId: 99,
+                        collectionName: 'No-Meta Show',
+                        artistName: 'Anon Host',
+                        collectionViewUrl: 'https://example.com/p/99',
+                    },
+                ],
+            }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const result = await cmd.func({ query: 'no-meta', limit: 1 });
+        expect(result[0].episodes).toBe('');
+        expect(result[0].genre).toBe('');
     });
 });
 describe('apple-podcasts top command', () => {
@@ -60,7 +80,7 @@ describe('apple-podcasts top command', () => {
             }),
         });
         vi.stubGlobal('fetch', fetchMock);
-        await cmd.func(null, { country: 'US', limit: 1 });
+        await cmd.func({ country: 'US', limit: 1 });
         const [, options] = fetchMock.mock.calls[0] ?? [];
         expect(options).toBeDefined();
         expect(options.signal).toBeDefined();
@@ -81,7 +101,7 @@ describe('apple-podcasts top command', () => {
             }),
         });
         vi.stubGlobal('fetch', fetchMock);
-        const result = await cmd.func(null, { country: 'US', limit: 2 });
+        const result = await cmd.func({ country: 'US', limit: 2 });
         expect(fetchMock).toHaveBeenCalledWith('https://rss.marketingtools.apple.com/api/v2/us/podcasts/top/2/podcasts.json', expect.objectContaining({
             signal: expect.any(Object),
         }));
@@ -94,6 +114,6 @@ describe('apple-podcasts top command', () => {
         const cmd = getRegistry().get('apple-podcasts/top');
         expect(cmd?.func).toBeTypeOf('function');
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('socket hang up')));
-        await expect(cmd.func(null, { country: 'us', limit: 3 })).rejects.toThrow('Unable to reach Apple Podcasts charts for US');
+        await expect(cmd.func({ country: 'us', limit: 3 })).rejects.toThrow('Unable to reach Apple Podcasts charts for US');
     });
 });

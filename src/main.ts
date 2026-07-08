@@ -21,6 +21,8 @@ import { getCompletionsFromManifest, hasAllManifests, printCompletionScriptFast 
 import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 import { PKG_VERSION } from './version.js';
 import { EXIT_CODES } from './errors.js';
+import { isSupportedNodeVersion, MIN_SUPPORTED_NODE_MAJOR } from './runtime-detect.js';
+import { isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,26 +31,26 @@ const __dirname = path.dirname(__filename);
 const BUILTIN_CLIS = path.join(findPackageRoot(__filename), 'clis');
 const USER_CLIS = path.join(os.homedir(), '.opencli', 'clis');
 
-// ── Session lifecycle flags ──────────────────────────────────────────────
-// `--live` / `--focus` are top-level-ish toggles that tweak the automation
-// window's lifecycle. We strip them from argv before Commander runs so they
-// can be placed anywhere and work on any subcommand (adapter or browser).
-{
-  const liveIdx = process.argv.indexOf('--live');
-  if (liveIdx !== -1) {
-    process.env.OPENCLI_LIVE = '1';
-    process.argv.splice(liveIdx, 1);
-  }
-  const focusIdx = process.argv.indexOf('--focus');
-  if (focusIdx !== -1) {
-    process.env.OPENCLI_WINDOW_FOCUSED = '1';
-    process.argv.splice(focusIdx, 1);
-  }
-}
-
 // ── Ultra-fast path: lightweight commands bypass full discovery ──────────
 // These are high-frequency or trivial paths that must not pay the startup tax.
 const argv = process.argv.slice(2);
+
+if (typeof (globalThis as { Bun?: unknown }).Bun === 'undefined' && !isSupportedNodeVersion(process.version)) {
+  process.stderr.write(
+    [
+      `OpenCLI requires Node.js >= ${MIN_SUPPORTED_NODE_MAJOR}.0.0.`,
+      `Current runtime: ${process.version}`,
+      'Upgrade Node.js, then retry the same command.',
+      '',
+    ].join('\n'),
+  );
+  process.exit(EXIT_CODES.CONFIG_ERROR);
+}
+
+if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
+  process.stderr.write(`error: ${unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT)}\n`);
+  process.exit(EXIT_CODES.CONFIG_ERROR);
+}
 
 // Fast path: --version (only when it's the top-level intent, not passed to a subcommand)
 // e.g. `opencli --version` or `opencli -V`, but NOT `opencli gh --version`
@@ -112,13 +114,18 @@ installNodeNetwork();
 //    user-CLI discovery MUST run after built-in discovery to preserve the
 //    intended override order (user adapters override built-in ones).
 //  - discoverPlugins runs last: plugins may override both built-in and user CLIs.
-const [, ,] = await Promise.all([
-  ensureUserCliCompatShims(),
-  ensureUserAdapters(),
-  discoverClis(BUILTIN_CLIS),
-]);
-await discoverClis(USER_CLIS);
-await discoverPlugins();
+const skipUserDiscovery = argv[0] === 'convention-audit';
+if (skipUserDiscovery) {
+  await discoverClis(BUILTIN_CLIS);
+} else {
+  const [, ,] = await Promise.all([
+    ensureUserCliCompatShims(),
+    ensureUserAdapters(),
+    discoverClis(BUILTIN_CLIS),
+  ]);
+  await discoverClis(USER_CLIS);
+  await discoverPlugins();
+}
 
 // Register exit hook: notice appears after command output (same as npm/gh/yarn)
 registerUpdateNoticeOnExit();
@@ -142,6 +149,32 @@ if (getCompIdx !== -1) {
   const candidates = getCompletions(words, cursor);
   process.stdout.write(candidates.join('\n') + '\n');
   process.exit(EXIT_CODES.SUCCESS);
+}
+
+// Rewrite `opencli browser <session> <subcommand> ...` so commander (which
+// can't combine a parent positional with subcommand dispatch) sees the internal
+// `--session <name>` flag form. Also refuses the retired `opencli browser
+// --session foo ...` user form with a friendly usage error.
+const { rewriteBrowserArgv, BrowserSessionArgvError, escapeLeadingDashPositional } = await import('./cli-argv-preprocess.js');
+try {
+  let rewritten = rewriteBrowserArgv(process.argv.slice(2));
+  // Insert a `--` separator before a required positional whose value starts
+  // with `-` (e.g. BOSS 直聘 securityId tokens; #1160). Skipped when the
+  // manifest is unavailable so the user-cli / dev paths still work.
+  try {
+    const manifestPath = getCliManifestPath(BUILTIN_CLIS);
+    if (fs.existsSync(manifestPath)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      if (Array.isArray(manifest)) rewritten = escapeLeadingDashPositional(rewritten, manifest);
+    }
+  } catch { /* manifest unavailable; skip the dash escape */ }
+  process.argv.splice(2, process.argv.length - 2, ...rewritten);
+} catch (err) {
+  if (err instanceof BrowserSessionArgvError) {
+    process.stderr.write(`error: ${err.message}\n`);
+    process.exit(EXIT_CODES.GENERIC_ERROR);
+  }
+  throw err;
 }
 
 await emitHook('onStartup', { command: '__startup__', args: {} });

@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'hackernews',
     name: 'best',
+    access: 'read',
     description: 'Hacker News best stories',
     domain: 'news.ycombinator.com',
     strategy: Strategy.PUBLIC,
@@ -9,7 +10,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of stories' },
     ],
-    columns: ['rank', 'title', 'score', 'author', 'comments'],
+    columns: ['rank', 'id', 'title', 'score', 'author', 'comments', 'url'],
     pipeline: [
         { fetch: { url: 'https://hacker-news.firebaseio.com/v0/beststories.json' } },
         { limit: '${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}' },
@@ -18,6 +19,7 @@ cli({
         { filter: 'item.title && !item.deleted && !item.dead' },
         { map: {
                 rank: '${{ index + 1 }}',
+                id: '${{ item.id }}',
                 title: '${{ item.title }}',
                 score: '${{ item.score }}',
                 author: '${{ item.by }}',

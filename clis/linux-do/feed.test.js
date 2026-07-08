@@ -7,6 +7,21 @@ describe('linux-do feed metadata resolution', () => {
     afterEach(() => {
         __test__.resetMetadataCaches();
     });
+    it('builds the replacement URL for legacy latest', async () => {
+        const request = await __test__.resolveFeedRequest(null, {
+            view: 'latest',
+            limit: 20,
+        });
+        expect(request.url).toBe('/latest.json?per_page=20');
+    });
+    it('builds the replacement URL for legacy hot weekly', async () => {
+        const request = await __test__.resolveFeedRequest(null, {
+            view: 'top',
+            period: 'weekly',
+            limit: 20,
+        });
+        expect(request.url).toBe('/top.json?per_page=20&period=weekly');
+    });
     it('prefers live tag metadata over the bundled snapshot', async () => {
         __test__.setLiveMetadataForTests({
             tags: [{ id: 9999, slug: 'fresh-tag', name: 'Fresh Tag' }],
@@ -85,6 +100,26 @@ describe('linux-do feed metadata resolution', () => {
             limit: 20,
         });
         expect(request.url).toBe('/c/parent/fresh-child/11.json?per_page=20');
+    });
+    it('builds the replacement URL for legacy category id', async () => {
+        __test__.setLiveMetadataForTests({
+            categories: [
+                {
+                    id: 4,
+                    name: '开发调优',
+                    description: '',
+                    slug: 'develop',
+                    parentCategoryId: null,
+                    parent: null,
+                },
+            ],
+        });
+        const request = await __test__.resolveFeedRequest(null, {
+            category: '4',
+            view: 'latest',
+            limit: 20,
+        });
+        expect(request.url).toBe('/c/develop/4.json?per_page=20');
     });
     it('falls back to cached metadata when live metadata is unavailable', async () => {
         const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-linux-do-cache-'));

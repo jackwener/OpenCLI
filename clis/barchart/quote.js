@@ -7,6 +7,7 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 cli({
     site: 'barchart',
     name: 'quote',
+    access: 'read',
     description: 'Barchart stock quote with price, volume, and key metrics',
     domain: 'www.barchart.com',
     strategy: Strategy.COOKIE,

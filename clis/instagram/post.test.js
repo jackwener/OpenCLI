@@ -370,7 +370,7 @@ describe('instagram post registration', () => {
         const cmd = getRegistry().get('instagram/post');
         expect(cmd).toBeDefined();
         expect(cmd?.browser).toBe(true);
-        expect(cmd?.timeoutSeconds).toBe(300);
+        expect(cmd?.args.some((arg) => arg.name === 'timeout' && arg.default === 300)).toBe(true);
         expect(cmd?.args.some((arg) => arg.name === 'media' && !arg.required && arg.valueRequired)).toBe(true);
         expect(cmd?.args.some((arg) => arg.name === 'content' && !arg.required && arg.positional)).toBe(true);
     });

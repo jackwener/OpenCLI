@@ -9,9 +9,9 @@
  * page-scoped operations target the correct page without guessing.
  */
 
-import type { BrowserCookie, BrowserDownloadResult, DownloadWaitOptions, ScreenshotOptions } from '../types.js';
+import type { BrowserCookie, BrowserDownloadWaitResult, BrowserEvaluateFunction, ScreenshotOptions } from '../types.js';
 import { sendCommand, sendCommandFull } from './daemon-client.js';
-import { wrapForEval } from './utils.js';
+import { buildEvaluateExpression } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
@@ -26,13 +26,32 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
     || (normalized.includes('network capture') && normalized.includes('not supported'));
 }
 
+// The extension throws "Page not found: <id> — stale page identity" when our cached
+// `_page` targetId no longer maps to a live tab — e.g. the user closed the automation
+// window, or a long-running script left the cache pointing at an evicted target.
+// Detect that signature so goto() can drop the stale id and let resolveTab fall back
+// to the session lease (or create a fresh tab).
+function isStalePageIdentityError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes('stale page identity') || /^Page not found:\s*\S+\s*$/.test(message);
+}
+
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
  */
 export class Page extends BasePage {
   private readonly _idleTimeout: number | undefined;
 
-  constructor(private readonly workspace: string = 'default', idleTimeout?: number) {
+  constructor(
+    private readonly session: string,
+    idleTimeout?: number,
+    public readonly contextId?: string,
+    private readonly windowMode?: 'foreground' | 'background',
+    private readonly surface: 'browser' | 'adapter' = 'browser',
+    private readonly siteSession?: 'ephemeral' | 'persistent',
+    /** Soft profile preference (config default) — daemon arbitrates; see profileRouteParams. */
+    public readonly preferredContextId?: string,
+  ) {
     super();
     this._idleTimeout = idleTimeout;
   }
@@ -42,26 +61,53 @@ export class Page extends BasePage {
   private _networkCaptureUnsupported = false;
   private _networkCaptureWarned = false;
 
-  /** Helper: spread workspace into command params */
-  private _wsOpt(): { workspace: string; idleTimeout?: number } {
-    return { workspace: this.workspace, ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }) };
-  }
-
-  /** Helper: spread workspace + page identity into command params */
-  private _cmdOpts(): Record<string, unknown> {
+  /** Helper: spread session into command params */
+  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; preferredContextId?: string; windowMode?: 'foreground' | 'background'; siteSession?: 'ephemeral' | 'persistent' } {
     return {
-      workspace: this.workspace,
-      ...(this._page !== undefined && { page: this._page }),
+      session: this.session,
+      surface: this.surface,
+      ...(this.contextId && { contextId: this.contextId }),
+      ...(this.preferredContextId && { preferredContextId: this.preferredContextId }),
       ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+      ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.siteSession && { siteSession: this.siteSession }),
     };
   }
 
-  async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number; allowBoundNavigation?: boolean }): Promise<void> {
-    const result = await sendCommandFull('navigate', {
-      url,
-      ...this._cmdOpts(),
-      ...(options?.allowBoundNavigation === true && { allowBoundNavigation: true }),
-    });
+  /** Helper: spread session + page identity into command params */
+  private _cmdOpts(): Record<string, unknown> {
+    return {
+      session: this.session,
+      surface: this.surface,
+      ...(this.contextId && { contextId: this.contextId }),
+      ...(this.preferredContextId && { preferredContextId: this.preferredContextId }),
+      ...(this._page !== undefined && { page: this._page }),
+      ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+      ...(this.windowMode && { windowMode: this.windowMode }),
+      ...(this.siteSession && { siteSession: this.siteSession }),
+    };
+  }
+
+  async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
+    let result: { data: unknown; page?: string };
+    try {
+      result = await sendCommandFull('navigate', {
+        url,
+        ...this._cmdOpts(),
+      });
+    } catch (err) {
+      // If our cached targetId went stale (tab closed externally, identity evicted),
+      // drop the dead id and retry without it — the extension will resolve through the
+      // session lease or open a fresh automation tab. Without this, every subsequent
+      // adapter call in the same process keeps re-sending the same dead targetId and
+      // cascades into "Page not found:" failures across concurrent calls.
+      if (!isStalePageIdentityError(err) || this._page === undefined) throw err;
+      this._page = undefined;
+      result = await sendCommandFull('navigate', {
+        url,
+        ...this._cmdOpts(),
+      });
+    }
     // Remember the page identity (targetId) for subsequent calls
     if (result.page) {
       this._page = result.page;
@@ -124,8 +170,10 @@ export class Page extends BasePage {
     );
   }
 
-  async evaluate(js: string): Promise<unknown> {
-    const code = wrapForEval(js);
+  async evaluate<T = unknown>(js: string): Promise<T>;
+  async evaluate<Args extends unknown[], T>(fn: BrowserEvaluateFunction<Args, T>, ...args: Args): Promise<Awaited<T>>;
+  async evaluate(input: string | BrowserEvaluateFunction<unknown[], unknown>, ...args: unknown[]): Promise<unknown> {
+    const code = buildEvaluateExpression(input, args);
     try {
       return await sendCommand('exec', { code, ...this._cmdOpts() });
     } catch (err) {
@@ -137,14 +185,14 @@ export class Page extends BasePage {
   }
 
   async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
-    const result = await sendCommand('cookies', { ...this._wsOpt(), ...opts });
+    const result = await sendCommand('cookies', { ...this._sessionOpts(), ...opts });
     return Array.isArray(result) ? result : [];
   }
 
-  /** Close the automation window in the extension */
+  /** Release the current browser session lease in the extension */
   async closeWindow(): Promise<void> {
     try {
-      await sendCommand('close-window', { ...this._wsOpt() });
+      await sendCommand('close-window', { ...this._sessionOpts() });
     } catch {
       // Window may already be closed or daemon may be down
     } finally {
@@ -156,7 +204,7 @@ export class Page extends BasePage {
   }
 
   async tabs(): Promise<unknown[]> {
-    const result = await sendCommand('tabs', { op: 'list', ...this._wsOpt() });
+    const result = await sendCommand('tabs', { op: 'list', ...this._sessionOpts() });
     return Array.isArray(result) ? result : [];
   }
 
@@ -164,14 +212,14 @@ export class Page extends BasePage {
     const result = await sendCommandFull('tabs', {
       op: 'new',
       ...(url !== undefined && { url }),
-      ...this._wsOpt(),
+      ...this._sessionOpts(),
     });
     this._lastUrl = null;
     return result.page;
   }
 
   async closeTab(target?: number | string): Promise<void> {
-    const params: Record<string, unknown> = { op: 'close', ...this._wsOpt() };
+    const params: Record<string, unknown> = { op: 'close', ...this._sessionOpts() };
     if (typeof target === 'number') params.index = target;
     else if (typeof target === 'string') params.page = target;
     else if (this._page !== undefined) params.page = this._page;
@@ -189,7 +237,7 @@ export class Page extends BasePage {
     const result = await sendCommandFull('tabs', {
       op: 'select',
       ...(typeof target === 'number' ? { index: target } : { page: target }),
-      ...this._wsOpt(),
+      ...this._sessionOpts(),
     });
     if (result.page) this._page = result.page;
     this._lastUrl = null;
@@ -204,6 +252,8 @@ export class Page extends BasePage {
       format: options.format,
       quality: options.quality,
       fullPage: options.fullPage,
+      width: options.width,
+      height: options.height,
     }) as string;
 
     if (options.path) {
@@ -241,6 +291,16 @@ export class Page extends BasePage {
       return [];
     }
   }
+
+  async waitForDownload(pattern: string = '', timeoutMs: number = 30_000): Promise<BrowserDownloadWaitResult> {
+    const result = await sendCommand('wait-download', {
+      pattern,
+      timeoutMs,
+      ...this._cmdOpts(),
+    });
+    return result as BrowserDownloadWaitResult;
+  }
+
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
    * Chrome reads the files directly from the local filesystem, avoiding the
@@ -273,7 +333,7 @@ export class Page extends BasePage {
   }
 
   async evaluateInFrame(js: string, frameIndex: number): Promise<unknown> {
-    const code = wrapForEval(js);
+    const code = buildEvaluateExpression(js);
     return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
   }
 
@@ -285,15 +345,11 @@ export class Page extends BasePage {
     });
   }
 
-  async waitForDownload(options: DownloadWaitOptions = {}): Promise<BrowserDownloadResult> {
-    const result = await sendCommand('download-wait', {
-      downloadTimeoutMs: options.timeoutMs,
-      downloadStartedAfterMs: options.startedAfterMs,
-      downloadUrlPattern: options.urlPattern,
-      downloadReferrerPattern: options.referrerPattern,
-      ...this._cmdOpts(),
+  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
+    await this.cdp('Page.handleJavaScriptDialog', {
+      accept,
+      ...(promptText !== undefined && { promptText }),
     });
-    return result as BrowserDownloadResult;
   }
 
   /** CDP native click fallback — called when JS el.click() fails */
@@ -370,6 +426,11 @@ export class Page extends BasePage {
 
   async nativeClick(x: number, y: number): Promise<void> {
     await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x,
+      y,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
       type: 'mousePressed',
       x, y,
       button: 'left',
@@ -392,7 +453,7 @@ export class Page extends BasePage {
     let modifierFlags = 0;
     for (const mod of modifiers) {
       if (mod === 'Alt') modifierFlags |= 1;
-      if (mod === 'Ctrl') modifierFlags |= 2;
+      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
       if (mod === 'Meta') modifierFlags |= 4;
       if (mod === 'Shift') modifierFlags |= 8;
     }

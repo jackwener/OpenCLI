@@ -8,6 +8,7 @@ import { runReplicaListingImage } from './replica-listing-runner.js';
 cli({
   site: 'maybeai-image-app',
   name: 'generate',
+  access: 'write',
   description: 'Generate images with an explicit MaybeAI app and run workflows directly',
   strategy: Strategy.PUBLIC,
   browser: false,

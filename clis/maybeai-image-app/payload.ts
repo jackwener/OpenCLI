@@ -5,6 +5,7 @@ import { resolveImageAppInput } from './resolver.js';
 cli({
   site: 'maybeai-image-app',
   name: 'payload',
+  access: 'read',
   description: 'Build local workflow variables for a MaybeAI image app',
   strategy: Strategy.PUBLIC,
   browser: false,

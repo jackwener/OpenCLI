@@ -18,6 +18,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'band',
     name: 'post',
+    access: 'read',
     description: 'Export full content of a post including comments',
     domain: 'www.band.us',
     strategy: Strategy.COOKIE,

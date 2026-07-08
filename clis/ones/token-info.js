@@ -4,6 +4,7 @@ import { onesFetchInPage } from './common.js';
 cli({
     site: 'ones',
     name: 'token-info',
+    access: 'read',
     description: 'ONES Project API — session detail (GET auth/token_info) via Chrome Bridge: user, teams, org',
     domain: 'ones.cn',
     strategy: Strategy.COOKIE,

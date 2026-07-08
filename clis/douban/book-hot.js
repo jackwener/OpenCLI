@@ -3,6 +3,7 @@ import { loadDoubanBookHot } from './utils.js';
 cli({
     site: 'douban',
     name: 'book-hot',
+    access: 'read',
     description: '豆瓣图书热门榜单',
     domain: 'book.douban.com',
     strategy: Strategy.COOKIE,

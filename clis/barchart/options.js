@@ -6,6 +6,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'barchart',
     name: 'options',
+    access: 'read',
     description: 'Barchart options chain with greeks, IV, volume, and open interest',
     domain: 'www.barchart.com',
     strategy: Strategy.COOKIE,

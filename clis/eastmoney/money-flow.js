@@ -18,6 +18,7 @@ const RANGES = {
 cli({
   site: 'eastmoney',
   name: 'money-flow',
+    access: 'read',
   description: '主力资金净流入排行（今日/5日/10日）',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -28,7 +29,7 @@ cli({
     { name: 'limit', type: 'int', default: 20, help: '返回数量 (max 100)' },
   ],
   columns: ['rank', 'code', 'name', 'price', 'changePercent', 'mainNet', 'mainNetRatio', 'superNet', 'bigNet', 'mediumNet', 'smallNet'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const rangeKey = String(args.range ?? 'today').toLowerCase();
     const range = RANGES[rangeKey];
     if (!range) {

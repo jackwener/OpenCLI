@@ -2,29 +2,55 @@
  * CLI commands for daemon lifecycle:
  *   opencli daemon status — show daemon state
  *   opencli daemon stop   — graceful shutdown
+ *   opencli daemon restart — graceful shutdown, then start a fresh daemon
  */
 
-import { styleText } from 'node:util';
-import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-client.js';
+import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-transport.js';
+import { restartDaemon } from '../browser/daemon-lifecycle.js';
 import { formatDuration } from '../download/progress.js';
 import { log } from '../logger.js';
+import { PKG_VERSION } from '../version.js';
+import { formatDaemonVersion, isDaemonStale } from '../browser/daemon-version.js';
 
 export async function daemonStatus(): Promise<void> {
   const status = await fetchDaemonStatus();
   if (!status) {
-    console.log(`Daemon: ${styleText('dim', 'not running')}`);
+    console.log('Daemon: not running');
     return;
   }
 
-  const extensionLabel = !status.extensionConnected
-    ? styleText('yellow', 'disconnected')
-    : status.extensionVersion
-      ? `${styleText('green', 'connected')} ${styleText('dim', `(v${status.extensionVersion})`)}`
-      : `${styleText('yellow', 'connected')} ${styleText('dim', '(version unknown)')}`;
+  // GH #1575: ``Extension: disconnected`` used to be printed for THREE
+  // structurally different states — zero profiles (accurate), 2+
+  // profiles connected with no default (misleading), and a requested
+  // profile that vanished (misleading). The status JSON already
+  // distinguishes them; surface that distinction so the user's next
+  // step is visible inline instead of "reinstall everything".
+  let extensionLabel: string;
+  if (status.extensionConnected) {
+    extensionLabel = status.extensionVersion
+      ? `connected (v${status.extensionVersion})`
+      : 'connected (version unknown)';
+  } else if (status.profileRequired) {
+    const count = status.profiles?.length ?? 0;
+    extensionLabel = `${count} ${count === 1 ? 'profile' : 'profiles'} connected, none selected — run \`opencli profile use <name>\``;
+  } else if (status.profileDisconnected) {
+    extensionLabel = 'requested profile not connected — run `opencli profile use <name>`';
+  } else {
+    extensionLabel = 'disconnected';
+  }
 
-  console.log(`Daemon: ${styleText('green', 'running')} (PID ${status.pid})`);
+  const daemonVersion = formatDaemonVersion(status);
+  const stale = isDaemonStale(status, PKG_VERSION);
+  console.log(`Daemon: ${stale ? 'stale' : 'running'} (PID ${status.pid})`);
+  console.log(`Version: ${daemonVersion}${stale ? ` (CLI v${PKG_VERSION}; run: opencli daemon restart)` : ''}`);
   console.log(`Uptime: ${formatDuration(Math.round(status.uptime * 1000))}`);
   console.log(`Extension: ${extensionLabel}`);
+  if (status.profiles && status.profiles.length > 0) {
+    console.log(`Profiles: ${status.profiles.map((profile) => {
+      const version = profile.extensionVersion ? ` v${profile.extensionVersion}` : '';
+      return `${profile.contextId}${version}`;
+    }).join(', ')}`);
+  }
   console.log(`Memory: ${status.memoryMB} MB`);
   console.log(`Port: ${status.port}`);
 }
@@ -42,5 +68,35 @@ export async function daemonStop(): Promise<void> {
   } else {
     log.error('Failed to stop daemon.');
     process.exitCode = 1;
+  }
+}
+
+export async function daemonRestart(): Promise<void> {
+  const before = await fetchDaemonStatus();
+  if (before?.profiles && before.profiles.length > 0) {
+    log.warn(`Restarting daemon will disconnect ${before.profiles.length} browser profile(s); the extension should reconnect automatically.`);
+  }
+
+  const result = await restartDaemon();
+  if (!result.stopped) {
+    log.error('Failed to stop daemon before restart.');
+    process.exitCode = 1;
+    return;
+  }
+  if (!result.status) {
+    log.error('Daemon restart timed out before the new daemon reported status.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const action = result.previousStatus ? 'restarted' : 'started';
+  const version = formatDaemonVersion(result.status);
+  log.success(`Daemon ${action} on port ${result.status.port} (${version}).`);
+  if (result.status.extensionConnected) {
+    const profiles = result.status.profiles?.length ?? 0;
+    const profileText = profiles > 0 ? `; profiles connected: ${profiles}` : '';
+    log.status(`Extension connected${profileText}.`);
+  } else {
+    log.warn('Daemon is running, but the Browser Bridge extension has not connected yet.');
   }
 }

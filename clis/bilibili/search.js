@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { apiGet, stripHtml } from './utils.js';
 cli({
-    site: 'bilibili', name: 'search', description: 'Search Bilibili videos or users', domain: 'www.bilibili.com', strategy: Strategy.COOKIE,
+    site: 'bilibili', name: 'search', access: 'read', description: 'Search Bilibili videos or users', domain: 'www.bilibili.com', strategy: Strategy.COOKIE,
     args: [
         { name: 'query', required: true, positional: true, help: 'Search keyword' },
         { name: 'type', default: 'video', help: 'video or user' },

@@ -1,15 +1,21 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, sanitizeQueryId, extractMedia } from './shared.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { resolveTwitterOperationMetadata, sanitizeQueryId, extractMedia, extractQuotedTweet, normalizeTwitterGraphqlPayload, unwrapBrowserResult, normalizeTwitterScreenName, describeTwitterApiError } from './shared.js';
+import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 
-const BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
-const USER_TWEETS_QUERY_ID = '6fWQaBPK51aGyC_VC7t9GQ';
+const USER_TWEETS_QUERY_ID = 'lrMzG9qPQHpqJdP3AbM-bQ';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
+const MAX_PAGINATION_PAGES = 100;
+const USER_TWEETS_PAGE_SIZE = 100;
+const MAX_TWEETS_LIMIT = MAX_PAGINATION_PAGES * USER_TWEETS_PAGE_SIZE;
+const DEFAULT_PAGE_DELAY_SECONDS = 2;
 
 const USER_TWEETS_FEATURES = {
-    rweb_video_screen_enabled: false,
+    rweb_video_screen_enabled: true,
+    rweb_cashtags_enabled: true,
     payments_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
+    responsive_web_profile_redirect_enabled: true,
     rweb_tipjar_consumption_enabled: true,
     verified_phone_label_enabled: false,
     creator_subscriptions_tweet_preview_api_enabled: true,
@@ -20,6 +26,7 @@ const USER_TWEETS_FEATURES = {
     c9s_tweet_anatomy_moderator_badge_enabled: true,
     responsive_web_grok_analyze_button_fetch_trends_enabled: false,
     responsive_web_grok_analyze_post_followups_enabled: true,
+    rweb_cashtags_composer_attachment_enabled: true,
     responsive_web_jetfuel_frame: true,
     responsive_web_grok_share_attachment_enabled: true,
     responsive_web_grok_annotations_enabled: true,
@@ -46,8 +53,21 @@ const USER_TWEETS_FEATURES = {
     responsive_web_enhance_cards_enabled: false,
 };
 
+const USER_TWEETS_FIELD_TOGGLES = {
+    withPayments: true,
+    withAuxiliaryUserLabels: true,
+    withArticleRichContentState: true,
+    withArticlePlainText: true,
+    withArticleSummaryText: true,
+    withArticleVoiceOver: true,
+    withGrokAnalyze: true,
+    withDisallowedReplyControls: true,
+};
+
 const USER_BY_SCREEN_NAME_FEATURES = {
     hidden_profile_subscriptions_enabled: true,
+    profile_label_improvements_pcf_label_in_post_enabled: true,
+    responsive_web_profile_redirect_enabled: true,
     rweb_tipjar_consumption_enabled: true,
     responsive_web_graphql_exclude_directive_enabled: true,
     verified_phone_label_enabled: false,
@@ -61,7 +81,59 @@ const USER_BY_SCREEN_NAME_FEATURES = {
     responsive_web_graphql_timeline_navigation_enabled: true,
 };
 
-function buildUserTweetsUrl(queryId, userId, count, cursor) {
+const USER_BY_SCREEN_NAME_FIELD_TOGGLES = {
+    withPayments: true,
+    withAuxiliaryUserLabels: true,
+};
+
+const USER_TWEETS_OPERATION = {
+    queryId: USER_TWEETS_QUERY_ID,
+    features: USER_TWEETS_FEATURES,
+    fieldToggles: USER_TWEETS_FIELD_TOGGLES,
+};
+
+const USER_BY_SCREEN_NAME_OPERATION = {
+    queryId: USER_BY_SCREEN_NAME_QUERY_ID,
+    features: USER_BY_SCREEN_NAME_FEATURES,
+    fieldToggles: USER_BY_SCREEN_NAME_FIELD_TOGGLES,
+};
+
+function normalizeUserTweetsOperation(operation) {
+    if (typeof operation === 'string') {
+        return { queryId: operation, features: USER_TWEETS_FEATURES, fieldToggles: USER_TWEETS_FIELD_TOGGLES };
+    }
+    return {
+        queryId: operation?.queryId || USER_TWEETS_QUERY_ID,
+        features: operation?.features || USER_TWEETS_FEATURES,
+        fieldToggles: operation?.fieldToggles || USER_TWEETS_FIELD_TOGGLES,
+    };
+}
+
+function normalizeUserByScreenNameOperation(operation) {
+    if (typeof operation === 'string') {
+        return { queryId: operation, features: USER_BY_SCREEN_NAME_FEATURES, fieldToggles: USER_BY_SCREEN_NAME_FIELD_TOGGLES };
+    }
+    return {
+        queryId: operation?.queryId || USER_BY_SCREEN_NAME_QUERY_ID,
+        features: operation?.features || USER_BY_SCREEN_NAME_FEATURES,
+        fieldToggles: operation?.fieldToggles || USER_BY_SCREEN_NAME_FIELD_TOGGLES,
+    };
+}
+
+function appendGraphqlParams(path, variables, operation) {
+    const fieldToggles = operation.fieldToggles || {};
+    const params = [
+        `variables=${encodeURIComponent(JSON.stringify(variables))}`,
+        `features=${encodeURIComponent(JSON.stringify(operation.features || {}))}`,
+    ];
+    if (Object.keys(fieldToggles).length > 0) {
+        params.push(`fieldToggles=${encodeURIComponent(JSON.stringify(fieldToggles))}`);
+    }
+    return `${path}?${params.join('&')}`;
+}
+
+function buildUserTweetsUrl(operation, userId, count, cursor) {
+    const normalized = normalizeUserTweetsOperation(operation);
     const vars = {
         userId,
         count,
@@ -70,21 +142,20 @@ function buildUserTweetsUrl(queryId, userId, count, cursor) {
         withVoice: true,
     };
     if (cursor) vars.cursor = cursor;
-    return `/i/api/graphql/${queryId}/UserTweets`
-        + `?variables=${encodeURIComponent(JSON.stringify(vars))}`
-        + `&features=${encodeURIComponent(JSON.stringify(USER_TWEETS_FEATURES))}`;
+    return appendGraphqlParams(`/i/api/graphql/${normalized.queryId}/UserTweets`, vars, normalized);
 }
 
-function buildUserByScreenNameUrl(queryId, screenName) {
+function buildUserByScreenNameUrl(operation, screenName) {
+    const normalized = normalizeUserByScreenNameOperation(operation);
     const vars = { screen_name: screenName, withSafetyModeUserFields: true };
-    return `/i/api/graphql/${queryId}/UserByScreenName`
-        + `?variables=${encodeURIComponent(JSON.stringify(vars))}`
-        + `&features=${encodeURIComponent(JSON.stringify(USER_BY_SCREEN_NAME_FEATURES))}`;
+    return appendGraphqlParams(`/i/api/graphql/${normalized.queryId}/UserByScreenName`, vars, normalized);
 }
 
 function extractTweet(result, seen) {
     if (!result) return null;
-    const tw = result.tweet || result;
+    const tw = result.__typename === 'TweetWithVisibilityResults' && result.tweet
+        ? result.tweet
+        : (result.tweet || result);
     const legacy = tw.legacy || {};
     if (!tw.rest_id || seen.has(tw.rest_id)) return null;
     seen.add(tw.rest_id);
@@ -106,97 +177,150 @@ function extractTweet(result, seen) {
         created_at: legacy.created_at || '',
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
         ...extractMedia(legacy),
+        quoted_tweet: extractQuotedTweet(tw),
     };
 }
 
 function parseUserTweets(data, seen) {
     const tweets = [];
     let nextCursor = null;
-    const instructions = data?.data?.user?.result?.timeline_v2?.timeline?.instructions
-        || data?.data?.user?.result?.timeline?.timeline?.instructions
-        || [];
-    for (const inst of instructions) {
-        if (inst.type === 'TimelinePinEntry') continue;
-        for (const entry of inst.entries || []) {
-            const content = entry.content;
-            if (content?.entryType === 'TimelineTimelineCursor' || content?.__typename === 'TimelineTimelineCursor') {
-                if (content.cursorType === 'Bottom' || content.cursorType === 'ShowMore') nextCursor = content.value;
-                continue;
-            }
-            if (entry.entryId?.startsWith('cursor-bottom-') || entry.entryId?.startsWith('cursor-showMore-')) {
-                nextCursor = content?.value || content?.itemContent?.value || nextCursor;
-                continue;
-            }
-            const direct = extractTweet(content?.itemContent?.tweet_results?.result, seen);
-            if (direct) {
-                tweets.push(direct);
-                continue;
-            }
-            for (const item of content?.items || []) {
-                const nested = extractTweet(item.item?.itemContent?.tweet_results?.result, seen);
-                if (nested) tweets.push(nested);
-            }
+    const result = data?.data?.user?.result || {};
+    const instructionSets = [
+        result.timeline_v2?.timeline?.instructions,
+        result.timeline?.timeline?.instructions,
+    ].filter(Array.isArray);
+    const instructions = instructionSets.flat();
+    const visit = (value) => {
+        if (!value || typeof value !== 'object') return;
+        if (value.type === 'TimelinePinEntry') return;
+        if (value.tweet_results?.result) {
+            const tweet = extractTweet(value.tweet_results.result, seen);
+            if (tweet) tweets.push(tweet);
         }
-    }
+        if (
+            (value.entryType === 'TimelineTimelineCursor' || value.__typename === 'TimelineTimelineCursor')
+            && (value.cursorType === 'Bottom' || value.cursorType === 'ShowMore')
+            && value.value
+        ) {
+            nextCursor = value.value;
+        }
+        if (Array.isArray(value)) {
+            for (const item of value) visit(item);
+            return;
+        }
+        for (const child of Object.values(value)) {
+            if (child && typeof child === 'object') visit(child);
+        }
+    };
+    visit(instructions);
     return { tweets, nextCursor };
+}
+
+function normalizeLimit(rawLimit) {
+    const limit = rawLimit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_TWEETS_LIMIT) {
+        throw new ArgumentError(
+            `twitter tweets --limit must be an integer between 1 and ${MAX_TWEETS_LIMIT}`,
+            `Example: opencli twitter tweets @jack --limit 250`
+        );
+    }
+    return limit;
+}
+
+function normalizePageDelaySeconds(rawDelay) {
+    const delay = rawDelay ?? DEFAULT_PAGE_DELAY_SECONDS;
+    if (!Number.isInteger(delay) || delay < 0 || delay > 60) {
+        throw new ArgumentError(
+            'twitter tweets --page-delay must be an integer between 0 and 60 seconds',
+            'Example: opencli twitter tweets @jack --limit 250 --page-delay 2'
+        );
+    }
+    return delay;
 }
 
 cli({
     site: 'twitter',
     name: 'tweets',
-    description: "Fetch a Twitter user's most recent tweets (chronological, excludes pinned)",
+    access: 'read',
+    description: "Fetch a Twitter user's most recent tweets (chronological, excludes pinned; defaults to the logged-in user when no username is given)",
     domain: 'x.com',
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'username', type: 'string', positional: true, required: true, help: 'Twitter screen name (with or without @)' },
-        { name: 'limit', type: 'int', default: 20, help: 'Max tweets to return' },
+        { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
+        { name: 'limit', type: 'int', default: 20, help: `Max tweets to return (1-${MAX_TWEETS_LIMIT}; fetched across cursor pages)` },
+        { name: 'page-delay', type: 'int', default: DEFAULT_PAGE_DELAY_SECONDS, help: 'Seconds to wait between paginated timeline requests to reduce rate-limit risk. Use 0 to disable.' },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the chronological ordering.' },
     ],
-    columns: ['author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls'],
+    columns: ['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet'],
     func: async (page, kwargs) => {
-        const limit = Math.max(1, Math.min(200, kwargs.limit || 20));
-        const username = String(kwargs.username || '').replace(/^@/, '').trim();
-        if (!username) throw new CommandExecutionError('username is required');
+        const limit = normalizeLimit(kwargs.limit);
+        const pageDelaySeconds = normalizePageDelaySeconds(kwargs['page-delay']);
+        const rawUsername = String(kwargs.username ?? '').trim();
+        let username = normalizeTwitterScreenName(rawUsername);
+        if (rawUsername && !username) {
+            throw new ArgumentError('twitter tweets username must be a valid Twitter/X handle', 'Example: opencli twitter tweets @jack --limit 20');
+        }
+        // When no username is given, detect the logged-in user (own tweets).
+        // Mirrors the self-detection pattern used by twitter/profile and
+        // twitter/likes so agents can pull own-account data without having
+        // to know their own screen name up front.
+        if (!username) {
+            await page.goto('https://x.com/home');
+            await page.wait({ selector: '[data-testid="primaryColumn"]' });
+            // Bridge wraps primitive page.evaluate returns as { session, data:<value> }.
+            // unwrapBrowserResult drops that envelope so the href string is usable.
+            const href = unwrapBrowserResult(await page.evaluate(`() => {
+        const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+        return link ? link.getAttribute('href') : null;
+      }`));
+            if (!href || typeof href !== 'string')
+                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
+            username = normalizeTwitterScreenName(href);
+            if (!username) {
+                throw new AuthRequiredError('x.com', 'Could not detect logged-in user. Are you logged in?');
+            }
+        }
 
-        await page.goto('https://x.com');
-        await page.wait(3);
-
-        const ct0 = await page.evaluate(`() => {
-      return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1] || null;
-    }`);
+        const cookies = await page.getCookies({ url: 'https://x.com' });
+        const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
-        const userTweetsQueryId = await resolveTwitterQueryId(page, 'UserTweets', USER_TWEETS_QUERY_ID);
-        const userByScreenNameQueryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
+        const userTweetsOperation = await resolveTwitterOperationMetadata(page, 'UserTweets', USER_TWEETS_OPERATION);
+        const userByScreenNameOperation = await resolveTwitterOperationMetadata(page, 'UserByScreenName', USER_BY_SCREEN_NAME_OPERATION);
 
         const headers = JSON.stringify({
-            'Authorization': `Bearer ${decodeURIComponent(BEARER_TOKEN)}`,
+            'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
         });
 
-        const ubsUrl = buildUserByScreenNameUrl(userByScreenNameQueryId, username);
-        const userId = await page.evaluate(`async () => {
+        const ubsUrl = buildUserByScreenNameUrl(userByScreenNameOperation, username);
+        const userId = unwrapBrowserResult(await page.evaluate(`async () => {
       const resp = await fetch("${ubsUrl}", { headers: ${headers}, credentials: 'include' });
       if (!resp.ok) return null;
       const d = await resp.json();
       return d?.data?.user?.result?.rest_id || null;
-    }`);
+    }`));
         if (!userId) throw new CommandExecutionError(`Could not resolve @${username}`);
 
         const seen = new Set();
         const all = [];
         let cursor = null;
-        for (let i = 0; i < 5 && all.length < limit; i++) {
-            const fetchCount = Math.min(100, limit - all.length + 10);
-            const url = buildUserTweetsUrl(userTweetsQueryId, userId, fetchCount, cursor);
-            const data = await page.evaluate(`async () => {
+        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
+        for (let i = 0; i < MAX_PAGINATION_PAGES && all.length < limit; i++) {
+            if (i > 0 && pageDelaySeconds > 0) {
+                await page.wait(pageDelaySeconds);
+            }
+            const fetchCount = Math.min(USER_TWEETS_PAGE_SIZE, limit - all.length + 10);
+            const url = buildUserTweetsUrl(userTweetsOperation, userId, fetchCount, cursor);
+            const data = normalizeTwitterGraphqlPayload(await page.evaluate(`async () => {
         const r = await fetch("${url}", { headers: ${headers}, credentials: 'include' });
         return r.ok ? await r.json() : { error: r.status };
-      }`);
+      }`));
             if (data?.error) {
-                if (all.length === 0) throw new CommandExecutionError(`HTTP ${data.error}: UserTweets fetch failed — queryId may have expired`);
+                if (all.length === 0) throw new CommandExecutionError(describeTwitterApiError('UserTweets', data.error));
                 break;
             }
             const { tweets, nextCursor } = parseUserTweets(data, seen);
@@ -206,14 +330,18 @@ cli({
         }
 
         if (all.length === 0) throw new EmptyResultError(`@${username} has no recent tweets`, 'Account may be private or suspended');
-        return all.slice(0, limit);
+        const trimmed = all.slice(0, limit);
+        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
     },
 });
 
 export const __test__ = {
+    MAX_TWEETS_LIMIT,
     sanitizeQueryId,
     buildUserTweetsUrl,
     buildUserByScreenNameUrl,
     extractTweet,
     parseUserTweets,
+    normalizeLimit,
+    normalizePageDelaySeconds,
 };

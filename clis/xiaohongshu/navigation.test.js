@@ -11,6 +11,8 @@ import './creator-note-detail.js';
 import './creator-notes-summary.js';
 import './creator-profile.js';
 import './creator-stats.js';
+import './saved.js';
+import './liked.js';
 
 describe('xiaohongshu navigateBefore hardening', () => {
     const expectedFalse = [
@@ -19,6 +21,8 @@ describe('xiaohongshu navigateBefore hardening', () => {
         'xiaohongshu/download',
         'xiaohongshu/search',
         'xiaohongshu/user',
+        'xiaohongshu/saved',
+        'xiaohongshu/liked',
         'xiaohongshu/publish',
         'xiaohongshu/creator-notes',
         'xiaohongshu/creator-note-detail',

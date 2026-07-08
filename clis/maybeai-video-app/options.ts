@@ -4,6 +4,7 @@ import { getOptions } from './profiles.js';
 cli({
   site: 'maybeai-video-app',
   name: 'options',
+  access: 'read',
   description: 'List local supported platforms, markets, categories, ratios, durations, styles, and video models',
   strategy: Strategy.PUBLIC,
   browser: false,

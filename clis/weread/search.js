@@ -1,13 +1,29 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { fetchWebApi, WEREAD_UA, WEREAD_WEB_ORIGIN } from './utils.js';
+function decodeNumericHtmlEntity(raw, radix) {
+    const codePoint = parseInt(raw, radix);
+    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) {
+        return null;
+    }
+    try {
+        return String.fromCodePoint(codePoint);
+    }
+    catch {
+        return null;
+    }
+}
 function decodeHtmlText(value) {
     return value
         .replace(/<[^>]+>/g, '')
-        .replace(/&#x([0-9a-fA-F]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
-        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+        .replace(/&#x([0-9a-fA-F]+);/gi, (entity, n) => decodeNumericHtmlEntity(n, 16) ?? entity)
+        .replace(/&#(\d+);/g, (entity, n) => decodeNumericHtmlEntity(n, 10) ?? entity)
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
         .trim();
 }
 function normalizeSearchTitle(value) {
@@ -84,18 +100,19 @@ function resolveSearchResultUrl(params) {
 async function loadSearchHtmlEntries(query) {
     const url = new URL('/web/search/books', WEREAD_WEB_ORIGIN);
     url.searchParams.set('keyword', query);
-    let html = '';
+    let resp;
     try {
-        const resp = await fetch(url.toString(), {
+        resp = await fetch(url.toString(), {
             headers: { 'User-Agent': WEREAD_UA },
         });
-        if (!resp.ok)
-            return [];
-        html = await resp.text();
     }
-    catch {
-        return [];
+    catch (error) {
+        throw new CommandExecutionError(`Failed to fetch WeRead search page: ${error instanceof Error ? error.message : String(error)}`);
     }
+    if (!resp.ok) {
+        throw new CommandExecutionError(`WeRead search page request failed: HTTP ${resp.status}`);
+    }
+    const html = await resp.text();
     const items = Array.from(html.matchAll(/<li[^>]*class="wr_bookList_item"[^>]*>([\s\S]*?)<\/li>/g));
     return items.map((match) => {
         const chunk = match[1];
@@ -115,6 +132,7 @@ async function loadSearchHtmlEntries(query) {
 cli({
     site: 'weread',
     name: 'search',
+    access: 'read',
     description: 'Search books on WeRead',
     domain: 'weread.qq.com',
     strategy: Strategy.PUBLIC,
@@ -124,12 +142,18 @@ cli({
         { name: 'limit', type: 'int', default: 10, help: 'Max results' },
     ],
     columns: ['rank', 'title', 'author', 'bookId', 'url'],
-    func: async (_page, args) => {
+    func: async (args) => {
         const [data, htmlEntries] = await Promise.all([
             fetchWebApi('/search/global', { keyword: args.query }),
             loadSearchHtmlEntries(String(args.query ?? '')),
         ]);
         const books = data?.books ?? [];
+        if (!Array.isArray(books)) {
+            throw new CommandExecutionError('WeRead search API returned an unreadable books payload');
+        }
+        if (books.length === 0) {
+            throw new EmptyResultError('weread search', `No books were returned for query ${args.query}.`);
+        }
         const { exactQueues, titleOnlyQueues } = buildSearchUrlQueues(htmlEntries);
         const apiIdentityCounts = countSearchIdentities(books.map((item) => ({
             title: item.bookInfo?.title ?? '',

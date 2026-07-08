@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'reddit',
     name: 'save',
+    access: 'write',
     description: 'Save or unsave a Reddit post',
     domain: 'reddit.com',
     strategy: Strategy.COOKIE,

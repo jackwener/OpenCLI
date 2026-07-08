@@ -5,6 +5,7 @@ import { getNotebooklmPageState, readCurrentNotebooklm, requireNotebooklmSession
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'current',
+    access: 'read',
     description: 'Show metadata for the currently opened NotebookLM notebook tab',
     domain: NOTEBOOKLM_DOMAIN,
     strategy: Strategy.COOKIE,
@@ -16,7 +17,7 @@ cli({
         await requireNotebooklmSession(page);
         const state = await getNotebooklmPageState(page);
         if (state.kind !== 'notebook') {
-            throw new EmptyResultError('opencli notebooklm current', 'No NotebookLM notebook is open in the automation workspace. Run `opencli notebooklm open <notebook>` first.');
+            throw new EmptyResultError('opencli notebooklm current', 'No NotebookLM notebook is open in the adapter session. Run `opencli notebooklm open <notebook>` first.');
         }
         const current = await readCurrentNotebooklm(page);
         if (!current) {

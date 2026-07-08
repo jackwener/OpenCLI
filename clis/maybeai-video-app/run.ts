@@ -13,6 +13,7 @@ const TOOL_CHAIN_ARGS = [
 cli({
   site: 'maybeai-video-app',
   name: 'run',
+  access: 'write',
   description: 'Select app and compose normalized input locally, then run video workflows directly',
   strategy: Strategy.PUBLIC,
   browser: false,

@@ -9,6 +9,7 @@ import { getPostDataJs } from './utils.js';
 cli({
     site: 'jike',
     name: 'feed',
+    access: 'read',
     description: '即刻首页动态流',
     domain: 'web.okjike.com',
     strategy: Strategy.COOKIE,
@@ -16,7 +17,7 @@ cli({
     args: [
         { name: 'limit', type: 'int', default: 20 },
     ],
-    columns: ['author', 'content', 'likes', 'comments', 'time', 'url'],
+    columns: ['id', 'author', 'content', 'likes', 'comments', 'time', 'url'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit || 20;
         // 1. 导航到即刻首页，等待 SPA 重定向到 /following
@@ -43,6 +44,7 @@ cli({
           if (!author && !content) continue;
 
           results.push({
+            id: data.id,
             author,
             content: content.replace(/\\n/g, ' ').slice(0, 120),
             likes: data.likeCount || 0,

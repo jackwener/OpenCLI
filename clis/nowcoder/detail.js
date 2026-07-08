@@ -3,6 +3,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'nowcoder',
     name: 'detail',
+    access: 'read',
     description: 'Post detail view (supports ID / UUID / URL)',
     domain: 'www.nowcoder.com',
     args: [

@@ -6,6 +6,7 @@ import { requirePage, navigateToChat, bossFetch, fetchRecommendList, verbose } f
 cli({
     site: 'boss',
     name: 'recommend',
+    access: 'read',
     description: 'BOSS直聘查看推荐候选人（新招呼列表）',
     domain: 'www.zhipin.com',
     strategy: Strategy.COOKIE,

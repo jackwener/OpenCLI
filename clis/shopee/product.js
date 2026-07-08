@@ -1,5 +1,5 @@
 import { CommandExecutionError, EmptyResultError, } from '@jackwener/opencli/errors';
-import { bindCurrentTab } from '@jackwener/opencli/browser/daemon-client';
+import { bindTab } from '@jackwener/opencli/browser/daemon-client';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { readShopdoraLoginState, simulateHumanBehavior } from './shared.js';
 function firstUrlFromSrcset(value) {
@@ -275,7 +275,10 @@ function mergeProductDetails(current, incoming) {
 function hasMeaningfulProductData(row) {
     return PRODUCT_FIELDS.some((field) => String(row[field.name] ?? '').trim() !== '');
 }
-async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTab) {
+async function bindCurrentTabCompat(session, _opts = {}) {
+    return bindTab(session);
+}
+async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTabCompat) {
     try {
         await bindFn(SHOPEE_WORKSPACE, { matchUrl: productUrl });
         return true;
@@ -284,7 +287,7 @@ async function bindShopeeProductTab(productUrl, bindFn = bindCurrentTab) {
         return false;
     }
 }
-async function ensureShopeeProductPage(page, productUrl, bindFn = bindCurrentTab) {
+async function ensureShopeeProductPage(page, productUrl, bindFn = bindCurrentTabCompat) {
     const reusedExistingTab = await bindShopeeProductTab(productUrl, bindFn);
     // Temporarily skip localStorage clearing while debugging the Shopee flow.
     // await clearLocalStorageForUrlHost(page, productUrl);
@@ -490,6 +493,7 @@ async function extractProductDetails(page, productUrl) {
 cli({
     site: 'shopee',
     name: 'product',
+    access: 'read',
     description: 'Get Shopee product details from a product URL',
     domain: 'shopee.sg',
     strategy: Strategy.COOKIE,

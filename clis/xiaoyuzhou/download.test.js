@@ -68,7 +68,7 @@ describe('xiaoyuzhou download', () => {
         });
         mockHttpDownload.mockResolvedValue({ success: true, size: 1234 });
 
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             id: 'ep123',
             output: '/tmp/xiaoyuzhou-test',
         });
@@ -106,7 +106,7 @@ describe('xiaoyuzhou download', () => {
         });
         mockHttpDownload.mockResolvedValue({ success: true, size: 2048 });
 
-        const result = await cmd.func(null, {
+        const result = await cmd.func({
             id: 'ep456',
             output: '/tmp/xiaoyuzhou-test',
         });
@@ -125,7 +125,7 @@ describe('xiaoyuzhou download', () => {
             },
         });
 
-        await expect(cmd.func(null, { id: 'ep789', output: '/tmp/xiaoyuzhou-test' })).rejects.toMatchObject({
+        await expect(cmd.func({ id: 'ep789', output: '/tmp/xiaoyuzhou-test' })).rejects.toMatchObject({
             code: 'PARSE_ERROR',
             message: 'Audio URL not found in episode payload',
             hint: 'Episode payload does not expose media.source.url',

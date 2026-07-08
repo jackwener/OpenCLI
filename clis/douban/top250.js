@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 cli({
     site: 'douban',
     name: 'top250',
+    access: 'read',
     description: '豆瓣电影 Top250',
     domain: 'movie.douban.com',
     strategy: Strategy.COOKIE,

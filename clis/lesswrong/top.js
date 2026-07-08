@@ -3,13 +3,14 @@ import { DOMAIN, SITE, gqlRequest } from './_helpers.js';
 cli({
     site: SITE,
     name: 'top',
+    access: 'read',
     description: 'Top all-time',
     domain: DOMAIN,
     strategy: Strategy.PUBLIC,
     browser: false,
     args: [{ name: 'limit', type: 'int', default: 10, help: 'Number of results' }],
     columns: ['rank', 'title', 'author', 'karma', 'comments', 'url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const limit = Number(kwargs.limit ?? 10);
         const query = `query PostsList {
       posts(input: {terms: {view: "top", limit: ${limit}}}) {
@@ -21,7 +22,7 @@ cli({
         return posts.map((item, i) => ({
             rank: i + 1,
             title: item.title ?? '',
-            author: item.user?.displayName ?? 'Unknown',
+            author: item.user?.displayName ?? '',
             karma: item.baseScore ?? 0,
             comments: item.commentCount ?? 0,
             url: `https://${DOMAIN}/posts/${item._id}/${item.slug}`,

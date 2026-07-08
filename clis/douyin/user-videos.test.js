@@ -8,6 +8,7 @@ vi.mock('./_shared/public-api.js', () => ({
     fetchDouyinComments: fetchDouyinCommentsMock,
 }));
 import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { DEFAULT_COMMENT_LIMIT, MAX_USER_VIDEOS_LIMIT, normalizeCommentLimit, normalizeUserVideosLimit } from './user-videos.js';
 describe('douyin user-videos', () => {
     beforeEach(() => {
@@ -104,5 +105,47 @@ describe('douyin user-videos', () => {
                 top_comments: [],
             },
         ]);
+    });
+    it('throws EmptyResultError when the user videos API returns no rows', async () => {
+        const command = [...getRegistry().values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
+        expect(command?.func).toBeDefined();
+        if (!command?.func)
+            throw new Error('douyin user-videos command not registered');
+        fetchDouyinUserVideosMock.mockResolvedValueOnce([]);
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+        };
+        await expect(command.func(page, {
+            sec_uid: 'MS4w-empty',
+            limit: 3,
+            with_comments: true,
+            comment_limit: 5,
+        })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+    it('surfaces comment enrichment failures instead of returning empty comments', async () => {
+        const command = [...getRegistry().values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
+        expect(command?.func).toBeDefined();
+        if (!command?.func)
+            throw new Error('douyin user-videos command not registered');
+        fetchDouyinUserVideosMock.mockResolvedValueOnce([
+            {
+                aweme_id: '3',
+                desc: 'comment failure',
+                video: { duration: 2000, play_addr: { url_list: ['https://example.com/fail.mp4'] } },
+                statistics: { digg_count: 1 },
+            },
+        ]);
+        fetchDouyinCommentsMock.mockRejectedValueOnce(new Error('comment API down'));
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+        };
+        await expect(command.func(page, {
+            sec_uid: 'MS4w-test',
+            limit: 3,
+            with_comments: true,
+            comment_limit: 5,
+        })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

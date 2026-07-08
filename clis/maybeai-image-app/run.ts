@@ -10,6 +10,7 @@ import { runReplicaListingImage } from './replica-listing-runner.js';
 cli({
   site: 'maybeai-image-app',
   name: 'run',
+  access: 'write',
   description: 'Select app and compose normalized input locally, then run workflows directly',
   strategy: Strategy.PUBLIC,
   browser: false,

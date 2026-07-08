@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 export const screenshotCommand = cli({
     site: 'doubao-app',
     name: 'screenshot',
+    access: 'read',
     description: 'Capture a screenshot of the Doubao desktop app window',
     domain: 'doubao-app',
     strategy: Strategy.UI,

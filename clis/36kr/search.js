@@ -8,6 +8,7 @@ import { CliError } from '@jackwener/opencli/errors';
 cli({
     site: '36kr',
     name: 'search',
+    access: 'read',
     description: '搜索36氪文章',
     domain: 'www.36kr.com',
     strategy: Strategy.PUBLIC,

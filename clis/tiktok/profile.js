@@ -2,6 +2,7 @@ import { cli } from '@jackwener/opencli/registry';
 cli({
     site: 'tiktok',
     name: 'profile',
+    access: 'read',
     description: 'Get TikTok user profile info',
     domain: 'www.tiktok.com',
     args: [

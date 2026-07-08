@@ -23,6 +23,7 @@ const SORTS = {
 cli({
   site: 'eastmoney',
   name: 'sectors',
+    access: 'read',
   description: '板块排行（行业/概念/地域）按涨跌幅、主力资金或成交额排序',
   domain: 'push2.eastmoney.com',
   strategy: Strategy.PUBLIC,
@@ -33,7 +34,7 @@ cli({
     { name: 'limit', type: 'int',   default: 20,         help: '返回数量 (max 100)' },
   ],
   columns: ['rank', 'code', 'name', 'price', 'changePercent', 'mainNet', 'leadStock', 'leadChangePercent', 'upCount', 'downCount'],
-  func: async (_page, args) => {
+  func: async (args) => {
     const typeKey = String(args.type ?? 'industry').toLowerCase();
     const fs = SECTOR_TYPES[typeKey];
     if (!fs) throw new CliError('INVALID_ARGUMENT', `Unknown sector type "${typeKey}". Valid: ${Object.keys(SECTOR_TYPES).join(', ')}`);

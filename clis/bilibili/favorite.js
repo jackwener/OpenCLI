@@ -3,6 +3,7 @@ import { apiGet, payloadData, getSelfUid } from './utils.js';
 cli({
     site: 'bilibili',
     name: 'favorite',
+    access: 'write',
     description: '我的收藏夹',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,

@@ -50,6 +50,26 @@ opencli hupu detail 638234927 -f json
 - `mentions` reads `my.hupu.com` notification APIs from the logged-in browser session
 - `like` / `unlike --fid` uses the forum ID from thread metadata
 - `detail --replies true` appends top hot replies to the content field
+- `hot --limit` is validated upfront: must be a positive integer in `[1, 100]`. Out-of-range or non-integer values raise `ArgumentError` — no silent clamp.
+
+## Output
+
+### `hot`
+
+Reads the public `bbs.hupu.com/` landing page (no login required) via an in-page `querySelectorAll('.t-info')` walk. Replaces a legacy `documentElement.outerHTML` regex that conflated navigation links with thread rows.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `rank` | int | 1-based position on the home page |
+| `tid` | string | 9-digit hupu thread id; round-trips into `hupu detail <tid>` |
+| `title` | string | Thread title from `.t-title`; trimmed |
+| `lights` | int \| null | "亮" count (likes-equivalent), `null` if upstream omitted the span; `0` is a real value, never an unknown sentinel |
+| `replies` | int \| null | "回复" count, same `null` semantics as `lights`. `万`-suffixed counts are expanded (`1.2万 → 12000`) |
+| `forum` | string | Sub-section name (e.g. `步行街主干道`, `NBA湿乎乎的话题`) from the row's `.t-label` link |
+| `is_hot` | bool | `true` when hupu tagged the row with `class=" hot"` — exposes hupu's own hot marker; rows are returned in page order regardless |
+| `url` | string | Canonical `https://bbs.hupu.com/<tid>.html` |
+
+Empty home page → `EmptyResultError` (the page structure may have changed); never a silent `[]`.
 
 ## Prerequisites
 

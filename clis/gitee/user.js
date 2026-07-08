@@ -67,6 +67,7 @@ function apiGiteeIndex(user) {
 cli({
     site: 'gitee',
     name: 'user',
+    access: 'read',
     description: 'Show a Gitee user profile panel',
     domain: 'gitee.com',
     strategy: Strategy.PUBLIC,

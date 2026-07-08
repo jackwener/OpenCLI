@@ -295,15 +295,45 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
 }
 
 /**
- * Generate JS for click that uses the unified resolver.
- * Assumes resolveTargetJs has been called and __resolved is set.
+ * Generate JS that scrolls + measures `__resolved` without clicking.
+ *
+ * Generic click prefers CDP `Input.dispatchMouseEvent`, which fires the full
+ * pointer/mouse chain that Radix/MUI/shadcn dropdowns rely on. Keep measurement
+ * separate so the CDP-primary path does not call DOM `el.click()` first.
  */
-export function clickResolvedJs(): string {
+export function boundingRectResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
   return `
     (() => {
       const el = window.__resolved;
       if (!el) throw new Error('No resolved element');
-      el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      const rect = el.getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      const x = Math.round(rect.left + rect.width / 2);
+      const y = Math.round(rect.top + rect.height / 2);
+      const visible = w > 0 && h > 0;
+      return { x, y, w, h, visible };
+    })()
+  `;
+}
+
+/**
+ * Generate JS for click that uses the unified resolver.
+ * Assumes resolveTargetJs has been called and __resolved is set.
+ *
+ * This is the JS fallback path. BasePage.click uses boundingRectResolvedJs for
+ * the CDP-primary path and only reaches this when native click is unavailable
+ * or the target has no usable rect.
+ */
+export function clickResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
+  return `
+    (() => {
+      const el = window.__resolved;
+      if (!el) throw new Error('No resolved element');
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
       const rect = el.getBoundingClientRect();
       const x = Math.round(rect.left + rect.width / 2);
       const y = Math.round(rect.top + rect.height / 2);
@@ -354,16 +384,146 @@ export function typeResolvedJs(text: string): string {
   `;
 }
 
+export type FillResolvedResult =
+  | { ok: true; actual: string; expected: string; length: number; mode: 'input' | 'textarea' | 'contenteditable' }
+  | { ok: false; actual: string; expected: string; length: number; mode: 'input' | 'textarea' | 'contenteditable' }
+  | { ok: false; reason: string; tag?: string; type?: string; role?: string };
+
+/**
+ * Prepare the resolved element for native CDP Input.insertText.
+ *
+ * This preserves `browser type`'s existing "replace current text" semantics:
+ * focus the editable target, select its current contents, then let CDP insert
+ * real browser text input so rich editors can update their internal state.
+ */
+export function prepareNativeTypeResolvedJs(opts: { skipScroll?: boolean; skipFocus?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
+  const shouldFocus = opts.skipFocus ? 'false' : 'true';
+  return `
+    (() => {
+      const original = window.__resolved;
+      if (!original) throw new Error('No resolved element');
+
+      function nearestContentEditableHost(el) {
+        let current = el;
+        while (current && current.nodeType === 1) {
+          if (current.hasAttribute && current.hasAttribute('contenteditable')) return current;
+          current = current.parentElement;
+        }
+        return el.isContentEditable ? el : null;
+      }
+
+      const editableHost = original.isContentEditable ? nearestContentEditableHost(original) : null;
+      const inputTypes = new Set(['', 'text', 'search', 'url', 'tel', 'email', 'password']);
+      const isInput = original instanceof HTMLInputElement;
+      const isTextarea = original instanceof HTMLTextAreaElement;
+      const isTextControl = isTextarea || (isInput && inputTypes.has((original.getAttribute('type') || original.type || '').toLowerCase()));
+      const el = editableHost || (isTextControl ? original : null);
+
+      if (!el) {
+        return {
+          ok: false,
+          reason: 'not_editable',
+          tag: original.tagName ? original.tagName.toLowerCase() : '',
+        };
+      }
+
+      window.__resolved = el;
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
+      if (${shouldFocus}) {
+        try {
+          el.focus({ preventScroll: true });
+        } catch (_) {
+          el.focus();
+        }
+      }
+
+      if (editableHost) {
+        const sel = window.getSelection();
+        if (!sel) return { ok: false, reason: 'selection_unavailable', mode: 'contenteditable' };
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return { ok: true, mode: 'contenteditable' };
+      }
+
+      let selected = false;
+      try {
+        if (typeof el.setSelectionRange === 'function') {
+          el.setSelectionRange(0, String(el.value || '').length);
+          selected = true;
+        }
+      } catch (_) {}
+      try {
+        if (!selected && typeof el.select === 'function') {
+          el.select();
+          selected = true;
+        }
+      } catch (_) {}
+
+      return selected
+        ? { ok: true, mode: isTextarea ? 'textarea' : 'input' }
+        : { ok: false, reason: 'selection_unavailable', mode: isTextarea ? 'textarea' : 'input' };
+    })()
+  `;
+}
+
+/**
+ * Verify the exact value/text currently held by the resolved editable target.
+ * Assumes resolveTargetJs and prepareNativeTypeResolvedJs have already set
+ * `window.__resolved` to the normalized editable host.
+ */
+export function verifyFilledResolvedJs(expected: string): string {
+  const safeText = JSON.stringify(expected);
+  return `
+    (() => {
+      const el = window.__resolved;
+      if (!el) return { ok: false, reason: 'no_resolved_element' };
+
+      const tag = el.tagName ? el.tagName.toLowerCase() : '';
+      const isInput = el instanceof HTMLInputElement;
+      const isTextarea = el instanceof HTMLTextAreaElement;
+      const mode = el.isContentEditable
+        ? 'contenteditable'
+        : isTextarea
+          ? 'textarea'
+          : isInput
+            ? 'input'
+            : '';
+
+      if (!mode) {
+        return {
+          ok: false,
+          reason: 'not_editable',
+          tag,
+          role: el.getAttribute ? (el.getAttribute('role') || '') : '',
+        };
+      }
+
+      const actual = mode === 'contenteditable' ? (el.innerText || '') : String(el.value || '');
+      return {
+        ok: actual === ${safeText},
+        actual,
+        expected: ${safeText},
+        length: actual.length,
+        mode,
+      };
+    })()
+  `;
+}
+
 /**
  * Generate JS for scrollTo that uses the unified resolver.
  * Assumes resolveTargetJs has been called and __resolved is set.
  */
-export function scrollResolvedJs(): string {
+export function scrollResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+  const shouldScroll = opts.skipScroll ? 'false' : 'true';
   return `
     (() => {
       const el = window.__resolved;
       if (!el) throw new Error('No resolved element');
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      if (${shouldScroll}) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       return { scrolled: true, tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 80) };
     })()
   `;

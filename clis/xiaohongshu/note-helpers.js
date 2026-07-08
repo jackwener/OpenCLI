@@ -14,9 +14,9 @@ function isShortLink(input) {
     return /^https?:\/\/xhslink\.com\//i.test(input);
 }
 
-function isXiaohongshuHost(hostname) {
+function isHostMatch(hostname, cookieRoot) {
     const normalized = hostname.toLowerCase();
-    return normalized === 'xiaohongshu.com' || normalized.endsWith('.xiaohongshu.com');
+    return normalized === cookieRoot || normalized.endsWith('.' + cookieRoot);
 }
 
 function isSupportedNotePath(pathname) {
@@ -30,14 +30,24 @@ function isSupportedNotePath(pathname) {
  * XHS note detail pages now require a valid signed URL for reliable access.
  * Bare note IDs no longer resolve deterministically, so callers must provide
  * a full note URL with xsec_token or, for downloads only, an xhslink short link.
+ *
+ * `options.cookieRoot` overrides the default `xiaohongshu.com` cookie root —
+ * the rednote adapter passes `'rednote.com'` so the same validator accepts
+ * `www.rednote.com` URLs without duplicating this function.
+ * `options.signedUrlHint` overrides the default hint surfaced on rejection.
  */
 export function buildNoteUrl(input, options = {}) {
-    const { allowShortLink = false, commandName = 'xiaohongshu note' } = options;
+    const {
+        allowShortLink = false,
+        commandName = 'xiaohongshu note',
+        cookieRoot = 'xiaohongshu.com',
+        signedUrlHint = XHS_SIGNED_URL_HINT,
+    } = options;
     const trimmed = input.trim();
     const message = `${commandName} now requires a full signed URL`;
     const hint = allowShortLink
-        ? `${XHS_SIGNED_URL_HINT} For downloads, xhslink short links are also supported.`
-        : XHS_SIGNED_URL_HINT;
+        ? `${signedUrlHint} For downloads, xhslink short links are also supported.`
+        : signedUrlHint;
 
     if (/^https?:\/\//.test(trimmed)) {
         if (isShortLink(trimmed)) {
@@ -48,7 +58,7 @@ export function buildNoteUrl(input, options = {}) {
         try {
             const url = new URL(trimmed);
             const xsecToken = url.searchParams.get('xsec_token')?.trim();
-            if (isXiaohongshuHost(url.hostname) && isSupportedNotePath(url.pathname) && xsecToken) {
+            if (isHostMatch(url.hostname, cookieRoot) && isSupportedNotePath(url.pathname) && xsecToken) {
                 return trimmed;
             }
         }

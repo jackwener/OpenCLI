@@ -4,15 +4,20 @@
  * Simplified for the daemon-based architecture.
  */
 
-import { styleText } from 'node:util';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
-import { getDaemonHealth, listSessions } from './browser/daemon-client.js';
+import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
+import { getDaemonHealth } from './browser/daemon-transport.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
+import type { BrowserProfileStatus } from './browser/daemon-transport.js';
+import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
+import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
+const DOCTOR_SESSION = '__doctor__';
 
 /** Parse a semver string into [major, minor, patch]. Returns null on invalid input. */
 function parseSemver(v: string): [number, number, number] | null {
@@ -44,8 +49,6 @@ function satisfiesRange(version: string, range: string): boolean {
 
 export type DoctorOptions = {
   yes?: boolean;
-  live?: boolean;
-  sessions?: boolean;
   cliVersion?: string;
 };
 
@@ -60,13 +63,15 @@ export type DoctorReport = {
   cliVersion?: string;
   daemonRunning: boolean;
   daemonFlaky?: boolean;
+  daemonStale?: boolean;
   daemonVersion?: string;
   extensionConnected: boolean;
   extensionFlaky?: boolean;
   extensionVersion?: string;
   latestExtensionVersion?: string;
   connectivity?: ConnectivityResult;
-  sessions?: Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>;
+  profiles?: BrowserProfileStatus[];
+  adapterShadows?: AdapterShadow[];
   issues: string[];
 };
 
@@ -75,48 +80,47 @@ export type DoctorReport = {
  */
 export async function checkConnectivity(opts?: { timeout?: number }): Promise<ConnectivityResult> {
   const start = Date.now();
+  const timeoutSeconds = opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS;
+  // This is a health probe: shrink the transport's per-command deadline so a
+  // hung daemon/extension fails the check in seconds, not the default 120s.
+  setDaemonCommandTimeoutSeconds(timeoutSeconds);
   try {
     const bridge = new BrowserBridge();
-    const page = await bridge.connect({ timeout: opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS });
-    // Try a simple eval to verify end-to-end connectivity
-    await page.evaluate('1 + 1');
-    await bridge.close();
+    const page = await bridge.connect({
+      timeout: timeoutSeconds,
+      session: DOCTOR_SESSION,
+      surface: 'browser',
+    });
+    try {
+      // Try a simple eval to verify end-to-end connectivity.
+      await page.evaluate('1 + 1');
+      await page.closeWindow?.();
+    } finally {
+      await bridge.close();
+    }
     return { ok: true, durationMs: Date.now() - start };
   } catch (err) {
     return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
+  } finally {
+    setDaemonCommandTimeoutSeconds(null);
   }
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Live connectivity check doubles as auto-start (bridge.connect spawns daemon).
-  let connectivity: ConnectivityResult | undefined;
-  if (opts.live) {
-    connectivity = await checkConnectivity();
-  } else {
-    // No live probe — daemon may have idle-exited. Do a minimal auto-start
-    // so we don't misreport a lazy-lifecycle stop as a real failure.
-    const initialHealth = await getDaemonHealth();
-    if (initialHealth.state === 'stopped') {
-      try {
-        const bridge = new BrowserBridge();
-        await bridge.connect({ timeout: 5 });
-        await bridge.close();
-      } catch {
-        // Auto-start failed; we'll report it below.
-      }
-    }
-  }
+  // Live connectivity check is the core of doctor — it doubles as auto-start
+  // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
+  const connectivity = await checkConnectivity();
 
-  // Single status read *after* all side-effects (live check / auto-start) settle.
+  // Single status read *after* connectivity side-effects settle.
   const health = await getDaemonHealth();
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
-  const daemonFlaky = !!(connectivity?.ok && !daemonRunning);
-  const extensionFlaky = !!(connectivity?.ok && daemonRunning && !extensionConnected);
-  const sessions = opts.sessions && health.state === 'ready'
-    ? await listSessions() as Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>
-    : undefined;
+  const daemonFlaky = connectivity.ok && !daemonRunning;
+  const extensionFlaky = connectivity.ok && daemonRunning && !extensionConnected;
+  const daemonStale = isDaemonStale(health.status, opts.cliVersion);
+  const profiles = health.status?.profiles;
   const extensionVersion = health.status?.extensionVersion;
+  const adapterShadows = findShadowedUserAdapters();
 
   const issues: string[] = [];
   if (daemonFlaky) {
@@ -127,27 +131,29 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   } else if (!daemonRunning) {
     issues.push('Daemon is not running. It should start automatically when you run an opencli browser command.');
   }
+  if (daemonStale && opts.cliVersion) {
+    issues.push(staleDaemonIssue(health.status, opts.cliVersion));
+  }
   if (extensionFlaky) {
     issues.push(
       'Extension connection is unstable. The live browser test succeeded, but the daemon reported the extension disconnected immediately afterward.\n' +
       'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
     );
   } else if (daemonRunning && !extensionConnected) {
-    const daemonVersion = health.status?.daemonVersion;
-    const isStale = opts.cliVersion && (!daemonVersion || daemonVersion !== opts.cliVersion);
-    if (isStale) {
-      const reason = daemonVersion
-        ? `daemon v${daemonVersion} ≠ CLI v${opts.cliVersion}`
-        : `daemon predates version reporting, CLI is v${opts.cliVersion}`;
+    if (health.state === 'profile-required') {
       issues.push(
-        `Stale daemon detected: ${reason}.\n` +
-        'The daemon was started by an older CLI version and may have missed the extension registration.\n' +
-        '  Quick fix: opencli daemon stop && opencli doctor',
+        'Multiple Chrome profiles are connected to the daemon, but no default profile was selected.\n' +
+        '  Run opencli profile list, then opencli profile use <name>, or pass --profile <name>.',
+      );
+    } else if (health.state === 'profile-disconnected') {
+      issues.push(
+        `Selected browser profile is not connected: ${health.status?.contextId ?? 'unknown'}.\n` +
+        '  Open that Chrome profile and make sure the OpenCLI extension is enabled.',
       );
     } else {
       issues.push(
         'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
-        'If the extension is already installed, try: opencli daemon stop && opencli doctor\n' +
+        'If the extension is already installed, try: opencli daemon restart\n' +
         'If the extension is not installed:\n' +
         '  1. Download from https://github.com/jackwener/opencli/releases\n' +
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
@@ -162,8 +168,26 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       '  Reload or reinstall the extension from: https://github.com/jackwener/opencli/releases',
     );
   }
-  if (connectivity && !connectivity.ok) {
+  if (!connectivity.ok) {
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
+  }
+  // Stale default detection: a persisted default profile routinely outlives
+  // the extension instance it names (reinstalls regenerate the contextId).
+  // Commands keep working via the daemon's single-profile fallback, but the
+  // user should refresh the default so multi-profile setups stay predictable.
+  const profileConfig = loadProfileConfig();
+  const staleDefault = profileConfig.defaultContextId;
+  if (staleDefault && profiles?.length && !profiles.some((p) => p.contextId === staleDefault)) {
+    const alias = aliasForContextId(profileConfig, staleDefault);
+    const label = alias ? `${alias} (${staleDefault})` : staleDefault;
+    const fallbackNote = profiles.length === 1
+      ? `Commands currently fall back to the only connected profile: ${profiles[0].contextId}.`
+      : 'Multiple profiles are connected, so commands will ask you to choose.';
+    issues.push(
+      `Default browser profile is stale: ${label} is not connected (the extension instance it names no longer exists).\n` +
+      `  ${fallbackNote}\n` +
+      '  Refresh it with: opencli profile list, then opencli profile use <name>.',
+    );
   }
   const extensionCompatRange = health.status?.extensionCompatRange;
   if (extensionVersion && opts.cliVersion && extensionCompatRange) {
@@ -194,80 +218,90 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       '  Download from: https://github.com/jackwener/opencli/releases',
     );
   }
+  if (adapterShadows.length > 0) {
+    issues.push(formatAdapterShadowIssue(adapterShadows));
+  }
 
   return {
     cliVersion: opts.cliVersion,
     daemonRunning,
     daemonFlaky,
+    daemonStale,
     daemonVersion: health.status?.daemonVersion,
     extensionConnected,
     extensionFlaky,
     extensionVersion,
     latestExtensionVersion,
     connectivity,
-    sessions,
+    profiles,
+    adapterShadows,
     issues,
   };
 }
 
 export function renderBrowserDoctorReport(report: DoctorReport): string {
-  const lines = [styleText('bold', `opencli v${report.cliVersion ?? 'unknown'} doctor`) + styleText('dim', ` (${getRuntimeLabel()})`), ''];
+  const lines = [`opencli v${report.cliVersion ?? 'unknown'} doctor` + ` (${getRuntimeLabel()})`, ''];
 
   // Daemon status
   const daemonIcon = report.daemonFlaky
-    ? styleText('yellow', '[WARN]')
-    : report.daemonRunning ? styleText('green', '[OK]') : styleText('red', '[MISSING]');
+    ? '[WARN]'
+    : report.daemonStale
+      ? '[WARN]'
+      : report.daemonRunning ? '[OK]' : '[MISSING]';
   const daemonLabel = report.daemonFlaky
     ? 'unstable (running during live check, then stopped)'
-    : report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` + (report.daemonVersion ? ` (v${report.daemonVersion})` : '') : 'not running';
+    : report.daemonRunning
+      ? `running on port ${DEFAULT_DAEMON_PORT} (${report.daemonStale
+        ? `${formatDaemonVersion(report)}, stale; CLI v${report.cliVersion ?? 'unknown'}`
+        : formatDaemonVersion(report)})`
+      : 'not running';
   lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status
   const extIcon = report.extensionFlaky || (report.extensionConnected && !report.extensionVersion)
-    ? styleText('yellow', '[WARN]')
-    : report.extensionConnected ? styleText('green', '[OK]') : styleText('yellow', '[MISSING]');
+    ? '[WARN]'
+    : report.extensionConnected ? '[OK]' : '[MISSING]';
   const extUpdateHint = report.extensionVersion && report.latestExtensionVersion && isNewerVersion(report.latestExtensionVersion, report.extensionVersion)
-    ? styleText('yellow', ` → v${report.latestExtensionVersion} available`)
+    ? ` → v${report.latestExtensionVersion} available`
     : '';
   const extVersion = !report.extensionConnected
     ? ''
     : report.extensionVersion
-      ? styleText('dim', ` (v${report.extensionVersion})`) + extUpdateHint
-      : styleText('dim', ' (version unknown)');
+      ? ` (v${report.extensionVersion})` + extUpdateHint
+      : ' (version unknown)';
   const extLabel = report.extensionFlaky
     ? 'unstable (connected during live check, then disconnected)'
     : report.extensionConnected ? 'connected' : 'not connected';
   lines.push(`${extIcon} Extension: ${extLabel}${extVersion}`);
 
+  if (report.profiles && report.profiles.length > 0) {
+    const config = loadProfileConfig();
+    lines.push('', 'Profiles:');
+    for (const profile of report.profiles) {
+      const alias = aliasForContextId(config, profile.contextId);
+      const aliasText = alias ? ` (${alias})` : '';
+      const defaultText = config.defaultContextId === profile.contextId ? ', default' : '';
+      const version = profile.extensionVersion ? `v${profile.extensionVersion}` : 'version unknown';
+      lines.push(`  • ${profile.contextId}${aliasText}: connected ${version}${defaultText}`);
+    }
+  }
+
   // Connectivity
   if (report.connectivity) {
-    const connIcon = report.connectivity.ok ? styleText('green', '[OK]') : styleText('red', '[FAIL]');
+    const connIcon = report.connectivity.ok ? '[OK]' : '[FAIL]';
     const detail = report.connectivity.ok
       ? `connected in ${(report.connectivity.durationMs / 1000).toFixed(1)}s`
       : `failed (${report.connectivity.error ?? 'unknown'})`;
     lines.push(`${connIcon} Connectivity: ${detail}`);
-  } else {
-    lines.push(`${styleText('dim', '[SKIP]')} Connectivity: skipped (--no-live)`);
-  }
-
-  if (report.sessions) {
-    lines.push('', styleText('bold', 'Sessions:'));
-    if (report.sessions.length === 0) {
-      lines.push(styleText('dim', '  • no active automation sessions'));
-    } else {
-      for (const session of report.sessions) {
-        lines.push(styleText('dim', `  • ${session.workspace} → window ${session.windowId}, tabs=${session.tabCount}, idle=${Math.ceil(session.idleMsRemaining / 1000)}s`));
-      }
-    }
   }
 
   if (report.issues.length) {
-    lines.push('', styleText('yellow', 'Issues:'));
+    lines.push('', 'Issues:');
     for (const issue of report.issues) {
-      lines.push(styleText('dim', `  • ${issue}`));
+      lines.push(`  • ${issue}`);
     }
   } else if (report.daemonRunning && report.extensionConnected) {
-    lines.push('', styleText('green', 'Everything looks good!'));
+    lines.push('', 'Everything looks good!');
   }
 
   return lines.join('\n');
