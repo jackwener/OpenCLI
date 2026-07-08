@@ -16,7 +16,7 @@
 | `opencli bilibili subtitle` | |
 | `opencli bilibili video` | Get one video's metadata (title, author, duration, stats) by BV / URL / b23.tv link |
 | `opencli bilibili summary` | Get the official AI video summary and timestamped outline by BV / URL / b23.tv link |
-| `opencli bilibili comments` | Read top-level comments, or read replies under a top-level comment with `--parent` |
+| `opencli bilibili comments` | Read top-level comments; `--parent` reads replies under a comment, `--top` reads only pinned comments |
 | `opencli bilibili comment` | Post a top-level comment or reply under a top-level comment (requires `--execute`) |
 | `opencli bilibili dynamic` | |
 | `opencli bilibili ranking` | |
@@ -75,6 +75,9 @@ opencli bilibili summary https://www.bilibili.com/video/BV1xx411c7mD/
 opencli bilibili comments BV1xx411c7mD --limit 10
 opencli bilibili comments BV1xx411c7mD --parent 123456789 --limit 10
 
+# Read only the pinned (置顶) comments
+opencli bilibili comments BV1xx411c7mD --top
+
 # Post a comment or reply. The write only happens with --execute.
 opencli bilibili comment BV1xx411c7mD "这条评论来自 OpenCLI" --execute
 opencli bilibili comment BV1xx411c7mD "回复楼主" --parent 123456789 --execute
@@ -99,6 +102,7 @@ opencli bilibili hot -v
 - `feed-detail` expects the dynamic ID from a `https://t.bilibili.com/<id>` URL
 - `comments` emits `rpid`; pass a top-level row's `rpid` to `comments --parent` to read its reply thread
 - `comments --limit` accepts `1..50`; empty comment lists raise `EmptyResultError`
+- `comments --top` returns only pinned comments (from the API's `top_replies`); it cannot be combined with `--parent`, and a video with no pinned comment raises `EmptyResultError`
 - `comment` is a write command and refuses to post unless `--execute` is passed
 - `comment --parent` expects the top-level/root `rpid`; nested reply-to-reply targeting is not inferred
 - `follow` and `unfollow` are write commands; they no-op when the current relation already matches the requested state and otherwise re-read `/x/relation` after modify before reporting success

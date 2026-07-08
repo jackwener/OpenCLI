@@ -47,20 +47,25 @@ function requireOkPayload(payload, label) {
     return payload.data;
 }
 
-function requireReplies(data, label) {
+function requireReplies(data, label, key = 'replies') {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw new CommandExecutionError(`Bilibili ${label} API returned malformed data`);
     }
-    if (!Object.hasOwn(data, 'replies')) {
-        throw new CommandExecutionError(`Bilibili ${label} API did not return replies`);
+    // top_replies is omitted entirely when a video has no pinned comment; treat
+    // its absence as an empty list rather than a malformed payload.
+    if (!Object.hasOwn(data, key)) {
+        if (key !== 'replies') {
+            return [];
+        }
+        throw new CommandExecutionError(`Bilibili ${label} API did not return ${key}`);
     }
-    if (data.replies === null) {
+    if (data[key] === null) {
         return [];
     }
-    if (!Array.isArray(data.replies)) {
-        throw new CommandExecutionError(`Bilibili ${label} API returned malformed replies`);
+    if (!Array.isArray(data[key])) {
+        throw new CommandExecutionError(`Bilibili ${label} API returned malformed ${key}`);
     }
-    return data.replies;
+    return data[key];
 }
 
 function formatReplyRow(reply, index) {
@@ -90,12 +95,13 @@ cli({
     site: 'bilibili',
     name: 'comments',
     access: 'read',
-    description: '获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复）',
+    description: '获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复；用 --top 只看置顶评论）',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,
     args: [
         { name: 'bvid', required: true, positional: true, help: 'Video BV ID (e.g. BV1WtAGzYEBm)' },
         { name: 'parent', type: 'int', help: 'rpid of a comment — fetch the replies under it instead of top-level comments' },
+        { name: 'top', type: 'boolean', default: false, help: '只返回置顶评论（与 --parent 互斥）' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of comments (max 50)' },
     ],
     columns: ['rank', 'rpid', 'author', 'text', 'likes', 'replies', 'time'],
@@ -112,6 +118,10 @@ cli({
         }
         const limit = parseLimit(kwargs.limit);
         const parent = parseParent(kwargs.parent);
+        const top = kwargs.top === true;
+        if (top && parent != null) {
+            throw new ArgumentError('bilibili comments --top cannot be combined with --parent (pinned comments only exist at the top level)');
+        }
         // Resolve bvid → aid (required by reply API)
         const view = await apiGet(page, '/x/web-interface/view', { params: { bvid } });
         const viewData = requireOkPayload(view, 'view');
@@ -127,8 +137,14 @@ cli({
                 signed: true,
             });
         const label = parent != null ? 'reply thread' : 'reply main';
-        const replies = requireReplies(requireOkPayload(payload, label), label);
+        const data = requireOkPayload(payload, label);
+        const replies = top
+            ? requireReplies(data, label, 'top_replies')
+            : requireReplies(data, label);
         if (replies.length === 0) {
+            if (top) {
+                throw new EmptyResultError(`bilibili pinned comments: ${bvid}`);
+            }
             throw new EmptyResultError(parent != null ? `bilibili comment replies: ${parent}` : `bilibili comments: ${bvid}`);
         }
         return replies.slice(0, limit).map(formatReplyRow);
