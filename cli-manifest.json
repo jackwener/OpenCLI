@@ -14625,6 +14625,59 @@
   },
   {
     "site": "google",
+    "name": "images",
+    "description": "Search Google Images for photos and image results",
+    "access": "read",
+    "domain": "google.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Image search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of image results (1-100)"
+      },
+      {
+        "name": "lang",
+        "type": "str",
+        "default": "en",
+        "required": false,
+        "help": "Language short code (e.g. en, zh)"
+      },
+      {
+        "name": "resolve",
+        "type": "bool",
+        "default": true,
+        "required": false,
+        "help": "Click image previews to resolve original imgurl values"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "imageUrl",
+      "thumbnailUrl",
+      "sourceUrl",
+      "source",
+      "width",
+      "height"
+    ],
+    "type": "js",
+    "modulePath": "google/images.js",
+    "sourceFile": "google/images.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "google",
     "name": "news",
     "description": "Get Google News headlines",
     "access": "read",
