@@ -12,6 +12,10 @@
 | `opencli pixiv illusts <user-id>` | List illustrations by artist |
 | `opencli pixiv detail <id>` | View illustration details |
 | `opencli pixiv download <illust-id>` | Download original-quality images |
+| `opencli pixiv novel <id>` | View novel metadata |
+| `opencli pixiv novel-search <query>` | Search novels by keyword or tag |
+| `opencli pixiv novels <user-id>` | List novels by user |
+| `opencli pixiv novel-series <id>` | List novels in a novel series |
 
 ## Output Columns
 
@@ -22,8 +26,12 @@
 | `illusts` | `rank, title, illust_id, pages, bookmarks, tags, created, url` |
 | `user` | `user_id, name, premium, following, illusts, manga, novels, comment, url` |
 | `detail` | `illust_id, title, author, type, pages, bookmarks, likes, views, tags, created, url` |
+| `novel` | `novel_id, title, author, user_id, series_id, series_title, series_order, words, characters, bookmarks, likes, views, tags, created, url` |
+| `novel-search` | `rank, title, author, user_id, novel_id, words, characters, bookmarks, tags, created, url` |
+| `novels` | `rank, title, novel_id, words, characters, bookmarks, tags, created, url` |
+| `novel-series` | `order, novel_id, title, author, words, characters, bookmarks, tags, created, url` |
 
-`illust_id` round-trips from `ranking` / `search` / `illusts` into `detail` / `download`. `user_id` round-trips from `ranking` / `search` into `user` / `illusts`.
+`illust_id` round-trips from `ranking` / `search` / `illusts` into `detail` / `download`. `novel_id` round-trips from `novels` / `novel-series` into `novel`. `user_id` round-trips from `ranking` / `search` into `user` / `illusts` / `novels`.
 
 ## Usage Examples
 
@@ -77,6 +85,24 @@ opencli pixiv illusts 11 --limit 10
 # View illustration details (tags, stats, type)
 opencli pixiv detail 12345678
 ```
+
+### Novels
+
+```bash
+# View novel metadata
+opencli pixiv novel 10588915
+
+# Search novels by keyword or tag
+opencli pixiv novel-search "ファンタジー" --mode r18 --limit 20
+
+# List a user's novels (newest first)
+opencli pixiv novels 37119297 --limit 10
+
+# List entries in a novel series
+opencli pixiv novel-series 1064235 --limit 30
+```
+
+Novel commands expose metadata, IDs, tags, series fields, and stats. They do not emit the full novel body text.
 
 ### Download
 
