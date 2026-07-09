@@ -96,3 +96,80 @@ export async function pixivFetch(page, path, opts = {}) {
 }
 /** Maximum number of illust IDs per batch detail request (Pixiv server limit). */
 export const BATCH_SIZE = 48;
+
+export function normalizePixivUserData(raw) {
+    if (!raw || Array.isArray(raw) || typeof raw !== 'object') {
+        return null;
+    }
+    const id = String(raw.id ?? raw.userId ?? raw.user_id ?? '').trim();
+    const name = String(raw.name ?? raw.userName ?? raw.user_name ?? '').trim();
+    if (!/^\d+$/.test(id)) {
+        return null;
+    }
+    return {
+        id,
+        name,
+        premium: Boolean(raw.premium ?? raw.isPremium ?? raw.is_premium ?? false),
+        profileImageUrl: String(raw.profileImageUrl ?? raw.imageBig ?? raw.image ?? raw.avatar ?? '').trim(),
+    };
+}
+
+export async function getCurrentPixivUser(page) {
+    try {
+        await page.goto(`https://${PIXIV_DOMAIN}`);
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv navigation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    let data;
+    try {
+        data = unwrapEvaluateResult(await page.evaluate(`
+    (() => {
+      const candidates = [
+        globalThis?.pixiv?.context?.userData,
+        globalThis?.pixiv?.user,
+        globalThis?.globalInitData?.userData,
+        globalThis?.globalInitData?.user,
+        globalThis?.__PIXIV_CONTEXT__?.userData,
+      ];
+      for (const value of candidates) {
+        if (value && typeof value === 'object') return value;
+      }
+      const meta = document.querySelector('meta[name="global-data"]')?.content;
+      if (meta) {
+        try {
+          const parsed = JSON.parse(meta);
+          if (parsed?.userData) return parsed.userData;
+          if (parsed?.user) return parsed.user;
+        } catch {}
+      }
+      const userLink = Array.from(document.querySelectorAll('a[href]'))
+        .map((node) => {
+          try {
+            const url = new URL(node.getAttribute('href'), location.href);
+            const pathname = url.pathname;
+            if (!pathname.startsWith('/users/')) return null;
+            const id = pathname.slice('/users/'.length);
+            if (!id || !Array.from(id).every((ch) => ch >= '0' && ch <= '9')) return null;
+            return {
+              id,
+              name: node.textContent?.trim() || '',
+              profileImageUrl: node.querySelector('img')?.src || '',
+            };
+          } catch {
+            return null;
+          }
+        })
+        .find(Boolean);
+      if (userLink) return userLink;
+      return null;
+    })()
+  `));
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv current-account lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const user = normalizePixivUserData(data);
+    if (!user) {
+        throw new AuthRequiredError(PIXIV_DOMAIN, 'Authentication required — please log in to Pixiv in Chrome');
+    }
+    return user;
+}
