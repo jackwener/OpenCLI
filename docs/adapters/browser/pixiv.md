@@ -9,13 +9,17 @@
 | `opencli pixiv ranking` | Daily/weekly/monthly illustration rankings |
 | `opencli pixiv search <query>` | Search illustrations by keyword or tag |
 | `opencli pixiv user <uid>` | View artist profile info |
+| `opencli pixiv me` | Show the currently logged-in Pixiv account |
 | `opencli pixiv illusts <user-id>` | List illustrations by artist |
 | `opencli pixiv detail <id>` | View illustration details |
 | `opencli pixiv download <illust-id>` | Download original-quality images |
 | `opencli pixiv novel <id>` | View novel metadata |
+| `opencli pixiv novel-download <novel-id>` | Download novel text as txt or markdown |
 | `opencli pixiv novel-search <query>` | Search novels by keyword or tag |
 | `opencli pixiv novels <user-id>` | List novels by user |
 | `opencli pixiv novel-series <id>` | List novels in a novel series |
+| `opencli pixiv bookmarks` | List current-account illustration or novel bookmarks |
+| `opencli pixiv bookmark-download` | Batch download current-account bookmarks |
 
 ## Output Columns
 
@@ -25,11 +29,15 @@
 | `search` | `rank, title, author, user_id, illust_id, pages, bookmarks, tags, url` |
 | `illusts` | `rank, title, illust_id, pages, bookmarks, tags, created, url` |
 | `user` | `user_id, name, premium, following, illusts, manga, novels, comment, url` |
+| `me` | `user_id, name, premium, profile_image, url` |
 | `detail` | `illust_id, title, author, type, pages, bookmarks, likes, views, tags, created, url` |
 | `novel` | `novel_id, title, author, user_id, series_id, series_title, series_order, words, characters, bookmarks, likes, views, tags, created, url` |
+| `novel-download` | `novel_id, title, format, status, path` |
 | `novel-search` | `rank, title, author, user_id, novel_id, words, characters, bookmarks, tags, created, url` |
 | `novels` | `rank, title, novel_id, words, characters, bookmarks, tags, created, url` |
 | `novel-series` | `order, novel_id, title, author, words, characters, bookmarks, tags, created, url` |
+| `bookmarks` | `rank, type, title, author, user_id, illust_id, novel_id, pages, words, bookmarks, tags, created, url` |
+| `bookmark-download` | `rank, type, id, title, status, download_status, path, error` |
 
 `illust_id` round-trips from `ranking` / `search` / `illusts` into `detail` / `download`. `novel_id` round-trips from `novels` / `novel-series` into `novel`. `user_id` round-trips from `ranking` / `search` into `user` / `illusts` / `novels`.
 
@@ -79,6 +87,9 @@ opencli pixiv search "オリジナル" --page 2 --limit 30
 # View artist profile
 opencli pixiv user 11
 
+# Show the currently logged-in account
+opencli pixiv me
+
 # List artist's illustrations (newest first)
 opencli pixiv illusts 11 --limit 10
 
@@ -92,6 +103,10 @@ opencli pixiv detail 12345678
 # View novel metadata
 opencli pixiv novel 10588915
 
+# Download novel text
+opencli pixiv novel-download 10588915 --file-format txt
+opencli pixiv novel-download 10588915 --file-format md --output ./my-novels
+
 # Search novels by keyword or tag
 opencli pixiv novel-search "ファンタジー" --mode r18 --limit 20
 
@@ -103,6 +118,23 @@ opencli pixiv novel-series 1064235 --limit 30
 ```
 
 Novel commands expose metadata, IDs, tags, series fields, and stats. They do not emit the full novel body text.
+Use `novel-download` when you explicitly want to export the novel body text to a local file.
+
+### Current-account bookmarks
+
+```bash
+# List current account's public illustration bookmarks
+opencli pixiv bookmarks --type illust --limit 20
+
+# List current account's private novel bookmarks
+opencli pixiv bookmarks --type novel --visibility hide --limit 20
+
+# Batch download current account illustration bookmarks
+opencli pixiv bookmark-download --type illust --limit 100 --output ./pixiv-archive
+
+# Batch download current account novel bookmarks as Markdown
+opencli pixiv bookmark-download --type novel --limit 100 --file-format md --output ./pixiv-archive
+```
 
 ### Download
 

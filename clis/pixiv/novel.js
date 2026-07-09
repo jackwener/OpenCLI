@@ -22,7 +22,11 @@ function requireNovelBody(body, id) {
   if (!/^\d+$/.test(novelId) || novelId !== id || !title || !userName || !/^\d+$/.test(userId)) {
     throw new CommandExecutionError(`Pixiv novel ${id} returned malformed detail payload`);
   }
-  return { ...body, id: novelId, title, userName, userId };
+  body.id = novelId;
+  body.title = title;
+  body.userName = userName;
+  body.userId = userId;
+  return body;
 }
 
 export function novelRowFromBody(body, id) {
