@@ -445,101 +445,33 @@ async function focusBodyEnd(page, bodySelectors) {
     })(${JSON.stringify(bodySelectors)})
   `));
 }
-function topicSuggestionScript(topic, { click = false } = {}) {
-    // Returns the best matching suggestion's screen coordinates (center) so the
-    // caller can issue a real click.
-    return `
-    (topicName => {
-      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
-      const want = norm(topicName);
-      const SUGGESTION_SELECTORS = [
-        '[class*="topic-item"]',
-        '[class*="hashtag-item"]',
-        '[class*="suggest-item"]',
-        '[class*="suggestion"] li',
-        '[class*="mention"] li',
-        '[class*="dropdown"] li',
-        '[id*="topic"] li',
-        '[class*="topic"] li',
-      ];
-      const seen = new Set();
-      const items = [];
-      for (const sel of SUGGESTION_SELECTORS) {
-        for (const node of document.querySelectorAll(sel)) {
-          if (!node || seen.has(node)) continue;
-          if (node.offsetParent === null) continue;
-          const rect = node.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) continue;
-          seen.add(node);
-          items.push(node);
-        }
-      }
-      if (!items.length) return { ok: false, count: 0 };
-      let target = items.find(node => norm(node.innerText || node.textContent) === want);
-      if (!target) target = items.find(node => norm(node.innerText || node.textContent).includes(want));
-      if (!target) target = items[0];
-      const rect = target.getBoundingClientRect();
-      ${click ? "try { target.click(); } catch (e) { return { ok: false, count: items.length, message: String(e) }; }" : ''}
-      return {
-        ok: true,
-        count: items.length,
-        x: Math.round(rect.left + rect.width / 2),
-        y: Math.round(rect.top + rect.height / 2),
-        text: (target.innerText || target.textContent || '').trim().slice(0, 40),
-      };
-    })(${JSON.stringify(topic)})
-  `;
-}
-function topicEntityCountScript(topic, bodySelectors) {
+function topicMarkerCountScript(topic, bodySelectors) {
     return `
     ((topicName, selectors) => {
-      const norm = (value) => (value || '').replace(/^#/, '').replace(/\\s+/g, '').trim();
-      const want = norm(topicName);
+      const __opencli_xhs_topic_marker_count = true;
+      // XHS may pick a broader suggestion (e.g. "#秋招攻略" for query "#秋招").
+      // Match any "#<topicFamilure>[话题"] marker whose text includes our topic.
+      const want = (topicName || '').replace(/^#/, '').trim().toLowerCase();
       const editor = selectors
         .map(sel => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find(node => node && node.offsetParent !== null && node.isContentEditable);
       if (!editor || !want) return 0;
-      const hasTopicSignal = (node) => {
-        const tag = (node.tagName || '').toLowerCase();
-        const role = (node.getAttribute && node.getAttribute('role')) || '';
-        const cls = String(node.className || '');
-        const id = String(node.id || '');
-        const href = (node.getAttribute && node.getAttribute('href')) || '';
-        const dataKeys = node.dataset ? Object.keys(node.dataset).join(' ') : '';
-        const haystack = [tag, role, cls, id, href, dataKeys].join(' ');
-        return tag === 'a'
-          || /link/i.test(role)
-          || /topic|hashtag|hash-tag|tag|mention|keyword/i.test(haystack)
-          || node.isContentEditable === false;
-      };
-      let count = 0;
-      for (const node of Array.from(editor.querySelectorAll('*'))) {
-        if (!node || node.offsetParent === null) continue;
-        if (!hasTopicSignal(node)) continue;
-        const text = norm(node.innerText || node.textContent || '');
-        if (text === want || text === '#' + want) count += 1;
-      }
-      return count;
-    })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
-  `;
-}
-function topicMarkerCountScript(topic, bodySelectors) {
-    return `
-    ((topicName, selectors) => {
-      const __opencli_xhs_topic_marker_count = true;
-      const marker = '#' + topicName + '[话题]';
-      const editor = selectors
-        .map(sel => Array.from(document.querySelectorAll(sel)))
-        .flat()
-        .find(node => node && node.offsetParent !== null && node.isContentEditable);
-      if (!editor || !marker) return 0;
       const text = editor.innerText || editor.textContent || '';
       let count = 0;
-      let index = text.indexOf(marker);
-      while (index !== -1) {
-        count += 1;
-        index = text.indexOf(marker, index + marker.length);
+      const token = '[话题]';
+      let pos = 0;
+      while (true) {
+        const tIdx = text.indexOf(token, pos);
+        if (tIdx === -1) break;
+        const before = text.slice(0, tIdx);
+        const hashIdx = before.lastIndexOf('#');
+        if (hashIdx !== -1) {
+          const candidate = before.slice(hashIdx + 1).trim().toLowerCase();
+          if (candidate && (candidate === want || candidate.includes(want) || want.includes(candidate)))
+            count += 1;
+        }
+        pos = tIdx + token.length;
       }
       return count;
     })(${JSON.stringify(topic)}, ${JSON.stringify(bodySelectors)})
@@ -584,9 +516,8 @@ async function addTopics(page, bodySelectors, topics) {
             catch { /* non-fatal */ }
         }
         // Type the inline "#<topic>" query so XHS pops the inline suggestion
-        // dropdown. We must use `page.insertText` (CDP) rather than the legacy
-        // `execCommand` path, otherwise XHS's editor doesn't fire its keyup
-        // listener and no dropdown appears.
+        // dropdown. We must use `page.insertText` (CDP), otherwise XHS's
+        // editor doesn't fire its keyup listener and no dropdown appears.
         if (typeof page.insertText !== 'function') {
             throw new CommandExecutionError(`Could not attach topic "${topic}": page.insertText is unavailable`);
         }
@@ -596,12 +527,9 @@ async function addTopics(page, bodySelectors, topics) {
         catch {
             throw new CommandExecutionError(`Could not attach topic "${topic}": failed to type inline topic query`);
         }
-        await page.wait({ time: 1.2 }); // Let the suggestion dropdown render.
-        // The suggestion dropdown lives inside the editor's closed shadow root,
-        // so light-DOM queries cannot enumerate its items. XHS auto-highlights
-        // the first matching suggestion as soon as the query is typed, so
-        // pressing Enter accepts it directly. `page.nativeClick` would also
-        // work but is not always wired up in the browser-bridge wrapper.
+        await page.wait({ time: 1.5 }); // Let the suggestion dropdown render.
+        // XHS auto-highlights the first matching suggestion when the query is
+        // typed. Press Enter to accept it (suggestion items are in shadow DOM).
         if (typeof page.pressKey !== 'function') {
             throw new CommandExecutionError(`Could not attach topic "${topic}": page.pressKey is unavailable`);
         }
@@ -611,14 +539,21 @@ async function addTopics(page, bodySelectors, topics) {
         catch (err) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": failed to accept suggestion (${err && err.message || err})`);
         }
-        await page.wait({ time: 0.8 });
-        // Verify the topic chip actually rendered. The chip itself lives in a
-        // closed shadow root so we cannot count `<a>` elements, but XHS exposes
-        // a stable "#<topic>[话题]" marker in the body editor's innerText once
-        // the suggestion is accepted. Require the scoped marker count to
-        // increase so an existing marker elsewhere cannot satisfy the write
-        // postcondition.
-        const afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+        await page.wait({ time: 1.0 });
+        // Verify the topic chip rendered. The chip is in a closed shadow root, so
+        // we check for the "#<topic>[话题]" marker in the body editor's innerText.
+        // Marker propagation can lag behind a successful selection. Poll instead
+        // of pressing Enter again: once the dropdown closes, another Enter would
+        // edit the post body rather than retrying the selection.
+        let afterMarkerCount = 0;
+        const markerPollAttempts = 4;
+        for (let attempt = 0; attempt < markerPollAttempts; attempt++) {
+            afterMarkerCount = Number(unwrapBrowserResult(await page.evaluate(topicMarkerCountScript(topic, bodySelectors)))) || 0;
+            if (afterMarkerCount > beforeMarkerCount)
+                break;
+            if (attempt < markerPollAttempts - 1)
+                await page.wait({ time: 0.6 });
+        }
         if (afterMarkerCount <= beforeMarkerCount) {
             throw new CommandExecutionError(`Could not attach topic "${topic}": no real topic entity appeared after selection`);
         }
@@ -989,10 +924,19 @@ async function currentComposerMediaCount(page) {
         .map((sel) => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find((el) => visibleBox(el));
-      const root = titleEl?.closest('form, [class*="publish"], [class*="editor"], [class*="note"]') || document.body;
+      // Search from the widest container to ensure we find media items even
+      // when the title input's closest form/editor ancestor does not encompass
+      // the image area (common in XHS's text-image card flow).
+      const root = titleEl?.closest('[class*="publish"], [class*="editor"], [class*="note"], form') || document.body;
+      const widerRoot = root?.parentElement || document.body;
       const seen = new Set();
       let count = 0;
-      for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
+      // First pass: target known media elements and inline-style backgrounds.
+      for (const el of Array.from(widerRoot.querySelectorAll(
+        'img, video, canvas, [style*="background"], [class*="upload-image"], ' +
+        '[class*="image-item"], [class*="media"], [data-testid*="image"], ' +
+        '[class*="preview-image"], [class*="cover-item"]'
+      ))) {
         if (!visibleMedia(el)) continue;
         const rect = el.getBoundingClientRect();
         const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
@@ -1001,13 +945,43 @@ async function currentComposerMediaCount(page) {
         seen.add(key);
         count += 1;
       }
+      // Second pass: catch CSS-class-rendered divs (no inline style). Scope to
+      // divs whose class hints at media rendering so we don't run
+      // getComputedStyle across every div on the page.
+      if (count === 0) {
+        for (const el of Array.from(widerRoot.querySelectorAll(
+          'div[class*="card"], div[class*="image"], div[class*="cover"], ' +
+          'div[class*="preview"], div[class*="thumb"], div[class*="pic"]'
+        ))) {
+          if (!visibleMedia(el)) continue;
+          const bg = getComputedStyle(el).backgroundImage;
+          if (bg && bg !== 'none' && bg !== '' && bg !== 'initial') {
+            const rect = el.getBoundingClientRect();
+            const key = bg + ':' + String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
+            if (seen.has(key)) continue;
+            seen.add(key);
+            count += 1;
+          }
+        }
+      }
       return { ok: true, count };
     })()
   `);
     return unwrapBrowserResult(result);
 }
 async function assertComposerMediaCount(page, expectedCount, label) {
-    const state = await currentComposerMediaCount(page);
+    // Retry a few times with short pauses — media elements may still be
+    // rendering/lazy-loading after the editor form appears.
+    const maxRetries = 4;
+    const retryDelayMs = 750;
+    let state;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        state = await currentComposerMediaCount(page);
+        if (state && typeof state.count === 'number' && state.count >= expectedCount)
+            return;
+        if (attempt < maxRetries - 1)
+            await page.wait({ time: retryDelayMs / 1_000 });
+    }
     if (!state || typeof state.count !== 'number') {
         throw new CommandExecutionError(`${label}: could not verify current composer media count`);
     }
@@ -1057,7 +1031,28 @@ async function runTextImageFlow(page, cards, cardStyle) {
         throw new CommandExecutionError(`文字配图: could not click "${PREVIEW_NEXT_LABEL}". ` +
             'Debug: /tmp/xhs_publish_next_debug.png');
     }
-    await page.wait({ time: 2 }); // editor render
+    // Instead of a fixed 2-second wait, poll for the title editor to appear
+    // (the editor is rendered only after images are fully processed).
+    // Then wait for media elements to actually render before returning.
+    const editorReady = await waitForEditForm(page);
+    if (!editorReady) {
+        // Not a fatal error — the caller's own waitForEditForm will catch it.
+        // Just give the page a moment and return.
+        await page.wait({ time: 2 });
+    } else {
+        // After the editor renders, poll for visible media items to appear.
+        // XHS may take extra time to render the generated card images as
+        // <div>/<img> elements in the composer, and a fixed sleep is fragile.
+        const maxWaitMs = 10_000;
+        const pollMs = 500;
+        const maxAttempts = Math.ceil(maxWaitMs / pollMs);
+        for (let i = 0; i < maxAttempts; i++) {
+            const state = await currentComposerMediaCount(page);
+            if (state.count >= 1)
+                break;
+            await page.wait({ time: pollMs / 1_000 });
+        }
+    }
     return appliedStyle;
 }
 async function inspectPublishSurfaceState(page) {
@@ -1249,6 +1244,27 @@ cli({
         // ── Step 5: Fill content / body ────────────────────────────────────────────
         await fillField(page, BODY_SELECTORS, content, 'content');
         await page.wait({ time: 0.5 });
+        // After fillField (especially after card-text flow), the body contenteditable
+        // may need extra time to settle before its inline suggestion dropdown responds.
+        if (topics.length > 0) {
+            await focusBodyEnd(page, BODY_SELECTORS);
+            await page.wait({ time: 0.3 });
+            // Type a tiny nudge (space + backspace) to kick XHS's editor into a
+            // "dirty" state where keyup listeners fire for the topic suggestion
+            // dropdown. The card-text wizard transition creates a fresh editor
+            // instance that needs this nudge.
+            if (typeof page.insertText === 'function') {
+                try { await page.insertText(' '); } catch { }
+                await page.wait({ time: 0.2 });
+                if (typeof page.pressKey === 'function') {
+                    try {
+                        await page.pressKey('Backspace');
+                    } catch { }
+                    await page.wait({ time: 0.3 });
+                }
+            }
+            await page.wait({ time: 1.0 });
+        }
         // ── Step 6: Add topic hashtags ─────────────────────────────────────────────
         // XHS converts a "#keyword" typed into the body editor into a real topic
         // entity only when the user picks an item from the inline suggestion
