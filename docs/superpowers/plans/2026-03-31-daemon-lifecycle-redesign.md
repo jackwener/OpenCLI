@@ -173,7 +173,7 @@ Replace the `IDLE_TIMEOUT` constant (line 27):
 ```typescript
 import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_IDLE_TIMEOUT } from './constants.js';
 
-const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+const PORT = DEFAULT_DAEMON_PORT;
 const IDLE_TIMEOUT = DEFAULT_DAEMON_IDLE_TIMEOUT;
 ```
 
@@ -425,7 +425,7 @@ Create `src/commands/daemon.ts`:
 import chalk from 'chalk';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
 
-const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+const DAEMON_PORT = DEFAULT_DAEMON_PORT;
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 
 interface DaemonStatus {

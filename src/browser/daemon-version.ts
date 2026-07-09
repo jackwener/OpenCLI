@@ -1,4 +1,4 @@
-import type { DaemonStatus } from './daemon-client.js';
+import type { DaemonStatus } from './daemon-transport.js';
 
 export function isDaemonStale(status: Pick<DaemonStatus, 'daemonVersion'> | null | undefined, cliVersion?: string): boolean {
   if (!status || !cliVersion) return false;

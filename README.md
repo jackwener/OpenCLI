@@ -64,7 +64,7 @@ Each Chrome profile runs its own OpenCLI extension instance. If you use multiple
 opencli profile list
 opencli profile rename <contextId> work
 opencli profile use work
-opencli --profile work browser state
+opencli --profile work browser main state
 ```
 
 With only one connected profile, OpenCLI uses it automatically. With multiple connected profiles and no default, OpenCLI asks you to choose instead of guessing.
@@ -169,10 +169,9 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENCLI_DAEMON_PORT` | `19825` | HTTP port for the daemon-extension bridge |
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW` | command default | Set to `foreground` or `background` to override Browser Bridge window placement. Browser-backed commands also accept `--window <foreground\|background>`. |
-| `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `30` | Seconds to wait for browser connection |
+| `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
@@ -189,6 +188,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `follow` `unfollow` `me` `subtitle` `summary` `video` `user-videos` |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |
+| **hltv** | `search` `player-summary` `player-matches` `player-form` `player-map-pool` `player-vs-team` `player-teammate-impact` `player-duel` `match-map` `match-series` `team-matches` `team-map-pool` `event-matches` |
 | **geogebra** | `eval` `add-point` `add-line` `add-circle` `add-polygon` `triangle` `hexagon` `list` `info` |
 | **linkedin** | `connect` `inbox` `job-detail` `jobs-preferences` `post-analytics` `posts` `profile-experience` `profile-projects` `profile-read` `profile-analytics` `safe-send` `search` `services-read` `sent-invitations` `thread-snapshot` `timeline` `salesnav-search` `salesnav-inbox` `salesnav-message` `salesnav-thread` |
 | **reddit** | `hot` `frontpage` `popular` `search` `subreddit` `read` `user` `user-posts` `user-comments` `upvote` `upvoted` `save` `saved` `comment` `subscribe` |

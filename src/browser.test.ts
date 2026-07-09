@@ -1,11 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { BrowserBridge, generateStealthJs } from './browser/index.js';
 import { extractTabEntries, diffTabIndexes, appendLimited } from './browser/tabs.js';
 import { withTimeoutMs } from './runtime.js';
 import { __test__ as cdpTest } from './browser/cdp.js';
 import { classifyBrowserError } from './browser/errors.js';
-import * as daemonClient from './browser/daemon-client.js';
+import * as daemonTransport from './browser/daemon-transport.js';
 import * as daemonLifecycle from './browser/daemon-lifecycle.js';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('browser helpers', () => {
   it('extracts tab entries from string snapshots', () => {
@@ -147,7 +151,7 @@ describe('BrowserBridge state', () => {
 
   it('fails fast when daemon is running but extension is disconnected (same version)', async () => {
     const { PKG_VERSION } = await import('./version.js');
-    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+    vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',
       status: {
         ok: true,
@@ -167,7 +171,7 @@ describe('BrowserBridge state', () => {
   });
 
   it('attempts stale daemon replacement when daemonVersion is missing', async () => {
-    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+    vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',
       status: {
         ok: true,
@@ -179,10 +183,10 @@ describe('BrowserBridge state', () => {
         port: 0,
       },
     });
-    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'requestDaemonShutdown').mockResolvedValue(false);
     // Keep the SIGKILL fallback's poll short — neither pid 999999 nor the test
     // daemon exists, so we'd otherwise spin for 2s on every test in the block.
-    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'waitForDaemonStop').mockResolvedValue(false);
 
     const bridge = new BrowserBridge();
 
@@ -190,7 +194,7 @@ describe('BrowserBridge state', () => {
   });
 
   it('attempts stale daemon replacement when daemonVersion mismatches', async () => {
-    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+    vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',
       status: {
         ok: true,
@@ -203,8 +207,8 @@ describe('BrowserBridge state', () => {
         port: 0,
       },
     });
-    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
-    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'requestDaemonShutdown').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'waitForDaemonStop').mockResolvedValue(false);
 
     const bridge = new BrowserBridge();
 
@@ -212,7 +216,7 @@ describe('BrowserBridge state', () => {
   });
 
   it('attempts stale daemon replacement even when extension is connected', async () => {
-    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+    vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'ready',
       status: {
         ok: true,
@@ -225,8 +229,8 @@ describe('BrowserBridge state', () => {
         port: 0,
       },
     });
-    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
-    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'requestDaemonShutdown').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'waitForDaemonStop').mockResolvedValue(false);
 
     const bridge = new BrowserBridge();
 
@@ -234,7 +238,7 @@ describe('BrowserBridge state', () => {
   });
 
   it('falls back to SIGKILL when stale daemon refuses graceful shutdown', async () => {
-    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+    vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',
       status: {
         ok: true,
@@ -247,10 +251,11 @@ describe('BrowserBridge state', () => {
         port: 0,
       },
     });
-    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'requestDaemonShutdown').mockResolvedValue(false);
     // Graceful shutdown short-circuits to false (requestDaemonShutdown -> false).
     // After SIGKILL the port is released, so the second waitForDaemonStop returns true.
-    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(true);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'waitForDaemonStop').mockResolvedValue(true);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'spawnDaemonProcess').mockReturnValue(null as unknown as ReturnType<typeof daemonLifecycle.spawnDaemonProcess>);
     const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
 
     const bridge = new BrowserBridge();
@@ -263,7 +268,7 @@ describe('BrowserBridge state', () => {
   });
 
   it('reports stale daemon error when SIGKILL fails to release the port', async () => {
-    vi.spyOn(daemonClient, 'getDaemonHealth').mockResolvedValue({
+    vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',
       status: {
         ok: true,
@@ -276,9 +281,9 @@ describe('BrowserBridge state', () => {
         port: 0,
       },
     });
-    vi.spyOn(daemonClient, 'requestDaemonShutdown').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'requestDaemonShutdown').mockResolvedValue(false);
     // Graceful + SIGKILL both fail to release the port.
-    vi.spyOn(daemonLifecycle, 'waitForDaemonStop').mockResolvedValue(false);
+    vi.spyOn(daemonLifecycle.daemonLifecycleHooks, 'waitForDaemonStop').mockResolvedValue(false);
     vi.spyOn(process, 'kill').mockImplementation(() => {
       throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
     });

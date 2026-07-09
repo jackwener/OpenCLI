@@ -244,9 +244,13 @@ describe('background tab isolation', () => {
     vi.useRealTimers();
     MockWebSocket.instances = [];
     vi.stubGlobal('WebSocket', MockWebSocket);
+    // Most tests exercise tab/session behavior, not daemon reconnect cadence.
+    // Keep the startup ping pending unless a test explicitly controls it.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -548,7 +552,55 @@ describe('background tab isolation', () => {
       { index: 1, frameId: 'cross-origin-sibling', url: 'https://y.example/iframe', name: 'sibling-y' },
     ]);
     expect(execResult.ok).toBe(true);
-    expect(evaluateInFrame).toHaveBeenCalledWith(1, 'document.title', 'cross-origin-nested', false);
+    // Fifth arg is the CDP deadline derived from cmd.timeout (undefined here — no timeout on the command).
+    expect(evaluateInFrame).toHaveBeenCalledWith(1, 'document.title', 'cross-origin-nested', false, undefined);
+  });
+
+  it('derives the CDP deadline from cmd.timeout for exec (timeout*1000 - 5s, floor 10s)', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const evaluateAsync = vi.fn(async () => 'main-result');
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
+      hasActiveNetworkCapture: vi.fn(() => false),
+      detach: vi.fn(async () => {}),
+      evaluateAsync,
+      evaluateInFrame: vi.fn(),
+      getFrameTree: vi.fn(),
+      screenshot: vi.fn(),
+      setFileInputFiles: vi.fn(),
+      insertText: vi.fn(),
+      startNetworkCapture: vi.fn(),
+      readNetworkCapture: vi.fn(async () => []),
+      ensureAttached: vi.fn(),
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    // 120s transport timeout → 115s CDP deadline
+    await mod.__test__.handleCommand({
+      id: 'exec-with-timeout',
+      action: 'exec',
+      code: '1',
+      session: 'twitter',
+      surface: 'adapter',
+      timeout: 120,
+    });
+    expect(evaluateAsync).toHaveBeenLastCalledWith(1, '1', false, 115_000);
+
+    // Tiny transport timeout → clamped to the 10s floor
+    await mod.__test__.handleCommand({
+      id: 'exec-with-tiny-timeout',
+      action: 'exec',
+      code: '1',
+      session: 'twitter',
+      surface: 'adapter',
+      timeout: 8,
+    });
+    expect(evaluateAsync).toHaveBeenLastCalledWith(1, '1', false, 10_000);
   });
 
   it('creates new tabs inside the automation container', async () => {
@@ -757,6 +809,55 @@ describe('background tab isolation', () => {
     await vi.waitFor(() => {
       expect(MockWebSocket.instances).toHaveLength(1);
     });
+  });
+
+  it('uses the production-safe 30s keepalive alarm period', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
+
+    await import('./background');
+
+    expect(chrome.alarms.create).toHaveBeenCalledWith('keepalive', { periodInMinutes: 0.5 });
+  });
+
+  it('reconnect delay backs off exponentially with a 15s cap and resets on success', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
+
+    const mod = await import('./background');
+    mod.__test__.resetReconnectState();
+
+    mod.__test__.setReconnectAttempts(0);
+    const first = mod.__test__.nextReconnectDelayMs();
+    expect(first).toBeGreaterThanOrEqual(1_000);
+    expect(first).toBeLessThan(1_500);
+
+    mod.__test__.setReconnectAttempts(3);
+    const fourth = mod.__test__.nextReconnectDelayMs();
+    expect(fourth).toBeGreaterThanOrEqual(8_000);
+    expect(fourth).toBeLessThan(8_500);
+
+    mod.__test__.setReconnectAttempts(10);
+    const capped = mod.__test__.nextReconnectDelayMs();
+    expect(capped).toBeGreaterThanOrEqual(15_000);
+    expect(capped).toBeLessThan(15_500);
+  });
+
+  it('a successful daemon ping resets the backoff before the WebSocket attempt', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+
+    const mod = await import('./background');
+    mod.__test__.resetReconnectState();
+    mod.__test__.setReconnectAttempts(5);
+
+    await mod.__test__.connectForTest();
+
+    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(1);
+    expect(mod.__test__.getReconnectAttempts()).toBe(0);
   });
 
   it('ignores daemon commands delivered to a superseded WebSocket', async () => {
@@ -1013,6 +1114,49 @@ describe('background tab isolation', () => {
       expect.objectContaining({ when: expect.any(Number) }),
     );
     expect(chrome.windows.remove).not.toHaveBeenCalled();
+  });
+
+  it('honors the persisted remaining idle lifetime on reconcile instead of granting a fresh full timeout', async () => {
+    const { chrome } = createChromeMock();
+    const now = Date.now();
+    // 5s left of a 30s adapter idle timeout when the service worker restarts.
+    const deadline = now + 5_000;
+    vi.stubGlobal('chrome', chrome);
+    await chrome.storage.local.set({
+      opencli_target_lease_registry_v2: {
+        version: 2,
+        contextId: 'user-default',
+        ownedContainers: { interactive: { windowId: null }, automation: { windowId: 1 } },
+        leases: {
+          [adapterKey('twitter')]: {
+            windowId: 1,
+            owned: true,
+            preferredTabId: 1,
+            contextId: 'user-default',
+            ownership: 'owned',
+            lifecycle: 'ephemeral',
+            windowRole: 'automation',
+            idleDeadlineAt: deadline,
+            updatedAt: now,
+          },
+        },
+      },
+    });
+
+    const mod = await import('./background');
+    await mod.__test__.reconcileTargetLeaseRegistry();
+
+    const alarmName = `opencli:lease-idle:${encodeURIComponent(adapterKey('twitter'))}`;
+    const createCalls = chrome.alarms.create.mock.calls.filter((c: unknown[]) => c[0] === alarmName);
+    expect(createCalls.length).toBeGreaterThan(0);
+    const scheduledWhen = (createCalls.at(-1)![1] as { when: number }).when;
+
+    // The alarm must fire after the ~5s remaining, NOT after a fresh 30s timeout.
+    // Without honoring `remaining`, the lease keeps getting a full 30s on every
+    // SW restart and can dodge idle expiry indefinitely.
+    expect(scheduledWhen).toBeLessThan(now + 15_000);
+    expect(scheduledWhen).toBeGreaterThan(now + 1_000);
+    expect(mod.__test__.getSession(adapterKey('twitter')).idleDeadlineAt).toBeLessThan(now + 15_000);
   });
 
   it('releases owned leases from the idle alarm path', async () => {
@@ -1459,7 +1603,7 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(browserKey('default'))).toBeNull();
   });
 
-  it('clears sessionTimeoutOverrides on idle expiry', async () => {
+  it('clears session overrides on idle expiry', async () => {
     const { chrome } = createChromeMock();
     vi.useFakeTimers();
     vi.stubGlobal('chrome', chrome);
@@ -1468,7 +1612,7 @@ describe('background tab isolation', () => {
     mod.__test__.setAutomationWindowId(browserKey('default'), 1);
 
     // Set a custom timeout override
-    mod.__test__.sessionTimeoutOverrides.set(browserKey('default'), 120_000);
+    mod.__test__.sessionOverrides.set(browserKey('default'), { idleTimeoutMs: 120_000 });
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(120_000);
 
     // Trigger idle timer with the custom timeout
@@ -1476,19 +1620,19 @@ describe('background tab isolation', () => {
     await vi.advanceTimersByTimeAsync(120001);
 
     // Override should be cleaned up
-    expect(mod.__test__.sessionTimeoutOverrides.has(browserKey('default'))).toBe(false);
+    expect(mod.__test__.sessionOverrides.has(browserKey('default'))).toBe(false);
     expect(mod.__test__.getSession(browserKey('default'))).toBeNull();
     // Should fall back to default interactive timeout
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(600_000);
   });
 
-  it('clears sessionTimeoutOverrides on explicit close', async () => {
+  it('clears session overrides on explicit close', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./background');
     mod.__test__.setAutomationWindowId(browserKey('default'), 1);
-    mod.__test__.sessionTimeoutOverrides.set(browserKey('default'), 300_000);
+    mod.__test__.sessionOverrides.set(browserKey('default'), { idleTimeoutMs: 300_000 });
 
     const result = await mod.__test__.handleCommand({
       id: 'close-1',
@@ -1498,7 +1642,7 @@ describe('background tab isolation', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(mod.__test__.sessionTimeoutOverrides.has(browserKey('default'))).toBe(false);
+    expect(mod.__test__.sessionOverrides.has(browserKey('default'))).toBe(false);
   });
 
   it('applies idleTimeout from command to session override', async () => {
@@ -1525,7 +1669,7 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(120_000);
   });
 
-  it('clears sessionTimeoutOverrides when user manually closes the automation container', async () => {
+  it('clears session overrides when user manually closes the automation container', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -1533,7 +1677,7 @@ describe('background tab isolation', () => {
 
     // Set up a session with window ID 42 and a custom timeout override
     mod.__test__.setAutomationWindowId(browserKey('default'), 42);
-    mod.__test__.sessionTimeoutOverrides.set(browserKey('default'), 180_000);
+    mod.__test__.sessionOverrides.set(browserKey('default'), { idleTimeoutMs: 180_000 });
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(180_000);
 
     // Simulate user closing the window — invoke the onRemoved listener
@@ -1542,7 +1686,7 @@ describe('background tab isolation', () => {
 
     // Session and override should both be cleaned up
     expect(mod.__test__.getSession(browserKey('default'))).toBeNull();
-    expect(mod.__test__.sessionTimeoutOverrides.has(browserKey('default'))).toBe(false);
+    expect(mod.__test__.sessionOverrides.has(browserKey('default'))).toBe(false);
     // Should fall back to default interactive timeout
     expect(mod.__test__.getIdleTimeout(browserKey('default'))).toBe(600_000);
   });
