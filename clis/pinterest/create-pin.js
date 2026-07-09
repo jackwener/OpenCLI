@@ -4,7 +4,8 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 
 const PINTEREST_DOMAIN = 'www.pinterest.com';
-const CREATE_PIN_URL = 'https://www.pinterest.com/pin-builder/';
+const PINTEREST_HOME_URL = `https://${PINTEREST_DOMAIN}/`;
+const DEFAULT_PROFILE_SLUG = process.env.OPENCLI_PINTEREST_PROFILE || 'imyuqlee';
 const IMAGE_SELECTOR = 'input[type="file"]';
 const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
 const MIME_BY_EXTENSION = {
@@ -60,6 +61,28 @@ function validateLink(raw) {
     return parsed.href;
 }
 
+function normalizeBoolean(value) {
+    if (value === true) return true;
+    if (value === false || value == null) return false;
+    return ['1', 'true', 'yes', 'y'].includes(String(value).trim().toLowerCase());
+}
+
+function boardToPathSegment(board) {
+    const aliases = new Map([
+        ['buiness', 'business'],
+    ]);
+    const key = String(board || '').trim().toLowerCase();
+    const normalized = (aliases.get(key) || key)
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/&/g, ' and ')
+        .replace(/['’]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    if (!normalized) throw new ArgumentError('pinterest create-pin board cannot be converted to a board URL');
+    return normalized;
+}
+
 async function requireLoggedIn(page) {
     const state = await page.evaluate(`(() => {
         const url = location.href;
@@ -84,6 +107,89 @@ async function requireLoggedIn(page) {
         throw new AuthRequiredError(PINTEREST_DOMAIN, 'Pinterest login required before creating a Pin');
     }
 }
+
+async function getPinterestProfileSlug(page) {
+    const result = await page.evaluate(`(() => {
+        const extract = href => {
+            const raw = String(href || '').trim();
+            if (!raw) return '';
+            try {
+                const url = raw.startsWith('http') ? new URL(raw) : new URL(raw, location.origin);
+                const first = url.pathname.split('/').filter(Boolean)[0] || '';
+                return first && !first.startsWith('_') ? decodeURIComponent(first) : '';
+            } catch {
+                return '';
+            }
+        };
+        const profileLink = document.querySelector('a[aria-label="Your profile"][href]');
+        const fromProfileLink = extract(profileLink?.getAttribute('href') || profileLink?.href);
+        if (fromProfileLink) return { ok: true, profile: fromProfileLink };
+        const accountLinks = Array.from(document.querySelectorAll('a[href^="/"], a[href*="pinterest.com/"]'))
+            .map(a => extract(a.getAttribute('href') || a.href))
+            .filter(Boolean)
+            .filter(slug => !['pin', 'pin-builder', 'pin-creation-tool', 'ideas', 'business', 'settings', 'engagement'].includes(slug));
+        const profile = accountLinks.find(Boolean);
+        return profile ? { ok: true, profile } : { ok: false, message: 'Pinterest profile link not found' };
+    })()`);
+    if (result?.ok && result.profile) return result.profile;
+    if (DEFAULT_PROFILE_SLUG) return DEFAULT_PROFILE_SLUG;
+    throw new CommandExecutionError(result?.message || 'Pinterest profile link not found');
+}
+
+async function openPinCreationFromBoard(page, board) {
+    const profile = await getPinterestProfileSlug(page);
+    const boardPath = boardToPathSegment(board);
+    await page.goto(`https://${PINTEREST_DOMAIN}/${encodeURIComponent(profile)}/${boardPath}/`, { waitUntil: 'load', settleMs: 3000 });
+    await page.wait({ time: 2 });
+    await requireLoggedIn(page);
+
+    let result;
+    for (let i = 0; i < 6; i++) {
+        result = await page.evaluate(OPEN_BOARD_PIN_CREATION_SCRIPT);
+        if (result?.ok) {
+            await page.wait({ time: 2 });
+            return result;
+        }
+        await page.wait({ time: result?.needsWait ? 1 : 0.5 });
+    }
+    throw new CommandExecutionError(result?.message || `Pinterest Pin creation entry not found for board: ${board}`);
+}
+
+const OPEN_BOARD_PIN_CREATION_SCRIPT = `(() => {
+    const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const textOf = el => String(el?.innerText || el?.textContent || el?.getAttribute?.('aria-label') || '').trim();
+    if (/\\/pin-creation-tool\\/?$/.test(location.pathname) || document.querySelector('input[type="file"]')) {
+        return { ok: true, action: 'already-open' };
+    }
+
+    const menuItems = Array.from(document.querySelectorAll('button, [role="menuitem"], [data-test-id="Create Story Pin"]'))
+        .filter(visible);
+    const pinEntry = menuItems.find(el => {
+        const text = textOf(el).toLowerCase();
+        const testid = String(el.getAttribute('data-test-id') || '').toLowerCase();
+        return testid === 'create story pin' || text === 'pin' || text.includes('create pin');
+    });
+    if (pinEntry) {
+        pinEntry.scrollIntoView({ block: 'center', inline: 'center' });
+        pinEntry.click();
+        return { ok: true, action: 'pin' };
+    }
+
+    const openers = Array.from(document.querySelectorAll('button, [role="button"]')).filter(visible);
+    const opener = openers.find(el => {
+        const text = textOf(el).toLowerCase();
+        const aria = String(el.getAttribute('aria-label') || '').toLowerCase();
+        return aria.includes('create a pin or add a section')
+            || aria.includes('create pin')
+            || text === 'create a pin or add a section';
+    });
+    if (opener) {
+        opener.scrollIntoView({ block: 'center', inline: 'center' });
+        opener.click();
+        return { ok: false, needsWait: true, action: 'menu' };
+    }
+    return { ok: false, needsWait: true, message: 'Pinterest board create Pin menu not found' };
+})()`;
 
 async function waitForImageInput(page, timeoutSeconds) {
     const attempts = Math.ceil(timeoutSeconds * 1000 / 500);
@@ -198,21 +304,194 @@ async function uploadImage(page, imagePath) {
 
 async function fillPinterestField(page, field, value) {
     if (!value) return;
-    const result = await page.evaluateWithArgs
-        ? await page.evaluateWithArgs(FILL_FIELD_SCRIPT, { field, value })
-        : await page.evaluate(`{ const field = ${JSON.stringify(field)}; const value = ${JSON.stringify(value)}; ${FILL_FIELD_SCRIPT} }`);
+    let result;
+    for (let i = 0; i < 3; i++) {
+        result = await page.evaluateWithArgs
+            ? await page.evaluateWithArgs(FILL_FIELD_SCRIPT, { field, value })
+            : await page.evaluate(`{ const field = ${JSON.stringify(field)}; const value = ${JSON.stringify(value)}; ${FILL_FIELD_SCRIPT} }`);
+        if (!result?.needsWait) break;
+        await page.wait({ time: 0.7 });
+    }
     if (!result?.ok) {
         throw new CommandExecutionError(result?.message || `Failed to fill Pinterest ${field}`);
     }
 }
 
+async function fillOptionalPinterestField(page, field, value) {
+    if (!value) return;
+    const result = await page.evaluateWithArgs
+        ? await page.evaluateWithArgs(FILL_FIELD_SCRIPT, { field, value })
+        : await page.evaluate(`{ const field = ${JSON.stringify(field)}; const value = ${JSON.stringify(value)}; ${FILL_FIELD_SCRIPT} }`);
+    if (!result?.ok && !String(result?.message || '').toLowerCase().includes('field not found')) {
+        throw new CommandExecutionError(result?.message || `Failed to fill Pinterest ${field}`);
+    }
+}
+
+async function fillPinterestDescriptionField(page, value) {
+    if (!value) return;
+    if (page.fillText) {
+        await expandPinterestDescriptionField(page);
+        const filled = await page.fillText('[aria-label="Describe your Pin"][contenteditable="true"]', value);
+        if (filled?.verified) return;
+        throw new CommandExecutionError(`Pinterest description did not retain value: ${filled?.actual || ''}`);
+    }
+
+    let located;
+    for (let i = 0; i < 5; i++) {
+        located = await page.evaluateWithArgs
+            ? await page.evaluateWithArgs(PREPARE_DESCRIPTION_FIELD_SCRIPT, { value })
+            : await page.evaluate(`{ const value = ${JSON.stringify(value)}; ${PREPARE_DESCRIPTION_FIELD_SCRIPT} }`);
+        if (!located?.needsWait) break;
+        await page.wait({ time: 0.8 });
+    }
+    if (!located?.ok) {
+        throw new CommandExecutionError(located?.message || 'Pinterest description field not found');
+    }
+
+    let result;
+    if (located.kind === 'contenteditable' && page.insertText) {
+        await page.insertText(value);
+        result = await page.evaluateWithArgs
+            ? await page.evaluateWithArgs(VERIFY_DESCRIPTION_FIELD_SCRIPT, { value })
+            : await page.evaluate(`{ const value = ${JSON.stringify(value)}; ${VERIFY_DESCRIPTION_FIELD_SCRIPT} }`);
+    } else {
+        result = await page.evaluateWithArgs
+            ? await page.evaluateWithArgs(SET_DESCRIPTION_FIELD_SCRIPT, { value })
+            : await page.evaluate(`{ const value = ${JSON.stringify(value)}; ${SET_DESCRIPTION_FIELD_SCRIPT} }`);
+    }
+    if (!result?.ok) {
+        throw new CommandExecutionError(result?.message || `Pinterest description did not retain value: ${result?.actual || ''}`);
+    }
+}
+
+async function expandPinterestDescriptionField(page) {
+    let result;
+    for (let i = 0; i < 5; i++) {
+        result = await page.evaluate(EXPAND_DESCRIPTION_FIELD_SCRIPT);
+        if (result?.ok) return;
+        await page.wait({ time: result?.needsWait ? 0.8 : 0.5 });
+    }
+    throw new CommandExecutionError(result?.message || 'Pinterest description field not found');
+}
+
+const EXPAND_DESCRIPTION_FIELD_SCRIPT = `(() => {
+    const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const editor = document.querySelector('[aria-label="Describe your Pin"][contenteditable="true"]');
+    if (editor && visible(editor)) return { ok: true };
+    const container = document.querySelector('[data-test-id="storyboard-description-field-container"]');
+    if (!container || !visible(container)) return { ok: false, message: 'Pinterest description container not found' };
+    const opener = Array.from(container.querySelectorAll('button, [role="button"], [tabindex]'))
+        .filter(visible)
+        .find(Boolean);
+    if (!opener) return { ok: false, needsWait: true, message: 'Pinterest description opener not found' };
+    opener.scrollIntoView({ block: 'center', inline: 'center' });
+    opener.click();
+    return { ok: false, needsWait: true, action: 'open-description' };
+})()`;
+
+const PREPARE_DESCRIPTION_FIELD_SCRIPT = `(() => {
+    const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const container = document.querySelector('[data-test-id="storyboard-description-field-container"]');
+    if (!container || !visible(container)) return { ok: false, message: 'Pinterest description container not found' };
+
+    const editables = Array.from(container.querySelectorAll('textarea, [contenteditable="true"], input:not([type]), input[type="text"]'))
+        .filter(el => visible(el) && !el.disabled);
+    const editable = editables.find(el => {
+        const type = String(el.getAttribute('type') || '').toLowerCase();
+        return !['file', 'checkbox', 'radio', 'hidden', 'url'].includes(type);
+    });
+    if (!editable) {
+        const opener = Array.from(container.querySelectorAll('button, [role="button"], [tabindex]'))
+            .filter(visible)
+            .find(Boolean);
+        if (opener) {
+            opener.scrollIntoView({ block: 'center', inline: 'center' });
+            opener.click();
+            return { ok: false, needsWait: true, action: 'open-description' };
+        }
+        return { ok: false, needsWait: true, message: 'Pinterest description input not ready' };
+    }
+
+    editable.setAttribute('data-opencli-pinterest-description', 'true');
+    editable.scrollIntoView({ block: 'center', inline: 'center' });
+    editable.focus();
+
+    if (editable.getAttribute('contenteditable') === 'true') {
+        editable.textContent = '';
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(editable);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        try {
+            editable.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, data: value, inputType: 'insertText' }));
+        } catch {
+            editable.dispatchEvent(new Event('beforeinput', { bubbles: true }));
+        }
+        return { ok: true, kind: 'contenteditable' };
+    }
+
+    const proto = editable.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(editable, '');
+    else editable.value = '';
+    editable.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+    return { ok: true, kind: editable.tagName === 'TEXTAREA' ? 'textarea' : 'input' };
+})()`;
+
+const VERIFY_DESCRIPTION_FIELD_SCRIPT = `(() => {
+    const normalize = text => String(text || '').replace(/\\s+/g, ' ').trim();
+    const editable = document.querySelector('[data-opencli-pinterest-description="true"]');
+    if (!editable) return { ok: false, message: 'Pinterest description field lost focus' };
+    try {
+        editable.dispatchEvent(new InputEvent('input', { bubbles: true, data: value, inputType: 'insertText' }));
+    } catch {
+        editable.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    editable.dispatchEvent(new Event('change', { bubbles: true }));
+    const actual = normalize(editable.innerText || editable.textContent || editable.value || '');
+    return actual === normalize(value)
+        ? { ok: true, actual }
+        : { ok: false, actual, message: 'Pinterest description did not retain value' };
+})()`;
+
+const SET_DESCRIPTION_FIELD_SCRIPT = `(() => {
+    const normalize = text => String(text || '').replace(/\\s+/g, ' ').trim();
+    const editable = document.querySelector('[data-opencli-pinterest-description="true"]');
+    if (!editable) return { ok: false, message: 'Pinterest description field lost focus' };
+    const proto = editable.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(editable, value);
+    else editable.value = value;
+    try {
+        editable.dispatchEvent(new InputEvent('input', { bubbles: true, data: value, inputType: 'insertText' }));
+    } catch {
+        editable.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    editable.dispatchEvent(new Event('change', { bubbles: true }));
+    const actual = normalize(editable.value || editable.innerText || editable.textContent || '');
+    return actual === normalize(value)
+        ? { ok: true, actual }
+        : { ok: false, actual, message: 'Pinterest description did not retain value' };
+})()`;
+
 const FILL_FIELD_SCRIPT = `(() => {
     const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
     const normalize = text => String(text || '').trim().toLowerCase();
+    const editableSelector = 'input, textarea, [contenteditable="true"]';
+    const validEditable = el => visible(el)
+        && !el.disabled
+        && !['file', 'checkbox', 'radio', 'hidden'].includes(normalize(el.getAttribute('type')));
+    const scopedContainers = {
+        title: ['storyboard-title-field-container'],
+        description: ['storyboard-description-field-container'],
+        link: ['storyboard-selector-link'],
+    };
     const fieldLabels = {
-        title: ['title', 'add your title', '标题'],
-        description: ['description', 'tell everyone what your pin is about', 'add a detailed description', '说明', '描述'],
-        link: ['link', 'destination link', 'add a destination link', 'website', '链接'],
+        title: ['title', 'add your title', 'storyboard-selector-title', '标题'],
+        description: ['description', 'describe your pin', 'tell everyone what your pin is about', 'add a detailed description', 'storyboard-selector-description', '说明', '描述'],
+        link: ['link', 'destination link', 'add a destination link', 'add a link', 'website', 'websitefield', 'storyboard-selector-link', '链接'],
         altText: ['alt text', 'alternative text', 'alt', '替代文本'],
     };
     const labels = fieldLabels[field] || [field];
@@ -232,9 +511,29 @@ const FILL_FIELD_SCRIPT = `(() => {
         return labels.some(label => labelText.includes(label));
     }
 
-    const elements = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"]'))
-        .filter(el => visible(el) && !el.disabled && el.getAttribute('type') !== 'file');
-    let el = elements.find(candidateMatches);
+    function findScopedEditable() {
+        let sawContainer = false;
+        for (const testid of scopedContainers[field] || []) {
+            const container = document.querySelector('[data-test-id="' + CSS.escape(testid) + '"]');
+            if (!container || !visible(container)) continue;
+            sawContainer = true;
+            const scoped = Array.from(container.querySelectorAll(editableSelector)).filter(validEditable);
+            if (scoped.length > 0) return scoped[0];
+            const trigger = Array.from(container.querySelectorAll('button, [role="button"]')).filter(visible)[0];
+            if (trigger) {
+                trigger.scrollIntoView({ block: 'center', inline: 'center' });
+                trigger.click();
+                return { needsWait: true, message: 'field opening: ' + field };
+            }
+        }
+        return sawContainer ? { scopedMissing: true, message: 'field not found in scoped container: ' + field } : null;
+    }
+
+    let el = findScopedEditable();
+    if (el?.needsWait) return el;
+    if (el?.scopedMissing) return { ok: false, message: el.message };
+    const elements = Array.from(document.querySelectorAll(editableSelector)).filter(validEditable);
+    if (!el) el = elements.find(candidateMatches);
     if (!el && field === 'title') el = elements.find(node => node.tagName === 'INPUT' || node.tagName === 'TEXTAREA');
     if (!el && field === 'description') el = elements.find(node => node.tagName === 'TEXTAREA' || node.getAttribute('contenteditable') === 'true');
     if (!el && field === 'link') el = elements.find(node => normalize(node.getAttribute('type')) === 'url');
@@ -303,23 +602,82 @@ const CHOOSE_BOARD_SCRIPT = `(() => {
 })()`;
 
 async function clickPublish(page) {
-    const result = await page.evaluate(`(() => {
-        const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-        const labels = ['publish', 'save', 'create', '发布', '保存', '创建'];
-        const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(visible);
-        const btn = buttons.find(el => {
-            const text = String(el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim().toLowerCase();
-            if (!text) return false;
-            return labels.some(label => text === label || text.includes(label));
-        });
-        if (!btn) return { ok: false, message: 'Publish button not found' };
-        if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') return { ok: false, message: 'Publish button is disabled' };
-        btn.scrollIntoView({ block: 'center', inline: 'center' });
-        btn.click();
-        return { ok: true, label: String(btn.innerText || btn.textContent || btn.getAttribute('aria-label') || '').trim() };
-    })()`);
+    let result;
+    for (let i = 0; i < 30; i++) {
+        result = await page.evaluate(MARK_PUBLISH_BUTTON_SCRIPT);
+        if (result?.ok) break;
+        if (!result?.needsWait) break;
+        await page.wait({ time: 0.5 });
+    }
     if (!result?.ok) throw new CommandExecutionError(result?.message || 'Pinterest publish button not found');
+    if (!page.nativeClick || !Number.isFinite(result.x) || !Number.isFinite(result.y)) {
+        throw new CommandExecutionError('OpenCLI native click is unavailable for Pinterest publish button');
+    }
+    await page.nativeClick(Math.round(result.x), Math.round(result.y));
+    await page.wait({ time: 1 });
+    const stillClickable = await page.evaluate(MARK_PUBLISH_BUTTON_SCRIPT);
+    if (stillClickable?.ok && Number.isFinite(stillClickable.x) && Number.isFinite(stillClickable.y)) {
+        await page.nativeClick(Math.round(stillClickable.x), Math.round(stillClickable.y));
+    }
+    return result;
 }
+
+const MARK_PUBLISH_BUTTON_SCRIPT = `(() => {
+    const publishXPath = '/html/body/div[1]/div[1]/div/div[3]/div/div/div/div[2]/div[3]/div/div/div[2]/div[3]/div[2]/div/button';
+    const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const normalize = text => String(text || '').replace(/\\s+/g, ' ').trim();
+    const textOf = el => normalize(el.innerText || el.textContent || el.getAttribute('aria-label') || '');
+    const fromXPath = document.evaluate(
+        publishXPath,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null,
+    ).singleNodeValue;
+    const buttons = Array.from(document.querySelectorAll('button, [role="button"]'))
+        .filter(visible)
+        .map(el => ({ el, text: textOf(el), rect: el.getBoundingClientRect() }))
+        .filter(item => item.text);
+    const exactLabels = new Set(['Publish', '发布']);
+    const exact = buttons.filter(item => exactLabels.has(item.text));
+    const candidates = exact.length > 0
+        ? exact
+        : buttons.filter(item => /^(publish|发布)$/i.test(item.text));
+    const target = fromXPath && visible(fromXPath)
+        ? { el: fromXPath, text: textOf(fromXPath) || 'Publish', rect: fromXPath.getBoundingClientRect(), source: 'xpath' }
+        : candidates.sort((a, b) => (a.rect.top - b.rect.top) || (b.rect.left - a.rect.left))[0];
+    if (!target) {
+        return {
+            ok: false,
+            needsWait: true,
+            message: 'Publish button not found',
+            candidates: buttons.map(item => item.text).slice(0, 20),
+        };
+    }
+
+    const btn = target.el;
+    const style = getComputedStyle(btn);
+    const disabled = !!btn.disabled
+        || btn.getAttribute('aria-disabled') === 'true'
+        || btn.closest('[aria-disabled="true"]')
+        || style.pointerEvents === 'none';
+    if (disabled) {
+        return { ok: false, needsWait: true, message: 'Publish button is disabled', label: target.text };
+    }
+
+    document.querySelectorAll('[data-opencli-pinterest-publish="true"]')
+        .forEach(el => el.removeAttribute('data-opencli-pinterest-publish'));
+    btn.setAttribute('data-opencli-pinterest-publish', 'true');
+    btn.scrollIntoView({ block: 'center', inline: 'center' });
+    const rect = btn.getBoundingClientRect();
+    return {
+        ok: true,
+        label: target.text,
+        source: target.source || 'text',
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+    };
+})()`;
 
 async function waitForPublishResult(page, timeoutSeconds) {
     const attempts = Math.ceil(timeoutSeconds * 1000 / 1000);
@@ -358,37 +716,52 @@ cli({
     navigateBefore: false,
     defaultWindowMode: 'foreground',
     args: [
-        { name: 'image', type: 'string', required: true, help: 'Local image path (jpg/jpeg/png/webp/gif)' },
+        { name: 'image', type: 'string', help: 'Local image path (jpg/jpeg/png/webp/gif)' },
         { name: 'board', type: 'string', required: true, help: 'Pinterest board name to publish into' },
         { name: 'title', type: 'string', help: 'Pin title' },
         { name: 'description', type: 'string', help: 'Pin description' },
         { name: 'link', type: 'string', help: 'Destination link URL' },
         { name: 'alt-text', type: 'string', help: 'Image alt text, when Pinterest exposes the field' },
         { name: 'timeout', type: 'int', default: DEFAULT_TIMEOUT, help: 'Max seconds to wait for upload and publish confirmation (15-300)' },
+        { name: 'resume-current', type: 'boolean', default: false, help: 'Publish the currently open Pinterest create-pin draft without re-uploading' },
     ],
     columns: ['status', 'board', 'title', 'url'],
     func: async (page, kwargs) => {
         if (!page) throw new CommandExecutionError('Browser session required for pinterest create-pin');
-        const imagePath = normalizeImagePath(kwargs.image);
         const board = normalizeText(kwargs.board, 'board', { required: true, max: 180 });
         const title = normalizeText(kwargs.title, 'title', { max: 100 });
         const description = normalizeText(kwargs.description, 'description', { max: 800 });
         const link = validateLink(kwargs.link);
         const altText = normalizeText(kwargs['alt-text'], 'alt-text', { max: 500 });
         const timeoutSeconds = normalizeTimeout(kwargs.timeout);
+        const resumeCurrent = normalizeBoolean(kwargs['resume-current']);
 
-        await page.goto(CREATE_PIN_URL, { waitUntil: 'load', settleMs: 3000 });
-        await page.wait({ time: 2 });
+        if (resumeCurrent) {
+            await requireLoggedIn(page);
+            await clickPublish(page);
+            const published = await waitForPublishResult(page, timeoutSeconds);
+            return [{
+                status: 'published',
+                board,
+                title: title || null,
+                url: published.url || null,
+            }];
+        }
+
+        const imagePath = normalizeImagePath(kwargs.image);
+
+        await page.goto(PINTEREST_HOME_URL, { waitUntil: 'load', settleMs: 2000 });
+        await page.wait({ time: 1 });
         await requireLoggedIn(page);
+        await openPinCreationFromBoard(page, board);
         await waitForImageInput(page, Math.min(timeoutSeconds, 30));
         await uploadImage(page, imagePath);
         await waitForUploadPreview(page, Math.min(timeoutSeconds, 90));
 
         await fillPinterestField(page, 'title', title);
-        await fillPinterestField(page, 'description', description);
+        await fillPinterestDescriptionField(page, description);
         await fillPinterestField(page, 'link', link);
-        await fillPinterestField(page, 'altText', altText);
-        await chooseBoard(page, board);
+        await fillOptionalPinterestField(page, 'altText', altText);
         await page.wait({ time: 1 });
         await clickPublish(page);
         const published = await waitForPublishResult(page, timeoutSeconds);
