@@ -332,10 +332,27 @@ export async function screenshot(
   }
 }
 
+/** Time allowed between clicking the file input and Page.fileChooserOpened arriving. */
+const FILE_CHOOSER_TIMEOUT_MS = 10_000;
+
 /**
- * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
- * This bypasses the need to send large base64 payloads through the message channel —
- * Chrome reads the files directly from the local filesystem.
+ * Tabs with a file-chooser interception in flight. Interception state is
+ * per-tab, so two overlapping calls would steal each other's
+ * Page.fileChooserOpened event — serialize by rejecting the second call.
+ */
+const pendingFileChooserTabs = new Set<number>();
+
+const FILE_UPLOAD_OBJECT_GROUP = 'opencli-file-upload';
+
+/**
+ * Set local file paths on a file input element.
+ *
+ * Chrome rejects a direct DOM.setFileInputFiles from a chrome.debugger client
+ * with -32000 "Not allowed" (Chromium #928255, since Chrome 72) — the call is
+ * only permitted as an answer to a file chooser Chrome itself opened. So:
+ * intercept the chooser dialog, click the input (user gesture), and feed the
+ * files to the backendNodeId carried by the resulting Page.fileChooserOpened
+ * event. Chrome then reads the files directly from the local filesystem.
  *
  * @param tabId - Target tab ID
  * @param files - Array of absolute local file paths
@@ -346,32 +363,97 @@ export async function setFileInputFiles(
   files: string[],
   selector?: string,
 ): Promise<void> {
-  await ensureAttached(tabId);
-
-  // Enable DOM domain (required for DOM.querySelector and DOM.setFileInputFiles)
-  await sendDebuggerCommand({ tabId }, 'DOM.enable');
-
-  // Get the document root
-  const doc = await sendDebuggerCommand({ tabId }, 'DOM.getDocument') as {
-    root: { nodeId: number };
-  };
-
-  // Find the file input element
-  const query = selector || 'input[type="file"]';
-  const result = await sendDebuggerCommand({ tabId }, 'DOM.querySelector', {
-    nodeId: doc.root.nodeId,
-    selector: query,
-  }) as { nodeId: number };
-
-  if (!result.nodeId) {
-    throw new Error(`No element found matching selector: ${query}`);
+  if (pendingFileChooserTabs.has(tabId)) {
+    throw new Error(`Another file upload is already in progress on tab ${tabId}.`);
   }
+  pendingFileChooserTabs.add(tabId);
+  try {
+    await ensureAttached(tabId);
 
-  // Set files directly via CDP — Chrome reads from local filesystem
-  await sendDebuggerCommand({ tabId }, 'DOM.setFileInputFiles', {
-    files,
-    nodeId: result.nodeId,
-  });
+    // DOM domain for querySelector/setFileInputFiles, Page domain for
+    // fileChooserOpened notifications.
+    await sendDebuggerCommand({ tabId }, 'DOM.enable');
+    await sendDebuggerCommand({ tabId }, 'Page.enable');
+
+    // Get the document root
+    const doc = await sendDebuggerCommand({ tabId }, 'DOM.getDocument') as {
+      root: { nodeId: number };
+    };
+
+    // Find the file input element
+    const query = selector || 'input[type="file"]';
+    const result = await sendDebuggerCommand({ tabId }, 'DOM.querySelector', {
+      nodeId: doc.root.nodeId,
+      selector: query,
+    }) as { nodeId: number };
+
+    if (!result.nodeId) {
+      throw new Error(`No element found matching selector: ${query}`);
+    }
+
+    const resolved = await sendDebuggerCommand({ tabId }, 'DOM.resolveNode', {
+      nodeId: result.nodeId,
+      objectGroup: FILE_UPLOAD_OBJECT_GROUP,
+    }) as { object?: { objectId?: string } };
+    const objectId = resolved?.object?.objectId;
+    if (!objectId) {
+      throw new Error(`Could not resolve file input element for selector: ${query}`);
+    }
+
+    // Register before enabling interception so the event cannot slip past.
+    let onChooser: ((source: { tabId?: number }, method: string, params: any) => void) | undefined;
+    const chooserOpened = new Promise<{ backendNodeId?: number; mode?: string }>((resolve) => {
+      onChooser = (source, method, params: any) => {
+        if (source.tabId !== tabId || method !== 'Page.fileChooserOpened') return;
+        resolve({ backendNodeId: params?.backendNodeId, mode: params?.mode });
+      };
+      chrome.debugger.onEvent.addListener(onChooser);
+    });
+
+    try {
+      // Clear interception a dead service worker may have left enabled.
+      await sendDebuggerCommand({ tabId }, 'Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
+      await sendDebuggerCommand({ tabId }, 'Page.setInterceptFileChooserDialog', { enabled: true });
+
+      // userGesture: file inputs only open their chooser from user activation.
+      await sendDebuggerCommand({ tabId }, 'Runtime.callFunctionOn', {
+        objectId,
+        functionDeclaration: 'function() { this.click(); }',
+        userGesture: true,
+      });
+
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const chooser = await Promise.race([
+        chooserOpened,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(
+            `Timed out waiting for Page.fileChooserOpened after clicking the file input (${Math.round(FILE_CHOOSER_TIMEOUT_MS / 1000)}s). The input may be disabled or the page may have prevented the click.`,
+          )), FILE_CHOOSER_TIMEOUT_MS);
+        }),
+      ]).finally(() => {
+        if (timer !== undefined) clearTimeout(timer);
+      });
+
+      if (chooser.mode === 'selectSingle' && files.length > 1) {
+        throw new Error(`File input only accepts a single file, got ${files.length}.`);
+      }
+      if (typeof chooser.backendNodeId !== 'number') {
+        throw new Error('File chooser opened without a backing file input (no backendNodeId in Page.fileChooserOpened).');
+      }
+
+      // Answer the intercepted chooser — the only form Chrome permits here.
+      await sendDebuggerCommand({ tabId }, 'DOM.setFileInputFiles', {
+        files,
+        backendNodeId: chooser.backendNodeId,
+      });
+    } finally {
+      if (onChooser) chrome.debugger.onEvent.removeListener(onChooser);
+      await sendDebuggerCommand({ tabId }, 'Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
+      await sendDebuggerCommand({ tabId }, 'Runtime.releaseObjectGroup', { objectGroup: FILE_UPLOAD_OBJECT_GROUP }).catch(() => {});
+    }
+  } finally {
+    pendingFileChooserTabs.delete(tabId);
+  }
 }
 
 function matchesDownloadPattern(item: chrome.downloads.DownloadItem, pattern: string): boolean {
