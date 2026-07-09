@@ -654,3 +654,134 @@ describe('cdp command deadline', () => {
     await assertion;
   });
 });
+
+describe('cdp setFileInputFiles (file-chooser interception)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  // chrome.debugger clients may not call DOM.setFileInputFiles directly
+  // (Chromium #928255) — the flow must intercept the file chooser and answer
+  // the Page.fileChooserOpened event's backendNodeId.
+  function chromeMockForFileUpload(chooserEvent: { backendNodeId?: number; mode?: string } | null = { backendNodeId: 42, mode: 'selectMultiple' }) {
+    const calls: Array<{ method: string; params?: any }> = [];
+    const eventListeners: Array<(source: { tabId?: number }, method: string, params: any) => void> = [];
+    const debuggerApi = {
+      attach: vi.fn(async () => {}),
+      detach: vi.fn(async () => {}),
+      sendCommand: vi.fn(async (_target: unknown, method: string, params?: any) => {
+        calls.push({ method, params });
+        if (method === 'DOM.getDocument') return { root: { nodeId: 1 } };
+        if (method === 'DOM.querySelector') return { nodeId: 7 };
+        if (method === 'DOM.resolveNode') return { object: { objectId: 'obj-7' } };
+        if (method === 'Runtime.callFunctionOn' && chooserEvent) {
+          queueMicrotask(() => {
+            for (const fn of [...eventListeners]) fn({ tabId: 1 }, 'Page.fileChooserOpened', chooserEvent);
+          });
+        }
+        return {};
+      }),
+      onDetach: { addListener: vi.fn() },
+      onEvent: {
+        addListener: vi.fn((fn: (source: { tabId?: number }, method: string, params: any) => void) => { eventListeners.push(fn); }),
+        removeListener: vi.fn((fn: (source: { tabId?: number }, method: string, params: any) => void) => {
+          const i = eventListeners.indexOf(fn);
+          if (i >= 0) eventListeners.splice(i, 1);
+        }),
+      },
+    };
+    const tabs = {
+      get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://example.com' })),
+      onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn() },
+    };
+    return {
+      chrome: { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } },
+      debuggerApi,
+      calls,
+    };
+  }
+
+  it('answers the intercepted chooser with the event backendNodeId instead of calling DOM.setFileInputFiles directly', async () => {
+    const { chrome, calls, debuggerApi } = chromeMockForFileUpload();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await mod.setFileInputFiles(1, ['/tmp/a.txt'], 'input[type=file]');
+
+    const methods = calls.map((c) => c.method);
+    const interceptOn = calls.findIndex((c) => c.method === 'Page.setInterceptFileChooserDialog' && c.params?.enabled === true);
+    const click = calls.findIndex((c) => c.method === 'Runtime.callFunctionOn');
+    const setFiles = calls.findIndex((c) => c.method === 'DOM.setFileInputFiles');
+    expect(interceptOn).toBeGreaterThan(-1);
+    expect(click).toBeGreaterThan(interceptOn);
+    expect(setFiles).toBeGreaterThan(click);
+    expect(calls[click].params).toMatchObject({ objectId: 'obj-7', userGesture: true });
+    expect(calls[setFiles].params).toEqual({ files: ['/tmp/a.txt'], backendNodeId: 42 });
+    expect(methods).toContain('Page.enable');
+    // Interception is switched back off after the upload.
+    expect(calls.filter((c) => c.method === 'Page.setInterceptFileChooserDialog').at(-1)?.params).toEqual({ enabled: false });
+    expect(debuggerApi.onEvent.removeListener).toHaveBeenCalled();
+  });
+
+  it('rejects multiple files when the chooser reports selectSingle', async () => {
+    const { chrome, calls } = chromeMockForFileUpload({ backendNodeId: 42, mode: 'selectSingle' });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await expect(mod.setFileInputFiles(1, ['/tmp/a.txt', '/tmp/b.txt']))
+      .rejects.toThrow(/single file/);
+    expect(calls.some((c) => c.method === 'DOM.setFileInputFiles')).toBe(false);
+    expect(calls.filter((c) => c.method === 'Page.setInterceptFileChooserDialog').at(-1)?.params).toEqual({ enabled: false });
+  });
+
+  it('rejects when the chooser event carries no backendNodeId', async () => {
+    const { chrome, calls } = chromeMockForFileUpload({ mode: 'selectSingle' });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await expect(mod.setFileInputFiles(1, ['/tmp/a.txt']))
+      .rejects.toThrow(/no backendNodeId/);
+    expect(calls.some((c) => c.method === 'DOM.setFileInputFiles')).toBe(false);
+  });
+
+  it('times out with a clear error when Page.fileChooserOpened never arrives, and still disables interception', async () => {
+    vi.useFakeTimers();
+    const { chrome, calls } = chromeMockForFileUpload(null);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const pending = mod.setFileInputFiles(1, ['/tmp/a.txt']);
+    const assertion = expect(pending).rejects.toThrow(/Timed out waiting for Page.fileChooserOpened/);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await assertion;
+
+    expect(calls.some((c) => c.method === 'DOM.setFileInputFiles')).toBe(false);
+    expect(calls.filter((c) => c.method === 'Page.setInterceptFileChooserDialog').at(-1)?.params).toEqual({ enabled: false });
+  });
+
+  it('rejects an overlapping upload on the same tab while one is in flight', async () => {
+    vi.useFakeTimers();
+    const { chrome } = chromeMockForFileUpload(null);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const first = mod.setFileInputFiles(1, ['/tmp/a.txt']);
+    const firstAssertion = expect(first).rejects.toThrow(/Timed out/);
+    await expect(mod.setFileInputFiles(1, ['/tmp/b.txt']))
+      .rejects.toThrow(/already in progress/);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await firstAssertion;
+
+    // The guard is released after the first call settles.
+    const third = mod.setFileInputFiles(1, ['/tmp/c.txt']);
+    const thirdAssertion = expect(third).rejects.toThrow(/Timed out/);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await thirdAssertion;
+  });
+});
