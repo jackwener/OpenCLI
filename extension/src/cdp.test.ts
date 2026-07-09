@@ -741,18 +741,19 @@ describe('cdp setFileInputFiles (file-chooser interception)', () => {
   });
 
   it('rejects when the chooser event carries no backendNodeId', async () => {
-    const { chrome, calls } = chromeMockForFileUpload({ mode: 'selectSingle' });
+    const { chrome, calls, debuggerApi } = chromeMockForFileUpload({ mode: 'selectSingle' });
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./cdp');
     await expect(mod.setFileInputFiles(1, ['/tmp/a.txt']))
       .rejects.toThrow(/no backendNodeId/);
     expect(calls.some((c) => c.method === 'DOM.setFileInputFiles')).toBe(false);
+    expect(debuggerApi.onEvent.removeListener).toHaveBeenCalled();
   });
 
   it('times out with a clear error when Page.fileChooserOpened never arrives, and still disables interception', async () => {
     vi.useFakeTimers();
-    const { chrome, calls } = chromeMockForFileUpload(null);
+    const { chrome, calls, debuggerApi } = chromeMockForFileUpload(null);
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./cdp');
@@ -763,6 +764,7 @@ describe('cdp setFileInputFiles (file-chooser interception)', () => {
 
     expect(calls.some((c) => c.method === 'DOM.setFileInputFiles')).toBe(false);
     expect(calls.filter((c) => c.method === 'Page.setInterceptFileChooserDialog').at(-1)?.params).toEqual({ enabled: false });
+    expect(debuggerApi.onEvent.removeListener).toHaveBeenCalled();
   });
 
   it('rejects an overlapping upload on the same tab while one is in flight', async () => {
