@@ -27103,6 +27103,199 @@
   },
   {
     "site": "pixiv",
+    "name": "novel",
+    "description": "View Pixiv novel metadata (title, author, series, tags, stats)",
+    "access": "read",
+    "domain": "www.pixiv.net",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Novel ID"
+      }
+    ],
+    "columns": [
+      "novel_id",
+      "title",
+      "author",
+      "user_id",
+      "series_id",
+      "series_title",
+      "series_order",
+      "words",
+      "characters",
+      "bookmarks",
+      "likes",
+      "views",
+      "tags",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pixiv/novel.js",
+    "sourceFile": "pixiv/novel.js",
+    "navigateBefore": "https://www.pixiv.net"
+  },
+  {
+    "site": "pixiv",
+    "name": "novel-search",
+    "description": "Search Pixiv novels by keyword or tag",
+    "access": "read",
+    "domain": "www.pixiv.net",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword or tag"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      },
+      {
+        "name": "order",
+        "type": "str",
+        "default": "date_d",
+        "required": false,
+        "help": "Sort order",
+        "choices": [
+          "date_d",
+          "date",
+          "popular_d"
+        ]
+      },
+      {
+        "name": "mode",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "Search mode",
+        "choices": [
+          "all",
+          "safe",
+          "r18"
+        ]
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "author",
+      "user_id",
+      "novel_id",
+      "words",
+      "characters",
+      "bookmarks",
+      "tags",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pixiv/novel-search.js",
+    "sourceFile": "pixiv/novel-search.js",
+    "navigateBefore": "https://www.pixiv.net"
+  },
+  {
+    "site": "pixiv",
+    "name": "novel-series",
+    "description": "List novels in a Pixiv novel series",
+    "access": "read",
+    "domain": "www.pixiv.net",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Novel series ID"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of series entries"
+      }
+    ],
+    "columns": [
+      "order",
+      "novel_id",
+      "title",
+      "author",
+      "words",
+      "characters",
+      "bookmarks",
+      "tags",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pixiv/novel-series.js",
+    "sourceFile": "pixiv/novel-series.js",
+    "navigateBefore": "https://www.pixiv.net"
+  },
+  {
+    "site": "pixiv",
+    "name": "novels",
+    "description": "List a Pixiv user's novels",
+    "access": "read",
+    "domain": "www.pixiv.net",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user-id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Pixiv user ID"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "novel_id",
+      "words",
+      "characters",
+      "bookmarks",
+      "tags",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pixiv/novels.js",
+    "sourceFile": "pixiv/novels.js",
+    "navigateBefore": "https://www.pixiv.net"
+  },
+  {
+    "site": "pixiv",
     "name": "ranking",
     "description": "Pixiv illustration rankings (daily/weekly/monthly)",
     "access": "read",
