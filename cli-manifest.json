@@ -26962,6 +26962,71 @@
     "sourceFile": "paperreview/submit.js"
   },
   {
+    "site": "pinterest",
+    "name": "create-pin",
+    "description": "Create and publish a Pinterest Pin from the logged-in browser session",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "image",
+        "type": "str",
+        "required": true,
+        "help": "Local image path (jpg/jpeg/png/webp/gif)"
+      },
+      {
+        "name": "board",
+        "type": "str",
+        "required": true,
+        "help": "Pinterest board name to publish into"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "required": false,
+        "help": "Pin title"
+      },
+      {
+        "name": "description",
+        "type": "str",
+        "required": false,
+        "help": "Pin description"
+      },
+      {
+        "name": "link",
+        "type": "str",
+        "required": false,
+        "help": "Destination link URL"
+      },
+      {
+        "name": "alt-text",
+        "type": "str",
+        "required": false,
+        "help": "Image alt text, when Pinterest exposes the field"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Max seconds to wait for upload and publish confirmation (15-300)"
+      }
+    ],
+    "columns": [
+      "status",
+      "board",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/create-pin.js",
+    "sourceFile": "pinterest/create-pin.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
     "site": "pixiv",
     "name": "detail",
     "description": "View illustration details (tags, stats, URLs)",
