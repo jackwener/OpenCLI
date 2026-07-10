@@ -100,7 +100,7 @@ Notes:
 https://sso.geiwohuo.com/#/mgs/store-management/product-feedback
 ```
 
-It captures `/mgs-api-prefix/goods/comment/list`, replays pagination, and filters by comment time.
+It captures `/mgs-api-prefix/goods/comment/list`, injects the requested comment time range into the captured request body, replays page 1 and later pages through the browser session, and keeps a local comment-time filter as a final guard.
 
 ### Feedback Options
 
@@ -126,7 +126,7 @@ logisticCommentStar, logisticCommentContent, commentTime, orderTime,
 billNo, memberOverallFitLabelList, badCommentLabelList
 ```
 
-`goodsCommentImages` is returned as an array. `memberOverallFitLabelList` and `badCommentLabelList` are flattened to comma-separated label strings.
+When time filters are passed, the adapter sets `startCommentTime` and `commentEndTime` on the replayed list API body before fetching page 1 and later pages. `goodsCommentImages` is returned as an array. `memberOverallFitLabelList` and `badCommentLabelList` are flattened to comma-separated label strings.
 
 ## MaybeAI Sheet Sync Scripts
 

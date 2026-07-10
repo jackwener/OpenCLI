@@ -254,6 +254,24 @@ function buildPaginatedCommentBody(firstPageBody, pageNo, perPageOverride) {
     return body;
 }
 
+function applyCommentTimeRangeToBody(body, options = {}) {
+    const next = { ...asObject(body) };
+    if (options.sinceCommentTime) {
+        next.startCommentTime = options.sinceCommentTime;
+    }
+    if (options.untilCommentTime) {
+        next.commentEndTime = options.untilCommentTime;
+    }
+    return next;
+}
+
+function buildCommentListBody(firstPageBody, pageNo, options) {
+    return applyCommentTimeRangeToBody(
+        buildPaginatedCommentBody(firstPageBody, pageNo, options.perPage ?? firstPageBody.perPage ?? firstPageBody.pageSize),
+        options,
+    );
+}
+
 function pageSizeFromBody(body, fallbackRows) {
     const source = asObject(body);
     for (const key of ['perPage', 'pageSize', 'limit']) {
@@ -507,7 +525,7 @@ async function fetchCommentPage(page, headers, baseBody, pageNo, options) {
             const payload = await page.fetchJson(COMMENT_LIST_API, {
                 method: 'POST',
                 headers,
-                body: buildPaginatedCommentBody(baseBody, pageNo, options.perPage ?? baseBody.perPage ?? baseBody.pageSize),
+                body: buildCommentListBody(baseBody, pageNo, options),
                 timeoutMs: options.timeoutMs,
             });
             return ensureSuccessfulApiPayload(payload, `feedback page ${pageNo} response`);
@@ -538,26 +556,32 @@ export async function collectSheinFeedbackRows(page, kwargs) {
         untilCommentTime: normalizeCommentTimeInput(kwargs.untilCommentTime, '--untilCommentTime'),
     };
     const firstPage = await captureFirstCommentPage(page, options);
-    const firstInfo = asObject(firstPage.response.info);
-    const firstRows = getRows(firstPage.response);
-    const pageSize = options.perPage ?? pageSizeFromBody(firstPage.body, firstRows.length);
+    const baseBody = applyCommentTimeRangeToBody(firstPage.body, options);
+    const shouldReplayFirstPage = Boolean(options.sinceCommentTime || options.untilCommentTime || options.perPage);
+    const firstPayload = shouldReplayFirstPage
+        ? await fetchCommentPage(page, firstPage.headers, baseBody, 1, options)
+        : firstPage.response;
+    const firstInfo = asObject(firstPayload.info);
+    const firstRows = getRows(firstPayload);
+    const pageSize = options.perPage ?? pageSizeFromBody(baseBody, firstRows.length);
     const total = getTotalCount(firstInfo);
     const comments = [];
     const firstFiltered = filterCommentsByTime(firstRows, options.sinceCommentTime, options.untilCommentTime);
     comments.push(...(options.limit == null ? firstFiltered.comments : firstFiltered.comments.slice(0, options.limit)));
+    let shouldStop = firstFiltered.shouldStop;
 
     for (let pageNo = 2; pageNo <= options.maxPages; pageNo++) {
         if (options.limit != null && comments.length >= options.limit) break;
-        if (firstFiltered.shouldStop) break;
+        if (shouldStop) break;
         if (total !== null && comments.length >= total) break;
 
-        const payload = await fetchCommentPage(page, firstPage.headers, firstPage.body, pageNo, options);
+        const payload = await fetchCommentPage(page, firstPage.headers, baseBody, pageNo, options);
         const rawRows = getRows(payload);
         if (rawRows.length === 0) break;
         const filtered = filterCommentsByTime(rawRows, options.sinceCommentTime, options.untilCommentTime);
         const remaining = options.limit == null ? filtered.comments.length : Math.max(0, options.limit - comments.length);
         comments.push(...(options.limit == null ? filtered.comments : filtered.comments.slice(0, remaining)));
-        if (filtered.shouldStop) break;
+        shouldStop = filtered.shouldStop;
         if (rawRows.length < pageSize) break;
     }
 
@@ -596,6 +620,8 @@ export const __test__ = {
     normalizeCommentTimeInput,
     filterCommentsByTime,
     buildPaginatedCommentBody,
+    applyCommentTimeRangeToBody,
+    buildCommentListBody,
     extractCommentListCaptureContext,
     joinLabels,
     normalizeImageList,

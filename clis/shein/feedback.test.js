@@ -71,6 +71,25 @@ describe('shein feedback adapter', () => {
         expect(__test__.buildPaginatedCommentBody({}, 4, 30)).toMatchObject({ page: 4, perPage: 30 });
     });
 
+    it('injects comment time range into replayed list request bodies', () => {
+        const body = __test__.buildCommentListBody(
+            { page: 1, perPage: 30, startCommentTime: '2026-07-01 00:00:00' },
+            2,
+            {
+                perPage: 50,
+                sinceCommentTime: '2026-05-01 00:00:00',
+                untilCommentTime: '2026-06-01 23:59:59',
+            },
+        );
+
+        expect(body).toMatchObject({
+            page: 2,
+            perPage: 50,
+            startCommentTime: '2026-05-01 00:00:00',
+            commentEndTime: '2026-06-01 23:59:59',
+        });
+    });
+
     it('extracts comment/list capture context without replaying cookies', () => {
         const context = __test__.extractCommentListCaptureContext([
             {
