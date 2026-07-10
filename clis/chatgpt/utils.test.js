@@ -43,7 +43,7 @@ function createDomEvaluatePage(html) {
         url: 'https://chatgpt.com/',
         runScripts: 'outside-only',
     });
-    for (const node of dom.window.document.querySelectorAll('form, button, [role="menuitemradio"], [role="menuitem"], [role="option"], #prompt-textarea, [data-testid]')) {
+    for (const node of dom.window.document.querySelectorAll('form, button, [role="menuitemradio"], [role="menuitem"], [role="option"], [tabindex], [contenteditable="false"], #prompt-textarea, [data-testid]')) {
         node.getBoundingClientRect = () => ({ width: 120, height: 36 });
         node.scrollIntoView = () => {};
     }
@@ -656,6 +656,46 @@ describe('chatgpt tool selection validation', () => {
         await expect(selectChatGPTTool({}, 'deep-research'))
             .rejects.toThrow('ChatGPT tool selection requires native browser click support.');
     });
+
+    it('selects Deep Research from current custom tabbable tool rows', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="composer-plus-btn">+</button>
+              <div id="prompt-textarea" contenteditable="true"><p><br></p></div>
+            </form>
+            <div role="menu" data-open="false" style="display: none">
+              <div tabindex="0">
+                <div>添加文件</div>
+                <div>Upload a local file</div>
+              </div>
+              <div tabindex="0">
+                <div>深度研究</div>
+                <div>进行多步骤研究并引用来源</div>
+              </div>
+            </div>
+        `);
+        let clickCount = 0;
+        page.nativeClick = vi.fn().mockImplementation(async () => {
+            clickCount += 1;
+            if (clickCount === 1) {
+                const menu = page.dom.window.document.querySelector('[role="menu"]');
+                menu.style.display = 'block';
+                for (const node of page.dom.window.document.querySelectorAll('[tabindex]')) {
+                    node.getBoundingClientRect = () => ({ width: 220, height: 44 });
+                    node.scrollIntoView = () => {};
+                }
+            }
+            if (clickCount === 2) {
+                const composer = page.dom.window.document.querySelector('#prompt-textarea');
+                composer.innerHTML = '<span contenteditable="false">深度研究</span><p><br></p>';
+                composer.querySelector('[contenteditable="false"]').getBoundingClientRect = () => ({ width: 120, height: 36 });
+                page.dom.window.document.querySelector('[role="menu"]').style.display = 'none';
+            }
+        });
+
+        await expect(selectChatGPTTool(page, 'deep-research')).resolves.toEqual({ Status: 'Success', Tool: 'Deep Research' });
+        expect(page.nativeClick).toHaveBeenCalledTimes(2);
+    });
 });
 
 describe('chatgpt detail completion state', () => {
@@ -934,6 +974,39 @@ describe('chatgpt current tool detection', () => {
             label: null,
         });
     });
+
+    it('ignores prompt text that mentions tool labels', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="composer-plus-btn">+</button>
+              <div id="prompt-textarea" contenteditable="true">
+                <p>OpenCLI Deep Research selector trace smoke / 深度研究</p>
+              </div>
+            </form>
+        `);
+
+        await expect(getCurrentChatGPTTool(page)).resolves.toEqual({
+            tool: null,
+            label: null,
+        });
+    });
+
+    it('detects selected tool pills inside the composer', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button" data-testid="composer-plus-btn">+</button>
+              <div id="prompt-textarea" contenteditable="true">
+                <span contenteditable="false">深度研究</span>
+                <p><br></p>
+              </div>
+            </form>
+        `);
+
+        await expect(getCurrentChatGPTTool(page)).resolves.toEqual({
+            tool: 'deep-research',
+            label: 'Deep Research',
+        });
+    });
 });
 
 describe('chatgpt send selectors', () => {
@@ -996,6 +1069,31 @@ describe('chatgpt send selectors', () => {
         };
 
         await expect(sendChatGPTMessage(page, 'hello')).resolves.toBe(true);
+    });
+
+    it('preserves selected tool pills when clearing prompt text before typing', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <div id="prompt-textarea" contenteditable="true">
+                <span contenteditable="false">深度研究</span>
+                <p>stale draft</p>
+              </div>
+              <button type="button" data-testid="send-button">Send</button>
+            </form>
+        `);
+        page.nativeClick = vi.fn().mockResolvedValue(undefined);
+        page.nativeType = vi.fn().mockImplementation(async (text) => {
+            const composer = page.dom.window.document.querySelector('#prompt-textarea');
+            const paragraph = composer.querySelector('p') || composer.appendChild(page.dom.window.document.createElement('p'));
+            paragraph.textContent = text;
+        });
+
+        await expect(sendChatGPTMessage(page, 'fresh prompt')).resolves.toBe(true);
+
+        const composer = page.dom.window.document.querySelector('#prompt-textarea');
+        expect(composer.querySelector('[contenteditable="false"]')?.textContent).toBe('深度研究');
+        expect(composer.textContent).toContain('fresh prompt');
+        expect(composer.textContent).not.toContain('stale draft');
     });
 
     it('keeps zh-CN aria and placeholder fallbacks without replacing English selectors', () => {

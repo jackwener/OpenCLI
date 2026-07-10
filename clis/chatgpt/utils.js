@@ -765,20 +765,58 @@ export async function getCurrentChatGPTTool(page) {
             return rect.width > 0 && rect.height > 0;
         };
         const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+        const escapeRegExp = (value) => String(value).replace(/[|\\\\{}()[\\]^$+*?.]/g, '\\\\$&');
+        const textMatchesLabel = (text, label) => {
+            const normalizedText = normalize(text);
+            const normalizedLabel = normalize(label);
+            if (!normalizedText || !normalizedLabel) return false;
+            if (normalizedText === normalizedLabel) return true;
+            if (normalizedText.startsWith(normalizedLabel + ' ')) return true;
+            if (/^[\\x00-\\x7F]+$/.test(normalizedLabel)) {
+                return new RegExp('(^|\\\\b)' + escapeRegExp(normalizedLabel) + '(\\\\b|$)', 'i').test(normalizedText);
+            }
+            return normalizedText.replace(/\\s+/g, '').startsWith(normalizedLabel.replace(/\\s+/g, ''));
+        };
+        const findEntryForText = (text) => {
+            const matches = [];
+            for (const [key, value] of Object.entries(labels)) {
+                for (const item of value.labels || []) {
+                    if (textMatchesLabel(text, item)) {
+                        matches.push({ key, value, length: normalize(item).length });
+                    }
+                }
+            }
+            matches.sort((a, b) => b.length - a.length);
+            return matches[0] || null;
+        };
         const labels = ${JSON.stringify(CHATGPT_TOOL_OPTIONS)};
         const form = Array.from(document.querySelectorAll('form')).find((node) => node instanceof HTMLElement && isVisible(node));
         const root = form || document.body;
-        const nodes = Array.from(root.querySelectorAll('button, [role="button"], [role="menuitemradio"], span, div'));
+        const composerSelector = '#prompt-textarea, [data-testid="prompt-textarea"], [contenteditable="true"][role="textbox"]';
+        const isEditablePromptText = (node) => {
+            const editable = node.closest(composerSelector);
+            if (!editable) return false;
+            return !node.closest('[contenteditable="false"]');
+        };
+        const nodes = Array.from(root.querySelectorAll([
+            'button',
+            '[role="button"]',
+            '[role="menuitemradio"][aria-checked="true"]',
+            '[contenteditable="false"]',
+            '[data-testid*="selected" i]',
+            '[data-testid*="tool" i]',
+        ].join(',')));
         const node = nodes.find((candidate) => {
             if (!isVisible(candidate)) return false;
+            if (isEditablePromptText(candidate)) return false;
             const text = normalize(candidate.textContent);
-            return Object.values(labels).some((entry) => entry.labels.includes(text));
+            return !!findEntryForText(text);
         });
         const label = normalize(node?.textContent || '');
-        const entry = Object.entries(labels).find(([, value]) => value.labels.includes(label));
+        const entry = findEntryForText(label);
         return {
-            tool: entry?.[0] ?? null,
-            label: entry?.[1]?.label ?? null,
+            tool: entry?.key ?? null,
+            label: entry?.value?.label ?? null,
         };
     })()`)), 'chatgpt current tool');
 }
@@ -832,8 +870,38 @@ export async function selectChatGPTTool(page, tool) {
             };
             const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
             const labels = ${JSON.stringify(target.labels)};
-            const options = Array.from(document.querySelectorAll('[role="menuitemradio"]'));
-            const option = options.find((node) => node instanceof HTMLElement && isVisible(node) && labels.includes(normalize(node.textContent)));
+            const escapeRegExp = (value) => String(value).replace(/[|\\\\{}()[\\]^$+*?.]/g, '\\\\$&');
+            const matchScore = (text, label) => {
+                const normalizedText = normalize(text);
+                const normalizedLabel = normalize(label);
+                if (!normalizedText || !normalizedLabel) return 0;
+                if (normalizedText === normalizedLabel) return 4;
+                if (normalizedText.startsWith(normalizedLabel + ' ')) return 3;
+                if (/^[\\x00-\\x7F]+$/.test(normalizedLabel)) {
+                    return new RegExp('(^|\\\\b)' + escapeRegExp(normalizedLabel) + '(\\\\b|$)', 'i').test(normalizedText) ? 2 : 0;
+                }
+                return normalizedText.replace(/\\s+/g, '').startsWith(normalizedLabel.replace(/\\s+/g, '')) ? 2 : 0;
+            };
+            const bestScore = (node) => Math.max(0, ...labels.map(label => matchScore(node.textContent, label)));
+            const clickableSelector = '[role="menuitemradio"], [role="menuitem"], [role="option"], button, div[tabindex="0"]';
+            const composerSelector = '#prompt-textarea, [data-testid="prompt-textarea"], [contenteditable="true"][role="textbox"]';
+            const candidates = new Set(Array.from(document.querySelectorAll(clickableSelector)));
+            for (const labelNode of Array.from(document.querySelectorAll('span, div, p'))) {
+                if (!(labelNode instanceof HTMLElement) || !isVisible(labelNode)) continue;
+                if (!bestScore(labelNode)) continue;
+                const clickable = labelNode.closest(clickableSelector);
+                if (clickable) candidates.add(clickable);
+            }
+            const ranked = Array.from(candidates)
+                .filter((node) =>
+                    node instanceof HTMLElement
+                    && isVisible(node)
+                    && !node.closest(composerSelector)
+                    && bestScore(node) > 0
+                )
+                .map((node) => ({ node, score: bestScore(node), textLength: normalize(node.textContent).length }))
+                .sort((a, b) => b.score - a.score || a.textLength - b.textLength);
+            const option = ranked[0]?.node || null;
             if (!(option instanceof HTMLElement)) return { found: false };
             const checked = option.getAttribute('aria-checked') === 'true';
             option.scrollIntoView({ block: 'center', inline: 'center' });
@@ -943,9 +1011,41 @@ export async function sendChatGPTMessage(page, text) {
             composer.focus();
             if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
                 composer.value = '';
-            } else if (composer.isContentEditable) {
-                composer.textContent = '';
-                composer.innerHTML = '<p><br></p>';
+            } else if (composer.isContentEditable || composer.getAttribute('contenteditable') === 'true') {
+                const preservedSelector = '[contenteditable="false"]';
+                const walker = document.createTreeWalker(composer, NodeFilter.SHOW_TEXT, {
+                    acceptNode(node) {
+                        const parent = node.parentElement;
+                        if (!parent || parent.closest(preservedSelector)) return NodeFilter.FILTER_REJECT;
+                        return NodeFilter.FILTER_ACCEPT;
+                    },
+                });
+                const textNodes = [];
+                while (walker.nextNode()) textNodes.push(walker.currentNode);
+                for (const node of textNodes) node.nodeValue = '';
+
+                for (const node of Array.from(composer.querySelectorAll('*')).reverse()) {
+                    if (!(node instanceof HTMLElement)) continue;
+                    if (node.matches(preservedSelector) || node.closest(preservedSelector)) continue;
+                    if (['BR', 'IMG', 'INPUT', 'TEXTAREA'].includes(node.tagName)) continue;
+                    if (node.childNodes.length === 0) node.remove();
+                }
+
+                const lastElement = composer.lastElementChild;
+                if (!(lastElement instanceof HTMLElement) || lastElement.matches(preservedSelector) || lastElement.closest(preservedSelector)) {
+                    const paragraph = document.createElement('p');
+                    paragraph.appendChild(document.createElement('br'));
+                    composer.appendChild(paragraph);
+                }
+
+                const selection = window.getSelection();
+                if (selection) {
+                    const range = document.createRange();
+                    range.selectNodeContents(composer);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
             } else {
                 composer.textContent = '';
             }
