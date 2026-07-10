@@ -14,6 +14,11 @@ interface BunGlobal {
   Bun?: { version: string };
 }
 
+/** Shape of `globalThis` when running under Bun. */
+interface BunGlobal {
+  Bun?: { version: string };
+}
+
 /**
  * Detect the current JavaScript runtime.
  */

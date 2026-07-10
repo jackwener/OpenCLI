@@ -7,13 +7,14 @@
 
 import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-transport.js';
 import { restartDaemon } from '../browser/daemon-lifecycle.js';
+import { profileRouteParams, resolveProfileSelection } from '../browser/profile.js';
 import { formatDuration } from '../download/progress.js';
 import { log } from '../logger.js';
 import { PKG_VERSION } from '../version.js';
 import { formatDaemonVersion, isDaemonStale } from '../browser/daemon-version.js';
 
 export async function daemonStatus(): Promise<void> {
-  const status = await fetchDaemonStatus();
+  const status = await fetchDaemonStatus(profileRouteParams(resolveProfileSelection()));
   if (!status) {
     console.log('Daemon: not running');
     return;

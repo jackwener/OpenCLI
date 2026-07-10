@@ -151,6 +151,25 @@ describe('daemon-client', () => {
     expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
   });
 
+  it('fetchDaemonStatus includes preferredContextId in the status query', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 1,
+        port: 19825,
+      }),
+    } as Response);
+
+    await fetchDaemonStatus({ preferredContextId: 'work' } as { preferredContextId: string });
+
+    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?preferredContextId=work$/);
+  });
+
   it('rejects OPENCLI_DAEMON_PORT so CLI and extension cannot split bridge ports', async () => {
     vi.resetModules();
     vi.stubEnv('OPENCLI_DAEMON_PORT', '19999');
@@ -216,6 +235,15 @@ describe('daemon-client', () => {
   });
 
   it('sendCommand forwards OPENCLI_PROFILE as a hard contextId requirement', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-dc-explicit-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: { work: 'zvypsyje' } }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
     vi.stubEnv('OPENCLI_PROFILE', 'work');
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_000);
     vi.mocked(fetch).mockResolvedValue({
@@ -223,11 +251,15 @@ describe('daemon-client', () => {
       json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
     } as Response);
 
-    await sendCommand('exec', { code: '1 + 1' });
+    try {
+      await sendCommand('exec', { code: '1 + 1' });
 
-    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { contextId?: string; preferredContextId?: string };
-    expect(body.contextId).toBe('work');
-    expect(body.preferredContextId).toBeUndefined();
+      const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { contextId?: string; preferredContextId?: string };
+      expect(body.contextId).toBe('zvypsyje');
+      expect(body.preferredContextId).toBeUndefined();
+    } finally {
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
   });
 
   it('sendCommand forwards the config default as a soft preferredContextId, not a requirement', async () => {
@@ -252,6 +284,43 @@ describe('daemon-client', () => {
       const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { contextId?: string; preferredContextId?: string };
       expect(body.preferredContextId).toBe('zvypsyje');
       expect(body.contextId).toBeUndefined();
+    } finally {
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  });
+
+  it('sendCommand passes the config default into ensureBrowserBridgeReady as preferredContextId', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-dc-ensure-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: {}, defaultContextId: 'zvypsyje' }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
+    vi.stubEnv('OPENCLI_PROFILE', '');
+
+    const ensureSpy = mockEnsureReady('1.0.22');
+    const refused = new TypeError('fetch failed');
+    (refused as { cause?: unknown }).cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:19825'), { code: 'ECONNREFUSED' });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockRejectedValueOnce(refused)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+      } as Response);
+
+    try {
+      await expect(sendCommand('exec', { code: '1 + 1' })).resolves.toBe('ok');
+
+      expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({
+        contextId: undefined,
+        preferredContextId: 'zvypsyje',
+        verbose: false,
+      }));
     } finally {
       fs.rmSync(configDir, { recursive: true, force: true });
     }

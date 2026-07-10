@@ -3398,10 +3398,6 @@ cli({
     .command('stop')
     .description('Stop the daemon')
     .action(async () => { await daemonStop(); });
-  daemonCmd
-    .command('restart')
-    .description('Restart the daemon')
-    .action(async () => { await daemonRestart(); });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
 

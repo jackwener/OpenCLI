@@ -194,6 +194,14 @@ async function shouldRunPreNav(cmd: CliCommand, page: IPage, siteSession: SiteSe
   return !urlMatchesDomain(currentUrl, cmd.domain);
 }
 
+export function resolveCommandWorkspace(cmd: CliCommand): string {
+  const override = typeof cmd.workspace === 'string' ? cmd.workspace.trim() : '';
+  const raw = override || `site:${cmd.site}`;
+  return raw
+    .replaceAll('{pid}', String(process.pid))
+    .replaceAll('{ts}', String(Date.now()));
+}
+
 export async function executeCommand(
   cmd: CliCommand,
   rawKwargs: CommandArgs,
@@ -333,6 +341,9 @@ export async function executeCommand(
             throw wrapped;
           }
         }
+        // --live / OPENCLI_LIVE=1 keeps the automation window open after the
+        // command finishes, so agents (or humans) can inspect the page state.
+        const keepOpen = process.env.OPENCLI_LIVE === '1' || process.env.OPENCLI_LIVE === 'true';
         try {
           const browserTimeout = userTimeoutSec !== null
             ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS

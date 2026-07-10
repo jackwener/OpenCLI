@@ -6403,23 +6403,11 @@
         "help": "Image prompt to send to ChatGPT"
       },
       {
-        "name": "image",
-        "type": "str",
-        "required": false,
-        "help": "Local image path to attach before prompting; comma-separated paths are supported"
-      },
-      {
-        "name": "project",
-        "type": "str",
-        "required": false,
-        "valueRequired": true,
-        "help": "Start image generation inside a ChatGPT project ID or /g/g-p-<id> URL"
-      },
-      {
         "name": "op",
         "type": "str",
+        "default": "~/Pictures/chatgpt",
         "required": false,
-        "help": "Output directory (default: ~/Pictures/chatgpt)"
+        "help": "Output directory"
       },
       {
         "name": "sd",
@@ -6427,13 +6415,6 @@
         "default": false,
         "required": false,
         "help": "Skip download shorthand; only show ChatGPT link"
-      },
-      {
-        "name": "timeout",
-        "type": "int",
-        "default": 240,
-        "required": false,
-        "help": "Max seconds for the overall command (default: 240)"
       }
     ],
     "columns": [
@@ -6445,8 +6426,7 @@
     "type": "js",
     "modulePath": "chatgpt/image.js",
     "sourceFile": "chatgpt/image.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
+    "navigateBefore": false
   },
   {
     "site": "chatgpt",
@@ -13960,13 +13940,6 @@
         "default": false,
         "required": false,
         "help": "Skip download shorthand; only show Gemini page link"
-      },
-      {
-        "name": "timeout",
-        "type": "int",
-        "default": 240,
-        "required": false,
-        "help": "Max seconds for the overall command (default: 240)"
       }
     ],
     "columns": [
@@ -13978,8 +13951,7 @@
     "type": "js",
     "modulePath": "gemini/image.js",
     "sourceFile": "gemini/image.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
+    "navigateBefore": false
   },
   {
     "site": "gemini",
@@ -15404,8 +15376,7 @@
     "type": "js",
     "modulePath": "grok/image.js",
     "sourceFile": "grok/image.js",
-    "navigateBefore": "https://grok.com",
-    "siteSession": "persistent"
+    "navigateBefore": "https://grok.com"
   },
   {
     "site": "grok",
@@ -30805,6 +30776,664 @@
     "type": "js",
     "modulePath": "semanticscholar/search.js",
     "sourceFile": "semanticscholar/search.js"
+  },
+  {
+    "site": "shein",
+    "name": "aftersales",
+    "description": "拉取 SHEIN 后台售后订单并按商品摊平",
+    "access": "read",
+    "example": "opencli shein aftersales --limit 20 -f json",
+    "domain": "sso.geiwohuo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "help": "最多获取的售后订单数量；不传则拉取全部"
+      },
+      {
+        "name": "sinceRequestTime",
+        "type": "str",
+        "required": false,
+        "help": "只获取 requestTime 大于该时间的售后单，支持 YYYY-M-D 或 YYYY-M-D HH:mm:ss"
+      },
+      {
+        "name": "maxPages",
+        "type": "int",
+        "required": false,
+        "help": "最多拉取页数，调试用"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 1800,
+        "required": false,
+        "help": "整条 SHEIN 售后命令总超时时间（秒）；全量拉取建议调大"
+      },
+      {
+        "name": "requestTimeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "单个 SHEIN 页面 API 请求超时时间（秒）"
+      },
+      {
+        "name": "retryAttempts",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "页面 API 网络/5xx 失败重试次数"
+      },
+      {
+        "name": "retryDelayMs",
+        "type": "int",
+        "default": 1000,
+        "required": false,
+        "help": "页面 API 重试基础间隔毫秒；会按尝试次数线性递增"
+      }
+    ],
+    "columns": [
+      "requestTime",
+      "aftersalesOrderNo",
+      "returnOrderNo",
+      "orderNo",
+      "site",
+      "orderSubStatusName",
+      "aftersalesResolutionPlanName",
+      "refundMethod",
+      "sellerResolutionPlanName",
+      "sellerInstruction",
+      "etaTime",
+      "goodsThumb",
+      "goodsTitle",
+      "goodsSn",
+      "suffix",
+      "skuSn",
+      "quantity",
+      "afterSalesReason",
+      "buyerInstruction",
+      "returnExpressNos",
+      "return_attachments",
+      "priceAmount",
+      "checkEstimateIncomeMoney",
+      "returnExpense",
+      "performancePrice",
+      "promotionAmount",
+      "refundRatio",
+      "estimateIncomeMoney",
+      "goodsSettlePrice",
+      "goodsServiceCharge",
+      "freezeAmount"
+    ],
+    "defaultFormat": "json",
+    "type": "js",
+    "modulePath": "shein/aftersales.js",
+    "sourceFile": "shein/aftersales.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "shein",
+    "name": "feedback",
+    "description": "拉取 SHEIN 商品评价列表",
+    "access": "read",
+    "example": "opencli shein feedback --limit 20 -f json",
+    "domain": "sso.geiwohuo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "help": "最多获取的评价数量；不传则拉取全部"
+      },
+      {
+        "name": "perPage",
+        "type": "int",
+        "required": false,
+        "help": "列表接口每页数量；不传则沿用页面请求"
+      },
+      {
+        "name": "maxPages",
+        "type": "int",
+        "required": false,
+        "help": "最多拉取页数，调试用"
+      },
+      {
+        "name": "sinceCommentTime",
+        "type": "str",
+        "required": false,
+        "help": "只获取 commentTime 大于该时间的评价，支持 YYYY-M-D 或 YYYY-M-D HH:mm[:ss]"
+      },
+      {
+        "name": "untilCommentTime",
+        "type": "str",
+        "required": false,
+        "help": "只获取 commentTime 小于等于该时间的评价，支持 YYYY-M-D 或 YYYY-M-D HH:mm[:ss]"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 3600,
+        "required": false,
+        "help": "整条 SHEIN 商品评价命令总超时时间（秒）；全量拉取建议调大"
+      },
+      {
+        "name": "requestTimeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "单个 SHEIN 页面 API 请求超时时间（秒）"
+      },
+      {
+        "name": "retryAttempts",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "页面 API 网络/5xx 失败重试次数"
+      },
+      {
+        "name": "retryDelayMs",
+        "type": "int",
+        "default": 1000,
+        "required": false,
+        "help": "页面 API 重试基础间隔毫秒；会按尝试次数线性递增"
+      }
+    ],
+    "columns": [
+      "commentId",
+      "countrySiteCn",
+      "supplierId",
+      "goodsTitle",
+      "goodsThumb",
+      "goodsAttribute",
+      "goodsUrl",
+      "goodSn",
+      "spu",
+      "skc",
+      "sku",
+      "goodsCommentStar",
+      "goodsCommentStarName",
+      "goodsCommentContent",
+      "goodsCommentImages",
+      "logisticCommentStar",
+      "logisticCommentContent",
+      "commentTime",
+      "orderTime",
+      "billNo",
+      "memberOverallFitLabelList",
+      "badCommentLabelList"
+    ],
+    "defaultFormat": "json",
+    "type": "js",
+    "modulePath": "shein/feedback.js",
+    "sourceFile": "shein/feedback.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "shein",
+    "name": "login",
+    "description": "Open SHEIN seller login and wait until the GSP session is ready",
+    "access": "write",
+    "domain": "sso.geiwohuo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      },
+      {
+        "name": "username",
+        "type": "str",
+        "required": false,
+        "help": "SHEIN login username; defaults to SHEIN_USERNAME or SHEIN_USER env var"
+      },
+      {
+        "name": "password",
+        "type": "str",
+        "required": false,
+        "help": "SHEIN login password; defaults to SHEIN_PASSWORD or SHEIN_PASS env var"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "store_site",
+      "site_id",
+      "page_title"
+    ],
+    "type": "js",
+    "modulePath": "shein/auth.js",
+    "sourceFile": "shein/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "shein",
+    "name": "whoami",
+    "description": "Check whether the SHEIN seller GSP session is ready",
+    "access": "read",
+    "domain": "sso.geiwohuo.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "store_site",
+      "site_id",
+      "page_title"
+    ],
+    "type": "js",
+    "modulePath": "shein/auth.js",
+    "sourceFile": "shein/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "shopdora",
+    "name": "product",
+    "description": "Query Shopdora product data from a Shopee product URL",
+    "access": "read",
+    "domain": "www.shopdora.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "shopeeUrl",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Shopee product URL, e.g. https://shopee.sg/...-i.123.456"
+      }
+    ],
+    "columns": [
+      "shopee_url",
+      "item_id",
+      "shop_id",
+      "shop_type",
+      "cat_id",
+      "name",
+      "brand",
+      "brand_id",
+      "shop_name",
+      "price",
+      "avg_price",
+      "sku_avg_price",
+      "avg_sku_avg_price",
+      "sales",
+      "sales_m",
+      "sales_day",
+      "sales_7day",
+      "sales_amount_m",
+      "sales_amount_day",
+      "sales_growth_rate_m",
+      "sales_amount_growth_rate_m",
+      "rating_score",
+      "rating_number_total",
+      "rating_number_m",
+      "rating_rate_total",
+      "rating_rate_m",
+      "liked_cnt",
+      "liked_cnt_m",
+      "sku_cnt",
+      "seller_source",
+      "status",
+      "shelf_time",
+      "shop_start_time",
+      "image_url",
+      "cate_rank",
+      "cate_rank_change_d",
+      "cate_rank_change_w",
+      "hot_cluster_id",
+      "hot_cluster_name",
+      "hot_cluster_rank",
+      "hot_cluster_rank_change_w",
+      "cate_path",
+      "cate_ch_path",
+      "monitor",
+      "is_collect",
+      "shopdora_login_message"
+    ],
+    "type": "js",
+    "modulePath": "shopdora/product.js",
+    "sourceFile": "shopdora/product.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "shopdora",
+    "name": "product-shopdora-download",
+    "description": "Submit or reuse a Shopdora comment-analysis task for a Shopee product URL and download comments",
+    "access": "read",
+    "domain": "www.shopdora.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "shopeeProductUrl",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Shopee product URL, e.g. https://shopee.sg/...-i.123.456"
+      }
+    ],
+    "columns": [],
+    "type": "js",
+    "modulePath": "shopdora/product-shopdora-download.js",
+    "sourceFile": "shopdora/product-shopdora-download.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "shopdora",
+    "name": "search",
+    "description": "Search Shopdora hot products by keyword",
+    "access": "read",
+    "domain": "www.shopdora.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Shopdora hot product search keyword"
+      },
+      {
+        "name": "region",
+        "type": "str",
+        "default": "sg",
+        "required": false,
+        "help": "Shopee region/site, e.g. sg,my,tw,ph,th,vn,br,id,mx,mc"
+      }
+    ],
+    "columns": [],
+    "type": "js",
+    "modulePath": "shopdora/search.js",
+    "sourceFile": "shopdora/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "shopee",
+    "name": "browse",
+    "description": "Read-only Shopee browse rehearsal across search, product, and shop pages",
+    "access": "read",
+    "domain": "shopee.sg",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Starting Shopee page URL (search, product, or shop)"
+      },
+      {
+        "name": "steps",
+        "type": "int",
+        "default": 3,
+        "required": false,
+        "help": "Maximum navigation steps (default 3, max 200)"
+      },
+      {
+        "name": "duration-min",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Optional time budget in minutes for read-only browsing (default 0 = disabled)"
+      },
+      {
+        "name": "inspect-limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum candidate links to inspect per page (default 20, max 50)"
+      },
+      {
+        "name": "dwell-min-ms",
+        "type": "int",
+        "default": 3500,
+        "required": false,
+        "help": "Minimum dwell time before the next hop in milliseconds (default 3500)"
+      },
+      {
+        "name": "dwell-max-ms",
+        "type": "int",
+        "default": 6500,
+        "required": false,
+        "help": "Maximum dwell time before the next hop in milliseconds (default 6500)"
+      },
+      {
+        "name": "search-terms",
+        "type": "str",
+        "default": "shoes,shirt",
+        "required": false,
+        "help": "Comma-separated public search keywords used as fallback seeds, e.g. shoes,shirt"
+      },
+      {
+        "name": "mock",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Allow localhost or .test hosts for local mock-site verification"
+      },
+      {
+        "name": "action-log",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Emit one action log line per browse step to stderr"
+      }
+    ],
+    "columns": [
+      "step",
+      "status",
+      "page_type",
+      "title",
+      "visited_url",
+      "candidate_count",
+      "selected_kind",
+      "selected_url",
+      "dwell_seconds"
+    ],
+    "type": "js",
+    "modulePath": "shopee/browse.js",
+    "sourceFile": "shopee/browse.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "shopee",
+    "name": "product",
+    "description": "Get Shopee product details from a product URL",
+    "access": "read",
+    "domain": "shopee.sg",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Shopee product URL, e.g. https://shopee.sg/...-i.123.456"
+      }
+    ],
+    "columns": [
+      "product_url",
+      "shopdora_login_message",
+      "title",
+      "rating_score",
+      "rating_count",
+      "sold_count",
+      "shopdora_price_range",
+      "shopee_current_price",
+      "shopee_original_price",
+      "shopee_discount_percentage",
+      "main_image_url",
+      "video_urls",
+      "thumbnail_urls",
+      "first_variant_option_name",
+      "first_variant_option_image_url",
+      "image_variant_options",
+      "text_variant_options",
+      "first_sku_display_price",
+      "shopee_item_id",
+      "detail_seller_name",
+      "detail_seller_source",
+      "brand_name",
+      "category_name",
+      "category_sales_rank",
+      "listing_date",
+      "sales_1d_7d",
+      "sales_growth_30d",
+      "sales_30d",
+      "gmv_30d",
+      "total_sales",
+      "total_gmv",
+      "stock",
+      "shop_display_name",
+      "shop_url",
+      "shop_logo_url",
+      "shop_last_active",
+      "shop_rating_count",
+      "shop_chat_response_rate",
+      "shop_joined_duration",
+      "shop_listing_count",
+      "shop_product_list_url",
+      "shop_chat_response_speed",
+      "shop_follower_count"
+    ],
+    "type": "js",
+    "modulePath": "shopee/product.js",
+    "sourceFile": "shopee/product.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "shopee",
+    "name": "product-shopdora-download",
+    "description": "Export Shopee product Shopdora data with the recorded good-detail review workflow",
+    "access": "read",
+    "domain": "shopee.sg",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Shopee product URL, e.g. https://shopee.sg/...-i.123.456"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "local_url",
+      "local_path",
+      "product_url",
+      "shopdora_login_message"
+    ],
+    "type": "js",
+    "modulePath": "shopee/product-shopdora-download.js",
+    "sourceFile": "shopee/product-shopdora-download.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "shopee",
+    "name": "product-sku",
+    "description": "Get Shopee SKU stock by clicking enabled variation buttons on a product page",
+    "access": "read",
+    "domain": "shopee.sg",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Shopee product URL, e.g. https://shopee.sg/...-i.123.456"
+      }
+    ],
+    "columns": [
+      "product_url",
+      "title",
+      "shopee_current_price",
+      "group_count",
+      "group_names",
+      "option_labels",
+      "sku",
+      "stock",
+      "stock_source"
+    ],
+    "type": "js",
+    "modulePath": "shopee/product-sku.js",
+    "sourceFile": "shopee/product-sku.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "shopee",
+    "name": "search",
+    "description": "Search Shopee products and output product links",
+    "access": "read",
+    "domain": "shopee.com.my",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword, e.g. \"camera\""
+      },
+      {
+        "name": "sortby",
+        "type": "str",
+        "default": "top-sale",
+        "required": false,
+        "help": "Sort order: top-sale, latest, relevance (default top-sale)",
+        "choices": [
+          "top-sale",
+          "latest",
+          "relevance"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum product links to return (default 20, max 100)"
+      },
+      {
+        "name": "origin",
+        "type": "str",
+        "default": "https://shopee.com.my",
+        "required": false,
+        "help": "Shopee origin, e.g. https://shopee.com.my"
+      }
+    ],
+    "columns": [
+      "rank",
+      "product_url",
+      "title"
+    ],
+    "type": "js",
+    "modulePath": "shopee/search.js",
+    "sourceFile": "shopee/search.js",
+    "navigateBefore": false
   },
   {
     "site": "sinablog",

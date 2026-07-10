@@ -1366,6 +1366,15 @@ async function resolveCommandTabId(cmd: Command): Promise<number | undefined> {
   return undefined;
 }
 
+/**
+ * Resolve tabId from command's page (targetId).
+ * Returns undefined if no page identity is provided.
+ */
+async function resolveCommandTabId(cmd: Command): Promise<number | undefined> {
+  if (cmd.page) return identity.resolveTabId(cmd.page);
+  return undefined;
+}
+
 type ResolvedTab = { tabId: number; tab: chrome.tabs.Tab | null };
 
 /**
@@ -1493,6 +1502,12 @@ async function pageScopedResult(id: string, tabId: number, data?: unknown): Prom
   return { id, ok: true, data, page };
 }
 
+/** Build a page-scoped success result with targetId resolved from tabId */
+async function pageScopedResult(id: string, tabId: number, data?: unknown): Promise<Result> {
+  const page = await identity.resolveTargetId(tabId);
+  return { id, ok: true, data, page };
+}
+
 /** Convenience wrapper returning just the tabId (used by most handlers) */
 async function resolveTabId(tabId: number | undefined, leaseKey: string, initialUrl?: string): Promise<number> {
   const resolved = await resolveTab(tabId, leaseKey, initialUrl);
@@ -1606,6 +1621,16 @@ async function handleNavigate(cmd: Command, leaseKey: string): Promise<Result> {
   if (!cmd.url) return { id: cmd.id, ok: false, error: 'Missing url' };
   if (!isSafeNavigationUrl(cmd.url)) {
     return { id: cmd.id, ok: false, error: 'Blocked URL scheme -- only http:// and https:// are allowed' };
+  }
+  const session = automationSessions.get(workspace);
+  if (session && !session.owned && cmd.allowBoundNavigation !== true) {
+    return {
+      id: cmd.id,
+      ok: false,
+      errorCode: 'bound_navigation_blocked',
+      error: `Workspace "${workspace}" is bound to a user tab; navigation is blocked by default.`,
+      errorHint: 'Pass --allow-navigate-bound only if you intentionally want to navigate the bound tab.',
+    };
   }
   // Pass target URL so that first-time window creation can start on the right domain
   const cmdTabId = await resolveCommandTabId(cmd);

@@ -684,6 +684,83 @@ export async function evaluateInFrame(
   return result.result?.value;
 }
 
+export function registerFrameTracking(): void {
+  chrome.debugger.onEvent.addListener((source, method, params: any) => {
+    const tabId = source.tabId;
+    if (!tabId) return;
+
+    if (method === 'Runtime.executionContextCreated') {
+      const context = params.context;
+      if (!context?.auxData?.frameId || context.auxData.isDefault !== true) return;
+      const frameId = context.auxData.frameId as string;
+      if (!tabFrameContexts.has(tabId)) {
+        tabFrameContexts.set(tabId, new Map());
+      }
+      tabFrameContexts.get(tabId)!.set(frameId, context.id);
+    }
+
+    if (method === 'Runtime.executionContextDestroyed') {
+      const ctxId = params.executionContextId;
+      const contexts = tabFrameContexts.get(tabId);
+      if (contexts) {
+        for (const [fid, cid] of contexts) {
+          if (cid === ctxId) { contexts.delete(fid); break; }
+        }
+      }
+    }
+
+    if (method === 'Runtime.executionContextsCleared') {
+      tabFrameContexts.delete(tabId);
+    }
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    tabFrameContexts.delete(tabId);
+  });
+}
+
+export async function getFrameTree(tabId: number): Promise<any> {
+  await ensureAttached(tabId);
+  return chrome.debugger.sendCommand({ tabId }, 'Page.getFrameTree');
+}
+
+export async function evaluateInFrame(
+  tabId: number,
+  expression: string,
+  frameId: string,
+  aggressiveRetry: boolean = false,
+): Promise<unknown> {
+  await ensureAttached(tabId, aggressiveRetry);
+
+  await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable').catch(() => {});
+
+  const contexts = tabFrameContexts.get(tabId);
+  const contextId = contexts?.get(frameId);
+
+  if (contextId === undefined) {
+    throw new Error(`No execution context found for frame ${frameId}. The frame may not be loaded yet.`);
+  }
+
+  const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+    expression,
+    contextId,
+    returnByValue: true,
+    awaitPromise: true,
+  }) as {
+    result?: { type: string; value?: unknown; description?: string; subtype?: string };
+    exceptionDetails?: { exception?: { description?: string }; text?: string };
+  };
+
+  if (result.exceptionDetails) {
+    const errMsg = result.exceptionDetails.exception?.description
+      || result.exceptionDetails.text
+      || 'Eval error';
+    throw new Error(errMsg);
+  }
+
+  return result.result?.value;
+}
+
 function normalizeCapturePatterns(pattern?: string): string[] {
   return String(pattern || '')
     .split('|')

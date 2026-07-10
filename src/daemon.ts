@@ -264,7 +264,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const mem = process.memoryUsage();
     const params = new URL(url, `http://localhost:${PORT}`).searchParams;
     const requestedContextId = params.get('contextId')?.trim() || undefined;
-    const route = resolveExtensionConnection(requestedContextId);
+    const preferredContextId = params.get('preferredContextId')?.trim() || undefined;
+    const route = resolveExtensionConnection(requestedContextId, preferredContextId);
     const profiles = activeProfiles().map((profile) => ({
       contextId: profile.contextId,
       extensionConnected: true,
@@ -281,7 +282,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       extensionConnected: !!route.connection,
       extensionVersion: route.connection?.extensionVersion ?? undefined,
       extensionCompatRange: route.connection?.extensionCompatRange ?? undefined,
-      contextId: route.connection?.contextId ?? requestedContextId,
+      contextId: route.connection?.contextId ?? requestedContextId ?? preferredContextId,
       profileRequired: route.errorCode === 'profile_required',
       profileDisconnected: route.errorCode === 'profile_disconnected',
       profiles,

@@ -83,6 +83,7 @@ export function registerSiteAuthCommands(config) {
     siteSession: 'persistent',
     args: [
       { name: 'timeout', type: 'int', default: DEFAULT_TIMEOUT_SECONDS, help: 'Maximum seconds to wait for the user to finish login' },
+      ...(Array.isArray(config.loginArgs) ? config.loginArgs : []),
     ],
     columns: ['status', ...commandColumns(config)],
     func: async (page, kwargs) => {
@@ -93,6 +94,9 @@ export function registerSiteAuthCommands(config) {
       }
 
       await page.goto(config.loginUrl);
+      if (typeof config.afterOpenLogin === 'function') {
+        await config.afterOpenLogin(page, kwargs);
+      }
       const timeoutSeconds = Number(kwargs.timeout ?? DEFAULT_TIMEOUT_SECONDS);
       const deadline = Date.now() + timeoutSeconds * 1000;
       let lastAuthMessage = '';

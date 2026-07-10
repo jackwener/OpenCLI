@@ -47,6 +47,7 @@ describe('manifest helper rules', () => {
         name: 'dynamic',
         access: 'read',
         description: 'dynamic command',
+        workspace: 'site:manifest-dynamic-{pid}',
         strategy: Strategy.PUBLIC,
         browser: false,
         aliases: ['metadata'],

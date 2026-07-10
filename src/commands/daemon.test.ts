@@ -102,6 +102,38 @@ describe('daemonStatus', () => {
 
     expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('version unknown'));
   });
+
+  it('requests status with the config default as preferredContextId', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-daemon-status-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: {}, defaultContextId: 'e3cjzw3x' }),
+    );
+    process.env.OPENCLI_CONFIG_DIR = configDir;
+
+    fetchDaemonStatusMock.mockResolvedValue({
+      ok: true,
+      pid: 12345,
+      uptime: 3661,
+      daemonVersion: PKG_VERSION,
+      extensionConnected: true,
+      extensionVersion: '1.6.8',
+      pending: 0,
+      memoryMB: 64,
+      port: 19825,
+    });
+
+    try {
+      await daemonStatus();
+      expect(fetchDaemonStatusMock).toHaveBeenCalledWith({ preferredContextId: 'e3cjzw3x' });
+    } finally {
+      fs.rmSync(configDir, { recursive: true, force: true });
+      delete process.env.OPENCLI_CONFIG_DIR;
+    }
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────

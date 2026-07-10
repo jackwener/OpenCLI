@@ -1,0 +1,364 @@
+diff --git a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/utils/opencli-bridge.ts b/Users/duke/opencli/transfer-src/utils/opencli-bridge.ts
+index 72f3c7b..8c44bff 100644
+--- a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/utils/opencli-bridge.ts
++++ b/Users/duke/opencli/transfer-src/utils/opencli-bridge.ts
+@@ -341,6 +341,10 @@ function normalizeUrlForComparison(url?: string) {
+     ) {
+       parsed.port = ''
+     }
++    const shopeeProductKey = getShopeeProductComparisonKey(parsed)
++    if (shopeeProductKey) {
++      return `${parsed.protocol}//${parsed.host}${shopeeProductKey}`
++    }
+     const pathname = parsed.pathname === '/' ? '' : parsed.pathname
+     return `${parsed.protocol}//${parsed.host}${pathname}${parsed.search}${parsed.hash}`
+   } catch {
+@@ -366,22 +370,23 @@ function normalizeUrlPathForComparison(url?: string) {
+   }
+ }
+ 
+-function extractShopeeProductIdentity(url?: string) {
+-  if (!url) return ''
++function getShopeeProductComparisonKey(parsed: URL): string | null {
++  const hostname = parsed.hostname.toLowerCase()
++  if (!/(^|\.)shopee\./.test(hostname)) {
++    return null
++  }
+ 
+-  try {
+-    const parsed = new URL(url)
+-    const isShopeeHost =
+-      parsed.hostname === 'shopee.sg' || parsed.hostname.endsWith('.shopee.sg')
+-    if (!isShopeeHost) return ''
+-
+-    const pathname = decodeURIComponent(parsed.pathname || '')
+-    const match = pathname.match(/-i\.(\d+)\.(\d+)\/?$/)
+-    if (!match) return ''
+-    return `${match[1]}.${match[2]}`
+-  } catch {
+-    return ''
++  const productPathMatch = parsed.pathname.match(/^\/product\/(\d+)\/(\d+)\/?$/)
++  if (productPathMatch) {
++    return `/__shopee_product__/${productPathMatch[1]}/${productPathMatch[2]}`
+   }
++
++  const slugPathMatch = parsed.pathname.match(/\/(?:[^/]*-)?i\.(\d+)\.(\d+)\/?$/)
++  if (slugPathMatch) {
++    return `/__shopee_product__/${slugPathMatch[1]}/${slugPathMatch[2]}`
++  }
++
++  return null
+ }
+ 
+ function isTargetUrl(currentUrl: string | undefined, targetUrl: string) {
+@@ -389,16 +394,6 @@ function isTargetUrl(currentUrl: string | undefined, targetUrl: string) {
+   const normalizedTarget = normalizeUrlForComparison(targetUrl)
+   if (normalizedCurrent === normalizedTarget) return true
+ 
+-  const currentShopeeIdentity = extractShopeeProductIdentity(currentUrl)
+-  const targetShopeeIdentity = extractShopeeProductIdentity(targetUrl)
+-  if (
+-    currentShopeeIdentity &&
+-    targetShopeeIdentity &&
+-    currentShopeeIdentity === targetShopeeIdentity
+-  ) {
+-    return true
+-  }
+-
+   try {
+     const parsedTarget = new URL(targetUrl)
+     if (parsedTarget.search || parsedTarget.hash) {
+diff --git a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/utils/action-context.ts b/Users/duke/opencli/transfer-src/utils/action-context.ts
+index 36437e4..bdc817e 100644
+--- a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/utils/action-context.ts
++++ b/Users/duke/opencli/transfer-src/utils/action-context.ts
+@@ -16,6 +16,10 @@ function normalizeUrlForComparison(url?: string) {
+     ) {
+       parsed.port = ''
+     }
++    const shopeeProductKey = getShopeeProductComparisonKey(parsed)
++    if (shopeeProductKey) {
++      return `${parsed.protocol}//${parsed.host}${shopeeProductKey}`
++    }
+     const pathname = parsed.pathname === '/' ? '' : parsed.pathname
+     return `${parsed.protocol}//${parsed.host}${pathname}${parsed.search}${parsed.hash}`
+   } catch {
+@@ -41,22 +45,23 @@ function normalizeUrlPathForComparison(url?: string) {
+   }
+ }
+ 
+-function extractShopeeProductIdentity(url?: string) {
+-  if (!url) return ''
++function getShopeeProductComparisonKey(parsed: URL): string | null {
++  const hostname = parsed.hostname.toLowerCase()
++  if (!/(^|\.)shopee\./.test(hostname)) {
++    return null
++  }
+ 
+-  try {
+-    const parsed = new URL(url)
+-    const isShopeeHost =
+-      parsed.hostname === 'shopee.sg' || parsed.hostname.endsWith('.shopee.sg')
+-    if (!isShopeeHost) return ''
++  const productPathMatch = parsed.pathname.match(/^\/product\/(\d+)\/(\d+)\/?$/)
++  if (productPathMatch) {
++    return `/__shopee_product__/${productPathMatch[1]}/${productPathMatch[2]}`
++  }
+ 
+-    const pathname = decodeURIComponent(parsed.pathname || '')
+-    const match = pathname.match(/-i\.(\d+)\.(\d+)\/?$/)
+-    if (!match) return ''
+-    return `${match[1]}.${match[2]}`
+-  } catch {
+-    return ''
++  const slugPathMatch = parsed.pathname.match(/\/(?:[^/]*-)?i\.(\d+)\.(\d+)\/?$/)
++  if (slugPathMatch) {
++    return `/__shopee_product__/${slugPathMatch[1]}/${slugPathMatch[2]}`
+   }
++
++  return null
+ }
+ 
+ function isSameTargetPage(currentUrl: string | undefined, targetUrl: string) {
+@@ -64,16 +69,6 @@ function isSameTargetPage(currentUrl: string | undefined, targetUrl: string) {
+   const normalizedTarget = normalizeUrlForComparison(targetUrl)
+   if (normalizedCurrent === normalizedTarget) return true
+ 
+-  const currentShopeeIdentity = extractShopeeProductIdentity(currentUrl)
+-  const targetShopeeIdentity = extractShopeeProductIdentity(targetUrl)
+-  if (
+-    currentShopeeIdentity &&
+-    targetShopeeIdentity &&
+-    currentShopeeIdentity === targetShopeeIdentity
+-  ) {
+-    return true
+-  }
+-
+   try {
+     const parsedTarget = new URL(targetUrl)
+     if (parsedTarget.search || parsedTarget.hash) {
+diff --git a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/templates/extractProductDetailFromShopee/index.js b/Users/duke/opencli/transfer-src/templates/extractProductDetailFromShopee/index.js
+index d46b237..3101464 100644
+--- a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/templates/extractProductDetailFromShopee/index.js
++++ b/Users/duke/opencli/transfer-src/templates/extractProductDetailFromShopee/index.js
+@@ -39,6 +39,12 @@ const extractProductDetailFromShopee = {
+         "type": "text",
+         "function": ""
+       },
++      {
++        "name": "shopdora_login_message",
++        "selector": ".shopdoraLoginPage, .pageDetailLoginTitle",
++        "type": "text",
++        "function": "function $(text) { return text ? 'Shopdora 未登录' : ''; }"
++      },
+       {
+         "name": "current_price_range",
+         "selector": ".shopdoraPirceList span",
+diff --git a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/templates/exportReviewDataFromShopee/action_code.js b/Users/duke/opencli/transfer-src/templates/exportReviewDataFromShopee/action_code.js
+index b3ca9a0..db9df22 100644
+--- a/Users/duke/projects/maybeai-uni/app-factory/apps/plugin/templates/exportReviewDataFromShopee/action_code.js
++++ b/Users/duke/opencli/transfer-src/templates/exportReviewDataFromShopee/action_code.js
+@@ -1,4 +1,15 @@
+ async function template_action_code() {
++  const SHOPDORA_NOT_LOGGED_IN_MESSAGE = 'Shopdora 未登录'
++  const exportReviewButtonSelector =
++    'div > div:nth-of-type(1) > div:nth-of-type(2) > div > div.common-btn.en_common-btn'
++  const detailFilterLabelSelector =
++    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)'
++  const detailFilterInputSelector =
++    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > input.t-checkbox__former'
++  const timePeriodStartInputSelector =
++    '.review .t-range-input__inner .t-range-input__inner-left input'
++  const confirmExportButtonSelector = '.review .button button:last-of-type'
++
+   const randomBetween = (min, max) =>
+     Math.floor(Math.random() * (max - min + 1)) + min
+ 
+@@ -6,8 +17,21 @@ async function template_action_code() {
+     await waitForTimeout(randomBetween(min, max))
+   }
+ 
+-  const exportReviewButtonSelector =
+-    'div > div:nth-of-type(1) > div:nth-of-type(2) > div > div.common-btn.en_common-btn'
++  const appendShopdoraLoginMessage = (message, loginMessage) => {
++    const base = String(message || '').trim()
++    const extra = String(loginMessage || '').trim()
++    if (!extra) return base
++    return base ? `${base} ${extra}。` : extra
++  }
++
++  const readShopdoraLoginState = async () =>
++    (await evaluate(() => ({
++      hasShopdoraLoginPage: Boolean(document.querySelector('.shopdoraLoginPage')),
++      hasPageDetailLoginTitle: Boolean(document.querySelector('.pageDetailLoginTitle')),
++    }))) || {
++      hasShopdoraLoginPage: false,
++      hasPageDetailLoginTitle: false,
++    }
+ 
+   const waitForExportReviewReady = async ({
+     timeout = 30000,
+@@ -21,7 +45,11 @@ async function template_action_code() {
+     while (Date.now() - startedAt < timeout) {
+       const buttonState = await evaluate(() => {
+         const selector = '.putButton .common-btn.en_common-btn'
+-        const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
++        const loginSelector = '.shopdoraLoginPage'
++        const normalizeText = (value) =>
++          String(value || '')
++            .replace(/\s+/g, ' ')
++            .trim()
+         const targets = Array.from(document.querySelectorAll(selector))
+         const target =
+           targets.find((element) => {
+@@ -32,6 +60,15 @@ async function template_action_code() {
+             return normalizeText(directText).includes('Export Review')
+           }) || targets[0] || null
+ 
++        if (document.querySelector(loginSelector)) {
++          return {
++            found: false,
++            text: '',
++            done: false,
++            reason: 'shopdora_login_required',
++          }
++        }
++
+         if (!target) {
+           return {
+             found: false,
+@@ -54,6 +91,12 @@ async function template_action_code() {
+         }
+       })
+ 
++      if (buttonState?.reason === 'shopdora_login_required') {
++        throw new Error(
++          `Shopee product-shopdora-download requires Shopdora login: ${SHOPDORA_NOT_LOGGED_IN_MESSAGE}，请先登录 Shopdora 后重试。`,
++        )
++      }
++
+       if (buttonState?.done) {
+         return
+       }
+@@ -103,40 +146,92 @@ async function template_action_code() {
+     await humanPause(afterMin, afterMax)
+   }
+ 
+-  const humanUncheck = async (
+-    selector,
+-    { beforeMin = 250, beforeMax = 700, afterMin = 700, afterMax = 1500 } = {},
+-  ) => {
+-    await waitForSelector(selector, { state: 'attached', timeout: 10000 })
+-    await humanPause(beforeMin, beforeMax)
+-    await uncheck(selector)
+-    await humanPause(afterMin, afterMax)
++  const setTimePeriodStartToThreeMonthsAgo = async () => {
++    const result = await evaluate(`
++      (() => {
++        const input = document.querySelector(${JSON.stringify('.review .t-range-input__inner .t-range-input__inner-left input')})
++        if (!(input instanceof HTMLInputElement)) {
++          return { ok: false, error: 'date_input_not_found' }
++        }
++
++        const now = new Date()
++        const target = new Date(now.getTime())
++        const originalDay = target.getDate()
++        target.setDate(1)
++        target.setMonth(target.getMonth() - 3)
++        const daysInMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
++        target.setDate(Math.min(originalDay, daysInMonth))
++
++        const yyyy = target.getFullYear()
++        const mm = String(target.getMonth() + 1).padStart(2, '0')
++        const dd = String(target.getDate()).padStart(2, '0')
++        const value = \`\${yyyy}-\${mm}-\${dd}\`
++
++        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
++          HTMLInputElement.prototype,
++          'value',
++        )?.set
++        nativeInputValueSetter?.call(input, value)
++        if (input.value !== value) {
++          input.value = value
++        }
++
++        input.dispatchEvent(new Event('input', { bubbles: true }))
++        input.dispatchEvent(new Event('change', { bubbles: true }))
++        input.dispatchEvent(new Event('blur', { bubbles: true }))
++
++        return { ok: true, value }
++      })()
++    `)
++
++    if (!result?.ok) {
++      throw new Error('Shopee product-shopdora-download could not set the time-period start date')
++    }
++
++    return String(result.value || '').trim()
+   }
+ 
++  const shopdoraLoginState = await readShopdoraLoginState()
++  const shopdoraLoginMessage =
++    shopdoraLoginState?.hasShopdoraLoginPage || shopdoraLoginState?.hasPageDetailLoginTitle
++      ? SHOPDORA_NOT_LOGGED_IN_MESSAGE
++      : ''
++
+   await humanPause(900, 1800)
+-  await humanClick(
+-    exportReviewButtonSelector,
+-    { afterMin: 1200, afterMax: 2400 },
+-  )
+-  await humanClick(
+-    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)',
+-  )
+-  await humanCheck(
+-    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > input.t-checkbox__former',
+-  )
+-  await humanClick(
+-    'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)',
+-  )
+-  await humanUncheck(
+-    'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > input.t-checkbox__former',
+-  )
+-  await humanClick(
+-    'div > div:nth-of-type(5) > div:nth-of-type(2) > button:nth-of-type(2) > span.t-button__text',
+-    { afterMin: 800, afterMax: 1500 },
+-  )
++  await humanClick(exportReviewButtonSelector, {
++    afterMin: 1200,
++    afterMax: 2400,
++  })
++  await waitForSelector(timePeriodStartInputSelector, {
++    state: 'visible',
++    timeout: 10000,
++  })
++  await settleBeforeAction(timePeriodStartInputSelector)
++  const selectedStartDate = await setTimePeriodStartToThreeMonthsAgo()
++  await humanPause(1000, 2500)
++  await humanClick(detailFilterLabelSelector)
++  await humanCheck(detailFilterInputSelector)
++  await humanClick(confirmExportButtonSelector, {
++    afterMin: 800,
++    afterMax: 1500,
++  })
+   await waitForExportReviewReady()
+ 
+-  return []
++  return [
++    {
++      action: 'download_completed',
++      status: 'success',
++      success: true,
++      timestamp: new Date().toISOString(),
++      message: appendShopdoraLoginMessage(
++        'Downloaded Shopee product Shopdora export with the recorded good-detail filter.',
++        shopdoraLoginMessage,
++      ),
++      product_url: window.location.href,
++      selected_start_date: selectedStartDate,
++      shopdora_login_message: shopdoraLoginMessage,
++    },
++  ]
+ }
+ 
+ export default template_action_code;

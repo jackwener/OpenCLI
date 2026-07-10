@@ -41,6 +41,7 @@ export function serializeCommand(cmd: CliCommand) {
     command: fullName(cmd),
     site: cmd.site,
     name: cmd.name,
+    workspace: cmd.workspace ?? null,
     aliases: cmd.aliases ?? [],
     description: cmd.description,
     access: cmd.access,

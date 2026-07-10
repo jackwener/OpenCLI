@@ -37,6 +37,8 @@ export interface AuthStatusMetadata {
 interface BaseCliCommand {
   site: string;
   name: string;
+  /** Optional browser workspace override. Defaults to `site:<site>` for browser commands. */
+  workspace?: string;
   aliases?: string[];
   description: string;
   access: CommandAccess;

@@ -1,0 +1,559 @@
+diff --git a/utils/opencli-bridge.ts b/utils/opencli-bridge.ts
+index a0c9f23..d8eb9ad 100644
+--- a/utils/opencli-bridge.ts
++++ b/utils/opencli-bridge.ts
+@@
+ function normalizeUrlForComparison(url?: string) {
+   if (!url) return ''
+ 
+   try {
+     const parsed = new URL(url)
+@@
+     ) {
+       parsed.port = ''
+     }
++    const shopeeProductKey = getShopeeProductComparisonKey(parsed)
++    if (shopeeProductKey) {
++      return `${parsed.protocol}//${parsed.host}${shopeeProductKey}`
++    }
+     const pathname = parsed.pathname === '/' ? '' : parsed.pathname
+     return `${parsed.protocol}//${parsed.host}${pathname}${parsed.search}${parsed.hash}`
+   } catch {
+     return url
+   }
+@@
+-function extractShopeeProductIdentity(url?: string) {
+-  if (!url) return ''
+-
+-  try {
+-    const parsed = new URL(url)
+-    const isShopeeHost =
+-      parsed.hostname === 'shopee.sg' || parsed.hostname.endsWith('.shopee.sg')
+-    if (!isShopeeHost) return ''
+-
+-    const pathname = decodeURIComponent(parsed.pathname || '')
+-    const match = pathname.match(/-i\.(\d+)\.(\d+)\/?$/)
+-    if (!match) return ''
+-    return `${match[1]}.${match[2]}`
+-  } catch {
+-    return ''
+-  }
+-}
++function getShopeeProductComparisonKey(parsed: URL): string | null {
++  const hostname = parsed.hostname.toLowerCase()
++  if (!/(^|\.)shopee\./.test(hostname)) {
++    return null
++  }
++
++  const productPathMatch = parsed.pathname.match(/^\/product\/(\d+)\/(\d+)\/?$/)
++  if (productPathMatch) {
++    return `/__shopee_product__/${productPathMatch[1]}/${productPathMatch[2]}`
++  }
++
++  const slugPathMatch = parsed.pathname.match(/\/(?:[^/]*-)?i\.(\d+)\.(\d+)\/?$/)
++  if (slugPathMatch) {
++    return `/__shopee_product__/${slugPathMatch[1]}/${slugPathMatch[2]}`
++  }
++
++  return null
++}
+ 
+ function isTargetUrl(currentUrl: string | undefined, targetUrl: string) {
+   const normalizedCurrent = normalizeUrlForComparison(currentUrl)
+   const normalizedTarget = normalizeUrlForComparison(targetUrl)
+   if (normalizedCurrent === normalizedTarget) return true
+-
+-  const currentShopeeIdentity = extractShopeeProductIdentity(currentUrl)
+-  const targetShopeeIdentity = extractShopeeProductIdentity(targetUrl)
+-  if (
+-    currentShopeeIdentity &&
+-    targetShopeeIdentity &&
+-    currentShopeeIdentity === targetShopeeIdentity
+-  ) {
+-    return true
+-  }
+ 
+   try {
+     const parsedTarget = new URL(targetUrl)
+     if (parsedTarget.search || parsedTarget.hash) {
+diff --git a/utils/action-context.ts b/utils/action-context.ts
+index d64c1a6..5f6ec73 100644
+--- a/utils/action-context.ts
++++ b/utils/action-context.ts
+@@
+ function normalizeUrlForComparison(url?: string) {
+   if (!url) return ''
+ 
+   try {
+     const parsed = new URL(url)
+@@
+     ) {
+       parsed.port = ''
+     }
++    const shopeeProductKey = getShopeeProductComparisonKey(parsed)
++    if (shopeeProductKey) {
++      return `${parsed.protocol}//${parsed.host}${shopeeProductKey}`
++    }
+     const pathname = parsed.pathname === '/' ? '' : parsed.pathname
+     return `${parsed.protocol}//${parsed.host}${pathname}${parsed.search}${parsed.hash}`
+   } catch {
+     return url
+   }
+@@
+-function extractShopeeProductIdentity(url?: string) {
+-  if (!url) return ''
+-
+-  try {
+-    const parsed = new URL(url)
+-    const isShopeeHost =
+-      parsed.hostname === 'shopee.sg' || parsed.hostname.endsWith('.shopee.sg')
+-    if (!isShopeeHost) return ''
+-
+-    const pathname = decodeURIComponent(parsed.pathname || '')
+-    const match = pathname.match(/-i\.(\d+)\.(\d+)\/?$/)
+-    if (!match) return ''
+-    return `${match[1]}.${match[2]}`
+-  } catch {
+-    return ''
+-  }
+-}
++function getShopeeProductComparisonKey(parsed: URL): string | null {
++  const hostname = parsed.hostname.toLowerCase()
++  if (!/(^|\.)shopee\./.test(hostname)) {
++    return null
++  }
++
++  const productPathMatch = parsed.pathname.match(/^\/product\/(\d+)\/(\d+)\/?$/)
++  if (productPathMatch) {
++    return `/__shopee_product__/${productPathMatch[1]}/${productPathMatch[2]}`
++  }
++
++  const slugPathMatch = parsed.pathname.match(/\/(?:[^/]*-)?i\.(\d+)\.(\d+)\/?$/)
++  if (slugPathMatch) {
++    return `/__shopee_product__/${slugPathMatch[1]}/${slugPathMatch[2]}`
++  }
++
++  return null
++}
+ 
+ function isSameTargetPage(currentUrl: string | undefined, targetUrl: string) {
+   const normalizedCurrent = normalizeUrlForComparison(currentUrl)
+   const normalizedTarget = normalizeUrlForComparison(targetUrl)
+   if (normalizedCurrent === normalizedTarget) return true
+-
+-  const currentShopeeIdentity = extractShopeeProductIdentity(currentUrl)
+-  const targetShopeeIdentity = extractShopeeProductIdentity(targetUrl)
+-  if (
+-    currentShopeeIdentity &&
+-    targetShopeeIdentity &&
+-    currentShopeeIdentity === targetShopeeIdentity
+-  ) {
+-    return true
+-  }
+ 
+   try {
+     const parsedTarget = new URL(targetUrl)
+     if (parsedTarget.search || parsedTarget.hash) {
+diff --git a/templates/extractProductDetailFromShopee/index.js b/templates/extractProductDetailFromShopee/index.js
+index fdbfbc9..0a27a2c 100644
+--- a/templates/extractProductDetailFromShopee/index.js
++++ b/templates/extractProductDetailFromShopee/index.js
+@@
+       {
+         "name": "sold_count_text",
+         "selector": ".aleSBU > .AcmPRb",
+         "type": "text",
+         "function": ""
++      },
++      {
++        "name": "shopdora_login_message",
++        "selector": ".shopdoraLoginPage, .pageDetailLoginTitle",
++        "type": "text",
++        "function": "function $(text) { return text ? 'Shopdora 未登录' : ''; }"
+       },
+       {
+         "name": "current_price_range",
+         "selector": ".shopdoraPirceList span",
+         "type": "text",
+diff --git a/templates/exportReviewDataFromShopee/action_code.js b/templates/exportReviewDataFromShopee/action_code.js
+index 9b2775f..c98ba2f 100644
+--- a/templates/exportReviewDataFromShopee/action_code.js
++++ b/templates/exportReviewDataFromShopee/action_code.js
+@@
+-async function template_action_code() {
+-  const randomBetween = (min, max) =>
+-    Math.floor(Math.random() * (max - min + 1)) + min
+-
+-  const humanPause = async (min, max = min) => {
+-    await waitForTimeout(randomBetween(min, max))
+-  }
+-
+-  const exportReviewButtonSelector =
+-    'div > div:nth-of-type(1) > div:nth-of-type(2) > div > div.common-btn.en_common-btn'
+-
+-  const waitForExportReviewReady = async ({
+-    timeout = 30000,
+-    pollInterval = 1000,
+-  } = {}) => {
+-    await waitForTimeout(2000)
+-
+-    const startedAt = Date.now()
+-    let lastKnownText = ''
+-
+-    while (Date.now() - startedAt < timeout) {
+-      const buttonState = await evaluate(() => {
+-        const selector = '.putButton .common-btn.en_common-btn'
+-        const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+-        const targets = Array.from(document.querySelectorAll(selector))
+-        const target =
+-          targets.find((element) => {
+-            const directText = Array.from(element.childNodes)
+-              .filter((node) => node.nodeType === Node.TEXT_NODE)
+-              .map((node) => node.textContent || '')
+-              .join(' ')
+-            return normalizeText(directText).includes('Export Review')
+-          }) || targets[0] || null
+-
+-        if (!target) {
+-          return {
+-            found: false,
+-            text: '',
+-            done: false,
+-          }
+-        }
+-
+-        const buttonLabel = normalizeText(
+-          Array.from(target.childNodes)
+-            .filter((node) => node.nodeType === Node.TEXT_NODE)
+-            .map((node) => node.textContent || '')
+-            .join(' '),
+-        )
+-
+-        return {
+-          found: true,
+-          text: buttonLabel,
+-          done: buttonLabel === 'Export Review',
+-        }
+-      })
+-
+-      if (buttonState?.done) {
+-        return
+-      }
+-
+-      if (buttonState?.found) {
+-        lastKnownText = buttonState.text || ''
+-      }
+-
+-      await waitForTimeout(pollInterval)
+-    }
+-
+-    throw new Error(
+-      `Timed out waiting for Export Review button text to reset. Last text: ${lastKnownText || 'unknown'}`,
+-    )
+-  }
+-
+-  const settleBeforeAction = async (selector) => {
+-    await waitForSelector(selector, { state: 'visible', timeout: 10000 })
+-    await humanPause(300, 900)
+-
+-    try {
+-      await hover(selector)
+-      await humanPause(180, 420)
+-    } catch (error) {
+-      // 悬停失败时继续执行，避免单个步骤阻塞整个导出流程。
+-    }
+-  }
+-
+-  const humanClick = async (
+-    selector,
+-    { beforeMin = 300, beforeMax = 900, afterMin = 800, afterMax = 1800 } = {},
+-  ) => {
+-    await waitForSelector(selector, { state: 'visible', timeout: 10000 })
+-    await humanPause(beforeMin, beforeMax)
+-    await settleBeforeAction(selector)
+-    await click(selector)
+-    await humanPause(afterMin, afterMax)
+-  }
+-
+-  const humanCheck = async (
+-    selector,
+-    { beforeMin = 250, beforeMax = 700, afterMin = 700, afterMax = 1500 } = {},
+-  ) => {
+-    await waitForSelector(selector, { state: 'attached', timeout: 10000 })
+-    await humanPause(beforeMin, beforeMax)
+-    await check(selector)
+-    await humanPause(afterMin, afterMax)
+-  }
+-
+-  const humanUncheck = async (
+-    selector,
+-    { beforeMin = 250, beforeMax = 700, afterMin = 700, afterMax = 1500 } = {},
+-  ) => {
+-    await waitForSelector(selector, { state: 'attached', timeout: 10000 })
+-    await humanPause(beforeMin, beforeMax)
+-    await uncheck(selector)
+-    await humanPause(afterMin, afterMax)
+-  }
+-
+-  await humanPause(900, 1800)
+-  await humanClick(
+-    exportReviewButtonSelector,
+-    { afterMin: 1200, afterMax: 2400 },
+-  )
+-  await humanClick(
+-    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)',
+-  )
+-  await humanCheck(
+-    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > input.t-checkbox__former',
+-  )
+-  await humanClick(
+-    'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)',
+-  )
+-  await humanUncheck(
+-    'div:nth-of-type(1) > div:nth-of-type(2) > span:nth-of-type(2) > label > input.t-checkbox__former',
+-  )
+-  await humanClick(
+-    'div > div:nth-of-type(5) > div:nth-of-type(2) > button:nth-of-type(2) > span.t-button__text',
+-    { afterMin: 800, afterMax: 1500 },
+-  )
+-  await waitForExportReviewReady()
+-
+-  return []
+-}
++async function template_action_code() {
++  const SHOPDORA_NOT_LOGGED_IN_MESSAGE = 'Shopdora 未登录'
++  const exportReviewButtonSelector =
++    'div > div:nth-of-type(1) > div:nth-of-type(2) > div > div.common-btn.en_common-btn'
++  const detailFilterLabelSelector =
++    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > span.t-checkbox__input:nth-of-type(1)'
++  const detailFilterInputSelector =
++    'div > div:nth-of-type(4) > div:nth-of-type(2) > label > input.t-checkbox__former'
++  const timePeriodStartInputSelector =
++    '.review .t-range-input__inner .t-range-input__inner-left input'
++  const confirmExportButtonSelector = '.review .button button:last-of-type'
++
++  const randomBetween = (min, max) =>
++    Math.floor(Math.random() * (max - min + 1)) + min
++
++  const humanPause = async (min, max = min) => {
++    await waitForTimeout(randomBetween(min, max))
++  }
++
++  const appendShopdoraLoginMessage = (message, loginMessage) => {
++    const base = String(message || '').trim()
++    const extra = String(loginMessage || '').trim()
++    if (!extra) return base
++    return base ? `${base} ${extra}。` : extra
++  }
++
++  const readShopdoraLoginState = async () =>
++    (await evaluate(() => ({
++      hasShopdoraLoginPage: Boolean(document.querySelector('.shopdoraLoginPage')),
++      hasPageDetailLoginTitle: Boolean(document.querySelector('.pageDetailLoginTitle')),
++    }))) || {
++      hasShopdoraLoginPage: false,
++      hasPageDetailLoginTitle: false,
++    }
++
++  const waitForExportReviewReady = async ({
++    timeout = 30000,
++    pollInterval = 1000,
++  } = {}) => {
++    await waitForTimeout(2000)
++
++    const startedAt = Date.now()
++    let lastKnownText = ''
++
++    while (Date.now() - startedAt < timeout) {
++      const buttonState = await evaluate(() => {
++        const selector = '.putButton .common-btn.en_common-btn'
++        const loginSelector = '.shopdoraLoginPage'
++        const normalizeText = (value) =>
++          String(value || '')
++            .replace(/\s+/g, ' ')
++            .trim()
++        const targets = Array.from(document.querySelectorAll(selector))
++        const target =
++          targets.find((element) => {
++            const directText = Array.from(element.childNodes)
++              .filter((node) => node.nodeType === Node.TEXT_NODE)
++              .map((node) => node.textContent || '')
++              .join(' ')
++            return normalizeText(directText).includes('Export Review')
++          }) || targets[0] || null
++
++        if (document.querySelector(loginSelector)) {
++          return {
++            found: false,
++            text: '',
++            done: false,
++            reason: 'shopdora_login_required',
++          }
++        }
++
++        if (!target) {
++          return {
++            found: false,
++            text: '',
++            done: false,
++          }
++        }
++
++        const buttonLabel = normalizeText(
++          Array.from(target.childNodes)
++            .filter((node) => node.nodeType === Node.TEXT_NODE)
++            .map((node) => node.textContent || '')
++            .join(' '),
++        )
++
++        return {
++          found: true,
++          text: buttonLabel,
++          done: buttonLabel === 'Export Review',
++        }
++      })
++
++      if (buttonState?.reason === 'shopdora_login_required') {
++        throw new Error(
++          `Shopee product-shopdora-download requires Shopdora login: ${SHOPDORA_NOT_LOGGED_IN_MESSAGE}，请先登录 Shopdora 后重试。`,
++        )
++      }
++
++      if (buttonState?.done) {
++        return
++      }
++
++      if (buttonState?.found) {
++        lastKnownText = buttonState.text || ''
++      }
++
++      await waitForTimeout(pollInterval)
++    }
++
++    throw new Error(
++      `Timed out waiting for Export Review button text to reset. Last text: ${lastKnownText || 'unknown'}`,
++    )
++  }
++
++  const settleBeforeAction = async (selector) => {
++    await waitForSelector(selector, { state: 'visible', timeout: 10000 })
++    await humanPause(300, 900)
++
++    try {
++      await hover(selector)
++      await humanPause(180, 420)
++    } catch (error) {
++      // 悬停失败时继续执行，避免单个步骤阻塞整个导出流程。
++    }
++  }
++
++  const humanClick = async (
++    selector,
++    { beforeMin = 300, beforeMax = 900, afterMin = 800, afterMax = 1800 } = {},
++  ) => {
++    await waitForSelector(selector, { state: 'visible', timeout: 10000 })
++    await humanPause(beforeMin, beforeMax)
++    await settleBeforeAction(selector)
++    await click(selector)
++    await humanPause(afterMin, afterMax)
++  }
++
++  const humanCheck = async (
++    selector,
++    { beforeMin = 250, beforeMax = 700, afterMin = 700, afterMax = 1500 } = {},
++  ) => {
++    await waitForSelector(selector, { state: 'attached', timeout: 10000 })
++    await humanPause(beforeMin, beforeMax)
++    await check(selector)
++    await humanPause(afterMin, afterMax)
++  }
++
++  const setTimePeriodStartToThreeMonthsAgo = async () => {
++    const result = await evaluate(`
++      (() => {
++        const input = document.querySelector(${JSON.stringify('.review .t-range-input__inner .t-range-input__inner-left input')})
++        if (!(input instanceof HTMLInputElement)) {
++          return { ok: false, error: 'date_input_not_found' }
++        }
++
++        const now = new Date()
++        const target = new Date(now.getTime())
++        const originalDay = target.getDate()
++        target.setDate(1)
++        target.setMonth(target.getMonth() - 3)
++        const daysInMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
++        target.setDate(Math.min(originalDay, daysInMonth))
++
++        const yyyy = target.getFullYear()
++        const mm = String(target.getMonth() + 1).padStart(2, '0')
++        const dd = String(target.getDate()).padStart(2, '0')
++        const value = \`\${yyyy}-\${mm}-\${dd}\`
++
++        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
++          HTMLInputElement.prototype,
++          'value',
++        )?.set
++        nativeInputValueSetter?.call(input, value)
++        if (input.value !== value) {
++          input.value = value
++        }
++
++        input.dispatchEvent(new Event('input', { bubbles: true }))
++        input.dispatchEvent(new Event('change', { bubbles: true }))
++        input.dispatchEvent(new Event('blur', { bubbles: true }))
++
++        return { ok: true, value }
++      })()
++    `)
++
++    if (!result?.ok) {
++      throw new Error('Shopee product-shopdora-download could not set the time-period start date')
++    }
++
++    return String(result.value || '').trim()
++  }
++
++  const shopdoraLoginState = await readShopdoraLoginState()
++  const shopdoraLoginMessage =
++    shopdoraLoginState?.hasShopdoraLoginPage || shopdoraLoginState?.hasPageDetailLoginTitle
++      ? SHOPDORA_NOT_LOGGED_IN_MESSAGE
++      : ''
++
++  await humanPause(900, 1800)
++  await humanClick(exportReviewButtonSelector, {
++    afterMin: 1200,
++    afterMax: 2400,
++  })
++  await waitForSelector(timePeriodStartInputSelector, {
++    state: 'visible',
++    timeout: 10000,
++  })
++  await settleBeforeAction(timePeriodStartInputSelector)
++  const selectedStartDate = await setTimePeriodStartToThreeMonthsAgo()
++  await humanPause(1000, 2500)
++  await humanClick(detailFilterLabelSelector)
++  await humanCheck(detailFilterInputSelector)
++  await humanClick(confirmExportButtonSelector, {
++    afterMin: 800,
++    afterMax: 1500,
++  })
++  await waitForExportReviewReady()
++
++  return [
++    {
++      action: 'download_completed',
++      status: 'success',
++      success: true,
++      timestamp: new Date().toISOString(),
++      message: appendShopdoraLoginMessage(
++        'Downloaded Shopee product Shopdora export with the recorded good-detail filter.',
++        shopdoraLoginMessage,
++      ),
++      product_url: window.location.href,
++      selected_start_date: selectedStartDate,
++      shopdora_login_message: shopdoraLoginMessage,
++    },
++  ]
++}
+ 
+ export default template_action_code;

@@ -79,6 +79,46 @@ cli({
     }
   });
 
+  it('resolves manifest source files back to clis/ when loading dist manifests', async () => {
+    const tempBuildRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-manifest-source-'));
+    const distClisDir = path.join(tempBuildRoot, 'dist', 'clis');
+    const distSiteDir = path.join(distClisDir, 'manifest-site');
+    const sourceSiteDir = path.join(tempBuildRoot, 'clis', 'manifest-site');
+    const manifestPath = path.join(tempBuildRoot, 'dist', 'cli-manifest.json');
+    const sourcePath = path.join(sourceSiteDir, 'hello.ts');
+    const modulePath = path.join(distSiteDir, 'hello.js');
+
+    try {
+      await fs.promises.mkdir(distSiteDir, { recursive: true });
+      await fs.promises.mkdir(sourceSiteDir, { recursive: true });
+      await fs.promises.writeFile(sourcePath, 'export const source = true;\n');
+      await fs.promises.writeFile(modulePath, 'export const compiled = true;\n');
+      await fs.promises.writeFile(manifestPath, JSON.stringify([
+        {
+          site: 'manifest-site',
+          name: 'hello',
+          description: 'hello command',
+          strategy: 'public',
+          browser: false,
+          args: [],
+          type: 'ts',
+          modulePath: 'manifest-site/hello.js',
+          sourceFile: 'manifest-site/hello.ts',
+        },
+      ]));
+
+      await discoverClis(distClisDir);
+
+      const cmd = getRegistry().get('manifest-site/hello');
+      expect(cmd).toBeDefined();
+      expect(cmd!.source).toBe(sourcePath);
+      expect((cmd as any)._modulePath).toBe(modulePath);
+    } finally {
+      getRegistry().delete('manifest-site/hello');
+      await fs.promises.rm(tempBuildRoot, { recursive: true, force: true });
+    }
+  });
+
   it('loads user CLI modules via package exports symlink', async () => {
     const tempOpencliRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-user-clis-'));
     const userClisDir = path.join(tempOpencliRoot, 'clis');
@@ -110,6 +150,70 @@ cli({
       await expect(executeCommand(cmd!, {})).resolves.toEqual([{ ok: true, errorName: 'CommandExecutionError', markdown: 'hello' }]);
     } finally {
       await fs.promises.rm(tempOpencliRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('registers statically extractable filesystem commands lazily and imports on execute', async () => {
+    const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-lazy-discovery-'));
+    const siteDir = path.join(tempRoot, 'lazy-site');
+    const commandPath = path.join(siteDir, 'hello.js');
+
+    try {
+      await fs.promises.mkdir(siteDir, { recursive: true });
+      await fs.promises.writeFile(commandPath, `
+globalThis.__opencli_lazy_command_loaded__ = true;
+import { cli, Strategy } from '${pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href}';
+cli({
+  site: 'lazy-site',
+  name: 'hello',
+  description: 'hello command',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  args: [{ name: 'name', default: 'world' }],
+  func: async (_page, kwargs) => [{ greeting: 'hello ' + kwargs.name }],
+});
+`);
+
+      delete (globalThis as { __opencli_lazy_command_loaded__?: unknown }).__opencli_lazy_command_loaded__;
+      await discoverClis(tempRoot);
+
+      const cmd = getRegistry().get('lazy-site/hello');
+      expect(cmd).toBeDefined();
+      expect((globalThis as { __opencli_lazy_command_loaded__?: unknown }).__opencli_lazy_command_loaded__).toBeUndefined();
+      await expect(executeCommand(cmd!, {})).resolves.toEqual([{ greeting: 'hello world' }]);
+      expect((globalThis as { __opencli_lazy_command_loaded__?: unknown }).__opencli_lazy_command_loaded__).toBe(true);
+    } finally {
+      getRegistry().delete('lazy-site/hello');
+      delete (globalThis as { __opencli_lazy_command_loaded__?: unknown }).__opencli_lazy_command_loaded__;
+      await fs.promises.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('ensureUserAdapters', () => {
+  it('creates user clis directory without triggering full copy', async () => {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-ensure-'));
+    const clisDir = path.join(tempDir, 'clis');
+    try {
+      // Patch USER_CLIS_DIR is not easy, so we test the function behavior indirectly:
+      // ensureUserAdapters should not throw and should be very fast (no fetch script)
+      const start = Date.now();
+      await ensureUserAdapters();
+      const elapsed = Date.now() - start;
+      // Should complete quickly (< 1s) since it only creates a directory
+      expect(elapsed).toBeLessThan(1000);
+    } finally {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('discoverClis handles empty user directory gracefully', async () => {
+    const emptyDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-empty-'));
+    try {
+      // Should not throw for an empty directory (no adapters to discover)
+      await expect(discoverClis(emptyDir)).resolves.not.toThrow();
+    } finally {
+      await fs.promises.rm(emptyDir, { recursive: true, force: true });
     }
   });
 });
@@ -203,6 +307,40 @@ browser: false
 
     await expect(discoverPlugins()).resolves.not.toThrow();
     expect(getRegistry().get('__test-plugin-broken__/hello')).toBeUndefined();
+  });
+
+  it('registers statically extractable plugin commands lazily and imports on execute', async () => {
+    const pluginDir = path.join(PLUGINS_DIR, '__test-plugin-lazy__');
+    const commandPath = path.join(pluginDir, 'hello.js');
+
+    try {
+      await fs.promises.mkdir(pluginDir, { recursive: true });
+      await fs.promises.writeFile(commandPath, `
+globalThis.__opencli_lazy_plugin_loaded__ = true;
+import { cli, Strategy } from '${pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href}';
+cli({
+  site: '__test-plugin-lazy__',
+  name: 'hello',
+  description: 'hello plugin',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  func: async () => [{ ok: true }],
+});
+`);
+
+      delete (globalThis as { __opencli_lazy_plugin_loaded__?: unknown }).__opencli_lazy_plugin_loaded__;
+      await discoverPlugins();
+
+      const cmd = getRegistry().get('__test-plugin-lazy__/hello');
+      expect(cmd).toBeDefined();
+      expect((globalThis as { __opencli_lazy_plugin_loaded__?: unknown }).__opencli_lazy_plugin_loaded__).toBeUndefined();
+      await expect(executeCommand(cmd!, {})).resolves.toEqual([{ ok: true }]);
+      expect((globalThis as { __opencli_lazy_plugin_loaded__?: unknown }).__opencli_lazy_plugin_loaded__).toBe(true);
+    } finally {
+      getRegistry().delete('__test-plugin-lazy__/hello');
+      delete (globalThis as { __opencli_lazy_plugin_loaded__?: unknown }).__opencli_lazy_plugin_loaded__;
+      await fs.promises.rm(pluginDir, { recursive: true, force: true });
+    }
   });
 });
 

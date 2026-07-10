@@ -258,6 +258,60 @@ gh issue create --repo jackwener/OpenCLI \
 
 If `gh` is not installed or not authenticated, tell the user and skip — do not error out.
 
+## Step 6: File an Upstream Issue
+
+If the retry **passes**, the local adapter has drifted from upstream. File a GitHub issue so the fix flows back to `jackwener/OpenCLI`.
+
+**Do NOT file for:**
+- `AUTH_REQUIRED`, `BROWSER_CONNECT`, `ARGUMENT`, `CONFIG` — environment/usage issues, not adapter bugs
+- CAPTCHA or rate limiting — not fixable upstream
+- Failures you couldn't actually fix (3 rounds exhausted)
+
+**Only file after a verified local fix** — the retry must pass first.
+
+**Procedure:**
+
+1. Prepare the issue content from the RepairContext you already have:
+   - **Title:** `[autofix] <site>/<command>: <error_code>` (e.g. `[autofix] zhihu/hot: SELECTOR`)
+   - **Body** (use this template):
+
+```markdown
+## Summary
+OpenCLI autofix repaired this adapter locally, and the retry passed.
+
+## Adapter
+- Site: `<site>`
+- Command: `<command>`
+- OpenCLI version: `<version from opencli --version>`
+
+## Original failure
+- Error code: `<error_code>`
+
+~~~
+<error_message>
+~~~
+
+## Local fix summary
+
+~~~
+<1-2 sentence description of what you changed and why>
+~~~
+
+_Issue filed by OpenCLI autofix after a verified local repair._
+```
+
+2. **Ask the user before filing.** Show them the draft title and body. Only proceed if they confirm.
+
+3. If the user approves and `gh auth status` succeeds:
+
+```bash
+gh issue create --repo jackwener/OpenCLI \
+  --title "[autofix] <site>/<command>: <error_code>" \
+  --body "<the body above>"
+```
+
+If `gh` is not installed or not authenticated, tell the user and skip — do not error out.
+
 ## When to Stop
 
 **Hard stops (do not modify code):**

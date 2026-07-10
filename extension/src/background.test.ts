@@ -1896,4 +1896,301 @@ describe('background tab isolation', () => {
     expect(chrome.tabs.update).toHaveBeenCalledWith(2, expect.objectContaining({ url: 'https://other.example' }));
     expect(chrome.tabs.create).not.toHaveBeenCalled();
   });
+
+  it('uses 10-minute timeout for browser:* workspaces', async () => {
+    const { chrome } = createChromeMock();
+    vi.useFakeTimers();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('browser:default', 1);
+
+    mod.__test__.resetWindowIdleTimer('browser:default');
+    // After 30s (adapter timeout), session should still be alive
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(mod.__test__.getSession('browser:default')).not.toBeNull();
+
+    // After 10 min total, session should be cleaned up
+    await vi.advanceTimersByTimeAsync(600000 - 30001);
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(mod.__test__.getSession('browser:default')).toBeNull();
+  });
+
+  it('clears workspaceTimeoutOverrides on idle expiry', async () => {
+    const { chrome } = createChromeMock();
+    vi.useFakeTimers();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('browser:test', 1);
+
+    // Set a custom timeout override
+    mod.__test__.workspaceTimeoutOverrides.set('browser:test', 120_000);
+    expect(mod.__test__.getIdleTimeout('browser:test')).toBe(120_000);
+
+    // Trigger idle timer with the custom timeout
+    mod.__test__.resetWindowIdleTimer('browser:test');
+    await vi.advanceTimersByTimeAsync(120001);
+
+    // Override should be cleaned up
+    expect(mod.__test__.workspaceTimeoutOverrides.has('browser:test')).toBe(false);
+    expect(mod.__test__.getSession('browser:test')).toBeNull();
+    // Should fall back to default interactive timeout
+    expect(mod.__test__.getIdleTimeout('browser:test')).toBe(600_000);
+  });
+
+  it('clears workspaceTimeoutOverrides on explicit close', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('browser:close-test', 1);
+    mod.__test__.workspaceTimeoutOverrides.set('browser:close-test', 300_000);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'close-1',
+      action: 'close-window',
+      workspace: 'browser:close-test',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mod.__test__.workspaceTimeoutOverrides.has('browser:close-test')).toBe(false);
+  });
+
+  it('applies idleTimeout from command to workspace override', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('browser:custom', 1);
+
+    // Default for browser:* is 10 min
+    expect(mod.__test__.getIdleTimeout('browser:custom')).toBe(600_000);
+
+    // Send a command with custom idleTimeout (in seconds)
+    await mod.__test__.handleCommand({
+      id: 'custom-1',
+      action: 'sessions',
+      workspace: 'browser:custom',
+      idleTimeout: 120,
+    });
+
+    // Override should now be 120s = 120000ms
+    expect(mod.__test__.getIdleTimeout('browser:custom')).toBe(120_000);
+  });
+
+  it('clears workspaceTimeoutOverrides when user manually closes automation window', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    // Set up a session with window ID 42 and a custom timeout override
+    mod.__test__.setAutomationWindowId('browser:manual', 42);
+    mod.__test__.workspaceTimeoutOverrides.set('browser:manual', 180_000);
+    expect(mod.__test__.getIdleTimeout('browser:manual')).toBe(180_000);
+
+    // Simulate user closing the window — invoke the onRemoved listener
+    const onRemovedListener = chrome.windows.onRemoved.addListener.mock.calls[0][0];
+    await onRemovedListener(42);
+
+    // Session and override should both be cleaned up
+    expect(mod.__test__.getSession('browser:manual')).toBeNull();
+    expect(mod.__test__.workspaceTimeoutOverrides.has('browser:manual')).toBe(false);
+    // Should fall back to default interactive timeout
+    expect(mod.__test__.getIdleTimeout('browser:manual')).toBe(600_000);
+  });
+
+
+  it('bind does not reach into background windows when the current window has no match', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs[1].active = false;
+    tabs[1].windowId = 3;
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    const result = await mod.__test__.handleBind({
+      id: 'bind-current-window-only',
+      action: 'bind',
+      workspace: 'bound:default',
+      matchDomain: 'user.example',
+    }, 'bound:default');
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'bound_tab_not_found',
+      error: expect.stringContaining('current window'),
+    }));
+    expect(mod.__test__.getSession('bound:default')).toBeNull();
+  });
+
+  it('bind attaches only bound:* workspaces to the matching current tab', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+
+    const rejected = await mod.__test__.handleBind({
+      id: 'bind-bad',
+      action: 'bind',
+      workspace: 'browser:default',
+      matchDomain: 'user.example',
+    }, 'browser:default');
+    expect(rejected).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'invalid_bind_workspace',
+    }));
+
+    const bound = await mod.__test__.handleBind({
+      id: 'bind-good',
+      action: 'bind',
+      workspace: 'bound:default',
+      matchDomain: 'user.example',
+    }, 'bound:default');
+
+    expect(bound).toEqual(expect.objectContaining({
+      ok: true,
+      data: expect.objectContaining({ workspace: 'bound:default', url: 'https://user.example' }),
+    }));
+    expect(mod.__test__.getSession('bound:default')).toEqual(expect.objectContaining({
+      windowId: 2,
+      owned: false,
+      preferredTabId: 2,
+      idleTimer: null,
+      idleDeadlineAt: 0,
+    }));
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses bind when the bound workspace already owns an automation window', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId('bound:default', 1);
+
+    const result = await mod.__test__.handleBind({
+      id: 'bind-overwrite',
+      action: 'bind',
+      workspace: 'bound:default',
+      matchDomain: 'user.example',
+    }, 'bound:default');
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'invalid_bind_workspace',
+    }));
+    expect(chrome.tabs.query).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession('bound:default')).toEqual(expect.objectContaining({
+      windowId: 1,
+      owned: true,
+    }));
+  });
+
+  it('keeps borrowed bound sessions alive without closing the user window on idle', async () => {
+    const { chrome } = createChromeMock();
+    vi.useFakeTimers();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('bound:default', { windowId: 2, owned: false, preferredTabId: 2 });
+
+    expect(mod.__test__.getIdleTimeout('bound:default')).toBe(-1);
+    mod.__test__.resetWindowIdleTimer('bound:default');
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession('bound:default')).not.toBeNull();
+  });
+
+  it('cleans borrowed sessions when the bound tab is closed', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('bound:default', { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const onRemovedListener = chrome.tabs.onRemoved.addListener.mock.calls[0][0];
+    onRemovedListener(2);
+
+    expect(mod.__test__.getSession('bound:default')).toBeNull();
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a borrowed bound tab is gone instead of creating an automation window', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('bound:default', { windowId: 2, owned: false, preferredTabId: 999 });
+
+    const result = await mod.__test__.handleCommand({
+      id: 'bound-exec-gone',
+      action: 'exec',
+      workspace: 'bound:default',
+      code: 'document.title',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'bound_tab_gone',
+    }));
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a borrowed bound tab is no longer debuggable', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs[1].url = 'chrome://settings';
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('bound:default', { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const result = await mod.__test__.handleCommand({
+      id: 'bound-exec-undebuggable',
+      action: 'exec',
+      workspace: 'bound:default',
+      code: 'document.title',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'bound_tab_not_debuggable',
+    }));
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks navigation and tab mutation on borrowed bound sessions by default', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession('bound:default', { windowId: 2, owned: false, preferredTabId: 2 });
+
+    const nav = await mod.__test__.handleCommand({
+      id: 'bound-nav',
+      action: 'navigate',
+      workspace: 'bound:default',
+      url: 'https://other.example',
+    });
+    const tabNew = await mod.__test__.handleCommand({
+      id: 'bound-tab-new',
+      action: 'tabs',
+      workspace: 'bound:default',
+      op: 'new',
+      url: 'https://other.example',
+    });
+
+    expect(nav).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'bound_navigation_blocked',
+    }));
+    expect(tabNew).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'bound_tab_mutation_blocked',
+    }));
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(2, expect.objectContaining({ url: 'https://other.example' }));
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
 });

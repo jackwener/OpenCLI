@@ -2,7 +2,6 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
-import { ArgumentError } from '@jackwener/opencli/errors';
 import { GEMINI_DOMAIN, exportGeminiImages, getGeminiVisibleImageUrls, sendGeminiMessage, startNewGeminiChat, waitForGeminiImages } from './utils.js';
 function extFromMime(mime) {
     if (mime.includes('png'))
@@ -52,16 +51,15 @@ export const imageCommand = cli({
     domain: GEMINI_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
-    siteSession: 'persistent',
     navigateBefore: false,
     defaultFormat: 'plain',
+    timeoutSeconds: 240,
     args: [
         { name: 'prompt', positional: true, required: true, help: 'Image prompt to send to Gemini' },
         { name: 'rt', default: '1:1', help: 'Ratio shorthand for aspect ratio (1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3)' },
         { name: 'st', default: '', help: 'Style shorthand, e.g. anime, icon, watercolor' },
         { name: 'op', default: '~/tmp/gemini-images', help: 'Output directory shorthand' },
         { name: 'sd', type: 'boolean', default: false, help: 'Skip download shorthand; only show Gemini page link' },
-        { name: 'timeout', type: 'int', required: false, default: 240, help: 'Max seconds for the overall command (default: 240)' },
     ],
     columns: ['status', 'file', 'link'],
     func: async (page, kwargs) => {
@@ -69,10 +67,7 @@ export const imageCommand = cli({
         const ratio = normalizeRatio(String(kwargs.rt ?? '1:1'));
         const style = String(kwargs.st ?? '').trim();
         const outputDir = kwargs.op || path.join(os.homedir(), 'tmp', 'gemini-images');
-        const timeout = kwargs.timeout;
-        if (!Number.isInteger(timeout) || timeout < 1) {
-            throw new ArgumentError('--timeout must be a positive integer (seconds)');
-        }
+        const timeout = 120;
         const startFresh = true;
         const skipDownloadRaw = kwargs.sd;
         const skipDownload = skipDownloadRaw === '' || skipDownloadRaw === true || normalizeBooleanFlag(skipDownloadRaw);

@@ -507,3 +507,190 @@ describe('Page.screenshot', () => {
     expect(args.fullPage).toBeUndefined();
   });
 });
+
+describe('Page network capture compatibility', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('treats unknown network-capture-start as unsupported and memoizes it', async () => {
+    sendCommandMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-start'));
+
+    const page = new Page('site:notebooklm');
+
+    await expect(page.startNetworkCapture()).resolves.toBe(false);
+    await expect(page.startNetworkCapture()).resolves.toBe(false);
+
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledWith(expect.stringContaining('does not support network capture'));
+    expect(sendCommandMock).toHaveBeenCalledWith('network-capture-start', expect.objectContaining({
+      workspace: 'site:notebooklm',
+    }));
+  });
+
+  it('returns an empty capture when network-capture-read is unsupported', async () => {
+    sendCommandMock.mockRejectedValueOnce(new Error('Unknown action: network-capture-read'));
+
+    const page = new Page('site:notebooklm');
+
+    await expect(page.readNetworkCapture()).resolves.toEqual([]);
+    await expect(page.readNetworkCapture()).resolves.toEqual([]);
+
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('network-capture-read', expect.objectContaining({
+      workspace: 'site:notebooklm',
+    }));
+  });
+
+  it('rethrows unrelated network capture failures', async () => {
+    sendCommandMock.mockRejectedValueOnce(new Error('Extension disconnected'));
+
+    const page = new Page('site:notebooklm');
+
+    await expect(page.startNetworkCapture()).rejects.toThrow('Extension disconnected');
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).not.toHaveBeenCalled();
+  });
+
+  it('warns only once even if both start and read hit the compatibility fallback', async () => {
+    sendCommandMock
+      .mockRejectedValueOnce(new Error('Unknown action: network-capture-start'))
+      .mockRejectedValueOnce(new Error('Unknown action: network-capture-read'));
+
+    const page = new Page('site:notebooklm');
+
+    await expect(page.startNetworkCapture()).resolves.toBe(false);
+    await expect(page.readNetworkCapture()).resolves.toEqual([]);
+
+    expect(warnMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Page active target tracking', () => {
+  beforeEach(() => {
+    sendCommandMock.mockReset();
+    sendCommandFullMock.mockReset();
+    warnMock.mockReset();
+  });
+
+  it('tracks only one active page identity at a time', async () => {
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://first.example' }, page: 'page-1' })
+      .mockResolvedValueOnce({ data: { selected: true }, page: 'page-2' });
+    sendCommandMock.mockResolvedValue('ok');
+
+    const page = new Page('browser:default');
+
+    await page.goto('https://first.example', { waitUntil: 'none' });
+    expect(page.getActivePage()).toBe('page-1');
+
+    await page.selectTab(1);
+    expect(page.getActivePage()).toBe('page-2');
+
+    await page.evaluate('1 + 1');
+
+    expect(sendCommandMock).toHaveBeenLastCalledWith('exec', expect.objectContaining({
+      workspace: 'browser:default',
+      page: 'page-2',
+    }));
+  });
+
+  it('allows the caller to bind a specific active page identity explicitly', async () => {
+    sendCommandMock.mockResolvedValue('bound');
+
+    const page = new Page('browser:default');
+    page.setActivePage?.('page-explicit');
+
+    await page.evaluate('1 + 1');
+
+    expect(sendCommandMock).toHaveBeenCalledWith('exec', expect.objectContaining({
+      workspace: 'browser:default',
+      page: 'page-explicit',
+    }));
+  });
+
+  it('creates a new tab without changing the current active page binding', async () => {
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://first.example' }, page: 'page-1' })
+      .mockResolvedValueOnce({
+        data: { url: 'https://second.example' },
+        page: 'page-2',
+      });
+    sendCommandMock.mockResolvedValue('ok');
+
+    const page = new Page('browser:default');
+    await page.goto('https://first.example', { waitUntil: 'none' });
+
+    const created = await page.newTab?.('https://second.example');
+
+    expect(created).toBe('page-2');
+    expect(page.getActivePage()).toBe('page-1');
+    await page.evaluate('1 + 1');
+    expect(sendCommandMock).toHaveBeenLastCalledWith('exec', expect.objectContaining({
+      workspace: 'browser:default',
+      page: 'page-1',
+    }));
+  });
+
+  it('allows the caller to adopt a new tab explicitly after creation', async () => {
+    sendCommandFullMock.mockResolvedValueOnce({
+      data: { url: 'https://second.example' },
+      page: 'page-2',
+    });
+
+    const page = new Page('browser:default');
+    const created = await page.newTab?.('https://second.example');
+
+    expect(created).toBe('page-2');
+    expect(page.getActivePage()).toBeUndefined();
+
+    page.setActivePage?.(created);
+    expect(page.getActivePage()).toBe('page-2');
+    expect(sendCommandFullMock).toHaveBeenCalledWith('tabs', expect.objectContaining({
+      op: 'new',
+      url: 'https://second.example',
+      workspace: 'browser:default',
+    }));
+  });
+
+  it('closes a tab by explicit page identity', async () => {
+    sendCommandMock.mockResolvedValueOnce({ closed: 'page-2' });
+
+    const page = new Page('browser:default');
+    await page.closeTab?.('page-2');
+
+    expect(sendCommandMock).toHaveBeenCalledWith('tabs', expect.objectContaining({
+      op: 'close',
+      workspace: 'browser:default',
+      page: 'page-2',
+    }));
+  });
+
+  it('clears the active page binding when closing the selected tab by numeric index', async () => {
+    sendCommandFullMock.mockResolvedValueOnce({ data: { selected: true }, page: 'page-2' });
+    sendCommandMock
+      .mockResolvedValueOnce({ closed: 'page-2' })
+      .mockResolvedValueOnce('ok');
+
+    const page = new Page('browser:default');
+
+    await page.selectTab(1);
+    expect(page.getActivePage()).toBe('page-2');
+
+    await page.closeTab?.(1);
+    expect(page.getActivePage()).toBeUndefined();
+
+    await page.evaluate('1 + 1');
+
+    const evalCall = sendCommandMock.mock.calls.at(-1);
+    expect(evalCall?.[0]).toBe('exec');
+    expect(evalCall?.[1]).toEqual(expect.objectContaining({
+      workspace: 'browser:default',
+    }));
+    expect(evalCall?.[1]).not.toHaveProperty('page');
+  });
+});

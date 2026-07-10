@@ -23,6 +23,7 @@ import {
 } from './daemon-transport.js';
 
 let _idCounter = 0;
+const boundTabIds = new Map<string, number>();
 
 function generateId(): string {
   return `cmd_${process.pid}_${Date.now()}_${++_idCounter}`;
@@ -258,10 +259,10 @@ async function sendCommandRaw(
     const remainingSeconds = Math.ceil((deadlineAt - Date.now()) / 1000);
     const ready = await ensureBrowserBridgeReady({
       timeoutSeconds: Math.max(1, Math.min(DEFAULT_BROWSER_CONNECT_TIMEOUT, remainingSeconds)),
-      // Only an explicit requirement pins readiness to a specific profile —
-      // waiting for a stale preferred profile to come back would hang the
-      // ensure path even though the daemon can already serve the command.
+      // A hard requirement still pins readiness to one profile, while a soft
+      // preferredContextId lets the daemon arbitrate against live profiles.
       contextId,
+      preferredContextId,
       verbose: false,
     });
     executorJournaled = versionAtLeast(ready.health.status?.extensionVersion, MIN_JOURNAL_EXTENSION_VERSION);

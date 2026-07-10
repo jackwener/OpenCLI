@@ -11,7 +11,7 @@ cli({
         { name: 'type', default: 'all', choices: ['all', 'image', 'video', 'tool'], help: 'Filter by model type' },
     ],
     columns: ['type', 'model', 'credits', 'description'],
-    func: async (kwargs) => {
+    func: async (_page, kwargs) => {
         const filter = kwargs.type;
         const rows = [];
         if (filter === 'all' || filter === 'image') {

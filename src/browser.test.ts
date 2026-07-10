@@ -128,6 +128,18 @@ describe('BrowserBridge state', () => {
     expect(bridge.state).toBe('closed');
   });
 
+  it('closes the automation window when an active session ends', async () => {
+    const bridge = new BrowserBridge();
+    const closeWindow = vi.fn(async () => {});
+    (bridge as any)._state = 'connected';
+    (bridge as any)._page = { closeWindow };
+
+    await bridge.close();
+
+    expect(closeWindow).toHaveBeenCalledTimes(1);
+    expect(bridge.state).toBe('closed');
+  });
+
   it('rejects connect() after the session has been closed', async () => {
     const bridge = new BrowserBridge();
     await bridge.close();
@@ -147,6 +159,47 @@ describe('BrowserBridge state', () => {
     (bridge as unknown as { _state: string })._state = 'closing';
 
     await expect(bridge.connect()).rejects.toThrow('Session is closing');
+  });
+
+  it('passes the config default through connect() as preferredContextId during readiness', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-bridge-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: {}, defaultContextId: 'zvypsyje' }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
+    vi.stubEnv('OPENCLI_PROFILE', '');
+
+    const ensureSpy = vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
+      health: {
+        state: 'ready',
+        status: {
+          ok: true,
+          pid: 1,
+          uptime: 0,
+          extensionConnected: true,
+          pending: 0,
+          memoryMB: 0,
+          port: 19825,
+        },
+      },
+      spawnedProcess: null,
+    });
+
+    try {
+      const bridge = new BrowserBridge();
+      await bridge.connect({ session: 'state-test' });
+
+      expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({
+        contextId: undefined,
+        preferredContextId: 'zvypsyje',
+      }));
+    } finally {
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
   });
 
   it('fails fast when daemon is running but extension is disconnected (same version)', async () => {

@@ -94,14 +94,15 @@ export async function restartDaemon(opts: { stopTimeoutMs?: number; startTimeout
 }
 
 export async function ensureBrowserBridgeReady(
-  opts: { timeoutSeconds?: number; contextId?: string; verbose?: boolean } = {},
+  opts: { timeoutSeconds?: number; contextId?: string; preferredContextId?: string; verbose?: boolean } = {},
 ): Promise<EnsureBrowserBridgeReadyResult> {
   const timeoutSeconds = opts.timeoutSeconds && opts.timeoutSeconds > 0 ? opts.timeoutSeconds : 10;
   const timeoutMs = timeoutSeconds * 1000;
   const verbose = opts.verbose ?? true;
   const contextId = opts.contextId;
+  const preferredContextId = opts.preferredContextId;
 
-  const health = await getDaemonHealth({ contextId });
+  const health = await getDaemonHealth({ contextId, preferredContextId });
   const daemonVersion = health.status?.daemonVersion;
   const isStale = !!health.status && (!daemonVersion || daemonVersion !== PKG_VERSION);
   let staleDaemonReplaced = false;
@@ -158,7 +159,7 @@ export async function ensureBrowserBridgeReady(
     process.stderr.write('   Make sure Chrome or Chromium is open and the OpenCLI extension is enabled.\n');
   }
 
-  const finalHealth = await waitForBridgeReady(getDaemonHealth, { timeoutMs, contextId });
+  const finalHealth = await waitForBridgeReady(getDaemonHealth, { timeoutMs, contextId, preferredContextId });
   if (finalHealth.state === 'ready') return { health: finalHealth, spawnedProcess };
   throw browserConnectErrorFromHealth(finalHealth, contextId);
 }
