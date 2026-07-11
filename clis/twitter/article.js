@@ -97,9 +97,14 @@ cli({
 
         const resp = await fetch(url, {headers, credentials: 'include'});
         if (!resp.ok) return {httpStatus: resp.status};
-        const d = await resp.json();
+        let d;
+        try {
+          d = await resp.json();
+        } catch {
+          return {error: 'Twitter API response was not valid JSON', hint: 'You may be logged out or the request was blocked'};
+        }
 
-        const result = d.data?.tweetResult?.result;
+        const result = d?.data?.tweetResult?.result;
         if (!result) return {error: 'Article not found'};
 
         // Unwrap TweetWithVisibilityResults
