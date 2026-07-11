@@ -21801,6 +21801,36 @@
   },
   {
     "site": "linkedin",
+    "name": "connections",
+    "description": "List your LinkedIn first-degree connections (name, headline, profile URL)",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of connections to return (max 500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "occupation",
+      "public_id",
+      "connected_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/connections.js",
+    "sourceFile": "linkedin/connections.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "inbox",
     "description": "List LinkedIn messaging inbox conversations and unread messages",
     "access": "read",
