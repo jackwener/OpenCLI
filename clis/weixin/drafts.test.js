@@ -18,7 +18,11 @@ describe('weixin command registration', () => {
     it('registers create-draft and drafts commands', () => {
         const registry = getRegistry();
         const values = [...registry.values()];
-        expect(values.find(c => c.site === 'weixin' && c.name === 'create-draft')).toBeDefined();
+        const createDraftCommand = values.find(c => c.site === 'weixin' && c.name === 'create-draft');
+        expect(createDraftCommand).toBeDefined();
+        expect(createDraftCommand.args.find((arg) => arg.name === 'original-declaration')).toBeDefined();
+        expect(createDraftCommand.args.find((arg) => arg.name === 'reward')).toMatchObject({ type: 'bool', default: false });
+        expect(createDraftCommand.args.find((arg) => arg.name === 'collection')?.choices).toEqual(['物理', '数学', '生物', '地理', '英语', '化学']);
         const draftsCommand = values.find(c => c.site === 'weixin' && c.name === 'drafts');
         expect(draftsCommand).toBeDefined();
         expect(draftsCommand.args.find((arg) => arg.name === 'timeout')).toMatchObject({ type: 'int', default: 60 });

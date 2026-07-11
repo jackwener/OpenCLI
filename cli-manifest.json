@@ -39556,6 +39556,33 @@
         "help": "文章摘要"
       },
       {
+        "name": "original-declaration",
+        "type": "str",
+        "required": false,
+        "help": "开启原创声明并填写原创署名，例如：一页科学课"
+      },
+      {
+        "name": "reward",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "开启公众号赞赏"
+      },
+      {
+        "name": "collection",
+        "type": "str",
+        "required": false,
+        "help": "选择合集：物理, 数学, 生物, 地理, 英语, 化学",
+        "choices": [
+          "物理",
+          "数学",
+          "生物",
+          "地理",
+          "英语",
+          "化学"
+        ]
+      },
+      {
         "name": "timeout",
         "type": "int",
         "default": 180,
