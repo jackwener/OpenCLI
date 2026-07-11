@@ -1163,6 +1163,16 @@ async function submitChatGPTMessage(page) {
     return true;
 }
 
+/**
+ * Send a message to the ChatGPT composer and submit it.
+ * Returns true if the message was sent successfully.
+ */
+export async function sendChatGPTMessage(page, text) {
+    const filled = await fillChatGPTMessage(page, text);
+    if (!filled) return false;
+    return submitChatGPTMessage(page);
+}
+
 export async function getVisibleMessages(page, { textOnly = false } = {}) {
     // textOnly skips the per-turn innerHTML read (used only for --markdown
     // rendering) so poll loops that need only role + text don't allocate a

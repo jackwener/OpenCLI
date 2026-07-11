@@ -13,6 +13,15 @@ import {
     waitForChatGPTDeepResearchResult,
 } from './utils.js';
 
+function hasDeepResearchProgress(result) {
+    return !!result
+        && result.status !== 'completed'
+        && result.progress
+        && typeof result.progress === 'object'
+        && !Array.isArray(result.progress)
+        && Object.keys(result.progress).length > 0;
+}
+
 export const deepResearchResultCommand = cli({
     site: 'chatgpt',
     name: 'deep-research-result',
@@ -76,7 +85,14 @@ export const deepResearchResultCommand = cli({
             ? await waitForChatGPTDeepResearchResult(page, { conversationId: id, timeoutSeconds: timeout, stableSeconds })
             : await getChatGPTDeepResearchResult(page, { conversationId: id, useBridgeProbes: true });
 
-        if (result.status !== 'completed' || !result.report) {
+        if (result.status !== 'completed' && !hasDeepResearchProgress(result)) {
+            throw new EmptyResultError(
+                'chatgpt deep-research-result',
+                `No completed Deep Research report was found for conversation ${id}.`,
+            );
+        }
+
+        if (result.status === 'completed' && !result.report) {
             throw new EmptyResultError(
                 'chatgpt deep-research-result',
                 `No completed Deep Research report was found for conversation ${id}.`,
