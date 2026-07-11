@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
+import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, getVisibleMessages, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
 
 const tempDirs = [];
 
@@ -872,6 +872,34 @@ describe('chatgpt ask response extraction boundary', () => {
         // for the full 10-20 min a streamed answer takes to settle.
         expect(page.sleep).toHaveBeenCalled();
         expect(page.wait).not.toHaveBeenCalled();
+    });
+
+    it('uses textContent instead of layout-triggering innerText in text-only message polls', async () => {
+        const page = createDomEvaluatePage(`
+            <article data-testid="conversation-turn-2">
+              <div data-message-author-role="assistant">
+                <div class="markdown">done answer</div>
+              </div>
+            </article>
+        `);
+        for (const node of page.dom.window.document.querySelectorAll('*')) {
+            node.getBoundingClientRect = () => ({ width: 120, height: 36 });
+        }
+        Object.defineProperty(page.dom.window.HTMLElement.prototype, 'innerText', {
+            configurable: true,
+            get() {
+                throw new Error('innerText should not be read during text-only polls');
+            },
+        });
+
+        await expect(getVisibleMessages(page, { textOnly: true })).resolves.toEqual([
+            {
+                Index: 1,
+                Role: 'Assistant',
+                Text: 'done answer',
+                Html: '',
+            },
+        ]);
     });
 });
 

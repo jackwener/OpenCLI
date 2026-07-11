@@ -1104,7 +1104,10 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
                 || node.querySelector('[data-message-author-role]')
                 || node;
             const html = includeHtml && contentNode instanceof HTMLElement ? (contentNode.innerHTML || '') : '';
-            const text = normalize(contentNode instanceof HTMLElement ? (contentNode.innerText || contentNode.textContent || '') : '');
+            const rawText = contentNode instanceof HTMLElement
+                ? (includeHtml ? (contentNode.innerText || contentNode.textContent || '') : (contentNode.textContent || ''))
+                : '';
+            const text = normalize(rawText);
             if (!text) continue;
             const key = role + '\\n' + text;
             if (seen.has(key)) continue;
