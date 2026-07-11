@@ -14,6 +14,63 @@ function createPage(articleResult) {
     };
 }
 
+function createPageWithEvaluateResults(evaluateResults) {
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf-token' }]),
+        evaluate: vi.fn()
+            .mockImplementation(() => Promise.resolve(evaluateResults.shift())),
+    };
+}
+
+function validArticlePayload(overrides = {}) {
+    return {
+        data: {
+            tweetResult: {
+                result: {
+                    tweet: {
+                        rest_id: '1234567890',
+                        legacy: { full_text: 'fallback text' },
+                        core: {
+                            user_results: {
+                                result: {
+                                    legacy: { screen_name: 'alice' },
+                                },
+                            },
+                        },
+                        article: {
+                            article_results: {
+                                result: {
+                                    title: 'Long article',
+                                    content_state: {
+                                        blocks: [{ type: 'unstyled', text: 'body' }],
+                                    },
+                                },
+                            },
+                        },
+                        ...overrides.tweet,
+                    },
+                },
+            },
+        },
+    };
+}
+
+async function evaluateArticleFetchScript(script, payload) {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(payload),
+    });
+    try {
+        // The adapter passes Browser Bridge an `async () => { ... }` source string.
+        return await eval(`(${script})`)();
+    } finally {
+        globalThis.fetch = previousFetch;
+    }
+}
+
 describe('twitter article command', () => {
     it('unwraps Browser Bridge envelopes around article rows', async () => {
         const command = getRegistry().get('twitter/article');
@@ -52,5 +109,59 @@ describe('twitter article command', () => {
         await expect(command.func(createPage({
             error: 'Twitter TweetResultByRestId returned GraphQL errors: [{"message":"rate limited"}]',
         }), { 'tweet-id': '1234567890' })).rejects.toThrow(/GraphQL errors/);
+    });
+
+    it('unwraps Browser Bridge envelopes when resolving /i/article URLs to parent tweet ids', async () => {
+        const command = getRegistry().get('twitter/article');
+        const rows = [{
+            title: 'Long article',
+            author: 'alice',
+            content: 'body',
+            url: 'https://x.com/alice/status/1234567890',
+        }];
+        const page = createPageWithEvaluateResults([
+            { session: 'browser:default', data: '1234567890' },
+            null,
+            rows,
+        ]);
+
+        await expect(command.func(page, { 'tweet-id': 'https://x.com/i/article/987654321' }))
+            .resolves.toEqual(rows);
+        expect(page.goto).toHaveBeenNthCalledWith(1, 'https://x.com/i/article/987654321');
+        expect(page.goto).toHaveBeenNthCalledWith(2, 'https://x.com/i/status/1234567890');
+    });
+
+    it('fails closed when article API nested result shapes are malformed', async () => {
+        const command = getRegistry().get('twitter/article');
+        const page = createPageWithEvaluateResults([
+            null,
+            undefined,
+        ]);
+        page.evaluate.mockImplementationOnce(() => Promise.resolve(null));
+        page.evaluate.mockImplementationOnce(async (script) => evaluateArticleFetchScript(script, validArticlePayload({
+            tweet: {
+                article: { article_results: { result: 'not-an-object' } },
+            },
+        })));
+
+        await expect(command.func(page, { 'tweet-id': '1234567890' }))
+            .rejects.toThrow(/article result was malformed/);
+    });
+
+    it('fails closed when article API content blocks are malformed', async () => {
+        const command = getRegistry().get('twitter/article');
+        const page = createPageWithEvaluateResults([
+            null,
+            undefined,
+        ]);
+        page.evaluate.mockImplementationOnce(() => Promise.resolve(null));
+        page.evaluate.mockImplementationOnce(async (script) => evaluateArticleFetchScript(script, validArticlePayload({
+            tweet: {
+                article: { article_results: { result: { title: 'Bad', content_state: { blocks: {} } } } },
+            },
+        })));
+
+        await expect(command.func(page, { 'tweet-id': '1234567890' }))
+            .rejects.toThrow(/article blocks were malformed/);
     });
 });

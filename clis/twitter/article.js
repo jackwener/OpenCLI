@@ -48,10 +48,11 @@ cli({
           return null;
         })()
       `);
-            if (!resolvedId || typeof resolvedId !== 'string') {
+            const resolvedTweetId = unwrapBrowserResult(resolvedId);
+            if (!resolvedTweetId || typeof resolvedTweetId !== 'string') {
                 throw new CommandExecutionError(`Could not resolve article ${tweetId} to a tweet ID. The article page may not contain a linked tweet.`);
             }
-            tweetId = resolvedId;
+            tweetId = resolvedTweetId;
         }
         // Navigate to the tweet page for cookie context
         await page.goto(`https://x.com/i/status/${tweetId}`);
@@ -126,7 +127,13 @@ cli({
         }
 
         // Unwrap TweetWithVisibilityResults
+        if (!result || typeof result !== 'object' || Array.isArray(result)) {
+          return {error: 'Twitter API response tweet result was malformed'};
+        }
         const tw = result.tweet || result;
+        if (!tw || typeof tw !== 'object' || Array.isArray(tw)) {
+          return {error: 'Twitter API response tweet result was malformed'};
+        }
         const legacy = tw.legacy || {};
         const user = tw.core?.user_results?.result;
         const returnedTweetId = tw.rest_id || legacy.id_str;
@@ -153,15 +160,25 @@ cli({
           }
           return {error: 'Tweet ' + tweetId + ' has no article content'};
         }
+        if (!articleResults || typeof articleResults !== 'object' || Array.isArray(articleResults)) {
+          return {error: 'Twitter API response article result was malformed'};
+        }
 
         const title = articleResults.title || '(Untitled)';
         const contentState = articleResults.content_state || {};
+        if (!contentState || typeof contentState !== 'object' || Array.isArray(contentState)) {
+          return {error: 'Twitter API response article content was malformed'};
+        }
         const blocks = contentState.blocks || [];
+        if (!Array.isArray(blocks)) {
+          return {error: 'Twitter API response article blocks were malformed'};
+        }
 
         // Convert draft.js blocks to Markdown
         const parts = [];
         let orderedCounter = 0;
         for (const block of blocks) {
+          if (!block || typeof block !== 'object' || Array.isArray(block)) continue;
           const blockType = block.type || 'unstyled';
           if (blockType === 'atomic') continue;
           const text = block.text || '';
