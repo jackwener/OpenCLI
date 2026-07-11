@@ -142,7 +142,7 @@ export async function parseJsonOrThrowLoginWall(
 
   const looksLikeHtml =
     contentType.toLowerCase().includes('text/html')
-    || /^<(?:!doctype|html)/i.test(trimmed);
+    || /^<(?:!doctype|html|head|body|title)(?:[\s>/]|$)/i.test(trimmed);
 
   if (looksLikeHtml) {
     throw new LoginWallError(
@@ -187,7 +187,7 @@ async function fetchJsonOrLoginWall(input, init) {
   const trimmed = text.replace(/^\\s+/, '');
   const looksLikeHtml =
     contentType.toLowerCase().includes('text/html')
-    || /^<(?:!doctype|html)/i.test(trimmed);
+    || /^<(?:!doctype|html|head|body|title)(?:[\\s>/]|$)/i.test(trimmed);
   if (looksLikeHtml) {
     return {
       __loginWall: true,
