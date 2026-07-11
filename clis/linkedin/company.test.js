@@ -3,7 +3,7 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import './company.js';
 
-const { normalizeCompanyUrl } = await import('./company.js').then((m) => m.__test__);
+const { normalizeCompanyInfo, normalizeCompanyUrl } = await import('./company.js').then((m) => m.__test__);
 
 function makePage(evaluateResult) {
     return {
@@ -28,6 +28,8 @@ describe('linkedin company', () => {
         expect(() => normalizeCompanyUrl('')).toThrow(CommandExecutionError);
         expect(() => normalizeCompanyUrl('bad name!')).toThrow(CommandExecutionError);
         expect(() => normalizeCompanyUrl('https://www.linkedin.com/in/someone/')).toThrow(CommandExecutionError);
+        expect(() => normalizeCompanyUrl('https://evil.example/company/nvidia/')).toThrow(CommandExecutionError);
+        expect(() => normalizeCompanyUrl('https://www.linkedin.com/company/%E0%A4%A')).toThrow(CommandExecutionError);
     });
 
     it('maps extracted company facts to a row', async () => {
@@ -65,5 +67,35 @@ describe('linkedin company', () => {
         const cmd = getRegistry().get('linkedin/company');
         const page = makePage({ url: 'x', name: '', industry: '' });
         await expect(cmd.func(page, { company: 'ghost' })).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('normalizes the emitted URL to a LinkedIn company about URL', () => {
+        expect(normalizeCompanyInfo({
+            url: 'https://www.linkedin.com/company/nvidia/posts/?trk=public_profile',
+            name: 'NVIDIA',
+            followers: '123',
+        }, 'https://www.linkedin.com/company/nvidia/about/')).toMatchObject({
+            url: 'https://www.linkedin.com/company/nvidia/about/',
+            followers: 123,
+        });
+    });
+
+    it('throws when extraction ends outside a LinkedIn company page', () => {
+        expect(() => normalizeCompanyInfo({
+            url: 'https://www.linkedin.com/in/not-a-company/',
+            name: 'NVIDIA',
+        }, 'https://www.linkedin.com/company/nvidia/about/')).toThrow(CommandExecutionError);
+        expect(() => normalizeCompanyInfo({
+            url: 'https://evil.example/company/nvidia/',
+            name: 'NVIDIA',
+        }, 'https://www.linkedin.com/company/nvidia/about/')).toThrow(CommandExecutionError);
+    });
+
+    it('throws on malformed follower counts instead of emitting NaN', () => {
+        expect(() => normalizeCompanyInfo({
+            url: 'https://www.linkedin.com/company/nvidia/about/',
+            name: 'NVIDIA',
+            followers: 'many',
+        }, 'https://www.linkedin.com/company/nvidia/about/')).toThrow(CommandExecutionError);
     });
 });

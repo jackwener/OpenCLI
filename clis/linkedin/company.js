@@ -9,6 +9,7 @@ import {
 
 const SLUG_RE = /^[A-Za-z0-9%._-]+$/;
 const COMPANY_URL_RE = /^\/company\/([^/?#]+)/;
+const LINKEDIN_COMPANY_HOSTS = new Set(['linkedin.com', LINKEDIN_DOMAIN]);
 
 // Accept a bare universal name (`nvidia`), a `/company/<slug>` path, or a full
 // company URL, and return the canonical about-page URL.
@@ -19,15 +20,22 @@ function normalizeCompanyUrl(value) {
     }
     let slug = raw;
     if (/^https?:\/\//i.test(raw) || raw.startsWith('/company/')) {
-        let pathname;
+        let parsed;
         try {
-            pathname = raw.startsWith('/') ? raw : new URL(raw).pathname;
+            parsed = raw.startsWith('/') ? new URL(raw, `https://${LINKEDIN_DOMAIN}`) : new URL(raw);
         } catch {
             throw new CommandExecutionError(`LinkedIn company received a malformed URL: ${raw}`);
         }
-        const m = pathname.match(COMPANY_URL_RE);
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port || !LINKEDIN_COMPANY_HOSTS.has(parsed.hostname.toLowerCase())) {
+            throw new CommandExecutionError('LinkedIn company URL must point to linkedin.com');
+        }
+        const m = parsed.pathname.match(COMPANY_URL_RE);
         if (!m) throw new CommandExecutionError('LinkedIn company URL must look like /company/<name>');
-        slug = decodeURIComponent(m[1]);
+        try {
+            slug = decodeURIComponent(m[1]);
+        } catch {
+            throw new CommandExecutionError(`LinkedIn company URL has a malformed company slug: ${m[1]}`);
+        }
     }
     if (!SLUG_RE.test(slug)) {
         throw new CommandExecutionError(`LinkedIn company name has unexpected characters: ${slug}`);
@@ -66,6 +74,58 @@ function buildCompanyExtractionScript() {
   })()`;
 }
 
+function normalizeCompanyOutputUrl(value, fallbackUrl) {
+    const raw = normalizeWhitespace(value || fallbackUrl);
+    let parsed;
+    try {
+        parsed = new URL(raw, `https://${LINKEDIN_DOMAIN}`);
+    } catch {
+        throw new CommandExecutionError('LinkedIn company extraction returned a malformed current URL');
+    }
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port || !LINKEDIN_COMPANY_HOSTS.has(parsed.hostname.toLowerCase())) {
+        throw new CommandExecutionError('LinkedIn company extraction ended on a non-LinkedIn page');
+    }
+    const match = parsed.pathname.match(COMPANY_URL_RE);
+    if (!match?.[1]) {
+        throw new CommandExecutionError('LinkedIn company extraction ended outside a company page');
+    }
+    let slug;
+    try {
+        slug = decodeURIComponent(match[1]);
+    } catch {
+        throw new CommandExecutionError('LinkedIn company extraction returned a malformed company slug');
+    }
+    return `https://${LINKEDIN_DOMAIN}/company/${encodeURIComponent(slug)}/about/`;
+}
+
+function normalizeCompanyInfo(info, targetUrl) {
+    if (!info || typeof info !== 'object' || Array.isArray(info)) {
+        throw new CommandExecutionError('LinkedIn company extraction returned a malformed payload');
+    }
+    if (!info.name) {
+        throw new CommandExecutionError('LinkedIn company page rendered but no company name was found (layout drift or company not found)');
+    }
+    let followers = 0;
+    if (info.followers) {
+        followers = Number(info.followers);
+        if (!Number.isFinite(followers)) {
+            throw new CommandExecutionError('LinkedIn company extraction returned a malformed followers count');
+        }
+    }
+    return {
+        name: String(info.name),
+        industry: String(info.industry || ''),
+        size: String(info.size || ''),
+        headquarters: String(info.headquarters || ''),
+        founded: String(info.founded || ''),
+        website: String(info.website || ''),
+        specialties: String(info.specialties || ''),
+        followers,
+        about: String(info.about || ''),
+        url: normalizeCompanyOutputUrl(info.url, targetUrl),
+    };
+}
+
 cli({
     site: 'linkedin',
     name: 'company',
@@ -84,25 +144,8 @@ cli({
         await page.wait(2);
         await assertLinkedInAuthenticated(page, 'linkedin company');
         const info = unwrapEvaluateResult(await page.evaluate(buildCompanyExtractionScript()));
-        if (!info || typeof info !== 'object' || Array.isArray(info)) {
-            throw new CommandExecutionError('LinkedIn company extraction returned a malformed payload');
-        }
-        if (!info.name) {
-            throw new CommandExecutionError('LinkedIn company page rendered but no company name was found (layout drift or company not found)');
-        }
-        return [{
-            name: String(info.name),
-            industry: String(info.industry || ''),
-            size: String(info.size || ''),
-            headquarters: String(info.headquarters || ''),
-            founded: String(info.founded || ''),
-            website: String(info.website || ''),
-            specialties: String(info.specialties || ''),
-            followers: info.followers ? Number(info.followers) : 0,
-            about: String(info.about || ''),
-            url: String(info.url || targetUrl),
-        }];
+        return [normalizeCompanyInfo(info, targetUrl)];
     },
 });
 
-export const __test__ = { normalizeCompanyUrl, buildCompanyExtractionScript };
+export const __test__ = { normalizeCompanyUrl, normalizeCompanyInfo, buildCompanyExtractionScript };
