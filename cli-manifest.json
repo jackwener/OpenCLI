@@ -26973,7 +26973,7 @@
       {
         "name": "image",
         "type": "string",
-        "required": false,
+        "required": true,
         "help": "Local image path (jpg/jpeg/png/webp/gif)"
       },
       {
@@ -27012,13 +27012,6 @@
         "default": 90,
         "required": false,
         "help": "Max seconds to wait for upload and publish confirmation (15-300)"
-      },
-      {
-        "name": "resume-current",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Publish the currently open Pinterest create-pin draft without re-uploading"
       }
     ],
     "columns": [

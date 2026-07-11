@@ -61,12 +61,6 @@ function validateLink(raw) {
     return parsed.href;
 }
 
-function normalizeBoolean(value) {
-    if (value === true) return true;
-    if (value === false || value == null) return false;
-    return ['1', 'true', 'yes', 'y'].includes(String(value).trim().toLowerCase());
-}
-
 function boardToPathSegment(board) {
     const aliases = new Map([
         ['buiness', 'business'],
@@ -716,39 +710,24 @@ cli({
     navigateBefore: false,
     defaultWindowMode: 'foreground',
     args: [
-        { name: 'image', type: 'string', help: 'Local image path (jpg/jpeg/png/webp/gif)' },
+        { name: 'image', type: 'string', required: true, help: 'Local image path (jpg/jpeg/png/webp/gif)' },
         { name: 'board', type: 'string', required: true, help: 'Pinterest board name to publish into' },
         { name: 'title', type: 'string', help: 'Pin title' },
         { name: 'description', type: 'string', help: 'Pin description' },
         { name: 'link', type: 'string', help: 'Destination link URL' },
         { name: 'alt-text', type: 'string', help: 'Image alt text, when Pinterest exposes the field' },
         { name: 'timeout', type: 'int', default: DEFAULT_TIMEOUT, help: 'Max seconds to wait for upload and publish confirmation (15-300)' },
-        { name: 'resume-current', type: 'boolean', default: false, help: 'Publish the currently open Pinterest create-pin draft without re-uploading' },
     ],
     columns: ['status', 'board', 'title', 'url'],
     func: async (page, kwargs) => {
         if (!page) throw new CommandExecutionError('Browser session required for pinterest create-pin');
+        const imagePath = normalizeImagePath(kwargs.image);
         const board = normalizeText(kwargs.board, 'board', { required: true, max: 180 });
         const title = normalizeText(kwargs.title, 'title', { max: 100 });
         const description = normalizeText(kwargs.description, 'description', { max: 800 });
         const link = validateLink(kwargs.link);
         const altText = normalizeText(kwargs['alt-text'], 'alt-text', { max: 500 });
         const timeoutSeconds = normalizeTimeout(kwargs.timeout);
-        const resumeCurrent = normalizeBoolean(kwargs['resume-current']);
-
-        if (resumeCurrent) {
-            await requireLoggedIn(page);
-            await clickPublish(page);
-            const published = await waitForPublishResult(page, timeoutSeconds);
-            return [{
-                status: 'published',
-                board,
-                title: title || null,
-                url: published.url || null,
-            }];
-        }
-
-        const imagePath = normalizeImagePath(kwargs.image);
 
         await page.goto(PINTEREST_HOME_URL, { waitUntil: 'load', settleMs: 2000 });
         await page.wait({ time: 1 });
