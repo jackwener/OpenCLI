@@ -613,6 +613,21 @@ describe('installDependencies', () => {
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it('passes --ignore-scripts to npm install', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-plugin-ok-'));
+    fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'plugin-ok' }));
+
+    _installDependencies(tmpDir);
+
+    expect(mockExecFileSync).toHaveBeenCalledWith(
+      'npm',
+      ['install', '--omit=dev', '--ignore-scripts'],
+      expect.objectContaining({ cwd: tmpDir }),
+    );
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });
 
 describe('postInstallMonorepoLifecycle', () => {
