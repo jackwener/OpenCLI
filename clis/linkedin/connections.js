@@ -6,6 +6,7 @@ import {
     requireLinkedInCookie,
     normalizeWhitespace,
     parseLimit,
+    assertLinkedInAuthenticated,
 } from './shared.js';
 
 const CONNECTIONS_PATH = '/voyager/api/relationships/connections';
@@ -25,10 +26,26 @@ async function fetchConnections(url, csrf) {
         });
         if (res.status === 401 || res.status === 403) return { authRequired: true, error: 'HTTP ' + res.status };
         if (!res.ok) return { error: 'HTTP ' + res.status };
-        return { json: await res.json() };
+        const contentType = res.headers?.get?.('content-type') || '';
+        if (/\btext\/html\b/i.test(contentType)) {
+            return { authRequired: true, error: 'HTML auth/checkpoint response' };
+        }
+        try {
+            return { json: await res.json() };
+        } catch {
+            return { error: 'response was not valid JSON' };
+        }
     } catch (e) {
         return { error: 'fetch failed: ' + ((e && e.message) || String(e)) };
     }
+}
+
+function optionalText(value, field) {
+    if (value == null) return '';
+    if (typeof value !== 'string') {
+        throw new CommandExecutionError(`LinkedIn connection miniProfile field ${field} was malformed`);
+    }
+    return normalizeWhitespace(value);
 }
 
 function mapConnection(element, index) {
@@ -36,15 +53,18 @@ function mapConnection(element, index) {
     if (!mini || typeof mini !== 'object') {
         throw new CommandExecutionError('LinkedIn connections returned an element without a miniProfile');
     }
-    const publicId = normalizeWhitespace(mini.publicIdentifier || '');
-    const name = normalizeWhitespace(`${mini.firstName || ''} ${mini.lastName || ''}`);
-    if (!name && !publicId) {
-        throw new CommandExecutionError('LinkedIn connection element missing both name and public id');
+    const publicId = optionalText(mini.publicIdentifier, 'publicIdentifier');
+    if (!publicId || /[\s/?#]/.test(publicId)) {
+        throw new CommandExecutionError('LinkedIn connection element missing a stable public identifier');
     }
+    const name = normalizeWhitespace([
+        optionalText(mini.firstName, 'firstName'),
+        optionalText(mini.lastName, 'lastName'),
+    ].filter(Boolean).join(' ')) || publicId;
     return {
         rank: index + 1,
         name,
-        occupation: normalizeWhitespace(mini.occupation || ''),
+        occupation: optionalText(mini.occupation, 'occupation'),
         public_id: publicId,
         connected_at: Number.isFinite(element.createdAt) ? element.createdAt : 0,
         url: publicId ? `https://www.linkedin.com/in/${encodeURIComponent(publicId)}` : '',
@@ -67,6 +87,7 @@ cli({
         const limit = parseLimit(kwargs.limit, 20, 500);
         await page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/');
         await page.wait(2);
+        await assertLinkedInAuthenticated(page, 'linkedin connections');
         const csrf = await requireLinkedInCookie(page, 'linkedin connections');
         const rows = [];
         let start = 0;
