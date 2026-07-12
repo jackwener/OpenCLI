@@ -348,30 +348,64 @@ export async function setFileInputFiles(
 ): Promise<void> {
   await ensureAttached(tabId);
 
-  // Enable DOM domain (required for DOM.querySelector and DOM.setFileInputFiles)
+  // Enable DOM + Page domains. Page is needed for file-chooser interception.
   await sendDebuggerCommand({ tabId }, 'DOM.enable');
+  await sendDebuggerCommand({ tabId }, 'Page.enable');
 
-  // Get the document root
-  const doc = await sendDebuggerCommand({ tabId }, 'DOM.getDocument') as {
-    root: { nodeId: number };
-  };
-
-  // Find the file input element
+  // Find the file input element (used to trigger the chooser).
   const query = selector || 'input[type="file"]';
-  const result = await sendDebuggerCommand({ tabId }, 'DOM.querySelector', {
-    nodeId: doc.root.nodeId,
-    selector: query,
-  }) as { nodeId: number };
-
-  if (!result.nodeId) {
+  const found = await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
+    expression: `!!document.querySelector(${JSON.stringify(query)})`,
+    returnByValue: true,
+  }) as { result?: { value?: boolean } };
+  if (!found.result?.value) {
     throw new Error(`No element found matching selector: ${query}`);
   }
 
-  // Set files directly via CDP — Chrome reads from local filesystem
-  await sendDebuggerCommand({ tabId }, 'DOM.setFileInputFiles', {
-    files,
-    nodeId: result.nodeId,
-  });
+  // Chrome rejects DOM.setFileInputFiles with a plain nodeId/backendNodeId when
+  // the debugger is attached via chrome.debugger (crbug 928255, "-32000 Not
+  // allowed"). The only accepted path is file-chooser interception: enable it,
+  // programmatically open the chooser, and use the backendNodeId that the
+  // intercepted Page.fileChooserOpened event hands back. See issue #2108.
+  await sendDebuggerCommand({ tabId }, 'Page.setInterceptFileChooserDialog', { enabled: true });
+  try {
+    const backendNodeId = await new Promise<number>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('Page.fileChooserOpened not received within 5s — the input may not have opened a file chooser'));
+      }, 5000);
+      const listener = (source: chrome.debugger.Debuggee, method: string, params: unknown) => {
+        if (source.tabId !== tabId || method !== 'Page.fileChooserOpened') return;
+        // This is our chooser event — settle now either way, so a malformed
+        // event rejects immediately instead of hanging until the 5s timeout.
+        cleanup();
+        const backend = (params as { backendNodeId?: number })?.backendNodeId;
+        if (typeof backend === 'number') resolve(backend);
+        else reject(new Error('Page.fileChooserOpened carried no backendNodeId'));
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        chrome.debugger.onEvent.removeListener(listener);
+      };
+      chrome.debugger.onEvent.addListener(listener);
+      // Open the chooser programmatically — interception suppresses the native
+      // dialog and fires Page.fileChooserOpened instead. Works for hidden inputs.
+      void sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
+        expression: `document.querySelector(${JSON.stringify(query)}).click()`,
+      }).catch((err) => {
+        cleanup();
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
+    });
+
+    // backendNodeId from the intercepted chooser IS accepted by Chrome.
+    await sendDebuggerCommand({ tabId }, 'DOM.setFileInputFiles', {
+      files,
+      backendNodeId,
+    });
+  } finally {
+    await sendDebuggerCommand({ tabId }, 'Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
+  }
 }
 
 function matchesDownloadPattern(item: chrome.downloads.DownloadItem, pattern: string): boolean {
