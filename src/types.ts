@@ -83,7 +83,7 @@ export interface IPage {
   fetchJson(url: string, opts?: FetchJsonOptions): Promise<unknown>;
   getCookies(opts?: { domain?: string; url?: string }): Promise<BrowserCookie[]>;
   snapshot(opts?: SnapshotOptions): Promise<any>;
-  click(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
+  click(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified'; click_method?: 'cdp' | 'js' | 'ax'; hit?: 'target' | 'ancestor' | 'other' | 'none'; retargeted?: boolean }>;
   dblClick?(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
   hover?(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
   focus?(ref: string, opts?: { nth?: number; firstOnMulti?: boolean }): Promise<{ focused: boolean; matches_n: number; match_level: 'exact' | 'stable' | 'reidentified' }>;
