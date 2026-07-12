@@ -4,7 +4,6 @@ import { CommandExecutionError } from '@jackwener/opencli/errors';
 const WEIXIN_DOMAIN = 'mp.weixin.qq.com';
 const WEIXIN_HOME = 'https://mp.weixin.qq.com/';
 const IMAGE_FILE_INPUT_SELECTOR = 'input[type="file"][name="file"]';
-const SUPPORTED_WEIXIN_COLLECTIONS = ['物理', '数学', '生物', '地理', '英语', '化学'];
 
 function isRecoverableFileInputError(error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -157,9 +156,11 @@ async function waitForContentImageUpload(page) {
     for (let attempt = 0; attempt < 30; attempt++) {
         await page.wait(2);
         const state = await page.evaluate(`(() => {
-            var editor = document.querySelector('#ueditor_0');
+            var editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
+            var editor = editors[editors.length - 1];
+            var imageSelector = 'img[src*="mmbiz"], img[src*="qpic.cn"], img[data-src*="mmbiz"], img[data-src*="qpic.cn"]';
             var cdnCount = editor
-                ? editor.querySelectorAll('img[src*="mmbiz"], img[src*="qpic.cn"], img[data-src*="mmbiz"], img[data-src*="qpic.cn"]').length
+                ? editor.querySelectorAll(imageSelector).length
                 : 0;
             if (cdnCount > 0) return { ok: true, cdnCount: cdnCount };
 
@@ -178,6 +179,16 @@ async function waitForContentImageUpload(page) {
 }
 
 async function selectCoverFromContent(page) {
+    const contentImageState = await page.evaluate(`(() => {
+        var editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
+        var editor = editors[editors.length - 1];
+        var imageSelector = 'img[src*="mmbiz"], img[src*="qpic.cn"], img[data-src*="mmbiz"], img[data-src*="qpic.cn"]';
+        return { count: editor ? editor.querySelectorAll(imageSelector).length : 0 };
+    })()`);
+    if (!contentImageState || contentImageState.count < 1) {
+        return false;
+    }
+
     await page.evaluate('document.querySelector("#js_cover_description_area")?.scrollIntoView()');
     await page.wait(1);
 
@@ -192,10 +203,18 @@ async function selectCoverFromContent(page) {
     })()`);
     await page.wait(2);
 
-    await page.evaluate(`(() => {
+    const picked = await page.evaluate(`(() => {
         var img = document.querySelector('.weui-desktop-dialog_img-picker .appmsg_content_img');
-        if (img) img.click();
+        if (img) { img.click(); return true; }
+        return false;
     })()`);
+    if (!picked) {
+        await page.evaluate(`(() => {
+            var close = document.querySelector('.weui-desktop-dialog_img-picker .weui-desktop-dialog__close-btn, .weui-desktop-dialog_img-picker button[aria-label="关闭"], .weui-desktop-dialog__wrp .weui-desktop-dialog__close-btn');
+            if (close) close.click();
+        })()`);
+        return false;
+    }
     await page.wait(1);
 
     await page.evaluate(`(() => {
@@ -254,264 +273,243 @@ async function scrollToPublishSettings(page) {
     await page.wait(1);
 }
 
-async function confirmVisibleDialog(page, labels = ['确定', '确认', '完成']) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-        const result = await page.evaluate(`(() => {
-            var labels = ${JSON.stringify(labels)};
-            function visible(el) {
-                return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-            }
-            function text(el) {
-                return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
-            }
-            var buttons = Array.from(document.querySelectorAll('button, a, span, div[role="button"]'))
-                .filter(function(el) { return visible(el) && !el.disabled; });
-            for (var i = 0; i < labels.length; i++) {
-                var label = labels[i];
-                var button = buttons.find(function(el) { return text(el) === label || text(el).includes(label); });
-                if (button) {
-                    button.click();
-                    return { ok: true, label: label };
-                }
-            }
-            return { ok: false };
-        })()`);
-        if (!result?.ok) return result;
-        await page.wait(1);
-    }
-    return { ok: true };
-}
-
 function assertSettingResult(result, label) {
     if (!result?.ok) {
         throw new CommandExecutionError(`${label} failed: ${result?.reason || result?.error || 'setting control not found'}`);
     }
 }
 
+async function waitForSetting(page, label, js, attempts = 10) {
+    let state = null;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        state = await page.evaluate(js);
+        if (state?.ok) return state;
+        await page.wait(1);
+    }
+    throw new CommandExecutionError(`${label} failed: ${state?.reason || state?.text || 'state did not update'}`);
+}
+
+async function clickVisibleDialogButton(page, dialogText, buttonText) {
+    const marker = `opencli-target-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const marked = await page.evaluate(`(() => {
+        var dialogText = ${JSON.stringify(dialogText)};
+        var buttonText = ${JSON.stringify(buttonText)};
+        var marker = ${JSON.stringify(marker)};
+        function visible(el) {
+            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+        }
+        function text(el) {
+            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
+        }
+        var dialog = Array.from(document.querySelectorAll('.weui-desktop-dialog__wrp, .weui-desktop-dialog, [role="dialog"]'))
+            .filter(function(el) { return visible(el) && text(el).includes(dialogText); })[0];
+        if (!dialog) return { ok: false, reason: 'visible dialog not found: ' + dialogText };
+        var button = Array.from(dialog.querySelectorAll('button, a, div[role="button"], span'))
+            .filter(function(el) { return visible(el) && !el.disabled; })
+            .find(function(el) { return text(el) === buttonText; });
+        if (!button) return { ok: false, reason: 'button not found: ' + buttonText, dialog: text(dialog).slice(0, 300) };
+        button.setAttribute('data-opencli-target', marker);
+        return { ok: true, marker: marker };
+    })()`);
+    assertSettingResult(marked, `${dialogText} dialog`);
+    try {
+        await page.click(`[data-opencli-target="${marker}"]`);
+    } finally {
+        await page.evaluate(`(() => {
+            var el = document.querySelector('[data-opencli-target="${marker}"]');
+            if (el) el.removeAttribute('data-opencli-target');
+        })()`).catch(() => undefined);
+    }
+}
+
+async function clickVisibleDialogText(page, dialogText, targetText) {
+    const marker = `opencli-target-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const marked = await page.evaluate(`(() => {
+        var dialogText = ${JSON.stringify(dialogText)};
+        var targetText = ${JSON.stringify(targetText)};
+        var marker = ${JSON.stringify(marker)};
+        function visible(el) {
+            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+        }
+        function text(el) {
+            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
+        }
+        var dialog = Array.from(document.querySelectorAll('.weui-desktop-dialog__wrp, .weui-desktop-dialog, [role="dialog"]'))
+            .filter(function(el) { return visible(el) && text(el).includes(dialogText); })[0];
+        if (!dialog) return { ok: false, reason: 'visible dialog not found: ' + dialogText };
+        var target = Array.from(dialog.querySelectorAll('label, button, a, span, div[role="button"], div'))
+            .filter(function(el) { return visible(el); })
+            .find(function(el) { return text(el).includes(targetText); });
+        if (!target) return { ok: false, reason: 'target text not found: ' + targetText, dialog: text(dialog).slice(0, 300) };
+        target.setAttribute('data-opencli-target', marker);
+        return { ok: true, marker: marker };
+    })()`);
+    assertSettingResult(marked, `${dialogText} dialog`);
+    try {
+        await page.click(`[data-opencli-target="${marker}"]`);
+    } finally {
+        await page.evaluate(`(() => {
+            var el = document.querySelector('[data-opencli-target="${marker}"]');
+            if (el) el.removeAttribute('data-opencli-target');
+        })()`).catch(() => undefined);
+    }
+}
+
+async function getOriginalDeclarationState(page) {
+    return page.evaluate(`(() => {
+        function visible(el) {
+            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+        }
+        function text(el) {
+            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
+        }
+        var boxText = text(document.querySelector('#js_original_box'));
+        var dialogText = Array.from(document.querySelectorAll('.claim__original-dialog.original_dialog, .weui-desktop-dialog__wrp'))
+            .filter(visible).map(function(el) { return text(el); }).join(' | ');
+        return {
+            ok: /文字原创|已声明|作者:/.test(boxText) && !/未声明/.test(boxText),
+            text: boxText,
+            dialogText: dialogText.slice(0, 500),
+        };
+    })()`);
+}
+
 async function enableOriginalDeclaration(page, declarationName) {
     await scrollToPublishSettings(page);
-    const openResult = await page.evaluate(`(() => {
-        function visible(el) {
-            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-        }
-        function text(el) {
-            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
-        }
-        function clickable(el) {
-            var cur = el;
-            while (cur && cur !== document.body) {
-                var tag = cur.tagName || '';
-                var role = cur.getAttribute && cur.getAttribute('role');
-                var cls = cur.className || '';
-                if (tag === 'BUTTON' || tag === 'A' || role === 'button' || role === 'switch' || /btn|button|switch|checkbox|radio|link/.test(String(cls))) return cur;
-                cur = cur.parentElement;
-            }
-            return el;
-        }
-        function findAction(patterns) {
-            var nodes = Array.from(document.querySelectorAll('button, a, span, div, label'));
-            for (var p = 0; p < patterns.length; p++) {
-                var pattern = patterns[p];
-                for (var i = 0; i < nodes.length; i++) {
-                    var nodeText = text(nodes[i]);
-                    if (visible(nodes[i]) && pattern.test(nodeText)) return clickable(nodes[i]);
-                }
-            }
-            return null;
-        }
-        var bodyText = text(document.body);
-        if (/已声明原创|原创声明已开启|已开启原创/.test(bodyText)) return { ok: true, already: true };
-        var action = findAction([/声明原创/, /原创声明/, /^原创$/]);
-        if (!action) return { ok: false, reason: 'original declaration action not found' };
-        action.click();
-        return { ok: true, opened: true, actionText: text(action).slice(0, 80) };
-    })()`);
-    assertSettingResult(openResult, 'Original declaration');
-    if (openResult.already) return openResult;
+    const before = await getOriginalDeclarationState(page);
+    if (before?.ok) return { ok: true, already: true, text: before.text };
 
-    await page.wait(2);
-    const dialogResult = await page.evaluate(`(() => {
-        var declarationName = ${JSON.stringify(declarationName || '')};
+    await page.click('.setting-group__switch.js_original_apply.js_edit_ori', { nth: 0 });
+    await waitForSetting(page, 'Original declaration dialog', `(() => {
+        function visible(el) {
+            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+        }
+        var dialog = document.querySelector('.claim__original-dialog.original_dialog');
+        return { ok: visible(dialog), text: dialog ? (dialog.innerText || '').slice(0, 300) : '' };
+    })()`);
+
+    if (declarationName) {
+        await page.click('input.frm_input.js_counter.js_author', { nth: 1 });
+        await page.pressKey('Meta+A');
+        await page.pressKey('Backspace');
+        await page.typeText('input.frm_input.js_counter.js_author', declarationName, { nth: 1 });
+        await waitForSetting(page, 'Original declaration author', `(() => {
+            var expected = ${JSON.stringify(declarationName)};
+            var inputs = Array.from(document.querySelectorAll('input.frm_input.js_counter.js_author'));
+            var hasValue = inputs.some(function(input) { return input.value === expected; });
+            var text = (document.querySelector('.claim__original-dialog.original_dialog')?.innerText || '').replace(/\\s+/g, ' ').trim();
+            return { ok: (hasValue || text.includes(expected)) && !/作者不能为空/.test(text), text: text.slice(0, 300) };
+        })()`);
+    }
+
+    const agreement = await page.evaluate(`(() => {
+        var cb = document.querySelector('.original_agreement input[type="checkbox"]');
+        return { ok: true, checked: cb ? cb.checked : true };
+    })()`);
+    if (agreement && agreement.checked === false) {
+        await page.click('.original_agreement label.weui-desktop-form__check-label');
+    }
+
+    await clickVisibleDialogButton(page, '原创', '确定');
+    return waitForSetting(page, 'Original declaration', `(() => {
         function visible(el) {
             return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
         }
         function text(el) {
-            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
+            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim();
         }
-        function setValue(el, value) {
-            el.focus();
-            var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-            var setter = Object.getOwnPropertyDescriptor(proto, 'value');
-            if (setter && setter.set) setter.set.call(el, value);
-            else el.value = value;
-            el.dispatchEvent(new InputEvent('input', { bubbles: true, data: value }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        function clickClosest(el) {
-            var cur = el;
-            while (cur && cur !== document.body) {
-                var tag = cur.tagName || '';
-                var role = cur.getAttribute && cur.getAttribute('role');
-                if (tag === 'BUTTON' || tag === 'A' || tag === 'LABEL' || role === 'button' || role === 'checkbox') {
-                    cur.click();
-                    return true;
-                }
-                cur = cur.parentElement;
-            }
-            if (el) { el.click(); return true; }
-            return false;
-        }
-        var dialog = Array.from(document.querySelectorAll('.weui-desktop-dialog, .weui-desktop-popover, .popover, .dialog, [role="dialog"]'))
-            .filter(visible).pop() || document;
-        if (declarationName) {
-            var fields = Array.from(dialog.querySelectorAll('input, textarea'))
-                .filter(function(el) { return visible(el) && !el.disabled && !el.readOnly && el.type !== 'file' && el.type !== 'checkbox' && el.type !== 'radio'; });
-            var field = fields.find(function(el) {
-                var meta = [el.placeholder, el.name, el.id, el.getAttribute('aria-label'), el.getAttribute('title')].join(' ');
-                return /作者|署名|名称|原创/.test(meta);
-            }) || fields[0];
-            if (field) setValue(field, declarationName);
-        }
-        Array.from(dialog.querySelectorAll('input[type="checkbox"]')).forEach(function(el) {
-            if (visible(el) && !el.checked) el.click();
-        });
-        Array.from(dialog.querySelectorAll('label, span, a, div')).forEach(function(el) {
-            var nodeText = text(el);
-            if (visible(el) && /我已阅读|同意|原创声明/.test(nodeText) && !/不同意/.test(nodeText)) clickClosest(el);
-        });
-        var buttons = Array.from(dialog.querySelectorAll('button, a, span, div[role="button"]'))
-            .filter(function(el) { return visible(el) && !el.disabled; });
-        var labels = ['同意并声明', '提交声明', '声明原创', '确定', '确认', '下一步', '完成'];
-        for (var i = 0; i < labels.length; i++) {
-            var label = labels[i];
-            var button = buttons.find(function(el) { return text(el) === label || text(el).includes(label); });
-            if (button) {
-                button.click();
-                return { ok: true, submitted: true, label: label };
-            }
-        }
-        return { ok: true, opened: true, reason: 'no confirmation button found after opening original dialog' };
-    })()`);
-    assertSettingResult(dialogResult, 'Original declaration');
-    await page.wait(2);
-    await confirmVisibleDialog(page, ['确定', '确认', '完成', '我知道了']);
-    return dialogResult;
+        var boxText = text(document.querySelector('#js_original_box'));
+        var dialogText = Array.from(document.querySelectorAll('.claim__original-dialog.original_dialog, .weui-desktop-dialog__wrp'))
+            .filter(visible).map(function(el) { return text(el); }).join(' | ');
+        return {
+            ok: /文字原创|已声明|作者:/.test(boxText) && !/未声明/.test(boxText),
+            text: (boxText || dialogText).slice(0, 500),
+        };
+    })()`, 12);
 }
 
-async function enableReward(page) {
+async function getRewardState(page) {
+    return page.evaluate(`(() => {
+        function text(el) {
+            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim();
+        }
+        var area = document.querySelector('#js_reward_setting_area');
+        var areaText = text(area);
+        var checked = !!document.querySelector('#js_reward_setting_area input.js_reward_setting_checkbox')?.checked;
+        return {
+            ok: checked || (/账户:/.test(areaText) && !/不开启/.test(areaText)),
+            disabled: /声明原创后才可开启/.test(text(document.querySelector('#js_original_box'))),
+            text: areaText || text(document.querySelector('#js_original_box')).slice(0, 300),
+            checked: checked,
+        };
+    })()`);
+}
+
+async function enableReward(page, rewardAccount) {
     await scrollToPublishSettings(page);
-    const result = await page.evaluate(`(() => {
+    const before = await getRewardState(page);
+    if (before?.ok) return { ok: true, already: true, text: before.text };
+    if (before?.disabled) {
+        throw new CommandExecutionError('Reward failed: original declaration must be enabled before reward can be enabled');
+    }
+
+    await page.click('.setting-group__switch.js_reward_open');
+    await waitForSetting(page, 'Reward dialog', `(() => {
         function visible(el) {
             return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
         }
         function text(el) {
             return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
         }
-        function closestRow(el) {
-            var cur = el;
-            while (cur && cur !== document.body) {
-                var rowText = text(cur);
-                if (rowText.includes('赞赏') && rowText.length < 260) return cur;
-                cur = cur.parentElement;
-            }
-            return el;
-        }
-        var label = Array.from(document.querySelectorAll('span, div, label, a'))
-            .find(function(el) { return visible(el) && text(el).includes('赞赏'); });
-        if (!label) return { ok: false, reason: 'reward setting not found' };
-        var row = closestRow(label);
-        var rowText = text(row);
-        if (/已开启赞赏|赞赏已开启|已开启/.test(rowText) || row.querySelector('input[type="checkbox"]:checked')) {
-            return { ok: true, already: true };
-        }
-        var control = row.querySelector('input[type="checkbox"], [role="switch"], .weui-desktop-switch, .weui-desktop-switch__box, .weui-desktop-form__switch, button, a');
-        if (!control) control = row;
-        control.click();
-        return { ok: true, clicked: true, rowText: rowText.slice(0, 120) };
+        var dialog = Array.from(document.querySelectorAll('.weui-desktop-dialog__wrp'))
+            .find(function(el) { return visible(el) && text(el).includes('赞赏类型'); });
+        return { ok: !!dialog, text: dialog ? text(dialog).slice(0, 300) : '' };
     })()`);
-    assertSettingResult(result, 'Reward');
-    if (!result.already) {
+
+    const rewardDialogState = await page.evaluate(`(() => {
+        function visible(el) {
+            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+        }
+        var dialog = Array.from(document.querySelectorAll('.weui-desktop-dialog__wrp'))
+            .find(function(el) { return visible(el) && (el.innerText || '').includes('赞赏类型'); });
+        var authorRadio = dialog?.querySelector('input.weui-desktop-form__radio[value="1"]');
+        var agreement = dialog?.querySelector('input.weui-desktop-form__checkbox');
+        var accountInput = dialog?.querySelector('input[placeholder="选择或搜索赞赏账户"]');
+        return {
+            ok: !!dialog,
+            authorChecked: authorRadio ? authorRadio.checked : true,
+            agreementChecked: agreement ? agreement.checked : true,
+            account: accountInput ? accountInput.value : '',
+        };
+    })()`);
+    assertSettingResult(rewardDialogState, 'Reward dialog');
+    if (rewardDialogState.authorChecked === false) {
+        await page.click('.weui-desktop-dialog__wrp input.weui-desktop-form__radio[value="1"]');
+    }
+    if (rewardAccount && rewardDialogState.account !== rewardAccount) {
+        await page.click('.weui-desktop-dialog__wrp input[placeholder="选择或搜索赞赏账户"]');
+        await page.pressKey('Meta+A');
+        await page.pressKey('Backspace');
+        await page.typeText('.weui-desktop-dialog__wrp input[placeholder="选择或搜索赞赏账户"]', rewardAccount);
         await page.wait(1);
-        await confirmVisibleDialog(page, ['开启', '确定', '确认', '完成', '我知道了']);
     }
-    return result;
-}
-
-async function selectCollection(page, collection) {
-    if (!SUPPORTED_WEIXIN_COLLECTIONS.includes(collection)) {
-        throw new CommandExecutionError(`Unsupported Weixin collection: ${collection}. Supported: ${SUPPORTED_WEIXIN_COLLECTIONS.join(', ')}`);
+    if (rewardDialogState.agreementChecked === false) {
+        await clickVisibleDialogText(page, '赞赏类型', '赞赏功能使用协议');
     }
-    await scrollToPublishSettings(page);
-    const openResult = await page.evaluate(`(() => {
-        var target = ${JSON.stringify(collection)};
-        function visible(el) {
-            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-        }
-        function text(el) {
-            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
-        }
-        function closestRow(el) {
-            var cur = el;
-            while (cur && cur !== document.body) {
-                var rowText = text(cur);
-                if (rowText.includes('合集') && rowText.length < 360) return cur;
-                cur = cur.parentElement;
-            }
-            return el;
-        }
-        var label = Array.from(document.querySelectorAll('span, div, label, a'))
-            .find(function(el) { return visible(el) && text(el).includes('合集'); });
-        if (!label) return { ok: false, reason: 'collection setting not found' };
-        var row = closestRow(label);
-        var rowText = text(row);
-        if (rowText.includes(target)) return { ok: true, already: true };
-        var buttons = Array.from(row.querySelectorAll('button, a, span, div[role="button"]')).filter(visible);
-        var action = buttons.find(function(el) {
-            var t = text(el);
-            return /选择合集|添加到合集|添加合集|修改|更换|设置/.test(t);
-        }) || row.querySelector('[role="combobox"], .weui-desktop-dropdown__switch, .weui-desktop-form__input, button, a') || row;
-        action.click();
-        return { ok: true, opened: true, rowText: rowText.slice(0, 120) };
-    })()`);
-    assertSettingResult(openResult, 'Collection');
-    if (openResult.already) return openResult;
 
-    await page.wait(1);
-    const chooseResult = await page.evaluate(`(() => {
-        var target = ${JSON.stringify(collection)};
-        function visible(el) {
-            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-        }
+    await clickVisibleDialogButton(page, '赞赏类型', '确定');
+    return waitForSetting(page, 'Reward', `(() => {
         function text(el) {
-            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, '').trim();
+            return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim();
         }
-        function clickable(el) {
-            var cur = el;
-            while (cur && cur !== document.body) {
-                var tag = cur.tagName || '';
-                var role = cur.getAttribute && cur.getAttribute('role');
-                var cls = cur.className || '';
-                if (tag === 'BUTTON' || tag === 'A' || tag === 'LI' || role === 'button' || role === 'option' || /item|option|menu|dropdown|radio|checkbox/.test(String(cls))) return cur;
-                cur = cur.parentElement;
-            }
-            return el;
-        }
-        var nodes = Array.from(document.querySelectorAll('li, option, button, a, span, div, label'))
-            .filter(function(el) { return visible(el); });
-        var exact = nodes.find(function(el) { return text(el) === target; });
-        var partial = nodes.find(function(el) { var t = text(el); return t.includes(target) && t.length <= 40; });
-        var hit = exact || partial;
-        if (!hit) {
-            var options = nodes.map(text).filter(function(t) { return t && t.length <= 40; }).slice(0, 30);
-            return { ok: false, reason: 'collection option not found: ' + target, options: options };
-        }
-        clickable(hit).click();
-        return { ok: true, collection: target };
-    })()`);
-    assertSettingResult(chooseResult, 'Collection');
-    await page.wait(1);
-    await confirmVisibleDialog(page, ['确定', '确认', '完成']);
-    return chooseResult;
+        var area = document.querySelector('#js_reward_setting_area');
+        var areaText = text(area);
+        var checked = !!document.querySelector('#js_reward_setting_area input.js_reward_setting_checkbox')?.checked;
+        return {
+            ok: checked || (/账户:/.test(areaText) && !/不开启/.test(areaText)),
+            text: areaText,
+        };
+    })()`, 10);
 }
 
 async function clickSaveDraft(page) {
@@ -553,7 +551,7 @@ export const createDraftCommand = cli({
         { name: 'summary', help: '文章摘要' },
         { name: 'original-declaration', help: '开启原创声明并填写原创署名，例如：一页科学课' },
         { name: 'reward', type: 'bool', default: false, help: '开启公众号赞赏' },
-        { name: 'collection', choices: SUPPORTED_WEIXIN_COLLECTIONS, help: `选择合集：${SUPPORTED_WEIXIN_COLLECTIONS.join(', ')}` },
+        { name: 'reward-account', help: '赞赏账户名称；默认使用原创署名或作者名' },
         { name: 'timeout', type: 'int', required: false, default: 180, help: 'Max seconds for the overall command (default: 180)' },
     ],
     columns: ['status', 'detail'],
@@ -590,14 +588,9 @@ export const createDraftCommand = cli({
             appliedSettings.push('original');
         }
         if (kwargs.reward) {
-            await enableReward(page);
+            await enableReward(page, kwargs['reward-account'] || kwargs['original-declaration'] || kwargs.author || '');
             appliedSettings.push('reward');
         }
-        if (kwargs.collection) {
-            await selectCollection(page, kwargs.collection);
-            appliedSettings.push(`collection:${kwargs.collection}`);
-        }
-
         await page.wait(1);
         const success = await clickSaveDraft(page);
 

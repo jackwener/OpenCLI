@@ -39569,18 +39569,10 @@
         "help": "开启公众号赞赏"
       },
       {
-        "name": "collection",
+        "name": "reward-account",
         "type": "str",
         "required": false,
-        "help": "选择合集：物理, 数学, 生物, 地理, 英语, 化学",
-        "choices": [
-          "物理",
-          "数学",
-          "生物",
-          "地理",
-          "英语",
-          "化学"
-        ]
+        "help": "赞赏账户名称；默认使用原创署名或作者名"
       },
       {
         "name": "timeout",
