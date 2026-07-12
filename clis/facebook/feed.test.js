@@ -166,4 +166,90 @@ describe('facebook feed', () => {
     await expect(__test__.command.func(createPage({ rows: null }), { limit: 1 }))
       .rejects.toBeInstanceOf(CommandExecutionError);
   });
+
+  // Modern Facebook feed (#2089): no [role="article"], no Like/Comment
+  // aria-labels — each post is bounded by its "Actions for this post" menu.
+  // NOTE: this fixture encodes the DOM shape described in the issue, not a
+  // captured live sample, so live verification is still required.
+  it('extracts modern feed posts anchored on the "Actions for this post" menu (#2089)', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/carol">Carol Poster</a></h3>
+            <div dir="auto">A modern feed post with no role=article wrapper anywhere on it.</div>
+            <a href="https://www.facebook.com/carol/posts/999">2h</a>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/dave">Dave Danger</a></h3>
+            <div dir="auto">Second streamed post body that should also be extracted fine.</div>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.diagnostics.actionMenuCount).toBe(2);
+    expect(payload.rows.map((r) => r.author)).toEqual(['Carol Poster', 'Dave Danger']);
+    expect(payload.rows[0].content).toContain('modern feed post');
+  });
+
+  it('keeps a legitimate author name that contains a 4-digit run (#2089)', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/class2024">Class of 2024</a></h3>
+            <div dir="auto">Reunion planning post body long enough to be extracted correctly.</div>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/other">Someone Else</a></h3>
+            <div dir="auto">A second post so the container walk stops before the main landmark.</div>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+        </div>
+      </main>
+    `);
+    expect(payload.rows[0].author).toBe('Class of 2024');
+  });
+
+  it('does not emit the whole main landmark as one post on a single-post page (#2089)', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/solo">Solo Poster</a></h3>
+            <div dir="auto">The only post on the page — the container must not climb to role=main.</div>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+        </div>
+      </main>
+    `);
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.rows[0].author).toBe('Solo Poster');
+  });
+
+  it('rejects a digit-bearing decoy author and hidden-char decoy text (#2089)', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/real">Real Human</a></h3>
+            <span>​​​</span>
+            <div dir="auto">Genuine post content that survives the anti-scrape decoy filtering.</div>
+            <div dir="auto">1234567890123</div>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.rows[0].author).toBe('Real Human');
+    expect(payload.rows[0].content).not.toContain('1234567890123');
+  });
 });
