@@ -13526,7 +13526,7 @@
     "type": "js",
     "modulePath": "facebook/search.js",
     "sourceFile": "facebook/search.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",
