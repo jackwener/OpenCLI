@@ -78,7 +78,7 @@ export const deepResearchResultCommand = cli({
         }
         await page.startNetworkCapture?.('/backend-api/conversation/').catch(() => false);
         await page.goto(targetUrl, { waitUntil: 'none' });
-        await page.wait(3);
+        await page.sleep(3);
         await ensureChatGPTLogin(page, 'ChatGPT deep-research-result requires a logged-in ChatGPT session.');
 
         const result = shouldWait

@@ -30,6 +30,7 @@ function createProjectUploadPageMock() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
+        sleep: vi.fn().mockResolvedValue(undefined),
         setFileInput: vi.fn().mockResolvedValue(undefined),
         evaluate: vi.fn((script) => {
             const s = String(script);
@@ -155,6 +156,7 @@ describe('chatgpt browser command registration', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             startNetworkCapture: vi.fn().mockResolvedValue(true),
             readNetworkCapture: vi.fn().mockResolvedValue([]),
             getCookies: vi.fn().mockResolvedValue([]),
@@ -227,6 +229,7 @@ describe('chatgpt browser command registration', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             startNetworkCapture: vi.fn().mockResolvedValue(true),
             readNetworkCapture: vi.fn().mockResolvedValue([]),
             getCookies: vi.fn().mockResolvedValue([]),
@@ -313,6 +316,7 @@ describe('chatgpt browser command registration', () => {
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
             startNetworkCapture: vi.fn().mockResolvedValue(true),
             readNetworkCapture: vi.fn().mockResolvedValue([]),
             getCookies: vi.fn().mockResolvedValue([]),

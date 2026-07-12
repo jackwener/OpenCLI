@@ -2654,7 +2654,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
             currentUrl = unwrapEvaluateResult(await page.evaluate('window.location.href').catch(() => ''));
             if (currentUrl && !isSameChatGPTConversation(currentUrl, convUrl)) {
                 await page.goto(convUrl);
-                await page.wait(3);
+                await page.sleep(3);
             }
         }
 
@@ -2665,7 +2665,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
             const onConversation = !currentUrl || isSameChatGPTConversation(currentUrl, convUrl);
             if (onConversation) {
                 await page.goto(convUrl);
-                await page.wait(3);
+                await page.sleep(3);
             }
         }
 
