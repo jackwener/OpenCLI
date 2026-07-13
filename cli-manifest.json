@@ -18113,6 +18113,47 @@
   },
   {
     "site": "instagram",
+    "name": "detail",
+    "description": "Get single-post Instagram details, including direct media URLs",
+    "access": "read",
+    "domain": "www.instagram.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Instagram post / reel / tv URL"
+      }
+    ],
+    "columns": [
+      "shortcode",
+      "media_id",
+      "kind",
+      "type",
+      "posted_at",
+      "owner",
+      "owner_name",
+      "owner_verified",
+      "likes",
+      "comments",
+      "views",
+      "media_count",
+      "media_types",
+      "media_urls",
+      "thumbnail_url",
+      "url",
+      "caption"
+    ],
+    "type": "js",
+    "modulePath": "instagram/detail.js",
+    "sourceFile": "instagram/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "instagram",
     "name": "download",
     "description": "Download images and videos from Instagram posts and reels",
     "access": "read",
@@ -18136,8 +18177,8 @@
       }
     ],
     "type": "js",
-    "modulePath": "instagram/download.js",
-    "sourceFile": "instagram/download.js",
+    "modulePath": "instagram/detail.js",
+    "sourceFile": "instagram/detail.js",
     "navigateBefore": false
   },
   {
@@ -18737,7 +18778,60 @@
         "type": "int",
         "default": 12,
         "required": false,
-        "help": "Number of posts"
+        "help": "Number of posts (1-1000)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Fetch posts from one full local day. Format: YYYY-MM-DD. Cannot be combined with --from/--to."
+      },
+      {
+        "name": "from",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Fetch posts from this timestamp onward. Use ISO 8601 like 2026-07-11T18:30:00+05:30 or Unix seconds."
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Fetch posts up to this timestamp. Requires --from. Use ISO 8601 like 2026-07-12T18:30:00+05:30 or Unix seconds."
+      },
+      {
+        "name": "caption-filter-mode",
+        "type": "str",
+        "default": "contains",
+        "required": false,
+        "help": "Caption matching mode: contains or regex",
+        "choices": [
+          "contains",
+          "regex"
+        ]
+      },
+      {
+        "name": "caption-filter",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Keep only posts whose caption matches this pattern"
+      },
+      {
+        "name": "caption-reject",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Drop posts whose caption matches this pattern (same mode as caption-filter-mode)"
+      },
+      {
+        "name": "caption-case-sensitive",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Match captions case-sensitively"
       }
     ],
     "columns": [
@@ -18746,7 +18840,12 @@
       "likes",
       "comments",
       "type",
-      "date"
+      "date",
+      "posted_at",
+      "kind",
+      "shortcode",
+      "media_id",
+      "url"
     ],
     "type": "js",
     "modulePath": "instagram/user.js",
