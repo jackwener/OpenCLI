@@ -43,6 +43,14 @@ const CHATGPT_MODEL_TARGETS = {
         intelligenceOrder: 3,
         aliases: ['ultra', 'xhigh', 'x-high', 'extra-high', '超高'],
     },
+    'gpt-5.6-pro': {
+        label: 'GPT-5.6 Pro',
+        labels: ['GPT-5.6 Pro', 'GPT-5.6 专业'],
+        optionLabels: ['GPT-5.6 Pro', 'GPT-5.6 专业'],
+        testIds: ['model-switcher-gpt-5-6-pro'],
+        aliases: ['gpt-5-6-pro', 'gpt-5.6', 'gpt-5-6', '5.6-pro', '5.6'],
+        modelConfig: { modelSlug: 'gpt-5-6-pro', effort: 'standard' },
+    },
     pro: {
         label: 'Pro',
         labels: ['Pro', 'Professional', '进阶专业', '专业'],

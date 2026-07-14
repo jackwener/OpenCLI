@@ -4,7 +4,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, getVisibleMessages, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDeepResearchResult, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
+import { CHATGPT_MODEL_CHOICES, __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, getVisibleMessages, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDeepResearchResult, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
 
 const tempDirs = [];
 
@@ -397,6 +397,15 @@ describe('chatgpt deep research result extraction', () => {
 });
 
 describe('chatgpt model selection validation', () => {
+    it('offers practical GPT-5.6 Pro aliases to CLI callers', () => {
+        expect(CHATGPT_MODEL_CHOICES).toEqual(expect.arrayContaining([
+            'gpt-5.6-pro',
+            'gpt-5-6-pro',
+            'gpt-5.6',
+            '5.6',
+        ]));
+    });
+
     it('rejects unknown model names', async () => {
         await expect(selectChatGPTModel({ nativeClick: vi.fn() }, 'unknown'))
             .rejects.toBeInstanceOf(ArgumentError);
@@ -460,6 +469,35 @@ describe('chatgpt model selection validation', () => {
         expect(fetchMock.mock.calls[1][0]).toContain('/backend-api/settings/user_last_used_model_config');
         expect(fetchMock.mock.calls[1][0]).toContain('model_slug=gpt-5-5-thinking');
         expect(fetchMock.mock.calls[1][0]).toContain('thinking_effort=extended');
+        expect(page.nativeClick).not.toHaveBeenCalled();
+    });
+
+    it('sets GPT-5.6 Pro through the exact ChatGPT model config slug', async () => {
+        const fetchMock = vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'balanced', label: 'Balanced' });
+                if (objectCall === 3) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 4) return Promise.resolve({ model: 'gpt-5.6-pro', label: 'GPT-5.6 Pro' });
+                return Promise.resolve({});
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'gpt-5.6-pro'))
+            .resolves.toEqual({ Status: 'Success', Model: 'GPT-5.6 Pro' });
+        expect(fetchMock.mock.calls[1][0]).toContain('model_slug=gpt-5-6-pro');
+        expect(fetchMock.mock.calls[1][0]).toContain('thinking_effort=standard');
         expect(page.nativeClick).not.toHaveBeenCalled();
     });
 
@@ -1152,6 +1190,19 @@ describe('chatgpt current model detection', () => {
         `);
 
         await expect(getCurrentChatGPTModel(page)).resolves.toEqual({ model: 'pro', label: 'Pro' });
+    });
+
+    it('distinguishes the GPT-5.6 Pro test id from the generic Pro level', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button">
+                <span data-testid="model-switcher-gpt-5-6-pro">Pro</span>
+              </button>
+            </form>
+        `);
+
+        await expect(getCurrentChatGPTModel(page))
+            .resolves.toEqual({ model: 'gpt-5.6-pro', label: 'GPT-5.6 Pro' });
     });
 
     it('returns null fields when the model selector is missing', async () => {
