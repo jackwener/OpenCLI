@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { fetchPrivateApi, fetchWebApi, resolveShelfReader, WEREAD_UA, WEREAD_WEB_ORIGIN, } from './utils.js';
+import { fetchWebApiWithCookies, fetchWebApi, resolveShelfReader, WEREAD_UA, WEREAD_WEB_ORIGIN, } from './utils.js';
 function decodeHtmlText(value) {
     return value
         .replace(/<[^>]+>/g, '')
@@ -191,7 +191,7 @@ cli({
     func: async (page, args) => {
         const bookId = String(args['book-id'] || '').trim();
         try {
-            const data = await fetchPrivateApi(page, '/book/info', { bookId });
+            const data = await fetchWebApiWithCookies(page, '/book/info', { bookId });
             // newRating is 0-1000 scale per community docs; needs runtime verification
             const rating = data.newRating ? `${(data.newRating / 10).toFixed(1)}%` : '-';
             return [{

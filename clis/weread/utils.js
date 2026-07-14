@@ -98,6 +98,60 @@ function buildShelfSnapshotPollScript(storageKeys, requireTrustedIndexes) {
   `;
 }
 /**
+ * Fetch a WeRead web endpoint with cookies extracted from the browser.
+ * Uses the same-origin web API (weread.qq.com/web/*) which correctly receives
+ * auth cookies, unlike the cross-subdomain i.weread.qq.com private API.
+ */
+export async function fetchWebApiWithCookies(page, path, params) {
+    const url = new URL(`${WEB_API}${path}`);
+    if (params) {
+        for (const [k, v] of Object.entries(params))
+            url.searchParams.set(k, v);
+    }
+    const urlStr = url.toString();
+    const [apiCookies, domainCookies] = await Promise.all([
+        page.getCookies({ url: urlStr }),
+        page.getCookies({ domain: WEREAD_DOMAIN }),
+    ]);
+    const merged = new Map();
+    for (const c of domainCookies)
+        merged.set(c.name, c);
+    for (const c of apiCookies)
+        merged.set(c.name, c);
+    const cookieHeader = buildCookieHeader(Array.from(merged.values()));
+    let resp;
+    try {
+        resp = await fetch(urlStr, {
+            headers: {
+                'User-Agent': WEREAD_UA,
+                'Origin': 'https://weread.qq.com',
+                'Referer': 'https://weread.qq.com/',
+                ...(cookieHeader ? { 'Cookie': cookieHeader } : {}),
+            },
+        });
+    }
+    catch (error) {
+        throw new CliError('FETCH_ERROR', `Failed to fetch ${path}: ${error instanceof Error ? error.message : String(error)}`, 'WeRead API may be temporarily unavailable');
+    }
+    let data;
+    try {
+        data = await resp.json();
+    }
+    catch {
+        throw new CliError('PARSE_ERROR', `Invalid JSON response for ${path}`, 'WeRead may have returned an HTML error page');
+    }
+    if (isAuthErrorResponse(resp, data)) {
+        throw new CliError('AUTH_REQUIRED', 'Not logged in to WeRead', 'Please log in to weread.qq.com in Chrome first');
+    }
+    if (!resp.ok) {
+        throw new CliError('FETCH_ERROR', `HTTP ${resp.status} for ${path}`, 'WeRead API may be temporarily unavailable');
+    }
+    if (data?.errcode != null && data.errcode !== 0) {
+        throw new CliError('API_ERROR', data.errmsg ?? `WeRead API error ${data.errcode}`);
+    }
+    return data;
+}
+/**
  * Fetch a public WeRead web endpoint (Node.js direct fetch).
  * Used by search and ranking commands (browser: false).
  */
