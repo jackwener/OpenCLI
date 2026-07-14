@@ -7,14 +7,49 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 
 const SORTS = {
-  change:   { fid: 'f3',   order: 'desc' },
-  drop:     { fid: 'f3',   order: 'asc' },
-  turnover: { fid: 'f6',   order: 'desc' },
-  price:    { fid: 'f2',   order: 'desc' },
-  premium:  { fid: 'f237', order: 'desc' }, // 转股溢价率
-  value:    { fid: 'f236', order: 'desc' }, // 转股价值
-  ytm:      { fid: 'f239', order: 'desc' }, // 到期收益率
+  change:        { fid: 'f3',   order: 'desc' },
+  drop:          { fid: 'f3',   order: 'asc' },
+  turnover:      { fid: 'f6',   order: 'desc' },
+  price:         { fid: 'f2',   order: 'desc' },
+  premium:       { fid: 'f237', order: 'desc' }, // 转股溢价率
+  value:         { fid: 'f236', order: 'desc' }, // 转股价值
+  // #2109: f239 is the putback trigger price (= convPrice × 0.7), not YTM.
+  // Renamed so `--sort` no longer claims to order by a value it doesn't hold.
+  'put-trigger': { fid: 'f239', order: 'desc' }, // 回售触发价
 };
+
+// Map a raw eastmoney clist `diff` item to an output row.
+//
+// #2109: f238 / f239 were previously emitted as `remainingYears` / `ytm`, but
+// cross-verification (12/12 fingerprint hits) shows f239 is the putback trigger
+// price (= convPrice × 0.7) and f238 is the pure-bond premium %. Real YTM /
+// remaining term are not in this response's `fields`; adding the correct f-codes
+// is a follow-up that needs a live push2 field dump cross-checked against jisilu.
+export function mapConvertibleRow(it, rank) {
+  return {
+    rank,
+    bondCode: it.f12,
+    bondName: it.f14,
+    bondPrice: it.f2,
+    bondChangePct: it.f3,
+    stockCode: it.f232,
+    stockName: it.f234,
+    stockPrice: it.f229,
+    stockChangePct: it.f230,
+    convPrice: it.f235,
+    convValue: it.f236,
+    convPremiumPct: it.f237,
+    pureBondPremiumPct: it.f238,
+    putTriggerPrice: it.f239,
+    listDate: String(it.f243 ?? ''),
+  };
+}
+
+export function mapConvertibleRows(diff, limit) {
+  const list = Array.isArray(diff) ? diff : [];
+  const capped = Number.isInteger(limit) && limit > 0 ? list.slice(0, limit) : list;
+  return capped.map((it, i) => mapConvertibleRow(it, i + 1));
+}
 
 cli({
   site: 'eastmoney',
@@ -25,10 +60,10 @@ cli({
   strategy: Strategy.PUBLIC,
   browser: false,
   args: [
-    { name: 'sort',  type: 'string', default: 'turnover', help: '排序：turnover / change / drop / price / premium' },
+    { name: 'sort',  type: 'string', default: 'turnover', help: '排序：turnover / change / drop / price / premium / value / put-trigger' },
     { name: 'limit', type: 'int',    default: 20,         help: '返回数量 (max 100)' },
   ],
-  columns: ['rank', 'bondCode', 'bondName', 'bondPrice', 'bondChangePct', 'stockCode', 'stockName', 'stockPrice', 'stockChangePct', 'convPrice', 'convValue', 'convPremiumPct', 'remainingYears', 'ytm', 'listDate'],
+  columns: ['rank', 'bondCode', 'bondName', 'bondPrice', 'bondChangePct', 'stockCode', 'stockName', 'stockPrice', 'stockChangePct', 'convPrice', 'convValue', 'convPremiumPct', 'pureBondPremiumPct', 'putTriggerPrice', 'listDate'],
   func: async (args) => {
     const sortKey = String(args.sort ?? 'turnover').toLowerCase();
     const sort = SORTS[sortKey];
@@ -53,22 +88,8 @@ cli({
     const diff = Array.isArray(data?.data?.diff) ? data.data.diff : [];
     if (diff.length === 0) throw new CliError('NO_DATA', 'eastmoney returned no convertible data');
 
-    return diff.slice(0, limit).map((it, i) => ({
-      rank: i + 1,
-      bondCode: it.f12,
-      bondName: it.f14,
-      bondPrice: it.f2,
-      bondChangePct: it.f3,
-      stockCode: it.f232,
-      stockName: it.f234,
-      stockPrice: it.f229,
-      stockChangePct: it.f230,
-      convPrice: it.f235,
-      convValue: it.f236,
-      convPremiumPct: it.f237,
-      remainingYears: it.f238,
-      ytm: it.f239,
-      listDate: String(it.f243 ?? ''),
-    }));
+    return mapConvertibleRows(diff, limit);
   },
 });
+
+export const __test__ = { SORTS, mapConvertibleRow, mapConvertibleRows };
