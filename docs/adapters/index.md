@@ -128,6 +128,7 @@ Run `opencli list` for the live registry.
 | **[steam](./browser/steam.md)**                   | `top-sellers`                                                                                                                                  | 🌐 Public    |
 | **[coingecko](./browser/coingecko.md)**           | `top` `coin` `trending` `exchanges` `categories` `derivatives` `global`                                                                        | 🌐 Public    |
 | **[npm](./browser/npm.md)**                       | `search` `package` `downloads`                                                                                                                 | 🌐 Public    |
+| **[ohpm](./browser/ohpm.md)**                     | `search` `package` `dependents` `keywords`                                                                                                     | 🌐 Public    |
 | **[pypi](./browser/pypi.md)**                     | `package` `downloads`                                                                                                                          | 🌐 Public    |
 | **[crates](./browser/crates.md)**                 | `search` `crate`                                                                                                                               | 🌐 Public    |
 | **[mdn](./browser/mdn.md)**                       | `search`                                                                                                                                       | 🌐 Public    |

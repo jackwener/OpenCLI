@@ -26047,6 +26047,163 @@
     "sourceFile": "oeis/sequence.js"
   },
   {
+    "site": "ohpm",
+    "name": "dependents",
+    "description": "List packages that depend on an OHPM package",
+    "access": "read",
+    "domain": "ohpm.openharmony.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "OHPM package name (e.g. \"@ohos/axios\")"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": false,
+        "help": "Package version; omit for latest"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max dependents (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "version",
+      "dependent",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ohpm/dependents.js",
+    "sourceFile": "ohpm/dependents.js"
+  },
+  {
+    "site": "ohpm",
+    "name": "keywords",
+    "description": "List hot OHPM search keywords",
+    "access": "read",
+    "domain": "ohpm.openharmony.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "rank",
+      "keyword"
+    ],
+    "type": "js",
+    "modulePath": "ohpm/keywords.js",
+    "sourceFile": "ohpm/keywords.js"
+  },
+  {
+    "site": "ohpm",
+    "name": "package",
+    "description": "Single OHPM package metadata (version, downloads, license, repository)",
+    "access": "read",
+    "domain": "ohpm.openharmony.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "OHPM package name (e.g. \"@ohos/axios\")"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "required": false,
+        "help": "Package version; omit for latest"
+      }
+    ],
+    "columns": [
+      "name",
+      "version",
+      "description",
+      "license",
+      "downloads",
+      "likes",
+      "points",
+      "popularity",
+      "fileSize",
+      "fileCount",
+      "repository",
+      "keywords",
+      "publisher",
+      "org",
+      "dependencies",
+      "devDependencies",
+      "dependents",
+      "versions",
+      "published",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ohpm/package.js",
+    "sourceFile": "ohpm/package.js"
+  },
+  {
+    "site": "ohpm",
+    "name": "search",
+    "description": "Search OpenHarmony OHPM third-party packages by keyword",
+    "access": "read",
+    "domain": "ohpm.openharmony.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Package keyword (e.g. \"axios\", \"json\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-50)"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "relevancy",
+        "required": false,
+        "help": "Sort: relevancy, likes, latest"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "latestVersion",
+      "description",
+      "license",
+      "keywords",
+      "likes",
+      "points",
+      "popularity",
+      "publisher",
+      "org",
+      "published",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ohpm/search.js",
+    "sourceFile": "ohpm/search.js"
+  },
+  {
     "site": "ones",
     "name": "login",
     "description": "ONES Project API — login via Chrome Bridge (POST auth/login); stderr prints export hints for ONES_USER_ID / TOKEN",
