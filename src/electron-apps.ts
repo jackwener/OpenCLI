@@ -31,6 +31,14 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
   chatwise:      { port: 9228, processName: 'ChatWise',     bundleId: 'com.chatwise.app',               displayName: 'ChatWise' },
   'discord-app': { port: 9232, processName: 'Discord',      bundleId: 'com.discord.app',                 displayName: 'Discord' },
   'doubao-app':  { port: 9225, processName: 'Doubao',       bundleId: 'com.volcengine.doubao',          displayName: 'Doubao' },
+  'quark-app-cli': {
+    port: 9240,
+    processName: 'QuarkCloudDrive',
+    executableNames: ['QuarkCloudDrive'],
+    bundleId: 'com.quark.clouddrive.desktop',
+    displayName: 'QuarkCloudDrive',
+    extraArgs: ['--brand-clouddrive'],
+  },
   antigravity:   {
     port: 9234,
     processName: 'Antigravity',

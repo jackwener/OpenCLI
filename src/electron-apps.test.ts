@@ -43,6 +43,7 @@ describe('electron-apps registry', () => {
     expect(isElectronApp('qoder')).toBe(true);
     expect(isElectronApp('trae-solo')).toBe(true);
     expect(isElectronApp('trae-cn')).toBe(true);
+    expect(isElectronApp('quark-app-cli')).toBe(true);
   });
 
   it('registers Qoder on its own CDP port', () => {
@@ -62,6 +63,17 @@ describe('electron-apps registry', () => {
     expect(app!.port).toBe(9235);
     expect(app!.processName).toBe('TRAE SOLO');
     expect(app!.bundleId).toBe('com.trae.solo.app');
+  });
+
+  it('registers QuarkCloudDrive with its own CDP port and launch metadata', () => {
+    const app = getElectronApp('quark-app-cli');
+
+    expect(app).toBeDefined();
+    expect(app!.port).toBe(9240);
+    expect(app!.processName).toBe('QuarkCloudDrive');
+    expect(app!.bundleId).toBe('com.quark.clouddrive.desktop');
+    expect(app!.executableNames).toEqual(['QuarkCloudDrive']);
+    expect(app!.extraArgs).toEqual(['--brand-clouddrive']);
   });
 
   it('isElectronApp returns false for non-Electron sites', () => {

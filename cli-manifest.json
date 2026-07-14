@@ -28964,6 +28964,565 @@
     "siteSession": "persistent"
   },
   {
+    "site": "quark-app-cli",
+    "name": "ai-record",
+    "description": "Fetch the raw Quark AI video record by video fid",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "fid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Video fid"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Optional JSON output path"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Fid",
+      "SummaryStatus",
+      "CoursewareStatus",
+      "Output"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/ai-record.js",
+    "sourceFile": "quark-app-cli/ai-record.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "api-context",
+    "description": "Check Quark API context without opening the video player",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "fid",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "positional": true,
+        "help": "Optional video fid to test AI record access"
+      }
+    ],
+    "columns": [
+      "Status",
+      "NoteUrl",
+      "HasRequest",
+      "HasAiRecord",
+      "AiRecordStatus",
+      "Detail"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/api-context.js",
+    "sourceFile": "quark-app-cli/api-context.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "api-list-folder",
+    "description": "List a Quark folder by fid through the desktop API context",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "pdirFid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Folder fid"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return"
+      }
+    ],
+    "columns": [
+      "Name",
+      "Fid",
+      "Size",
+      "RawKeys"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/api-list-folder.js",
+    "sourceFile": "quark-app-cli/api-list-folder.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "export-cloud",
+    "aliases": [
+      "cloud-export"
+    ],
+    "description": "Export Quark video AI summary, transcript, and courseware through Quark APIs without opening the video player",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "fid",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Video fid"
+      },
+      {
+        "name": "pdirFid",
+        "type": "str",
+        "required": true,
+        "help": "Destination Quark Drive folder fid"
+      },
+      {
+        "name": "title",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Video title/base name. Defaults to file info from Quark."
+      },
+      {
+        "name": "summary",
+        "type": "str",
+        "default": "true",
+        "required": false,
+        "help": "Export AI summary docx",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "transcript",
+        "type": "str",
+        "default": "true",
+        "required": false,
+        "help": "Export transcript docx",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "courseware",
+        "type": "str",
+        "default": "true",
+        "required": false,
+        "help": "Export AI courseware doc",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "force",
+        "type": "str",
+        "default": "false",
+        "required": false,
+        "help": "Export even when target file already exists",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "waitSeconds",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Max seconds to wait inside one CDP evaluation. Keep under 30 for batch runs."
+      },
+      {
+        "name": "openTabs",
+        "type": "str",
+        "default": "false",
+        "required": false,
+        "help": "Open Quark video tabs before exporting. Default false keeps this command API-only.",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "checkExisting",
+        "type": "str",
+        "default": "true",
+        "required": false,
+        "help": "Check destination folder for existing files before exporting. Use false when driven by a scanned job list.",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "transcriptTaskId",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Existing subtitle task_id to poll/export before submitting a new transcript task."
+      }
+    ],
+    "columns": [
+      "Artifact",
+      "Status",
+      "FileName",
+      "Fid",
+      "Detail"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/export-cloud.js",
+    "sourceFile": "quark-app-cli/export-cloud.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "export-tree",
+    "description": "Run the project-local Quark AI export pipeline for a folder tree",
+    "access": "write",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "root",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Quark Drive root folder path to scan/export"
+      },
+      {
+        "name": "depth",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Max folder depth to scan when refreshing the job"
+      },
+      {
+        "name": "project-dir",
+        "type": "str",
+        "default": "/Users/yh/me-code/github/OpenCLI",
+        "required": false,
+        "help": "Project directory. Job files are read/written under ./data/jobs here."
+      },
+      {
+        "name": "job",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Optional job file name under ./data/jobs"
+      },
+      {
+        "name": "refresh",
+        "type": "str",
+        "default": "false",
+        "required": false,
+        "help": "Refresh scan before exporting",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "mode",
+        "type": "str",
+        "default": "missing",
+        "required": false,
+        "help": "missing only exports absent artifacts; force asks Quark to export selected artifacts again",
+        "choices": [
+          "missing",
+          "force"
+        ]
+      },
+      {
+        "name": "summary",
+        "type": "str",
+        "default": "true",
+        "required": false,
+        "help": "Include AI summary",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "transcript",
+        "type": "str",
+        "default": "true",
+        "required": false,
+        "help": "Include transcript",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "courseware",
+        "type": "str",
+        "default": "true",
+        "required": false,
+        "help": "Include courseware",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Max videos to process in this run. 0 means no limit."
+      },
+      {
+        "name": "waitSeconds",
+        "type": "int",
+        "default": 12,
+        "required": false,
+        "help": "Seconds to wait for per-video async AI results before exporting."
+      },
+      {
+        "name": "openTabs",
+        "type": "str",
+        "default": "false",
+        "required": false,
+        "help": "Open video AI tabs before exporting. Default false uses API-only export without opening the player.",
+        "choices": [
+          "true",
+          "false"
+        ]
+      },
+      {
+        "name": "checkExisting",
+        "type": "str",
+        "default": "false",
+        "required": false,
+        "help": "Check destination folder inside each export-cloud call. Batch normally relies on the pre-scan.",
+        "choices": [
+          "true",
+          "false"
+        ]
+      }
+    ],
+    "columns": [
+      "Status",
+      "RootPath",
+      "Processed",
+      "Done",
+      "Pending",
+      "Failed",
+      "UnsupportedCourseware",
+      "JobFile",
+      "ReportFile"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/export-tree.js",
+    "sourceFile": "quark-app-cli/export-tree.js"
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "launch",
+    "description": "Launch QuarkCloudDrive with OpenCLI CDP debugging enabled",
+    "access": "write",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "restart",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Kill existing QuarkCloudDrive first"
+      }
+    ],
+    "columns": [
+      "Status",
+      "Endpoint"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/launch.js",
+    "sourceFile": "quark-app-cli/launch.js"
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "open-video",
+    "aliases": [
+      "play-video"
+    ],
+    "description": "Open a Quark video player by visible name or fid",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "input",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Video file name or fid"
+      },
+      {
+        "name": "tab",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Open player with a target tab",
+        "choices": [
+          "video",
+          "summary",
+          "transcript",
+          "courseware",
+          "视频",
+          "AI总结",
+          "文稿",
+          "AI课件"
+        ]
+      }
+    ],
+    "columns": [
+      "Status",
+      "Name",
+      "Fid",
+      "Source",
+      "TargetTab",
+      "Result"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/open-video.js",
+    "sourceFile": "quark-app-cli/open-video.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "scan-tree",
+    "description": "Scan a Quark Drive folder tree and write a project-local AI export job list",
+    "access": "read",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "root",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Quark Drive root folder path to scan"
+      },
+      {
+        "name": "depth",
+        "type": "int",
+        "default": 5,
+        "required": false,
+        "help": "Max folder depth to scan"
+      },
+      {
+        "name": "project-dir",
+        "type": "str",
+        "default": "/Users/yh/me-code/github/OpenCLI",
+        "required": false,
+        "help": "Project directory. Job files are written under ./data/jobs here."
+      },
+      {
+        "name": "job",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Optional job file name under ./data/jobs"
+      }
+    ],
+    "columns": [
+      "Status",
+      "RootPath",
+      "Videos",
+      "Done",
+      "Pending",
+      "MissingSummary",
+      "MissingTranscript",
+      "MissingCourseware",
+      "JobFile"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/scan-tree.js",
+    "sourceFile": "quark-app-cli/scan-tree.js"
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "status",
+    "description": "Check active CDP connection to QuarkCloudDrive and list visible video tabs",
+    "access": "read",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "Status",
+      "Url",
+      "Title",
+      "Ready",
+      "Tabs"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/status.js",
+    "sourceFile": "quark-app-cli/status.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "quark-app-cli",
+    "name": "tab",
+    "aliases": [
+      "open-tab"
+    ],
+    "description": "Open a Quark video panel tab via native bridge: video, summary, transcript, or courseware",
+    "access": "write",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Target tab name",
+        "choices": [
+          "video",
+          "summary",
+          "transcript",
+          "courseware",
+          "视频",
+          "AI总结",
+          "文稿",
+          "AI课件"
+        ]
+      }
+    ],
+    "columns": [
+      "Status",
+      "Tab",
+      "Label",
+      "Target",
+      "Position"
+    ],
+    "type": "js",
+    "modulePath": "quark-app-cli/tab.js",
+    "sourceFile": "quark-app-cli/tab.js",
+    "navigateBefore": true
+  },
+  {
     "site": "qwen",
     "name": "ask",
     "description": "Send a prompt to Qianwen and return the assistant reply",
