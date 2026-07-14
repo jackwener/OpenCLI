@@ -53,7 +53,7 @@ function renderTable(data: unknown, opts: RenderOptions): void {
 
   const header = columns.map(c => capitalize(c));
   const table = new Table({
-    head: header.map(h => h),
+    head: [...header],
     style: { head: [], border: [] },
     wordWrap: true,
     wrapOnWordBoundary: true,
@@ -124,7 +124,7 @@ function renderMarkdown(data: unknown, opts: RenderOptions): void {
   console.log('| ' + columns.join(' | ') + ' |');
   console.log('| ' + columns.map(() => '---').join(' | ') + ' |');
   for (const row of rows) {
-    console.log('| ' + columns.map(c => String((row as Record<string, unknown>)[c] ?? '')).join(' | ') + ' |');
+    console.log('| ' + columns.map(c => String((row as Record<string, unknown>)[c] ?? '').replace(/\|/g, '\\|')).join(' | ') + ' |');
   }
 }
 
