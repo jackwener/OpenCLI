@@ -1,8 +1,9 @@
 /**
  * Unit tests for the 汽车之家 (Autohome) adapter.
  *
- * `brand` parses the catalog HTML; `score` parses koubei __NEXT_DATA__.
- * Both pure parsers run against frozen real-data fixtures (宝马 / series 6548).
+ * `brand` parses the catalog HTML; `score` parses koubei __NEXT_DATA__; `spec`
+ * parses the GBK 车168 cache-API param JSON. All pure parsers run against frozen
+ * real-data fixtures (宝马 / series 6548 / spec 39616).
  */
 
 import { readFileSync } from 'node:fs';
@@ -14,21 +15,25 @@ import { getRegistry, Strategy } from '@jackwener/opencli/registry';
 import {
     BRAND_COLUMNS,
     SCORE_COLUMNS,
+    SPEC_COLUMNS,
     resolveBrandInitial,
     normalizeSeriesId,
+    normalizeSpecId,
     extractPageProps,
     requireLimit,
 } from './utils.js';
 import { parseBrandSeries } from './brand.js';
 import { parseScore } from './score.js';
+import { parseParams } from './spec.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CATALOG = readFileSync(join(__dirname, '__fixtures__/catalog.html'), 'utf8');
 const KOUBEI = JSON.parse(readFileSync(join(__dirname, '__fixtures__/koubei.json'), 'utf8'));
+const PARAM = JSON.parse(readFileSync(join(__dirname, '__fixtures__/param.json'), 'utf8'));
 
 describe('autohome adapter — registration', () => {
-    it('registers brand + score as PUBLIC (no browser)', () => {
-        for (const n of ['brand', 'score']) {
+    it('registers brand + score + spec as PUBLIC (no browser)', () => {
+        for (const n of ['brand', 'score', 'spec']) {
             const cmd = getRegistry().get(`autohome/${n}`);
             expect(cmd, n).toBeTruthy();
             expect(cmd.strategy, n).toBe(Strategy.PUBLIC);
@@ -37,6 +42,7 @@ describe('autohome adapter — registration', () => {
         }
         expect(getRegistry().get('autohome/brand').columns).toEqual(BRAND_COLUMNS);
         expect(getRegistry().get('autohome/score').columns).toEqual(SCORE_COLUMNS);
+        expect(getRegistry().get('autohome/spec').columns).toEqual(SPEC_COLUMNS);
     });
 });
 
@@ -55,6 +61,13 @@ describe('autohome adapter — utils', () => {
         expect(normalizeSeriesId('https://k.autohome.com.cn/6548')).toBe('6548');
         expect(normalizeSeriesId('s6548')).toBe('6548');
         expect(() => normalizeSeriesId('宝马')).toThrow();
+    });
+    it('normalizeSpecId accepts numbers, spec URLs, and specid params', () => {
+        expect(normalizeSpecId('39616')).toBe('39616');
+        expect(normalizeSpecId('https://www.autohome.com.cn/spec/39616/')).toBe('39616');
+        expect(normalizeSpecId('https://cacheapigo.che168.com/CarProduct/GetParam.ashx?specid=39616')).toBe('39616');
+        expect(() => normalizeSpecId('abc')).toThrow();
+        expect(() => normalizeSpecId('')).toThrow();
     });
     it('requireLimit rejects invalid limits instead of silently falling back', () => {
         expect(requireLimit(undefined, 60, 120)).toBe(60);
@@ -111,5 +124,28 @@ describe('autohome adapter — parsers against frozen fixtures', () => {
 
     it('parseScore rejects malformed koubei payloads', () => {
         expect(() => parseScore({}, '6548')).toThrow(/unexpected payload shape/);
+    });
+});
+
+describe('autohome adapter — spec parser against frozen fixture', () => {
+    it('parseParams flattens groups into group/field/value rows', () => {
+        const rows = parseParams(PARAM);
+        expect(rows.length).toBeGreaterThan(0);
+        for (const r of rows) {
+            expect(Object.keys(r).sort()).toEqual([...SPEC_COLUMNS].sort());
+            expect(r.field).toBeTruthy();
+        }
+        const map = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+        expect(map['车型名称']).toContain('宝马3系');
+        expect(map['厂商指导价(元)']).toMatch(/万$/);
+        // groups are preserved
+        const groups = new Set(rows.map((r) => r.group));
+        expect(groups.has('基本参数')).toBe(true);
+        expect(groups.has('发动机')).toBe(true);
+    });
+
+    it('parseParams tolerates an empty / discontinued specid', () => {
+        expect(parseParams({ returncode: 0, result: { specid: 1, paramtypeitems: [] } })).toEqual([]);
+        expect(parseParams({})).toEqual([]);
     });
 });
