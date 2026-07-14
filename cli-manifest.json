@@ -7542,26 +7542,113 @@
   },
   {
     "site": "cnki",
-    "name": "search",
-    "description": "中国知网论文搜索（海外版）",
+    "name": "detail",
+    "description": "CNKI paper detail metadata and abstract extraction",
     "access": "read",
-    "domain": "oversea.cnki.net",
+    "domain": "kns.cnki.net",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "CNKI detail page URL"
+      }
+    ],
+    "columns": [
+      "title",
+      "authors",
+      "journal",
+      "source",
+      "date",
+      "year",
+      "volume",
+      "issue",
+      "pages",
+      "startPage",
+      "endPage",
+      "doi",
+      "classification",
+      "album",
+      "subject",
+      "fund",
+      "onlinePublishedAt",
+      "cnkiId",
+      "abstract",
+      "keywords",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "cnki/detail.js",
+    "sourceFile": "cnki/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "cnki",
+    "name": "search",
+    "description": "CNKI paper search",
+    "access": "read",
+    "domain": "kns.cnki.net",
     "strategy": "cookie",
     "browser": true,
     "args": [
       {
         "name": "query",
         "type": "str",
-        "required": true,
+        "required": false,
         "positional": true,
-        "help": "搜索关键词"
+        "help": "Search query"
       },
       {
         "name": "limit",
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "返回结果数量 (max 20)"
+        "help": "Max results; 0 means all pages OpenCLI can reach"
+      },
+      {
+        "name": "with-abstract",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Open each detail page and extract abstracts"
+      },
+      {
+        "name": "expr",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "CNKI professional search expression, for example: TI=rutting and KY=pavement"
+      },
+      {
+        "name": "field",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "CNKI field for query when --expr is not used: SU,TKA,KY,TI,FT,AU,FI,RP,AF,FU,AB,CO,RF,CLC,LY,DOI,CF"
+      },
+      {
+        "name": "from",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Publish date start, YYYY-MM-DD"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Publish date end, YYYY-MM-DD"
+      },
+      {
+        "name": "types",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated document types: journal,dissertation,conference,newspaper,book,patent,standard,achievement,yearbook"
       }
     ],
     "columns": [
@@ -7570,6 +7657,14 @@
       "authors",
       "journal",
       "date",
+      "year",
+      "volume",
+      "issue",
+      "pages",
+      "doi",
+      "classification",
+      "abstract",
+      "keywords",
       "url"
     ],
     "type": "js",
