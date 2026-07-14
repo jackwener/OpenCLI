@@ -1,8 +1,8 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BrowserCliCommand } from '../registry.js';
+import type { BrowserCliCommand, InternalCliCommand } from '../registry.js';
 
 const executeCommandMock = vi.hoisted(() => vi.fn());
 
@@ -42,6 +42,30 @@ function registerWhoami(site: string, opts: {
 async function tempStatePath(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'opencli-auth-refresh-test-'));
   return join(dir, 'auth-refresh.json');
+}
+
+// Registers a lazy whoami adapter whose module throws at import time, mirroring
+// the manifest registration in discovery.ts (_lazy/_modulePath). loadLazyCommand
+// will `await import(...)` this path and reject — exercising the import-failure path.
+async function registerThrowingLazyWhoami(site: string): Promise<void> {
+  const dir = await mkdtemp(join(tmpdir(), 'opencli-auth-lazy-test-'));
+  const modulePath = join(dir, 'boom.mjs');
+  await writeFile(modulePath, "throw new Error('boom');\n", 'utf8');
+  const lazy: InternalCliCommand = {
+    site,
+    name: 'whoami',
+    description: `${site} whoami`,
+    access: 'read',
+    strategy: Strategy.COOKIE,
+    browser: true,
+    domain: `${site}.example.com`,
+    navigateBefore: false,
+    args: [],
+    columns: ['logged_in', 'site', 'username'],
+    _lazy: true,
+    _modulePath: modulePath,
+  };
+  getRegistry().set(`${site}/whoami`, lazy);
 }
 
 beforeEach(() => {
@@ -116,6 +140,20 @@ describe('auth status collection', () => {
     expect(rows).toEqual([
       { site: 'delta', status: 'not_logged_in', logged_in: false, identity: '', checked: 'quick', error: '' },
     ]);
+  });
+
+  it('degrades a lazy adapter that throws on import to a per-site error row without rejecting', async () => {
+    registerWhoami('alpha', { quick: true, quickLoggedIn: true });
+    await registerThrowingLazyWhoami('broken');
+
+    const rows = await collectAuthStatus({ concurrency: 1 });
+
+    const bySite = Object.fromEntries(rows.map(row => [row.site, row]));
+    expect(bySite.alpha).toEqual({
+      site: 'alpha', status: 'logged_in', logged_in: true, identity: '', checked: 'quick', error: '',
+    });
+    expect(bySite.broken).toMatchObject({ site: 'broken', status: 'error', logged_in: '' });
+    expect(bySite.broken?.error).toContain('boom');
   });
 });
 
@@ -293,5 +331,32 @@ describe('auth refresh collection', () => {
       },
     ]);
     expect(executeCommandMock).not.toHaveBeenCalled();
+  });
+
+  it('degrades a lazy adapter that throws on import to a per-site error row and still saves state', async () => {
+    registerWhoami('theta', { quick: true, quickLoggedIn: true });
+    await registerThrowingLazyWhoami('broken');
+    const statePath = await tempStatePath();
+    const now = new Date('2026-06-06T12:00:00.000Z');
+
+    const rows = await collectAuthRefresh({ statePath, now, concurrency: 1 });
+
+    const bySite = Object.fromEntries(rows.map(row => [row.site, row]));
+    expect(bySite.theta?.status).toBe('touched');
+    expect(bySite.broken).toMatchObject({ site: 'broken', status: 'error' });
+    expect(bySite.broken?.error).toContain('boom');
+
+    // State file is still written even though one adapter import failed, and the
+    // failing site records its attempt with last_status: 'error' (no last_touched_at).
+    const state = JSON.parse(await readFile(statePath, 'utf8'));
+    expect(state.sites.theta).toMatchObject({
+      last_touched_at: now.toISOString(),
+      last_status: 'touched',
+    });
+    expect(state.sites.broken).toMatchObject({
+      last_attempt_at: now.toISOString(),
+      last_status: 'error',
+    });
+    expect(state.sites.broken.last_touched_at).toBeUndefined();
   });
 });
