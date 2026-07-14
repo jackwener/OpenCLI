@@ -501,6 +501,33 @@ describe('chatgpt model selection validation', () => {
         expect(page.nativeClick).not.toHaveBeenCalled();
     });
 
+    it('accepts an eligible exact model config when the picker only exposes generic Pro', async () => {
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+        let objectCall = 0;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: '__Secure-next-auth.session-token', value: 'cookie', domain: '.chatgpt.com' }]),
+            evaluate: vi.fn((script) => {
+                if (script === 'window.location.href') return Promise.resolve('https://chatgpt.com/c/demo');
+                if (String(script).includes('oai-last-model-config')) return Promise.resolve(true);
+                objectCall += 1;
+                if (objectCall === 1) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 2) return Promise.resolve({ model: 'pro', label: 'Pro' });
+                if (objectCall === 3) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
+                if (objectCall === 4) return Promise.resolve({ model: 'pro', label: 'Pro' });
+                return Promise.resolve({ found: false });
+            }),
+        };
+
+        await expect(selectChatGPTModel(page, 'gpt-5.6'))
+            .resolves.toEqual({ Status: 'Success', Model: 'GPT-5.6 Pro' });
+        expect(page.nativeClick).not.toHaveBeenCalled();
+    });
+
     it('falls back to the visible picker when the model config API does not prove selection', async () => {
         vi.spyOn(globalThis, 'fetch')
             .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))

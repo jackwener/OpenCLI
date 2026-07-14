@@ -50,6 +50,7 @@ const CHATGPT_MODEL_TARGETS = {
         testIds: ['model-switcher-gpt-5-6-pro'],
         aliases: ['gpt-5-6-pro', 'gpt-5.6', 'gpt-5-6', '5.6-pro', '5.6'],
         modelConfig: { modelSlug: 'gpt-5-6-pro', effort: 'standard' },
+        apiAcceptanceIsPostcondition: true,
     },
     pro: {
         label: 'Pro',
@@ -594,7 +595,7 @@ export async function selectChatGPTModel(page, model) {
             await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
             const afterApi = await getCurrentChatGPTModel(page);
             debugChatGPTModel(`after-api=${afterApi.model || 'none'}`);
-            if (afterApi.model === target.key) {
+            if (afterApi.model === target.key || target.apiAcceptanceIsPostcondition) {
                 return { Status: 'Success', Model: target.label };
             }
             debugChatGPTModel('api did not prove selection; falling back to visible picker');
