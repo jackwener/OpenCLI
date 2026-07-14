@@ -2627,6 +2627,170 @@
     "sourceFile": "apple-podcasts/top.js"
   },
   {
+    "site": "archive",
+    "name": "item",
+    "description": "Fetch metadata for a single Internet Archive item by identifier.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "identifier",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Archive item identifier (e.g. \"open-syllabus\", \"FinalFantasy2_356\")."
+      }
+    ],
+    "columns": [
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "collection",
+      "description",
+      "file_count",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/item.js",
+    "sourceFile": "archive/item.js"
+  },
+  {
+    "site": "archive",
+    "name": "search",
+    "description": "Search Internet Archive items across books, movies, audio, software, and web.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Full-text query (matches title, description, creator, subject)."
+      },
+      {
+        "name": "mediatype",
+        "type": "string",
+        "required": false,
+        "help": "Restrict to mediatype: texts, movies, audio, software, image, web, data, collection"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "downloads",
+        "required": false,
+        "help": "Sort key: downloads, date, addeddate, week, title"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max items (max 100; one API page)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "identifier",
+      "title",
+      "creator",
+      "date",
+      "mediatype",
+      "downloads",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "archive/search.js",
+    "sourceFile": "archive/search.js"
+  },
+  {
+    "site": "archive",
+    "name": "snapshots",
+    "description": "List Wayback Machine snapshots over time for a URL via the CDX API.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "required": false,
+        "help": "Earliest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": false,
+        "help": "Latest year/timestamp (YYYY[MM[DD[hh[mm[ss]]]]])"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max snapshots to return (max 1000)."
+      }
+    ],
+    "columns": [
+      "timestamp",
+      "snapshot_url",
+      "status",
+      "mimetype",
+      "original_url"
+    ],
+    "type": "js",
+    "modulePath": "archive/snapshots.js",
+    "sourceFile": "archive/snapshots.js"
+  },
+  {
+    "site": "archive",
+    "name": "wayback",
+    "description": "Look up the closest Wayback Machine snapshot for a URL.",
+    "access": "read",
+    "domain": "archive.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "url",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "URL to look up (with or without scheme)."
+      },
+      {
+        "name": "timestamp",
+        "type": "string",
+        "required": false,
+        "help": "Target timestamp (YYYY[MM[DD[hh[mm[ss]]]]] or ISO date). Defaults to most recent snapshot."
+      }
+    ],
+    "columns": [
+      "original_url",
+      "requested_timestamp",
+      "snapshot_timestamp",
+      "snapshot_url",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "archive/wayback.js",
+    "sourceFile": "archive/wayback.js"
+  },
+  {
     "site": "arxiv",
     "name": "author",
     "description": "List arXiv papers by a given author (newest first)",
@@ -2763,6 +2927,70 @@
     "type": "js",
     "modulePath": "arxiv/search.js",
     "sourceFile": "arxiv/search.js"
+  },
+  {
+    "site": "autohome",
+    "name": "brand",
+    "aliases": [
+      "series"
+    ],
+    "description": "汽车之家按品牌列出全部车系 + 厂商指导价（免登录）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "brand",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "品牌名（宝马 / 比亚迪 / 理想 / 丰田 …）或车系目录首字母 A-Z"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "返回的车系数量（最多 120）"
+      }
+    ],
+    "columns": [
+      "series_id",
+      "name",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "autohome/brand.js",
+    "sourceFile": "autohome/brand.js"
+  },
+  {
+    "site": "autohome",
+    "name": "score",
+    "aliases": [
+      "koubei",
+      "rating"
+    ],
+    "description": "汽车之家车系口碑评分（总分 + 各维度 + 故障率PPH + 竞品对比，免登录）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 brand 的 series_id，或 k.autohome.com.cn/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "autohome/score.js",
+    "sourceFile": "autohome/score.js"
   },
   {
     "site": "baidu-scholar",
@@ -3382,6 +3610,12 @@
         "default": false,
         "required": false,
         "help": "跳过付费内容预检直接下载（已购买/已充电/已开通会员时用）"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频下载该集；缺省下载默认 P1"
       }
     ],
     "columns": [
@@ -3829,6 +4063,12 @@
         "type": "str",
         "required": false,
         "help": "字幕语言代码 (如 zh-CN, en-US, ai-zh)，默认取第一个"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频取该集字幕；缺省取默认 P1"
       }
     ],
     "columns": [
@@ -3961,6 +4201,12 @@
         "required": true,
         "positional": true,
         "help": "BV ID, video URL, or b23.tv short link"
+      },
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "help": "分P 选集序号（从 1 开始）。多 P 视频指定某一集，title/cid 返回该集；缺省取整集默认（P1）"
       }
     ],
     "columns": [
@@ -5960,6 +6206,13 @@
         "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
       },
       {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
+      },
+      {
         "name": "wait",
         "type": "boolean",
         "default": true,
@@ -5990,6 +6243,68 @@
     "type": "js",
     "modulePath": "chatgpt/ask.js",
     "sourceFile": "chatgpt/ask.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "deep-research-result",
+    "description": "Read a completed ChatGPT Deep Research report from the conversation payload",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation ID or full /c/<id> URL"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Wait until Deep Research completes or becomes extractable"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 120,
+        "required": false,
+        "help": "Max seconds to wait when --wait is true"
+      },
+      {
+        "name": "stable",
+        "type": "int",
+        "default": 6,
+        "required": false,
+        "help": "Seconds the report text must remain unchanged when --wait is true"
+      }
+    ],
+    "columns": [
+      "conversationId",
+      "status",
+      "report",
+      "sources",
+      "progress",
+      "asyncTaskConversationId",
+      "widgetSessionId",
+      "asyncStatus",
+      "venusMessageType",
+      "venusStatus",
+      "waitingForUserUntil",
+      "planTitle",
+      "planId",
+      "url",
+      "method",
+      "diagnostics"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/deep-research-result.js",
+    "sourceFile": "chatgpt/deep-research-result.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -6103,6 +6418,13 @@
         "help": "Local image path to attach before prompting; comma-separated paths are supported"
       },
       {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start image generation inside a ChatGPT project ID or /g/g-p-<id> URL"
+      },
+      {
         "name": "op",
         "type": "str",
         "required": false,
@@ -6169,7 +6491,7 @@
   {
     "site": "chatgpt",
     "name": "model",
-    "description": "Switch ChatGPT web model/mode (instant, thinking, pro)",
+    "description": "Switch ChatGPT web intelligence level (fast, balanced, advanced, very-high, pro)",
     "access": "write",
     "domain": "chatgpt.com",
     "strategy": "cookie",
@@ -6180,12 +6502,37 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Model/mode to switch to",
+        "help": "Intelligence level to switch to",
         "choices": [
+          "fast",
+          "speed",
           "instant",
+          "极速",
+          "balanced",
+          "balance",
+          "medium",
+          "均衡",
+          "advanced",
+          "high",
           "thinking",
-          "pro"
+          "高级",
+          "very-high",
+          "ultra",
+          "xhigh",
+          "x-high",
+          "extra-high",
+          "超高",
+          "pro",
+          "professional",
+          "专业"
         ]
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Open a ChatGPT project ID or /g/g-p-<id> URL before switching intelligence level"
       }
     ],
     "columns": [
@@ -6206,13 +6553,83 @@
     "domain": "chatgpt.com",
     "strategy": "cookie",
     "browser": true,
-    "args": [],
+    "args": [
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
+      }
+    ],
     "columns": [
       "Status"
     ],
     "type": "js",
     "modulePath": "chatgpt/new.js",
     "sourceFile": "chatgpt/new.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "project-file-add",
+    "description": "Upload files to a ChatGPT project as project knowledge (not just conversation attachments)",
+    "access": "write",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Local file path(s) to upload; comma-separated paths are supported"
+      },
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "help": "Project ID or /g/g-p-<id> URL"
+      }
+    ],
+    "columns": [
+      "Status",
+      "File"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/project-file-add.js",
+    "sourceFile": "chatgpt/project-file-add.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "chatgpt",
+    "name": "project-list",
+    "description": "List visible ChatGPT projects from the sidebar",
+    "access": "read",
+    "domain": "chatgpt.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max projects to show"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Id",
+      "Title",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "chatgpt/project-list.js",
+    "sourceFile": "chatgpt/project-list.js",
     "navigateBefore": false,
     "siteSession": "persistent"
   },
@@ -6273,6 +6690,13 @@
         "required": false,
         "valueRequired": true,
         "help": "Continue an existing ChatGPT conversation ID or /c/<id> URL"
+      },
+      {
+        "name": "project",
+        "type": "str",
+        "required": false,
+        "valueRequired": true,
+        "help": "Start a new chat inside a ChatGPT project ID or /g/g-p-<id> URL"
       }
     ],
     "columns": [
@@ -10293,6 +10717,203 @@
     "sourceFile": "dockerhub/search.js"
   },
   {
+    "site": "dongchedi",
+    "name": "koubei",
+    "aliases": [
+      "reviews"
+    ],
+    "description": "懂车帝车系口碑/车主评价（评分 / 购车款型 / 点赞 / 评论 / 正文摘要）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回的口碑条数（最多 15，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "user",
+      "car",
+      "score",
+      "likes",
+      "comments",
+      "content",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/koubei.js",
+    "sourceFile": "dongchedi/koubei.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "models",
+    "aliases": [
+      "trims"
+    ],
+    "description": "懂车帝车系款型列表（car_id / 名称 / 年款 / 指导价 / 经销商价 / 车主成交价）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "default": "online",
+        "required": false,
+        "help": "在售 online（默认）或停售 offline"
+      }
+    ],
+    "columns": [
+      "car_id",
+      "name",
+      "year",
+      "official_price",
+      "dealer_price",
+      "owner_price"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/models.js",
+    "sourceFile": "dongchedi/models.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "score",
+    "aliases": [
+      "rating"
+    ],
+    "description": "懂车帝车系评分（懂车分 8 维度 + 同级车均值对比）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "dimension",
+      "score",
+      "same_level_avg"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/score.js",
+    "sourceFile": "dongchedi/score.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "search",
+    "description": "懂车帝车系搜索（按关键词，返回车系 + 指导价/经销商价）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词，例如 \"宝马X5\" 或 \"汉兰达\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "required": false,
+        "help": "返回的车系数量（最多 30）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "series_id",
+      "name",
+      "brand",
+      "official_price",
+      "dealer_price",
+      "pictures",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/search.js",
+    "sourceFile": "dongchedi/search.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "series",
+    "aliases": [
+      "detail"
+    ],
+    "description": "懂车帝车系概览（品牌 / 指导价 / 二手价 / 懂车分 / 销量排名 / 在售款型数）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/series.js",
+    "sourceFile": "dongchedi/series.js"
+  },
+  {
+    "site": "dongchedi",
+    "name": "specs",
+    "aliases": [
+      "config"
+    ],
+    "description": "懂车帝车系配置概览（尺寸 / 动力 / 发动机 / 变速箱 / 四驱 / 悬挂 / 气囊）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "series_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车系 ID（来自 search 的 series_id，或 /auto/series/<id> URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "dongchedi/specs.js",
+    "sourceFile": "dongchedi/specs.js"
+  },
+  {
     "site": "douban",
     "name": "book-hot",
     "description": "豆瓣图书热门榜单",
@@ -12905,7 +13526,7 @@
     "type": "js",
     "modulePath": "facebook/search.js",
     "sourceFile": "facebook/search.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",
@@ -13119,6 +13740,12 @@
         "help": "Prompt to send"
       },
       {
+        "name": "model",
+        "type": "string",
+        "required": false,
+        "help": "Gemini model to use (e.g. \"2.5-flash\"). Use \"opencli gemini models\" to list available values."
+      },
+      {
         "name": "timeout",
         "type": "int",
         "default": 60,
@@ -13131,6 +13758,13 @@
         "default": "false",
         "required": false,
         "help": "Start a new chat first (true/false, default: false)"
+      },
+      {
+        "name": "thinking",
+        "type": "str",
+        "default": null,
+        "required": false,
+        "help": "Thinking level: standard or extended (omitted = leave unchanged)"
       }
     ],
     "columns": [
@@ -13385,6 +14019,25 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "gemini",
+    "name": "models",
+    "description": "List available Gemini models from the web UI",
+    "access": "read",
+    "domain": "gemini.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "model",
+      "thinkingValues"
+    ],
+    "type": "js",
+    "modulePath": "gemini/models.js",
+    "sourceFile": "gemini/models.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "gemini",
@@ -13933,6 +14586,51 @@
     "sourceFile": "github/auth.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "github-trending",
+    "name": "repos",
+    "description": "GitHub Trending repositories (public, no login). Filter by --language and --since.",
+    "access": "read",
+    "domain": "github.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "since",
+        "type": "string",
+        "default": "daily",
+        "required": false,
+        "help": "Time range: daily / weekly / monthly"
+      },
+      {
+        "name": "language",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by programming language slug, e.g. python, rust, \"c++\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of repositories to return (max 25)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "repo",
+      "description",
+      "language",
+      "stars",
+      "forks",
+      "starsSince",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "github-trending/repos.js",
+    "sourceFile": "github-trending/repos.js"
   },
   {
     "site": "google",
@@ -14926,6 +15624,74 @@
     "siteSession": "persistent"
   },
   {
+    "site": "guazi",
+    "name": "browse",
+    "aliases": [
+      "list"
+    ],
+    "description": "瓜子二手车在售车源列表（按城市，含售价/首付/里程/年份）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "城市名（北京/上海/...）或瓜子城市码（bj/sh/...）。默认 bj 北京"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回的车源数量（最多 40，单页 SSR 上限）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "clue_id",
+      "title",
+      "price",
+      "down_payment",
+      "mileage",
+      "year",
+      "city",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "guazi/browse.js",
+    "sourceFile": "guazi/browse.js"
+  },
+  {
+    "site": "guazi",
+    "name": "car",
+    "aliases": [
+      "detail"
+    ],
+    "description": "瓜子二手车车源详情（售价 / 上牌 / 里程 / 过户 / 配置 / 车况）",
+    "access": "read",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "clue_id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "车源 ID（来自 browse 的 clue_id，或 /car-detail/c<id>.html URL）"
+      }
+    ],
+    "columns": [
+      "field",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "guazi/car.js",
+    "sourceFile": "guazi/car.js"
+  },
+  {
     "site": "hackernews",
     "name": "ask",
     "description": "Hacker News Ask HN posts",
@@ -15516,6 +16282,916 @@
     "sourceFile": "hf/auth.js",
     "navigateBefore": false,
     "siteSession": "persistent"
+  },
+  {
+    "site": "hltv",
+    "name": "event-matches",
+    "description": "Read visible HLTV stats match rows for a specific event",
+    "access": "read",
+    "example": "opencli hltv event-matches 8301 --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "event",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Event id, /events/:id URL, or stats URL with event="
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to return from the visible stats matches table (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "eventId",
+      "team",
+      "opponent",
+      "score",
+      "map",
+      "matchStatsId",
+      "matchStatsUrl",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/event-matches.js",
+    "sourceFile": "hltv/event-matches.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "match-map",
+    "description": "Read a single HLTV mapstats page and return all player rows for that map",
+    "access": "read",
+    "example": "opencli hltv match-map \"https://www.hltv.org/stats/matches/mapstatsid/231594/falcons-vs-natus-vincere\" -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "match",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Full HLTV /stats/matches/mapstatsid/:id/:slug URL from player-matches"
+      }
+    ],
+    "columns": [
+      "matchStatsId",
+      "playerId",
+      "playerName",
+      "team",
+      "kills",
+      "deaths",
+      "adr",
+      "kastPct",
+      "rating",
+      "opKd",
+      "details",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hltv/match-map.js",
+    "sourceFile": "hltv/match-map.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "match-series",
+    "description": "Expand an HLTV match or stats series into summary, map, and player rows",
+    "access": "read",
+    "example": "opencli hltv match-series https://www.hltv.org/stats/matches/126993/spirit-vs-falcons -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "match",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "HLTV match, stats series, or mapstats URL"
+      }
+    ],
+    "columns": [
+      "rowType",
+      "date",
+      "event",
+      "map",
+      "team",
+      "opponent",
+      "score",
+      "matchStatsId",
+      "playerId",
+      "playerName",
+      "rating",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/match-series.js",
+    "sourceFile": "hltv/match-series.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-duel",
+    "description": "Compare two HLTV players on shared maps, including direct kill matrix when available",
+    "access": "read",
+    "example": "opencli hltv player-duel 19230/m0nesy 3741/niko --match https://www.hltv.org/stats/matches/mapstatsid/231594/falcons-vs-natus-vincere -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "playerA",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "First player ref: 19230/m0nesy, player URL, or stats player URL"
+      },
+      {
+        "name": "playerB",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Second player ref: 3741/niko, player URL, or stats player URL"
+      },
+      {
+        "name": "match",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional HLTV match, stats series, or mapstats URL"
+      },
+      {
+        "name": "mode",
+        "type": "string",
+        "default": "lastEncounter",
+        "required": false,
+        "help": "lastEncounter / intersection / history. Ignored when --match is provided"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset for broad mode; must be a multiple of 100"
+      },
+      {
+        "name": "recentMaps",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "lastEncounter mode candidate maps from playerA to scan (max 500)"
+      },
+      {
+        "name": "scanPages",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Broad mode pages to scan, 100 rows each (max 5)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum shared maps to compare (max 100)"
+      }
+    ],
+    "columns": [
+      "rowType",
+      "scope",
+      "date",
+      "event",
+      "map",
+      "matchStatsId",
+      "playerAId",
+      "playerBId",
+      "ratingDiff",
+      "killDiff",
+      "directKillDiff",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-duel.js",
+    "sourceFile": "hltv/player-duel.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-form",
+    "description": "Aggregate recent HLTV player maps into form summaries grouped by summary, map, and opponent",
+    "access": "read",
+    "example": "opencli hltv player-form --player 19230/m0nesy --limit 30 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats matches URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Recent maps to aggregate from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "playerId",
+      "nickname",
+      "maps",
+      "avgRating",
+      "kdRatio",
+      "killsPerMap",
+      "plusMinusTotal",
+      "winMaps",
+      "lossMaps",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-form.js",
+    "sourceFile": "hltv/player-form.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-map-pool",
+    "description": "Aggregate a player matches page into per-map performance buckets",
+    "access": "read",
+    "example": "opencli hltv player-map-pool --player 3741/niko --limit 50 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats player URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Recent maps to aggregate from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "playerId",
+      "nickname",
+      "maps",
+      "avgRating",
+      "kdRatio",
+      "killsPerMap",
+      "plusMinusTotal",
+      "winMaps",
+      "lossMaps",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-map-pool.js",
+    "sourceFile": "hltv/player-map-pool.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-matches",
+    "description": "Read HLTV player match history from the stats Matches tab",
+    "access": "read",
+    "example": "opencli hltv player-matches --player 3741/niko --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats matches URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to return from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "playerTeam",
+      "opponent",
+      "map",
+      "kills",
+      "deaths",
+      "plusMinus",
+      "rating",
+      "playerId",
+      "matchStatsId",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-matches.js",
+    "sourceFile": "hltv/player-matches.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-summary",
+    "description": "Read an HLTV player summary page",
+    "access": "read",
+    "example": "opencli hltv player-summary --player 3741/niko -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko or https://www.hltv.org/player/3741/niko"
+      }
+    ],
+    "columns": [
+      "playerId",
+      "slug",
+      "nickname",
+      "fullName",
+      "age",
+      "teamName",
+      "prizeMoneyUsd",
+      "maps",
+      "rating",
+      "roles",
+      "completeStatsUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-summary.js",
+    "sourceFile": "hltv/player-summary.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-teammate-impact",
+    "description": "Compare playerA maps with and without playerB present in the scanned sample",
+    "access": "read",
+    "example": "opencli hltv player-teammate-impact 3741/niko 19230/m0nesy --limit 50 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "playerA",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Primary player ref"
+      },
+      {
+        "name": "playerB",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Teammate player ref"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to scan for each player from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "playerId",
+      "maps",
+      "avgRating",
+      "kdRatio",
+      "killsPerMap",
+      "plusMinusTotal",
+      "winMaps",
+      "lossMaps",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-teammate-impact.js",
+    "sourceFile": "hltv/player-teammate-impact.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "player-vs-team",
+    "description": "Filter a player matches page to maps played against a specific HLTV team",
+    "access": "read",
+    "example": "opencli hltv player-vs-team 7020/spirit --player 3741/niko --limit 20 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "player",
+        "type": "string",
+        "default": "3741/niko",
+        "required": false,
+        "help": "Player ref: 3741/niko, player URL, or stats player URL"
+      },
+      {
+        "name": "team",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Team ref: 7020/spirit, team URL, or stats team URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to scan from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "rowType",
+      "rank",
+      "date",
+      "playerId",
+      "opponent",
+      "map",
+      "kills",
+      "deaths",
+      "rating",
+      "result",
+      "matchStatsId",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/player-vs-team.js",
+    "sourceFile": "hltv/player-vs-team.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "search",
+    "description": "Search HLTV players, teams, events, and articles",
+    "access": "read",
+    "example": "opencli hltv search niko --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword, e.g. niko"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Maximum rows per result type (max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "id",
+      "name",
+      "title",
+      "date",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "hltv/search.js",
+    "sourceFile": "hltv/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "team-map-pool",
+    "description": "Read the visible HLTV team map-pool page with win rate, pick rate, and ban rate",
+    "access": "read",
+    "example": "opencli hltv team-map-pool 11283/falcons -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "team",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Team ref: 11283/falcons, team URL, or stats team URL"
+      }
+    ],
+    "columns": [
+      "category",
+      "key",
+      "teamId",
+      "team",
+      "maps",
+      "winMaps",
+      "lossMaps",
+      "winRatePct",
+      "avgRoundDiff",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/team-map-pool.js",
+    "sourceFile": "hltv/team-map-pool.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "hltv",
+    "name": "team-matches",
+    "description": "Read recent HLTV team map results from the stats team matches page",
+    "access": "read",
+    "example": "opencli hltv team-matches 6667/falcons --limit 10 -f json",
+    "domain": "www.hltv.org",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "team",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Team ref: 6667/falcons, team URL, or stats team URL"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / lastMonth / last3Months / last6Months / last12Months / YYYY / YYYY-MM-DD:YYYY-MM-DD"
+      },
+      {
+        "name": "eventType",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / majors / bigEvents / mvpEvents / lan / online"
+      },
+      {
+        "name": "event",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / event id / /events/:id URL / stats URL with event="
+      },
+      {
+        "name": "ranking",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / top5 / top10 / top20 / top30 / top50"
+      },
+      {
+        "name": "map",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ancient / anubis / dust2 / inferno / mirage / nuke / overpass / cache / cobblestone / season / train / tuscan / vertigo"
+      },
+      {
+        "name": "version",
+        "type": "string",
+        "default": "both",
+        "required": false,
+        "help": "both / cs2 / csgo"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Pagination offset; must be a multiple of 100"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "Rows to return from the current page (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "team",
+      "opponent",
+      "map",
+      "result",
+      "teamId",
+      "matchStatsId",
+      "details"
+    ],
+    "type": "js",
+    "modulePath": "hltv/team-matches.js",
+    "sourceFile": "hltv/team-matches.js",
+    "navigateBefore": false
   },
   {
     "site": "homebrew",
@@ -18183,6 +19859,87 @@
     "sourceFile": "jira/search.js"
   },
   {
+    "site": "juejin",
+    "name": "hot",
+    "description": "Juejin (掘金) hot article ranking, optionally scoped to a category",
+    "access": "read",
+    "domain": "api.juejin.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "string",
+        "required": false,
+        "help": "Category slug or numeric id. Slugs: backend, frontend, android, ios, ai. Defaults to \"backend\"."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max articles (1-50)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "article_id",
+      "title",
+      "brief",
+      "views",
+      "likes",
+      "comments",
+      "hot_rank",
+      "author",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "juejin/hot.js",
+    "sourceFile": "juejin/hot.js"
+  },
+  {
+    "site": "juejin",
+    "name": "recommend",
+    "description": "Juejin (掘金) homepage recommended article feed",
+    "access": "read",
+    "domain": "api.juejin.cn",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max articles (1-100, single page)."
+      },
+      {
+        "name": "cursor",
+        "type": "string",
+        "default": "0",
+        "required": false,
+        "help": "Pagination cursor; pass back the previous response's next-page cursor to keep scrolling."
+      }
+    ],
+    "columns": [
+      "rank",
+      "article_id",
+      "title",
+      "brief",
+      "views",
+      "likes",
+      "comments",
+      "author",
+      "tags",
+      "url",
+      "next_cursor",
+      "has_more"
+    ],
+    "type": "js",
+    "modulePath": "juejin/recommend.js",
+    "sourceFile": "juejin/recommend.js"
+  },
+  {
     "site": "ke",
     "name": "chengjiao",
     "description": "贝壳找房成交记录",
@@ -19965,6 +21722,40 @@
   },
   {
     "site": "linkedin",
+    "name": "company",
+    "description": "Read a LinkedIn company page: industry, size, HQ, founded, website, followers, about",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "company",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Company universal name (nvidia), /company/<name> path, or full URL"
+      }
+    ],
+    "columns": [
+      "name",
+      "industry",
+      "size",
+      "headquarters",
+      "founded",
+      "website",
+      "specialties",
+      "followers",
+      "about",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/company.js",
+    "sourceFile": "linkedin/company.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "connect",
     "description": "Fail-closed LinkedIn connection request sender that verifies the exact profile before optionally sending a note",
     "access": "write",
@@ -20020,6 +21811,36 @@
     "modulePath": "linkedin/connect.js",
     "sourceFile": "linkedin/connect.js",
     "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "connections",
+    "description": "List your LinkedIn first-degree connections (name, headline, profile URL)",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of connections to return (max 500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "occupation",
+      "public_id",
+      "connected_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/connections.js",
+    "sourceFile": "linkedin/connections.js",
+    "navigateBefore": "https://www.linkedin.com"
   },
   {
     "site": "linkedin",
@@ -22352,6 +24173,200 @@
     "modulePath": "medium/user.js",
     "sourceFile": "medium/user.js",
     "navigateBefore": "https://medium.com"
+  },
+  {
+    "site": "mercury",
+    "name": "check-login",
+    "description": "Open Mercury reimbursements and report whether the active browser profile is logged in",
+    "access": "read",
+    "example": "opencli --profile <profile> mercury check-login -f json",
+    "domain": "app.mercury.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "status",
+      "loggedIn",
+      "url",
+      "hasSubmitExpense",
+      "hasReimbursements",
+      "title"
+    ],
+    "type": "js",
+    "modulePath": "mercury/check-login.js",
+    "sourceFile": "mercury/check-login.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "mercury",
+    "name": "reimbursement-draft",
+    "description": "Create a Mercury reimbursement draft from a local receipt, correct OCR fields, and stop at Review",
+    "access": "write",
+    "example": "opencli --profile <profile> mercury reimbursement-draft --receipt /tmp/receipt.png --amount 140.00 --currency CNY --date 2026-06-26 --merchant \"Example Merchant\" --category \"Marketing & Advertising\" --notes \"Example business purpose.\" -f json",
+    "domain": "app.mercury.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "receipt",
+        "type": "str",
+        "required": true,
+        "help": "Local receipt/proof file path"
+      },
+      {
+        "name": "amount",
+        "type": "str",
+        "required": true,
+        "help": "Original-currency amount, e.g. 140.00"
+      },
+      {
+        "name": "currency",
+        "type": "str",
+        "default": "CNY",
+        "required": false,
+        "help": "Original currency code"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Expense date as YYYY-MM-DD"
+      },
+      {
+        "name": "merchant",
+        "type": "str",
+        "required": true,
+        "help": "Merchant shown on the reimbursement"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "default": "Marketing & Advertising",
+        "required": false,
+        "help": "Mercury expense category"
+      },
+      {
+        "name": "notes",
+        "type": "str",
+        "required": true,
+        "help": "Business purpose / reimbursement notes"
+      },
+      {
+        "name": "ocr-wait-seconds",
+        "type": "str",
+        "default": "8",
+        "required": false,
+        "help": "Seconds to wait after receipt upload before correcting OCR-overwritten fields"
+      },
+      {
+        "name": "close-after-review",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Close the Review dialog after verification; final Submit is still never clicked"
+      }
+    ],
+    "columns": [
+      "status",
+      "url",
+      "receipt",
+      "uploaded",
+      "fieldsTouched",
+      "reviewReady",
+      "submitBlocked",
+      "warnings"
+    ],
+    "type": "js",
+    "modulePath": "mercury/reimbursement-draft.js",
+    "sourceFile": "mercury/reimbursement-draft.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "mercury",
+    "name": "reimbursement-plan",
+    "description": "Validate Mercury reimbursement inputs and print the draft plan without opening a browser",
+    "access": "read",
+    "example": "opencli mercury reimbursement-plan --receipt /tmp/receipt.png --amount 140.00 --currency CNY --date 2026-06-26 --merchant \"Example Merchant\" --category \"Marketing & Advertising\" --notes \"Example business purpose.\" -f json",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "receipt",
+        "type": "str",
+        "required": true,
+        "help": "Local receipt/proof file path"
+      },
+      {
+        "name": "amount",
+        "type": "str",
+        "required": true,
+        "help": "Original-currency amount, e.g. 140.00"
+      },
+      {
+        "name": "currency",
+        "type": "str",
+        "default": "CNY",
+        "required": false,
+        "help": "Original currency code"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Expense date as YYYY-MM-DD"
+      },
+      {
+        "name": "merchant",
+        "type": "str",
+        "required": true,
+        "help": "Merchant shown on the reimbursement"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "default": "Marketing & Advertising",
+        "required": false,
+        "help": "Mercury expense category"
+      },
+      {
+        "name": "notes",
+        "type": "str",
+        "required": true,
+        "help": "Business purpose / reimbursement notes"
+      },
+      {
+        "name": "ocr-wait-seconds",
+        "type": "str",
+        "default": "8",
+        "required": false,
+        "help": "Seconds the draft command waits after receipt upload before correcting OCR fields"
+      },
+      {
+        "name": "close-after-review",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "For draft command: close the Review dialog after verification"
+      }
+    ],
+    "columns": [
+      "status",
+      "receipt",
+      "amount",
+      "currency",
+      "date",
+      "merchant",
+      "category",
+      "notes",
+      "safety"
+    ],
+    "type": "js",
+    "modulePath": "mercury/reimbursement-plan.js",
+    "sourceFile": "mercury/reimbursement-plan.js"
   },
   {
     "site": "mubu",
@@ -28715,6 +30730,160 @@
     "sourceFile": "rubygems/search.js"
   },
   {
+    "site": "semanticscholar",
+    "name": "citations",
+    "description": "List papers that cite a Semantic Scholar paper (paginated)",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max citing papers (1-1000, single Semantic Scholar page)"
+      },
+      {
+        "name": "offset",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Page offset (0-based)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/citations.js",
+    "sourceFile": "semanticscholar/citations.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "paper",
+    "description": "Semantic Scholar paper detail (citation graph + AI tldr) by paperId, DOI, or arXiv id",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id (e.g. \"ARXIV:1706.03762\", \"PMID:12345\")"
+      }
+    ],
+    "columns": [
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "influentialCitationCount",
+      "referenceCount",
+      "tldr",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/paper.js",
+    "sourceFile": "semanticscholar/paper.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "recommendations",
+    "description": "Semantic Scholar AI-curated related papers for a paperId, DOI, or arXiv id",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "paperId (40-char hex), DOI, arXiv id, or prefixed id"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max recommendations (1-500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/recommendations.js",
+    "sourceFile": "semanticscholar/recommendations.js"
+  },
+  {
+    "site": "semanticscholar",
+    "name": "search",
+    "description": "Search Semantic Scholar papers by free text",
+    "access": "read",
+    "domain": "api.semanticscholar.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search text (e.g. \"attention is all you need\", \"diffusion model\")"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max papers (1-100, single Semantic Scholar page)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "paperId",
+      "doi",
+      "title",
+      "year",
+      "firstAuthor",
+      "citationCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "semanticscholar/search.js",
+    "sourceFile": "semanticscholar/search.js"
+  },
+  {
     "site": "sinablog",
     "name": "article",
     "description": "获取新浪博客单篇文章详情",
@@ -30656,6 +32825,10 @@
       "title",
       "price",
       "mall",
+      "updated_at",
+      "zhi_count",
+      "buzhi_count",
+      "favorite_count",
       "comments",
       "url"
     ],
@@ -35791,7 +37964,14 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Max tweets to return"
+        "help": "Max tweets to return (1-10000; fetched across cursor pages)"
+      },
+      {
+        "name": "page-delay",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Seconds to wait between paginated timeline requests to reduce rate-limit risk. Use 0 to disable."
       },
       {
         "name": "top-by-engagement",
@@ -38950,7 +41130,7 @@
   {
     "site": "xianyu",
     "name": "search",
-    "description": "搜索闲鱼商品",
+    "description": "搜索闲鱼商品（支持服务端价格区间 / 地区筛选）",
     "access": "read",
     "domain": "www.goofish.com",
     "strategy": "cookie",
@@ -38961,14 +41141,38 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Search keyword"
+        "help": "搜索关键词"
       },
       {
         "name": "limit",
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of results to return"
+        "help": "返回结果数（最多 60，自动翻页）"
+      },
+      {
+        "name": "min-price",
+        "type": "float",
+        "required": false,
+        "help": "最低价格（元），服务端筛选"
+      },
+      {
+        "name": "max-price",
+        "type": "float",
+        "required": false,
+        "help": "最高价格（元），服务端筛选"
+      },
+      {
+        "name": "province",
+        "type": "string",
+        "required": false,
+        "help": "省份名（如 广东），服务端按地区筛选"
+      },
+      {
+        "name": "city",
+        "type": "string",
+        "required": false,
+        "help": "城市名（如 深圳 / 湛江），可单独使用，服务端按地区筛选"
       }
     ],
     "columns": [
@@ -38980,6 +41184,7 @@
       "brand",
       "location",
       "badge",
+      "want",
       "url"
     ],
     "type": "js",
@@ -39718,6 +41923,43 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "liked",
+    "description": "小红书赞过笔记列表",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": false,
+        "help": "User id or profile URL (defaults to current logged-in user)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/liked.js",
+    "sourceFile": "xiaohongshu/liked.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "login",
     "description": "Open xiaohongshu login and wait until the browser session is authenticated",
     "access": "write",
@@ -39835,8 +42077,20 @@
       {
         "name": "images",
         "type": "str",
-        "required": true,
+        "required": false,
         "help": "图片路径，逗号分隔，最多9张 (jpg/png/gif/webp)"
+      },
+      {
+        "name": "card-text",
+        "type": "str",
+        "required": false,
+        "help": "文字配图卡片文字，多张卡片用 ||| 分隔，卡内换行用 \\n"
+      },
+      {
+        "name": "card-style",
+        "type": "str",
+        "required": false,
+        "help": "文字配图卡片样式，运行时按页面实际选项匹配；找不到会失败。省略时使用基础。可选: 基础(默认兜底，万能) 边框(金句/要点卡) 备忘(提醒/随手记) 清新(日常/清单贴士) 涂写(随笔/碎碎念) 便签(笔记/提醒) 光影(情绪/文艺) 涂鸦(趣味/童话) 简约(干货/观点) 手写(日记/情感) 插图(生活方式/轻松话题) 美漫(活力/趣味/故事感) 弥散(弥散光氛围) 柔和(柔和/温柔金句) 印刷(印刷海报/排版) 科技(科技/产品) 贺卡(节日祝福) 札记(艺术/水彩氛围) 书摘(书摘/引用) 手帐(手帐拼贴) 几何(醒目/有力主张)"
       },
       {
         "name": "topics",
@@ -39859,6 +42113,43 @@
     "type": "js",
     "modulePath": "xiaohongshu/publish.js",
     "sourceFile": "xiaohongshu/publish.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "saved",
+    "description": "小红书收藏笔记列表",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": false,
+        "help": "User id or profile URL (defaults to current logged-in user)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of notes to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "likes",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/saved.js",
+    "sourceFile": "xiaohongshu/saved.js",
     "navigateBefore": false
   },
   {
@@ -42463,6 +44754,80 @@
   },
   {
     "site": "zhihu",
+    "name": "followers",
+    "description": "知乎某用户的粉丝列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of followers to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "url_token",
+      "headline",
+      "followers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/followers.js",
+    "sourceFile": "zhihu/followers.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "following",
+    "description": "知乎某用户关注的人列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of followees to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "url_token",
+      "headline",
+      "followers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/following.js",
+    "sourceFile": "zhihu/following.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
     "name": "hot",
     "description": "知乎热榜",
     "access": "read",
@@ -42555,6 +44920,45 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "zhihu",
+    "name": "pins",
+    "description": "知乎某用户的想法（短内容）列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of pins to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "excerpt",
+      "type",
+      "likes",
+      "comments",
+      "reposts",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/pins.js",
+    "sourceFile": "zhihu/pins.js",
+    "navigateBefore": "https://www.zhihu.com"
   },
   {
     "site": "zhihu",
@@ -42682,6 +45086,113 @@
     "type": "js",
     "modulePath": "zhihu/search.js",
     "sourceFile": "zhihu/search.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user",
+    "description": "知乎用户主页资料（粉丝/关注/回答/文章/获赞数）",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL, e.g. wen-jie-16-47"
+      }
+    ],
+    "columns": [
+      "url_token",
+      "name",
+      "headline",
+      "followers",
+      "following",
+      "answers",
+      "articles",
+      "voteup",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user.js",
+    "sourceFile": "zhihu/user.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user-answers",
+    "description": "知乎某用户的回答列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of answers to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "question",
+      "votes",
+      "comments",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user-answers.js",
+    "sourceFile": "zhihu/user-answers.js",
+    "navigateBefore": "https://www.zhihu.com"
+  },
+  {
+    "site": "zhihu",
+    "name": "user-articles",
+    "description": "知乎某用户的文章/专栏列表",
+    "access": "read",
+    "domain": "www.zhihu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "User url_token or people URL"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of articles to return (max 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "votes",
+      "comments",
+      "created",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "zhihu/user-articles.js",
+    "sourceFile": "zhihu/user-articles.js",
     "navigateBefore": "https://www.zhihu.com"
   },
   {

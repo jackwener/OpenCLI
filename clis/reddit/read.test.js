@@ -175,7 +175,8 @@ describe('reddit read adapter', () => {
             expandMeta: { rounds: 0, fetched: 0, capped: false, errors: [] },
         });
         const result = await command.func(page, { 'post-id': 'abc123', limit: 5 });
-        expect(page.goto).toHaveBeenCalledWith('https://www.reddit.com');
+        // perf: read 不再显式导航首页——框架 navigateBefore（domain=reddit.com）已把页面带到 reddit origin
+        expect(page.goto).not.toHaveBeenCalledWith('https://www.reddit.com');
         expect(result).toEqual([
             { type: 'POST', author: 'alice', score: 10, text: 'Title',
               post_hint: 'image', url_overridden_by_dest: 'https://i.redd.it/a.jpg',

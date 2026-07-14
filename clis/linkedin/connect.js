@@ -118,13 +118,27 @@ function assessProfileSafety(probe, expectedName, expectedProfileUrl) {
     }
     if (probe?.alreadyConnected) return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'already_connected', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
     if (probe?.pending) return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'connection_pending', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
-    if (!probe?.connectAvailable) return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'connect_button_not_found', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
-    return { ok: true, safety: 'connectable', connectable: true, blockReason: 'verified', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    if (probe?.connectAvailable) return { ok: true, safety: 'connectable', connectable: true, blockReason: 'verified', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    // No top-level Connect, but a "More" actions menu is present and the profile is neither
+    // already-connected nor pending: Connect is almost certainly inside that menu. Treat as
+    // connectable; the send step opens "More" and fails cleanly if Connect truly isn't there.
+    if (probe?.moreAvailable) return { ok: true, safety: 'connectable', connectable: true, blockReason: 'verified_via_more', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
+    return { ok: false, safety: 'routine_non_connectable', connectable: false, blockReason: 'connect_button_not_found', expectedValue: expected, actualValue: actual, observedUrl: actualUrl };
 }
 
-function buildProfileProbeScript() {
+function buildProfileProbeScript(expectedName = '') {
     return String.raw`(() => {
     const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
+    const expectedName = ${JSON.stringify(expectedName)};
+    const normalizeName = (s) => clean(s)
+      .replace(/\s*[•·]\s*(?:1st|2nd|3rd\+?|degree connection).*$/i, '')
+      .replace(/\s+LinkedIn.*$/i, '')
+      .replace(/\b(p\.?eng\.?|cpa|mba|ph\.?d\.?)\b/ig, '')
+      .replace(/[^\p{L}\p{N}\s.'-]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    const tokens = (s) => normalizeName(s).replace(/[.'-]+/g, ' ').split(/\s+/).map((t) => t.trim()).filter((t) => t.length >= 2);
     const text = document.body ? (document.body.innerText || '') : '';
     const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
       || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
@@ -139,15 +153,50 @@ function buildProfileProbeScript() {
     const name = clean(heading?.innerText || heading?.textContent || '') || titleName;
     const buttons = Array.from(document.querySelectorAll('button, [role="button"], a')).filter((el) => el.offsetParent !== null);
     const buttonLabels = buttons.map((button) => clean(button.innerText || button.textContent || button.getAttribute('aria-label'))).filter(Boolean);
-    const lowerLabels = buttonLabels.map((label) => label.toLowerCase());
-    const alreadyConnected = lowerLabels.some((label) => label === 'message' || label.includes('1st degree connection'));
-    const pending = lowerLabels.some((label) => label === 'pending' || label.includes('pending'));
-    const connectAvailable = lowerLabels.some((label) => label === 'connect' || label.startsWith('connect ') || label.includes(' invite '));
+    const expectedTokens = tokens(expectedName || name);
+    const ariaLabel = (el) => clean(el?.getAttribute('aria-label') || '');
+    const textLabel = (el) => clean(el?.innerText || el?.textContent || '');
+    const labelOf = (el) => clean(textLabel(el) || ariaLabel(el));
+    const namesOwner = (el) => {
+      const label = ariaLabel(el).toLowerCase();
+      return expectedTokens.length >= 1 && expectedTokens.every((token) => label.includes(token));
+    };
+    const topCard = main?.querySelector('.pv-top-card, [class*="top-card"]')
+      || heading?.closest?.('section, .ph5, [class*="top-card"]')
+      || main;
+    const ownerAction = buttons.find((el) => namesOwner(el) && /^(invite|connect|follow|message|more|pending)\b/i.test(ariaLabel(el)));
+    const ownerScope = ownerAction
+      ? (ownerAction.closest('[class*="profile-actions"], [class*="pvs-profile-actions"], .pv-top-card, .ph5, section') || ownerAction.parentElement || topCard)
+      : topCard;
+    const scopedButtons = Array.from(ownerScope?.querySelectorAll?.('button, [role="button"], a') || []).filter((el) => el.offsetParent !== null);
+    const ownerButtons = Array.from(new Set([...buttons.filter(namesOwner), ...scopedButtons]));
+    const lowerOwnerLabels = ownerButtons.map((button) => labelOf(button).toLowerCase()).filter(Boolean);
+    const pending = lowerOwnerLabels.some((label) => label === 'pending' || label.includes('pending'));
+    const connectAvailable = ownerButtons.some((el) => {
+      const label = labelOf(el).toLowerCase();
+      const aria = ariaLabel(el).toLowerCase();
+      return label === 'connect'
+        || label.startsWith('connect ')
+        || (/invite .* to connect/i.test(aria) && namesOwner(el));
+    });
+    // When "Follow" is the primary action, Connect is tucked inside the "More" actions
+    // menu rather than shown as a top-level button. Note the menu's presence so the safety
+    // check can treat the profile as connectable; the send step opens the menu and confirms.
+    const moreAvailable = lowerOwnerLabels.some((label) => label === 'more' || label.startsWith('more '));
+    // A visible "Message" button is NOT proof of an existing connection: LinkedIn shows
+    // Message on many 2nd/3rd-degree profiles (open profiles, Premium, recruiter) right
+    // next to a real "Connect" button. The reliable signal for a 1st-degree connection is
+    // the degree badge ("1st degree connection") in the top card. Scope to the top card so
+    // the "People also viewed" sidebar (which lists other members' degrees) cannot bleed in,
+    // and never call it connected when a Connect affordance is present.
+    const topCardRaw = clean(topCard?.textContent || '');
+    const firstDegreeBadge = /\b1st degree connection\b/i.test(topCardRaw);
+    const alreadyConnected = !connectAvailable && firstDegreeBadge;
     // The Connect control is an <a> linking to LinkedIn's invitation route
     // (/preload/custom-invite/?vanityName=...). Capture it so the sender can
     // navigate straight to the invite dialog.
-    const connectAnchor = buttons.find((el) => el.tagName === 'A'
-      && /^connect$/i.test(clean(el.innerText || el.textContent || el.getAttribute('aria-label'))));
+    const connectAnchor = ownerButtons.find((el) => el.tagName === 'A'
+      && (/^connect$/i.test(labelOf(el)) || (/invite .* to connect/i.test(ariaLabel(el)) && namesOwner(el))));
     const connectHref = connectAnchor ? (connectAnchor.getAttribute('href') || '') : '';
     return {
       url: location.href,
@@ -157,6 +206,7 @@ function buildProfileProbeScript() {
       alreadyConnected,
       pending,
       connectAvailable,
+      moreAvailable,
       connectHref,
       buttonLabels: buttonLabels.slice(0, 30),
       bodyText: text,
@@ -288,8 +338,65 @@ function buildInviteScript(note) {
   })()`;
 }
 
-async function probeProfile(page) {
-    return unwrapEvaluateResult(await page.evaluate(buildProfileProbeScript()));
+// Opens the connection-invite dialog in-page for profiles where "Connect" is a
+// <button> (not an <a> to /preload/custom-invite/). Connect may be a primary button
+// or hidden inside the "More" actions menu. CRITICAL: a profile page also renders
+// "Connect" buttons for OTHER people (the "People also viewed" / "More profiles for
+// you" sidebar). We must never click those. Every click here is scoped to the profile
+// OWNER, identified by LinkedIn's name-bearing aria-labels ("Invite <Name> to connect",
+// "Message <Name>", "Follow <Name>"). If the owner's control can't be positively
+// identified, fail closed rather than guess.
+function buildOpenConnectDialogScript(expectedName) {
+    return String.raw`(async () => {
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const jitter = async (min = 450, max = 1150) => sleep(min + Math.floor(Math.random() * (max - min + 1)));
+    const clean = (s) => String(s || '').replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const visible = (el) => el && el.offsetParent !== null;
+    const expectedName = ${JSON.stringify(expectedName)};
+    const ariaLabel = (el) => clean(el?.getAttribute('aria-label') || '');
+    const textLabel = (el) => clean(el?.innerText || el?.textContent || '');
+    const tokens = (s) => clean(s).toLowerCase().replace(/[.'-]+/g, ' ').split(/\s+/).filter((t) => t.length >= 2);
+    const expTokens = tokens(expectedName);
+    // Require every expected-name token to appear in the control's aria-label, so a
+    // sidebar card's "Invite <OtherName> to connect" can never satisfy this.
+    const namesOwner = (el) => { const al = ariaLabel(el).toLowerCase(); return expTokens.length >= 1 && expTokens.every((t) => al.includes(t)); };
+    const isConnectText = (el) => /^connect$/i.test(textLabel(el));
+    const isOwnerConnect = (el) => /invite .* to connect/i.test(ariaLabel(el)) && namesOwner(el);
+    if (document.querySelector('[role="dialog"]')) return { ok: true, opened: 'already_open' };
+    const all = Array.from(document.querySelectorAll('button, [role="button"], a')).filter(visible);
+    // 1) Primary Connect button whose aria-label names the profile owner.
+    let btn = all.find(isOwnerConnect);
+    // 2) Connect under the owner's "More" menu: find the owner's action bar via a named
+    //    Follow/Message/More/Pending control, open the menu, then pick Connect from THAT
+    //    opened menu only (the dropdown is portaled to the body).
+    if (!btn) {
+      const ownerAction = all.find((el) => namesOwner(el) && /^(follow|message|more|pending|invite)\b/i.test(ariaLabel(el)));
+      const bar = ownerAction
+        ? (ownerAction.closest('[class*="profile-actions"], [class*="pvs-profile-actions"], .pv-top-card, .ph5, section') || ownerAction.parentElement)
+        : null;
+      if (!bar) return { ok: false, reason: 'owner_action_bar_not_found' };
+      const moreBtn = Array.from(bar.querySelectorAll('button, [role="button"]')).filter(visible)
+        .find((el) => { const l = (ariaLabel(el) || textLabel(el)).toLowerCase(); return l === 'more' || l.startsWith('more '); });
+      if (!moreBtn) return { ok: false, reason: 'owner_more_button_not_found' };
+      await jitter();
+      moreBtn.click();
+      await jitter(700, 1300);
+      const menu = Array.from(document.querySelectorAll('[role="menu"], .artdeco-dropdown__content')).filter(visible).pop();
+      const scope = menu || bar;
+      btn = Array.from(scope.querySelectorAll('[role="menuitem"], button, a, div')).filter(visible).find((el) => isOwnerConnect(el) || isConnectText(el));
+    }
+    if (!btn) return { ok: false, reason: 'connect_control_not_found' };
+    await jitter();
+    btn.click();
+    await jitter(1200, 2000);
+    if (document.querySelector('[role="dialog"]')) return { ok: true, opened: 'dialog' };
+    // Some flows fire the invite immediately without a confirmation dialog.
+    return { ok: true, opened: 'no_dialog' };
+  })()`;
+}
+
+async function probeProfile(page, expectedName = '') {
+    return unwrapEvaluateResult(await page.evaluate(buildProfileProbeScript(expectedName)));
 }
 
 cli({
@@ -315,16 +422,16 @@ cli({
 
         await page.goto(profileUrl);
         await page.wait(6);
-        let probe = await probeProfile(page);
+        let probe = await probeProfile(page, expectedName);
         // The name resolves early (from document.title), but the profile action
         // buttons (Connect / Message / Pending) render later. Keep probing until
         // the action state has resolved, not merely until the name is visible.
         for (let attempt = 0; attempt < 8; attempt += 1) {
             const resolved = probe?.name
-                && (probe.connectAvailable || probe.alreadyConnected || probe.pending);
+                && (probe.connectAvailable || probe.alreadyConnected || probe.pending || probe.moreAvailable);
             if (resolved) break;
             await page.wait(2);
-            probe = await probeProfile(page);
+            probe = await probeProfile(page, expectedName);
         }
         const safety = assessProfileSafety(probe, expectedName, profileUrl);
         if (safety.blockReason === 'auth_required') {
@@ -343,19 +450,34 @@ cli({
             return [{ status: 'connectable_dry_run', recipient: safety.actualValue, reason: safety.blockReason, profile_url: safety.observedUrl, note_chars: note.length, connectable: true }];
         }
         const inviteHref = probe?.connectHref || '';
-        if (!inviteHref) {
-            throw new CommandExecutionError('LinkedIn connect blocked: connect_link_not_found');
+        if (inviteHref) {
+            // Anchor-based Connect: navigate straight to the invitation route, where the
+            // "Add a note?" dialog renders already open.
+            const inviteUrl = canonicalizeLinkedInInviteUrl(inviteHref);
+            if (!inviteUrl) {
+                throw new CommandExecutionError('LinkedIn connect blocked: invalid_connect_link');
+            }
+            await page.goto(inviteUrl);
+            await page.wait(6);
         }
-        const inviteUrl = canonicalizeLinkedInInviteUrl(inviteHref);
-        if (!inviteUrl) {
-            throw new CommandExecutionError('LinkedIn connect blocked: invalid_connect_link');
+        else {
+            // Button-based Connect: no /preload/custom-invite/ anchor exists, so open the
+            // invite dialog in-page by clicking the Connect control (directly or via More).
+            const opened = unwrapEvaluateResult(await page.evaluate(buildOpenConnectDialogScript(expectedName)));
+            if (!opened?.ok) {
+                throw new CommandExecutionError(`LinkedIn connect blocked: ${opened?.reason || 'connect_control_not_found'}`);
+            }
+            await page.wait(3);
         }
-        await page.goto(inviteUrl);
-        await page.wait(6);
         let result = unwrapEvaluateResult(await page.evaluate(buildInviteScript(note)));
         if (result?.reason === 'invite_dialog_not_found') {
             await page.wait(5);
             result = unwrapEvaluateResult(await page.evaluate(buildInviteScript(note)));
+        }
+        // A button-based Connect that fired the invite without a confirmation dialog leaves
+        // no dialog to drive; treat it as sent and let the sent-invitations probe verify.
+        if (!result?.ok && result?.reason === 'invite_dialog_not_found' && !inviteHref) {
+            result = { ok: true, status: 'sent', reason: 'invitation_sent_no_dialog' };
         }
         if (!result?.ok) throw new CommandExecutionError(`LinkedIn connect blocked: ${result?.reason || 'send_failed'}`);
         // LinkedIn can take a few seconds after the Send click to materialize the
@@ -397,5 +519,6 @@ export const __test__ = {
     unwrapEvaluateResult,
     clampNote,
     assessProfileSafety,
+    buildProfileProbeScript,
     buildSentInvitationsProbeScript,
 };

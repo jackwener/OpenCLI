@@ -13,6 +13,7 @@ export interface RenderContext {
 }
 
 import { isRecord } from '../utils.js';
+import { log } from '../logger.js';
 
 export function render(template: unknown, ctx: RenderContext): unknown {
   if (typeof template !== 'string') return template;
@@ -209,10 +210,19 @@ function sanitizeContext(obj: unknown): unknown {
   const cached = _sanitizeCache.get(objRef);
   if (cached !== undefined) return JSON.parse(cached);
   try {
-    const jsonStr = JSON.stringify(obj);
+    // BigInt is non-serializable by default but is the most common cause of
+    // sanitizeContext failures (e.g. GraphQL 64-bit IDs). Coerce to string
+    // so callers see the value instead of a silent {}.
+    const jsonStr = JSON.stringify(obj, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value,
+    );
     _sanitizeCache.set(objRef, jsonStr);
     return JSON.parse(jsonStr);
-  } catch {
+  } catch (err) {
+    log.warn(
+      `[pipeline/template] sanitizeContext failed: ${err instanceof Error ? err.message : String(err)}. ` +
+      `Returning {} for this branch. Likely cause: circular reference, Symbol, or other non-serializable value in pipeline context.`,
+    );
     return {};
   }
 }

@@ -2,8 +2,6 @@ const DAEMON_PORT = 19825;
 const DAEMON_HOST = "localhost";
 const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
 const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
-const WS_RECONNECT_BASE_DELAY = 2e3;
-const WS_RECONNECT_MAX_DELAY = 5e3;
 
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
@@ -13,6 +11,26 @@ let frameTargetCleanupRegistered = false;
 const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
 const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 const networkCaptures = /* @__PURE__ */ new Map();
+const CDP_COMMAND_TIMEOUT_MS = 6e4;
+const CDP_PROBE_TIMEOUT_MS = 2e3;
+async function sendDebuggerCommand(target, method, params, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
+  let timer;
+  const commandPromise = params === void 0 ? chrome.debugger.sendCommand(target, method) : chrome.debugger.sendCommand(target, method, params);
+  commandPromise.catch(() => {
+  });
+  try {
+    return await Promise.race([
+      commandPromise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(
+          `CDP command ${method} timed out after ${Math.round(timeoutMs / 1e3)}s — the page may be blocked by a native dialog (alert/confirm/print)`
+        )), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer !== void 0) clearTimeout(timer);
+  }
+}
 function isDebuggableUrl$1(url) {
   if (!url) return true;
   return url.startsWith("http://") || url.startsWith("https://") || url === "about:blank" || url.startsWith("data:");
@@ -31,10 +49,10 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   }
   if (attached.has(tabId)) {
     try {
-      await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+      await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
         expression: "1",
         returnByValue: true
-      });
+      }, CDP_PROBE_TIMEOUT_MS);
       return;
     } catch {
       attached.delete(tabId);
@@ -43,6 +61,7 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   const MAX_ATTACH_RETRIES = aggressiveRetry ? 5 : 2;
   const RETRY_DELAY_MS = aggressiveRetry ? 1500 : 500;
   let lastError = "";
+  const preservedNetworkCapture = networkCaptures.get(tabId);
   for (let attempt = 1; attempt <= MAX_ATTACH_RETRIES; attempt++) {
     try {
       try {
@@ -84,39 +103,37 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   }
   attached.add(tabId);
   try {
-    await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
+    await sendDebuggerCommand({ tabId }, "Runtime.enable");
   } catch {
   }
-}
-async function evaluate(tabId, expression, aggressiveRetry = false) {
-  const MAX_EVAL_RETRIES = aggressiveRetry ? 3 : 2;
-  for (let attempt = 1; attempt <= MAX_EVAL_RETRIES; attempt++) {
+  if (preservedNetworkCapture) {
     try {
-      await ensureAttached(tabId, aggressiveRetry);
-      const result = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
-        expression,
-        returnByValue: true,
-        awaitPromise: true
-      });
-      if (result.exceptionDetails) {
-        const errMsg = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Eval error";
-        throw new Error(errMsg);
-      }
-      return result.result?.value;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const isNavigateError = msg.includes("Inspected target navigated") || msg.includes("Target closed");
-      const isAttachError = isNavigateError || msg.includes("attach failed") || msg.includes("Debugger is not attached") || msg.includes("chrome-extension://");
-      if (isAttachError && attempt < MAX_EVAL_RETRIES) {
-        attached.delete(tabId);
-        const retryMs = isNavigateError ? 200 : 500;
-        await new Promise((resolve) => setTimeout(resolve, retryMs));
-        continue;
-      }
-      throw e;
+      await sendDebuggerCommand({ tabId }, "Network.enable");
+      networkCaptures.set(tabId, preservedNetworkCapture);
+    } catch {
     }
   }
-  throw new Error("evaluate: max retries exhausted");
+}
+async function evaluate(tabId, expression, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
+  try {
+    await ensureAttached(tabId, aggressiveRetry);
+    const result = await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+      awaitPromise: true
+    }, timeoutMs);
+    if (result.exceptionDetails) {
+      const errMsg = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Eval error";
+      throw new Error(errMsg);
+    }
+    return result.result?.value;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Detached") || msg.includes("Debugger is not attached") || msg.includes("Target closed")) {
+      attached.delete(tabId);
+    }
+    throw e;
+  }
 }
 const evaluateAsync = evaluate;
 async function screenshot(tabId, options = {}) {
@@ -128,7 +145,7 @@ async function screenshot(tabId, options = {}) {
   const needsOverride = fullPage || overrideWidth !== void 0 || overrideHeight !== void 0;
   if (needsOverride) {
     if (overrideWidth !== void 0 && fullPage) {
-      await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
+      await sendDebuggerCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
         mobile: false,
         width: overrideWidth,
         height: 0,
@@ -138,14 +155,14 @@ async function screenshot(tabId, options = {}) {
     let finalWidth = overrideWidth ?? 0;
     let finalHeight = overrideHeight ?? 0;
     if (fullPage) {
-      const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
+      const metrics = await sendDebuggerCommand({ tabId }, "Page.getLayoutMetrics");
       const size = metrics.cssContentSize || metrics.contentSize;
       if (size) {
         if (finalWidth === 0) finalWidth = Math.ceil(size.width);
         finalHeight = Math.ceil(size.height);
       }
     }
-    await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
+    await sendDebuggerCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
       mobile: false,
       width: finalWidth,
       height: finalHeight,
@@ -157,31 +174,61 @@ async function screenshot(tabId, options = {}) {
     if (format === "jpeg" && options.quality !== void 0) {
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
-    const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", params);
+    const result = await sendDebuggerCommand({ tabId }, "Page.captureScreenshot", params);
     return result.data;
   } finally {
     if (needsOverride) {
-      await chrome.debugger.sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {
+      await sendDebuggerCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {
       });
     }
   }
 }
 async function setFileInputFiles(tabId, files, selector) {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "DOM.enable");
-  const doc = await chrome.debugger.sendCommand({ tabId }, "DOM.getDocument");
+  await sendDebuggerCommand({ tabId }, "DOM.enable");
+  await sendDebuggerCommand({ tabId }, "Page.enable");
   const query = selector || 'input[type="file"]';
-  const result = await chrome.debugger.sendCommand({ tabId }, "DOM.querySelector", {
-    nodeId: doc.root.nodeId,
-    selector: query
+  const found = await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
+    expression: `!!document.querySelector(${JSON.stringify(query)})`,
+    returnByValue: true
   });
-  if (!result.nodeId) {
+  if (!found.result?.value) {
     throw new Error(`No element found matching selector: ${query}`);
   }
-  await chrome.debugger.sendCommand({ tabId }, "DOM.setFileInputFiles", {
-    files,
-    nodeId: result.nodeId
-  });
+  await sendDebuggerCommand({ tabId }, "Page.setInterceptFileChooserDialog", { enabled: true });
+  try {
+    const backendNodeId = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("Page.fileChooserOpened not received within 5s — the input may not have opened a file chooser"));
+      }, 5e3);
+      const listener = (source, method, params) => {
+        if (source.tabId !== tabId || method !== "Page.fileChooserOpened") return;
+        cleanup();
+        const backend = params?.backendNodeId;
+        if (typeof backend === "number") resolve(backend);
+        else reject(new Error("Page.fileChooserOpened carried no backendNodeId"));
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        chrome.debugger.onEvent.removeListener(listener);
+      };
+      chrome.debugger.onEvent.addListener(listener);
+      void sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
+        expression: `document.querySelector(${JSON.stringify(query)}).click()`
+      }).catch((err) => {
+        cleanup();
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
+    });
+    await sendDebuggerCommand({ tabId }, "DOM.setFileInputFiles", {
+      files,
+      backendNodeId
+    });
+  } finally {
+    await sendDebuggerCommand({ tabId }, "Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {
+    });
+  }
 }
 function matchesDownloadPattern(item, pattern) {
   if (!pattern) return true;
@@ -304,9 +351,9 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   const key = frameTargetKey(tabId, frameId);
   const existing = frameTargets.get(key);
   if (existing) return existing;
-  await chrome.debugger.sendCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
+  await sendDebuggerCommand({ tabId }, "Target.setDiscoverTargets", { discover: true }).catch(() => {
   });
-  await chrome.debugger.sendCommand({ tabId }, "Target.setAutoAttach", {
+  await sendDebuggerCommand({ tabId }, "Target.setAutoAttach", {
     autoAttach: true,
     waitForDebuggerOnStart: false,
     flatten: true,
@@ -325,7 +372,7 @@ async function ensureFrameTarget(tabId, frameId, aggressiveRetry = false, target
   return targetId;
 }
 async function resolveFrameTargetId(tabId, frameId, targetUrl) {
-  const result = await chrome.debugger.sendCommand({ tabId }, "Target.getTargets").catch(() => null);
+  const result = await sendDebuggerCommand({ tabId }, "Target.getTargets").catch(() => null);
   const targets = result?.targetInfos ?? [];
   const frameTarget = targets.find((candidate) => {
     const candidateId = candidate.targetId || candidate.id;
@@ -336,14 +383,14 @@ async function resolveFrameTargetId(tabId, frameId, targetUrl) {
   const candidates = targets.filter((target) => target.type === "iframe").map((target) => `${target.targetId || target.id || "?"} ${target.url || ""}`).join("; ");
   throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ""}. Candidates: ${candidates || "none"}`);
 }
-async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, _timeoutMs = 3e4, targetUrl) {
+async function sendCommandInFrameTarget(tabId, frameId, method, params = {}, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS, targetUrl) {
   const targetId = await ensureFrameTarget(tabId, frameId, aggressiveRetry, targetUrl);
   const target = { targetId };
-  return chrome.debugger.sendCommand(target, method, params);
+  return sendDebuggerCommand(target, method, params, timeoutMs);
 }
 async function insertText(tabId, text) {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "Input.insertText", { text });
+  await sendDebuggerCommand({ tabId }, "Input.insertText", { text });
 }
 function registerFrameTracking() {
   registerFrameTargetCleanup();
@@ -381,33 +428,41 @@ function registerFrameTracking() {
 }
 async function getFrameTree(tabId) {
   await ensureAttached(tabId);
-  return chrome.debugger.sendCommand({ tabId }, "Page.getFrameTree");
+  return sendDebuggerCommand({ tabId }, "Page.getFrameTree");
 }
-async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = false) {
+async function evaluateInFrame(tabId, expression, frameId, aggressiveRetry = false, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
   await ensureAttached(tabId, aggressiveRetry);
-  await chrome.debugger.sendCommand({ tabId }, "Runtime.enable").catch(() => {
+  await sendDebuggerCommand({ tabId }, "Runtime.enable").catch(() => {
   });
   const contexts = tabFrameContexts.get(tabId);
   const contextId = contexts?.get(frameId);
-  if (contextId === void 0) {
-    await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry).catch(() => void 0);
-    const result2 = await sendCommandInFrameTarget(tabId, frameId, "Runtime.evaluate", {
-      expression,
-      returnByValue: true,
-      awaitPromise: true
-    }, aggressiveRetry);
-    if (result2.exceptionDetails) {
-      const errMsg = result2.exceptionDetails.exception?.description || result2.exceptionDetails.text || "Eval error";
-      throw new Error(errMsg);
+  if (contextId !== void 0) {
+    try {
+      const result2 = await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
+        expression,
+        contextId,
+        returnByValue: true,
+        awaitPromise: true
+      }, timeoutMs);
+      if (result2.exceptionDetails) {
+        const errMsg = result2.exceptionDetails.exception?.description || result2.exceptionDetails.text || "Eval error";
+        throw new Error(errMsg);
+      }
+      return result2.result?.value;
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (!/Cannot find context|context with specified id|Execution context was destroyed/i.test(msg)) {
+        throw err;
+      }
+      contexts?.delete(frameId);
     }
-    return result2.result?.value;
   }
-  const result = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+  await sendCommandInFrameTarget(tabId, frameId, "Runtime.enable", {}, aggressiveRetry, timeoutMs).catch(() => void 0);
+  const result = await sendCommandInFrameTarget(tabId, frameId, "Runtime.evaluate", {
     expression,
-    contextId,
     returnByValue: true,
     awaitPromise: true
-  });
+  }, aggressiveRetry, timeoutMs);
   if (result.exceptionDetails) {
     const errMsg = result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Eval error";
     throw new Error(errMsg);
@@ -452,7 +507,7 @@ function getOrCreateNetworkCaptureEntry(tabId, requestId, fallback) {
 }
 async function startNetworkCapture(tabId, pattern) {
   await ensureAttached(tabId);
-  await chrome.debugger.sendCommand({ tabId }, "Network.enable");
+  await sendDebuggerCommand({ tabId }, "Network.enable");
   networkCaptures.set(tabId, {
     patterns: normalizeCapturePatterns(pattern),
     entries: [],
@@ -527,36 +582,38 @@ function registerListeners() {
         requestHeaders: normalizeHeaders(request?.headers)
       });
       if (!entry) return;
-      entry.requestBodyKind = request?.hasPostData ? "string" : "empty";
-      {
-        const raw = String(request?.postData || "");
-        const fullSize = raw.length;
-        const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
-        entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
-        entry.requestBodyFullSize = fullSize;
-        entry.requestBodyTruncated = truncated;
-      }
-      try {
-        const postData = await chrome.debugger.sendCommand({ tabId }, "Network.getRequestPostData", { requestId });
-        if (postData?.postData) {
-          const raw = postData.postData;
+      if (!eventParams?.redirectResponse) {
+        entry.requestBodyKind = request?.hasPostData ? "string" : "empty";
+        {
+          const raw = String(request?.postData || "");
           const fullSize = raw.length;
           const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
-          entry.requestBodyKind = "string";
           entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
           entry.requestBodyFullSize = fullSize;
           entry.requestBodyTruncated = truncated;
         }
-      } catch {
+        try {
+          const postData = await sendDebuggerCommand({ tabId }, "Network.getRequestPostData", { requestId });
+          if (postData?.postData) {
+            const raw = postData.postData;
+            const fullSize = raw.length;
+            const truncated = fullSize > CDP_REQUEST_BODY_CAPTURE_LIMIT;
+            entry.requestBodyKind = "string";
+            entry.requestBodyPreview = truncated ? raw.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : raw;
+            entry.requestBodyFullSize = fullSize;
+            entry.requestBodyTruncated = truncated;
+          }
+        } catch {
+        }
       }
       return;
     }
     if (method === "Network.responseReceived") {
       const requestId = String(eventParams?.requestId || "");
       const response = eventParams?.response;
-      const entry = getOrCreateNetworkCaptureEntry(tabId, requestId, {
-        url: response?.url
-      });
+      const stateEntryIndex = state.requestToIndex.get(requestId);
+      if (stateEntryIndex === void 0) return;
+      const entry = state.entries[stateEntryIndex];
       if (!entry) return;
       entry.responseStatus = response?.status;
       entry.responseContentType = response?.mimeType || "";
@@ -570,7 +627,7 @@ function registerListeners() {
       const entry = state.entries[stateEntryIndex];
       if (!entry) return;
       try {
-        const body = await chrome.debugger.sendCommand({ tabId }, "Network.getResponseBody", { requestId });
+        const body = await sendDebuggerCommand({ tabId }, "Network.getResponseBody", { requestId });
         if (typeof body?.body === "string") {
           const fullSize = body.body.length;
           const truncated = fullSize > CDP_RESPONSE_BODY_CAPTURE_LIMIT;
@@ -620,6 +677,94 @@ async function refreshMappings() {
   }
 }
 
+const JOURNAL_KEY = "opencli_command_journal_v1";
+const JOURNAL_MAX_ENTRIES = 64;
+const JOURNAL_RESULT_MAX_BYTES = 64 * 1024;
+let cache = null;
+let writeQueue = Promise.resolve();
+const inFlight = /* @__PURE__ */ new Map();
+async function load() {
+  if (cache) return cache;
+  try {
+    const stored = await chrome.storage.session.get(JOURNAL_KEY);
+    cache = stored?.[JOURNAL_KEY] ?? {};
+  } catch {
+    cache = {};
+  }
+  return cache;
+}
+function persist() {
+  const snapshot = cache;
+  if (!snapshot) return;
+  writeQueue = writeQueue.then(async () => {
+    try {
+      await chrome.storage.session.set({ [JOURNAL_KEY]: snapshot });
+    } catch {
+    }
+  });
+}
+function trim(journal) {
+  const ids = Object.keys(journal);
+  if (ids.length <= JOURNAL_MAX_ENTRIES) return;
+  ids.sort((a, b) => journal[a].ts - journal[b].ts);
+  for (const id of ids.slice(0, ids.length - JOURNAL_MAX_ENTRIES)) delete journal[id];
+}
+function resultByteLength(result) {
+  try {
+    return JSON.stringify(result).length;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+const UNKNOWN_OUTCOME_HINT = "Inspect the browser/session state before retrying. Do not blindly re-run write commands such as navigate, click, type, or eval.";
+async function executeWithJournal(cmd, execute) {
+  const id = cmd.id;
+  if (!id) return execute(cmd);
+  const running = inFlight.get(id);
+  if (running) return running;
+  const run = (async () => {
+    const journal = await load();
+    const entry = journal[id];
+    if (entry?.status === "done") {
+      if (entry.result) return entry.result;
+      return {
+        id,
+        ok: false,
+        errorCode: "result_evicted",
+        error: "Command already executed, but its result was too large to record for replay.",
+        errorHint: UNKNOWN_OUTCOME_HINT
+      };
+    }
+    if (entry?.status === "started") {
+      return {
+        id,
+        ok: false,
+        errorCode: "command_lost",
+        error: "Command was interrupted mid-execution (extension or browser restarted); it may or may not have applied.",
+        errorHint: UNKNOWN_OUTCOME_HINT
+      };
+    }
+    journal[id] = { status: "started", ts: Date.now() };
+    trim(journal);
+    persist();
+    let result;
+    try {
+      result = await execute(cmd);
+    } catch (err) {
+      result = { id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+    journal[id] = resultByteLength(result) <= JOURNAL_RESULT_MAX_BYTES ? { status: "done", ts: Date.now(), result } : { status: "done", ts: Date.now() };
+    persist();
+    return result;
+  })();
+  inFlight.set(id, run);
+  try {
+    return await run;
+  } finally {
+    inFlight.delete(id);
+  }
+}
+
 let ws = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
@@ -627,6 +772,8 @@ const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
 let connectInFlight = null;
+let workerReady = Promise.resolve();
+let workerRecovered = true;
 async function getCurrentContextId() {
   if (contextIdPromise) return contextIdPromise;
   contextIdPromise = (async () => {
@@ -705,7 +852,8 @@ function isDaemonSocketActive(socket = ws) {
 function connect() {
   if (isDaemonSocketActive()) return Promise.resolve();
   if (connectInFlight) return connectInFlight;
-  connectInFlight = connectAttempt().finally(() => {
+  const attempt = workerRecovered ? connectAttempt() : workerReady.then(() => connectAttempt());
+  connectInFlight = attempt.finally(() => {
     connectInFlight = null;
   });
   return connectInFlight;
@@ -714,8 +862,13 @@ async function connectAttempt() {
   if (isDaemonSocketActive()) return;
   try {
     const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1e3) });
-    if (!res.ok) return;
+    if (!res.ok) {
+      scheduleReconnect();
+      return;
+    }
+    reconnectAttempts = 0;
   } catch {
+    scheduleReconnect();
     return;
   }
   if (isDaemonSocketActive()) return;
@@ -744,19 +897,21 @@ async function connectAttempt() {
       version: chrome.runtime.getManifest().version,
       compatRange: ">=1.7.0"
     });
+    startWsKeepalive(thisWs);
   };
   thisWs.onmessage = async (event) => {
     if (ws !== thisWs) return;
     try {
       const command = JSON.parse(event.data);
-      const result = await handleCommand(command);
-      if (ws !== thisWs) return;
-      safeSend(thisWs, result);
+      const result = await executeWithJournal(command, handleCommand);
+      const target = ws && ws.readyState === WebSocket.OPEN ? ws : thisWs;
+      safeSend(target, result);
     } catch (err) {
       console.error("[opencli] Message handling error:", err);
     }
   };
   thisWs.onclose = () => {
+    stopWsKeepalive(thisWs);
     if (ws !== thisWs) return;
     console.log("[opencli] Disconnected from daemon");
     ws = null;
@@ -766,12 +921,36 @@ async function connectAttempt() {
     thisWs.close();
   };
 }
-const MAX_EAGER_ATTEMPTS = 6;
+const WS_KEEPALIVE_INTERVAL_MS = 2e4;
+let wsKeepaliveTimer = null;
+let wsKeepaliveSocket = null;
+function startWsKeepalive(socket) {
+  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
+  wsKeepaliveSocket = socket;
+  wsKeepaliveTimer = setInterval(() => {
+    if (socket !== ws || socket.readyState !== WebSocket.OPEN) {
+      stopWsKeepalive(socket);
+      return;
+    }
+    safeSend(socket, { type: "ping", ts: Date.now() });
+  }, WS_KEEPALIVE_INTERVAL_MS);
+}
+function stopWsKeepalive(socket) {
+  if (wsKeepaliveSocket !== socket) return;
+  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
+  wsKeepaliveTimer = null;
+  wsKeepaliveSocket = null;
+}
+const RECONNECT_BASE_DELAY_MS = 1e3;
+const RECONNECT_MAX_DELAY_MS = 15e3;
+function nextReconnectDelayMs() {
+  const exp = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * 2 ** Math.min(reconnectAttempts, 6));
+  return exp + Math.floor(Math.random() * 500);
+}
 function scheduleReconnect() {
   if (reconnectTimer) return;
+  const delay = nextReconnectDelayMs();
   reconnectAttempts++;
-  if (reconnectAttempts > MAX_EAGER_ATTEMPTS) return;
-  const delay = Math.min(WS_RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts - 1), WS_RECONNECT_MAX_DELAY);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     void connect();
@@ -785,15 +964,17 @@ const REGISTRY_KEY = "opencli_target_lease_registry_v2";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
 const CONTAINER_TAB_GROUP_TITLE = {
   interactive: "OpenCLI Browser",
+  // Retained for registry/type compatibility. Adapter automation no longer
+  // creates or discovers a visible tab group.
   automation: "OpenCLI Adapter"
 };
-const LEGACY_AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
-const AUTOMATION_TAB_GROUP_COLOR = "orange";
+const OWNED_TAB_GROUP_COLOR = "orange";
 let leaseMutationQueue = Promise.resolve();
 const ownedContainers = {
   interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
   automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
 };
+const interactiveGroupLedger = /* @__PURE__ */ new Set();
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -802,9 +983,11 @@ class CommandFailure extends Error {
     this.name = "CommandFailure";
   }
 }
-const sessionTimeoutOverrides = /* @__PURE__ */ new Map();
-const sessionWindowModeOverrides = /* @__PURE__ */ new Map();
-const sessionLifecycleOverrides = /* @__PURE__ */ new Map();
+const sessionOverrides = /* @__PURE__ */ new Map();
+function setSessionOverride(key, patch) {
+  sessionOverrides.set(key, { ...sessionOverrides.get(key), ...patch });
+}
+const activeCommandCounts = /* @__PURE__ */ new Map();
 const LEASE_KEY_SEPARATOR = "\0";
 function getLeaseKey(session, surface) {
   return `${surface}${LEASE_KEY_SEPARATOR}${encodeURIComponent(session)}`;
@@ -836,15 +1019,15 @@ function getSessionFromKey(key) {
 function getIdleTimeout(key) {
   const session = automationSessions.get(key);
   if (session?.kind === "bound") return IDLE_TIMEOUT_NONE;
-  const adapterPersistent = getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || sessionLifecycleOverrides.get(key) === "persistent");
+  const overrides = sessionOverrides.get(key);
+  const adapterPersistent = getSurfaceFromKey(key) === "adapter" && (session?.lifecycle === "persistent" || overrides?.lifecycle === "persistent");
   if (adapterPersistent) return IDLE_TIMEOUT_NONE;
-  const override = sessionTimeoutOverrides.get(key);
-  if (override !== void 0) return override;
+  if (overrides?.idleTimeoutMs !== void 0) return overrides.idleTimeoutMs;
   return getSurfaceFromKey(key) === "browser" ? IDLE_TIMEOUT_INTERACTIVE : IDLE_TIMEOUT_DEFAULT;
 }
 function getLeaseLifecycle(key, kind) {
   if (kind === "bound") return "pinned";
-  const override = sessionLifecycleOverrides.get(key);
+  const override = sessionOverrides.get(key)?.lifecycle;
   if (override) return override;
   return getSurfaceFromKey(key) === "browser" ? "persistent" : "ephemeral";
 }
@@ -855,7 +1038,7 @@ function getWindowRole(key, ownership) {
   return ownership === "borrowed" ? "borrowed-user" : getOwnedWindowRole(key);
 }
 function getWindowMode(key) {
-  return sessionWindowModeOverrides.get(key) ?? (getOwnedWindowRole(key) === "interactive" ? "foreground" : "background");
+  return sessionOverrides.get(key)?.windowMode ?? (getOwnedWindowRole(key) === "interactive" ? "foreground" : "background");
 }
 function makeAlarmName(leaseKey) {
   return `${LEASE_IDLE_ALARM_PREFIX}${encodeURIComponent(leaseKey)}`;
@@ -890,21 +1073,18 @@ function emptyRegistry() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
+        groupIds: [...interactiveGroupLedger]
       },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: ownedContainers.automation.groupId
-      }
+      automation: { windowId: ownedContainers.automation.windowId }
     },
     leases: {}
   };
 }
 async function readRegistry() {
   try {
-    const local = chrome.storage?.local;
-    if (!local) return emptyRegistry();
-    const raw = await local.get(REGISTRY_KEY);
+    const session = chrome.storage?.session;
+    if (!session) return emptyRegistry();
+    const raw = await session.get(REGISTRY_KEY);
     const stored = raw[REGISTRY_KEY];
     if (!stored || stored.version !== 2 || typeof stored.leases !== "object") return emptyRegistry();
     const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === "object" ? stored.ownedContainers : emptyRegistry().ownedContainers;
@@ -914,11 +1094,10 @@ async function readRegistry() {
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
-          groupId: typeof storedContainers.interactive?.groupId === "number" ? storedContainers.interactive.groupId : null
+          groupIds: Array.isArray(storedContainers.interactive?.groupIds) ? storedContainers.interactive.groupIds.filter((id) => typeof id === "number") : []
         },
         automation: {
-          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null,
-          groupId: typeof storedContainers.automation?.groupId === "number" ? storedContainers.automation.groupId : null
+          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null
         }
       },
       leases: stored.leases
@@ -929,7 +1108,7 @@ async function readRegistry() {
 }
 async function writeRegistry(registry) {
   try {
-    await chrome.storage?.local?.set({ [REGISTRY_KEY]: registry });
+    await chrome.storage?.session?.set({ [REGISTRY_KEY]: registry });
   } catch {
   }
 }
@@ -957,12 +1136,9 @@ async function persistRuntimeState() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
+        groupIds: [...interactiveGroupLedger]
       },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: ownedContainers.automation.groupId
-      }
+      automation: { windowId: ownedContainers.automation.windowId }
     },
     leases
   });
@@ -989,32 +1165,35 @@ async function removeLeaseSession(leaseKey) {
   const existing = automationSessions.get(leaseKey);
   if (existing?.idleTimer) clearTimeout(existing.idleTimer);
   automationSessions.delete(leaseKey);
-  sessionTimeoutOverrides.delete(leaseKey);
-  sessionWindowModeOverrides.delete(leaseKey);
-  sessionLifecycleOverrides.delete(leaseKey);
+  sessionOverrides.delete(leaseKey);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
 }
-function resetWindowIdleTimer(leaseKey) {
+function resetWindowIdleTimer(leaseKey, remainingMs) {
   const session = automationSessions.get(leaseKey);
   if (!session) return;
   if (session.idleTimer) clearTimeout(session.idleTimer);
   const timeout = getIdleTimeout(leaseKey);
-  scheduleIdleAlarm(leaseKey, timeout);
   if (timeout <= 0) {
+    scheduleIdleAlarm(leaseKey, timeout);
     session.idleTimer = null;
     session.idleDeadlineAt = 0;
     void persistRuntimeState();
     return;
   }
-  session.idleDeadlineAt = Date.now() + timeout;
+  const interval = remainingMs === void 0 ? timeout : Math.max(0, Math.min(remainingMs, timeout));
+  scheduleIdleAlarm(leaseKey, interval);
+  session.idleDeadlineAt = Date.now() + interval;
   void persistRuntimeState();
   session.idleTimer = setTimeout(async () => {
+    if ((activeCommandCounts.get(leaseKey) ?? 0) > 0) {
+      return;
+    }
     await releaseLease(leaseKey, "idle timeout");
-  }, timeout);
+  }, interval);
 }
 function getOwnedContainerGroupTitles(role) {
-  return role === "automation" ? [CONTAINER_TAB_GROUP_TITLE.automation, LEGACY_AUTOMATION_TAB_GROUP_TITLE] : [CONTAINER_TAB_GROUP_TITLE.interactive];
+  return role === "automation" ? [] : [CONTAINER_TAB_GROUP_TITLE.interactive];
 }
 async function focusOwnedWindowIfRequested(windowId, mode) {
   if (mode !== "foreground") return;
@@ -1047,6 +1226,7 @@ function selectOwnedContainerGroupCandidate(candidates) {
   })[0];
 }
 async function collectOwnedGroupCandidates(role) {
+  if (role === "automation") return [];
   const container = ownedContainers[role];
   const groupsById = /* @__PURE__ */ new Map();
   if (container.groupId !== null) {
@@ -1057,6 +1237,18 @@ async function collectOwnedGroupCandidates(role) {
       container.groupId = null;
     }
   }
+  let ledgerPruned = false;
+  for (const groupId of [...interactiveGroupLedger]) {
+    if (groupsById.has(groupId)) continue;
+    try {
+      const group = await chrome.tabGroups.get(groupId);
+      groupsById.set(group.id, group);
+    } catch {
+      interactiveGroupLedger.delete(groupId);
+      ledgerPruned = true;
+    }
+  }
+  if (ledgerPruned) await persistRuntimeState();
   for (const title of getOwnedContainerGroupTitles(role)) {
     const groups = await chrome.tabGroups.query({ title });
     for (const group of groups) groupsById.set(group.id, group);
@@ -1122,7 +1314,7 @@ async function ensureCanonicalGroupTitle(role, group) {
   if (group.title === canonicalTitle) return group;
   const updated = await chrome.tabGroups.update(group.id, {
     title: canonicalTitle,
-    color: AUTOMATION_TAB_GROUP_COLOR
+    color: OWNED_TAB_GROUP_COLOR
   });
   return { id: updated.id, windowId: updated.windowId, title: updated.title };
 }
@@ -1153,9 +1345,10 @@ async function createOwnedGroup(role, windowId, ids) {
   const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
   ownedContainers[role].groupId = groupId;
   ownedContainers[role].windowId = windowId;
+  if (role === "interactive") interactiveGroupLedger.add(groupId);
   await persistRuntimeState();
   const group = await chrome.tabGroups.update(groupId, {
-    color: AUTOMATION_TAB_GROUP_COLOR,
+    color: OWNED_TAB_GROUP_COLOR,
     title: CONTAINER_TAB_GROUP_TITLE[role],
     collapsed: false
   });
@@ -1163,6 +1356,7 @@ async function createOwnedGroup(role, windowId, ids) {
   return { id: group.id, windowId: group.windowId, title: group.title };
 }
 async function ensureOwnedContainerGroup(role, fallbackWindowId, tabIds) {
+  if (role === "automation") return null;
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   const container = ownedContainers[role];
   const previousGroupPromise = container.groupPromise ?? Promise.resolve(null);
@@ -1188,6 +1382,10 @@ async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
     if (canonical) {
       ownedContainers[role].windowId = canonical.windowId;
       ownedContainers[role].groupId = canonical.id;
+      if (!interactiveGroupLedger.has(canonical.id)) {
+        interactiveGroupLedger.add(canonical.id);
+        await persistRuntimeState();
+      }
     } else {
       ownedContainers[role].groupId = null;
       if (fallbackWindowId === null) ownedContainers[role].windowId = null;
@@ -1361,6 +1559,7 @@ async function getAutomationWindow(leaseKey, initialUrl) {
   return (await ensureOwnedContainerWindow(role, initialUrl, getWindowMode(leaseKey))).windowId;
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
+  await workerReady;
   for (const container of Object.values(ownedContainers)) {
     if (container.windowId === windowId) {
       container.windowId = null;
@@ -1372,23 +1571,20 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
       console.log(`[opencli] ${session.surface} container closed (session=${session.session})`);
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(leaseKey);
-      sessionTimeoutOverrides.delete(leaseKey);
-      sessionWindowModeOverrides.delete(leaseKey);
-      sessionLifecycleOverrides.delete(leaseKey);
+      sessionOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     }
   }
   await persistRuntimeState();
 });
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await workerReady;
   evictTab(tabId);
   for (const [leaseKey, session] of automationSessions.entries()) {
     if (session.preferredTabId === tabId) {
       if (session.idleTimer) clearTimeout(session.idleTimer);
       automationSessions.delete(leaseKey);
-      sessionTimeoutOverrides.delete(leaseKey);
-      sessionWindowModeOverrides.delete(leaseKey);
-      sessionLifecycleOverrides.delete(leaseKey);
+      sessionOverrides.delete(leaseKey);
       scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
       console.log(`[opencli] Session ${session.session} detached from tab ${tabId} (tab closed)`);
     }
@@ -1399,18 +1595,28 @@ let initialized = false;
 function initialize() {
   if (initialized) return;
   initialized = true;
-  chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
+  chrome.alarms.create("keepalive", { periodInMinutes: 0.5 });
   registerListeners();
   try {
     const registerFrameTracking$1 = registerFrameTracking;
     registerFrameTracking$1?.();
   } catch {
   }
-  void (async () => {
+  try {
+    void chrome.storage?.local?.remove?.(REGISTRY_KEY)?.catch?.(() => {
+    });
+  } catch {
+  }
+  workerRecovered = false;
+  workerReady = (async () => {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
-    await connect();
-  })();
+  })().catch((err) => {
+    console.warn(`[opencli] Startup recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+  }).finally(() => {
+    workerRecovered = true;
+  });
+  void workerReady.then(() => connect());
   console.log("[opencli] OpenCLI extension initialized");
 }
 chrome.runtime.onInstalled.addListener(() => {
@@ -1421,9 +1627,15 @@ chrome.runtime.onStartup.addListener(() => {
 });
 initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  await workerReady;
   if (alarm.name === "keepalive") void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
-  if (leaseKey) await releaseLease(leaseKey, "idle alarm");
+  if (!leaseKey) return;
+  if ((activeCommandCounts.get(leaseKey) ?? 0) > 0) {
+    resetWindowIdleTimer(leaseKey);
+    return;
+  }
+  await releaseLease(leaseKey, "idle alarm");
 });
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "getStatus") {
@@ -1463,15 +1675,16 @@ async function handleCommand(cmd) {
   const surface = getCommandSurface(cmd);
   const leaseKey = getLeaseKey(session, surface);
   if (cmd.windowMode === "foreground" || cmd.windowMode === "background") {
-    sessionWindowModeOverrides.set(leaseKey, cmd.windowMode);
+    setSessionOverride(leaseKey, { windowMode: cmd.windowMode });
   }
   if (surface === "adapter" && (cmd.siteSession === "persistent" || cmd.siteSession === "ephemeral")) {
-    sessionLifecycleOverrides.set(leaseKey, cmd.siteSession);
+    setSessionOverride(leaseKey, { lifecycle: cmd.siteSession });
   }
   if (cmd.idleTimeout != null && cmd.idleTimeout > 0) {
-    sessionTimeoutOverrides.set(leaseKey, cmd.idleTimeout * 1e3);
+    setSessionOverride(leaseKey, { idleTimeoutMs: cmd.idleTimeout * 1e3 });
   }
   resetWindowIdleTimer(leaseKey);
+  activeCommandCounts.set(leaseKey, (activeCommandCounts.get(leaseKey) ?? 0) + 1);
   try {
     switch (cmd.action) {
       case "exec":
@@ -1506,13 +1719,12 @@ async function handleCommand(cmd) {
         return { id: cmd.id, ok: false, error: `Unknown action: ${cmd.action}` };
     }
   } catch (err) {
-    return {
-      id: cmd.id,
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-      ...err instanceof CommandFailure ? { errorCode: err.code } : {},
-      ...err instanceof CommandFailure && err.hint ? { errorHint: err.hint } : {}
-    };
+    return errorResult(cmd.id, err);
+  } finally {
+    const remaining = (activeCommandCounts.get(leaseKey) ?? 1) - 1;
+    if (remaining <= 0) activeCommandCounts.delete(leaseKey);
+    else activeCommandCounts.set(leaseKey, remaining);
+    resetWindowIdleTimer(leaseKey);
   }
 }
 const BLANK_PAGE = "about:blank";
@@ -1710,6 +1922,31 @@ async function listAutomationWebTabs(leaseKey) {
   const tabs = await listAutomationTabs(leaseKey);
   return tabs.filter((tab) => isDebuggableUrl(tab.url));
 }
+function commandCdpTimeoutMs(cmd) {
+  if (typeof cmd.deadlineAt === "number" && cmd.deadlineAt > 0) {
+    return Math.max(1e4, cmd.deadlineAt - Date.now() - 5e3);
+  }
+  if (typeof cmd.timeout === "number" && cmd.timeout > 0) {
+    return Math.max(1e4, cmd.timeout * 1e3 - 5e3);
+  }
+  return void 0;
+}
+function classifyExtensionError(message) {
+  if (/Inspected target navigated|Target closed/.test(message)) return "target_navigated";
+  if (/Detached while handling command/.test(message)) return "detached_mid_command";
+  if (/CDP command .* timed out/.test(message)) return "cdp_timeout";
+  if (/attach failed|Debugger is not attached/.test(message)) return "attach_failed";
+  if (/No tab with id|no longer exists|No window with id/.test(message)) return "tab_gone";
+  return void 0;
+}
+function errorResult(id, err) {
+  const message = err instanceof Error ? err.message : String(err);
+  if (err instanceof CommandFailure) {
+    return { id, ok: false, error: message, errorCode: err.code, ...err.hint ? { errorHint: err.hint } : {} };
+  }
+  const errorCode = classifyExtensionError(message);
+  return { id, ok: false, error: message, ...errorCode ? { errorCode } : {} };
+}
 async function handleExec(cmd, leaseKey) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
   const cmdTabId = await resolveCommandTabId(cmd);
@@ -1722,13 +1959,13 @@ async function handleExec(cmd, leaseKey) {
       if (cmd.frameIndex < 0 || cmd.frameIndex >= frames.length) {
         return { id: cmd.id, ok: false, error: `Frame index ${cmd.frameIndex} out of range (${frames.length} cross-origin frames available)` };
       }
-      const data2 = await evaluateInFrame(tabId, cmd.code, frames[cmd.frameIndex].frameId, aggressive);
+      const data2 = await evaluateInFrame(tabId, cmd.code, frames[cmd.frameIndex].frameId, aggressive, commandCdpTimeoutMs(cmd));
       return pageScopedResult(cmd.id, tabId, data2);
     }
-    const data = await evaluateAsync(tabId, cmd.code, aggressive);
+    const data = await evaluateAsync(tabId, cmd.code, aggressive, commandCdpTimeoutMs(cmd));
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 async function handleFrames(cmd, leaseKey) {
@@ -1738,7 +1975,7 @@ async function handleFrames(cmd, leaseKey) {
     const tree = await getFrameTree(tabId);
     return { id: cmd.id, ok: true, data: enumerateCrossOriginFrames(tree) };
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 async function handleNavigate(cmd, leaseKey) {
@@ -1947,7 +2184,7 @@ async function handleScreenshot(cmd, leaseKey) {
     });
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
@@ -1991,14 +2228,15 @@ async function handleCdp(cmd, leaseKey) {
     const params = cmd.cdpParams ?? {};
     const routeFrameId = typeof params.frameId === "string" && params.sessionId === "target" ? params.frameId : void 0;
     const routeTargetUrl = typeof params.targetUrl === "string" ? params.targetUrl : void 0;
-    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, 3e4, routeTargetUrl) : await chrome.debugger.sendCommand(
+    const data = routeFrameId ? await sendCommandInFrameTarget(tabId, routeFrameId, cmd.cdpMethod, stripOpenCliFrameRoutingParams(params, true), aggressive, commandCdpTimeoutMs(cmd) ?? 3e4, routeTargetUrl) : await sendDebuggerCommand(
       { tabId },
       cmd.cdpMethod,
-      stripOpenCliFrameRoutingParams(params, false)
+      stripOpenCliFrameRoutingParams(params, false),
+      commandCdpTimeoutMs(cmd)
     );
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 function stripOpenCliFrameRoutingParams(params, stripFrameId) {
@@ -2021,7 +2259,7 @@ async function handleSetFileInput(cmd, leaseKey) {
     await setFileInputFiles(tabId, cmd.files, cmd.selector);
     return pageScopedResult(cmd.id, tabId, { count: cmd.files.length });
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 async function handleInsertText(cmd, leaseKey) {
@@ -2034,7 +2272,7 @@ async function handleInsertText(cmd, leaseKey) {
     await insertText(tabId, cmd.text);
     return pageScopedResult(cmd.id, tabId, { inserted: true });
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 async function handleNetworkCaptureStart(cmd, leaseKey) {
@@ -2044,7 +2282,7 @@ async function handleNetworkCaptureStart(cmd, leaseKey) {
     await startNetworkCapture(tabId, cmd.pattern);
     return pageScopedResult(cmd.id, tabId, { started: true });
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 async function handleNetworkCaptureRead(cmd, leaseKey) {
@@ -2054,7 +2292,7 @@ async function handleNetworkCaptureRead(cmd, leaseKey) {
     const data = await readNetworkCapture(tabId);
     return pageScopedResult(cmd.id, tabId, data);
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 async function handleWaitDownload(cmd) {
@@ -2062,15 +2300,13 @@ async function handleWaitDownload(cmd) {
     const data = await waitForDownload(cmd.pattern ?? "", cmd.timeoutMs ?? 3e4);
     return { id: cmd.id, ok: true, data };
   } catch (err) {
-    return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : String(err) };
+    return errorResult(cmd.id, err);
   }
 }
 async function releaseLease(leaseKey, reason = "released") {
   const session = automationSessions.get(leaseKey);
   if (!session) {
-    sessionTimeoutOverrides.delete(leaseKey);
-    sessionWindowModeOverrides.delete(leaseKey);
-    sessionLifecycleOverrides.delete(leaseKey);
+    sessionOverrides.delete(leaseKey);
     scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
     await persistRuntimeState();
     return;
@@ -2109,23 +2345,21 @@ async function releaseLease(leaseKey, reason = "released") {
     console.log(`[opencli] Detached borrowed tab lease ${session.preferredTabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
   }
   automationSessions.delete(leaseKey);
-  sessionTimeoutOverrides.delete(leaseKey);
-  sessionWindowModeOverrides.delete(leaseKey);
-  sessionLifecycleOverrides.delete(leaseKey);
+  sessionOverrides.delete(leaseKey);
   await persistRuntimeState();
 }
 async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
+  interactiveGroupLedger.clear();
+  for (const id of registry.ownedContainers.interactive.groupIds) interactiveGroupLedger.add(id);
   for (const role of Object.keys(ownedContainers)) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
-    ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
     const windowId = ownedContainers[role].windowId;
     if (windowId !== null) {
       try {
         await chrome.windows.get(windowId);
       } catch {
         ownedContainers[role].windowId = null;
-        ownedContainers[role].groupId = null;
       }
     }
   }
@@ -2137,7 +2371,7 @@ async function reconcileTargetLeaseRegistry() {
       const tab = await chrome.tabs.get(tabId);
       if (!isDebuggableUrl(tab.url)) continue;
       if (stored.lifecycle === "ephemeral" || stored.lifecycle === "persistent" || stored.lifecycle === "pinned") {
-        sessionLifecycleOverrides.set(leaseKey, stored.lifecycle);
+        setSessionOverride(leaseKey, { lifecycle: stored.lifecycle });
       }
       const session = makeSession(leaseKey, {
         session: typeof stored.session === "string" ? stored.session : getSessionFromKey(leaseKey),
@@ -2167,11 +2401,16 @@ async function reconcileTargetLeaseRegistry() {
         if (remaining <= 0) {
           await releaseLease(leaseKey, "reconciled idle expiry");
         } else {
-          resetWindowIdleTimer(leaseKey);
+          resetWindowIdleTimer(leaseKey, remaining);
         }
       }
     } catch {
     }
+  }
+  try {
+    await ensureOwnedContainerGroup("interactive", null, []);
+  } catch (err) {
+    console.warn(`[opencli] Startup interactive group convergence failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   await persistRuntimeState();
 }

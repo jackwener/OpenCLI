@@ -3,7 +3,7 @@ import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { exportCookiesToNetscape, formatCookieHeader, httpDownload, resolveRedirectUrl } from './index.js';
+import { detectContentType, exportCookiesToNetscape, formatCookieHeader, httpDownload, requiresYtdlp, resolveRedirectUrl } from './index.js';
 
 const servers: http.Server[] = [];
 const tempDirs: string[] = [];
@@ -159,5 +159,42 @@ describe('download helpers', { retry: process.platform === 'win32' ? 2 : 0 }, ()
     const mode = fs.statSync(cookiesPath).mode & 0o777;
     expect(mode).toBe(0o600);
     expect(fs.readFileSync(cookiesPath, 'utf8')).toContain('sid\tsecret');
+  });
+});
+
+describe('video-platform host detection', () => {
+  it('matches real video-platform hosts (host or subdomain)', () => {
+    for (const url of [
+      'https://www.youtube.com/watch?v=abc',
+      'https://youtu.be/abc',
+      'https://m.bilibili.com/video/BV1xx',
+      'https://twitter.com/u/status/1',
+      'https://x.com/u/status/1',
+      'https://www.tiktok.com/@u/video/1',
+      'https://vimeo.com/12345',
+      'https://www.twitch.tv/u',
+    ]) {
+      expect(requiresYtdlp(url)).toBe(true);
+      expect(detectContentType(url)).toBe('video');
+    }
+  });
+
+  it('does not match hosts that merely end with a token or carry it in the path', () => {
+    // netflix.com / max.com / phoenix.com all *contain* the substring "x.com";
+    // the path-only token "youtu.be-guide" must not match either.
+    for (const url of [
+      'https://netflix.com/watch/123',
+      'https://www.phoenix.com/a.zip',
+      'https://max.com/movie',
+      'https://cdn.site.com/youtu.be-guide.bin',
+      'https://notx.com/a',
+    ]) {
+      expect(requiresYtdlp(url)).toBe(false);
+      expect(detectContentType(url)).not.toBe('video');
+    }
+  });
+
+  it('returns false for an unparseable URL instead of throwing', () => {
+    expect(requiresYtdlp('not a url')).toBe(false);
   });
 });

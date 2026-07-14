@@ -22,19 +22,32 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
-import { DEFAULT_DAEMON_PORT } from './constants.js';
+import { DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
 import { PKG_VERSION } from './version.js';
 import { DEFAULT_CONTEXT_ID } from './browser/profile.js';
 import { recordExtensionVersion } from './update-check.js';
 import {
+  PROFILE_DISCONNECTED_HINT,
   buildCommandDispatchFailure,
+  buildCommandTimeoutFailure,
   buildExtensionDisconnectFailure,
   getResponseCorsHeaders,
+  resolveProfileRoute,
 } from './daemon-utils.js';
+import {
+  SessionLeaseRegistry,
+  buildSessionBusyFailure,
+  getSessionLeaseKey,
+  isSessionLeaseCommand,
+} from './session-lease.js';
 
-const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
+const PORT = DEFAULT_DAEMON_PORT;
+if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
+  log.error(unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT));
+  process.exit(EXIT_CODES.USAGE_ERROR);
+}
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -47,14 +60,57 @@ type ExtensionProfileConnection = {
 };
 
 const extensionProfiles = new Map<string, ExtensionProfileConnection>();
-const pending = new Map<string, {
+type PendingSettler = {
+  resolve: (data: unknown) => void;
+  reject: (error: Error) => void;
+};
+type PendingEntry = {
   contextId: string;
   action: string;
   dispatched: boolean;
-  resolve: (data: unknown) => void;
-  reject: (error: Error) => void;
+  /**
+   * All HTTP requests waiting on this command id. The first settler is the
+   * original request; transport retries with the same id attach here instead
+   * of re-dispatching, so a retry never re-executes a command that is still
+   * running.
+   */
+  settlers: PendingSettler[];
   timer: ReturnType<typeof setTimeout>;
-}>();
+  /**
+   * Set for lease-eligible commands: while this entry is pending, the holder
+   * is alive even past the lease TTL (a single exec can outlast it), and
+   * settling refreshes the lease so the TTL clock restarts cleanly.
+   */
+  leaseKey?: string;
+  runId?: string;
+};
+const pending = new Map<string, PendingEntry>();
+
+// One logical write lease per (contextId, surface, persistent site session).
+// Serializes concurrent adapter write commands so a retry can't drive the same
+// Chrome tab as a still-running command. Stale leases self-expire (see
+// session-lease.ts).
+const sessionLeases = new SessionLeaseRegistry();
+
+/** A TTL-stale lease holder with a command still in flight is alive, not dead. */
+function runHasPendingWork(runId: string): boolean {
+  for (const entry of pending.values()) {
+    if (entry.runId === runId) return true;
+  }
+  return false;
+}
+
+function settlePending(id: string, entry: PendingEntry, outcome: { data?: unknown; error?: Error }): void {
+  clearTimeout(entry.timer);
+  pending.delete(id);
+  // A settling command is proof of holder liveness — restart the TTL clock so
+  // an exec that outlived the TTL hands over to normal heartbeats seamlessly.
+  if (entry.leaseKey && entry.runId) sessionLeases.heartbeat(entry.leaseKey, entry.runId, Date.now());
+  for (const settler of entry.settlers) {
+    if (outcome.error) settler.reject(outcome.error);
+    else settler.resolve(outcome.data);
+  }
+}
 let commandResultUnknownCount = 0;
 // Extension log ring buffer
 interface LogEntry { level: string; msg: string; ts: number; }
@@ -82,35 +138,37 @@ function activeProfiles(): ExtensionProfileConnection[] {
   return [...extensionProfiles.values()].filter((entry) => entry.ws.readyState === WebSocket.OPEN);
 }
 
-function resolveExtensionConnection(contextId?: string): {
+/** Stale defaults we already warned about — one log line per daemon lifetime. */
+const staleDefaultWarned = new Set<string>();
+
+function resolveExtensionConnection(contextId?: string, preferredContextId?: string): {
   connection?: ExtensionProfileConnection;
   errorCode?: 'extension_not_connected' | 'profile_required' | 'profile_disconnected';
   error?: string;
   errorHint?: string;
 } {
-  const requestedContextId = typeof contextId === 'string' && contextId.trim() ? contextId.trim() : undefined;
-  if (requestedContextId) {
-    const connection = extensionProfiles.get(requestedContextId);
-    if (connection?.ws.readyState === WebSocket.OPEN) return { connection };
-    return {
-      errorCode: 'profile_disconnected',
-      error: `Browser profile "${requestedContextId}" is not connected.`,
-      errorHint: 'Open that Chrome profile and make sure the OpenCLI extension is enabled, or choose another profile with opencli profile use <name>.',
-    };
+  const route = resolveProfileRoute({
+    requestedContextId: typeof contextId === 'string' ? contextId : undefined,
+    preferredContextId: typeof preferredContextId === 'string' ? preferredContextId : undefined,
+    connectedContextIds: activeProfiles().map((entry) => entry.contextId),
+  });
+  if (!route.ok) {
+    return { errorCode: route.errorCode, error: route.error, ...(route.errorHint ? { errorHint: route.errorHint } : {}) };
   }
-
-  const connected = activeProfiles();
-  if (connected.length === 1) return { connection: connected[0] };
-  if (connected.length > 1) {
-    return {
-      errorCode: 'profile_required',
-      error: 'Multiple Browser Bridge profiles are connected; choose one with --profile.',
-      errorHint: 'Run opencli profile list, then use opencli --profile <name> ... or opencli profile use <name>.',
-    };
+  if (route.fallbackFrom && !staleDefaultWarned.has(route.fallbackFrom)) {
+    staleDefaultWarned.add(route.fallbackFrom);
+    log.warn(
+      `[daemon] Default profile "${route.fallbackFrom}" is not connected; ` +
+      `using the only connected profile "${route.contextId}". Update the default with: opencli profile use <name>`,
+    );
   }
+  const connection = extensionProfiles.get(route.contextId);
+  if (connection?.ws.readyState === WebSocket.OPEN) return { connection };
+  // Connection raced away between arbitration and lookup.
   return {
-    errorCode: 'extension_not_connected',
-    error: 'Extension not connected. Please install the opencli Browser Bridge extension.',
+    errorCode: 'profile_disconnected',
+    error: `Browser profile "${route.contextId}" is not connected.`,
+    errorHint: PROFILE_DISCONNECTED_HINT,
   };
 }
 
@@ -143,7 +201,6 @@ function unregisterExtensionConnection(ws: WebSocket): void {
     extensionProfiles.delete(contextId);
     for (const [id, p] of pending) {
       if (p.contextId !== contextId) continue;
-      clearTimeout(p.timer);
       const failure = buildExtensionDisconnectFailure({
         contextId,
         action: p.action,
@@ -153,8 +210,7 @@ function unregisterExtensionConnection(ws: WebSocket): void {
         commandResultUnknownCount++;
         log.warn(`[daemon] Command result unknown after extension disconnect (id=${id}, action=${p.action}, context=${contextId})`);
       }
-      p.reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
-      pending.delete(id);
+      settlePending(id, p, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
     }
   }
 }
@@ -260,6 +316,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       profileDisconnected: route.errorCode === 'profile_disconnected',
       profiles,
       pending: pending.size,
+      sessionLeases: sessionLeases.list(Date.now(), runHasPendingWork),
       commandResultUnknown: commandResultUnknownCount,
       memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
       port: PORT,
@@ -297,7 +354,20 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
-      const route = resolveExtensionConnection(typeof body.contextId === 'string' ? body.contextId : undefined);
+      // ─── Session write lease: explicit release ───────────────────────
+      // Daemon-local, never dispatched to the extension. Keyed by runId alone:
+      // runIds are globally unique, and re-resolving the profile route here
+      // could fail (the profile may have disconnected since acquire).
+      if (body.action === 'lease-release') {
+        if (typeof body.runId === 'string') sessionLeases.releaseByRunId(body.runId);
+        jsonResponse(res, 200, { id: body.id, ok: true });
+        return;
+      }
+
+      const route = resolveExtensionConnection(
+        typeof body.contextId === 'string' ? body.contextId : undefined,
+        typeof body.preferredContextId === 'string' ? body.preferredContextId : undefined,
+      );
       if (!route.connection) {
         jsonResponse(res, route.errorCode === 'profile_required' ? 409 : 503, {
           id: body.id,
@@ -309,37 +379,86 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
-      const timeoutMs = typeof body.timeout === 'number' && body.timeout > 0
-        ? body.timeout * 1000
-        : 120000;
-      if (pending.has(body.id)) {
-        jsonResponse(res, 409, {
-          id: body.id,
-          ok: false,
-          error: 'Duplicate command id already pending; retry',
+      // ─── Session write lease: arbitration ────────────────────────────
+      // Runs AFTER profile routing (the resolved contextId is part of the
+      // lease key — the same site session in two Chrome profiles drives two
+      // different browsers) but BEFORE any dispatch to the extension. The
+      // first write acquires, same-runId execs refresh (heartbeat), and a
+      // concurrent different-runId write fails fast. Read and ephemeral
+      // commands are never arbitrated.
+      let leaseKey: string | undefined;
+      let leaseRunId: string | undefined;
+      if (isSessionLeaseCommand(body)) {
+        const now = Date.now();
+        const key = getSessionLeaseKey(route.connection.contextId, body.surface, body.session);
+        const outcome = sessionLeases.touch(key, {
+          runId: body.runId,
+          command: typeof body.command === 'string' && body.command ? body.command : body.action,
+          now,
+          // A holder past the TTL whose exec is still in flight is alive — a
+          // single slow command produces no heartbeat until it settles.
+          hasPendingWork: runHasPendingWork,
         });
+        if (!outcome.granted) {
+          const failure = buildSessionBusyFailure(body.session, outcome.holder, now);
+          log.warn(
+            `[daemon] Session ${key} busy — rejected ${body.command ?? body.action} ` +
+            `(runId=${body.runId}); held by ${outcome.holder.command} (runId=${outcome.holder.runId})`,
+          );
+          jsonResponse(res, failure.status, {
+            id: body.id,
+            ok: false,
+            errorCode: failure.errorCode,
+            error: failure.message,
+            errorHint: failure.errorHint,
+          });
+          return;
+        }
+        leaseKey = key;
+        leaseRunId = body.runId;
+      }
+
+      // Absolute deadline wins over the legacy duration field: all hops share
+      // one wall clock, so remaining budget absorbs queueing/transit time.
+      const timeoutMs = typeof body.deadlineAt === 'number' && body.deadlineAt > 0
+        ? Math.max(1000, body.deadlineAt - Date.now())
+        : (typeof body.timeout === 'number' && body.timeout > 0 ? body.timeout * 1000 : 120000);
+
+      // A transport retry of an in-flight command attaches to it instead of
+      // re-dispatching — the extension is already executing this id.
+      const existing = pending.get(body.id);
+      if (existing) {
+        const result = await new Promise<unknown>((resolve, reject) => {
+          existing.settlers.push({ resolve, reject });
+        });
+        jsonResponse(res, 200, result);
         return;
       }
+
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
-          pending.delete(body.id);
-          reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
+          const entry = pending.get(body.id);
+          if (!entry) return;
+          const failure = buildCommandTimeoutFailure(entry.action, timeoutMs);
+          if (failure.countAsCommandResultUnknown && entry.dispatched) {
+            commandResultUnknownCount++;
+            log.warn(`[daemon] Command timed out after dispatch (id=${body.id}, action=${entry.action}, timeout=${timeoutMs}ms)`);
+          }
+          settlePending(body.id, entry, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
         }, timeoutMs);
-        const entry = {
+        const entry: PendingEntry = {
           contextId: route.connection!.contextId,
           action: typeof body.action === 'string' ? body.action : 'unknown',
           dispatched: false,
-          resolve,
-          reject,
+          settlers: [{ resolve, reject }],
           timer,
+          ...(leaseKey && leaseRunId ? { leaseKey, runId: leaseRunId } : {}),
         };
         pending.set(body.id, entry);
         const failBeforeDispatch = (err: unknown) => {
           if (pending.get(body.id) !== entry) return;
           const failure = buildCommandDispatchFailure(entry.contextId);
-          clearTimeout(timer);
-          pending.delete(body.id);
-          reject(new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status));
+          settlePending(body.id, entry, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
           log.warn(`[daemon] Failed to dispatch command ${body.id}: ${err instanceof Error ? err.message : String(err)}`);
         };
         try {
@@ -435,15 +554,24 @@ wss.on('connection', (ws: WebSocket) => {
         return;
       }
 
+      // Application-level keepalive from the extension — WS traffic is what
+      // keeps the MV3 service worker alive; nothing to do here.
+      if (msg.type === 'ping') return;
+
       // Handle command results
       const p = pending.get(msg.id);
       if (p) {
-        clearTimeout(p.timer);
-        pending.delete(msg.id);
-        p.resolve(msg);
+        settlePending(msg.id, p, { data: msg });
       }
-    } catch {
-      // Ignore malformed messages
+    } catch (err) {
+      // Malformed message from the extension. Surface so protocol drift /
+      // version skew between daemon and extension shows up in the log
+      // instead of presenting as a generic command timeout downstream.
+      const sample = data.toString().slice(0, 200);
+      log.warn(
+        `[daemon] Ignoring malformed WS message from extension: ` +
+        `${err instanceof Error ? err.message : String(err)} (first 200 chars: ${JSON.stringify(sample)})`,
+      );
     }
   });
 
@@ -476,15 +604,34 @@ httpServer.on('error', (err: NodeJS.ErrnoException) => {
 
 // Graceful shutdown
 function shutdown(): void {
-  // Reject all pending requests so CLI doesn't hang
-  for (const [, p] of pending) {
-    clearTimeout(p.timer);
-    p.reject(new Error('Daemon shutting down'));
+  // Reject all pending requests so the CLI gets a structured response it can
+  // act on instead of a socket hang-up it must treat as result-unknown.
+  // Not-yet-dispatched commands get the pre-dispatch contract (safe to resend
+  // anywhere); dispatched ones get `daemon_shutting_down`, which the client
+  // only resends when the extension journals ids.
+  for (const [id, p] of pending) {
+    const failure = p.dispatched
+      ? new DaemonCommandFailure(
+        'Daemon shutting down before the command completed.',
+        'daemon_shutting_down',
+        'The daemon is being replaced; a journaling extension replays the command result on retry.',
+        503,
+      )
+      : (() => {
+        const contract = buildCommandDispatchFailure(p.contextId);
+        return new DaemonCommandFailure(contract.message, contract.errorCode, contract.errorHint, contract.status);
+      })();
+    settlePending(id, p, { error: failure });
   }
   pending.clear();
   for (const profile of extensionProfiles.values()) profile.ws.close();
-  httpServer.close();
-  process.exit(EXIT_CODES.SUCCESS);
+  // Let the rejection responses flush before exiting — a synchronous
+  // process.exit() would kill the queued microtasks that write them.
+  httpServer.close(() => process.exit(EXIT_CODES.SUCCESS));
+  setTimeout(() => {
+    httpServer.closeIdleConnections?.();
+    setTimeout(() => process.exit(EXIT_CODES.SUCCESS), 500).unref();
+  }, 100).unref();
 }
 
 process.on('SIGTERM', shutdown);

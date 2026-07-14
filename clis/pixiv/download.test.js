@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 // Mock download dependencies before importing the adapter
 const { mockHttpDownload, mockMkdirSync } = vi.hoisted(() => ({
@@ -42,10 +42,20 @@ describe('pixiv download', () => {
         const page = createPageMock([{ __httpError: 500 }]);
         await expect(cmd.func(page, { 'illust-id': '12345', output: '/tmp/test' })).rejects.toThrow(CommandExecutionError);
     });
-    it('returns failure when no images found', async () => {
+    it('throws EmptyResultError when no images found', async () => {
         const page = createPageMock([{ body: [] }]);
-        const result = (await cmd.func(page, { 'illust-id': '12345', output: '/tmp/test' }));
-        expect(result).toEqual([{ index: 0, type: '-', status: 'failed', size: 'No images found' }]);
+        await expect(cmd.func(page, { 'illust-id': '12345', output: '/tmp/test' }))
+            .rejects.toThrow(EmptyResultError);
+    });
+    it('throws CommandExecutionError when pages payload is malformed', async () => {
+        const page = createPageMock([{ body: { pages: [] } }]);
+        await expect(cmd.func(page, { 'illust-id': '12345', output: '/tmp/test' }))
+            .rejects.toThrow(CommandExecutionError);
+    });
+    it('throws CommandExecutionError when pages payload is null', async () => {
+        const page = createPageMock([{ body: null }]);
+        await expect(cmd.func(page, { 'illust-id': '12345', output: '/tmp/test' }))
+            .rejects.toThrow(CommandExecutionError);
     });
     it('downloads images with Referer header', async () => {
         mockHttpDownload.mockResolvedValue({ success: true, size: 1024000 });

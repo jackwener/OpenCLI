@@ -97,14 +97,6 @@
   },
   {
     "rule": "silent-clamp",
-    "command": "bilibili/comments",
-    "file": "clis/bilibili/comments.js",
-    "line": 21,
-    "text": "const limit = Math.min(Number(kwargs.limit) || 20, 50);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
     "command": "bilibili/favorite",
     "file": "clis/bilibili/favorite.js",
     "line": 35,
@@ -419,7 +411,7 @@
     "rule": "silent-clamp",
     "command": "linkedin/timeline",
     "file": "clis/linkedin/timeline.js",
-    "line": 473,
+    "line": 479,
     "text": "const limit = Math.max(1, Math.min(kwargs.limit ?? 20, 100));",
     "occurrence": 0
   },
@@ -483,7 +475,7 @@
     "rule": "silent-clamp",
     "command": "reddit/read",
     "file": "clis/reddit/read.js",
-    "line": 479,
+    "line": 531,
     "text": "for (var i = 0; i < Math.min(t1TopLevel.length, limit); i++) {",
     "occurrence": 0
   },
@@ -635,7 +627,7 @@
     "rule": "silent-clamp",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
-    "line": 227,
+    "line": 232,
     "text": "const fetchCount = Math.min(50, limit - allUsers.length + 10);",
     "occurrence": 0
   },
@@ -643,7 +635,7 @@
     "rule": "silent-clamp",
     "command": "twitter/likes",
     "file": "clis/twitter/likes.js",
-    "line": 207,
+    "line": 208,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -651,7 +643,7 @@
     "rule": "silent-clamp",
     "command": "twitter/list-tweets",
     "file": "clis/twitter/list-tweets.js",
-    "line": 176,
+    "line": 179,
     "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
@@ -659,7 +651,7 @@
     "rule": "silent-clamp",
     "command": "twitter/timeline",
     "file": "clis/twitter/timeline.js",
-    "line": 183,
+    "line": 185,
     "text": "const fetchCount = Math.min(40, limit - allTweets.length + 5); // over-fetch slightly for promoted filtering",
     "occurrence": 0
   },
@@ -667,16 +659,8 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 287,
-    "text": "const fetchCount = Math.min(100, limit - all.length + 10);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
-    "command": "twitter/tweets",
-    "file": "clis/twitter/tweets.js",
-    "line": 232,
-    "text": "const limit = Math.max(1, Math.min(200, kwargs.limit || 20));",
+    "line": 316,
+    "text": "const fetchCount = Math.min(USER_TWEETS_PAGE_SIZE, limit - all.length + 10);",
     "occurrence": 0
   },
   {
@@ -731,7 +715,7 @@
     "rule": "silent-clamp",
     "command": "xianyu/search",
     "file": "clis/xianyu/search.js",
-    "line": 8,
+    "line": 9,
     "text": "return Math.min(MAX_LIMIT, Math.max(1, Math.floor(n)));",
     "occurrence": 0
   },
@@ -747,7 +731,7 @@
     "rule": "silent-clamp",
     "command": "youtube/channel",
     "file": "clis/youtube/channel.js",
-    "line": 35,
+    "line": 81,
     "text": "const limit = Math.min(kwargs.limit || 10, 30);",
     "occurrence": 0
   },
@@ -819,7 +803,7 @@
     "rule": "silent-clamp",
     "command": "zhihu/collection",
     "file": "clis/zhihu/collection.js",
-    "line": 154,
+    "line": 142,
     "text": "const currentFetchLimit = Math.min(pageLimit, requestedLimit - collected.length);",
     "occurrence": 0
   },
@@ -827,7 +811,7 @@
     "rule": "silent-clamp",
     "command": "zhihu/collection",
     "file": "clis/zhihu/collection.js",
-    "line": 143,
+    "line": 131,
     "text": "const pageLimit = Math.min(requestedLimit, 20); // 知乎 API 限制每页最大 20",
     "occurrence": 0
   },
@@ -859,7 +843,7 @@
     "rule": "silent-sentinel",
     "command": "bilibili/download",
     "file": "clis/bilibili/download.js",
-    "line": 47,
+    "line": 141,
     "text": "const author = document.querySelector('.up-name, .username')?.textContent?.trim() || 'unknown';",
     "occurrence": 0
   },
@@ -937,22 +921,6 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "twitter/following",
-    "file": "clis/twitter/following.js",
-    "line": 95,
-    "text": "name: core.name || legacy.name || 'unknown',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "twitter/following",
-    "file": "clis/twitter/following.js",
-    "line": 94,
-    "text": "screen_name: core.screen_name || legacy.screen_name || 'unknown',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/likes",
     "file": "clis/twitter/likes.js",
     "line": 91,
@@ -963,33 +931,9 @@
     "rule": "silent-sentinel",
     "command": "twitter/list-tweets",
     "file": "clis/twitter/list-tweets.js",
-    "line": 62,
+    "line": 63,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "twitter/notifications",
-    "file": "clis/twitter/notifications.js",
-    "line": 82,
-    "text": "author = fromUser?.core?.screen_name || fromUser?.legacy?.screen_name || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "twitter/notifications",
-    "file": "clis/twitter/notifications.js",
-    "line": 104,
-    "text": "author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
-    "command": "twitter/notifications",
-    "file": "clis/twitter/notifications.js",
-    "line": 97,
-    "text": "author = tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown';",
-    "occurrence": 1
   },
   {
     "rule": "silent-sentinel",
@@ -1001,17 +945,9 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "twitter/search",
-    "file": "clis/twitter/search.js",
-    "line": 217,
-    "text": "author: tweetUser?.core?.screen_name || tweetUser?.legacy?.screen_name || 'unknown',",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/thread",
     "file": "clis/twitter/thread.js",
-    "line": 48,
+    "line": 49,
     "text": "const screenName = u?.legacy?.screen_name || u?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -1027,7 +963,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 161,
+    "line": 163,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },

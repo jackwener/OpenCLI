@@ -61,6 +61,35 @@ describe('parseJsonOrThrowLoginWall', () => {
     await expect(parseJsonOrThrowLoginWall(res)).rejects.toBeInstanceOf(LoginWallError);
   });
 
+  it('detects mixed-case HTML tags when content-type claims JSON', async () => {
+    const res = new Response('<HtMl lang="en"><body>nope</body></HtMl>', {
+      status: 403,
+      headers: { 'content-type': 'application/json' },
+    });
+
+    await expect(parseJsonOrThrowLoginWall(res)).rejects.toBeInstanceOf(LoginWallError);
+  });
+
+  it('detects mixed-case HTML fragments without a top-level html tag', async () => {
+    for (const html of ['<BoDy>blocked</BoDy>', '<TiTlE>login</TiTlE>']) {
+      const res = new Response(html, {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      await expect(parseJsonOrThrowLoginWall(res)).rejects.toBeInstanceOf(LoginWallError);
+    }
+  });
+
+  it('does not treat arbitrary angle-prefixed non-HTML text as a login wall', async () => {
+    const res = new Response('<htmlish', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+    await expect(parseJsonOrThrowLoginWall(res)).rejects.not.toBeInstanceOf(LoginWallError);
+  });
+
   it('throws LoginWallError when body has leading whitespace before <!DOCTYPE', async () => {
     const res = new Response('   \n\n<!DOCTYPE html><html></html>', {
       status: 200,
@@ -165,5 +194,53 @@ describe('BROWSER_JSON_SNIFF_FN', () => {
     // We can't run the actual fetch path here (no Response polyfill loop), but
     // we CAN confirm the fragment parses cleanly when embedded inside an async IIFE.
     expect(() => new Function(`(async () => { ${BROWSER_JSON_SNIFF_FN} })`)).not.toThrow();
+  });
+
+  it('detects mixed-case HTML tags in browser-side responses', async () => {
+    const fetchJsonOrLoginWall = new Function(
+      'fetch',
+      `${BROWSER_JSON_SNIFF_FN}; return fetchJsonOrLoginWall;`,
+    )(
+      async () => new Response('<HtMl><body>login</body></HtMl>', {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    ) as (input: string) => Promise<LoginWallSignal>;
+
+    await expect(fetchJsonOrLoginWall('/api')).resolves.toMatchObject({
+      __loginWall: true,
+      status: 403,
+    });
+  });
+
+  it('detects mixed-case HTML fragments in browser-side responses', async () => {
+    const fetchJsonOrLoginWall = new Function(
+      'fetch',
+      `${BROWSER_JSON_SNIFF_FN}; return fetchJsonOrLoginWall;`,
+    )(
+      async () => new Response('<BoDy>login</BoDy>', {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    ) as (input: string) => Promise<LoginWallSignal>;
+
+    await expect(fetchJsonOrLoginWall('/api')).resolves.toMatchObject({
+      __loginWall: true,
+      status: 403,
+    });
+  });
+
+  it('does not flag browser-side non-HTML angle-prefixed text', async () => {
+    const fetchJsonOrLoginWall = new Function(
+      'fetch',
+      `${BROWSER_JSON_SNIFF_FN}; return fetchJsonOrLoginWall;`,
+    )(
+      async () => new Response('<htmlish', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    ) as (input: string) => Promise<LoginWallSignal>;
+
+    await expect(fetchJsonOrLoginWall('/api')).rejects.toThrow('JSON parse failed');
   });
 });

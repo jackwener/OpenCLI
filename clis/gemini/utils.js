@@ -594,7 +594,7 @@ function submitComposerScript() {
       }
 
       const excludedPattern = /main menu|主菜单|microphone|麦克风|upload|上传|mode|模式|tools|工具|settings|临时对话|new chat|新对话/i;
-      const submitPattern = /send|发送|submit|提交/i;
+      const submitPattern = /send|发送|傳送|submit|提交/i;
       let bestButton = null;
       let bestScore = -1;
 
@@ -972,6 +972,61 @@ function getGeminiConversationListScript() {
     })()
   `;
 }
+
+// Gemini collapses the sidebar's "最近" / "Recents" section by default, so the
+// /app/<id> conversation anchors are not present in the DOM (or are hidden)
+// until that section is expanded. The script below opens the sidebar if it is
+// collapsed and expands the Recents toggle, returning true if it likely
+// changed the DOM and the caller should retry extraction.
+function expandGeminiRecentScript() {
+    return `
+    (() => {
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const ariaHidden = (el.getAttribute('aria-hidden') || '').toLowerCase();
+        if (ariaHidden === 'true' || el.closest('[aria-hidden="true"]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (Number(style.opacity) === 0) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      let changed = false;
+      const buttons = Array.from(document.querySelectorAll('button')).filter(isVisible);
+
+      // 1. Open the sidebar if it is collapsed (button only renders when closed).
+      const openSidebar = buttons.find((b) => {
+        const label = normalize(b.getAttribute('aria-label') || '');
+        return /打开边栏|open sidebar|open navigation|展开边栏/i.test(label);
+      });
+      if (openSidebar) { openSidebar.click(); changed = true; }
+
+      // 2. Expand the "最近" / "Recents" toggle if it is currently collapsed.
+      const recentToggle = buttons.find((b) => {
+        const label = normalize(b.getAttribute('aria-label') || '');
+        const expanded = (b.getAttribute('aria-expanded') || '').toLowerCase();
+        return /最近|recent/i.test(label) && (
+          /展开|收起|expand|collapse|toggle|show|hide/i.test(label)
+          || expanded === 'false'
+          || expanded === 'true'
+        );
+      });
+      if (recentToggle) {
+        const label = normalize(recentToggle.getAttribute('aria-label') || '');
+        const expanded = (recentToggle.getAttribute('aria-expanded') || '').toLowerCase();
+        const explicitExpandLabel = /展开|显示|expand|show/i.test(label) && !/收起|collapse|hide/i.test(label);
+        if (expanded === 'false' || (expanded !== 'true' && explicitExpandLabel)) {
+          recentToggle.click();
+          changed = true;
+        }
+      }
+
+      return changed;
+    })()
+  `;
+}
 function clickGeminiConversationByTitleScript(query) {
     const normalizedQuery = normalizeGeminiTitle(query);
     return `
@@ -1082,15 +1137,29 @@ export async function startNewGeminiChat(page) {
 }
 export async function getGeminiConversationList(page) {
     await ensureGeminiPage(page);
-    const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
-    const rows = raw.flatMap((item) => {
-        if (!isObjectRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
-            throw new CommandExecutionError('Gemini conversation list returned a malformed row');
-        }
-        if (!isGeminiConversationUrl(item.url))
-            return [];
-        return { Title: item.title, Url: item.url };
-    });
+    let rows = [];
+    // Gemini collapses the sidebar "最近"/Recents section by default, hiding
+    // the conversation anchors. Retry extraction after expanding it.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
+        rows = raw.flatMap((item) => {
+            if (!isObjectRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
+                throw new CommandExecutionError('Gemini conversation list returned a malformed row');
+            }
+            if (!isGeminiConversationUrl(item.url))
+                return [];
+            return { Title: item.title, Url: item.url };
+        });
+        if (rows.length > 0)
+            break;
+        const changedRaw = unwrapGeminiEvaluateResult(await page.evaluate(expandGeminiRecentScript()), 'Gemini sidebar expand');
+        const changed = changedRaw === true;
+        // Give the React sidebar a moment to render the expanded anchors,
+        // longer on the first expansion (sidebar slide-in is async).
+        await page.wait(attempt === 0 ? 1.2 : 0.6);
+        if (!changed && attempt > 0)
+            break;
+    }
     return rows;
 }
 export async function clickGeminiConversationByTitle(page, query) {
@@ -1773,6 +1842,468 @@ export async function exportGeminiDeepResearchReport(page, timeoutSeconds = 120)
         : await getCurrentGeminiUrl(page);
     return pickGeminiDeepResearchExportUrl(urls, currentUrl);
 }
+// ── Thinking-level selection ─────────────────────────────────────────
+
+/**
+ * Browser evaluate script that opens the Gemini model-picker menu.
+ * Returns { ok: true } on success, { ok: false } on failure.
+ */
+function openModelPickerForThinkingScript() {
+    return `
+    (() => {
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const ariaHidden = el.getAttribute('aria-hidden');
+        if (ariaHidden && ariaHidden.toLowerCase() === 'true') return false;
+        if (el.closest('[aria-hidden="true"]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (Number(style.opacity) === 0 || style.pointerEvents === 'none') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      const VERSION_LABEL_RE = /\\d+\\.\\d+/;
+
+      const MODE_SELECTOR_PATTERNS = [
+        /模式选择器/i,
+        /mode[\\s-]*selector/i,
+        /model[\\s-]*selector/i,
+        /model[\\s-]*picker/i,
+        /选择模型/i,
+        /select[\\s-]+model/i,
+        /choose[\\s-]+model/i,
+        /switch[\\s-]+model/i,
+        /change[\\s-]+model/i,
+      ];
+
+      const MODEL_VARIANT_RE = /^(?:gemini\\s+)?(flash|lite|pro|ultra|nano|flash-lite|flash[\\s-]*thinking)$/i;
+
+      const findModelPicker = () => {
+        const buttons = Array.from(
+          document.querySelectorAll('button, [role="button"]')
+        ).filter(isVisible);
+
+        // Method 1: Detect model/mode selector via aria-label patterns.
+        for (const button of buttons) {
+          const aria = normalize(button.getAttribute('aria-label') || '');
+          for (const pattern of MODE_SELECTOR_PATTERNS) {
+            if (pattern.test(aria)) return button;
+          }
+        }
+
+        // Method 2: Detect buttons whose text contains a model-version pattern.
+        const versionCandidates = buttons.filter((b) => {
+          const text = normalize(b.textContent || '') || normalize(b.getAttribute('aria-label') || '');
+          return VERSION_LABEL_RE.test(text) && text.length < 80;
+        });
+        versionCandidates.sort((a, b) => {
+          const aRect = a.getBoundingClientRect();
+          const bRect = b.getBoundingClientRect();
+          return aRect.top - bRect.top || aRect.left - bRect.left;
+        });
+        if (versionCandidates.length > 0) return versionCandidates[0];
+
+        // Method 3: Detect buttons showing a known model variant as their
+        // sole text (e.g. "Pro", "Flash", "Flash-Lite").
+        const variantCandidates = buttons.filter((b) => {
+          const text = normalize(b.textContent || '');
+          return MODEL_VARIANT_RE.test(text) && text.length < 30;
+        });
+        variantCandidates.sort((a, b) => {
+          const aRect = a.getBoundingClientRect();
+          const bRect = b.getBoundingClientRect();
+          return aRect.top - bRect.top || aRect.left - bRect.left;
+        });
+        if (variantCandidates.length > 0) return variantCandidates[0];
+
+        // Method 4: Fallback — look for any element with model-related attributes.
+        const attrEls = Array.from(
+          document.querySelectorAll('[data-model-selector], [aria-label*="model" i], [aria-label*="模式" i]')
+        ).filter(isVisible);
+        if (attrEls.length > 0) return attrEls[0];
+
+        return null;
+      };
+
+      const picker = findModelPicker();
+      if (!picker) return { ok: false, reason: 'Model picker not found' };
+
+      try {
+        picker.click();
+        return { ok: true };
+      } catch (_) {
+        return { ok: false, reason: 'Failed to click model picker' };
+      }
+    })()
+    `;
+}
+
+/**
+ * Browser evaluate script that clicks the "思考等级" / "Thinking level"
+ * toggle inside an already-open model-picker menu to expand thinking options.
+ * Returns true if the toggle was found and clicked.
+ */
+function clickThinkingToggleInMenuScript() {
+    return `
+    (() => {
+      const isVisible = (el) => {
+        if (!el) return false;
+        if (!(el instanceof HTMLElement) && !(el instanceof Element)) return false;
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const MENU_SELECTORS = [
+        '[role="menu"] [role="menuitem"]',
+        '[role="menu"] [role="menuitemradio"]',
+        '[role="listbox"] [role="option"]',
+        '[role="menu"] button',
+        '[role="listbox"] button',
+        '[role="menu"] li',
+        '[role="listbox"] li',
+        '[role="dialog"] [role="menuitem"]',
+        '[role="dialog"] [role="option"]',
+        '[aria-modal="true"] [role="menuitem"]',
+        '[aria-modal="true"] [role="option"]',
+        'gem-menu-item',
+        'GEM-MENU-ITEM',
+      ];
+
+      let menuItems = [];
+      for (const sel of MENU_SELECTORS) {
+        const items = Array.from(document.querySelectorAll(sel)).filter(isVisible);
+        if (items.length >= 2) { menuItems = items; break; }
+      }
+
+      if (menuItems.length === 0) {
+        const containers = Array.from(
+          document.querySelectorAll('[role="menu"], [role="listbox"], [role="dialog"], [aria-modal="true"]')
+        ).filter(isVisible);
+        for (const container of containers) {
+          const children = Array.from(
+            container.querySelectorAll('button, [role="button"], li, [role="menuitem"], [role="option"], gem-menu-item, GEM-MENU-ITEM, :not(script):not(style)')
+          ).filter(isVisible);
+          if (children.length >= 2) { menuItems = children; break; }
+        }
+      }
+
+      const thinkingToggle = menuItems.find((item) => {
+        const text = (item.textContent || '').replace(/\\s+/g, ' ').trim();
+        return /思考等级|thinking level|thinking mode/i.test(text);
+      });
+
+      if (thinkingToggle) {
+        try { thinkingToggle.click(); } catch (_) { return false; }
+        return true;
+      }
+      return false;
+    })()
+    `;
+}
+
+/**
+ * Browser evaluate script that selects a specific thinking level from an
+ * already-open model-picker menu (after the thinking section has been
+ * expanded).  Closes the menu after selection (or on failure).
+ *
+ * @param {string} thinkingValue - 'standard' or 'extended'
+ * @returns a function string for page.evaluate() that returns the matched
+ *          label text, or empty string on failure
+ */
+function selectThinkingInMenuScript(thinkingValue) {
+    const normalizedValue = String(thinkingValue || '').trim().toLowerCase();
+    if (!normalizedValue) return '(() => "")';
+    const labelMap = JSON.stringify({
+        standard: ['standard', '标准', '標準'],
+        extended: ['extended', '扩展', '擴展', '拡張'],
+    });
+    return `
+    (() => {
+      const LABEL_MAP = ${labelMap};
+      const candidateLabels = LABEL_MAP['${normalizedValue}'] || ['${normalizedValue}'];
+
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const ariaHidden = el.getAttribute('aria-hidden');
+        if (ariaHidden && ariaHidden.toLowerCase() === 'true') return false;
+        if (el.closest('[aria-hidden="true"]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (Number(style.opacity) === 0 || style.pointerEvents === 'none') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+
+      const textOf = (node) => [
+        node?.textContent || '',
+        node instanceof HTMLElement ? (node.innerText || '') : '',
+        node?.getAttribute?.('aria-label') || '',
+        node?.getAttribute?.('title') || '',
+        node?.getAttribute?.('data-tooltip') || '',
+      ].join(' ');
+
+      const matchesThinking = (node) => {
+        const combined = normalize(textOf(node));
+        if (!combined) return false;
+        return candidateLabels.some((label) => combined.includes(label));
+      };
+
+      // Search inside visible menu containers first.
+      const containers = Array.from(
+        document.querySelectorAll('[role="menu"], [role="listbox"], [role="dialog"], [aria-modal="true"]')
+      ).filter(isVisible);
+
+      const SELECTORS = [
+        'button', '[role="button"]', '[role="menuitem"]', '[role="menuitemradio"]',
+        '[role="option"]', '[role="radio"]', '[role="switch"]', 'li',
+      ];
+
+      let candidates = [];
+      for (const container of containers) {
+        for (const sel of SELECTORS) {
+          const nodes = Array.from(container.querySelectorAll(sel))
+            .filter((node) => isVisible(node) && matchesThinking(node));
+          candidates.push(...nodes);
+        }
+      }
+
+      // Fallback: search the entire page.
+      if (candidates.length === 0) {
+        for (const sel of SELECTORS) {
+          const nodes = Array.from(document.querySelectorAll(sel))
+            .filter((node) => isVisible(node) && matchesThinking(node));
+          candidates.push(...nodes);
+        }
+      }
+
+      if (candidates.length === 0) {
+        try { document.body.click(); } catch (_) {}
+        return '';
+      }
+
+      // Prefer exact match over substring.
+      candidates.sort((a, b) => {
+        const aText = normalize(textOf(a));
+        const bText = normalize(textOf(b));
+        const aExact = candidateLabels.some((l) => aText === l);
+        const bExact = candidateLabels.some((l) => bText === l);
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+        return 0;
+      });
+
+      const target = candidates[0];
+      let matchedLabel = '';
+      try {
+        target.click();
+        matchedLabel = (target.textContent || '').trim();
+      } catch (_) {
+        try { document.body.click(); } catch (_) {}
+        return '';
+      }
+
+      // Close the menu after successful selection.
+      try { document.body.click(); } catch (_) {}
+
+      return matchedLabel;
+    })()
+    `;
+}
+
+/**
+ * Select a Gemini thinking level in the web UI.
+ *
+ * Multi-step approach matching modelsCommand.func:
+ *  1. Open the model-picker menu.
+ *  2. Wait for React to render the menu.
+ *  3. Click the "思考等级"/"Thinking level" toggle to expand thinking options.
+ *  4. Wait for the expanded items to render.
+ *  5. Select the requested thinking level.
+ *  6. Close the menu.
+ *
+ * @param {object} page - Puppeteer page object
+ * @param {string} thinkingValue - 'standard' or 'extended'
+ * @returns {Promise<string>} matched label text, or empty string on failure
+ */
+export async function selectGeminiThinking(page, thinkingValue) {
+    await ensureGeminiPage(page);
+
+    // Step 1: Open the picker menu.
+    const pickerRaw = await page.evaluate(openModelPickerForThinkingScript()).catch(() => null);
+    const pickerResult = unwrapGeminiEvaluateResult(pickerRaw, 'Gemini thinking model picker');
+    if (!pickerResult || !pickerResult.ok) return '';
+
+    // Step 2: Wait for React to render the menu.
+    await page.wait(0.8);
+
+    // Step 3: Click the thinking toggle to expand thinking options.
+    const toggleRaw = await page.evaluate(clickThinkingToggleInMenuScript()).catch(() => false);
+    const toggleClicked = unwrapGeminiEvaluateResult(toggleRaw, 'Gemini thinking toggle');
+
+    if (toggleClicked) {
+        // Step 4: Wait for the expanded thinking items to render.
+        await page.wait(0.5);
+    }
+
+    // Step 5: Select the requested thinking level (also closes the menu).
+    const matchedRaw = await page.evaluate(selectThinkingInMenuScript(thinkingValue)).catch(() => '');
+    const matched = unwrapGeminiEvaluateResult(matchedRaw, 'Gemini thinking selection');
+
+    if (typeof matched === 'string' && matched) {
+        await page.wait(0.3);
+        return matched;
+    }
+
+    return '';
+}
+
+// ── Current model detection ─────────────────────────────────────────
+
+/**
+ * Browser evaluate script that reads the currently selected model from the
+ * Gemini model-picker button and returns its canonical model ID.
+ *
+ * Uses the same canonicalModelId logic as discoverModelsScript so that
+ * the returned ID can be matched against discovered model entries.
+ *
+ * @returns a function string for page.evaluate()
+ */
+function getCurrentGeminiModelScript() {
+    return `
+    (() => {
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const ariaHidden = el.getAttribute('aria-hidden');
+        if (ariaHidden && ariaHidden.toLowerCase() === 'true') return false;
+        if (el.closest('[aria-hidden="true"]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (Number(style.opacity) === 0 || style.pointerEvents === 'none') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+
+      const VERSION_LABEL_RE = /\\d+\\.\\d+/;
+
+      const MODE_SELECTOR_PATTERNS = [
+        /模式选择器/i,
+        /mode[\\s-]*selector/i,
+        /model[\\s-]*selector/i,
+        /model[\\s-]*picker/i,
+        /选择模型/i,
+        /select[\\s-]+model/i,
+        /choose[\\s-]+model/i,
+        /switch[\\s-]+model/i,
+        /change[\\s-]+model/i,
+      ];
+
+      const MODEL_VARIANT_RE = /^(?:gemini\\s+)?(flash|lite|pro|ultra|nano|flash-lite|flash[\\s-]*thinking)$/i;
+
+      const findModelPicker = () => {
+        const buttons = Array.from(
+          document.querySelectorAll('button, [role="button"]')
+        ).filter(isVisible);
+
+        // Method 1: Detect model/mode selector via aria-label patterns.
+        for (const button of buttons) {
+          const aria = normalize(button.getAttribute('aria-label') || '');
+          for (const pattern of MODE_SELECTOR_PATTERNS) {
+            if (pattern.test(aria)) return button;
+          }
+        }
+
+        // Method 2: Detect buttons whose text contains a model-version pattern.
+        const versionCandidates = buttons.filter((b) => {
+          const text = normalize(b.textContent || '') || normalize(b.getAttribute('aria-label') || '');
+          return VERSION_LABEL_RE.test(text) && text.length < 80;
+        });
+        versionCandidates.sort((a, b) => {
+          const aRect = a.getBoundingClientRect();
+          const bRect = b.getBoundingClientRect();
+          return aRect.top - bRect.top || aRect.left - bRect.left;
+        });
+        if (versionCandidates.length > 0) return versionCandidates[0];
+
+        // Method 3: Detect buttons showing a known model variant as their
+        // sole text (e.g. "Pro", "Flash", "Flash-Lite").
+        const variantCandidates = buttons.filter((b) => {
+          const text = normalize(b.textContent || '');
+          return MODEL_VARIANT_RE.test(text) && text.length < 30;
+        });
+        variantCandidates.sort((a, b) => {
+          const aRect = a.getBoundingClientRect();
+          const bRect = b.getBoundingClientRect();
+          return aRect.top - bRect.top || aRect.left - bRect.left;
+        });
+        if (variantCandidates.length > 0) return variantCandidates[0];
+
+        // Method 4: Fallback — look for any element with model-related attributes.
+        const attrEls = Array.from(
+          document.querySelectorAll('[data-model-selector], [aria-label*="model" i], [aria-label*="模式" i]')
+        ).filter(isVisible);
+        if (attrEls.length > 0) return attrEls[0];
+
+        return null;
+      };
+
+      const canonicalModelId = (raw) => {
+        const text = normalize(raw);
+        if (!text) return '';
+        const cleaned = text.replace(/^[^a-z0-9]+/i, '').trim();
+        const versionRe = /^((?:gemini[\\s-]*)?(\\d+(?:\\.\\d+)?)(?:[\\s-]+(flash|pro|lite|ultra|nano|thinking|experimental))(?:[\\s-]*(flash|pro|lite|ultra|nano|thinking|experimental))?)/i;
+        const match = cleaned.match(versionRe);
+        if (match) {
+          const version = match[2];
+          let variant = (match[3] || '').toLowerCase();
+          const extra = (match[4] || '').toLowerCase();
+          if (extra) variant = variant + '-' + extra;
+          return version + '-' + variant;
+        }
+        const fallbackRe = /(\\d+(?:\\.\\d+)?)\\s*(flash|pro|lite|ultra|nano|thinking|experimental)/i;
+        const fallbackMatch = cleaned.match(fallbackRe);
+        if (fallbackMatch) {
+          return fallbackMatch[1] + '-' + fallbackMatch[2].toLowerCase();
+        }
+        if (/\\d+(?:\\.\\d+)?/.test(cleaned) && cleaned.length < 60) {
+          return cleaned.replace(/\\s+/g, '-').replace(/[^a-z0-9.-]/g, '');
+        }
+        return '';
+      };
+
+      const picker = findModelPicker();
+      if (!picker) return '';
+
+      const combined = normalize(picker.textContent || '') + ' ' + normalize(picker.getAttribute('aria-label') || '');
+      return canonicalModelId(combined);
+    })()
+    `;
+}
+
+/**
+ * Get the canonical ID of the currently selected Gemini model from the
+ * model-picker button in the web UI.
+ *
+ * @param {object} page - Puppeteer page object
+ * @returns {Promise<string>} canonical model ID, or empty string on failure
+ */
+export async function getCurrentGeminiModel(page) {
+    await ensureGeminiPage(page);
+    const modelId = await page.evaluate(getCurrentGeminiModelScript()).catch(() => '');
+    return typeof modelId === 'string' ? modelId : '';
+}
+
 export const __test__ = {
     GEMINI_COMPOSER_SELECTORS,
     GEMINI_COMPOSER_MARKER_ATTR,
@@ -1783,8 +2314,14 @@ export const __test__ = {
     hasGeminiTurnPrefix,
     readGeminiSnapshot,
     readGeminiSnapshotScript,
+    expandGeminiRecentScript,
     submitComposerScript,
     insertComposerTextFallbackScript,
+    openModelPickerForThinkingScript,
+    clickThinkingToggleInMenuScript,
+    selectThinkingInMenuScript,
+    selectGeminiModelScript,
+    getCurrentGeminiModelScript,
 };
 export async function getGeminiVisibleImageUrls(page) {
     await ensureGeminiPage(page);
@@ -1983,4 +2520,170 @@ export async function waitForGeminiResponse(page, baseline, promptText, timeoutS
         }
     }
     return '';
+}
+
+/**
+ * Evaluate script that selects a specific Gemini model from the web UI
+ * model picker by canonical model id (e.g. "2.5-flash").
+ *
+ * Returns { ok: true } on success, or { ok: false, reason: "..." }
+ * when the picker or model item could not be found / clicked.
+ */
+/**
+ * Browser evaluate script that finds and clicks a model entry in an
+ * already-open Gemini model-picker menu.  Does NOT open the picker.
+ */
+function selectModelInMenuScript(modelId) {
+    return `
+    (() => {
+      const targetModelId = ${JSON.stringify(modelId)};
+      if (!targetModelId) return { ok: false, reason: 'No model id provided' };
+
+      const isVisible = (el) => {
+        if (!(el instanceof HTMLElement) && !(el instanceof Element)) return false;
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const ariaHidden = el.getAttribute('aria-hidden');
+        if (ariaHidden && ariaHidden.toLowerCase() === 'true') return false;
+        if (el.closest('[aria-hidden="true"]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (Number(style.opacity) === 0 || style.pointerEvents === 'none') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+
+      const canonicalModelId = (raw) => {
+        const text = normalize(raw);
+        if (!text) return '';
+        const cleaned = text.replace(/^[^a-z0-9]+/i, '').trim();
+        const versionRe = /^((?:gemini[\\s-]*)?(\\d+(?:\\.\\d+)?)(?:[\\s-]+(flash|pro|lite|ultra|nano|thinking|experimental))(?:[\\s-]*(flash|pro|lite|ultra|nano|thinking|experimental))?)/i;
+        const match = cleaned.match(versionRe);
+        if (match) {
+          const version = match[2];
+          let variant = (match[3] || '').toLowerCase();
+          const extra = (match[4] || '').toLowerCase();
+          if (extra) variant = variant + '-' + extra;
+          return version + '-' + variant;
+        }
+        const fallbackRe = /(\\d+(?:\\.\\d+)?)\\s*(flash|pro|lite|ultra|nano|thinking|experimental)/i;
+        const fallbackMatch = cleaned.match(fallbackRe);
+        if (fallbackMatch) {
+          return fallbackMatch[1] + '-' + fallbackMatch[2].toLowerCase();
+        }
+        if (/\\d+(?:\\.\\d+)?/.test(cleaned) && cleaned.length < 60) {
+          return cleaned.replace(/\\s+/g, '-').replace(/[^a-z0-9.-]/g, '');
+        }
+        return '';
+      };
+
+      const MENU_SELECTORS = [
+        '[role="menu"] [role="menuitem"]',
+        '[role="menu"] [role="menuitemradio"]',
+        '[role="listbox"] [role="option"]',
+        '[role="menu"] button',
+        '[role="listbox"] button',
+        '[role="menu"] li',
+        '[role="listbox"] li',
+        '[role="dialog"] [role="menuitem"]',
+        '[role="dialog"] [role="option"]',
+        '[aria-modal="true"] [role="menuitem"]',
+        '[aria-modal="true"] [role="option"]',
+        'gem-menu-item',
+        'GEM-MENU-ITEM',
+      ];
+
+      let menuItems = [];
+      for (const sel of MENU_SELECTORS) {
+        const items = Array.from(document.querySelectorAll(sel)).filter(isVisible);
+        if (items.length >= 2) { menuItems = items; break; }
+      }
+
+      if (menuItems.length === 0) {
+        const containers = Array.from(
+          document.querySelectorAll('[role="menu"], [role="listbox"], [role="dialog"], [aria-modal="true"]')
+        ).filter(isVisible);
+        for (const container of containers) {
+          const children = Array.from(
+            container.querySelectorAll('button, [role="button"], li, [role="menuitem"], [role="option"], gem-menu-item, GEM-MENU-ITEM, :not(script):not(style)')
+          ).filter(isVisible);
+          if (children.length >= 2) { menuItems = children; break; }
+        }
+      }
+
+      let matched = null;
+      for (const item of menuItems) {
+        const id = canonicalModelId(item.textContent || '');
+        if (id === targetModelId) {
+          matched = item;
+          break;
+        }
+      }
+
+      if (!matched) {
+        try { document.body.click(); } catch (_) {}
+        return { ok: false, reason: 'Model "' + targetModelId + '" not found in picker menu' };
+      }
+
+      try {
+        matched.click();
+      } catch (_) {
+        try { document.body.click(); } catch (_) {}
+        return { ok: false, reason: 'Failed to click model menu item' };
+      }
+
+      return { ok: true };
+    })()
+    `;
+}
+
+/**
+ * Legacy wrapper kept for test compatibility — delegates to
+ * selectModelInMenuScript.  New callers should prefer the split
+ * openModelPickerForThinkingScript + selectModelInMenuScript
+ * pattern with an explicit page.wait between them.
+ */
+export function selectGeminiModelScript(modelId) {
+    return selectModelInMenuScript(modelId);
+}
+
+/**
+ * Select a Gemini model by canonical id (e.g. "2.5-flash") in the
+ * web UI model picker.  Opens the picker, waits for React, then clicks
+ * the matching entry.  Throws CommandExecutionError on failure.
+ */
+export async function selectGeminiModel(page, modelId) {
+    await ensureGeminiPage(page);
+
+    // Open the picker menu.
+    const pickerRaw = await page.evaluate(openModelPickerForThinkingScript());
+    const pickerResult = unwrapGeminiEvaluateResult(pickerRaw, 'Gemini model picker');
+    if (!pickerResult || !pickerResult.ok) {
+        throw new CommandExecutionError(
+            pickerResult?.reason || 'Failed to open model picker for model selection'
+        );
+    }
+
+    // Wait for React to render the menu.
+    await page.wait(0.8);
+
+    // Find and click the matching menu item.
+    const raw = await page.evaluate(selectModelInMenuScript(modelId));
+    const result = unwrapGeminiEvaluateResult(raw, 'Gemini model selection');
+    if (!result || !result.ok) {
+        throw new CommandExecutionError(
+            result?.reason || 'Failed to select Gemini model "' + modelId + '"'
+        );
+    }
+
+    await page.wait(0.5);
+    const selectedModelId = await getCurrentGeminiModel(page);
+    if (selectedModelId !== modelId) {
+        throw new CommandExecutionError(
+            selectedModelId
+                ? `Gemini model selection read-back returned "${selectedModelId}", expected "${modelId}"`
+                : `Gemini model selection did not expose selected model "${modelId}" after click`
+        );
+    }
 }

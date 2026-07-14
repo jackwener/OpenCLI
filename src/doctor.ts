@@ -6,11 +6,12 @@
 
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
-import { getDaemonHealth } from './browser/daemon-client.js';
+import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
+import { getDaemonHealth } from './browser/daemon-transport.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
-import type { BrowserProfileStatus } from './browser/daemon-client.js';
+import type { BrowserProfileStatus } from './browser/daemon-transport.js';
 import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
@@ -79,10 +80,14 @@ export type DoctorReport = {
  */
 export async function checkConnectivity(opts?: { timeout?: number }): Promise<ConnectivityResult> {
   const start = Date.now();
+  const timeoutSeconds = opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS;
+  // This is a health probe: shrink the transport's per-command deadline so a
+  // hung daemon/extension fails the check in seconds, not the default 120s.
+  setDaemonCommandTimeoutSeconds(timeoutSeconds);
   try {
     const bridge = new BrowserBridge();
     const page = await bridge.connect({
-      timeout: opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS,
+      timeout: timeoutSeconds,
       session: DOCTOR_SESSION,
       surface: 'browser',
     });
@@ -96,6 +101,8 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
     return { ok: true, durationMs: Date.now() - start };
   } catch (err) {
     return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
+  } finally {
+    setDaemonCommandTimeoutSeconds(null);
   }
 }
 
@@ -163,6 +170,24 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   }
   if (!connectivity.ok) {
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
+  }
+  // Stale default detection: a persisted default profile routinely outlives
+  // the extension instance it names (reinstalls regenerate the contextId).
+  // Commands keep working via the daemon's single-profile fallback, but the
+  // user should refresh the default so multi-profile setups stay predictable.
+  const profileConfig = loadProfileConfig();
+  const staleDefault = profileConfig.defaultContextId;
+  if (staleDefault && profiles?.length && !profiles.some((p) => p.contextId === staleDefault)) {
+    const alias = aliasForContextId(profileConfig, staleDefault);
+    const label = alias ? `${alias} (${staleDefault})` : staleDefault;
+    const fallbackNote = profiles.length === 1
+      ? `Commands currently fall back to the only connected profile: ${profiles[0].contextId}.`
+      : 'Multiple profiles are connected, so commands will ask you to choose.';
+    issues.push(
+      `Default browser profile is stale: ${label} is not connected (the extension instance it names no longer exists).\n` +
+      `  ${fallbackNote}\n` +
+      '  Refresh it with: opencli profile list, then opencli profile use <name>.',
+    );
   }
   const extensionCompatRange = health.status?.extensionCompatRange;
   if (extensionVersion && opts.cliVersion && extensionCompatRange) {

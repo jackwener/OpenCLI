@@ -1,0 +1,911 @@
+{
+ "seriesHomeHead": {
+  "brand_id": 4,
+  "motor_id": 40052730000000,
+  "motor_id_str": "40052730000000",
+  "brand_name": "宝马",
+  "brand_initial": "B",
+  "brand_logo": "https://p1-dcd.byteimg.com/img/motor-mis-img/4867710a834bd648ba55797ba5e37f14~tplv-resize:100:100.image",
+  "sub_brand_id": 199,
+  "sub_brand_name": "华晨宝马",
+  "series_type": 1,
+  "series_id": 5273,
+  "series_name": "宝马X5",
+  "dealer_low_price": 51,
+  "dealer_high_price": 68,
+  "official_low_Price": 59.8,
+  "official_high_price": 74.8,
+  "low_price_car_id": 255925,
+  "sh_low_Price": 4.68,
+  "sh_high_price": 63.8,
+  "pre_low_Price": 0,
+  "pre_high_price": 0,
+  "dealer_price": "51.00-68.00万",
+  "has_dealer_price": true,
+  "official_price": "59.80-74.80万",
+  "has_official_price": true,
+  "sh_price": "4.68-63.80万",
+  "has_sh_price": true,
+  "pre_price": "暂无报价",
+  "has_pre_price": false,
+  "total_score": 422,
+  "total_review_count": 470,
+  "comfort_score": 410,
+  "appearance_score": 457,
+  "configuration_score": 401,
+  "control_score": 410,
+  "power_score": 408,
+  "space_score": 466,
+  "interiors_score": 402,
+  "has_360_ns": true,
+  "ns_vr_cover_image": "http://p3-dcd.byteimg.com/motor-mis-img/DCP_399b09f1a9264c3c7e9012176f353da4~tplv-f042mdwyw7-original:1024:0.image?psm=motor.pc_car.api",
+  "cover_url": "http://p3-dcd.byteimg.com/motor-mis-img/DCP_e643b5fe8b99803ddc526fa15c1a5738~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+  "car_type": "中大型SUV",
+  "business_status": 0,
+  "car_id_list": [
+   255925,
+   255924,
+   256128,
+   255923,
+   253998,
+   253999,
+   254000
+  ],
+  "pics_summary_info": [
+   {
+    "SeriesId": 5273,
+    "Category": "wg",
+    "PicCount": 5653,
+    "CoverPicUrl": "http://p3-dcd.byteimg.com/motor-mis-img/DCP_e643b5fe8b99803ddc526fa15c1a5738~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   },
+   {
+    "SeriesId": 5273,
+    "Category": "ns",
+    "PicCount": 2071,
+    "CoverPicUrl": "http://p3-dcd.byteimg.com/motor-mis-img/DCP_53003324509afa8ae45f6c14da58d745~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   },
+   {
+    "SeriesId": 5273,
+    "Category": "kj",
+    "PicCount": 2629,
+    "CoverPicUrl": "http://p3-dcd.byteimg.com/motor-mis-img/DCP_2c745b2a830e79bf0025a1f138b4c9a8~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   },
+   {
+    "SeriesId": 5273,
+    "Category": "gft",
+    "PicCount": 151,
+    "CoverPicUrl": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/dca32bbec20743c28bcecbb755222482~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   },
+   {
+    "SeriesId": 5273,
+    "Category": "cz",
+    "PicCount": 851,
+    "CoverPicUrl": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/e1c382fd04b9460a824ccee446ac928f~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   }
+  ],
+  "series_head_image_summary": {
+   "ns_pic_count": "2071",
+   "kj_pic_count": "2629",
+   "gft_pic_count": "151",
+   "cz_pic_count": "851",
+   "wg_pic_count": "5653",
+   "wg_pic_list": [
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_e643b5fe8b99803ddc526fa15c1a5738~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_ffbcc700e7c4058ddf7ddc1b83866042~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_83fb91a2c3c26a085bdc06b03da4987e~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   ],
+   "ns_pic_list": [
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_53003324509afa8ae45f6c14da58d745~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_3f1d91e1534312edcb8c213868337152~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_51699fe7bf8534a8085123b35add82ee~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   ],
+   "kj_pic_list": [
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_2c745b2a830e79bf0025a1f138b4c9a8~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_95ddb7f4d0ac8b39e48b65686eec6ee7~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/motor-mis-img/DCP_39d0db2cadf9589961404d2c81ddbc82~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   ],
+   "gft_pic_list": [
+    "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/dca32bbec20743c28bcecbb755222482~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/295ef2a321734445960dee6e4904e806~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/f573dccffab545899db113f06fcda6b7~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   ],
+   "cz_pic_list": [
+    "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/e1c382fd04b9460a824ccee446ac928f~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/9e10c0150b2d4858960c93da3d159a70~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api",
+    "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/9ecf07208e8a48c48f8399dde28bce40~tplv-f042mdwyw7-original:960:0.image?psm=motor.pc_car.api"
+   ]
+  },
+  "pc_config": {
+   "oil_tank_volume": "83L",
+   "baggage_volume": "2070L",
+   "fuel_comprehensive": "-",
+   "air_control_model": "自动",
+   "acceleration_time": "5.5-7.2s",
+   "max_speed": "250Km/h",
+   "curb_weight": "2157-2271Kg",
+   "seat_material": "仿皮",
+   "wheelbase": "3105mm",
+   "driver_form": "四驱",
+   "gearbox_description": "8挡手自一体",
+   "fuel_label": "95#",
+   "fuel_form": "48V轻混系统",
+   "car_body_structure": "承载式",
+   "car_type": "中大型SUV",
+   "series_displacement": "2.0T 3.0T",
+   "environmental_standards": "国VI",
+   "engine_description": "287-423马力",
+   "seat_count": "5座"
+  },
+  "series_image_list": null,
+  "series_image_info_list": null,
+  "series_new_energy": false,
+  "pic_count": 11355,
+  "series_rank_info_list": [],
+  "is_follow_car": false
+ },
+ "scoreSimpleInfo": {
+  "score": 422,
+  "comfort_score": 410,
+  "appearance_score": 457,
+  "configuration_score": 401,
+  "control_score": 410,
+  "power_score": 408,
+  "space_score": 466,
+  "interiors_score": 402,
+  "series_id": 5273,
+  "total_review_count": 470
+ },
+ "rankData": {
+  "sale": {
+   "series_type": "SUV",
+   "curr_sell_month": 202605,
+   "rank_type": 2,
+   "rank_name": "五月销量",
+   "is_show": false,
+   "list": [
+    {
+     "series_id": 5273,
+     "series_name": "宝马X5",
+     "score": 0,
+     "rank": 1,
+     "total_review_count": 0,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 2,
+     "month_sell_count": 0,
+     "series_hot": 0,
+     "cover_uri": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 51,
+     "agent_high_price": 68,
+     "official_low_price": 59.8,
+     "official_high_price": 74.8,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    }
+   ]
+  },
+  "score": {
+   "series_type": "SUV",
+   "curr_sell_month": 0,
+   "rank_type": 1,
+   "rank_name": "懂车分",
+   "is_show": true,
+   "list": [
+    {
+     "series_id": 5273,
+     "series_name": "宝马X5",
+     "score": 422,
+     "rank": 1,
+     "total_review_count": 470,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 1,
+     "month_sell_count": 0,
+     "series_hot": 0,
+     "cover_uri": "http://p9-dcd.byteimg.com/tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 51,
+     "agent_high_price": 68,
+     "official_low_price": 59.8,
+     "official_high_price": 74.8,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 228,
+     "series_name": "奔驰GLE(进口)",
+     "score": 417,
+     "rank": 2,
+     "total_review_count": 318,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 1,
+     "month_sell_count": 0,
+     "series_hot": 0,
+     "cover_uri": "http://p9-dcd.byteimg.com/tos-cn-i-dcdx/14aeb45af80d419991c8f008e6a965b0~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 49.68,
+     "agent_high_price": 68.68,
+     "official_low_price": 69.98,
+     "official_high_price": 88.98,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 1277,
+     "series_name": "沃尔沃XC90",
+     "score": 416,
+     "rank": 3,
+     "total_review_count": 466,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 1,
+     "month_sell_count": 0,
+     "series_hot": 0,
+     "cover_uri": "http://p9-dcd.byteimg.com/tos-cn-i-dcdx/500ee2f788184aa88852f68563a311c7~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 41.99,
+     "agent_high_price": 56.49,
+     "official_low_price": 63.89,
+     "official_high_price": 78.19,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 87,
+     "series_name": "奥迪Q7",
+     "score": 414,
+     "rank": 4,
+     "total_review_count": 355,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 1,
+     "month_sell_count": 0,
+     "series_hot": 0,
+     "cover_uri": "http://p9-dcd.byteimg.com/tos-cn-i-dcdx/6c0cb174aa964c5a98b79fcde17fff3f~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 43.3,
+     "agent_high_price": 57.14,
+     "official_low_price": 60.98,
+     "official_high_price": 80.48,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 986,
+     "series_name": "卫士",
+     "score": 414,
+     "rank": 5,
+     "total_review_count": 288,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 1,
+     "month_sell_count": 0,
+     "series_hot": 0,
+     "cover_uri": "http://p9-dcd.byteimg.com/tos-cn-i-dcdx/2510264eb3244129af9fcf550a782789~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 58.9,
+     "agent_high_price": 215.8,
+     "official_low_price": 68.8,
+     "official_high_price": 215.8,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    }
+   ]
+  },
+  "hot": {
+   "series_type": "SUV",
+   "curr_sell_month": 0,
+   "rank_type": 3,
+   "rank_name": "热门",
+   "is_show": true,
+   "list": [
+    {
+     "series_id": 5273,
+     "series_name": "宝马X5",
+     "score": 0,
+     "rank": 1,
+     "total_review_count": 0,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 3,
+     "month_sell_count": 0,
+     "series_hot": 1027711,
+     "cover_uri": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 51,
+     "agent_high_price": 68,
+     "official_low_price": 59.8,
+     "official_high_price": 74.8,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 228,
+     "series_name": "奔驰GLE(进口)",
+     "score": 0,
+     "rank": 2,
+     "total_review_count": 0,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 3,
+     "month_sell_count": 0,
+     "series_hot": 937479,
+     "cover_uri": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/14aeb45af80d419991c8f008e6a965b0~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 49.68,
+     "agent_high_price": 68.68,
+     "official_low_price": 69.98,
+     "official_high_price": 88.98,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 87,
+     "series_name": "奥迪Q7",
+     "score": 0,
+     "rank": 3,
+     "total_review_count": 0,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 3,
+     "month_sell_count": 0,
+     "series_hot": 936071,
+     "cover_uri": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/6c0cb174aa964c5a98b79fcde17fff3f~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 43.3,
+     "agent_high_price": 57.14,
+     "official_low_price": 60.98,
+     "official_high_price": 80.48,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 986,
+     "series_name": "卫士",
+     "score": 0,
+     "rank": 4,
+     "total_review_count": 0,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 3,
+     "month_sell_count": 0,
+     "series_hot": 910355,
+     "cover_uri": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/2510264eb3244129af9fcf550a782789~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 58.9,
+     "agent_high_price": 215.8,
+     "official_low_price": 68.8,
+     "official_high_price": 215.8,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    },
+    {
+     "series_id": 1277,
+     "series_name": "沃尔沃XC90",
+     "score": 0,
+     "rank": 5,
+     "total_review_count": 0,
+     "single_highest_desc": "",
+     "single_highest_score": "",
+     "rank_type": 3,
+     "month_sell_count": 0,
+     "series_hot": 863492,
+     "cover_uri": "http://p3-dcd.byteimg.com/tos-cn-i-dcdx/500ee2f788184aa88852f68563a311c7~tplv-f042mdwyw7-original:640:0.png?psm=motor.pc_car.api",
+     "agent_low_price": 41.99,
+     "agent_high_price": 56.49,
+     "official_low_price": 63.89,
+     "official_high_price": 78.19,
+     "outter_detail_type": "13",
+     "series_new_energy_type": 0
+    }
+   ]
+  }
+ },
+ "reviewData": {
+  "average_series_review": {
+   "score": 415,
+   "comfort_score": 407,
+   "appearance_score": 448,
+   "configuration_score": 396,
+   "control_score": 405,
+   "power_score": 408,
+   "space_score": 429,
+   "interiors_score": 410
+  },
+  "same_level_review": [
+   {
+    "score": 415,
+    "comfort_score": 407,
+    "appearance_score": 448,
+    "configuration_score": 396,
+    "control_score": 405,
+    "power_score": 408,
+    "space_score": 429,
+    "interiors_score": 410,
+    "series_id": "0",
+    "series_name": "同级车均值"
+   },
+   {
+    "score": 417,
+    "comfort_score": 393,
+    "appearance_score": 454,
+    "configuration_score": 380,
+    "control_score": 389,
+    "power_score": 391,
+    "space_score": 443,
+    "interiors_score": 468,
+    "series_name": "奔驰GLE(进口)",
+    "series_id": "228"
+   },
+   {
+    "score": 414,
+    "comfort_score": 410,
+    "appearance_score": 422,
+    "configuration_score": 410,
+    "control_score": 411,
+    "power_score": 410,
+    "space_score": 432,
+    "interiors_score": 402,
+    "series_name": "奥迪Q7",
+    "series_id": "87"
+   },
+   {
+    "score": 414,
+    "comfort_score": 406,
+    "appearance_score": 476,
+    "configuration_score": 402,
+    "control_score": 403,
+    "power_score": 417,
+    "space_score": 412,
+    "interiors_score": 381,
+    "series_name": "卫士",
+    "series_id": "986"
+   },
+   {
+    "score": 416,
+    "comfort_score": 420,
+    "appearance_score": 442,
+    "configuration_score": 395,
+    "control_score": 417,
+    "power_score": 417,
+    "space_score": 432,
+    "interiors_score": 391,
+    "series_name": "沃尔沃XC90",
+    "series_id": "1277"
+   }
+  ],
+  "review": {
+   "score": 422,
+   "comfort_score": 410,
+   "appearance_score": 457,
+   "configuration_score": 401,
+   "control_score": 410,
+   "power_score": 408,
+   "space_score": 466,
+   "interiors_score": 402,
+   "series_name": "宝马X5",
+   "series_id": "5273"
+  }
+ },
+ "overviewData": {
+  "series_id": 5273,
+  "series_name": "",
+  "space": [
+   {
+    "length": "5060",
+    "width": "2004",
+    "height": "1776",
+    "wheelbase": "3105",
+    "car_id_list": [
+     255925,
+     255924,
+     256128,
+     253998,
+     253999
+    ]
+   },
+   {
+    "length": "5060",
+    "width": "2004",
+    "height": "1776",
+    "wheelbase": "3105",
+    "car_id_list": [
+     255925,
+     255924,
+     256128,
+     253998,
+     253999
+    ]
+   },
+   {
+    "length": "5060",
+    "width": "2004",
+    "height": "1776",
+    "wheelbase": "3105",
+    "car_id_list": [
+     255925,
+     255924,
+     256128,
+     253998,
+     253999
+    ]
+   },
+   {
+    "length": "5060",
+    "width": "2004",
+    "height": "1768",
+    "wheelbase": "3105",
+    "car_id_list": [
+     254000,
+     255923
+    ]
+   },
+   {
+    "length": "5060",
+    "width": "2004",
+    "height": "1776",
+    "wheelbase": "3105",
+    "car_id_list": [
+     255925,
+     255924,
+     256128,
+     253998,
+     253999
+    ]
+   },
+   {
+    "length": "5060",
+    "width": "2004",
+    "height": "1776",
+    "wheelbase": "3105",
+    "car_id_list": [
+     255925,
+     255924,
+     256128,
+     253998,
+     253999
+    ]
+   },
+   {
+    "length": "5060",
+    "width": "2004",
+    "height": "1768",
+    "wheelbase": "3105",
+    "car_id_list": [
+     254000,
+     255923
+    ]
+   }
+  ],
+  "power": {
+   "overview": "2.0T / 3.0T",
+   "power_item": [
+    {
+     "acceleration_time": "7.2s",
+     "gearbox_description": "8挡手自一体",
+     "engine_description": "2.0T 287马力",
+     "fuel_form": "48V轻混系统",
+     "engine_capacity": "2.0T",
+     "car_id_list": [
+      253998,
+      255925
+     ],
+     "electric_max_horsepower": "",
+     "acceleration_time_list": [
+      "7.2",
+      "7.2"
+     ],
+     "engine_capacity_4_sort": 2.00001
+    },
+    {
+     "acceleration_time": "5.5s",
+     "gearbox_description": "8挡手自一体",
+     "engine_description": "3.0T 423马力",
+     "fuel_form": "48V轻混系统",
+     "engine_capacity": "3.0T",
+     "car_id_list": [
+      255923,
+      253999,
+      254000,
+      255924,
+      256128
+     ],
+     "electric_max_horsepower": "",
+     "acceleration_time_list": [
+      "5.5",
+      "5.5",
+      "5.5",
+      "5.5",
+      "5.5"
+     ],
+     "engine_capacity_4_sort": 3.00001
+    }
+   ]
+  },
+  "new_energy_power": null,
+  "fuel_comprehensive": null,
+  "new_energy_consumption": null,
+  "manipulation": [
+   {
+    "driver_form": "前置四驱",
+    "fourwheel_drive_type": "适时四驱",
+    "front_suspension_form": "双叉臂式独立悬挂",
+    "rear_suspension_form": "多连杆式独立悬挂",
+    "car_id_list": [
+     255923,
+     253998,
+     253999,
+     254000,
+     255925,
+     255924,
+     256128
+    ]
+   }
+  ],
+  "airbag": [
+   {
+    "main_airbag": true,
+    "vice_airbag": true,
+    "front_airbag": true,
+    "rear_airbag": false,
+    "side_air_curtain": true,
+    "main_knee_airbag": false,
+    "vice_knee_airbag": false,
+    "car_id_list": [
+     255925,
+     255924,
+     256128,
+     255923,
+     253998,
+     253999,
+     254000
+    ]
+   }
+  ],
+  "car_info": [
+   {
+    "car_Id": 255925,
+    "series_id": 5273,
+    "series_name": "宝马X5",
+    "car_name": "改款 xDrive30Li 尊享型M运动曜夜套装",
+    "car_year": "2026",
+    "dealer_price": "51.00万"
+   },
+   {
+    "car_Id": 255924,
+    "series_id": 5273,
+    "series_name": "宝马X5",
+    "car_name": "改款 xDrive40Li M运动曜夜套装",
+    "car_year": "2026",
+    "dealer_price": "61.50万"
+   },
+   {
+    "car_Id": 256128,
+    "series_id": 5273,
+    "series_name": "宝马X5",
+    "car_name": "xDrive40Li 马年版",
+    "car_year": "2026",
+    "dealer_price": "63.50万"
+   },
+   {
+    "car_Id": 255923,
+    "series_id": 5273,
+    "series_name": "宝马X5",
+    "car_name": "改款 xDrive40Li 尊享型M运动曜夜套装",
+    "car_year": "2026",
+    "dealer_price": "68.00万"
+   },
+   {
+    "car_Id": 253998,
+    "series_id": 5273,
+    "series_name": "宝马X5",
+    "car_name": "xDrive30Li 尊享型M运动曜夜套装",
+    "car_year": "2026",
+    "dealer_price": "51.00万"
+   },
+   {
+    "car_Id": 253999,
+    "series_id": 5273,
+    "series_name": "宝马X5",
+    "car_name": "xDrive40Li M运动曜夜套装",
+    "car_year": "2026",
+    "dealer_price": "61.50万"
+   },
+   {
+    "car_Id": 254000,
+    "series_id": 5273,
+    "series_name": "宝马X5",
+    "car_name": "xDrive40Li 尊享型M运动曜夜套装",
+    "car_year": "2026",
+    "dealer_price": "68.00万"
+   }
+  ],
+  "fuel_form_map": {
+   "253998": "13",
+   "253999": "13",
+   "254000": "13",
+   "255923": "13",
+   "255924": "13",
+   "255925": "13",
+   "256128": "13"
+  }
+ },
+ "seriesId": "5273",
+ "seriesName": "宝马X5",
+ "carModelsData": {
+  "tab_list": [
+   {
+    "tab_key": "online_all",
+    "tab_text": "在售",
+    "data": [
+     {
+      "type": "1137",
+      "info": {
+       "name": "2026款-宝马X5",
+       "hot_car_tag": 0,
+       "new_car_tag": 0,
+       "owner_price_num": 0,
+       "app_new_version_style": false,
+       "picture_count": 0,
+       "config_enable": false,
+       "car_page_enable": false
+      }
+     },
+     {
+      "type": "1115",
+      "info": {
+       "id": 255925,
+       "name": "改款 xDrive30Li 尊享型M运动曜夜套装",
+       "car_name": "改款 xDrive30Li 尊享型M运动曜夜套装",
+       "car_id": 255925,
+       "brand_name": "宝马",
+       "brand_id": 4,
+       "series_name": "宝马X5",
+       "series_id": 5273,
+       "year": 2026,
+       "config_code": "尊享型M运动曜夜套装",
+       "config_title": "亮点配置:",
+       "large_pic_key": "tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1",
+       "hot_car_tag": 0,
+       "new_car_tag": 0,
+       "price": "59.80万",
+       "owner_price": "53.04万",
+       "owner_price_num": 292,
+       "official_price": 59.8,
+       "official_price_str": "59.80万",
+       "dealer_price": "51.00万",
+       "calculator_url": "sslocal://webview?url=https%3A%2F%2Fi.snssdk.com%2Fmotor%2Finapp%2Fcompute%2Findex.html%3Fcar_id%3D255925&hide_bar=1&bounce_disable=1",
+       "upgrade_text": "+8.0万即可升级为「M运动曜夜套装」",
+       "sort_weight": 10,
+       "cover_url": "motor-mis-img/52a4c1e59f34d0b03e53e09439f7864f",
+       "app_new_version_style": false,
+       "tags": [
+        "2.0T",
+        "四驱"
+       ],
+       "follower_rate": {
+        "text": "33%的人关注",
+        "highlight_text": "33%"
+       },
+       "picture_count": 392,
+       "config_enable": true,
+       "car_page_enable": true
+      }
+     },
+     {
+      "type": "1068",
+      "info": {
+       "hot_car_tag": 0,
+       "new_car_tag": 0,
+       "owner_price_num": 0,
+       "app_new_version_style": false,
+       "bg_color": "#FFFFFF",
+       "height": 12,
+       "picture_count": 0,
+       "config_enable": false,
+       "car_page_enable": false
+      }
+     },
+     {
+      "type": "1115",
+      "info": {
+       "id": 255924,
+       "name": "改款 xDrive40Li M运动曜夜套装",
+       "car_name": "改款 xDrive40Li M运动曜夜套装",
+       "car_id": 255924,
+       "brand_name": "宝马",
+       "brand_id": 4,
+       "series_name": "宝马X5",
+       "series_id": 5273,
+       "year": 2026,
+       "config_code": "M运动曜夜套装",
+       "config_title": "增加配置(8.0万):",
+       "large_pic_key": "tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1",
+       "hot_car_tag": 0,
+       "new_car_tag": 0,
+       "price": "67.80万",
+       "owner_price": "60.84万",
+       "owner_price_num": 273,
+       "official_price": 67.8,
+       "official_price_str": "67.80万",
+       "dealer_price": "61.50万",
+       "calculator_url": "sslocal://webview?url=https%3A%2F%2Fi.snssdk.com%2Fmotor%2Finapp%2Fcompute%2Findex.html%3Fcar_id%3D255924&hide_bar=1&bounce_disable=1",
+       "upgrade_text": "+1.0万即可升级为「马年版」",
+       "sort_weight": 15,
+       "cover_url": "motor-mis-img/52a4c1e59f34d0b03e53e09439f7864f",
+       "app_new_version_style": false,
+       "tags": [
+        "3.0T",
+        "四驱"
+       ],
+       "follower_rate": {
+        "text": "26%的人关注",
+        "highlight_text": "26%"
+       },
+       "picture_count": 319,
+       "config_enable": true,
+       "car_page_enable": true
+      }
+     },
+     {
+      "type": "1068",
+      "info": {
+       "hot_car_tag": 0,
+       "new_car_tag": 0,
+       "owner_price_num": 0,
+       "app_new_version_style": false,
+       "bg_color": "#FFFFFF",
+       "height": 12,
+       "picture_count": 0,
+       "config_enable": false,
+       "car_page_enable": false
+      }
+     },
+     {
+      "type": "1115",
+      "info": {
+       "id": 256128,
+       "name": "xDrive40Li 马年版",
+       "car_name": "xDrive40Li 马年版",
+       "car_id": 256128,
+       "brand_name": "宝马",
+       "brand_id": 4,
+       "series_name": "宝马X5",
+       "series_id": 5273,
+       "year": 2026,
+       "config_code": "马年版",
+       "config_title": "增加配置(1.0万):",
+       "large_pic_key": "tos-cn-i-dcdx/bf84f7f297c74b4ab69467bef101e7e1",
+       "hot_car_tag": 0,
+       "new_car_tag": 0,
+       "price": "68.80万",
+       "owner_price": "64.80万",
+       "owner_price_num": 5,
+       "official_price": 68.8,
+       "official_price_str": "68.80万",
+       "dealer_price": "63.50万",
+       "calculator_url": "sslocal://webview?url=https%3A%2F%2Fi.snssdk.com%2Fmotor%2Finapp%2Fcompute%2Findex.html%3Fcar_id%3D256128&hide_bar=1&bounce_disable=1",
+       "upgrade_text": "+6.0万即可升级为「尊享型M运动曜夜套装」",
+       "sort_weight": 20,
+       "cover_url": "motor-mis-img/52a4c1e59f34d0b03e53e09439f7864f",
+       "app_new_version_style": false,
+       "tags": [
+        "3.0T",
+        "四驱"
+       ],
+       "follower_rate": {
+        "text": "8%的人关注",
+        "highlight_text": "8%"
+       },
+       "picture_count": 353,
+       "config_enable": true,
+       "car_page_enable": true
+      }
+     }
+    ]
+   },
+   {
+    "tab_key": "online_2026",
+    "tab_text": "2026款",
+    "data": []
+   },
+   {
+    "tab_key": "offline",
+    "tab_text": "停售",
+    "data": []
+   }
+  ]
+ }
+}

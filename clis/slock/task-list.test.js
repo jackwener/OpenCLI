@@ -24,10 +24,11 @@ describe('slock task-list', () => {
 
   it('passes ?status=<value> through when --status is set (server-side filter)', async () => {
     const page = makePage({ kind: 'ok', rows: [] });
-    await command.func(page, { channel: '11111111-1111-1111-1111-111111111111', status: 'in_review' });
+    await command.func(page, { channel: '11111111-1111-1111-1111-111111111111', status: '  in_review  ' });
     const snippet = page.evaluate.mock.calls[0][0];
     expect(snippet).toContain('?status=');
     expect(snippet).toContain('"in_review"');
+    expect(snippet).not.toContain('"  in_review  "');
   });
 
   it('rejects an invalid --status before navigation', async () => {
