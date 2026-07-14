@@ -46,6 +46,109 @@ describe('stepFetch', () => {
     });
   });
 
+  // A URL whose only mention of "item" is the path segment (not an ${{ item }}
+  // binding) must NOT fan out per array element: a single fetch, object result.
+  it('does not fan out per-item for a URL containing "item" without an item binding', async () => {
+    const jsonMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: jsonMock,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await stepFetch(
+      null,
+      { url: 'https://x/items' },
+      [{ id: 1 }, { id: 2 }, { id: 3 }],
+      {},
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('https://x/items', { method: 'GET', headers: {} });
+  });
+
+  // A URL with an ${{ item.* }} binding DOES fan out: one fetch per array element.
+  it('fans out per-item for a URL with an item binding', async () => {
+    const jsonMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: jsonMock,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await stepFetch(
+      null,
+      { url: 'https://x/items/${{ item.id }}' },
+      [{ id: 1 }, { id: 2 }, { id: 3 }],
+      {},
+    );
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledWith('https://x/items/1', { method: 'GET', headers: {} });
+    expect(fetchMock).toHaveBeenCalledWith('https://x/items/2', { method: 'GET', headers: {} });
+    expect(fetchMock).toHaveBeenCalledWith('https://x/items/3', { method: 'GET', headers: {} });
+  });
+
+  // The `\b` word boundary must keep a plural/compound identifier such as
+  // `items.length` from being read as the `item` binding: a single fetch, object result.
+  it('does not fan out for a URL whose only "item" is the plural "items" identifier', async () => {
+    const jsonMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: jsonMock,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await stepFetch(
+      null,
+      { url: 'https://x/${{ items.length }}' },
+      [{ id: 1 }, { id: 2 }, { id: 3 }],
+      {},
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // `items` is not a per-item binding, so it renders as a single fetch (the
+    // unresolved expression stringifies to "undefined") — crucially, NOT N fetches.
+    expect(fetchMock).toHaveBeenCalledWith('https://x/undefined', { method: 'GET', headers: {} });
+  });
+
+  // `index` is a first-class per-item binding (template.ts resolvePath), so a URL
+  // referencing only ${{ index }} over array data DOES fan out: one fetch per element.
+  it('fans out per-item for a URL with an index binding (no item)', async () => {
+    const jsonMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: jsonMock,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await stepFetch(
+      null,
+      { url: 'https://x/page/${{ index }}' },
+      [{ id: 1 }, { id: 2 }, { id: 3 }],
+      {},
+    );
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledWith('https://x/page/0', { method: 'GET', headers: {} });
+    expect(fetchMock).toHaveBeenCalledWith('https://x/page/1', { method: 'GET', headers: {} });
+    expect(fetchMock).toHaveBeenCalledWith('https://x/page/2', { method: 'GET', headers: {} });
+  });
+
   it('returns per-item HTTP errors for batch fetches without a browser session', async () => {
     const jsonMock = vi.fn().mockResolvedValue({ error: 'upstream unavailable' });
     const fetchMock = vi.fn().mockResolvedValue({

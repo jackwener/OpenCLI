@@ -9,7 +9,19 @@ import { render } from '../template.js';
 
 import { isRecord, mapConcurrent } from '../../utils.js';
 
-
+/**
+ * Matches an `item` or `index` per-item binding inside a `${{ ... }}` expression.
+ *
+ * Per-item fan-out is gated on this, so it must distinguish a real binding from a
+ * URL that merely contains the substring "item" (e.g. `.../items`). The `\b` word
+ * boundaries also keep plural/compound identifiers like `items.length` from firing.
+ *
+ * Both `item` and `index` are first-class per-item render bindings (see
+ * RenderContext / resolvePath in ../template.ts and the `{ args, data, item, index }`
+ * context passed below), so a URL such as `.../page/${{ index }}` over array data
+ * must legitimately fan out — gating on `item` alone would be a false-negative.
+ */
+const ITEM_BINDING_RE = /\$\{\{[^}]*\b(?:item|index)\b[^}]*\}\}/;
 
 /** Single URL fetch helper */
 async function fetchSingle(
@@ -92,8 +104,10 @@ export async function stepFetch(page: IPage | null, params: unknown, data: unkno
   const headers = isRecord(paramObject.headers) ? paramObject.headers : {};
   const urlTemplate = String(urlOrObj);
 
-  // Per-item fetch when data is array and URL references item
-  if (Array.isArray(data) && urlTemplate.includes('item')) {
+  // Per-item fetch when data is an array and the URL template binds `item` or
+  // `index` inside a ${{ ... }} expression (see ITEM_BINDING_RE), rather than the
+  // raw substring, so innocuous URLs like .../items don't trigger per-item fan-out.
+  if (Array.isArray(data) && ITEM_BINDING_RE.test(urlTemplate)) {
     const concurrency = typeof paramObject.concurrency === 'number' ? paramObject.concurrency : 5;
 
     // Render all URLs upfront
