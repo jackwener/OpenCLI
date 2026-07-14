@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAdapter, formatRootAdapterHelpText } from './help.js';
+import type { Command } from 'commander';
+import { classifyAdapter, commanderCommandHelpData, formatRootAdapterHelpText } from './help.js';
+import { createProgram } from './cli.js';
+
+function findChild(parent: Command, name: string): Command {
+  const child = parent.commands.find((c) => c.name() === name);
+  if (!child) throw new Error(`No subcommand "${name}" under "${parent.name()}"`);
+  return child;
+}
+
+function optionNames(spec: Record<string, unknown>): string[] {
+  return (spec.command_options as Array<{ name: string }>).map((o) => o.name);
+}
 
 describe('classifyAdapter', () => {
   it('classifies DNS-style domains as site', () => {
@@ -62,5 +74,46 @@ describe('formatRootAdapterHelpText', () => {
       sites: ['bilibili'],
     });
     expect(text).toContain("'opencli <site> --help -f yaml'");
+  });
+});
+
+describe('commanderCommandHelpData namespace-option dedup (#1850)', () => {
+  it('drops namespace-inherited options (--window/--session) from a browser leaf, keeps its own', () => {
+    const program = createProgram('', '');
+    const browser = findChild(program, 'browser');
+    const leaf = findChild(browser, 'eval');
+
+    // Sanity: --window IS declared on the leaf (so it parses in the trailing
+    // position) and on the namespace root, so the dedup has something to remove.
+    expect(leaf.options.some((o) => o.long === '--window')).toBe(true);
+    expect(browser.options.some((o) => o.long === '--window')).toBe(true);
+
+    const data = commanderCommandHelpData(browser, leaf, { globalCommand: program });
+    const names = optionNames(data);
+
+    // Namespace-inherited options must not be repeated in the leaf's own list.
+    expect(names).not.toContain('window');
+    expect(names).not.toContain('session');
+    // The leaf's own option survives.
+    expect(names).toContain('frame');
+    // It is still surfaced once at the namespace level.
+    const namespaceOptionNames = (data.namespace_options as Array<{ name: string }>).map((o) => o.name);
+    expect(namespaceOptionNames).toContain('window');
+  });
+
+  it('leaves a non-browser namespace leaf unchanged (dedup only removes inherited opts)', () => {
+    const program = createProgram('', '');
+    const auth = findChild(program, 'auth');
+    const leaf = findChild(auth, 'status');
+
+    // The auth root declares no options of its own, so nothing is deduped: the
+    // leaf's full own-option set is preserved (modulo hidden options, which the
+    // help compactor always omits).
+    const data = commanderCommandHelpData(auth, leaf, { globalCommand: program });
+    const names = optionNames(data);
+    const visibleOwnNames = leaf.options.filter((o) => !o.hidden).map((o) => o.attributeName());
+    expect(names).toEqual(visibleOwnNames);
+    expect(names).toContain('site');
+    expect(names).toContain('format');
   });
 });
