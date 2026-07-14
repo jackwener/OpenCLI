@@ -27,7 +27,13 @@ export async function fetchFeed(category) {
     const url = category
         ? `https://www.producthunt.com/feed?category=${encodeURIComponent(category)}`
         : 'https://www.producthunt.com/feed';
-    const resp = await fetch(url, { headers: { 'User-Agent': UA } });
+    let resp;
+    try {
+        resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(10000) });
+    }
+    catch {
+        return [];
+    }
     if (!resp.ok)
         return [];
     const xml = await resp.text();

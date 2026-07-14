@@ -18,6 +18,7 @@ async function searchSinaBlog(keyword, limit) {
             'User-Agent': 'Mozilla/5.0',
             Accept: 'application/json',
         },
+        signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok)
         throw new Error(`Sina blog search failed: HTTP ${resp.status}`);

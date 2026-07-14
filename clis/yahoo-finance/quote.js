@@ -24,7 +24,7 @@ cli({
         // Strategy 1: v8 chart API
         try {
           const chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?interval=1d&range=1d';
-          const resp = await fetch(chartUrl);
+          const resp = await fetch(chartUrl, { signal: AbortSignal.timeout(5000) });
           if (resp.ok) {
             const d = await resp.json();
             const chart = d?.chart?.result?.[0];
