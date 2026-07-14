@@ -204,6 +204,33 @@ browser: false
     await expect(discoverPlugins()).resolves.not.toThrow();
     expect(getRegistry().get('__test-plugin-broken__/hello')).toBeUndefined();
   });
+
+  it('tolerates a plugin directory removed mid-scan without throwing', async () => {
+    // Reproduces the race where a plugin directory is listed by the parent
+    // scan but removed (e.g. a concurrent `opencli plugin remove`) before its
+    // contents are read, so the inner readdir rejects with ENOENT.
+    await fs.promises.mkdir(testPluginDir, { recursive: true });
+    const realReaddir = fs.promises.readdir.bind(fs.promises);
+    // fs.promises.readdir is overloaded; type the mock loosely and delegate
+    // to the real implementation for every path except the vanished one.
+    const spy = vi
+      .spyOn(fs.promises, 'readdir')
+      .mockImplementation(((p: fs.PathLike, options?: unknown): Promise<unknown> => {
+        if (String(p) === testPluginDir) {
+          const err = new Error(
+            `ENOENT: no such file or directory, scandir '${p}'`,
+          ) as NodeJS.ErrnoException;
+          err.code = 'ENOENT';
+          return Promise.reject(err);
+        }
+        return realReaddir(p, options as Parameters<typeof realReaddir>[1]);
+      }) as typeof fs.promises.readdir);
+    try {
+      await expect(discoverPlugins()).resolves.not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe('executeCommand', () => {
