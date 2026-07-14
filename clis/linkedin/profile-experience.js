@@ -496,11 +496,11 @@ async function clickOverlayAndExtract(page, url, nth = undefined) {
       return null;
     }
     try {
-      await page.wait({ selector: 'dialog[data-testid="dialog"], [role="dialog"]', timeout: 10000 });
+      await page.wait({ selector: 'dialog[data-testid="dialog"], [role="dialog"]', timeout: 10 });
     } catch {}
     if (isSkillOverlay) {
       try {
-        await page.wait({ selector: 'dialog button[aria-label^="Expand "], [role="dialog"] button[aria-label^="Expand "]', timeout: 10000 });
+        await page.wait({ selector: 'dialog button[aria-label^="Expand "], [role="dialog"] button[aria-label^="Expand "]', timeout: 10 });
       } catch {}
     } else {
       await page.wait(2);
@@ -640,7 +640,7 @@ cli({
     await page.wait(5);
     await assertLinkedInAuthenticated(page, 'LinkedIn profile-experience');
     try {
-      await page.wait({ text: 'Experience', timeout: 10000 });
+      await page.wait({ text: 'Experience', timeout: 10 });
     } catch {}
     await page.autoScroll({ times: 4, delayMs: 700 });
     await page.wait(1);
