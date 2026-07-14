@@ -34188,6 +34188,46 @@
     "navigateBefore": true
   },
   {
+    "site": "threads",
+    "name": "search",
+    "description": "Search Threads posts using the logged-in browser session",
+    "access": "read",
+    "domain": "www.threads.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max results (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "username",
+      "displayName",
+      "text",
+      "timestamp",
+      "url",
+      "replyCount",
+      "repostCount",
+      "likeCount"
+    ],
+    "type": "js",
+    "modulePath": "threads/search.js",
+    "sourceFile": "threads/search.js",
+    "navigateBefore": false
+  },
+  {
     "site": "ths",
     "name": "hot-rank",
     "description": "同花顺热股榜",
