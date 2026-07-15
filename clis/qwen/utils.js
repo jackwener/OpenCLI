@@ -268,6 +268,67 @@ export async function getMessageBubbles(page) {
         .filter((item) => item.id && item.text);
 }
 
+export function parseSessionMessageRecords(records) {
+    if (!Array.isArray(records)) return [];
+    const out = [];
+    for (let index = 0; index < records.length; index += 1) {
+        const record = records[index] || {};
+        const reqId = String(record.req_id || `api-${index}`);
+        const userParts = Array.isArray(record.request_messages)
+            ? record.request_messages.map((message) => String(message?.content || '').trim()).filter(Boolean)
+            : [];
+        if (userParts.length) {
+            out.push({ id: `${reqId}-question`, role: 'User', text: userParts.join('\n'), html: '' });
+        }
+
+        // Qianwen stores progress cards, citations, and the final rendered answer
+        // together in response_messages. The final answer is normally the longest
+        // non-signal textual payload (often mime_type=multi_load/iframe).
+        const assistantCandidates = Array.isArray(record.response_messages)
+            ? record.response_messages
+                .filter((message) => !String(message?.mime_type || '').startsWith('signal/'))
+                .map((message) => String(message?.content || '').trim())
+                .filter(Boolean)
+            : [];
+        const assistantText = assistantCandidates.sort((a, b) => b.length - a.length)[0] || '';
+        if (assistantText) {
+            out.push({ id: `${reqId}-answer`, role: 'Assistant', text: assistantText, html: '' });
+        }
+    }
+    return out;
+}
+
+export async function getSessionMessagesFromApi(page, sessionId, pageSize = 20) {
+    const result = await page.evaluate(`(async () => {
+      try {
+        const utdid = (document.cookie.match(/(?:^|;\\s*)b-user-id=([^;]+)/)?.[1])
+          || (document.cookie.match(/(?:^|;\\s*)utdid=([^;]+)/)?.[1])
+          || '';
+        const query = new URLSearchParams({
+          biz_id: 'ai_qwen', chat_client: 'h5', device: 'pc', fr: 'pc', pr: 'qwen',
+          ut: utdid, la: 'zh-CN', tz: 'Asia/Shanghai', wv: '3.8.6', ve: '3.8.6',
+          session_id: ${JSON.stringify(sessionId)}, page_size: ${JSON.stringify(String(pageSize))},
+          page: '1', return_response_messages: 'true', event_filter: 'all',
+        }).toString();
+        const response = await fetch('https://${QIANWEN_API_DOMAIN}/api/v1/session/msg/list?' + query, {
+          method: 'GET', credentials: 'include',
+        });
+        const text = await response.text();
+        let body = null;
+        try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+        return { ok: response.ok, status: response.status, body };
+      } catch (error) {
+        return { ok: false, status: 0, error: String(error?.message || error) };
+      }
+    })()`);
+    if (!result?.ok) return [];
+    const data = result.body?.data || {};
+    const records = Array.isArray(data.list) ? data.list
+        : Array.isArray(data.record_list) ? data.record_list
+            : [];
+    return parseSessionMessageRecords(records);
+}
+
 export function bubbleHtmlToMarkdown(html) {
     try {
         return htmlToMarkdown(html).trim();
