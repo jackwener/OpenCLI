@@ -90,7 +90,7 @@ describe('rednote note URL identity', () => {
         });
 
         expect(rows).toEqual([
-            { rank: 1, author: 'Alice', text: 'Nice', likes: 1, time: 'today', is_reply: false, reply_to: '' },
+            { rank: 1, author: 'Alice', text: 'Nice', likes: 1, time: 'today', is_reply: false, reply_to: '', images: [] },
         ]);
         expect(rows[0]).not.toHaveProperty('authorHrefRaw');
     });

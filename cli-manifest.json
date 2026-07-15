@@ -30131,7 +30131,8 @@
       "likes",
       "time",
       "is_reply",
-      "reply_to"
+      "reply_to",
+      "images"
     ],
     "type": "js",
     "modulePath": "rednote/comments.js",
@@ -41485,7 +41486,8 @@
       "likes",
       "time",
       "is_reply",
-      "reply_to"
+      "reply_to",
+      "images"
     ],
     "type": "js",
     "modulePath": "xiaohongshu/comments.js",

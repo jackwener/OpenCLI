@@ -33,7 +33,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
         { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
     ],
-    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
+    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to', 'images'],
     func: async (page, kwargs) => {
         const limit = parseCommentLimit(kwargs.limit);
         const withReplies = Boolean(kwargs['with-replies']);
@@ -45,7 +45,7 @@ cli({
             signedUrlHint: REDNOTE_SIGNED_URL_HINT,
         }));
         await page.wait({ time: 2 + Math.random() * 3 });
-        const data = await page.evaluate(buildCommentsExtractJs(withReplies));
+        const data = await page.evaluate(buildCommentsExtractJs(withReplies, limit));
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('rednote/comments', 'Unexpected evaluate response');
         }
@@ -67,6 +67,7 @@ cli({
             time: c.time,
             is_reply: c.is_reply,
             reply_to: c.reply_to,
+            images: c.images ?? [],
         });
         if (withReplies) {
             const limited = [];

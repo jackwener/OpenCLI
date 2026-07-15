@@ -69,12 +69,13 @@ export function parseXhsLikeCountText(value) {
  * top-level comments (and optionally nested 楼中楼 replies). Exported so
  * the rednote adapter can reuse the exact same selector chain.
  */
-export function buildCommentsExtractJs(withReplies) {
+export function buildCommentsExtractJs(withReplies, limit = 20) {
     const parseLikeCountText = parseXhsLikeCountText.toString();
     return `
       (async () => {
         const wait = (ms) => new Promise(r => setTimeout(r, ms))
         const withReplies = ${withReplies}
+        const targetCount = ${Number(limit) || 20}
 
         // Check login state
         const bodyText = document.body?.innerText || ''
@@ -82,15 +83,40 @@ export function buildCommentsExtractJs(withReplies) {
         const securityBlock = /安全限制|访问链接异常/.test(bodyText)
           || /website-login\\/error|error_code=300017|error_code=300031/.test(location.href)
 
-        // Scroll the note container to trigger comment loading
+        // Scroll to trigger comment loading. Xiaohongshu loads comments in
+        // small async batches via IntersectionObserver, and depending on the
+        // page layout / viewport the actual scrollable ancestor can be
+        // .note-scroller, .container, or the document itself — so each round
+        // drives all of them plus scrollIntoView on the last loaded comment,
+        // which works regardless of which element actually owns the scrollbar.
+        // A single stalled round doesn't mean the list is exhausted — keep
+        // going until growth stalls for several consecutive rounds, we've
+        // loaded enough top-level comments to satisfy --limit, or we hit the
+        // hard round cap.
         const scroller = document.querySelector('.note-scroller') || document.querySelector('.container')
-        if (scroller) {
-          for (let i = 0; i < 3; i++) {
-            const beforeCount = scroller.querySelectorAll('.parent-comment').length
-            scroller.scrollTo(0, scroller.scrollHeight)
-            await wait(800 + Math.random() * 1200)
-            const afterCount = scroller.querySelectorAll('.parent-comment').length
-            if (afterCount <= beforeCount) break
+        const driveScroll = () => {
+          if (scroller) scroller.scrollTo(0, scroller.scrollHeight)
+          const comments = document.querySelectorAll('.parent-comment')
+          const last = comments[comments.length - 1]
+          if (last && typeof last.scrollIntoView === 'function') last.scrollIntoView({ block: 'end' })
+          if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+            window.scrollTo(0, document.body.scrollHeight)
+          }
+        }
+        {
+          let stall = 0
+          for (let i = 0; i < 60; i++) {
+            const beforeCount = document.querySelectorAll('.parent-comment').length
+            if (beforeCount >= targetCount) break
+            driveScroll()
+            await wait(1000 + Math.random() * 1200)
+            const afterCount = document.querySelectorAll('.parent-comment').length
+            if (afterCount <= beforeCount) {
+              stall++
+              if (stall >= 6) break
+            } else {
+              stall = 0
+            }
           }
         }
 
@@ -104,6 +130,19 @@ export function buildCommentsExtractJs(withReplies) {
           if (!el) return ''
           const anchor = el.querySelector(HREF_SELECTOR)
           return anchor ? (anchor.getAttribute('href') || '') : ''
+        }
+        // Attached comment photos, excluding the author avatar and inline
+        // note-content-emoji stickers rendered inside the comment text.
+        const extractImages = (el) => {
+          if (!el) return []
+          const urls = []
+          el.querySelectorAll('img').forEach(img => {
+            if (img.classList.contains('avatar-item')) return
+            if (img.closest('.content, .note-text')) return
+            const src = img.currentSrc || img.src || img.getAttribute('data-src') || ''
+            if (src && !urls.includes(src)) urls.push(src)
+          })
+          return urls
         }
         const expandReplyThreads = async (root) => {
           if (!withReplies || !root) return
@@ -138,9 +177,10 @@ export function buildCommentsExtractJs(withReplies) {
           const text = clean(item.querySelector('.content, .note-text'))
           const likes = parseLikes(item.querySelector('.count'))
           const time = clean(item.querySelector('.date, .time'))
+          const images = extractImages(item)
 
           if (!text) continue
-          results.push({ author, authorHrefRaw, text, likes, time, is_reply: false, reply_to: '' })
+          results.push({ author, authorHrefRaw, text, likes, time, is_reply: false, reply_to: '', images })
 
           // Extract nested replies (楼中楼)
           if (withReplies) {
@@ -151,8 +191,9 @@ export function buildCommentsExtractJs(withReplies) {
               const sText = clean(sub.querySelector('.content, .note-text'))
               const sLikes = parseLikes(sub.querySelector('.count'))
               const sTime = clean(sub.querySelector('.date, .time'))
+              const sImages = extractImages(sub)
               if (!sText) return
-              results.push({ author: sAuthor, authorHrefRaw: sAuthorHrefRaw, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author })
+              results.push({ author: sAuthor, authorHrefRaw: sAuthorHrefRaw, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author, images: sImages })
             })
           }
         }
@@ -174,7 +215,7 @@ export const command = cli({
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
         { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
     ],
-    columns: ['rank', 'author', 'userId', 'profileUrl', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
+    columns: ['rank', 'author', 'userId', 'profileUrl', 'text', 'likes', 'time', 'is_reply', 'reply_to', 'images'],
     func: async (page, kwargs) => {
         const limit = parseCommentLimit(kwargs.limit);
         const withReplies = Boolean(kwargs['with-replies']);
@@ -182,7 +223,7 @@ export const command = cli({
         const noteId = parseNoteId(raw);
         await page.goto(buildNoteUrl(raw, { commandName: 'xiaohongshu comments' }));
         await page.wait({ time: 2 + Math.random() * 3 });
-        const data = await page.evaluate(buildCommentsExtractJs(withReplies));
+        const data = await page.evaluate(buildCommentsExtractJs(withReplies, limit));
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('xiaohongshu/comments', 'Unexpected evaluate response');
         }
@@ -209,6 +250,7 @@ export const command = cli({
             time: c.time,
             is_reply: c.is_reply,
             reply_to: c.reply_to,
+            images: c.images ?? [],
         });
         // When limiting, count only top-level comments; their replies are included for free
         if (withReplies) {
