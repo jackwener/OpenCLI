@@ -22,4 +22,12 @@ describe('RingBuffer', () => {
     buffer.push({ ts: 3, value: 3 });
     expect(buffer.values().map((item) => item.value)).toEqual([2, 3]);
   });
+
+  it('prunes expired items that arrive after newer events', () => {
+    const buffer = new RingBuffer<{ ts: number; value: string }>({ maxAgeMs: 5_000, now: () => 10_000 });
+    buffer.push({ ts: 9_000, value: 'new' });
+    buffer.push({ ts: 4_000, value: 'late-old' });
+
+    expect(buffer.values().map((item) => item.value)).toEqual(['new']);
+  });
 });

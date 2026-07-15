@@ -45,9 +45,7 @@ export class RingBuffer<T extends { ts: number }> {
       this.items = this.items.slice(this.items.length - this.maxItems);
     }
     if (this.maxAgeMs > 0) {
-      const firstKept = this.items.findIndex((item) => item.ts >= minTs);
-      if (firstKept > 0) this.items = this.items.slice(firstKept);
-      else if (firstKept === -1) this.items = [];
+      this.items = this.items.filter((item) => item.ts >= minTs);
     }
   }
 }
