@@ -4,15 +4,15 @@
  * Unlike `hotel-search`, the flight rows are NOT in `__NEXT_DATA__` — they
  * arrive via a post-load XHR that the daemon network buffer currently can't
  * capture (see MEMORY `daemon_capture_pipeline_bug_2026_05_07`). We instead
- * extract from the rendered `.flight-list > span > div` cards using a
- * position-anchored innerText parser (see `buildFlightExtractJs` in utils).
+ * extract from the rendered flight cards using stable visible-UI anchors
+ * (see `FLIGHT_CARD_SELECTOR` and `buildFlightExtractJs` in utils).
  *
  * Round-trip + advanced filters (airline whitelist, cabin selection beyond
  * 全舱位) are out of scope for v1 — track in #1481 follow-up if requested.
  */
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { buildFlightExtractJs, buildScrollUntilJs, parseIataCode, parseIsoDate } from './utils.js';
+import { FLIGHT_CARD_SELECTOR, buildFlightExtractJs, buildScrollUntilJs, parseIataCode, parseIsoDate } from './utils.js';
 
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
@@ -31,14 +31,14 @@ function parseFlightLimit(raw) {
 }
 
 /**
- * Wait for `.flight-list > span > div` to render (the post-load XHR settles
+ * Wait for a flight card to render (the post-load XHR settles
  * 1-3s after navigation), or detect a captcha/login redirect.
  */
 const WAIT_FOR_FLIGHTS_JS = `
   new Promise((resolve) => {
     const detect = () => {
       if (location.pathname.includes('captcha') || /验证码|verify the human/i.test(document.body?.innerText || '')) return 'captcha';
-      if (document.querySelector('.flight-list > span > div')) return 'content';
+      if (document.querySelector(${JSON.stringify(FLIGHT_CARD_SELECTOR)})) return 'content';
       return null;
     };
     const found = detect();
@@ -96,7 +96,7 @@ cli({
             throw new CommandExecutionError(`Ctrip flight page did not render flight cards (state=${String(waitResult)})`);
         }
         // Scroll until enough flight cards rendered (Ctrip lazy-loads beyond ~8).
-        const renderedCardCount = await page.evaluate(buildScrollUntilJs('.flight-list > span > div', limit));
+        const renderedCardCount = await page.evaluate(buildScrollUntilJs(FLIGHT_CARD_SELECTOR, limit));
         const raw = await page.evaluate(buildFlightExtractJs());
         if (!Array.isArray(raw)) {
             throw new CommandExecutionError('Ctrip flight DOM extraction returned malformed rows');
