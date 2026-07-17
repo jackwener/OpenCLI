@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './bookmarks.js';
 
 const { parseBookmarks, extractBookmarkTweet } = __test__;
@@ -202,5 +204,142 @@ describe('twitter bookmarks parser', () => {
 
     it('returns empty tweets + null cursor for unknown envelope', () => {
         expect(parseBookmarks({}, new Set())).toEqual({ tweets: [], nextCursor: null });
+    });
+});
+
+function bookmarksPayload(withBottomCursor = false) {
+    const entries = [{
+        entryId: 'tweet-1',
+        content: {
+            itemContent: {
+                tweet_results: {
+                    result: {
+                        rest_id: '1',
+                        legacy: {
+                            full_text: 'bookmarked post',
+                            favorite_count: 3,
+                            retweet_count: 1,
+                            bookmark_count: 4,
+                            created_at: 'now',
+                        },
+                        core: {
+                            user_results: {
+                                result: {
+                                    legacy: { screen_name: 'alice', name: 'Alice' },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }];
+    if (withBottomCursor) {
+        entries.push({
+            entryId: 'cursor-bottom-1',
+            content: {
+                entryType: 'TimelineTimelineCursor',
+                cursorType: 'Bottom',
+                value: 'NEXT_CURSOR',
+            },
+        });
+    }
+    return {
+        data: {
+            bookmark_timeline_v2: {
+                timeline: {
+                    instructions: [{ entries }],
+                },
+            },
+        },
+    };
+}
+
+describe('twitter bookmarks command', () => {
+    it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const resumeFile = `/tmp/opencli-bookmarks-resume-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-bookmarks-out-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('Bookmarks') && text.includes('queryId')) return null;
+                if (text.includes('/Bookmarks')) return bookmarksPayload(true);
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'bookmarks',
+                complete: false,
+                pages: 1,
+                cursor: 'NEXT_CURSOR',
+                resumeFile,
+            });
+            expect(fs.existsSync(resumeFile)).toBe(true);
+            const resume = __test__.readResumeFile(resumeFile);
+            expect(resume).toMatchObject({
+                cursor: 'NEXT_CURSOR',
+                count: 1,
+                complete: false,
+                source: 'bookmarks',
+                outputFile,
+            });
+            expect(fs.readFileSync(outputFile, 'utf8').trim().split('\n')).toHaveLength(1);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
+    });
+
+    it('removes resume file only after the bookmarks timeline is exhausted', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const resumeFile = `/tmp/opencli-bookmarks-resume-done-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-bookmarks-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('Bookmarks') && text.includes('queryId')) return null;
+                if (text.includes('/Bookmarks')) return bookmarksPayload(false);
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'bookmarks',
+                complete: true,
+                pages: 1,
+            });
+            expect(result.cursor).toBeUndefined();
+            expect(fs.existsSync(resumeFile)).toBe(false);
+            expect(fs.existsSync(outputFile)).toBe(true);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
     });
 });
