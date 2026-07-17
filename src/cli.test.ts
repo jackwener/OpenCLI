@@ -597,10 +597,11 @@ describe('createProgram root help descriptions', () => {
         group: 'tab',
         command: 'opencli browser <session> tab',
         usage: 'opencli browser <session> tab <command> [args] [options]',
-        command_count: 4,
+        command_count: 5,
       });
       expect(data.commands.map((cmd: any) => cmd.name)).toEqual([
         'tab close',
+        'tab current-window',
         'tab list',
         'tab new',
         'tab select',
