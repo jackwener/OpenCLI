@@ -186,19 +186,49 @@ async function screenshot(tabId, options = {}) {
 async function setFileInputFiles(tabId, files, selector) {
   await ensureAttached(tabId);
   await sendDebuggerCommand({ tabId }, "DOM.enable");
-  const doc = await sendDebuggerCommand({ tabId }, "DOM.getDocument");
+  await sendDebuggerCommand({ tabId }, "Page.enable");
   const query = selector || 'input[type="file"]';
-  const result = await sendDebuggerCommand({ tabId }, "DOM.querySelector", {
-    nodeId: doc.root.nodeId,
-    selector: query
+  const found = await sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
+    expression: `!!document.querySelector(${JSON.stringify(query)})`,
+    returnByValue: true
   });
-  if (!result.nodeId) {
+  if (!found.result?.value) {
     throw new Error(`No element found matching selector: ${query}`);
   }
-  await sendDebuggerCommand({ tabId }, "DOM.setFileInputFiles", {
-    files,
-    nodeId: result.nodeId
-  });
+  await sendDebuggerCommand({ tabId }, "Page.setInterceptFileChooserDialog", { enabled: true });
+  try {
+    const backendNodeId = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("Page.fileChooserOpened not received within 5s — the input may not have opened a file chooser"));
+      }, 5e3);
+      const listener = (source, method, params) => {
+        if (source.tabId !== tabId || method !== "Page.fileChooserOpened") return;
+        cleanup();
+        const backend = params?.backendNodeId;
+        if (typeof backend === "number") resolve(backend);
+        else reject(new Error("Page.fileChooserOpened carried no backendNodeId"));
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        chrome.debugger.onEvent.removeListener(listener);
+      };
+      chrome.debugger.onEvent.addListener(listener);
+      void sendDebuggerCommand({ tabId }, "Runtime.evaluate", {
+        expression: `document.querySelector(${JSON.stringify(query)}).click()`
+      }).catch((err) => {
+        cleanup();
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
+    });
+    await sendDebuggerCommand({ tabId }, "DOM.setFileInputFiles", {
+      files,
+      backendNodeId
+    });
+  } finally {
+    await sendDebuggerCommand({ tabId }, "Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {
+    });
+  }
 }
 function matchesDownloadPattern(item, pattern) {
   if (!pattern) return true;
@@ -742,6 +772,8 @@ const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
 let connectInFlight = null;
+let workerReady = Promise.resolve();
+let workerRecovered = true;
 async function getCurrentContextId() {
   if (contextIdPromise) return contextIdPromise;
   contextIdPromise = (async () => {
@@ -820,7 +852,8 @@ function isDaemonSocketActive(socket = ws) {
 function connect() {
   if (isDaemonSocketActive()) return Promise.resolve();
   if (connectInFlight) return connectInFlight;
-  connectInFlight = connectAttempt().finally(() => {
+  const attempt = workerRecovered ? connectAttempt() : workerReady.then(() => connectAttempt());
+  connectInFlight = attempt.finally(() => {
     connectInFlight = null;
   });
   return connectInFlight;
@@ -941,6 +974,7 @@ const ownedContainers = {
   interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
   automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
 };
+const interactiveGroupLedger = /* @__PURE__ */ new Set();
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -1039,21 +1073,18 @@ function emptyRegistry() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
+        groupIds: [...interactiveGroupLedger]
       },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: null
-      }
+      automation: { windowId: ownedContainers.automation.windowId }
     },
     leases: {}
   };
 }
 async function readRegistry() {
   try {
-    const local = chrome.storage?.local;
-    if (!local) return emptyRegistry();
-    const raw = await local.get(REGISTRY_KEY);
+    const session = chrome.storage?.session;
+    if (!session) return emptyRegistry();
+    const raw = await session.get(REGISTRY_KEY);
     const stored = raw[REGISTRY_KEY];
     if (!stored || stored.version !== 2 || typeof stored.leases !== "object") return emptyRegistry();
     const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === "object" ? stored.ownedContainers : emptyRegistry().ownedContainers;
@@ -1063,11 +1094,10 @@ async function readRegistry() {
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === "number" ? storedContainers.interactive.windowId : null,
-          groupId: typeof storedContainers.interactive?.groupId === "number" ? storedContainers.interactive.groupId : null
+          groupIds: Array.isArray(storedContainers.interactive?.groupIds) ? storedContainers.interactive.groupIds.filter((id) => typeof id === "number") : []
         },
         automation: {
-          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null,
-          groupId: null
+          windowId: typeof storedContainers.automation?.windowId === "number" ? storedContainers.automation.windowId : null
         }
       },
       leases: stored.leases
@@ -1078,7 +1108,7 @@ async function readRegistry() {
 }
 async function writeRegistry(registry) {
   try {
-    await chrome.storage?.local?.set({ [REGISTRY_KEY]: registry });
+    await chrome.storage?.session?.set({ [REGISTRY_KEY]: registry });
   } catch {
   }
 }
@@ -1106,12 +1136,9 @@ async function persistRuntimeState() {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
-        groupId: ownedContainers.interactive.groupId
+        groupIds: [...interactiveGroupLedger]
       },
-      automation: {
-        windowId: ownedContainers.automation.windowId,
-        groupId: null
-      }
+      automation: { windowId: ownedContainers.automation.windowId }
     },
     leases
   });
@@ -1210,6 +1237,18 @@ async function collectOwnedGroupCandidates(role) {
       container.groupId = null;
     }
   }
+  let ledgerPruned = false;
+  for (const groupId of [...interactiveGroupLedger]) {
+    if (groupsById.has(groupId)) continue;
+    try {
+      const group = await chrome.tabGroups.get(groupId);
+      groupsById.set(group.id, group);
+    } catch {
+      interactiveGroupLedger.delete(groupId);
+      ledgerPruned = true;
+    }
+  }
+  if (ledgerPruned) await persistRuntimeState();
   for (const title of getOwnedContainerGroupTitles(role)) {
     const groups = await chrome.tabGroups.query({ title });
     for (const group of groups) groupsById.set(group.id, group);
@@ -1306,6 +1345,7 @@ async function createOwnedGroup(role, windowId, ids) {
   const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
   ownedContainers[role].groupId = groupId;
   ownedContainers[role].windowId = windowId;
+  if (role === "interactive") interactiveGroupLedger.add(groupId);
   await persistRuntimeState();
   const group = await chrome.tabGroups.update(groupId, {
     color: OWNED_TAB_GROUP_COLOR,
@@ -1342,6 +1382,10 @@ async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
     if (canonical) {
       ownedContainers[role].windowId = canonical.windowId;
       ownedContainers[role].groupId = canonical.id;
+      if (!interactiveGroupLedger.has(canonical.id)) {
+        interactiveGroupLedger.add(canonical.id);
+        await persistRuntimeState();
+      }
     } else {
       ownedContainers[role].groupId = null;
       if (fallbackWindowId === null) ownedContainers[role].windowId = null;
@@ -1515,6 +1559,7 @@ async function getAutomationWindow(leaseKey, initialUrl) {
   return (await ensureOwnedContainerWindow(role, initialUrl, getWindowMode(leaseKey))).windowId;
 }
 chrome.windows.onRemoved.addListener(async (windowId) => {
+  await workerReady;
   for (const container of Object.values(ownedContainers)) {
     if (container.windowId === windowId) {
       container.windowId = null;
@@ -1533,6 +1578,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
   await persistRuntimeState();
 });
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await workerReady;
   evictTab(tabId);
   for (const [leaseKey, session] of automationSessions.entries()) {
     if (session.preferredTabId === tabId) {
@@ -1556,11 +1602,21 @@ function initialize() {
     registerFrameTracking$1?.();
   } catch {
   }
-  void (async () => {
+  try {
+    void chrome.storage?.local?.remove?.(REGISTRY_KEY)?.catch?.(() => {
+    });
+  } catch {
+  }
+  workerRecovered = false;
+  workerReady = (async () => {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
-    await connect();
-  })();
+  })().catch((err) => {
+    console.warn(`[opencli] Startup recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+  }).finally(() => {
+    workerRecovered = true;
+  });
+  void workerReady.then(() => connect());
   console.log("[opencli] OpenCLI extension initialized");
 }
 chrome.runtime.onInstalled.addListener(() => {
@@ -1571,6 +1627,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  await workerReady;
   if (alarm.name === "keepalive") void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
   if (!leaseKey) return;
@@ -2293,16 +2350,16 @@ async function releaseLease(leaseKey, reason = "released") {
 }
 async function reconcileTargetLeaseRegistry() {
   const registry = await readRegistry();
+  interactiveGroupLedger.clear();
+  for (const id of registry.ownedContainers.interactive.groupIds) interactiveGroupLedger.add(id);
   for (const role of Object.keys(ownedContainers)) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
-    ownedContainers[role].groupId = registry.ownedContainers[role]?.groupId ?? null;
     const windowId = ownedContainers[role].windowId;
     if (windowId !== null) {
       try {
         await chrome.windows.get(windowId);
       } catch {
         ownedContainers[role].windowId = null;
-        ownedContainers[role].groupId = null;
       }
     }
   }
@@ -2349,6 +2406,11 @@ async function reconcileTargetLeaseRegistry() {
       }
     } catch {
     }
+  }
+  try {
+    await ensureOwnedContainerGroup("interactive", null, []);
+  } catch (err) {
+    console.warn(`[opencli] Startup interactive group convergence failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   await persistRuntimeState();
 }

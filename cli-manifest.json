@@ -6289,6 +6289,15 @@
       "status",
       "report",
       "sources",
+      "progress",
+      "asyncTaskConversationId",
+      "widgetSessionId",
+      "asyncStatus",
+      "venusMessageType",
+      "venusStatus",
+      "waitingForUserUntil",
+      "planTitle",
+      "planId",
       "url",
       "method",
       "diagnostics"
@@ -13517,7 +13526,7 @@
     "type": "js",
     "modulePath": "facebook/search.js",
     "sourceFile": "facebook/search.js",
-    "navigateBefore": "https://www.facebook.com"
+    "navigateBefore": false
   },
   {
     "site": "facebook",
@@ -21709,6 +21718,40 @@
   },
   {
     "site": "linkedin",
+    "name": "company",
+    "description": "Read a LinkedIn company page: industry, size, HQ, founded, website, followers, about",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "company",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Company universal name (nvidia), /company/<name> path, or full URL"
+      }
+    ],
+    "columns": [
+      "name",
+      "industry",
+      "size",
+      "headquarters",
+      "founded",
+      "website",
+      "specialties",
+      "followers",
+      "about",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/company.js",
+    "sourceFile": "linkedin/company.js",
+    "navigateBefore": "https://www.linkedin.com"
+  },
+  {
+    "site": "linkedin",
     "name": "connect",
     "description": "Fail-closed LinkedIn connection request sender that verifies the exact profile before optionally sending a note",
     "access": "write",
@@ -21764,6 +21807,36 @@
     "modulePath": "linkedin/connect.js",
     "sourceFile": "linkedin/connect.js",
     "navigateBefore": true
+  },
+  {
+    "site": "linkedin",
+    "name": "connections",
+    "description": "List your LinkedIn first-degree connections (name, headline, profile URL)",
+    "access": "read",
+    "domain": "www.linkedin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of connections to return (max 500)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "occupation",
+      "public_id",
+      "connected_at",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "linkedin/connections.js",
+    "sourceFile": "linkedin/connections.js",
+    "navigateBefore": "https://www.linkedin.com"
   },
   {
     "site": "linkedin",

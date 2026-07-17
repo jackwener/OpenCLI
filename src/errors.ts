@@ -131,6 +131,17 @@ export class ArgumentError extends CliError {
   }
 }
 
+/**
+ * Thrown when a write command cannot run because another write command already
+ * holds the same persistent site session (see session-lease.ts). Uses TEMPFAIL
+ * so callers/scripts treat it as "retry later" rather than a permanent failure.
+ */
+export class SessionBusyError extends CliError {
+  constructor(message: string, hint?: string) {
+    super('SESSION_BUSY', message, hint, EXIT_CODES.TEMPFAIL);
+  }
+}
+
 export class EmptyResultError extends CliError {
   constructor(command: string, hint?: string) {
     super(

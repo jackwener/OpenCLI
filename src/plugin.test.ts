@@ -613,6 +613,23 @@ describe('installDependencies', () => {
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it('runs npm install with --ignore-scripts so untrusted lifecycle scripts cannot execute (#1753)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-plugin-scripts-'));
+    const pluginDir = path.join(tmpDir, 'plugin-c');
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'package.json'), JSON.stringify({ name: 'plugin-c' }));
+
+    _installDependencies(pluginDir);
+
+    expect(mockExecFileSync).toHaveBeenCalledTimes(1);
+    const [bin, args] = mockExecFileSync.mock.calls[0];
+    expect(bin).toBe('npm');
+    expect(args).toContain('install');
+    expect(args).toContain('--ignore-scripts');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });
 
 describe('postInstallMonorepoLifecycle', () => {

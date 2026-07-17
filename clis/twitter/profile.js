@@ -88,7 +88,7 @@ cli({
         const queryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
         const rawResult = unwrapBrowserResult(await page.evaluate(`
       async () => {
-        const screenName = "${username}";
+        const screenName = ${JSON.stringify(username)};
         const ct0 = ${JSON.stringify(ct0)};
 
         const bearer = ${JSON.stringify(TWITTER_BEARER_TOKEN)};

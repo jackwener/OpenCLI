@@ -24,7 +24,26 @@ function buildFeedExtractScript(limit) {
     const limit = ${limit};
 
     function clean(value) {
-      return String(value || '').replace(/\\s+/g, ' ').trim();
+      // Strip zero-width / bidi control chars first: Facebook injects them into
+      // decoy nodes to poison scrapers. See issue #2089.
+      return String(value || '')
+        .replace(/[\\u200b-\\u200f\\u202a-\\u202e\\u2060\\ufeff]/g, '')
+        .replace(/\\s+/g, ' ')
+        .trim();
+    }
+
+    // FB anti-scrape decoys: long spaceless digit runs, spaced single-char
+    // strings ("a b c d e"), and hidden-domain .com spam. Real author/content
+    // text never looks like this.
+    function isDecoyText(text) {
+      if (!text) return true;
+      if (/^\\d{8,}$/.test(text)) return true;
+      if (/^(?:\\S ){4,}\\S$/.test(text) && text.replace(/\\s/g, '').length <= 12) return true;
+      return false;
+    }
+
+    function isReelsOrCarouselChrome(text) {
+      return /^(Reels|Reels and short videos|Reels 和短视频|快拍|短视频|People you may know)/i.test(text);
     }
 
     function textOf(el) {
@@ -116,6 +135,8 @@ function buildFeedExtractScript(limit) {
           && !isActionText(text)
           && !isMetricText(text)
           && !isTimestampText(text)
+          && !isDecoyText(text)
+          && !/^[\\d\\s.,-]+$/.test(text)   // reject all-digit decoy names, but keep "Class of 2024" (#2089)
           && !/\\/groups\\/|\\/watch\\/|\\/reel\\/|\\/events\\/|\\/friends\\//i.test(href)) {
           return text;
         }
@@ -129,6 +150,7 @@ function buildFeedExtractScript(limit) {
         if (text.length <= 10) return false;
         if (isSuggestionOrChrome(text) || isSponsored(text)) return false;
         if (isActionText(text) || isMetricText(text) || isTimestampText(text)) return false;
+        if (isDecoyText(text) || isReelsOrCarouselChrome(text)) return false;
         if (/^(See more|查看更多|更多)$/i.test(text)) return false;
         return true;
       });
@@ -168,6 +190,47 @@ function buildFeedExtractScript(limit) {
     function primaryContainers() {
       return Array.from(document.querySelectorAll('[role="article"]'))
         .filter((el) => textOf(el).length > 30);
+    }
+
+    // Modern Facebook no longer wraps posts in [role="article"] nor exposes the
+    // Like/Comment/Share aria-labels the fallback keyed on. Every post still
+    // carries one "Actions for this post" control (the ⋯ menu). Anchor on it and
+    // walk up to the HIGHEST ancestor that still contains exactly one such
+    // control — that bounds the node to a single post. See issue #2089.
+    function actionMenuAnchors() {
+      // Post menus only — NOT "Actions for this comment", so the anchor set,
+      // countMenus, and loadFeedPosts all key on the same thing (#2089).
+      return Array.from(document.querySelectorAll('[aria-label]')).filter((el) =>
+        /^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el)));
+    }
+
+    function actionAnchoredContainers() {
+      const menus = actionMenuAnchors();
+      const seen = new WeakSet();
+      const containers = [];
+      const countMenus = (node) => {
+        let n = 0;
+        for (const el of node.querySelectorAll('[aria-label]')) {
+          if (/^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test(labelOf(el))) n += 1;
+        }
+        return n;
+      };
+      const LANDMARK_ROLES = new Set(['main', 'feed', 'banner', 'navigation', 'complementary', 'contentinfo', 'region']);
+      for (const menu of menus) {
+        let node = menu.parentElement;
+        let best = null;
+        for (let depth = 0; depth < 22 && node && node !== document.body && node !== document.documentElement; depth += 1, node = node.parentElement) {
+          // Never let a single-post page climb the container up to a page
+          // landmark (role=main/feed/...) and emit the whole region as a post.
+          if (LANDMARK_ROLES.has(node.getAttribute('role') || '')) break;
+          if (countMenus(node) === 1) best = node; else break;
+        }
+        if (best && !seen.has(best) && textOf(best).length > 30) {
+          seen.add(best);
+          containers.push(best);
+        }
+      }
+      return containers;
     }
 
     function fallbackContainers() {
@@ -210,7 +273,8 @@ function buildFeedExtractScript(limit) {
     if (isAuthPage()) return { status: 'auth', rows: [], diagnostics: {} };
 
     const primary = primaryContainers();
-    const combined = dedupe([...primary, ...fallbackContainers()]);
+    const actionAnchored = actionAnchoredContainers();
+    const combined = dedupe([...primary, ...actionAnchored, ...fallbackContainers()]);
     const rows = [];
     for (const container of combined) {
       const row = extractPost(container, rows.length + 1);
@@ -224,11 +288,34 @@ function buildFeedExtractScript(limit) {
       diagnostics: {
         articleCount: document.querySelectorAll('[role="article"]').length,
         primaryCount: primary.length,
+        actionMenuCount: actionMenuAnchors().length,
         fallbackActionCount: document.querySelectorAll('[role="main"] [aria-label="Like"], [role="main"] [aria-label="赞"], [role="main"] [aria-label="Comment"], [role="main"] [aria-label="评论"]').length,
         mainTextLength: textOf(document.querySelector('[role="main"]')).length,
       },
     };
   })()`;
+}
+
+// Facebook streams feed posts in lazily as you scroll, so a single extraction
+// off the initial viewport under-returns. Scroll a bounded number of times
+// until enough post action-menus are present (or we stop growing). See #2089.
+async function loadFeedPosts(page, limit) {
+  const scrollStep = `(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.scrollTo(0, document.body.scrollHeight);
+    await sleep(800);
+    return document.querySelectorAll('[aria-label]').length
+      ? document.querySelectorAll('[role="article"]').length
+        + Array.from(document.querySelectorAll('[aria-label]')).filter((el) => /^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test((el.getAttribute('aria-label') || '').trim())).length
+      : 0;
+  })()`;
+  let prev = -1;
+  for (let i = 0; i < 8; i += 1) {
+    let count = 0;
+    try { count = Number(unwrapBrowserResult(await page.evaluate(scrollStep))) || 0; } catch { break; }
+    if (count >= limit || count === prev) break;
+    prev = count;
+  }
 }
 
 async function getFacebookFeed(page, kwargs) {
@@ -241,6 +328,8 @@ async function getFacebookFeed(page, kwargs) {
       'Check that facebook.com is reachable and the browser extension is connected.',
     );
   }
+
+  await loadFeedPosts(page, limit);
 
   let payload;
   try {
@@ -269,7 +358,7 @@ async function getFacebookFeed(page, kwargs) {
   }
 
   const diagnostics = payload.diagnostics || {};
-  if (diagnostics.articleCount || diagnostics.fallbackActionCount || diagnostics.mainTextLength > 200) {
+  if (diagnostics.articleCount || diagnostics.actionMenuCount || diagnostics.fallbackActionCount || diagnostics.mainTextLength > 200) {
     throw new CommandExecutionError(
       'facebook feed page rendered but no feed rows could be extracted',
       `Diagnostics: articles=${diagnostics.articleCount || 0}, actions=${diagnostics.fallbackActionCount || 0}, mainTextLength=${diagnostics.mainTextLength || 0}.`,

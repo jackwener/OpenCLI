@@ -128,7 +128,7 @@ export const imageCommand = cli({
         for (let ci = 0; ci < 10; ci++) {
             const url = await currentChatGPTLink(page);
             if (url.includes('/c/')) { convUrl = url; break; }
-            await page.wait(2);
+            await page.sleep(2);
         }
         if (!convUrl) {
             convUrl = await currentChatGPTLink(page);

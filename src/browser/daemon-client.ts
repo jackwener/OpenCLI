@@ -5,7 +5,7 @@
  */
 
 import { sleep } from '../utils.js';
-import { BrowserConnectError } from '../errors.js';
+import { BrowserConnectError, SessionBusyError } from '../errors.js';
 import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../daemon-utils.js';
 import { classifyBrowserError } from './errors.js';
 import { profileRouteParams, resolveProfileSelection } from './profile.js';
@@ -26,6 +26,70 @@ let _idCounter = 0;
 
 function generateId(): string {
   return `cmd_${process.pid}_${Date.now()}_${++_idCounter}`;
+}
+
+/**
+ * Id for a whole logical CLI command run. Encodes the CLI pid so the daemon can
+ * name/kill the holder in a busy error (see parsePidFromRunId in session-lease.ts).
+ */
+export function generateRunId(): string {
+  return `run_${process.pid}_${Date.now()}_${++_idCounter}`;
+}
+
+/**
+ * Identity of the CLI command run currently driving the browser, attached to
+ * every command so the daemon can arbitrate the write lease. Module-level and
+ * one-per-invocation, matching `setDaemonCommandTimeoutSeconds`. Null for read
+ * and ephemeral commands, which are never lease-arbitrated.
+ */
+export interface DaemonRunContext {
+  runId: string;
+  command: string;
+  access: 'read' | 'write';
+}
+
+let _runContext: DaemonRunContext | null = null;
+
+export function setDaemonRunContext(ctx: DaemonRunContext | null): void {
+  _runContext = ctx;
+}
+
+/**
+ * Clear the run context only if it still belongs to `runId`. Used by deferred
+ * cleanup (an adapter that outlived its CLI timeout settles later): by then a
+ * newer run may own the context, and unconditionally nulling it would strip
+ * that run's lease heartbeats mid-flight.
+ */
+export function clearDaemonRunContext(runId: string): void {
+  if (_runContext?.runId === runId) _runContext = null;
+}
+
+/**
+ * Best-effort release of a persistent site-session lease on command completion.
+ * A direct one-shot POST (no bridge ensure / retry): if it never lands, the
+ * daemon's TTL reclaims the lease anyway, so this must never block the caller.
+ */
+export async function releaseSiteSessionLease(params: {
+  runId: string;
+  session: string;
+  surface: 'adapter';
+}): Promise<void> {
+  try {
+    await requestDaemon('/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: generateId(),
+        action: 'lease-release',
+        runId: params.runId,
+        session: params.session,
+        surface: params.surface,
+      }),
+      timeout: 2000,
+    });
+  } catch {
+    // Best-effort: TTL expiry reclaims the lease if the daemon is unreachable.
+  }
 }
 
 /**
@@ -83,6 +147,25 @@ function versionAtLeast(version: string | null | undefined, min: string): boolea
 /** Error codes meaning the executor's outcome is genuinely unknown — never auto-retry. */
 const UNKNOWN_OUTCOME_CODES = new Set(['command_result_unknown', 'command_lost', 'result_evicted']);
 
+/**
+ * True when a thrown error carries an unknown-outcome code — the browser-side
+ * command may still be running even though the client gave up. Callers use this
+ * to decide whether it is safe to release a persistent site-session lease: it is
+ * not, because the still-running command keeps mutating the tab. Walks the cause
+ * chain so a wrapped `BrowserCommandError` is still recognized.
+ */
+export function isUnknownOutcomeError(err: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = err;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string' && UNKNOWN_OUTCOME_CODES.has(code)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 /** Max transport attempts for one logical command (same id throughout). */
 const TRANSPORT_MAX_ATTEMPTS = 4;
 
@@ -118,7 +201,7 @@ function isPreConnectFetchError(err: unknown): boolean {
 
 export interface DaemonCommand {
   id: string;
-  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames';
+  action: 'exec' | 'navigate' | 'tabs' | 'cookies' | 'screenshot' | 'close-window' | 'set-file-input' | 'insert-text' | 'bind' | 'network-capture-start' | 'network-capture-read' | 'wait-download' | 'cdp' | 'frames' | 'lease-release';
   /** Target page identity (targetId). Cross-layer contract with the extension. */
   page?: string;
   code?: string;
@@ -177,6 +260,17 @@ export interface DaemonCommand {
    * absorbing queueing and service-worker wake latency.
    */
   deadlineAt?: number;
+  /**
+   * Stable id for the whole logical CLI command run (NOT the per-exec `id`).
+   * The daemon uses it to arbitrate a write lease on the persistent site
+   * session: the first command acquires, same-runId execs refresh it as a
+   * heartbeat, a concurrent different-runId write fails fast. See session-lease.ts.
+   */
+  runId?: string;
+  /** Human command name (e.g. `chatgpt ask`) surfaced in the busy error. */
+  command?: string;
+  /** Command access level; only 'write' commands take/hold a session lease. */
+  access?: 'read' | 'write';
 }
 
 export interface DaemonResult {
@@ -285,6 +379,14 @@ async function sendCommandRaw(
       ...(contextId && { contextId }),
       ...(preferredContextId && { preferredContextId }),
       ...(windowMode && { windowMode }),
+      // Carry the run identity so the daemon can acquire/refresh the write
+      // lease on the persistent site session. The same runId across every exec
+      // of one command is the heartbeat that keeps a long-running holder alive.
+      ...(_runContext && {
+        runId: _runContext.runId,
+        command: _runContext.command,
+        access: _runContext.access,
+      }),
     };
     try {
       const res = await requestDaemon('/command', {
@@ -297,6 +399,13 @@ async function sendCommandRaw(
       const result = (await res.json()) as DaemonResult;
 
       if (result.ok) return result;
+
+      // A second concurrent write on the same persistent site session is
+      // rejected before the daemon dispatches anything — terminal, never
+      // retried, and surfaced as a CliError so the busy message is the output.
+      if (result.errorCode === 'session_busy') {
+        throw new SessionBusyError(result.error ?? 'The site session is busy.', result.errorHint);
+      }
 
       if (result.errorCode && UNKNOWN_OUTCOME_CODES.has(result.errorCode)) {
         throw new BrowserCommandError(result.error ?? 'Browser command result is unknown', result.errorCode, result.errorHint);
@@ -333,7 +442,7 @@ async function sendCommandRaw(
 
       throw new BrowserCommandError(result.error ?? 'Daemon command failed', result.errorCode, result.errorHint);
     } catch (err) {
-      if (err instanceof BrowserCommandError || err instanceof BrowserConnectError) throw err;
+      if (err instanceof BrowserCommandError || err instanceof BrowserConnectError || err instanceof SessionBusyError) throw err;
 
       if (err instanceof Error && err.name === 'AbortError') {
         throw new BrowserCommandError(

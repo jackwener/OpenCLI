@@ -764,18 +764,46 @@ export async function getCurrentChatGPTTool(page) {
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
-        const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-        const labels = ${JSON.stringify(CHATGPT_TOOL_OPTIONS)};
+            const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+            const compact = (value) => normalize(value).toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, '');
+            const matchesLabel = (value, labels) => {
+                const normalized = normalize(value).toLowerCase();
+                const compacted = compact(value);
+                if (!normalized && !compacted) return false;
+                return labels.some((label) => {
+                    const normalizedLabel = normalize(label).toLowerCase();
+                    const compactedLabel = compact(label);
+                    return normalized === normalizedLabel
+                        || normalized.includes(normalizedLabel)
+                        || (compactedLabel && compacted.includes(compactedLabel));
+                });
+            };
+            const labels = ${JSON.stringify(CHATGPT_TOOL_OPTIONS)};
         const form = Array.from(document.querySelectorAll('form')).find((node) => node instanceof HTMLElement && isVisible(node));
         const root = form || document.body;
-        const nodes = Array.from(root.querySelectorAll('button, [role="button"], [role="menuitemradio"], span, div'));
+        const nodes = Array.from(root.querySelectorAll('button, [role="button"], [role="menuitemradio"], [role="menuitem"], [role="option"], span, div[tabindex="0"], div'));
         const node = nodes.find((candidate) => {
             if (!isVisible(candidate)) return false;
-            const text = normalize(candidate.textContent);
-            return Object.values(labels).some((entry) => entry.labels.includes(text));
+            const composerSelector = '[contenteditable="true"][role="textbox"], #prompt-textarea[contenteditable="true"], [data-testid="prompt-textarea"][contenteditable="true"]';
+            const toolPill = candidate.closest('[contenteditable="false"]');
+            if (!toolPill && (candidate.closest(composerSelector) || candidate.querySelector(composerSelector))) return false;
+            const haystacks = [
+                candidate.textContent,
+                candidate.getAttribute('aria-label'),
+                candidate.getAttribute('title'),
+                candidate.getAttribute('data-testid'),
+            ];
+            return Object.values(labels).some((entry) => haystacks.some((value) => matchesLabel(value, entry.labels)));
         });
-        const label = normalize(node?.textContent || '');
-        const entry = Object.entries(labels).find(([, value]) => value.labels.includes(label));
+        const haystacks = node instanceof HTMLElement
+            ? [
+                node.textContent,
+                node.getAttribute('aria-label'),
+                node.getAttribute('title'),
+                node.getAttribute('data-testid'),
+            ]
+            : [];
+        const entry = Object.entries(labels).find(([, value]) => haystacks.some((candidate) => matchesLabel(candidate, value.labels)));
         return {
             tool: entry?.[0] ?? null,
             label: entry?.[1]?.label ?? null,
@@ -831,11 +859,41 @@ export async function selectChatGPTTool(page, tool) {
                 return rect.width > 0 && rect.height > 0;
             };
             const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+            const compact = (value) => normalize(value).toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, '');
             const labels = ${JSON.stringify(target.labels)};
-            const options = Array.from(document.querySelectorAll('[role="menuitemradio"]'));
-            const option = options.find((node) => node instanceof HTMLElement && isVisible(node) && labels.includes(normalize(node.textContent)));
+            const optionSelector = '[role="menuitemradio"], [role="menuitem"], [role="option"], button, div[tabindex="0"]';
+            const matchesLabel = (value) => {
+                const normalized = normalize(value).toLowerCase();
+                const compacted = compact(value);
+                if (!normalized && !compacted) return false;
+                return labels.some((label) => {
+                    const normalizedLabel = normalize(label).toLowerCase();
+                    const compactedLabel = compact(label);
+                    return normalized === normalizedLabel
+                        || normalized.includes(normalizedLabel)
+                        || (compactedLabel && compacted.includes(compactedLabel));
+                });
+            };
+            const rootSelector = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-radix-menu-content], [data-testid*="menu"], [data-testid*="popover"]';
+            const visibleRoots = Array.from(document.querySelectorAll(rootSelector))
+                .filter((node) => node instanceof HTMLElement && isVisible(node) && !node.closest('nav, aside'));
+            const searchRoots = visibleRoots.length ? visibleRoots : [document];
+            const options = Array.from(new Set(searchRoots.flatMap((root) => {
+                const matchesRoot = root instanceof HTMLElement && root.matches(optionSelector) ? [root] : [];
+                return matchesRoot.concat(Array.from(root.querySelectorAll(optionSelector)));
+            })));
+            const option = options.find((node) => {
+                if (!(node instanceof HTMLElement) || !isVisible(node) || node.closest('nav, aside')) return false;
+                const haystacks = [
+                    node.textContent,
+                    node.getAttribute('aria-label'),
+                    node.getAttribute('title'),
+                    node.getAttribute('data-testid'),
+                ];
+                return haystacks.some(matchesLabel);
+            });
             if (!(option instanceof HTMLElement)) return { found: false };
-            const checked = option.getAttribute('aria-checked') === 'true';
+            const checked = option.getAttribute('aria-checked') === 'true' || option.getAttribute('aria-selected') === 'true';
             option.scrollIntoView({ block: 'center', inline: 'center' });
             const rect = option.getBoundingClientRect();
             return {
@@ -917,11 +975,7 @@ export function parseChatGPTProjectId(value) {
     );
 }
 
-/**
- * Send a message to the ChatGPT composer and submit it.
- * Returns true if the message was sent successfully.
- */
-export async function sendChatGPTMessage(page, text) {
+async function closeChatGPTSidebar(page) {
     // Close sidebar if open (it can cover the chat composer)
     await page.evaluate(`
         (() => {
@@ -930,6 +984,14 @@ export async function sendChatGPTMessage(page, text) {
             if (closeBtn) closeBtn.click();
         })()
     `);
+}
+
+/**
+ * Clear and fill the ChatGPT composer without submitting it.
+ * Returns true if the composer was ready and the text was inserted.
+ */
+async function fillChatGPTMessage(page, text) {
+    await closeChatGPTSidebar(page);
     // The previous 0.5 s + 1.5 s pre-composer settles are dropped: the next
     // page.evaluate roundtrip flushes the close-sidebar React update and
     // findComposer() retries inside a single CDP call, so no fixed sleep is
@@ -944,8 +1006,24 @@ export async function sendChatGPTMessage(page, text) {
             if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
                 composer.value = '';
             } else if (composer.isContentEditable) {
-                composer.textContent = '';
-                composer.innerHTML = '<p><br></p>';
+                const preserved = Array.from(composer.querySelectorAll('[contenteditable="false"]')).map((node) => node.cloneNode(true));
+                if (preserved.length) {
+                    const p = document.createElement('p');
+                    for (const node of preserved) {
+                        p.appendChild(node);
+                        p.appendChild(document.createTextNode(' '));
+                    }
+                    composer.replaceChildren(p);
+                } else {
+                    composer.textContent = '';
+                    composer.innerHTML = '<p><br></p>';
+                }
+                const range = document.createRange();
+                range.selectNodeContents(composer);
+                range.collapse(false);
+                const selection = window.getSelection();
+                selection?.removeAllRanges();
+                selection?.addRange(range);
             } else {
                 composer.textContent = '';
             }
@@ -955,6 +1033,7 @@ export async function sendChatGPTMessage(page, text) {
             const rect = composer.getBoundingClientRect();
             return {
                 ready: true,
+                contentEditable: !!composer.isContentEditable,
                 x: Math.round(rect.left + Math.max(8, Math.min(rect.width / 2, rect.width - 8))),
                 y: Math.round(rect.top + Math.max(8, Math.min(rect.height / 2, rect.height - 8))),
             };
@@ -969,6 +1048,22 @@ export async function sendChatGPTMessage(page, text) {
             if (typeof page.nativeClick === 'function') {
                 await page.nativeClick(Number(typeResult.x), Number(typeResult.y));
                 await page.wait(0.2);
+            }
+            if (typeResult.contentEditable) {
+                await page.evaluate(`
+                    (() => {
+                        ${buildComposerLocatorScript()}
+                        const composer = findComposer();
+                        if (!composer || !composer.isContentEditable) return;
+                        composer.focus();
+                        const range = document.createRange();
+                        range.selectNodeContents(composer);
+                        range.collapse(false);
+                        const selection = window.getSelection();
+                        selection?.removeAllRanges();
+                        selection?.addRange(range);
+                    })()
+                `);
             }
             await page.nativeType(text);
         } else {
@@ -988,6 +1083,14 @@ export async function sendChatGPTMessage(page, text) {
         `);
     }
 
+    return true;
+}
+
+/**
+ * Submit the current ChatGPT composer contents.
+ * Returns true if the message was sent successfully.
+ */
+async function submitChatGPTMessage(page) {
     let sent = null;
     for (let attempt = 0; attempt < 20; attempt += 1) {
         await page.wait(0.5);
@@ -1060,8 +1163,23 @@ export async function sendChatGPTMessage(page, text) {
     return true;
 }
 
-export async function getVisibleMessages(page) {
+/**
+ * Send a message to the ChatGPT composer and submit it.
+ * Returns true if the message was sent successfully.
+ */
+export async function sendChatGPTMessage(page, text) {
+    const filled = await fillChatGPTMessage(page, text);
+    if (!filled) return false;
+    return submitChatGPTMessage(page);
+}
+
+export async function getVisibleMessages(page, { textOnly = false } = {}) {
+    // textOnly skips the per-turn innerHTML read (used only for --markdown
+    // rendering) so poll loops that need only role + text don't allocate a
+    // second conversation-sized string on every tick.
+    const includeHtml = textOnly ? 'false' : 'true';
     const result = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
+        const includeHtml = ${includeHtml};
         const isVisible = (el) => {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
@@ -1098,8 +1216,11 @@ export async function getVisibleMessages(page) {
                 || node.querySelector('.markdown')
                 || node.querySelector('[data-message-author-role]')
                 || node;
-            const html = contentNode instanceof HTMLElement ? (contentNode.innerHTML || '') : '';
-            const text = normalize(contentNode instanceof HTMLElement ? (contentNode.innerText || contentNode.textContent || '') : '');
+            const html = includeHtml && contentNode instanceof HTMLElement ? (contentNode.innerHTML || '') : '';
+            const rawText = contentNode instanceof HTMLElement
+                ? (includeHtml ? (contentNode.innerText || contentNode.textContent || '') : (contentNode.textContent || ''))
+                : '';
+            const text = normalize(rawText);
             if (!text) continue;
             const key = role + '\\n' + text;
             if (seen.has(key)) continue;
@@ -1170,7 +1291,7 @@ export async function waitForChatGPTDetailRows(page, { wantMarkdown = false, tim
             lastKey = key;
             stableStartedAt = 0;
         }
-        await page.wait(3);
+        await page.sleep(3);
     }
 
     throw new TimeoutError(
@@ -1256,23 +1377,145 @@ function extractDeepResearchSourcesFromReportMessage(reportMessage) {
     return [...byUrl.values()].slice(0, 200);
 }
 
-function extractDeepResearchFromWidgetState(widgetState, source = 'conversation-widget-state') {
+function pickFirstObject(...values) {
+    for (const value of values) {
+        const parsed = parseJsonMaybe(value);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    }
+    return {};
+}
+
+function stringOrEmpty(value) {
+    return value === undefined || value === null ? '' : String(value);
+}
+
+function compactDeepResearchPlanSteps(plan, stepStatusesByPlan) {
+    const steps = Array.isArray(plan?.steps) ? plan.steps : [];
+    return steps.slice(0, 50).map((step, index) => {
+        const id = stringOrEmpty(step?.id || step?.step_id || step?.plan_step_id || step?.key || index);
+        return {
+            id,
+            title: stringOrEmpty(step?.title || step?.name || step?.summary || step?.description),
+            status: stringOrEmpty(step?.status || step?.step_status || stepStatusesByPlan?.[id] || ''),
+        };
+    }).filter((step) => step.id || step.title || step.status);
+}
+
+function deepResearchProgressStatus(progress) {
+    const venusStatus = String(progress.venusStatus || '').toLowerCase();
+    if (/waiting_for_user|user_response/.test(venusStatus)) return 'waiting_for_user';
+    if (/needs_user|user_action|action_required|requires_action/.test(venusStatus)) return 'needs_user_action';
+    if (/running|in_progress|loading|generating|researching|queued|started|processing/.test(venusStatus)) return 'running';
+
+    const venusMessageType = String(progress.venusMessageType || '').toLowerCase();
+    if (/loading|running|generating|research|progress/.test(venusMessageType)) return 'running';
+
+    if (progress.asyncTaskConversationId
+        || progress.widgetSessionId
+        || progress.asyncStatus !== undefined
+        || progress.venusStatus
+        || progress.planId
+        || progress.planTitle) {
+        return 'not_ready';
+    }
+    return '';
+}
+
+function buildDeepResearchProgressResult(state, responseMetadata, source) {
+    const widgetState = state && typeof state === 'object' ? state : {};
+    const response = responseMetadata && typeof responseMetadata === 'object' ? responseMetadata : {};
+    const plan = pickFirstObject(widgetState.plan, widgetState.current_plan, widgetState.research_plan);
+    const stepStatusesByPlan = pickFirstObject(
+        widgetState.step_statuses_by_plan,
+        widgetState.stepStatusesByPlan,
+        widgetState.step_statuses,
+    );
+    const progress = {
+        asyncTaskConversationId: stringOrEmpty(
+            response.async_task_conversation_id
+            || response.asyncTaskConversationId
+            || response['openai/asyncTaskConversationId'],
+        ),
+        widgetSessionId: stringOrEmpty(
+            response['openai/widgetSessionId']
+            || response.widget_session_id
+            || response.widgetSessionId,
+        ),
+        asyncStatus: response['openai/asyncStatus'] ?? response.async_status ?? response.asyncStatus,
+        venusMessageType: stringOrEmpty(response.venus_message_type || response.venusMessageType),
+        venusStatus: stringOrEmpty(widgetState.status || widgetState.venus_status || widgetState.venusStatus),
+        waitingForUserUntil: stringOrEmpty(
+            widgetState.waiting_for_user_response_on_plan_until
+            || widgetState.waitingForUserResponseOnPlanUntil
+            || widgetState.waiting_for_user_until,
+        ),
+        planId: stringOrEmpty(plan.plan_id || plan.planId || plan.id),
+        planTitle: stringOrEmpty(plan.title || plan.name),
+        planSteps: compactDeepResearchPlanSteps(plan, stepStatusesByPlan),
+        stepStatusesByPlan,
+    };
+    const status = deepResearchProgressStatus(progress);
+    if (!status) return null;
+
+    if (/^completed$/i.test(progress.venusStatus)
+        && !progress.asyncTaskConversationId
+        && !progress.widgetSessionId
+        && progress.asyncStatus === undefined
+        && !progress.venusMessageType
+        && !progress.planId
+        && !progress.planTitle
+        && !progress.planSteps.length
+        && !Object.keys(progress.stepStatusesByPlan || {}).length) {
+        return null;
+    }
+
+    return {
+        status,
+        report: '',
+        html: '',
+        method: source.includes('widget-state') ? source.replace('widget-state', 'widget-progress') : `${source}-progress`,
+        sources: [],
+        progress,
+        asyncTaskConversationId: progress.asyncTaskConversationId,
+        widgetSessionId: progress.widgetSessionId,
+        asyncStatus: progress.asyncStatus,
+        venusMessageType: progress.venusMessageType,
+        venusStatus: progress.venusStatus,
+        waitingForUserUntil: progress.waitingForUserUntil,
+        planId: progress.planId,
+        planTitle: progress.planTitle,
+    };
+}
+
+function deepResearchCandidateScore(candidate) {
+    if (!candidate) return 0;
+    if (candidate.status === 'completed') return 1000000 + (candidate.reportLength || candidate.report?.length || 0);
+    if (candidate.status === 'waiting_for_user' || candidate.status === 'needs_user_action') return 500000;
+    if (candidate.status === 'running') return 400000;
+    if (candidate.status === 'not_ready') return 300000;
+    return 1;
+}
+
+function extractDeepResearchFromWidgetState(widgetState, source = 'conversation-widget-state', responseMetadata = null) {
     const state = parseJsonMaybe(widgetState);
-    if (!state || typeof state !== 'object') return null;
-    const reportMessage = state.report_message || state.reportMessage || null;
+    if ((!state || typeof state !== 'object') && !responseMetadata) return null;
+    const widgetStateObject = state && typeof state === 'object' ? state : {};
+    const reportMessage = widgetStateObject.report_message || widgetStateObject.reportMessage || null;
     const parts = Array.isArray(reportMessage?.content?.parts) ? reportMessage.content.parts : [];
     const report = normalizeDeepResearchText(parts.filter((part) => typeof part === 'string').join('\n\n'));
-    if (!looksLikeDeepResearchReport(report)) return null;
-    return {
-        status: 'completed',
-        report,
-        html: '',
-        method: source,
-        sources: extractDeepResearchSourcesFromReportMessage(reportMessage),
-        widgetStatus: String(state.status || ''),
-        reportMessageId: String(reportMessage?.id || ''),
-        reportLength: report.length,
-    };
+    if (looksLikeDeepResearchReport(report)) {
+        return {
+            status: 'completed',
+            report,
+            html: '',
+            method: source,
+            sources: extractDeepResearchSourcesFromReportMessage(reportMessage),
+            widgetStatus: String(widgetStateObject.status || ''),
+            reportMessageId: String(reportMessage?.id || ''),
+            reportLength: report.length,
+        };
+    }
+    return buildDeepResearchProgressResult(widgetStateObject, pickFirstObject(responseMetadata), source);
 }
 
 function extractDeepResearchFromConversationPayload(payload, { expectedConversationId = '' } = {}) {
@@ -1292,14 +1535,33 @@ function extractDeepResearchFromConversationPayload(payload, { expectedConversat
     const candidates = [];
     for (const [messageId, node] of Object.entries(mapping)) {
         const message = node?.message || {};
-        const sdk = message?.metadata?.chatgpt_sdk;
+        const metadata = message?.metadata || {};
+        const sdk = metadata?.chatgpt_sdk || {};
+        const responseMetadata = pickFirstObject(
+            sdk?.response_metadata,
+            sdk?.responseMetadata,
+            metadata?.response_metadata,
+            metadata?.responseMetadata,
+        );
+        let sawWidgetState = false;
         for (const widgetState of [
             sdk?.widget_state,
             sdk?.widgetState,
-            message?.metadata?.widget_state,
-            message?.metadata?.widgetState,
+            metadata?.widget_state,
+            metadata?.widgetState,
         ]) {
-            const extracted = extractDeepResearchFromWidgetState(widgetState);
+            if (widgetState === undefined || widgetState === null) continue;
+            sawWidgetState = true;
+            const extracted = extractDeepResearchFromWidgetState(widgetState, 'conversation-widget-state', responseMetadata);
+            if (extracted) {
+                candidates.push({
+                    ...extracted,
+                    conversationMessageId: messageId,
+                });
+            }
+        }
+        if (!sawWidgetState && Object.keys(responseMetadata).length) {
+            const extracted = extractDeepResearchFromWidgetState(null, 'conversation-widget-state', responseMetadata);
             if (extracted) {
                 candidates.push({
                     ...extracted,
@@ -1308,7 +1570,7 @@ function extractDeepResearchFromConversationPayload(payload, { expectedConversat
             }
         }
     }
-    candidates.sort((a, b) => b.report.length - a.report.length);
+    candidates.sort((a, b) => deepResearchCandidateScore(b) - deepResearchCandidateScore(a));
     return candidates[0] || null;
 }
 
@@ -1332,12 +1594,14 @@ function extractDeepResearchFromNetworkEntries(entries, { expectedConversationId
         if (extracted) {
             candidates.push({
                 ...extracted,
-                method: 'network-conversation-widget-state',
+                method: extracted.status === 'completed'
+                    ? 'network-conversation-widget-state'
+                    : 'network-conversation-widget-progress',
                 networkUrl: url,
             });
         }
     }
-    candidates.sort((a, b) => b.report.length - a.report.length);
+    candidates.sort((a, b) => deepResearchCandidateScore(b) - deepResearchCandidateScore(a));
     return candidates[0] || null;
 }
 
@@ -1571,6 +1835,7 @@ export async function getChatGPTDeepResearchResult(page, { conversationId = '', 
             );
         }
     }
+    let progressCandidate = null;
     const diagnostics = {
         iframeCount: Array.isArray(iframeState.iframes) ? iframeState.iframes.length : 0,
         iframe: iframe ? {
@@ -1606,19 +1871,26 @@ export async function getChatGPTDeepResearchResult(page, { conversationId = '', 
             const extracted = extractDeepResearchFromNetworkEntries(relevantEntries, { expectedConversationId: conversationId });
             if (extracted) {
                 diagnostics.networkConversation = {
-                    foundReport: true,
+                    foundReport: extracted.status === 'completed',
+                    foundProgress: extracted.status !== 'completed',
+                    status: extracted.status,
                     reportLength: extracted.reportLength || extracted.report.length,
                     sourceCount: Array.isArray(extracted.sources) ? extracted.sources.length : 0,
+                    venusStatus: extracted.venusStatus || '',
+                    asyncTaskConversationId: extracted.asyncTaskConversationId || '',
                 };
-                return {
-                    status: 'completed',
-                    report: extracted.report,
-                    html: '',
-                    url: iframeState.url,
-                    method: extracted.method,
-                    sources: extracted.sources || [],
-                    diagnostics,
-                };
+                if (extracted.status === 'completed') {
+                    return {
+                        status: 'completed',
+                        report: extracted.report,
+                        html: '',
+                        url: iframeState.url,
+                        method: extracted.method,
+                        sources: extracted.sources || [],
+                        diagnostics,
+                    };
+                }
+                progressCandidate = extracted;
             }
         } catch (error) {
             if (error instanceof CommandExecutionError) throw error;
@@ -1641,12 +1913,16 @@ export async function getChatGPTDeepResearchResult(page, { conversationId = '', 
                     status: conversation?.status || 0,
                     contentType: conversation?.contentType || '',
                     transport: conversation?.transport || '',
-                    foundReport: !!extracted,
+                    foundReport: extracted?.status === 'completed',
+                    foundProgress: !!extracted && extracted.status !== 'completed',
+                    deepResearchStatus: extracted?.status || '',
                     reportLength: extracted?.reportLength || 0,
                     widgetStatus: extracted?.widgetStatus || '',
+                    venusStatus: extracted?.venusStatus || '',
+                    asyncTaskConversationId: extracted?.asyncTaskConversationId || '',
                     sourceCount: Array.isArray(extracted?.sources) ? extracted.sources.length : 0,
                 };
-                if (extracted) {
+                if (extracted?.status === 'completed') {
                     return {
                         status: 'completed',
                         report: extracted.report,
@@ -1657,11 +1933,20 @@ export async function getChatGPTDeepResearchResult(page, { conversationId = '', 
                         diagnostics,
                     };
                 }
+                if (extracted) progressCandidate = extracted;
             }
         } catch (error) {
             if (error instanceof CommandExecutionError) throw error;
             diagnostics.conversationError = String(error?.message || error);
         }
+    }
+
+    if (progressCandidate) {
+        return {
+            ...progressCandidate,
+            url: iframeState.url,
+            diagnostics,
+        };
     }
 
     if (iframe?.text && looksLikeDeepResearchReport(iframe.text)) {
@@ -1821,8 +2106,10 @@ export async function waitForChatGPTDeepResearchResult(page, { conversationId = 
                 lastReport = result.report;
                 stableStartedAt = Date.now();
             }
+        } else if (result.status !== 'running' && result.status !== 'not_ready') {
+            return result;
         }
-        await page.wait(3);
+        await page.sleep(3);
     }
 
     throw new TimeoutError(
@@ -1913,7 +2200,7 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
     const baselinePairCounts = normalizeBaselinePairCounts(options);
 
     while (Date.now() - startTime < timeoutSeconds * 1000) {
-        await page.wait(3);
+        await page.sleep(3);
         if (options.conversationUrl) {
             const currentUrl = await currentChatGPTUrl(page);
             if (currentUrl && !isSameChatGPTConversation(currentUrl, options.conversationUrl)) {
@@ -1927,7 +2214,7 @@ export async function waitForChatGPTResponse(page, baselineCount, prompt, timeou
             continue;
         }
 
-        const messages = await getVisibleMessages(page);
+        const messages = await getVisibleMessages(page, { textOnly: true });
         const candidate = findLatestNewAssistantResponse(messages, prompt, baselinePairCounts);
         if (!candidate || candidate === String(prompt || '').trim()) continue;
 
@@ -2057,7 +2344,7 @@ export async function prepareChatGPTImagePaths(imagePaths) {
 async function waitForChatGPTUploadPreview(page, fileNames) {
     const namesJson = JSON.stringify(fileNames);
     for (let attempt = 0; attempt < 10; attempt += 1) {
-        await page.wait(1);
+        await page.sleep(1);
         const ready = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
             (() => {
                 const names = ${namesJson};
@@ -2169,17 +2456,57 @@ export async function uploadChatGPTImages(page, imagePaths) {
  * Check if ChatGPT is still generating a response.
  */
 export async function isGenerating(page) {
+    // Deliberately avoids document.body.innerText: reading it forces a full-page
+    // layout/reflow and allocates a conversation-sized string on every poll,
+    // which during a 10-20 min streamed answer pins the renderer at high CPU.
+    // Cheap signals only — control aria-labels, the stop-button test id, and a
+    // textContent (no reflow) scan scoped to the composer + last turn.
     return requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
         (() => {
-            const text = (document.body?.innerText || '').replace(/\\s+/g, ' ');
-            if (/正在思考|停止生成|Thinking/.test(text)) return true;
-            return Array.from(document.querySelectorAll('button')).some(b => {
-                const label = b.getAttribute('aria-label') || '';
-                return label === 'Stop generating'
-                    || label.includes('Thinking')
+            if (document.querySelector('[data-testid="stop-button"]')) return true;
+            // No bare 'Thinking' here: the model picker renders 'Thinking' as
+            // an idle model label (see CHATGPT_MODEL_TARGETS.advanced), and an
+            // English streaming state always comes with the stop button above.
+            const controls = Array.from(document.querySelectorAll('button, [role="button"], [aria-label]'));
+            for (const control of controls) {
+                const label = control.getAttribute('aria-label') || '';
+                if (label.includes('Stop generating')
                     || label.includes('停止生成')
-                    || label.includes('正在思考');
-            });
+                    || label.includes('正在思考')) return true;
+            }
+            // The "正在思考 / Thinking" pill can render as plain text without an
+            // aria-label. Scope the text scan to small containers and use
+            // textContent (does not trigger layout) instead of body.innerText.
+            const scopes = [];
+            // Cover both message shapes from CONVERSATION_MESSAGE_SELECTOR:
+            // prefer the article turn (the wider container, so a pill outside
+            // the message div is still seen), fall back to bare
+            // [data-message-author-role] nodes when articles are absent.
+            // Bare 'Thinking' only counts inside the last turn — the composer
+            // area shows 'Thinking' as an idle model label.
+            const turns = document.querySelectorAll('article[data-testid*="conversation-turn"]');
+            const messages = turns.length ? turns : document.querySelectorAll('[data-message-author-role]');
+            if (messages.length) scopes.push([messages[messages.length - 1], /正在思考|停止生成|Thinking/]);
+            const composer = document.querySelector('#prompt-textarea, [aria-label="Chat with ChatGPT"]');
+            if (composer) {
+                let root = composer;
+                for (let i = 0; i < 4 && root.parentElement; i += 1) root = root.parentElement;
+                scopes.push([root, /正在思考|停止生成/]);
+            }
+            // Only a short leaf element OUTSIDE rendered message content
+            // counts as a status pill. Testing whole scope text would flag any
+            // answer that merely *mentions* "Thinking" (prose or a backticked
+            // code span in a conversation about this very code) as still
+            // generating, permanently blocking follow-up sends.
+            for (const [scope, pattern] of scopes) {
+                for (const el of [scope, ...scope.querySelectorAll('*')]) {
+                    if (el.children.length) continue;
+                    if (el.closest('.markdown, pre, code')) continue;
+                    const text = (el.textContent || '').trim();
+                    if (text && text.length <= 40 && pattern.test(text)) return true;
+                }
+            }
+            return false;
         })()
     `)), 'chatgpt generation state');
 }
@@ -2320,14 +2647,14 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
     let stableCount = 0;
 
     for (let i = 0; i < maxPolls; i++) {
-        await page.wait(i === 0 ? 3 : pollIntervalSeconds);
+        await page.sleep(i === 0 ? 3 : pollIntervalSeconds);
 
         let currentUrl = '';
         if (convUrl && convUrl.includes('/c/')) {
             currentUrl = unwrapEvaluateResult(await page.evaluate('window.location.href').catch(() => ''));
             if (currentUrl && !isSameChatGPTConversation(currentUrl, convUrl)) {
                 await page.goto(convUrl);
-                await page.wait(3);
+                await page.sleep(3);
             }
         }
 
@@ -2338,7 +2665,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
             const onConversation = !currentUrl || isSameChatGPTConversation(currentUrl, convUrl);
             if (onConversation) {
                 await page.goto(convUrl);
-                await page.wait(3);
+                await page.sleep(3);
             }
         }
 
