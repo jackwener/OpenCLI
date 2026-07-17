@@ -1,10 +1,14 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const LIKES_QUERY_ID = 'CDWHmpZeSdIJ3HGeRbNm0w';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
-const MAX_PAGINATION_PAGES = 100;
+// Safety cap only. Full-archive runs can set a higher page budget via --max-pages.
+const DEFAULT_MAX_PAGINATION_PAGES = 100;
+const HARD_MAX_PAGINATION_PAGES = 100000;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -135,6 +139,85 @@ function parseLikes(data, seen) {
     }
     return { tweets, nextCursor };
 }
+function readResumeFile(filePath) {
+    if (!filePath || !fs.existsSync(filePath))
+        return null;
+    try {
+        const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        return {
+            cursor: parsed?.cursor || null,
+            count: Number(parsed?.count || 0),
+            tweets: Array.isArray(parsed?.tweets) ? parsed.tweets : [],
+            username: parsed?.username || null,
+        };
+    }
+    catch {
+        return null;
+    }
+}
+function ensureParentDir(filePath) {
+    if (!filePath)
+        return;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
+function removeFile(filePath) {
+    if (!filePath)
+        return;
+    try {
+        fs.rmSync(filePath, { force: true });
+    }
+    catch {
+    }
+}
+function loadSeenIdsFromJsonl(filePath) {
+    const seen = new Set();
+    if (!filePath || !fs.existsSync(filePath))
+        return seen;
+    const text = fs.readFileSync(filePath, 'utf8');
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed)
+            continue;
+        try {
+            const row = JSON.parse(trimmed);
+            if (row?.id)
+                seen.add(String(row.id));
+        }
+        catch {
+        }
+    }
+    return seen;
+}
+function appendJsonlRows(filePath, rows) {
+    if (!filePath || !Array.isArray(rows) || rows.length === 0)
+        return;
+    ensureParentDir(filePath);
+    // Escape LS/PS so JSONL stays one physical line even when tweet text contains them.
+    const text = rows
+        .map((row) => JSON.stringify(row).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'))
+        .join('\n') + '\n';
+    fs.appendFileSync(filePath, text, 'utf8');
+}
+function writeResumeFile(filePath, payload) {
+    if (!filePath)
+        return;
+    ensureParentDir(filePath);
+    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n');
+}
+function removeResumeFile(filePath) {
+    removeFile(filePath);
+}
+function resolveMaxPages(kwargs, fetchAll) {
+    const raw = kwargs['max-pages'];
+    if (raw === undefined || raw === null || raw === '') {
+        return fetchAll ? HARD_MAX_PAGINATION_PAGES : DEFAULT_MAX_PAGINATION_PAGES;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 1 || value > HARD_MAX_PAGINATION_PAGES) {
+        throw new ArgumentError(`--max-pages must be an integer between 1 and ${HARD_MAX_PAGINATION_PAGES}`);
+    }
+    return value;
+}
 cli({
     site: 'twitter',
     name: 'likes',
@@ -145,12 +228,28 @@ cli({
     browser: true,
     args: [
         { name: 'username', type: 'string', positional: true, help: 'Twitter screen name (with or without @). Defaults to the logged-in user when omitted.' },
-        { name: 'limit', type: 'int', default: 20, help: 'Maximum number of liked tweets to return (default 20).' },
-        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the liked tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (recency) ordering.' },
+        { name: 'limit', type: 'int', default: 20, help: 'Maximum number of liked tweets to return (default 20). Ignored when --all is set.' },
+        { name: 'all', type: 'bool', default: false, help: 'Fetch all liked-tweet pages until exhausted. Prefer --output-file for large archives.' },
+        { name: 'resume-file', type: 'string', help: 'Resume file for long-running all-pages likes syncs.' },
+        { name: 'output-file', type: 'string', help: 'Write all-page results to a JSONL file instead of returning one large JSON array.' },
+        { name: 'max-pages', type: 'int', help: `Optional pagination safety cap (default ${DEFAULT_MAX_PAGINATION_PAGES}; raised automatically with --all).` },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the liked tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (recency) ordering. Incompatible with --output-file.' },
     ],
     columns: ['id', 'author', 'name', 'text', 'likes', 'retweets', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters'],
     func: async (page, kwargs) => {
-        const limit = kwargs.limit || 20;
+        const fetchAll = Boolean(kwargs.all);
+        const limit = fetchAll ? Number.POSITIVE_INFINITY : (kwargs.limit || 20);
+        const resumeFile = kwargs['resume-file'] || '';
+        const outputFile = kwargs['output-file'] || '';
+        const useOutputFile = Boolean(fetchAll && outputFile);
+        const maxPages = resolveMaxPages(kwargs, fetchAll);
+        const topByEngagement = Number(kwargs['top-by-engagement'] || 0);
+        if (useOutputFile && topByEngagement > 0) {
+            throw new ArgumentError('--top-by-engagement cannot be combined with --output-file');
+        }
+        if (outputFile && !fetchAll) {
+            throw new ArgumentError('--output-file requires --all');
+        }
         const rawUsername = String(kwargs.username ?? '').trim();
         let username = normalizeTwitterScreenName(rawUsername);
         if (rawUsername && !username) {
@@ -199,38 +298,82 @@ cli({
         if (!userId) {
             throw new CommandExecutionError(`Could not find user @${username}`);
         }
-        const allTweets = [];
-        const seen = new Set();
-        let cursor = null;
+        let resumed = fetchAll ? readResumeFile(resumeFile) : null;
+        if (useOutputFile && resumed && !fs.existsSync(outputFile)) {
+            removeResumeFile(resumeFile);
+            resumed = null;
+        }
+        if (useOutputFile && !resumed)
+            removeFile(outputFile);
+        const allTweets = useOutputFile ? [] : (resumed?.tweets ? [...resumed.tweets] : []);
+        const seen = useOutputFile
+            ? loadSeenIdsFromJsonl(outputFile)
+            : new Set(allTweets.map((tweet) => tweet?.id).filter(Boolean));
+        let outputCount = useOutputFile
+            ? Math.max(seen.size, Number(resumed?.count || 0))
+            : 0;
+        let cursor = resumed?.cursor || null;
         let lastRawResponse = null;
-        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
-        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
-            const fetchCount = Math.min(100, limit - allTweets.length + 10);
+        let pages = 0;
+        // Runaway guard only; --limit/--all and cursor exhaustion control normal pagination.
+        while (pages < maxPages && (fetchAll || allTweets.length < limit)) {
+            pages += 1;
+            const currentCount = useOutputFile ? outputCount : allTweets.length;
+            const remaining = fetchAll ? 100 : (limit - currentCount + 10);
+            const fetchCount = Math.min(100, remaining);
             const apiUrl = buildLikesUrl(likesQueryId, userId, fetchCount, cursor);
             const data = unwrapBrowserResult(await page.evaluate(`async () => {
-        const r = await fetch("${apiUrl}", { headers: ${headers}, credentials: 'include' });
+        const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
         return r.ok ? await r.json() : { error: r.status };
       }`));
             if (data?.error) {
-                if (allTweets.length === 0)
+                if ((useOutputFile ? outputCount : allTweets.length) === 0)
                     throw new CommandExecutionError(describeTwitterApiError('Likes', data.error));
                 break;
             }
             lastRawResponse = data;
             const { tweets, nextCursor } = parseLikes(data, seen);
-            allTweets.push(...tweets);
+            if (useOutputFile) {
+                appendJsonlRows(outputFile, tweets);
+                outputCount += tweets.length;
+            }
+            else {
+                allTweets.push(...tweets);
+            }
+            writeResumeFile(resumeFile, {
+                cursor: nextCursor || null,
+                count: useOutputFile ? outputCount : allTweets.length,
+                tweets: useOutputFile ? undefined : allTweets,
+                updatedAt: new Date().toISOString(),
+                complete: !nextCursor || nextCursor === cursor,
+                source: 'likes',
+                username,
+                outputFile: useOutputFile ? outputFile : null,
+            });
             if (!nextCursor || nextCursor === cursor)
                 break;
             cursor = nextCursor;
         }
-        if (allTweets.length === 0) {
+        const finalCount = useOutputFile ? outputCount : allTweets.length;
+        if (finalCount === 0) {
             if (looksLikePrivateTwitterTimeline(lastRawResponse)) {
                 throw new EmptyResultError('twitter likes', `No likes returned for @${username} (Likes are private by default on X; only the account owner can view their own likes)`);
             }
             throw new EmptyResultError('twitter likes', `No likes found for @${username}`);
         }
-        const trimmed = allTweets.slice(0, limit);
-        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
+        // Resume is only removed after a clean completion so crashes can continue.
+        removeResumeFile(resumeFile);
+        if (useOutputFile) {
+            return {
+                outputFile,
+                count: outputCount,
+                source: 'likes',
+                username,
+                complete: true,
+            };
+        }
+        const trimmed = fetchAll ? allTweets : allTweets.slice(0, limit);
+        return applyTopByEngagement(trimmed, topByEngagement);
     },
 });
 export const __test__ = {
@@ -238,4 +381,5 @@ export const __test__ = {
     buildLikesUrl,
     buildUserByScreenNameUrl,
     parseLikes,
+    appendJsonlRows,
 };

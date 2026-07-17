@@ -51,6 +51,28 @@ function normalizeTraceMode(raw: unknown): TraceMode {
   throw new ArgumentError(`--trace must be one of: off, on, retain-on-failure. Received: "${String(raw)}"`);
 }
 
+async function closeBrowserWindow(page: IPage, label: string): Promise<void> {
+  if (!page.closeWindow) return;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await page.closeWindow();
+      if (process.env.OPENCLI_VERBOSE) {
+        log.debug(`[execution] closed browser window for ${label}`);
+      }
+      return;
+    } catch (err) {
+      if (attempt === 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+      if (process.env.OPENCLI_VERBOSE) {
+        log.warn(`[execution] failed to close browser window for ${label}: ${getErrorMessage(err)}`);
+      }
+    }
+  }
+}
+
 export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): CommandArgs {
   const result: CommandArgs = { ...kwargs };
 
@@ -384,7 +406,7 @@ export async function executeCommand(
           // Adapter commands are one-shot — release the current tab lease immediately
           // instead of waiting for the 30s idle timeout. The automation container
           // window stays open for reuse.
-          if (!keepTab) await page.closeWindow?.().catch(() => {});
+          if (!keepTab) await closeBrowserWindow(page, fullName(cmd));
           return result;
         } catch (err) {
           if (!commandSettled) adapterStillRunning = true;
@@ -408,7 +430,7 @@ export async function executeCommand(
           // Release the tab lease on failure too — without this, the lease lingers
           // until the extension's idle timer fires (unreliable on Windows where
           // MV3 service workers may be suspended before setTimeout triggers).
-          if (!keepTab) await page.closeWindow?.().catch(() => {});
+          if (!keepTab) await closeBrowserWindow(page, fullName(cmd));
           throw err;
         }
       }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession });

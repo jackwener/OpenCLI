@@ -1799,7 +1799,7 @@ async function handleNavigate(cmd: Command, leaseKey: string): Promise<Result> {
 
 async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
   const session = automationSessions.get(leaseKey);
-  if (session && !session.owned && cmd.op !== 'list') {
+  if (session && !session.owned && cmd.op !== 'list' && cmd.op !== 'current-window') {
     return {
       id: cmd.id,
       ok: false,
@@ -1815,6 +1815,27 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
         let page: string | undefined;
         try { page = t.id ? await identity.resolveTargetId(t.id) : undefined; } catch { /* skip */ }
         return { index: i, page, url: t.url, title: t.title, active: t.active };
+      }));
+      return { id: cmd.id, ok: true, data };
+    }
+    case 'current-window': {
+      // Diagnostic helper: inspect the user's currently focused real Chrome window
+      // (not the owned automation container). Useful when leftover tabs/windows are suspected.
+      const tabs = (await chrome.tabs.query({ lastFocusedWindow: true }))
+        .filter((t) => isDebuggableUrl(t.url));
+      const data = await Promise.all(tabs.map(async (t, i) => {
+        let page: string | undefined;
+        try { page = t.id ? await identity.resolveTargetId(t.id) : undefined; } catch { /* skip */ }
+        return {
+          index: i,
+          page,
+          tabId: t.id,
+          windowId: t.windowId,
+          url: t.url,
+          title: t.title,
+          active: t.active,
+          pinned: t.pinned,
+        };
       }));
       return { id: cmd.id, ok: true, data };
     }

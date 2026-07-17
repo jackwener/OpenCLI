@@ -35,7 +35,7 @@ import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { registerAuthCommands } from './commands/auth.js';
 import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
 import { log } from './logger.js';
-import { bindTab, BrowserCommandError, sendCommand } from './browser/daemon-client.js';
+import { bindTab, BrowserCommandError, sendCommand, listCurrentWindowTabs } from './browser/daemon-client.js';
 import { fetchDaemonStatus } from './browser/daemon-transport.js';
 import { aliasForContextId, loadProfileConfig, profileRouteParams, renameProfile, resolveProfileSelection, setDefaultProfile, type ProfileSelection } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
@@ -1101,6 +1101,13 @@ Examples:
     .action(browserAction(async (page) => {
       const tabs = await page.tabs();
       console.log(JSON.stringify(tabs, null, 2));
+    }));
+
+  browserTab.command('current-window')
+    .description('List tabs from the currently focused real Chrome window')
+    .action(browserSessionCommandAction(async ({ session, contextId }) => {
+      const data = await listCurrentWindowTabs(session, { ...(contextId && { contextId }) });
+      console.log(JSON.stringify(data, null, 2));
     }));
 
   browserTab.command('new')

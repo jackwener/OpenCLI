@@ -192,9 +192,9 @@ export class Page extends BasePage {
   /** Release the current browser session lease in the extension */
   async closeWindow(): Promise<void> {
     try {
+      // Let close failures propagate so executeCommand can retry/log them.
+      // Local page state is still cleared in finally — the lease may already be gone.
       await sendCommand('close-window', { ...this._sessionOpts() });
-    } catch {
-      // Window may already be closed or daemon may be down
     } finally {
       this._page = undefined;
       this._lastUrl = null;
