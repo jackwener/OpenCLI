@@ -113,6 +113,10 @@ function readResumeFile(filePath) {
             cursor: parsed?.cursor || null,
             count: Number(parsed?.count || 0),
             tweets: Array.isArray(parsed?.tweets) ? parsed.tweets : [],
+            complete: Boolean(parsed?.complete),
+            source: parsed?.source || null,
+            outputFile: parsed?.outputFile || null,
+            updatedAt: parsed?.updatedAt || null,
         };
     }
     catch {
@@ -263,6 +267,7 @@ cli({
             : 0;
         let cursor = resumed?.cursor || null;
         let pages = 0;
+        let exhausted = false;
         // Runaway guard only; --limit/--all and cursor exhaustion control normal pagination.
         while (pages < maxPages && (fetchAll || allTweets.length < limit)) {
             pages += 1;
@@ -287,26 +292,35 @@ cli({
             else {
                 allTweets.push(...tweets);
             }
+            const pageComplete = !nextCursor || nextCursor === cursor;
             writeResumeFile(resumeFile, {
-                cursor: nextCursor || null,
+                cursor: pageComplete ? null : nextCursor,
                 count: useOutputFile ? outputCount : allTweets.length,
                 tweets: useOutputFile ? undefined : allTweets,
                 updatedAt: new Date().toISOString(),
-                complete: !nextCursor || nextCursor === cursor,
+                complete: pageComplete,
                 source: 'bookmarks',
                 outputFile: useOutputFile ? outputFile : null,
             });
-            if (!nextCursor || nextCursor === cursor)
+            if (pageComplete) {
+                exhausted = true;
                 break;
+            }
             cursor = nextCursor;
         }
-        removeResumeFile(resumeFile);
+        // Resume is only removed after the timeline is truly exhausted. Hitting
+        // --max-pages, partial API errors after some rows, or an interrupt must
+        // leave the resume file so the next run can continue.
+        if (exhausted)
+            removeResumeFile(resumeFile);
         if (useOutputFile) {
             return {
                 outputFile,
                 count: outputCount,
                 source: 'bookmarks',
-                complete: true,
+                complete: exhausted,
+                pages,
+                ...(exhausted ? {} : { cursor, resumeFile: resumeFile || null }),
             };
         }
         const trimmed = fetchAll ? allTweets : allTweets.slice(0, limit);
@@ -317,4 +331,5 @@ export const __test__ = {
     parseBookmarks,
     extractBookmarkTweet,
     appendJsonlRows,
+    readResumeFile,
 };
