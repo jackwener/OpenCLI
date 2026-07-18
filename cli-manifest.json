@@ -35049,6 +35049,46 @@
   },
   {
     "site": "toutiao",
+    "name": "recommend",
+    "description": "今日头条频道推荐流（公开 API，无需登录）",
+    "access": "read",
+    "domain": "www.toutiao.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "category",
+        "type": "string",
+        "default": "__all__",
+        "required": false,
+        "help": "频道 (__all__, news_tech, news_finance, news_world, news_sports, news_entertainment, news_military)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回条数 (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "group_id",
+      "title",
+      "abstract",
+      "source",
+      "tag",
+      "comments",
+      "published_at",
+      "url",
+      "image_url"
+    ],
+    "type": "js",
+    "modulePath": "toutiao/recommend.js",
+    "sourceFile": "toutiao/recommend.js"
+  },
+  {
+    "site": "toutiao",
     "name": "whoami",
     "description": "Show the current logged-in toutiao account",
     "access": "read",
