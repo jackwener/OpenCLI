@@ -85,6 +85,20 @@ function isCI(): boolean {
   return !!(process.env.CI || process.env.CONTINUOUS_INTEGRATION);
 }
 
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = 3000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 interface NoticeInputs {
   cliVersion: string;
   cache: UpdateCache | null;
@@ -162,13 +176,9 @@ function extractLatestExtensionVersionFromReleases(releases: GitHubRelease[]): s
 /** Fetch the latest extension version from GitHub Releases. */
 async function fetchLatestExtensionVersion(): Promise<string | undefined> {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(GITHUB_RELEASES_URL, {
-      signal: controller.signal,
+    const res = await fetchWithTimeout(GITHUB_RELEASES_URL, {
       headers: { 'User-Agent': `opencli/${PKG_VERSION}`, Accept: 'application/vnd.github+json' },
     });
-    clearTimeout(timer);
     if (!res.ok) return undefined;
     const releases = await res.json() as GitHubRelease[];
     return extractLatestExtensionVersionFromReleases(releases);
@@ -187,13 +197,9 @@ export function checkForUpdateBackground(): void {
 
   void (async () => {
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(NPM_REGISTRY_URL, {
-        signal: controller.signal,
+      const res = await fetchWithTimeout(NPM_REGISTRY_URL, {
         headers: { 'User-Agent': `opencli/${PKG_VERSION}` },
       });
-      clearTimeout(timer);
       if (!res.ok) return;
       const data = await res.json() as { version?: string };
       if (typeof data.version === 'string') {
@@ -230,6 +236,7 @@ export function getCachedLatestExtensionVersion(): string | undefined {
 }
 
 export {
+  fetchWithTimeout as _fetchWithTimeout,
   extractLatestExtensionVersionFromReleases as _extractLatestExtensionVersionFromReleases,
   buildUpdateNotices as _buildUpdateNotices,
   EXTENSION_STALE_MS as _EXTENSION_STALE_MS,
