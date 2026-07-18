@@ -1,9 +1,28 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  _fetchWithTimeout as fetchWithTimeout,
   _extractLatestExtensionVersionFromReleases as extractLatestExtensionVersionFromReleases,
   _buildUpdateNotices as buildUpdateNotices,
   _EXTENSION_STALE_MS as EXTENSION_STALE_MS,
 } from './update-check.js';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe('fetchWithTimeout', () => {
+  it('clears its abort timer when fetch rejects before the timeout', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network unavailable')));
+
+    await expect(fetchWithTimeout('https://example.com', {})).rejects.toThrow(
+      'network unavailable',
+    );
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
 
 describe('extractLatestExtensionVersionFromReleases', () => {
   it('reads the extension version from a versioned asset on a normal CLI release', () => {
