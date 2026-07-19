@@ -3,13 +3,18 @@ import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './flight.js';
 import './hotel-search.js';
+import './hotel.js';
 import {
+    WAIT_FOR_HOTEL_DETAIL_JS,
     buildFlightExtractJs,
     buildFlightSearchUrl,
+    buildHotelDetailExtractJs,
+    buildHotelDetailUrl,
     buildHotelExtractJs,
     buildHotelSearchUrl,
     parseCityId,
     parseFlightLimit,
+    parseHotelId,
     parseIataCode,
     parseIsoDate,
 } from './utils.js';
@@ -311,5 +316,160 @@ describe('trip buildHotelExtractJs (JSDOM)', () => {
         expect(runExtract(noPrice)[0].price).toBeNull();
         const noName = CARD.replace('<div class="hotelName">Royal National Hotel</div>', '');
         expect(runExtract(noName)).toEqual([]);
+    });
+});
+
+const HOTEL_DETAIL_SSR = {
+    hotelBaseInfo: {
+        masterHotelId: 715233,
+        cityName: 'London',
+        nameInfo: { name: 'LSE Rosebery Hall', nameEn: '' },
+        starInfo: { level: 2 },
+    },
+    hotelPositionInfo: { address: '90 Rosebery Ave, Islington, London, EC1R 4TY, United Kingdom', lat: '51.527561', lng: '-0.107065' },
+    hotelComment: {
+        comment: {
+            score: '8.3',
+            scoreDescription: 'Very good',
+            totalComment: 159,
+            scoreDetail: [
+                { showName: 'Cleanliness', showScore: '8.7' },
+                { showName: 'Amenities', showScore: '7.7' },
+                { showName: 'Location', showScore: '8.5' },
+                { showName: 'Service', showScore: '8.3' },
+            ],
+        },
+    },
+    hotelFacilityPopV2: {
+        hotelPopularFacility: {
+            list: [
+                { facilityDesc: 'Luggage storage' },
+                { facilityDesc: 'Wi-Fi in public areas' },
+            ],
+        },
+    },
+    hotelPolicyInfo: {
+        checkInAndOut: {
+            content: [
+                { title: 'Check-in: ', description: 'After 15:00' },
+                { title: 'Check-out: ', description: 'Before 10:30' },
+                { description: 'Front desk hours: 24/7' },
+            ],
+        },
+    },
+};
+
+// Shape as projected by buildHotelDetailExtractJs (what page.evaluate returns).
+const HOTEL_DETAIL_ROW = {
+    hotelId: '715233',
+    name: 'LSE Rosebery Hall',
+    enName: null,
+    star: 2,
+    score: 8.3,
+    scoreLabel: 'Very good',
+    reviewCount: 159,
+    ratingBreakdown: 'Cleanliness 8.7 / Amenities 7.7 / Location 8.5 / Service 8.3',
+    facilities: 'Luggage storage / Wi-Fi in public areas',
+    checkInOut: 'Check-in: After 15:00 / Check-out: Before 10:30 / Front desk hours: 24/7',
+    cityName: 'London',
+    address: '90 Rosebery Ave, Islington, London, EC1R 4TY, United Kingdom',
+    lat: 51.527561,
+    lon: -0.107065,
+};
+
+describe('trip parseHotelId', () => {
+    it('accepts a numeric id as string', () => {
+        expect(parseHotelId('id', '715233')).toBe('715233');
+    });
+    it('rejects blank / non-numeric ids', () => {
+        expect(() => parseHotelId('id', '')).toThrow('required');
+        expect(() => parseHotelId('id', 'abc')).toThrow('numeric Trip.com hotel id');
+    });
+});
+
+describe('trip buildHotelDetailUrl', () => {
+    it('builds the detail URL with the hotel id', () => {
+        const url = buildHotelDetailUrl('715233');
+        expect(url.startsWith('https://www.trip.com/hotels/detail/?')).toBe(true);
+        expect(url).toContain('hotelId=715233');
+        expect(url).toContain('curr=USD');
+    });
+});
+
+describe('trip hotel command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/hotel');
+
+    it('declares Strategy.COOKIE + browser:true + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects a non-numeric id before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { id: 'shoreditch' }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('numeric Trip.com hotel id') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, CommandExec on timeout / malformed, EmptyResult on no profile', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { id: '715233' }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock(['timeout']), { id: '715233' }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not expose SSR hotel data') });
+        await expect(cmd.func(createPageMock(['content', null]), { id: '715233' }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed data') });
+        await expect(cmd.func(createPageMock(['content', { hotelId: null, name: null }]), { id: '715233' }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('maps the SSR profile into a single row carrying every declared column', async () => {
+        const page = createPageMock(['content', HOTEL_DETAIL_ROW]);
+        const rows = await cmd.func(page, { id: '715233' });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            hotelId: '715233',
+            name: 'LSE Rosebery Hall',
+            star: 2,
+            score: 8.3,
+            ratingBreakdown: 'Cleanliness 8.7 / Amenities 7.7 / Location 8.5 / Service 8.3',
+            facilities: 'Luggage storage / Wi-Fi in public areas',
+            url: expect.stringContaining('hotelId=715233'),
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('trip buildHotelDetailExtractJs (JSDOM)', () => {
+    function runExtract(nextData) {
+        const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+            url: 'https://www.trip.com/hotels/detail/',
+            runScripts: 'outside-only',
+        });
+        dom.window.__NEXT_DATA__ = nextData;
+        return dom.window.Function(`return (${buildHotelDetailExtractJs()})`)();
+    }
+
+    it('projects the hotel profile, joining sub-scores / amenities / policy', () => {
+        const out = runExtract({ props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } });
+        expect(out).toEqual(HOTEL_DETAIL_ROW);
+    });
+
+    it('returns null when the SSR detail block is absent', () => {
+        expect(runExtract({ props: { pageProps: {} } })).toBeNull();
+    });
+
+    it('detects the rendered SSR block as content via WAIT_FOR_HOTEL_DETAIL_JS', async () => {
+        const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+            url: 'https://www.trip.com/hotels/detail/',
+            runScripts: 'outside-only',
+        });
+        dom.window.__NEXT_DATA__ = { props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } };
+        await expect(dom.window.Function(`return (${WAIT_FOR_HOTEL_DETAIL_JS})`)())
+            .resolves.toBe('content');
     });
 });

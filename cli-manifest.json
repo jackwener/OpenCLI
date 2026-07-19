@@ -36556,6 +36556,45 @@
   },
   {
     "site": "trip",
+    "name": "hotel",
+    "description": "Show a Trip.com hotel detail by id (rating breakdown, amenities, check-in/out policy)",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric Trip.com hotel id (discover via the hotels list; e.g. 715233)"
+      }
+    ],
+    "columns": [
+      "hotelId",
+      "name",
+      "enName",
+      "star",
+      "score",
+      "scoreLabel",
+      "reviewCount",
+      "ratingBreakdown",
+      "facilities",
+      "checkInOut",
+      "cityName",
+      "address",
+      "lat",
+      "lon",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/hotel.js",
+    "sourceFile": "trip/hotel.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "trip",
     "name": "hotel-search",
     "description": "List Trip.com hotels for a city id + check-in/out date range",
     "access": "read",

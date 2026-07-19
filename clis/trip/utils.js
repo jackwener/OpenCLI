@@ -208,4 +208,86 @@ export const WAIT_FOR_HOTELS_JS = `
   })
 `;
 
+export function parseHotelId(name, raw) {
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+        throw new ArgumentError(`--${name} is required (numeric Trip.com hotel id, discover via the hotels list)`);
+    }
+    const value = String(raw).trim();
+    if (!/^\d+$/.test(value)) {
+        throw new ArgumentError(`--${name} must be a numeric Trip.com hotel id, got ${JSON.stringify(raw)}`);
+    }
+    return value;
+}
+
+export function buildHotelDetailUrl(hotelId) {
+    const params = new URLSearchParams({ hotelId, locale: 'en_US', curr: 'USD' });
+    return `https://www.trip.com/hotels/detail/?${params.toString()}`;
+}
+
+/**
+ * Browser-context IIFE that projects the single-hotel profile from
+ * `__NEXT_DATA__.props.pageProps.hotelDetailResponse` (the same SSR shape the
+ * mainland `ctrip hotel` detail uses). Rating sub-scores, popular amenities, and
+ * the check-in/out policy are each joined into one string so the profile stays a
+ * single flat row. Returns `null` when the SSR block is absent, so the caller
+ * raises a typed error instead of surfacing blanks. Room-level nightly prices
+ * load via a post-SSR XHR and are out of scope here.
+ */
+export function buildHotelDetailExtractJs() {
+    return `
+      (() => {
+        const pp = window.__NEXT_DATA__?.props?.pageProps;
+        const dr = pp && pp.hotelDetailResponse;
+        if (!dr || typeof dr !== 'object') return null;
+        const clean = (s) => (s == null ? null : String(s).replace(/\\s+/g, ' ').trim() || null);
+        const num = (s) => { const n = Number(s); return Number.isFinite(n) && n !== 0 ? n : null; };
+        const bi = dr.hotelBaseInfo || {};
+        const nameInfo = bi.nameInfo || {};
+        const starInfo = bi.starInfo || {};
+        const pos = dr.hotelPositionInfo || {};
+        const comment = (dr.hotelComment && dr.hotelComment.comment) || {};
+        const scoreDetail = Array.isArray(comment.scoreDetail) ? comment.scoreDetail : [];
+        const popList = (((dr.hotelFacilityPopV2 || {}).hotelPopularFacility || {}).list) || [];
+        const cio = (dr.hotelPolicyInfo && dr.hotelPolicyInfo.checkInAndOut) || {};
+        const cioContent = Array.isArray(cio.content) ? cio.content : [];
+        return {
+          hotelId: bi.masterHotelId != null ? String(bi.masterHotelId) : null,
+          name: clean(nameInfo.name),
+          enName: clean(nameInfo.nameEn),
+          star: (Number.isFinite(starInfo.level) && starInfo.level > 0) ? starInfo.level : null,
+          score: num(comment.score),
+          scoreLabel: clean(comment.scoreDescription),
+          reviewCount: (Number.isFinite(comment.totalComment) && comment.totalComment > 0) ? comment.totalComment : null,
+          ratingBreakdown: scoreDetail.map((s) => (s && s.showName && s.showScore) ? clean(s.showName) + ' ' + clean(s.showScore) : null).filter(Boolean).join(' / ') || null,
+          facilities: popList.map((f) => f && clean(f.facilityDesc)).filter(Boolean).join(' / ') || null,
+          checkInOut: cioContent.map((c) => c && clean((c.title || '') + (c.description || ''))).filter(Boolean).join(' / ') || null,
+          cityName: clean(bi.cityName),
+          address: clean(pos.address),
+          lat: num(pos.lat),
+          lon: num(pos.lng),
+        };
+      })()
+    `;
+}
+
+/** Wait for the hotel detail SSR block, or detect a verification wall. */
+export const WAIT_FOR_HOTEL_DETAIL_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) return 'captcha';
+      const dr = window.__NEXT_DATA__?.props?.pageProps?.hotelDetailResponse;
+      if (dr && dr.hotelBaseInfo && dr.hotelBaseInfo.nameInfo) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 12000);
+  })
+`;
+
 export const __test__ = { MIN_LIMIT, MAX_LIMIT };
