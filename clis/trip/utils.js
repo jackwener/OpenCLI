@@ -133,4 +133,79 @@ export const WAIT_FOR_FLIGHTS_JS = `
   })
 `;
 
+export function parseCityId(name, raw) {
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+        throw new ArgumentError(`--${name} is required (numeric Trip.com city id, e.g. 338 for London)`);
+    }
+    const value = String(raw).trim();
+    if (!/^\d+$/.test(value)) {
+        throw new ArgumentError(`--${name} must be a numeric Trip.com city id, got ${JSON.stringify(raw)}`);
+    }
+    return value;
+}
+
+export function buildHotelSearchUrl(cityId, checkin, checkout) {
+    const params = new URLSearchParams({
+        city: cityId,
+        checkin,
+        checkout,
+        locale: 'en_US',
+        curr: 'USD',
+    });
+    return `https://www.trip.com/hotels/list?${params.toString()}`;
+}
+
+/**
+ * Browser-context IIFE that extracts hotel rows from Trip.com's rendered
+ * `.hotel-card` cards, read by stable class-keyed fields
+ * (`.hotelName/.score/.comment-num/.position-desc/.price-highlight`). Cards
+ * without a hotel name are dropped rather than surfaced with blanks.
+ */
+export function buildHotelExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const toNum = (t) => { const m = String(t).replace(/[^0-9.]/g, ''); return m ? Number(m) : null; };
+        const rows = [];
+        document.querySelectorAll('.hotel-card').forEach((card) => {
+          const name = clean(card.querySelector('.hotelName'));
+          if (!name) return;
+          const locations = Array.from(card.querySelectorAll('.position-desc'))
+            .map((el) => clean(el)).filter(Boolean);
+          const priceText = clean(card.querySelector('.price-highlight'));
+          rows.push({
+            name,
+            score: toNum(clean(card.querySelector('.score'))),
+            reviewLabel: clean(card.querySelector('.comment-desc')) || null,
+            reviews: toNum(clean(card.querySelector('.comment-num'))),
+            location: locations.join(', ') || null,
+            room: clean(card.querySelector('.room-name')) || null,
+            price: toNum(priceText),
+            currency: priceText.startsWith('$') ? 'USD' : (priceText.replace(/[0-9.,\\s]/g, '') || null),
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the hotel list to render, or detect a verification wall. */
+export const WAIT_FOR_HOTELS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.hotel-card')) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 12000);
+  })
+`;
+
 export const __test__ = { MIN_LIMIT, MAX_LIMIT };

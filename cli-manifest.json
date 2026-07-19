@@ -36555,6 +36555,59 @@
     "navigateBefore": false
   },
   {
+    "site": "trip",
+    "name": "hotel-search",
+    "description": "List Trip.com hotels for a city id + check-in/out date range",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric Trip.com city id (discover via the hotels search box; e.g. 338 for London)"
+      },
+      {
+        "name": "checkin",
+        "type": "str",
+        "required": true,
+        "help": "Check-in date (YYYY-MM-DD)"
+      },
+      {
+        "name": "checkout",
+        "type": "str",
+        "required": true,
+        "help": "Check-out date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of hotels (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "score",
+      "reviewLabel",
+      "reviews",
+      "location",
+      "room",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/hotel-search.js",
+    "sourceFile": "trip/hotel-search.js",
+    "navigateBefore": false
+  },
+  {
     "site": "tvmaze",
     "name": "search",
     "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",
