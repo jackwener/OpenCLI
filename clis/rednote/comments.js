@@ -4,7 +4,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { buildCommentsExtractJs } from '../xiaohongshu/comments.js';
+import { buildCommentsExtractJs, normalizeCommentRows } from '../xiaohongshu/comments.js';
 import { buildNoteUrl, parseNoteId } from '../xiaohongshu/note-helpers.js';
 
 const REDNOTE_SIGNED_URL_HINT = 'Pass a full rednote.com note URL with xsec_token from search results or user/profile context.';
@@ -58,7 +58,7 @@ cli({
             throw new AuthRequiredError('www.rednote.com', 'Note comments require login');
         }
         void noteId;
-        const all = data.results ?? [];
+        const all = normalizeCommentRows(data.results, 'rednote/comments');
         const toRow = (c, i) => ({
             rank: i + 1,
             author: c.author,

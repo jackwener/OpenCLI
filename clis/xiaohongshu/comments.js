@@ -6,7 +6,7 @@
  * the --with-replies flag.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 
 const XHS_PROFILE_HREF_SELECTOR = '.author-wrapper a[href*="/user/profile/"], a.name[href*="/user/profile/"], a.user-name[href*="/user/profile/"], a[href*="/user/profile/"]';
@@ -62,6 +62,78 @@ export function parseXhsLikeCountText(value) {
     const unit = short[2].toLowerCase();
     const multiplier = unit === 'w' || unit === '万' ? 10000 : 1000;
     return Math.round(numeric * multiplier);
+}
+
+function normalizeOptionalString(value, field, commandName) {
+    if (value == null)
+        return '';
+    if (typeof value !== 'string') {
+        throw new CommandExecutionError(`${commandName}: malformed comment row ${field}`);
+    }
+    return value;
+}
+
+export function normalizeCommentImages(value, commandName) {
+    if (value == null)
+        return [];
+    if (!Array.isArray(value)) {
+        throw new CommandExecutionError(`${commandName}: malformed comment row images`);
+    }
+    const urls = [];
+    for (const raw of value) {
+        if (typeof raw !== 'string') {
+            throw new CommandExecutionError(`${commandName}: malformed comment row image URL`);
+        }
+        const trimmed = raw.trim();
+        let parsed;
+        try {
+            parsed = new URL(trimmed);
+        }
+        catch {
+            throw new CommandExecutionError(`${commandName}: malformed comment row image URL`);
+        }
+        if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || parsed.username || parsed.password) {
+            throw new CommandExecutionError(`${commandName}: malformed comment row image URL`);
+        }
+        const href = parsed.toString();
+        if (!urls.includes(href))
+            urls.push(href);
+    }
+    return urls;
+}
+
+export function normalizeCommentRows(value, commandName = 'xiaohongshu/comments') {
+    if (value == null)
+        return [];
+    if (!Array.isArray(value)) {
+        throw new CommandExecutionError(`${commandName}: malformed comments payload`);
+    }
+    return value.map((row, index) => {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) {
+            throw new CommandExecutionError(`${commandName}: malformed comment row at index ${index}`);
+        }
+        const text = normalizeOptionalString(row.text, 'text', commandName);
+        if (!text) {
+            throw new CommandExecutionError(`${commandName}: malformed comment row text`);
+        }
+        const likes = Number(row.likes);
+        if (!Number.isInteger(likes) || likes < 0) {
+            throw new CommandExecutionError(`${commandName}: malformed comment row likes`);
+        }
+        if (typeof row.is_reply !== 'boolean') {
+            throw new CommandExecutionError(`${commandName}: malformed comment row is_reply`);
+        }
+        return {
+            author: normalizeOptionalString(row.author, 'author', commandName),
+            authorHrefRaw: normalizeOptionalString(row.authorHrefRaw, 'authorHrefRaw', commandName),
+            text,
+            likes,
+            time: normalizeOptionalString(row.time, 'time', commandName),
+            is_reply: row.is_reply,
+            reply_to: normalizeOptionalString(row.reply_to, 'reply_to', commandName),
+            images: normalizeCommentImages(row.images, commandName),
+        };
+    });
 }
 
 /**
@@ -237,7 +309,7 @@ export const command = cli({
         }
         // noteId currently unused after parsing — kept for symmetry with the note command
         void noteId;
-        const all = data.results ?? [];
+        const all = normalizeCommentRows(data.results, 'xiaohongshu/comments');
         // authorHrefRaw is a raw transport field from the extractor; it is consumed
         // here into userId / profileUrl and intentionally not part of the row shape.
         const enrich = (c, i) => ({
