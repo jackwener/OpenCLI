@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
 import { tagsToString } from './bookmark-utils.js';
 
@@ -20,7 +20,10 @@ function requireNovelDownloadBody(body, id) {
   const title = String(body.title ?? '').trim();
   const author = String(body.userName ?? '').trim();
   const userId = String(body.userId ?? '').trim();
-  const content = typeof body.content === 'string' ? body.content : '';
+  if (typeof body.content !== 'string') {
+    throw new CommandExecutionError(`Pixiv novel ${id} returned malformed content payload`);
+  }
+  const content = body.content;
   if (!/^\d+$/.test(novelId) || novelId !== id || !title || !author || !/^\d+$/.test(userId)) {
     throw new CommandExecutionError(`Pixiv novel ${id} returned malformed detail payload`);
   }
@@ -30,7 +33,7 @@ function requireNovelDownloadBody(body, id) {
 export function normalizeNovelFileFormat(value) {
   const format = String(value ?? 'txt').toLowerCase();
   if (format !== 'txt' && format !== 'md') {
-    throw new CommandExecutionError(`Unsupported novel download format: ${format}. Supported formats: txt, md.`);
+    throw new ArgumentError(`Unsupported novel download format: ${format}. Supported formats: txt, md.`);
   }
   return format;
 }

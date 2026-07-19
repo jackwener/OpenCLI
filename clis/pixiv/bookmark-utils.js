@@ -1,10 +1,18 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { getCurrentPixivUser, pixivFetch } from './utils.js';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import {
+  getCurrentPixivUser,
+  normalizePixivNonNegativeInteger,
+  normalizePixivPositiveInteger,
+  pixivFetch,
+  requirePixivId,
+  requirePixivPayloadObject,
+  requirePixivString,
+} from './utils.js';
 
 export function normalizeBookmarkType(value) {
   const type = String(value ?? 'illust').trim();
   if (type !== 'illust' && type !== 'novel') {
-    throw new CommandExecutionError(`Invalid bookmark type: ${type}. Expected "illust" or "novel".`);
+    throw new ArgumentError(`Invalid bookmark type: ${type}. Expected "illust" or "novel".`);
   }
   return type;
 }
@@ -27,36 +35,40 @@ export function normalizeBookmarkWorks(body) {
   if (Array.isArray(body)) return body;
   if (Array.isArray(body?.works)) return body.works;
   if (body?.works && typeof body.works === 'object') return Object.values(body.works);
-  return [];
+  throw new CommandExecutionError('Pixiv bookmarks returned malformed payload');
 }
 
 export function bookmarkRow(work, index, type) {
-  const id = String(work?.id ?? work?.illustId ?? work?.novelId ?? '');
+  const item = requirePixivPayloadObject(work, 'Pixiv bookmark item');
   const isNovel = type === 'novel';
+  const id = requirePixivId(item.id ?? (isNovel ? item.novelId : item.illustId), 'Pixiv bookmark item');
+  const title = requirePixivString(item.title ?? item.illustTitle, 'Pixiv bookmark item');
+  const author = requirePixivString(item.userName ?? item.user_name, 'Pixiv bookmark item');
+  const userId = requirePixivId(item.userId ?? item.user_id, 'Pixiv bookmark item');
   return {
     rank: index + 1,
     type,
-    title: work?.title || work?.illustTitle || '',
-    author: work?.userName || work?.user_name || '',
-    user_id: String(work?.userId ?? work?.user_id ?? ''),
+    title,
+    author,
+    user_id: userId,
     illust_id: isNovel ? '' : id,
     novel_id: isNovel ? id : '',
-    pages: isNovel ? '' : (work?.pageCount ?? work?.page_count ?? 1),
-    words: isNovel ? (work?.wordCount ?? work?.textCount ?? work?.characterCount ?? '') : '',
-    bookmarks: work?.bookmarkCount ?? work?.totalBookmarks ?? 0,
-    tags: tagsToString(work?.tags),
-    created: dateOnly(work?.createDate ?? work?.created_at),
+    pages: isNovel ? '' : (item.pageCount ?? item.page_count ?? 1),
+    words: isNovel ? (item.wordCount ?? item.textCount ?? item.characterCount ?? '') : '',
+    bookmarks: item.bookmarkCount ?? item.totalBookmarks ?? 0,
+    tags: tagsToString(item.tags),
+    created: dateOnly(item.createDate ?? item.created_at),
     url: isNovel ? `https://www.pixiv.net/novel/show.php?id=${id}` : `https://www.pixiv.net/artworks/${id}`,
   };
 }
 
 export async function fetchCurrentBookmarks(page, kwargs = {}) {
   const type = normalizeBookmarkType(kwargs.type);
-  const limit = Math.max(1, Math.min(Number(kwargs.limit) || 20, 100));
-  const offset = Math.max(0, Number(kwargs.offset) || 0);
+  const limit = normalizePixivPositiveInteger(kwargs.limit, 20, 'limit', { max: 100 });
+  const offset = normalizePixivNonNegativeInteger(kwargs.offset, 0, 'offset');
   const visibility = String(kwargs.visibility ?? kwargs.rest ?? 'show');
   if (visibility !== 'show' && visibility !== 'hide') {
-    throw new CommandExecutionError(`Invalid bookmark visibility: ${visibility}. Expected "show" or "hide".`);
+    throw new ArgumentError(`Invalid bookmark visibility: ${visibility}. Expected "show" or "hide".`);
   }
   const user = await getCurrentPixivUser(page);
   const path = type === 'novel'

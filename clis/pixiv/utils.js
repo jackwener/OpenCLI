@@ -5,7 +5,7 @@
  * On failure the HTTP status code is used to distinguish auth (401/403),
  * not-found (404), and other errors.
  */
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 const PIXIV_DOMAIN = 'www.pixiv.net';
 
 function unwrapEvaluateResult(payload) {
@@ -96,6 +96,48 @@ export async function pixivFetch(page, path, opts = {}) {
 }
 /** Maximum number of illust IDs per batch detail request (Pixiv server limit). */
 export const BATCH_SIZE = 48;
+
+export function normalizePixivPositiveInteger(value, defaultValue, label, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+    const raw = value ?? defaultValue;
+    const numberValue = Number(raw);
+    if (!Number.isInteger(numberValue)) {
+        throw new ArgumentError(`${label} must be an integer`);
+    }
+    if (numberValue < min) {
+        throw new ArgumentError(`${label} must be >= ${min}`);
+    }
+    if (numberValue > max) {
+        throw new ArgumentError(`${label} must be <= ${max}`);
+    }
+    return numberValue;
+}
+
+export function normalizePixivNonNegativeInteger(value, defaultValue, label, { max = Number.MAX_SAFE_INTEGER } = {}) {
+    return normalizePixivPositiveInteger(value, defaultValue, label, { min: 0, max });
+}
+
+export function requirePixivPayloadObject(value, label) {
+    if (!value || Array.isArray(value) || typeof value !== 'object') {
+        throw new CommandExecutionError(`${label} returned malformed payload`);
+    }
+    return value;
+}
+
+export function requirePixivId(value, label) {
+    const id = String(value ?? '').trim();
+    if (!/^\d+$/.test(id)) {
+        throw new CommandExecutionError(`${label} returned malformed Pixiv ID`);
+    }
+    return id;
+}
+
+export function requirePixivString(value, label) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        throw new CommandExecutionError(`${label} returned malformed text field`);
+    }
+    return text;
+}
 
 export function normalizePixivUserData(raw) {
     if (!raw || Array.isArray(raw) || typeof raw !== 'object') {

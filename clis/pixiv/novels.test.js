@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 import './novels.js';
 
@@ -12,9 +12,9 @@ beforeAll(() => {
 });
 
 describe('pixiv novels', () => {
-  it('throws CommandExecutionError on invalid user ID before navigation', async () => {
+  it('throws ArgumentError on invalid user ID before navigation', async () => {
     const page = createPageMock([]);
-    await expect(cmd.func(page, { 'user-id': 'abc' })).rejects.toThrow(CommandExecutionError);
+    await expect(cmd.func(page, { 'user-id': 'abc' })).rejects.toThrow(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
   });
 
@@ -22,6 +22,19 @@ describe('pixiv novels', () => {
     const page = createPageMock([{ body: { novels: {} } }]);
     const result = await cmd.func(page, { 'user-id': '37119297', limit: 10 });
     expect(result).toEqual([]);
+  });
+
+  it('throws CommandExecutionError on malformed user profile novels payload', async () => {
+    const page = createPageMock([{ body: { novels: [] } }]);
+    await expect(cmd.func(page, { 'user-id': '37119297', limit: 10 })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('throws CommandExecutionError when batch details omit a requested novel', async () => {
+    const page = createPageMock([
+      { body: { novels: { '10588915': null } } },
+      { body: { works: {} } },
+    ]);
+    await expect(cmd.func(page, { 'user-id': '37119297', limit: 1 })).rejects.toThrow(CommandExecutionError);
   });
 
   it('batch fetches user novel details and maps stable fields', async () => {
