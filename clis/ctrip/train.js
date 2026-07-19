@@ -14,8 +14,8 @@ import {
     buildTrainExtractJs,
     buildTrainListUrl,
     parseIsoDate,
-    parseStationName,
-    parseTrainLimit,
+    parseListLimit,
+    parsePlaceName,
 } from './utils.js';
 
 cli({
@@ -42,13 +42,13 @@ cli({
         'url',
     ],
     func: async (page, kwargs) => {
-        const fromName = parseStationName('from', kwargs.from);
-        const toName = parseStationName('to', kwargs.to);
+        const fromName = parsePlaceName('from', kwargs.from);
+        const toName = parsePlaceName('to', kwargs.to);
         if (fromName === toName) {
             throw new ArgumentError(`--from and --to must differ (got ${fromName})`);
         }
         const date = parseIsoDate('date', kwargs.date);
-        const limit = parseTrainLimit(kwargs.limit);
+        const limit = parseListLimit(kwargs.limit);
 
         const searchUrl = buildTrainListUrl(fromName, toName, date);
         await page.goto(searchUrl);

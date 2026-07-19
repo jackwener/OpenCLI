@@ -29,8 +29,8 @@ import {
     buildTourListUrl,
     buildTrainExtractJs,
     buildTrainListUrl,
-    buildVacationsExtractJs,
     buildUrl,
+    buildVacationsExtractJs,
     mapHotelRow,
     mapSuggestRow,
     parseCityId,
@@ -38,8 +38,8 @@ import {
     parseIataCode,
     parseIsoDate,
     parseLimit,
-    parseStationName,
-    parseTrainLimit,
+    parseListLimit,
+    parsePlaceName,
     pickCoords,
     pickHotelMapCoords,
     WAIT_FOR_HOTEL_DETAIL_JS,
@@ -743,32 +743,32 @@ describe('ctrip buildFlightExtractJs (JSDOM)', () => {
     });
 });
 
-describe('ctrip parseStationName', () => {
+describe('ctrip parsePlaceName', () => {
     it('accepts Chinese station / city names', () => {
-        expect(parseStationName('from', '北京')).toBe('北京');
-        expect(parseStationName('to', ' 上海虹桥 ')).toBe('上海虹桥');
+        expect(parsePlaceName('from', '北京')).toBe('北京');
+        expect(parsePlaceName('to', ' 上海虹桥 ')).toBe('上海虹桥');
     });
 
     it('rejects empty / control-char / over-long names', () => {
-        expect(() => parseStationName('from', '')).toThrow('required');
-        expect(() => parseStationName('from', undefined)).toThrow('required');
-        expect(() => parseStationName('from', 'a'.repeat(21))).toThrow('not a valid station name');
-        expect(() => parseStationName('from', 'bad\x01name')).toThrow('not a valid station name');
+        expect(() => parsePlaceName('from', '')).toThrow('required');
+        expect(() => parsePlaceName('from', undefined)).toThrow('required');
+        expect(() => parsePlaceName('from', 'a'.repeat(21))).toThrow('not a valid place name');
+        expect(() => parsePlaceName('from', 'bad\x01name')).toThrow('not a valid place name');
     });
 });
 
-describe('ctrip parseTrainLimit', () => {
+describe('ctrip parseListLimit', () => {
     it('falls back to default for empty / undefined / null', () => {
-        expect(parseTrainLimit(undefined)).toBe(20);
-        expect(parseTrainLimit('')).toBe(20);
-        expect(parseTrainLimit(undefined, 5)).toBe(5);
+        expect(parseListLimit(undefined)).toBe(20);
+        expect(parseListLimit('')).toBe(20);
+        expect(parseListLimit(undefined, 5)).toBe(5);
     });
 
     it('rejects out-of-range / non-integer values (no silent clamp)', () => {
-        expect(() => parseTrainLimit(0)).toThrow('--limit');
-        expect(() => parseTrainLimit(51)).toThrow('--limit');
-        expect(() => parseTrainLimit(1.5)).toThrow('--limit');
-        expect(() => parseTrainLimit('abc')).toThrow('--limit');
+        expect(() => parseListLimit(0)).toThrow('--limit');
+        expect(() => parseListLimit(51)).toThrow('--limit');
+        expect(() => parseListLimit(1.5)).toThrow('--limit');
+        expect(() => parseListLimit('abc')).toThrow('--limit');
     });
 });
 

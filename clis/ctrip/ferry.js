@@ -15,8 +15,8 @@ import {
     buildFerryListUrl,
     buildScrollUntilJs,
     parseIsoDate,
-    parseStationName,
-    parseTrainLimit,
+    parseListLimit,
+    parsePlaceName,
 } from './utils.js';
 
 cli({
@@ -43,13 +43,13 @@ cli({
         'url',
     ],
     func: async (page, kwargs) => {
-        const fromCity = parseStationName('from', kwargs.from);
-        const toCity = parseStationName('to', kwargs.to);
+        const fromCity = parsePlaceName('from', kwargs.from);
+        const toCity = parsePlaceName('to', kwargs.to);
         if (fromCity === toCity) {
             throw new ArgumentError(`--from and --to must differ (got ${fromCity})`);
         }
         const date = parseIsoDate('date', kwargs.date);
-        const limit = parseTrainLimit(kwargs.limit);
+        const limit = parseListLimit(kwargs.limit);
 
         const searchUrl = buildFerryListUrl(fromCity, toCity, date);
         await page.goto(searchUrl);

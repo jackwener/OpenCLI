@@ -12,8 +12,8 @@ import {
     WAIT_FOR_VACATIONS_JS,
     buildPackageListUrl,
     buildVacationsExtractJs,
-    parseStationName,
-    parseTrainLimit,
+    parseListLimit,
+    parsePlaceName,
 } from './utils.js';
 
 cli({
@@ -37,8 +37,8 @@ cli({
         'url',
     ],
     func: async (page, kwargs) => {
-        const destination = parseStationName('destination', kwargs.destination);
-        const limit = parseTrainLimit(kwargs.limit);
+        const destination = parsePlaceName('destination', kwargs.destination);
+        const limit = parseListLimit(kwargs.limit);
 
         const searchUrl = buildPackageListUrl(destination);
         await page.goto(searchUrl);

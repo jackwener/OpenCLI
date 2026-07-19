@@ -14,8 +14,8 @@ import {
     buildCruiseExtractJs,
     buildCruisePortLookupJs,
     buildCruiseSearchUrl,
-    parseStationName,
-    parseTrainLimit,
+    parseListLimit,
+    parsePlaceName,
 } from './utils.js';
 
 // 上海港 lists every departure port as a link, so it doubles as the port-code index.
@@ -42,8 +42,8 @@ cli({
         'url',
     ],
     func: async (page, kwargs) => {
-        const port = parseStationName('port', kwargs.port);
-        const limit = parseTrainLimit(kwargs.limit);
+        const port = parsePlaceName('port', kwargs.port);
+        const limit = parseListLimit(kwargs.limit);
 
         const indexUrl = buildCruiseSearchUrl(PORT_INDEX_CODE);
         await page.goto(indexUrl);

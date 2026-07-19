@@ -470,32 +470,29 @@ export function buildScrollUntilJs(rowSelector, targetCount, maxScrolls = 8) {
     `;
 }
 
-const TRAIN_MIN_LIMIT = 1;
-const TRAIN_MAX_LIMIT = 50;
-const TRAIN_TYPES = { gaotie: 'G', dongche: 'D', normal: 'Z', other: 'L' };
-
-export function parseTrainLimit(raw, fallback = 20) {
+/** Validate a 1-50 result limit shared by the browser-mode list commands (default 20). */
+export function parseListLimit(raw, fallback = 20) {
     if (raw === undefined || raw === null || raw === '') return fallback;
     const parsed = Number(raw);
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new ArgumentError(`--limit must be an integer between ${TRAIN_MIN_LIMIT} and ${TRAIN_MAX_LIMIT}, got ${JSON.stringify(raw)}`);
+        throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${JSON.stringify(raw)}`);
     }
-    if (parsed < TRAIN_MIN_LIMIT || parsed > TRAIN_MAX_LIMIT) {
-        throw new ArgumentError(`--limit must be between ${TRAIN_MIN_LIMIT} and ${TRAIN_MAX_LIMIT}, got ${parsed}`);
+    if (parsed < MIN_LIMIT || parsed > MAX_LIMIT) {
+        throw new ArgumentError(`--limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${parsed}`);
     }
     return parsed;
 }
 
-/** Validate a Chinese station/city name for the train-list query. */
-export function parseStationName(name, raw) {
+/** Validate a Chinese place keyword (station, city, port, or destination) for the browser list queries. */
+export function parsePlaceName(name, raw) {
     if (raw === undefined || raw === null || String(raw).trim() === '') {
-        throw new ArgumentError(`--${name} is required (station or city name, e.g. 北京 / 上海虹桥)`);
+        throw new ArgumentError(`--${name} is required (e.g. 北京 / 上海)`);
     }
     const value = String(raw).trim();
-    // The train-list endpoint keys on the Chinese station/city name; reject
-    // control characters and over-long input rather than passing them through.
+    // These list pages key on the raw Chinese place name; reject control
+    // characters and over-long input rather than passing them through.
     if (value.length > 20 || /[\x00-\x1f]/.test(value)) {
-        throw new ArgumentError(`--${name} is not a valid station name: ${JSON.stringify(raw)}`);
+        throw new ArgumentError(`--${name} is not a valid place name: ${JSON.stringify(raw)}`);
     }
     return value;
 }
@@ -756,16 +753,20 @@ export function buildFerryExtractJs() {
           const fromPort = ports[0] || '';
           const toPort = ports[1] || '';
           if (!departureTime || !fromPort || !toPort) return;
-          const spans = Array.from(card.querySelectorAll('span.list-width100')).map(clean);
+          const spans = Array.from(card.querySelectorAll('span.list-width100')).map(clean).filter(Boolean);
+          // Duration is the span carrying a time-length unit; the ship name is the
+          // other span, so neither depends on span order or on both being present.
+          const duration = spans.find((s) => /(小时|时|分)/.test(s)) || null;
+          const shipName = spans.find((s) => s !== duration) || null;
           const priceText = clean(card.querySelector('.corred'));
           const price = /^\\d+(?:\\.\\d+)?$/.test(priceText) ? Number(priceText) : null;
           rows.push({
-            shipName: spans[0] || null,
+            shipName,
             departureTime,
             fromPort,
             arrivalTime,
             toPort,
-            duration: spans[1] || null,
+            duration,
             price,
             status: clean(card.querySelector('.list-seat-parent')) || null,
           });
@@ -965,4 +966,4 @@ export const WAIT_FOR_VACATIONS_JS = `
   })
 `;
 
-export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT, TRAIN_MIN_LIMIT, TRAIN_MAX_LIMIT, TRAIN_TYPES };
+export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT };
