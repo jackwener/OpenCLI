@@ -48,6 +48,8 @@ describe('eastmoney convertible field mapping (#2109)', () => {
 
     it('fails closed on malformed scalar and numeric fields', () => {
         expect(() => mapConvertibleRows([row({ f12: null })], 20)).toThrow(CommandExecutionError);
+        expect(() => mapConvertibleRows([row({ f12: '' })], 20)).toThrow(CommandExecutionError);
+        expect(() => mapConvertibleRows([row({ f12: 123001 })], 20)).toThrow(CommandExecutionError);
         expect(() => mapConvertibleRows([row({ f239: '169.19' })], 20)).toThrow(CommandExecutionError);
         expect(() => mapConvertibleRows([row({ f239: '-' })], 20)).not.toThrow();
     });

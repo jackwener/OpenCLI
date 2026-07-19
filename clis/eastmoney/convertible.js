@@ -38,6 +38,11 @@ function normalizeEastmoneyString(value, field, bondCode) {
   throw new CommandExecutionError(`eastmoney convertible returned malformed ${field} for ${bondCode || 'unknown bond'}`);
 }
 
+function normalizeEastmoneyIdentityString(value, field, bondCode) {
+  if (typeof value === 'string' && value.trim()) return value;
+  throw new CommandExecutionError(`eastmoney convertible returned malformed ${field} for ${bondCode || 'unknown bond'}`);
+}
+
 export function parseConvertibleLimit(value) {
   if (value === undefined || value === null || value === '') return 20;
   if (typeof value === 'number') {
@@ -79,10 +84,10 @@ export function mapConvertibleRow(it, rank) {
   if (!it || typeof it !== 'object' || Array.isArray(it)) {
     throw new CommandExecutionError(`eastmoney convertible returned malformed row at rank ${rank}`);
   }
-  const bondCode = normalizeEastmoneyString(it.f12, 'f12', '');
-  const bondName = normalizeEastmoneyString(it.f14, 'f14', bondCode);
-  const stockCode = normalizeEastmoneyString(it.f232, 'f232', bondCode);
-  const stockName = normalizeEastmoneyString(it.f234, 'f234', bondCode);
+  const bondCode = normalizeEastmoneyIdentityString(it.f12, 'f12', '');
+  const bondName = normalizeEastmoneyIdentityString(it.f14, 'f14', bondCode);
+  const stockCode = normalizeEastmoneyIdentityString(it.f232, 'f232', bondCode);
+  const stockName = normalizeEastmoneyIdentityString(it.f234, 'f234', bondCode);
   for (const field of NUMERIC_FIELDS) {
     normalizeEastmoneyNumeric(it[field], field, bondCode);
   }
