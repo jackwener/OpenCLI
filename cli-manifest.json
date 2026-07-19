@@ -35016,6 +35016,146 @@
     "siteSession": "persistent"
   },
   {
+    "site": "tiktok-symphony",
+    "name": "credits",
+    "description": "Symphony Creative Studio credit balance and plan",
+    "access": "read",
+    "example": "opencli tiktok-symphony credits",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "credits",
+      "plan",
+      "account"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/credits.js",
+    "sourceFile": "tiktok-symphony/credits.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/image-to-video?subApp=CreativeStudio/ImageGeneration/I2VImageGeneration"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "download",
+    "description": "Download a generated Symphony asset by assetId (see: generations)",
+    "access": "read",
+    "example": "opencli tiktok-symphony download 202607195d0d7ea36ed139b74eccb1e4 --out ./downloads",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "asset",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "assetId from `generations`, or a full asset URL"
+      },
+      {
+        "name": "out",
+        "type": "string",
+        "default": ".",
+        "required": false,
+        "help": "Directory to write the file into"
+      }
+    ],
+    "columns": [
+      "assetId",
+      "file",
+      "bytes",
+      "contentType"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/download.js",
+    "sourceFile": "tiktok-symphony/download.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/create/history"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "generate",
+    "description": "Generate images from a prompt and up to 4 reference images (spends Symphony credits)",
+    "access": "write",
+    "example": "opencli tiktok-symphony generate \"turn this into 3D chibi style\" --refs ./cat.png",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "What to generate"
+      },
+      {
+        "name": "refs",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated reference image paths (max 4)"
+      },
+      {
+        "name": "model",
+        "type": "string",
+        "default": "Nano Banana",
+        "required": false,
+        "help": "Model: Nano Banana / Flux Kontext Max"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Seconds to wait for rendering"
+      }
+    ],
+    "columns": [
+      "index",
+      "assetId",
+      "url",
+      "model",
+      "prompt"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/generate.js",
+    "sourceFile": "tiktok-symphony/generate.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "generations",
+    "aliases": [
+      "library"
+    ],
+    "description": "List generated assets in the Symphony Creative Studio Library",
+    "access": "read",
+    "example": "opencli tiktok-symphony generations --limit 10",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of assets to return (max 200)"
+      }
+    ],
+    "columns": [
+      "index",
+      "assetId",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/generations.js",
+    "sourceFile": "tiktok-symphony/generations.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/create/history"
+  },
+  {
     "site": "toutiao",
     "name": "articles",
     "description": "获取头条号创作者后台文章列表及数据",
