@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './flight.js';
+import './flight-round.js';
 import './hotel-search.js';
 import './hotel.js';
 import {
     WAIT_FOR_HOTEL_DETAIL_JS,
     buildFlightExtractJs,
+    buildFlightRoundSearchUrl,
     buildFlightSearchUrl,
     buildHotelDetailExtractJs,
     buildHotelDetailUrl,
@@ -471,5 +473,79 @@ describe('trip buildHotelDetailExtractJs (JSDOM)', () => {
         dom.window.__NEXT_DATA__ = { props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } };
         await expect(dom.window.Function(`return (${WAIT_FOR_HOTEL_DETAIL_JS})`)())
             .resolves.toBe('content');
+    });
+});
+
+describe('trip buildFlightRoundSearchUrl', () => {
+    it('lowercases codes and pins round-trip English/USD params', () => {
+        const url = buildFlightRoundSearchUrl('LON', 'NYC', '2026-08-15', '2026-08-22');
+        const qs = new URL(url).searchParams;
+        expect(url).toContain('https://www.trip.com/flights/showfarefirst?');
+        expect(qs.get('dcity')).toBe('lon');
+        expect(qs.get('acity')).toBe('nyc');
+        expect(qs.get('ddate')).toBe('2026-08-15');
+        expect(qs.get('rdate')).toBe('2026-08-22');
+        expect(qs.get('triptype')).toBe('rt');
+        expect(qs.get('curr')).toBe('USD');
+    });
+});
+
+describe('trip flight-round command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/flight-round');
+
+    const FLIGHT_RAW = {
+        airline: 'British Airways',
+        departureTime: '6:05 PM',
+        departureAirport: 'LHR',
+        arrivalTime: '9:05 PM',
+        arrivalAirport: 'JFK',
+        duration: '8h',
+        stops: 'Nonstop',
+        price: 758,
+        currency: 'USD',
+    };
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects invalid IATA / dates / from==to / depart>=return / limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: 'LO', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('IATA') });
+        await expect(cmd.func(page, { from: 'LON', to: 'LON', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: 'LON', to: 'NYC', depart: '08/15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--depart') });
+        await expect(cmd.func(page, { from: 'LON', to: 'NYC', depart: '2026-08-22', return: '2026-08-15', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--depart must be before --return') });
+        await expect(cmd.func(page, { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, CommandExec on timeout, EmptyResult on no flights', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock(['timeout']), { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render flight cards') });
+        await expect(cmd.func(createPageMock(['content', []]), { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('maps DOM-extracted rows against the round-trip URL and respects --limit', async () => {
+        const page = createPageMock(['content', [FLIGHT_RAW, { ...FLIGHT_RAW, airline: 'American Airlines', price: 767 }]]);
+        const rows = await cmd.func(page, { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, airline: 'British Airways', departureAirport: 'LHR', price: 758, currency: 'USD' });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('triptype=rt');
     });
 });

@@ -72,6 +72,21 @@ export function buildFlightSearchUrl(fromCode, toCode, date) {
     return `https://www.trip.com/flights/showfarefirst?${params.toString()}`;
 }
 
+export function buildFlightRoundSearchUrl(fromCode, toCode, depart, ret) {
+    const params = new URLSearchParams({
+        dcity: fromCode.toLowerCase(),
+        acity: toCode.toLowerCase(),
+        ddate: depart,
+        rdate: ret,
+        triptype: 'rt',
+        class: 'y',
+        quantity: '1',
+        locale: 'en_US',
+        curr: 'USD',
+    });
+    return `https://www.trip.com/flights/showfarefirst?${params.toString()}`;
+}
+
 /**
  * Browser-context IIFE that extracts flight rows from Trip.com's rendered
  * `.result-item` cards. Fields are read from stable `data-testid` anchors plus

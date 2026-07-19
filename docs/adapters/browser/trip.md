@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🖥️ Browser + Cookie (`flight`, `hotel-search`, `hotel`)
+**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -12,6 +12,7 @@ the same company. These commands search worldwide flights and hotels on
 | Command | Mode | Description |
 |---------|------|-------------|
 | `opencli trip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
+| `opencli trip flight-round` | Browser (cookie) | Round-trip flight search by IATA route + depart/return dates |
 | `opencli trip hotel-search` | Browser (cookie) | List hotels for a city id + check-in/out date range |
 | `opencli trip hotel` | Browser (cookie) | Single-hotel detail by id: rating breakdown, amenities, check-in/out policy |
 
@@ -21,6 +22,9 @@ the same company. These commands search worldwide flights and hotels on
 # One-way flight search (English, USD)
 opencli trip flight LON NYC --date 2026-08-15 --limit 20
 opencli trip flight LHR JFK --date 2026-08-15 -f json
+
+# Round-trip flight search
+opencli trip flight-round LON NYC --depart 2026-08-15 --return 2026-08-22 --limit 20
 
 # Hotel listing (numeric city id, e.g. 338 for London)
 opencli trip hotel-search 338 --checkin 2026-08-15 --checkout 2026-08-16 --limit 10
@@ -52,6 +56,18 @@ Rows come from `.result-item` cards, read by stable `data-testid` anchors
 (`flights-name`, `stopInfoText`, `flight_price_*`) plus the `HH:MM` / `AM-PM` /
 IATA leaf pattern, rather than positional innerText. Cards missing the airline,
 both airports, or both times are dropped rather than emitted with sentinel values.
+
+## Round-Trip Flight Columns (`flight-round`)
+
+`flight-round` returns the outbound leg of a round-trip search (priced for the
+round trip) with the same column shape as `flight` (`rank`, `airline`,
+`departureTime`, `departureAirport`, `arrivalTime`, `arrivalAirport`, `duration`,
+`stops`, `price`, `currency`, `url`) and reuses the same `.result-item` extractor.
+
+Args:
+- `<from>`, `<to>` (positional, required): 3-letter IATA codes.
+- `--depart`, `--return` (required): `YYYY-MM-DD`, with `depart` before `return`.
+- `--limit` (1-50, default 20).
 
 ## Hotel Listing Columns (`hotel-search`)
 

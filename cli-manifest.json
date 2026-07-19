@@ -36556,6 +36556,67 @@
   },
   {
     "site": "trip",
+    "name": "flight-round",
+    "description": "Search Trip.com round-trip flights by IATA route + depart/return dates",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure IATA code (e.g. LON / LHR)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival IATA code (e.g. NYC / JFK)"
+      },
+      {
+        "name": "depart",
+        "type": "str",
+        "required": true,
+        "help": "Outbound date (YYYY-MM-DD)"
+      },
+      {
+        "name": "return",
+        "type": "str",
+        "required": true,
+        "help": "Return date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of flights (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "airline",
+      "departureTime",
+      "departureAirport",
+      "arrivalTime",
+      "arrivalAirport",
+      "duration",
+      "stops",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/flight-round.js",
+    "sourceFile": "trip/flight-round.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "trip",
     "name": "hotel",
     "description": "Show a Trip.com hotel detail by id (rating breakdown, amenities, check-in/out policy)",
     "access": "read",
