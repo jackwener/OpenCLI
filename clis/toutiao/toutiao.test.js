@@ -477,6 +477,22 @@ describe('toutiao mapRecommendRow', () => {
         expect(row.tag).toBeNull();
         expect(row.url).toBe('https://www.toutiao.com/group/1/');
     });
+
+    it('derives group_id from first-party source_url when the explicit id is absent', () => {
+        const row = mapRecommendRow({ title: 'T', source_url: '/group/12345/' }, 0);
+
+        expect(row.group_id).toBe('12345');
+        expect(row.url).toBe('https://www.toutiao.com/group/12345/');
+    });
+
+    it('typed-fails malformed article identity instead of emitting partial rows', () => {
+        expect(() => mapRecommendRow({ title: 'T' }, 0)).toThrow(CommandExecutionError);
+        expect(() => mapRecommendRow({ title: 'T', group_id: '../bad' }, 0)).toThrow(CommandExecutionError);
+        expect(() => mapRecommendRow({ title: 'T', source_url: 'https://evil.example/group/1/' }, 0))
+            .toThrow(CommandExecutionError);
+        expect(() => mapRecommendRow({ group_id: '1', title: 'T', source_url: '/group/2/' }, 0))
+            .toThrow(CommandExecutionError);
+    });
 });
 
 describe('toutiao recommend adapter (registry func)', () => {

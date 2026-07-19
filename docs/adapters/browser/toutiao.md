@@ -47,14 +47,14 @@ opencli toutiao articles --page 1 -f json
 | Column | Type | Notes |
 |--------|------|-------|
 | `rank` | int | 1-based, dense after sponsored and empty-title rows are dropped |
-| `group_id` | string \| null | Article group id; round-trips into the article permalink |
+| `group_id` | string | Article group id; round-trips into the article permalink |
 | `title` | string | Article title |
 | `abstract` | string \| null | Upstream summary; `null` when the channel omits it |
 | `source` | string \| null | Publishing account name |
 | `tag` | string \| null | Channel-side label (e.g. 视频) when present |
 | `comments` | int \| null | `comments_count` as a non-negative number; `null` if missing |
 | `published_at` | string \| null | `behot_time` as ISO 8601 UTC; `null` if missing |
-| `url` | string \| null | Article permalink, absolutised from the relative `source_url` |
+| `url` | string | Canonical article permalink derived from the first-party `source_url` or `group_id` |
 | `image_url` | string \| null | Cover image; protocol-relative URLs are normalised to `https:` |
 
 Rows flagged `is_feed_ad` are dropped so an agent never reads a sponsored slot as editorial content.

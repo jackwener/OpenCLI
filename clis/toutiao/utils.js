@@ -1,7 +1,7 @@
 /**
  * Shared helpers for the toutiao adapter.
  */
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const ARTICLES_MIN_PAGE = 1;
 const ARTICLES_MAX_PAGE = 4;
@@ -198,11 +198,45 @@ function pickFeedImage(item) {
     return raw.startsWith('//') ? `https:${raw}` : raw;
 }
 
-function buildGroupUrl(sourceUrl, groupId) {
+function firstPartyToutiaoUrl(sourceUrl) {
     const raw = trimOrNull(sourceUrl);
-    if (raw && /^https?:\/\//i.test(raw)) return raw;
-    if (raw && raw.startsWith('/')) return `https://www.toutiao.com${raw}`;
-    return groupId ? `https://www.toutiao.com/group/${groupId}/` : null;
+    if (!raw) return null;
+    try {
+        const url = raw.startsWith('/')
+            ? new URL(raw, 'https://www.toutiao.com')
+            : new URL(raw);
+        if (!/^https?:$/i.test(url.protocol) || !/(^|\.)toutiao\.com$/i.test(url.hostname)) {
+            throw new CommandExecutionError(`Malformed toutiao recommend row: off-domain source_url ${JSON.stringify(raw)}.`);
+        }
+        return url;
+    } catch (error) {
+        if (error instanceof CommandExecutionError) throw error;
+        throw new CommandExecutionError(`Malformed toutiao recommend row: invalid source_url ${JSON.stringify(raw)}.`);
+    }
+}
+
+function articleIdFromToutiaoPath(pathname) {
+    return String(pathname || '').match(/^\/(?:group|article)\/([A-Za-z0-9_-]+)\/?$/)?.[1] || '';
+}
+
+function buildGroupIdentity(sourceUrl, rawGroupId) {
+    const source = firstPartyToutiaoUrl(sourceUrl);
+    const sourceId = source ? articleIdFromToutiaoPath(source.pathname) : '';
+    const explicitId = trimOrNull(rawGroupId);
+    const groupId = explicitId || trimOrNull(sourceId);
+    if (!groupId) {
+        throw new CommandExecutionError('Malformed toutiao recommend row: missing group_id and article source_url.');
+    }
+    if (!/^[A-Za-z0-9_-]+$/.test(groupId)) {
+        throw new CommandExecutionError(`Malformed toutiao recommend row: invalid group_id ${JSON.stringify(rawGroupId)}.`);
+    }
+    if (sourceId && explicitId && explicitId !== sourceId) {
+        throw new CommandExecutionError(`Malformed toutiao recommend row: group_id/source_url mismatch for ${JSON.stringify(rawGroupId)}.`);
+    }
+    return {
+        groupId,
+        url: `https://www.toutiao.com/group/${groupId}/`,
+    };
 }
 
 function formatBehotTime(value) {
@@ -222,17 +256,20 @@ export function mapRecommendRow(item, index) {
     if (item.is_feed_ad) return null;
     const title = trimOrNull(item.title);
     if (!title) return null;
-    const groupId = trimOrNull(item.group_id != null ? String(item.group_id) : null);
+    const identity = buildGroupIdentity(
+        item.source_url,
+        item.group_id != null ? String(item.group_id) : null,
+    );
     return {
         rank: index + 1,
-        group_id: groupId,
+        group_id: identity.groupId,
         title,
         abstract: trimOrNull(item.abstract),
         source: trimOrNull(item.source),
         tag: trimOrNull(item.chinese_tag),
         comments: parseHot(item.comments_count),
         published_at: formatBehotTime(item.behot_time),
-        url: buildGroupUrl(item.source_url, groupId),
+        url: identity.url,
         image_url: pickFeedImage(item),
     };
 }
