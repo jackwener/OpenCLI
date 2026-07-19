@@ -15,10 +15,10 @@ import {
     buildHotelExtractJs,
     buildHotelSearchUrl,
     parseCityId,
-    parseFlightLimit,
     parseHotelId,
     parseIataCode,
     parseIsoDate,
+    parseListLimit,
 } from './utils.js';
 
 function createPageMock(evaluateResults) {
@@ -56,16 +56,16 @@ describe('trip parseIsoDate', () => {
     });
 });
 
-describe('trip parseFlightLimit', () => {
+describe('trip parseListLimit', () => {
     it('falls back for empty / undefined', () => {
-        expect(parseFlightLimit(undefined)).toBe(20);
-        expect(parseFlightLimit('')).toBe(20);
-        expect(parseFlightLimit(undefined, 5)).toBe(5);
+        expect(parseListLimit(undefined)).toBe(20);
+        expect(parseListLimit('')).toBe(20);
+        expect(parseListLimit(undefined, 5)).toBe(5);
     });
     it('rejects out-of-range / non-integer (no silent clamp)', () => {
-        expect(() => parseFlightLimit(0)).toThrow('--limit');
-        expect(() => parseFlightLimit(51)).toThrow('--limit');
-        expect(() => parseFlightLimit('abc')).toThrow('--limit');
+        expect(() => parseListLimit(0)).toThrow('--limit');
+        expect(() => parseListLimit(51)).toThrow('--limit');
+        expect(() => parseListLimit('abc')).toThrow('--limit');
     });
 });
 

@@ -13,8 +13,8 @@ import {
     buildHotelExtractJs,
     buildHotelSearchUrl,
     parseCityId,
-    parseFlightLimit,
     parseIsoDate,
+    parseListLimit,
 } from './utils.js';
 
 cli({
@@ -46,7 +46,7 @@ cli({
         if (checkin >= checkout) {
             throw new ArgumentError(`--checkin must be before --checkout (got ${checkin} .. ${checkout})`);
         }
-        const limit = parseFlightLimit(kwargs.limit);
+        const limit = parseListLimit(kwargs.limit);
 
         const searchUrl = buildHotelSearchUrl(cityId, checkin, checkout);
         await page.goto(searchUrl);

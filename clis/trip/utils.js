@@ -46,7 +46,7 @@ export function parseIsoDate(name, raw) {
     return value;
 }
 
-export function parseFlightLimit(raw, fallback = 20) {
+export function parseListLimit(raw, fallback = 20) {
     if (raw === undefined || raw === null || raw === '') return fallback;
     const parsed = Number(raw);
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {

@@ -12,9 +12,9 @@ import {
     WAIT_FOR_FLIGHTS_JS,
     buildFlightExtractJs,
     buildFlightSearchUrl,
-    parseFlightLimit,
     parseIataCode,
     parseIsoDate,
+    parseListLimit,
 } from './utils.js';
 
 cli({
@@ -48,7 +48,7 @@ cli({
             throw new ArgumentError(`--from and --to must differ (got ${fromCode})`);
         }
         const date = parseIsoDate('date', kwargs.date);
-        const limit = parseFlightLimit(kwargs.limit);
+        const limit = parseListLimit(kwargs.limit);
 
         const searchUrl = buildFlightSearchUrl(fromCode, toCode, date);
         await page.goto(searchUrl);

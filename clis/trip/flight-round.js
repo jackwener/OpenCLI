@@ -12,9 +12,9 @@ import {
     WAIT_FOR_FLIGHTS_JS,
     buildFlightExtractJs,
     buildFlightRoundSearchUrl,
-    parseFlightLimit,
     parseIataCode,
     parseIsoDate,
+    parseListLimit,
 } from './utils.js';
 
 cli({
@@ -53,7 +53,7 @@ cli({
         if (depart >= ret) {
             throw new ArgumentError(`--depart must be before --return (got ${depart} .. ${ret})`);
         }
-        const limit = parseFlightLimit(kwargs.limit);
+        const limit = parseListLimit(kwargs.limit);
 
         const searchUrl = buildFlightRoundSearchUrl(fromCode, toCode, depart, ret);
         await page.goto(searchUrl);
