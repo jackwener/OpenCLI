@@ -8879,6 +8879,58 @@
   },
   {
     "site": "ctrip",
+    "name": "bus",
+    "description": "搜索携程汽车票（按出发/到达城市名 + 日期）",
+    "access": "read",
+    "domain": "bus.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure city name (e.g. 北京 / 上海)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival city name (e.g. 天津 / 杭州)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of departures (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "departureTime",
+      "fromStation",
+      "toStation",
+      "duration",
+      "price",
+      "status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/bus.js",
+    "sourceFile": "ctrip/bus.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "flight",
     "description": "搜索携程一程机票（按出发/到达 IATA 三字码 + 日期）",
     "access": "read",

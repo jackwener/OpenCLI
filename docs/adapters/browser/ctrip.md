@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -18,6 +18,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip hotel` | Browser (cookie) | Single-hotel detail: rating breakdown, facilities, check-in/out policy |
 | `opencli ctrip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
 | `opencli ctrip train` | Browser (cookie) | Train ticket search by station/city name + departure date |
+| `opencli ctrip bus` | Browser (cookie) | Intercity coach ticket search by city name + departure date |
 
 ## Usage Examples
 
@@ -41,6 +42,9 @@ opencli ctrip flight BJS SHA --date 2026-05-20 --limit 20
 # Train ticket search (station or city names)
 opencli ctrip train 北京 上海 --date 2026-05-20 --limit 20
 opencli ctrip train 杭州 上海虹桥 --date 2026-05-20 -f json
+
+# Intercity coach ticket search (city names)
+opencli ctrip bus 北京 天津 --date 2026-05-20 --limit 20
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -129,6 +133,29 @@ Rows come from `.card-white.list-item` cards, read by stable class-keyed
 fields (`.from/.mid/.to/.rbox/.surplus-list`) rather than positional innerText.
 Cards missing the train number or endpoint times are dropped rather than
 emitted with sentinel values.
+
+## Bus Columns (`bus`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `departureTime` | `HH:MM` departure time |
+| `fromStation`, `toStation` | Departure and arrival coach stations |
+| `duration` | Trip length as shown (e.g. `约2时30分`); `null` if absent |
+| `price` | Fare as a number; `null` if non-numeric |
+| `status` | Availability text (e.g. `暂停网售`, or a remaining-ticket count) |
+| `url` | The results URL (coach rows share the list page, no per-row deeplink) |
+
+Args:
+- `<from>`, `<to>` (positional, required): Chinese city names (e.g. `北京` / `天津`); the results page returns the station-level departures between them.
+- `--date` (required): `YYYY-MM-DD`.
+- `--limit` (1-50, default 20).
+
+The `bus.ctrip.com/` landing is a client-only SPA that does not hydrate under
+the browser bridge, so the command navigates the results route directly via its
+`?param=<json>` deep link. Coach rows arrive through the `busListV2` XHR and are
+read from `.list-item-parent` cards by stable utility-class fields rather than
+positional innerText.
 
 ## Hotel Detail Columns (`hotel`)
 

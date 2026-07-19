@@ -653,4 +653,73 @@ export const WAIT_FOR_HOTEL_DETAIL_JS = `
   })
 `;
 
+/* ------------------------- bus 汽车票 (browser, newbus deep link) ------------------------- */
+
+/**
+ * Build the newbus results deep link. The `bus.ctrip.com/` landing SPA does not
+ * hydrate under the browser bridge, but its results route renders directly from
+ * a `?param=<json>` payload (the shape the app's own search handler posts to
+ * `/list`). Station fields are left blank so the query is city-to-city.
+ */
+export function buildBusListUrl(fromCity, toCity, date) {
+    const param = JSON.stringify({ fromCity, toCity, fromDate: date, fromStation: '', toStation: '' });
+    return `https://bus.ctrip.com/list?param=${encodeURIComponent(param)}`;
+}
+
+/**
+ * Browser-context IIFE that extracts coach rows from the newbus results page.
+ * Schedules arrive via the `busListV2` XHR and render into `.list-item-parent`
+ * rows keyed by stable utility-class fields (`.list-width150` time,
+ * `.list-width200 .cor333` stations, `.bus-desc` duration, `.corred` price,
+ * `.list-seat-parent` availability). Rows missing the time or either station
+ * are dropped rather than surfaced with blanks.
+ */
+export function buildBusExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const rows = [];
+        document.querySelectorAll('.list-item-parent').forEach((card) => {
+          const timeText = clean(card.querySelector('.list-width150'));
+          const depMatch = timeText.match(/\\d{1,2}:\\d{2}/);
+          const departureTime = depMatch ? depMatch[0] : '';
+          const stations = Array.from(card.querySelectorAll('.list-width200 .cor333')).map(clean).filter(Boolean);
+          const fromStation = stations[0] || '';
+          const toStation = stations[1] || '';
+          if (!departureTime || !fromStation || !toStation) return;
+          const priceText = clean(card.querySelector('.corred'));
+          const price = /^\\d+(?:\\.\\d+)?$/.test(priceText) ? Number(priceText) : null;
+          rows.push({
+            departureTime,
+            fromStation,
+            toStation,
+            duration: clean(card.querySelector('.bus-desc')) || null,
+            price,
+            status: clean(card.querySelector('.list-seat-parent')) || null,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the coach list to render (busListV2 XHR settles), or detect a captcha wall. */
+export const WAIT_FOR_BUS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (location.pathname.includes('captcha') || /验证码|verify the human|安全验证/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.list-item-parent')) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 12000);
+  })
+`;
+
 export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT, TRAIN_MIN_LIMIT, TRAIN_MAX_LIMIT, TRAIN_TYPES };

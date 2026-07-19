@@ -7,8 +7,11 @@ import './hotel-search.js';
 import './flight.js';
 import './train.js';
 import './hotel.js';
+import './bus.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
+    buildBusExtractJs,
+    buildBusListUrl,
     buildFlightExtractJs,
     buildHotelDetailExtractJs,
     buildHotelDetailUrl,
@@ -1065,5 +1068,129 @@ describe('ctrip buildHotelDetailExtractJs (JSDOM)', () => {
         dom.window.__NEXT_DATA__ = { props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } };
         await expect(dom.window.Function(`return (${WAIT_FOR_HOTEL_DETAIL_JS})`)())
             .resolves.toBe('content');
+    });
+});
+
+const BUS_CARD = `
+  <div class="list-item-parent">
+    <div class="cor333 fw-bold font16 list-width150 flex-row-start"><div class="margin-left20"></div>07:05</div>
+    <div class="list-width200"><div class="list-item">
+      <div class="flex-row-start"><img class="icon"><div class="font10 cor333 margin-left5">四惠客运站</div></div>
+      <div class="flex-row-center margin-top8"><img class="icon"><div class="font10 cor333 margin-left5">马伸桥</div></div>
+    </div></div>
+    <div class="bus-desc"><div></div><div class="margin-top8">约2时30分</div></div>
+    <div class="flex-row-start"><div class="font10 cor333 margin-top5">￥</div><div class="font18 fw-bold corred">50</div></div>
+    <div class="flex-column-start"><div class="list-seat-parent bg-ccc">暂停网售</div></div>
+  </div>`;
+
+const BUS_RAW = {
+    departureTime: '07:05',
+    fromStation: '四惠客运站',
+    toStation: '马伸桥',
+    duration: '约2时30分',
+    price: 50,
+    status: '暂停网售',
+};
+
+describe('ctrip buildBusListUrl', () => {
+    it('builds the newbus deep-link with a json param payload', () => {
+        const url = buildBusListUrl('北京', '天津', '2026-08-01');
+        expect(url.startsWith('https://bus.ctrip.com/list?param=')).toBe(true);
+        const param = JSON.parse(decodeURIComponent(url.split('param=')[1]));
+        expect(param).toEqual({ fromCity: '北京', toCity: '天津', fromDate: '2026-08-01', fromStation: '', toStation: '' });
+    });
+});
+
+describe('ctrip bus command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/bus');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('bus.ctrip.com');
+    });
+
+    it('rejects invalid city / date / from==to / limit before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: '', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: '北京', to: '北京', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: '北京', to: '天津', date: '08/01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--date') });
+        await expect(cmd.func(page, { from: '北京', to: '天津', date: '2026-08-01', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on render timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render schedule rows') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('throws EmptyResultError when no rows rendered, CommandExec when rendered but no anchors', async () => {
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 3, []]), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required schedule anchors') });
+    });
+
+    it('builds the deep-link URL and maps rows respecting --limit', async () => {
+        const page = createPageMock([
+            'content',
+            2,
+            [BUS_RAW, { ...BUS_RAW, toStation: '仓上屯', price: 45 }],
+        ]);
+        const rows = await cmd.func(page, { from: '北京', to: '天津', date: '2026-08-01', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            rank: 1,
+            departureTime: '07:05',
+            fromStation: '四惠客运站',
+            toStation: '马伸桥',
+            duration: '约2时30分',
+            price: 50,
+            status: '暂停网售',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('bus.ctrip.com/list?param=');
+    });
+});
+
+describe('ctrip buildBusExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://bus.ctrip.com/list' });
+        const js = buildBusExtractJs();
+        return Function('document', `return (${js})`)(dom.window.document);
+    }
+
+    it('extracts a coach row by stable utility-class fields', () => {
+        expect(runExtract(BUS_CARD)).toEqual([BUS_RAW]);
+    });
+
+    it('keeps price null when the price node is missing or non-numeric', () => {
+        const noPrice = BUS_CARD.replace('<div class="font18 fw-bold corred">50</div>', '<div class="font18 fw-bold corred">--</div>');
+        expect(runExtract(noPrice)[0].price).toBeNull();
+    });
+
+    it('drops rows missing the time or either station (no sentinel rows)', () => {
+        const noTime = BUS_CARD.replace('<div class="margin-left20"></div>07:05', '<div class="margin-left20"></div>');
+        expect(runExtract(noTime)).toEqual([]);
+        expect(runExtract('<div class="list-item-parent"></div>')).toEqual([]);
     });
 });
