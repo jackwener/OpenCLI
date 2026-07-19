@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`)
+**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -15,6 +15,7 @@ the same company. These commands search worldwide flights and hotels on
 | `opencli trip flight-round` | Browser (cookie) | Round-trip flight search by IATA route + depart/return dates |
 | `opencli trip hotel-search` | Browser (cookie) | List hotels for a city id + check-in/out date range |
 | `opencli trip hotel` | Browser (cookie) | Single-hotel detail by id: rating breakdown, amenities, check-in/out policy |
+| `opencli trip attraction` | Browser (cookie) | Attractions and experiences (tickets + tours) search by destination keyword |
 
 ## Usage Examples
 
@@ -31,6 +32,9 @@ opencli trip hotel-search 338 --checkin 2026-08-15 --checkout 2026-08-16 --limit
 
 # Single-hotel detail (hotel id from the hotels list)
 opencli trip hotel 715233
+
+# Attractions and experiences search (destination keyword)
+opencli trip attraction Tokyo --limit 20
 ```
 
 ## Flight Columns (`flight`)
@@ -115,6 +119,28 @@ same SSR shape the mainland `ctrip hotel` detail uses), surfacing the fields the
 listing row does not carry. Room-level nightly prices load via a post-SSR XHR and
 are out of scope here.
 
+## Attraction Columns (`attraction`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the rendered list |
+| `name` | Product name (ticket, tour, or experience title) |
+| `rating` | Guest rating out of 5; `null` if unrated |
+| `reviews` | Review count (`4.9k` expanded to `4900`); `null` if absent |
+| `booked` | Booking count (`109.5k` expanded to `109500`); `null` if absent |
+| `price`, `currency` | Current fare (the promo `$N off` tag is excluded) and `USD`; `price` is `null` if absent |
+| `url` | Per-product detail URL (`things-to-do/detail/<id>`) |
+
+Args:
+- `<query>` (positional, required): a destination or attraction keyword (e.g. `Tokyo` / `Paris` / `Louvre`).
+- `--limit` (1-50, default 20).
+
+The products load client-side into hashed CSS-module cards, so rows anchor on
+each card's stable `things-to-do/detail/<id>` link (name is its text, `url` its
+href) and read rating / reviews / booked / price from the card text by
+data-format pattern. Trip.com's "Attractions & Tours" combines tickets, tours,
+and experiences into this one result set.
+
 ## Prerequisites
 
 - Chrome running with the [Browser Bridge extension](/guide/browser-bridge) installed.
@@ -126,5 +152,5 @@ are out of scope here.
 
 - Trip.com is English/USD-facing. For the mainland Chinese site (Chinese UI, CNY,
   domestic rail), use the `ctrip` adapter instead.
-- Flights and hotels ship today. Trip.com's remaining verticals (trains, cars,
-  attractions, tours) are tracked as follow-ups in the adapter request issue.
+- Flights, hotels, and attractions ship today. Trip.com's remaining verticals
+  (trains, cars, airport transfers) are tracked as follow-ups in the adapter request issue.

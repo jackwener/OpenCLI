@@ -305,4 +305,92 @@ export const WAIT_FOR_HOTEL_DETAIL_JS = `
   })
 `;
 
+export function parseKeyword(name, raw) {
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+        throw new ArgumentError(`--${name} is required (a destination or attraction keyword)`);
+    }
+    const value = String(raw).trim();
+    if (value.length > 60) {
+        throw new ArgumentError(`--${name} is too long (max 60 chars): ${JSON.stringify(raw)}`);
+    }
+    return value;
+}
+
+export function buildAttractionSearchUrl(keyword) {
+    const params = new URLSearchParams({ keyword, locale: 'en_US', curr: 'USD' });
+    return `https://www.trip.com/things-to-do/list?${params.toString()}`;
+}
+
+/**
+ * Browser-context IIFE that extracts attraction / experience rows from Trip.com's
+ * things-to-do results. The product cards use hashed CSS-module class names, so
+ * this anchors on the one stable handle each card exposes, the
+ * `things-to-do/detail/<id>` link (name is its text, `url` its href), and reads
+ * rating / reviews / booked / price from the card's text by data-format pattern
+ * rather than by hashed class. The price excludes the "$N off" promo tag and
+ * takes the current (lowest non-promo) fare. Cards without a name or id are
+ * dropped rather than surfaced with blanks.
+ */
+export function buildAttractionExtractJs() {
+    return `
+      (() => {
+        const clean = (s) => (s || '').replace(/\\s+/g, ' ').trim();
+        const kNum = (s) => { if (!s) return null; const n = Number(String(s).replace(/k/i, '').replace(/,/g, '')); return /k/i.test(s) ? Math.round(n * 1000) : n; };
+        const rows = [];
+        const seen = new Set();
+        document.querySelectorAll('a[href*="/things-to-do/detail/"]').forEach((link) => {
+          const name = clean(link.textContent);
+          if (!name || name.length < 4) return;
+          const href = link.getAttribute('href') || '';
+          const idMatch = href.match(/\\/detail\\/(\\d+)/);
+          const id = idMatch ? idMatch[1] : null;
+          if (!id || seen.has(id)) return;
+          seen.add(id);
+          let card = link;
+          const txt = (el) => (el && (el.innerText || el.textContent)) || '';
+          for (let i = 0; i < 6; i++) { if (card.parentElement) { card = card.parentElement; if (/\\$\\s?\\d/.test(txt(card))) break; } }
+          const t = txt(card);
+          const ratingM = t.match(/(\\d(?:\\.\\d)?)\\s*\\/\\s*5/);
+          const reviewsM = t.match(/([\\d.]+k?)\\s+reviews/i);
+          const bookedM = t.match(/([\\d.]+k?)\\s+booked/i);
+          const prices = [];
+          const re = /\\$\\s?([\\d,]+(?:\\.\\d+)?)/g;
+          let m;
+          while ((m = re.exec(t)) !== null) {
+            if (!/off/i.test(t.slice(m.index, m.index + m[0].length + 5))) prices.push(Number(m[1].replace(/,/g, '')));
+          }
+          rows.push({
+            name,
+            rating: ratingM ? Number(ratingM[1]) : null,
+            reviews: kNum(reviewsM && reviewsM[1]),
+            booked: kNum(bookedM && bookedM[1]),
+            price: prices.length ? Math.min.apply(null, prices) : null,
+            url: href.startsWith('http') ? href : ('https://www.trip.com' + href),
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the attraction results to render (products lazy-load), or detect a verification wall. */
+export const WAIT_FOR_ATTRACTIONS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelectorAll('a[href*="/things-to-do/detail/"]').length > 2 && /\\$\\s?\\d/.test(document.body?.innerText || '')) return 'content';
+      if (/no results|no matching|couldn.t find/i.test(document.body?.innerText || '')) return 'empty';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 15000);
+  })
+`;
+
 export const __test__ = { MIN_LIMIT, MAX_LIMIT };

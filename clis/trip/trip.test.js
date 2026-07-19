@@ -5,8 +5,12 @@ import './flight.js';
 import './flight-round.js';
 import './hotel-search.js';
 import './hotel.js';
+import './attraction.js';
 import {
+    WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_HOTEL_DETAIL_JS,
+    buildAttractionExtractJs,
+    buildAttractionSearchUrl,
     buildFlightExtractJs,
     buildFlightRoundSearchUrl,
     buildFlightSearchUrl,
@@ -18,6 +22,7 @@ import {
     parseHotelId,
     parseIataCode,
     parseIsoDate,
+    parseKeyword,
     parseListLimit,
 } from './utils.js';
 
@@ -547,5 +552,100 @@ describe('trip flight-round command (registry-level)', () => {
         }
         expect(page.goto).toHaveBeenCalledTimes(1);
         expect(page.goto.mock.calls[0][0]).toContain('triptype=rt');
+    });
+});
+
+const ATTR_CARD = `
+  <div>
+    <a href="https://www.trip.com/things-to-do/detail/24465457/">Tokyo Metro 24/48/72 Hour Pass</a>
+    <span>4.8 /5</span> <span>4.9k reviews</span> <span>109.5k booked</span>
+    <span>Up to $3 off</span> <span>$5.54</span> <span>$6.16</span>
+  </div>`;
+
+const ATTR_RAW = {
+    name: 'Tokyo Metro 24/48/72 Hour Pass',
+    rating: 4.8,
+    reviews: 4900,
+    booked: 109500,
+    price: 5.54,
+    url: 'https://www.trip.com/things-to-do/detail/24465457/',
+};
+
+describe('trip parseKeyword', () => {
+    it('accepts a non-empty keyword', () => {
+        expect(parseKeyword('query', 'Tokyo')).toBe('Tokyo');
+        expect(parseKeyword('query', '  Paris  ')).toBe('Paris');
+    });
+    it('rejects blank / over-long keywords', () => {
+        expect(() => parseKeyword('query', '')).toThrow('required');
+        expect(() => parseKeyword('query', 'x'.repeat(61))).toThrow('too long');
+    });
+});
+
+describe('trip buildAttractionSearchUrl', () => {
+    it('builds the things-to-do search URL with the keyword', () => {
+        const url = buildAttractionSearchUrl('Tokyo');
+        expect(url.startsWith('https://www.trip.com/things-to-do/list?')).toBe(true);
+        expect(url).toContain('keyword=Tokyo');
+        expect(url).toContain('curr=USD');
+    });
+});
+
+describe('trip attraction command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/attraction');
+
+    it('declares Strategy.COOKIE + browser:true + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects a blank query and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { query: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { query: 'Tokyo', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, EmptyResult on empty, CommandExec on timeout / drift', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { query: 'Tokyo', limit: 5 }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock(['empty']), { query: 'Nowherexyz', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['timeout']), { query: 'Tokyo', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render product cards') });
+        await expect(cmd.func(createPageMock(['content', []]), { query: 'Tokyo', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required detail-link anchors') });
+    });
+
+    it('maps rows with a per-row detail url and respects --limit', async () => {
+        const page = createPageMock(['content', [ATTR_RAW, { ...ATTR_RAW, name: 'Mount Fuji Day Trip', price: 36.29 }]]);
+        const rows = await cmd.func(page, { query: 'Tokyo', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, name: 'Tokyo Metro 24/48/72 Hour Pass', rating: 4.8, reviews: 4900, price: 5.54, currency: 'USD', url: ATTR_RAW.url });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('keyword=Tokyo');
+    });
+});
+
+describe('trip buildAttractionExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { url: 'https://www.trip.com/things-to-do/list' });
+        return Function('document', `return (${buildAttractionExtractJs()})`)(dom.window.document);
+    }
+
+    it('extracts a product by its stable detail link, excluding the promo price', () => {
+        expect(runExtract(ATTR_CARD)).toEqual([ATTR_RAW]);
+    });
+
+    it('dedupes repeated detail links and drops links without a numeric id', () => {
+        expect(runExtract(ATTR_CARD + ATTR_CARD)).toHaveLength(1);
+        expect(runExtract('<div><a href="/things-to-do/detail/none/">No id</a><span>$5</span></div>')).toEqual([]);
     });
 });

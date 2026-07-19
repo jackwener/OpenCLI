@@ -36501,6 +36501,45 @@
   },
   {
     "site": "trip",
+    "name": "attraction",
+    "description": "Search Trip.com attractions and experiences by destination keyword",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Destination or attraction keyword (e.g. Tokyo / Paris / Louvre)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "rating",
+      "reviews",
+      "booked",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/attraction.js",
+    "sourceFile": "trip/attraction.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "trip",
     "name": "flight",
     "description": "Search Trip.com one-way flights by IATA route + departure date",
     "access": "read",
