@@ -35,6 +35,27 @@ describe('zhihu user-articles', () => {
         await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('follows Zhihu http next URLs by upgrading them to https', async () => {
+        const cmd = getRegistry().get('zhihu/user-articles');
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce({
+                data: [{ id: 'p1', title: 'Title 1' }],
+                paging: {
+                    is_end: false,
+                    next: 'http://www.zhihu.com/api/v4/members/foo/articles?offset=1',
+                },
+            })
+            .mockResolvedValueOnce({
+                data: [{ id: 'p2', title: 'Title 2' }],
+                paging: { is_end: true },
+            });
+        await expect(cmd.func({ goto: vi.fn().mockResolvedValue(undefined), evaluate }, { user: 'foo', limit: 2 })).resolves.toEqual([
+            { rank: 1, title: 'Title 1', votes: 0, comments: 0, created: 0, url: 'https://zhuanlan.zhihu.com/p/p1' },
+            { rank: 2, title: 'Title 2', votes: 0, comments: 0, created: 0, url: 'https://zhuanlan.zhihu.com/p/p2' },
+        ]);
+        expect(evaluate.mock.calls[1][0]).toContain('https://www.zhihu.com/api/v4/members/foo/articles?offset=1');
+    });
+
     it('rejects invalid limits before navigation', async () => {
         const cmd = getRegistry().get('zhihu/user-articles');
         const page = { goto: vi.fn(), evaluate: vi.fn() };

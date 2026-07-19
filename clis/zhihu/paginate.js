@@ -57,7 +57,8 @@ function normalizeZhihuApiUrl(value) {
     if (typeof value !== 'string' || !value) return '';
     try {
         const url = new URL(value);
-        if (url.protocol !== 'https:') return '';
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+        url.protocol = 'https:';
         if (url.hostname === 'api.zhihu.com' && url.pathname.startsWith('/members/')) {
             return `https://www.zhihu.com/api/v4${url.pathname}${url.search}`;
         }
@@ -106,6 +107,7 @@ export async function fetchZhihuList(page, firstUrl, limit, label) {
             items.push(item);
             if (items.length >= limit) break;
         }
+        if (items.length >= limit) break;
         if (data.paging?.is_end) break;
         const next = normalizeZhihuApiUrl(data.paging?.next);
         if (!next || !sameZhihuApiPath(next, firstUrl)) {
