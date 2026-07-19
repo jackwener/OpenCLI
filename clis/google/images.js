@@ -13,6 +13,7 @@ import {
     requireSearchQuery,
     runBrowserStep,
     toHttpsUrl,
+    unwrapBrowserResult,
 } from '../_shared/search-adapter.js';
 
 function isNavigationRejected(error) {
@@ -322,33 +323,70 @@ export async function extractGoogleImageRows(maxRows = 20, resolveOriginal = tru
     return candidates.map(function(candidate) { return candidate.row; });
 }
 
+export function inspectGoogleImagesPage(docArg) {
+    var doc = docArg || document;
+    var bodyText = String(doc.body && doc.body.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    var hasResultRoot = !!doc.querySelector('#rso, #islrg, #center_col, #rcnt');
+    var hasImageCandidates = !!doc.querySelector('#rso img, #islrg img, #center_col img, #rcnt img');
+    var captchaOrConsent = /unusual traffic|captcha|not a robot|verify you'?re not a robot|detected unusual traffic|our systems have detected/.test(bodyText)
+        || /before you continue|accept all|reject all|consent/.test(bodyText)
+        || !!doc.querySelector('form[action*="/sorry/"], iframe[src*="recaptcha"], #captcha, input[name="captcha"]');
+    var explicitNoResults = /did not match any documents|no results found|no images found|没有找到|找不到/.test(bodyText);
+    return { hasResultRoot: hasResultRoot, hasImageCandidates: hasImageCandidates, captchaOrConsent: captchaOrConsent, explicitNoResults: explicitNoResults };
+}
+
+function isGoogleInternalResultUrl(value) {
+    try {
+        const host = new URL(value).hostname.replace(/^www\./, '');
+        return host === 'google.com'
+            || host.endsWith('.google.com')
+            || host === 'gstatic.com'
+            || host.endsWith('.gstatic.com')
+            || host === 'googleusercontent.com'
+            || host.endsWith('.googleusercontent.com');
+    } catch {
+        return true;
+    }
+}
+
 function normalizeImageRows(rawRows, query, limit) {
-    const rows = rawRows.map((row, index) => {
+    const rows = rawRows.slice(0, limit).map((row, index) => {
         if (!Array.isArray(row)) {
             throw new CommandExecutionError('google images returned an unexpected row shape.');
         }
-        const title = String(row[0] || '').trim();
         const imageUrl = toHttpsUrl(row[1], 'https://www.google.com');
         const thumbnailUrl = toHttpsUrl(row[2], 'https://www.google.com');
         const sourceUrl = toHttpsUrl(row[3], 'https://www.google.com');
-        if (!imageUrl)
-            return null;
+        if (!imageUrl || !sourceUrl || isGoogleInternalResultUrl(sourceUrl)) {
+            throw new CommandExecutionError('google images returned a result row without stable external image/source identity.');
+        }
+        const source = String(row[4] || '').trim() || new URL(sourceUrl).hostname.replace(/^www\./, '');
+        const title = String(row[0] || '').trim() || source;
         return {
             rank: index + 1,
             title,
             imageUrl,
             thumbnailUrl,
             sourceUrl,
-            source: String(row[4] || '').trim(),
+            source,
             width: Number.isFinite(Number(row[5])) ? Number(row[5]) : null,
             height: Number.isFinite(Number(row[6])) ? Number(row[6]) : null,
         };
-    }).filter(Boolean).slice(0, limit);
+    });
 
     if (rows.length === 0) {
         throw new EmptyResultError('google images', `No Google image results matched "${query}".`);
     }
     return rows;
+}
+
+async function evaluateGoogleImagesPageState(page) {
+    const raw = await page.evaluate(inspectGoogleImagesPage);
+    const state = unwrapBrowserResult(raw);
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+        throw new CommandExecutionError('google images returned an unexpected page-state payload shape.');
+    }
+    return state;
 }
 
 async function evaluateGoogleImageRows(page, limit, resolveOriginal) {
@@ -402,8 +440,17 @@ const command = cli({
         }
 
         const rows = await runBrowserStep('google images extraction', () => evaluateGoogleImageRows(page, limit, resolveOriginal));
+        if (rows.length === 0) {
+            const state = await runBrowserStep('google images page-state inspection', () => evaluateGoogleImagesPageState(page));
+            if (state.captchaOrConsent) {
+                throw new CommandExecutionError('google images is blocked by a Google CAPTCHA/consent/interstitial page.');
+            }
+            if (!state.explicitNoResults) {
+                throw new CommandExecutionError('google images returned no extractable result rows; the page layout may have changed.');
+            }
+        }
         return normalizeImageRows(rows, query, limit);
     },
 });
 
-export const __test__ = { command, evaluateGoogleImageRows, extractGoogleImageRows, normalizeImageRows, navigateGoogleImages };
+export const __test__ = { command, evaluateGoogleImageRows, extractGoogleImageRows, inspectGoogleImagesPage, normalizeImageRows, navigateGoogleImages };

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 
 const { __test__ } = await import('./images.js');
-const { command, extractGoogleImageRows, normalizeImageRows } = __test__;
+const { command, extractGoogleImageRows, inspectGoogleImagesPage, normalizeImageRows } = __test__;
 
 function createPageMock(evaluateResult = []) {
     return {
@@ -264,5 +264,112 @@ describe('google images', () => {
     it('fails typed instead of silently returning empty rows', () => {
         expect(() => normalizeImageRows([], 'nothing', 5)).toThrow(expect.objectContaining({ code: 'EMPTY_RESULT' }));
         expect(() => normalizeImageRows([{ bad: true }], 'bad', 5)).toThrow(expect.objectContaining({ code: 'COMMAND_EXEC' }));
+        expect(() => normalizeImageRows([[
+            'Missing source',
+            'https://cdn.example.com/cat.jpg',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:abc',
+            '',
+            '',
+            320,
+            240,
+        ]], 'bad', 5)).toThrow(expect.objectContaining({ code: 'COMMAND_EXEC' }));
+        expect(() => normalizeImageRows([[
+            'Google internal source',
+            'https://cdn.example.com/cat.jpg',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:abc',
+            'https://www.google.com/search?q=cats',
+            'google.com',
+            320,
+            240,
+        ]], 'bad', 5)).toThrow(expect.objectContaining({ code: 'COMMAND_EXEC' }));
+    });
+
+    it('classifies Google interstitial and explicit no-result pages', () => {
+        const captchaDom = new JSDOM(`
+          <form action="/sorry/index">
+            <div>Our systems have detected unusual traffic from your computer network.</div>
+          </form>
+        `, { url: 'https://www.google.com/search?tbm=isch&q=cats' });
+        const emptyDom = new JSDOM('<div id="center_col">No results found for impossible-query.</div>', {
+            url: 'https://www.google.com/search?tbm=isch&q=impossible-query',
+        });
+
+        expect(inspectGoogleImagesPage(captchaDom.window.document)).toMatchObject({
+            captchaOrConsent: true,
+            explicitNoResults: false,
+        });
+        expect(inspectGoogleImagesPage(emptyDom.window.document)).toMatchObject({
+            captchaOrConsent: false,
+            explicitNoResults: true,
+        });
+    });
+
+    it('typed-fails no rows unless Google exposes an explicit no-results state', async () => {
+        const page = createPageMock();
+        page.evaluate = vi.fn()
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({
+                session: 'site:google',
+                data: {
+                    hasResultRoot: true,
+                    hasImageCandidates: true,
+                    captchaOrConsent: false,
+                    explicitNoResults: false,
+                },
+            });
+
+        await expect(command.func(page, { keyword: 'cats', limit: 1, resolve: false }))
+            .rejects.toThrow(expect.objectContaining({ code: 'COMMAND_EXEC' }));
+    });
+
+    it('preserves true no-results as EmptyResultError when explicit marker is visible', async () => {
+        const page = createPageMock();
+        page.evaluate = vi.fn()
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({
+                session: 'site:google',
+                data: {
+                    hasResultRoot: true,
+                    hasImageCandidates: false,
+                    captchaOrConsent: false,
+                    explicitNoResults: true,
+                },
+            });
+
+        await expect(command.func(page, { keyword: 'impossible-query', limit: 1, resolve: false }))
+            .rejects.toThrow(expect.objectContaining({ code: 'EMPTY_RESULT' }));
+    });
+
+    it('typed-fails CAPTCHA or consent pages instead of reporting empty image results', async () => {
+        const page = createPageMock();
+        page.evaluate = vi.fn()
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({ session: 'site:google', data: [] })
+            .mockResolvedValueOnce({
+                session: 'site:google',
+                data: {
+                    hasResultRoot: false,
+                    hasImageCandidates: false,
+                    captchaOrConsent: true,
+                    explicitNoResults: false,
+                },
+            });
+
+        await expect(command.func(page, { keyword: 'cats', limit: 1, resolve: false }))
+            .rejects.toThrow(expect.objectContaining({ code: 'COMMAND_EXEC' }));
     });
 });
