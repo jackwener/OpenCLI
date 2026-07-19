@@ -290,6 +290,24 @@ describe('xiaohongshu comments', () => {
 
         expect(data.results[0]).toMatchObject({ author: 'Alice', text: 'Great note', images: ['https://sns-img-qc.xhscdn.com/comment-photo.jpg'] });
     });
+    it('does not project author badges or action icons as comment images', async () => {
+        const data = await runCommentsExtract(`
+          <main>
+            <section class="parent-comment">
+              <div class="comment-item">
+                <div class="author-wrapper">
+                  <span class="name">Alice</span>
+                  <img class="author-badge" src="https://sns-img-qc.xhscdn.com/badge.png" />
+                </div>
+                <div class="content">No attached photo</div>
+                <button class="like-action"><img src="https://sns-img-qc.xhscdn.com/like-icon.png" /></button>
+              </div>
+            </section>
+          </main>
+        `);
+
+        expect(data.results[0]).toMatchObject({ author: 'Alice', text: 'No attached photo', images: [] });
+    });
     it('extracts authorHrefRaw from /user/profile/ anchor wrapping the name', async () => {
         const data = await runCommentsExtract(`
           <main>

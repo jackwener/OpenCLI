@@ -203,14 +203,16 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
           const anchor = el.querySelector(HREF_SELECTOR)
           return anchor ? (anchor.getAttribute('href') || '') : ''
         }
-        // Attached comment photos, excluding the author avatar and inline
-        // note-content-emoji stickers rendered inside the comment text.
+        // Attached comment photos, excluding avatars, inline emoji, badges, and
+        // other UI images. Only images inside comment/reply media containers are
+        // projected as media evidence.
         const extractImages = (el) => {
           if (!el) return []
           const urls = []
           el.querySelectorAll('img').forEach(img => {
             if (img.classList.contains('avatar-item')) return
             if (img.closest('.content, .note-text')) return
+            if (!img.closest('.comment-pic, .reply-pic, .comment-image, .reply-image, .comment-img, .reply-img, [class*="comment-pic"], [class*="reply-pic"], [class*="comment-image"], [class*="reply-image"]')) return
             const src = img.currentSrc || img.src || img.getAttribute('data-src') || ''
             if (src && !urls.includes(src)) urls.push(src)
           })
