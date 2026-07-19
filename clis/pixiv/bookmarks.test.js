@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 import './bookmarks.js';
 
@@ -74,9 +74,22 @@ describe('pixiv bookmarks', () => {
     expect(page.evaluate.mock.calls[1][0]).toContain('rest=hide');
   });
 
-  it('throws CommandExecutionError on invalid type before fetching bookmarks', async () => {
+  it('throws CommandExecutionError on malformed bookmark payload shape', async () => {
+    const page = createPageMock([{ id: '37119297' }, { body: { unexpected: [] } }]);
+    await expect(cmd.func(page, { type: 'illust', limit: 10 })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('throws CommandExecutionError on malformed bookmark identity', async () => {
+    const page = createPageMock([
+      { id: '37119297' },
+      { body: { works: [{ id: '../escape', title: '星空', userName: '作者A', userId: '100', tags: [] }] } },
+    ]);
+    await expect(cmd.func(page, { type: 'illust', limit: 10 })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('throws ArgumentError on invalid type before fetching bookmarks', async () => {
     const page = createPageMock([]);
-    await expect(cmd.func(page, { type: 'music' })).rejects.toThrow(CommandExecutionError);
+    await expect(cmd.func(page, { type: 'music' })).rejects.toThrow(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
   });
 

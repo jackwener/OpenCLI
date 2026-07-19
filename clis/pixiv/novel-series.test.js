@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 import './novel-series.js';
 
@@ -12,10 +12,27 @@ beforeAll(() => {
 });
 
 describe('pixiv novel-series', () => {
-  it('throws CommandExecutionError on invalid series ID before navigation', async () => {
+  it('throws ArgumentError on invalid series ID before navigation', async () => {
     const page = createPageMock([]);
-    await expect(cmd.func(page, { id: 'bad' })).rejects.toThrow(CommandExecutionError);
+    await expect(cmd.func(page, { id: 'bad' })).rejects.toThrow(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('throws CommandExecutionError on malformed series content payload', async () => {
+    const page = createPageMock([
+      { body: { title: '示例系列作品' } },
+      { body: { page: {} } },
+    ]);
+    await expect(cmd.func(page, { id: '1064235', limit: 10 })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('throws CommandExecutionError on malformed series novel detail payload', async () => {
+    const page = createPageMock([
+      { body: { title: '示例系列作品' } },
+      { body: { page: { seriesContents: [{ id: '10588833' }] } } },
+      { body: { id: '', title: '晨星图书馆纪行', userName: '示例作者', tags: { tags: [] } } },
+    ]);
+    await expect(cmd.func(page, { id: '1064235', limit: 10 })).rejects.toThrow(CommandExecutionError);
   });
 
   it('returns ordered novel rows for a series', async () => {

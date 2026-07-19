@@ -1,12 +1,53 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { pixivFetch } from './utils.js';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import {
+  normalizePixivPositiveInteger,
+  pixivFetch,
+  requirePixivId,
+  requirePixivPayloadObject,
+  requirePixivString,
+} from './utils.js';
 
 function tagsToString(tags) {
-  return Array.isArray(tags) ? tags.filter(Boolean).slice(0, 8).join(', ') : '';
+  if (tags == null) return '';
+  if (!Array.isArray(tags)) {
+    throw new CommandExecutionError('Pixiv novel search returned malformed tags payload');
+  }
+  return tags.filter(tag => typeof tag === 'string' && tag.trim()).slice(0, 8).join(', ');
 }
 
 function dateOnly(value) {
   return typeof value === 'string' && value ? value.split('T')[0] : '';
+}
+
+function requireNovelSearchItems(body) {
+  const payload = requirePixivPayloadObject(body, 'Pixiv novel search');
+  const novel = requirePixivPayloadObject(payload.novel, 'Pixiv novel search');
+  if (!Array.isArray(novel.data)) {
+    throw new CommandExecutionError('Pixiv novel search returned malformed results payload');
+  }
+  return novel.data;
+}
+
+function novelSearchRow(item, rank) {
+  const work = requirePixivPayloadObject(item, 'Pixiv novel search item');
+  const id = requirePixivId(work.id, 'Pixiv novel search item');
+  const title = requirePixivString(work.title, 'Pixiv novel search item');
+  const author = requirePixivString(work.userName, 'Pixiv novel search item');
+  const userId = requirePixivId(work.userId, 'Pixiv novel search item');
+  return {
+    rank,
+    title,
+    author,
+    user_id: userId,
+    novel_id: id,
+    words: work.wordCount ?? '',
+    characters: work.textCount ?? work.characterCount ?? '',
+    bookmarks: work.bookmarkCount ?? 0,
+    tags: tagsToString(work.tags),
+    created: dateOnly(work.createDate),
+    url: `https://www.pixiv.net/novel/show.php?id=${id}`,
+  };
 }
 
 cli({
@@ -25,27 +66,21 @@ cli({
   ],
   columns: ['rank', 'title', 'author', 'user_id', 'novel_id', 'words', 'characters', 'bookmarks', 'tags', 'created', 'url'],
   func: async (page, kwargs) => {
-    const { query, limit = 20, order = 'date_d', mode = 'all', page: pageNum = 1 } = kwargs;
+    const query = String(kwargs.query ?? '').trim();
+    if (!query) {
+      throw new ArgumentError('query is required');
+    }
+    const limit = normalizePixivPositiveInteger(kwargs.limit, 20, 'limit', { max: 100 });
+    const pageNum = normalizePixivPositiveInteger(kwargs.page, 1, 'page');
+    const order = kwargs.order ?? 'date_d';
+    const mode = kwargs.mode ?? 'all';
     const encoded = encodeURIComponent(query);
     const body = await pixivFetch(page, `/ajax/search/novels/${encoded}`, {
       params: { word: query, order, mode, p: pageNum, s_mode: 's_tag', type: 'novel' },
     });
-    const items = body?.novel?.data || [];
+    const items = requireNovelSearchItems(body);
     return items
-      .filter(item => item.id)
-      .slice(0, Number(limit))
-      .map((item, i) => ({
-        rank: i + 1,
-        title: item.title || '',
-        author: item.userName || '',
-        user_id: item.userId || '',
-        novel_id: String(item.id),
-        words: item.wordCount ?? '',
-        characters: item.textCount ?? item.characterCount ?? '',
-        bookmarks: item.bookmarkCount ?? 0,
-        tags: tagsToString(item.tags),
-        created: dateOnly(item.createDate),
-        url: `https://www.pixiv.net/novel/show.php?id=${item.id}`,
-      }));
+      .slice(0, limit)
+      .map((item, i) => novelSearchRow(item, i + 1));
   },
 });

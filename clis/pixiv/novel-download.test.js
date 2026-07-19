@@ -71,9 +71,18 @@ describe('pixiv novel-download', () => {
     expect(content).toContain('Body text');
   });
 
-  it('throws CommandExecutionError for unsupported formats', async () => {
+  it('throws CommandExecutionError instead of writing an empty file when content is missing', async () => {
+    const page = createPageMock([{ body: {
+      id: '42', title: 'Broken Novel', userName: 'Author', userId: '7', tags: { tags: [] },
+    } }]);
+
+    await expect(cmd.func(page, { 'novel-id': '42', output: '/tmp/novels', format: 'txt' })).rejects.toThrow(CommandExecutionError);
+    expect(mockWriteFileSync).not.toHaveBeenCalled();
+  });
+
+  it('throws ArgumentError for unsupported formats', async () => {
     const page = createPageMock([]);
-    await expect(cmd.func(page, { 'novel-id': '42', format: 'epub' })).rejects.toThrow(CommandExecutionError);
+    await expect(cmd.func(page, { 'novel-id': '42', format: 'epub' })).rejects.toThrow(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
   });
 });

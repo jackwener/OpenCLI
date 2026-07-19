@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 import './novel-search.js';
 
@@ -19,6 +19,24 @@ describe('pixiv novel-search', () => {
 
   it('throws generic error on non-auth HTTP failure', async () => {
     const page = createPageMock([{ __httpError: 500 }]);
+    await expect(cmd.func(page, { query: 'test', limit: 5 })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('throws ArgumentError on empty query before navigation', async () => {
+    const page = createPageMock([]);
+    await expect(cmd.func(page, { query: '   ', limit: 5 })).rejects.toThrow(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
+  it('throws CommandExecutionError on malformed search payload shape', async () => {
+    const page = createPageMock([{ body: { novel: {} } }]);
+    await expect(cmd.func(page, { query: 'test', limit: 5 })).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('throws CommandExecutionError on malformed search item identity', async () => {
+    const page = createPageMock([{ body: { novel: { data: [
+      { id: '', title: 'A', userName: 'u1', userId: '1', tags: [] },
+    ] } } }]);
     await expect(cmd.func(page, { query: 'test', limit: 5 })).rejects.toThrow(CommandExecutionError);
   });
 

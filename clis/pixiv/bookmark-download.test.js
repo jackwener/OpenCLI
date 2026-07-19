@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 
 const { mockHttpDownload, mockMkdirSync, mockWriteFileSync } = vi.hoisted(() => ({
@@ -77,9 +77,20 @@ describe('pixiv bookmark-download', () => {
     expect(result[0].error).toContain('network down');
   });
 
-  it('throws CommandExecutionError on invalid type before navigation', async () => {
+  it('fails before writing paths when bookmark IDs are malformed', async () => {
+    const page = createPageMock([
+      { id: '37119297' },
+      { body: { works: [{ id: '../escape', title: '星空', userName: '作者A', userId: '100', tags: [] }] } },
+    ]);
+
+    await expect(cmd.func(page, { type: 'illust', limit: 1, output: '/tmp/pixiv' })).rejects.toThrow(CommandExecutionError);
+    expect(mockMkdirSync).not.toHaveBeenCalled();
+    expect(mockHttpDownload).not.toHaveBeenCalled();
+  });
+
+  it('throws ArgumentError on invalid type before navigation', async () => {
     const page = createPageMock([]);
-    await expect(cmd.func(page, { type: 'music' })).rejects.toThrow(CommandExecutionError);
+    await expect(cmd.func(page, { type: 'music' })).rejects.toThrow(ArgumentError);
     expect(page.goto).not.toHaveBeenCalled();
   });
 });
