@@ -6491,7 +6491,7 @@
   {
     "site": "chatgpt",
     "name": "model",
-    "description": "Switch ChatGPT web intelligence level (fast, balanced, advanced, very-high, pro)",
+    "description": "Switch ChatGPT web model or intelligence level (GPT-5.6 Pro, fast, balanced, advanced, very-high, pro)",
     "access": "write",
     "domain": "chatgpt.com",
     "strategy": "cookie",
@@ -6502,7 +6502,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Intelligence level to switch to",
+        "help": "ChatGPT model or intelligence level to switch to",
         "choices": [
           "fast",
           "speed",
@@ -6522,6 +6522,14 @@
           "x-high",
           "extra-high",
           "超高",
+          "gpt-5.6-pro",
+          "gpt-5-6-pro",
+          "gpt-5.6-sol-pro",
+          "gpt-5-6-sol-pro",
+          "gpt-5.6",
+          "gpt-5-6",
+          "5.6-pro",
+          "5.6",
           "pro",
           "professional",
           "专业"
