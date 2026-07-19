@@ -57,7 +57,7 @@ cli({
             throw new CommandExecutionError('Ctrip tour DOM extraction returned malformed rows');
         }
         if (raw.length === 0) {
-            throw new EmptyResultError('ctrip tour', `No tour packages for "${destination}"`);
+            throw new CommandExecutionError('Ctrip tour cards rendered but parser did not find required package anchors');
         }
         return raw.slice(0, limit).map((r, i) => ({
             rank: i + 1,

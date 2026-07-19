@@ -80,7 +80,7 @@ cli({
             throw new CommandExecutionError('Ctrip cruise DOM extraction returned malformed rows');
         }
         if (raw.length === 0) {
-            throw new EmptyResultError('ctrip cruise', `No cruises departing "${port}"`);
+            throw new CommandExecutionError('Ctrip cruise cards rendered but parser did not find required itinerary anchors');
         }
         return raw.slice(0, limit).map((r, i) => ({
             rank: i + 1,

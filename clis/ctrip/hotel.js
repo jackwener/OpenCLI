@@ -1,6 +1,6 @@
 /**
- * 携程酒店详情 — single-hotel profile by id: rating sub-scores, hot facilities,
- * check-in/out policy, address, and coordinates.
+ * 携程酒店详情: single-hotel profile by id (rating sub-scores, hot facilities,
+ * check-in/out policy, address, and coordinates).
  *
  * Reads `window.__NEXT_DATA__.props.pageProps.hotelDetailResponse` from the SSR
  * detail page, the same source style as `hotel-search`. This surfaces the fields

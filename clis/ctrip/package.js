@@ -57,7 +57,7 @@ cli({
             throw new CommandExecutionError('Ctrip package DOM extraction returned malformed rows');
         }
         if (raw.length === 0) {
-            throw new EmptyResultError('ctrip package', `No flight-plus-hotel packages for "${destination}"`);
+            throw new CommandExecutionError('Ctrip package cards rendered but parser did not find required package anchors');
         }
         return raw.slice(0, limit).map((r, i) => ({
             rank: i + 1,

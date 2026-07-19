@@ -1453,6 +1453,11 @@ describe('ctrip cruise command (registry-level)', () => {
         expect(page.goto).toHaveBeenCalledTimes(2);
         expect(page.goto.mock.calls[1][0]).toContain('s340.html');
     });
+
+    it('throws CommandExecutionError when cards render but none parse (drift)', async () => {
+        await expect(cmd.func(createPageMock(['content', '2', []]), { port: '上海', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required itinerary anchors') });
+    });
 });
 
 describe('ctrip buildCruiseExtractJs (JSDOM)', () => {
@@ -1536,11 +1541,11 @@ describe('ctrip tour command (registry-level)', () => {
         expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
 
-    it('throws EmptyResultError when the destination has no packages', async () => {
+    it('throws EmptyResultError on an empty destination, CommandExec on rendered-but-unparsed', async () => {
         await expect(cmd.func(createPageMock(['empty']), { destination: '无人区', limit: 5 }))
             .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
-        await expect(cmd.func(createPageMock(['content', []]), { destination: '无人区', limit: 5 }))
-            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', []]), { destination: '北京', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required package anchors') });
     });
 
     it('throws CommandExecutionError on render timeout and malformed extraction', async () => {
@@ -1627,11 +1632,11 @@ describe('ctrip package command (registry-level)', () => {
         expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
 
-    it('throws EmptyResultError when the destination has no packages', async () => {
+    it('throws EmptyResultError on an empty destination, CommandExec on rendered-but-unparsed', async () => {
         await expect(cmd.func(createPageMock(['empty']), { destination: '无人区', limit: 5 }))
             .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
-        await expect(cmd.func(createPageMock(['content', []]), { destination: '无人区', limit: 5 }))
-            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', []]), { destination: '三亚', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required package anchors') });
     });
 
     it('navigates the freetravel search and maps rows respecting --limit', async () => {
