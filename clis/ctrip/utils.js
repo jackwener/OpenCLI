@@ -722,4 +722,76 @@ export const WAIT_FOR_BUS_JS = `
   })
 `;
 
+/* ------------------------- ferry 船票 (browser, ship deep link) ------------------------- */
+
+/**
+ * Build the ship results deep link. Like the coach page, `ship.ctrip.com`'s
+ * search box posts a `?param=<json>` payload to `/ship/list`; the results route
+ * renders directly from it while the landing SPA does not hydrate.
+ */
+export function buildFerryListUrl(fromCity, toCity, date) {
+    const param = JSON.stringify({ fromCityName: fromCity, toCityName: toCity, date });
+    return `https://ship.ctrip.com/ship/list?param=${encodeURIComponent(param)}`;
+}
+
+/**
+ * Browser-context IIFE that extracts ferry sailings from the ship results page.
+ * Sailings arrive via the `getShipLineV2` XHR and render into `.list-item-parent`
+ * rows: `span.list-width100` holds the ship name then the duration, the
+ * `.list-width400` block holds the two `.font600` times and two `.font12` ports,
+ * `.corred` the fare, `.list-seat-parent` the availability. Rows missing the
+ * departure time or either port are dropped rather than surfaced with blanks.
+ */
+export function buildFerryExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const rows = [];
+        document.querySelectorAll('.list-item-parent').forEach((card) => {
+          const times = Array.from(card.querySelectorAll('.list-width400 .font600'))
+            .map((el) => (clean(el).match(/\\d{1,2}:\\d{2}/) || [])[0]).filter(Boolean);
+          const ports = Array.from(card.querySelectorAll('.list-width400 .font12')).map(clean).filter(Boolean);
+          const departureTime = times[0] || '';
+          const arrivalTime = times[1] || '';
+          const fromPort = ports[0] || '';
+          const toPort = ports[1] || '';
+          if (!departureTime || !fromPort || !toPort) return;
+          const spans = Array.from(card.querySelectorAll('span.list-width100')).map(clean);
+          const priceText = clean(card.querySelector('.corred'));
+          const price = /^\\d+(?:\\.\\d+)?$/.test(priceText) ? Number(priceText) : null;
+          rows.push({
+            shipName: spans[0] || null,
+            departureTime,
+            fromPort,
+            arrivalTime,
+            toPort,
+            duration: spans[1] || null,
+            price,
+            status: clean(card.querySelector('.list-seat-parent')) || null,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the ferry list to render (getShipLineV2 XHR settles), or detect a captcha wall. */
+export const WAIT_FOR_FERRY_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (location.pathname.includes('captcha') || /验证码|verify the human|安全验证/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.list-item-parent')) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 12000);
+  })
+`;
+
 export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT, TRAIN_MIN_LIMIT, TRAIN_MAX_LIMIT, TRAIN_TYPES };

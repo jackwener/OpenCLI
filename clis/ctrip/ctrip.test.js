@@ -8,10 +8,13 @@ import './flight.js';
 import './train.js';
 import './hotel.js';
 import './bus.js';
+import './ferry.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
     buildBusExtractJs,
     buildBusListUrl,
+    buildFerryExtractJs,
+    buildFerryListUrl,
     buildFlightExtractJs,
     buildHotelDetailExtractJs,
     buildHotelDetailUrl,
@@ -1191,6 +1194,142 @@ describe('ctrip buildBusExtractJs (JSDOM)', () => {
     it('drops rows missing the time or either station (no sentinel rows)', () => {
         const noTime = BUS_CARD.replace('<div class="margin-left20"></div>07:05', '<div class="margin-left20"></div>');
         expect(runExtract(noTime)).toEqual([]);
+        expect(runExtract('<div class="list-item-parent"></div>')).toEqual([]);
+    });
+});
+
+const FERRY_CARD = `
+  <div class="flex-row-center list-item-parent">
+    <span class="list-width100">渤海晶珠</span>
+    <div class="list-width400 flex-row-center center-column">
+      <div class="flex-column-end flex1">
+        <div class="cor333 font600 font16">09:00</div>
+        <div class="cor333 font12 margin-top7">辽渔大连湾航运中心</div>
+      </div>
+      <div class="flex-row-center margin-bottom7"><div class="list-item-circle"></div><div class="list-item-line"></div><div class="list-item-circle"></div></div>
+      <div class="flex1">
+        <div class="flex-row-center"><div class="cor333 font600 font16">15:30</div></div>
+        <div class="cor333 font12 margin-top7">烟台港客运站</div>
+      </div>
+    </div>
+    <div class="flex1"></div>
+    <span class="list-width100">6时30分</span>
+    <div class="list-width100"><span>￥</span><span class="corred font15">220</span><span>起</span></div>
+    <div class="list-width100 flex-column-end"><div class="list-seat-parent bg-ffb000">选择舱位</div></div>
+  </div>`;
+
+const FERRY_RAW = {
+    shipName: '渤海晶珠',
+    departureTime: '09:00',
+    fromPort: '辽渔大连湾航运中心',
+    arrivalTime: '15:30',
+    toPort: '烟台港客运站',
+    duration: '6时30分',
+    price: 220,
+    status: '选择舱位',
+};
+
+describe('ctrip buildFerryListUrl', () => {
+    it('builds the ship deep-link with a json param payload', () => {
+        const url = buildFerryListUrl('大连', '烟台', '2026-08-01');
+        expect(url.startsWith('https://ship.ctrip.com/ship/list?param=')).toBe(true);
+        const param = JSON.parse(decodeURIComponent(url.split('param=')[1]));
+        expect(param).toEqual({ fromCityName: '大连', toCityName: '烟台', date: '2026-08-01' });
+    });
+});
+
+describe('ctrip ferry command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/ferry');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('ship.ctrip.com');
+    });
+
+    it('rejects invalid city / date / from==to / limit before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: '', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: '大连', to: '大连', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: '大连', to: '烟台', date: '08/01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--date') });
+        await expect(cmd.func(page, { from: '大连', to: '烟台', date: '2026-08-01', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on render timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render sailing rows') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('throws EmptyResultError when no rows rendered, CommandExec when rendered but no anchors', async () => {
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 3, []]), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required sailing anchors') });
+    });
+
+    it('builds the deep-link URL and maps rows respecting --limit', async () => {
+        const page = createPageMock([
+            'content',
+            2,
+            [FERRY_RAW, { ...FERRY_RAW, shipName: '渤海玉珠', price: 200 }],
+        ]);
+        const rows = await cmd.func(page, { from: '大连', to: '烟台', date: '2026-08-01', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            rank: 1,
+            shipName: '渤海晶珠',
+            departureTime: '09:00',
+            fromPort: '辽渔大连湾航运中心',
+            arrivalTime: '15:30',
+            toPort: '烟台港客运站',
+            duration: '6时30分',
+            price: 220,
+            status: '选择舱位',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('ship.ctrip.com/ship/list?param=');
+    });
+});
+
+describe('ctrip buildFerryExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://ship.ctrip.com/ship/list' });
+        const js = buildFerryExtractJs();
+        return Function('document', `return (${js})`)(dom.window.document);
+    }
+
+    it('extracts a ferry sailing by stable class-keyed fields', () => {
+        expect(runExtract(FERRY_CARD)).toEqual([FERRY_RAW]);
+    });
+
+    it('keeps price null when the price node is missing or non-numeric', () => {
+        const noPrice = FERRY_CARD.replace('<span class="corred font15">220</span>', '<span class="corred font15">--</span>');
+        expect(runExtract(noPrice)[0].price).toBeNull();
+    });
+
+    it('drops rows missing the departure time or either port (no sentinel rows)', () => {
+        const noPort = FERRY_CARD.replace('<div class="cor333 font12 margin-top7">烟台港客运站</div>', '');
+        expect(runExtract(noPort)).toEqual([]);
         expect(runExtract('<div class="list-item-parent"></div>')).toEqual([]);
     });
 });

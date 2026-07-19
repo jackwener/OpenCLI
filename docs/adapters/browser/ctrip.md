@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -19,6 +19,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
 | `opencli ctrip train` | Browser (cookie) | Train ticket search by station/city name + departure date |
 | `opencli ctrip bus` | Browser (cookie) | Intercity coach ticket search by city name + departure date |
+| `opencli ctrip ferry` | Browser (cookie) | Passenger ferry sailing search by city name + departure date |
 
 ## Usage Examples
 
@@ -45,6 +46,9 @@ opencli ctrip train 杭州 上海虹桥 --date 2026-05-20 -f json
 
 # Intercity coach ticket search (city names)
 opencli ctrip bus 北京 天津 --date 2026-05-20 --limit 20
+
+# Passenger ferry search (city names)
+opencli ctrip ferry 大连 烟台 --date 2026-05-20 --limit 20
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -156,6 +160,30 @@ the browser bridge, so the command navigates the results route directly via its
 `?param=<json>` deep link. Coach rows arrive through the `busListV2` XHR and are
 read from `.list-item-parent` cards by stable utility-class fields rather than
 positional innerText.
+
+## Ferry Columns (`ferry`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `shipName` | Vessel name (e.g. `渤海晶珠`); `null` if absent |
+| `departureTime`, `arrivalTime` | `HH:MM` strings |
+| `fromPort`, `toPort` | Departure and arrival passenger ports |
+| `duration` | Trip length as shown (e.g. `6时30分`); `null` if absent |
+| `price` | Lowest fare as a number; `null` if non-numeric |
+| `status` | Availability text (e.g. `选择舱位`, `售罄`) |
+| `url` | The results URL (sailings share the list page, no per-row deeplink) |
+
+Args:
+- `<from>`, `<to>` (positional, required): Chinese city names (e.g. `大连` / `烟台`); the results page returns the port-level sailings between them.
+- `--date` (required): `YYYY-MM-DD`.
+- `--limit` (1-50, default 20).
+
+Sibling of `bus`: the `ship.ctrip.com/` landing is a client-only SPA that does
+not hydrate under the browser bridge, so the command navigates the results route
+directly via its `?param=<json>` deep link. Sailings arrive through the
+`getShipLineV2` XHR and are read from `.list-item-parent` cards by stable
+class-keyed fields rather than positional innerText.
 
 ## Hotel Detail Columns (`hotel`)
 

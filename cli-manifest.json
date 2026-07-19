@@ -8931,6 +8931,60 @@
   },
   {
     "site": "ctrip",
+    "name": "ferry",
+    "description": "搜索携程船票（按出发/到达城市名 + 日期）",
+    "access": "read",
+    "domain": "ship.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure city name (e.g. 大连 / 海口)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival city name (e.g. 烟台 / 海安)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of sailings (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "shipName",
+      "departureTime",
+      "fromPort",
+      "arrivalTime",
+      "toPort",
+      "duration",
+      "price",
+      "status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/ferry.js",
+    "sourceFile": "ctrip/ferry.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "flight",
     "description": "搜索携程一程机票（按出发/到达 IATA 三字码 + 日期）",
     "access": "read",
