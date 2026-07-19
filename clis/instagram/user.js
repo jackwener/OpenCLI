@@ -18,22 +18,14 @@ cli({
   const headers = { 'X-IG-App-ID': '936619743392459' };
   const opts = { credentials: 'include', headers };
 
-  // Get user ID first
-  const r1 = await fetch(
-    'https://www.instagram.com/api/v1/users/web_profile_info/?username=' + encodeURIComponent(username),
-    opts
-  );
-  if (!r1.ok) throw new Error('HTTP ' + r1.status + ' - make sure you are logged in to Instagram');
-  const d1 = await r1.json();
-  const userId = d1?.data?.user?.id;
-  if (!userId) throw new Error('User not found: ' + username);
-
-  // Get user feed
+  // Fetch directly by username. web_profile_info is gated for some public
+  // accounts even with a valid session, while this feed endpoint still returns
+  // the same media item shape this command maps.
   const r2 = await fetch(
-    'https://www.instagram.com/api/v1/feed/user/' + userId + '/?count=' + limit,
+    'https://www.instagram.com/api/v1/feed/user/' + encodeURIComponent(username) + '/username/?count=' + limit,
     opts
   );
-  if (!r2.ok) throw new Error('Failed to fetch user feed: HTTP ' + r2.status);
+  if (!r2.ok) throw new Error('HTTP ' + r2.status + ' - make sure you are logged in to Instagram');
   const d2 = await r2.json();
   return (d2?.items || []).slice(0, limit).map((p, i) => ({
     index: i + 1,
