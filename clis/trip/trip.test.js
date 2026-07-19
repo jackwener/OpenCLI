@@ -6,9 +6,11 @@ import './flight-round.js';
 import './hotel-search.js';
 import './hotel.js';
 import './attraction.js';
+import './train.js';
 import {
     WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_HOTEL_DETAIL_JS,
+    WAIT_FOR_TRAINS_JS,
     buildAttractionExtractJs,
     buildAttractionSearchUrl,
     buildFlightExtractJs,
@@ -18,6 +20,8 @@ import {
     buildHotelDetailUrl,
     buildHotelExtractJs,
     buildHotelSearchUrl,
+    buildTrainExtractJs,
+    buildTrainRouteUrl,
     parseCityId,
     parseHotelId,
     parseIataCode,
@@ -647,5 +651,98 @@ describe('trip buildAttractionExtractJs (JSDOM)', () => {
     it('dedupes repeated detail links and drops links without a numeric id', () => {
         expect(runExtract(ATTR_CARD + ATTR_CARD)).toHaveLength(1);
         expect(runExtract('<div><a href="/things-to-do/detail/none/">No id</a><span>$5</span></div>')).toEqual([]);
+    });
+});
+
+const TRAIN_TABLE = `
+  <table>
+    <tr><th class="item item-departure">Departure</th><th class="item item-arrival">Arrival</th></tr>
+    <tr>
+      <td class="item item-departure"><span class="item-time-text">05:27</span>3h 38m, 1 change<span class="item-name">London St. Pancras International</span></td>
+      <td class="item item-arrival"><span class="item-time-text">09:05</span><span class="item-name">Manchester Piccadilly</span></td>
+    </tr>
+    <tr>
+      <td class="item item-departure"><span class="item-time-text">06:08</span>2h 17m, Direct<span class="item-name">London Euston</span></td>
+      <td class="item item-arrival"><span class="item-time-text">08:25</span><span class="item-name">Manchester Piccadilly</span></td>
+    </tr>
+  </table>`;
+
+const TRAIN_RAW = {
+    departureTime: '05:27',
+    fromStation: 'London St. Pancras International',
+    arrivalTime: '09:05',
+    toStation: 'Manchester Piccadilly',
+    duration: '3h 38m',
+    changes: 1,
+};
+
+describe('trip buildTrainRouteUrl', () => {
+    it('slugifies the cities under the country route path', () => {
+        expect(buildTrainRouteUrl('uk', 'London', 'Manchester'))
+            .toBe('https://www.trip.com/trains/uk/route/london-to-manchester/');
+        expect(buildTrainRouteUrl('France', 'Paris', 'Lyon'))
+            .toBe('https://www.trip.com/trains/france/route/paris-to-lyon/');
+    });
+});
+
+describe('trip train command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/train');
+
+    it('declares Strategy.COOKIE + browser:true + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects a blank city / country and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: '', to: 'Manchester', country: 'uk', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: 'London', to: 'Manchester', country: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: 'London', to: 'Manchester', country: 'uk', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, CommandExec on timeout, EmptyResult on no timetable', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { from: 'London', to: 'Manchester', country: 'uk', limit: 5 }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock(['timeout']), { from: 'London', to: 'Manchester', country: 'uk', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render') });
+        await expect(cmd.func(createPageMock(['content', []]), { from: 'London', to: 'Manchester', country: 'uk', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('maps timetable rows against the route URL and respects --limit', async () => {
+        const page = createPageMock(['content', [TRAIN_RAW, { ...TRAIN_RAW, departureTime: '06:08', changes: 0 }]]);
+        const rows = await cmd.func(page, { from: 'London', to: 'Manchester', country: 'uk', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, departureTime: '05:27', fromStation: 'London St. Pancras International', arrivalTime: '09:05', duration: '3h 38m', changes: 1 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('/trains/uk/route/london-to-manchester/');
+    });
+});
+
+describe('trip buildTrainExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { url: 'https://www.trip.com/trains/uk/route/london-to-manchester/' });
+        return Function('document', `return (${buildTrainExtractJs()})`)(dom.window.document);
+    }
+
+    it('extracts timetable journeys, parsing duration and change count', () => {
+        const rows = runExtract(TRAIN_TABLE);
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toEqual(TRAIN_RAW);
+        expect(rows[1].changes).toBe(0);
+        expect(rows[1].fromStation).toBe('London Euston');
+    });
+
+    it('drops the header row and rows missing a time or station', () => {
+        expect(runExtract('<table><tr><th class="item item-departure">Departure</th><th class="item item-arrival">Arrival</th></tr></table>')).toEqual([]);
     });
 });

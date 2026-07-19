@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`)
+**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -16,6 +16,7 @@ the same company. These commands search worldwide flights and hotels on
 | `opencli trip hotel-search` | Browser (cookie) | List hotels for a city id + check-in/out date range |
 | `opencli trip hotel` | Browser (cookie) | Single-hotel detail by id: rating breakdown, amenities, check-in/out policy |
 | `opencli trip attraction` | Browser (cookie) | Attractions and experiences (tickets + tours) search by destination keyword |
+| `opencli trip train` | Browser (cookie) | Train route timetable (departure/arrival times, duration, changes) |
 
 ## Usage Examples
 
@@ -35,6 +36,9 @@ opencli trip hotel 715233
 
 # Attractions and experiences search (destination keyword)
 opencli trip attraction Tokyo --limit 20
+
+# Train route timetable (country slug + cities)
+opencli trip train London Manchester --country uk --limit 20
 ```
 
 ## Flight Columns (`flight`)
@@ -141,6 +145,27 @@ href) and read rating / reviews / booked / price from the card text by
 data-format pattern. Trip.com's "Attractions & Tours" combines tickets, tours,
 and experiences into this one result set.
 
+## Train Columns (`train`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the timetable |
+| `departureTime`, `arrivalTime` | `HH:MM` strings |
+| `fromStation`, `toStation` | Departure and arrival station names |
+| `duration` | Journey length as shown (e.g. `3h 38m`); `null` if absent |
+| `changes` | Number of changes as an integer (`0` for direct); `null` if not stated |
+| `url` | The route timetable URL (journeys share the route page) |
+
+Args:
+- `<from>`, `<to>` (positional, required): city names (e.g. `London` / `Manchester`), slugified into the route URL.
+- `--country` (required): the route country slug Trip.com files the route under (e.g. `uk` / `france` / `italy` / `spain` / `germany` / `china`).
+- `--limit` (1-50, default 20).
+
+Trip.com organises train routes as per-country SEO timetable pages
+(`trains/<country>/route/<from>-to-<to>/`), so `--country` is required. The page
+lists journeys by departure / arrival times, stations, duration, and changes;
+per-journey fares sit behind the booking step and are out of scope here.
+
 ## Prerequisites
 
 - Chrome running with the [Browser Bridge extension](/guide/browser-bridge) installed.
@@ -152,5 +177,5 @@ and experiences into this one result set.
 
 - Trip.com is English/USD-facing. For the mainland Chinese site (Chinese UI, CNY,
   domestic rail), use the `ctrip` adapter instead.
-- Flights, hotels, and attractions ship today. Trip.com's remaining verticals
-  (trains, cars, airport transfers) are tracked as follow-ups in the adapter request issue.
+- Flights, hotels, attractions, and train timetables ship today. Trip.com's
+  remaining verticals (cars, airport transfers) are tracked as follow-ups in the adapter request issue.

@@ -393,4 +393,72 @@ export const WAIT_FOR_ATTRACTIONS_JS = `
   })
 `;
 
+/**
+ * Build the timetable URL for a train route. Trip.com organises route pages under
+ * a country segment (`trains/<country>/route/<from>-to-<to>/`), so the country is
+ * required; the city names are slugified.
+ */
+export function buildTrainRouteUrl(country, from, to) {
+    const slug = (s) => String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return `https://www.trip.com/trains/${slug(country)}/route/${slug(from)}-to-${slug(to)}/`;
+}
+
+/**
+ * Browser-context IIFE that extracts train journeys from a Trip.com route
+ * timetable. Rows are `<tr>` entries with a `.item-departure` / `.item-arrival`
+ * cell (time in `.item-time-text`, station in `.item-name`); duration and change
+ * count are parsed from the departure cell text after the time. The SEO
+ * timetable carries no per-journey fare (it sits behind the "Find Tickets"
+ * booking step). Rows without both times and stations are dropped.
+ */
+export function buildTrainExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const rows = [];
+        document.querySelectorAll('tr').forEach((tr) => {
+          const dep = tr.querySelector('.item-departure');
+          const arr = tr.querySelector('.item-arrival');
+          if (!dep || !arr) return;
+          const departureTime = (clean(dep.querySelector('.item-time-text')).match(/\\d{1,2}:\\d{2}/) || [])[0] || '';
+          const arrivalTime = (clean(arr.querySelector('.item-time-text')).match(/\\d{1,2}:\\d{2}/) || [])[0] || '';
+          const fromStation = clean(dep.querySelector('.item-name'));
+          const toStation = clean(arr.querySelector('.item-name'));
+          if (!departureTime || !arrivalTime || !fromStation || !toStation) return;
+          const rest = clean(dep).replace(departureTime, '');
+          const durMatch = rest.match(/(\\d+\\s*h(?:\\s*\\d+\\s*m)?|\\d+\\s*min)/i);
+          const changeMatch = rest.match(/(\\d+)\\s*changes?/i);
+          rows.push({
+            departureTime,
+            fromStation,
+            arrivalTime,
+            toStation,
+            duration: durMatch ? durMatch[1].replace(/\\s+/g, ' ').trim() : null,
+            changes: changeMatch ? Number(changeMatch[1]) : (/direct|non-?stop/i.test(rest) ? 0 : null),
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for a train timetable to render, or detect a verification wall. */
+export const WAIT_FOR_TRAINS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.item-departure .item-time-text')) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 12000);
+  })
+`;
+
 export const __test__ = { MIN_LIMIT, MAX_LIMIT };

@@ -36747,6 +36747,58 @@
     "navigateBefore": false
   },
   {
+    "site": "trip",
+    "name": "train",
+    "description": "Show a Trip.com train route timetable (departure/arrival times, duration, changes)",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure city (e.g. London / Paris / Shanghai)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival city (e.g. Manchester / Lyon / Beijing)"
+      },
+      {
+        "name": "country",
+        "type": "str",
+        "required": true,
+        "help": "Route country slug (e.g. uk / france / italy / spain / germany / china)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of journeys (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "departureTime",
+      "fromStation",
+      "arrivalTime",
+      "toStation",
+      "duration",
+      "changes",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/train.js",
+    "sourceFile": "trip/train.js",
+    "navigateBefore": false
+  },
+  {
     "site": "tvmaze",
     "name": "search",
     "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",
