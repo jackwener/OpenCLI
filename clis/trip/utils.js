@@ -461,4 +461,69 @@ export const WAIT_FOR_TRAINS_JS = `
   })
 `;
 
+/**
+ * Build the car-rental listing URL for a Trip.com carhire city. Trip.com files
+ * these listings under an SEO path whose text slugs are cosmetic; only the
+ * numeric city id in the trailing segment routes, so a placeholder country/city
+ * slug is used and the id drives the page.
+ */
+export function buildCarListUrl(cityId) {
+    return `https://www.trip.com/carhire/to-city-1/city-${cityId}/`;
+}
+
+/**
+ * Browser-context IIFE that extracts car-rental rows from a Trip.com carhire
+ * listing. Each `.card-item` carries the vehicle category and example model in
+ * `.card-item-title`, the passenger count as the first number in
+ * `.card-item-vehicle-info`, and the daily price in `.car-daily-price`. Cards
+ * without a price or any name are dropped rather than surfaced with blanks.
+ */
+export function buildCarExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const txt = (el) => (el && (el.innerText || el.textContent)) || '';
+        const rows = [];
+        document.querySelectorAll('.card-item').forEach((card) => {
+          const priceText = clean(card.querySelector('.car-daily-price'));
+          const priceM = priceText.match(/\\$\\s?([\\d,]+(?:\\.\\d+)?)/);
+          if (!priceM) return;
+          const titleText = txt(card.querySelector('.card-item-title'));
+          const vehicle = clean(card.querySelector('.title-info')) || null;
+          const category = (vehicle ? titleText.replace(vehicle, '') : titleText).replace(/\\s+/g, ' ').trim() || null;
+          if (!category && !vehicle) return;
+          const seatsM = txt(card.querySelector('.card-item-vehicle-info')).match(/\\d+/);
+          rows.push({
+            category,
+            vehicle,
+            seats: seatsM ? Number(seatsM[0]) : null,
+            price: Number(priceM[1].replace(/,/g, '')),
+            currency: /\\$/.test(priceText) ? 'USD' : null,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the car listing to render, or detect a verification wall. */
+export const WAIT_FOR_CARS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.card-item .car-daily-price')) return 'content';
+      if (/no results|no matching|couldn.t find|not available/i.test(document.body?.innerText || '')) return 'empty';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 15000);
+  })
+`;
+
 export const __test__ = { MIN_LIMIT, MAX_LIMIT };

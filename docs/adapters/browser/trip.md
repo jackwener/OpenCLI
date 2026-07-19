@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`)
+**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -17,6 +17,7 @@ the same company. These commands search worldwide flights and hotels on
 | `opencli trip hotel` | Browser (cookie) | Single-hotel detail by id: rating breakdown, amenities, check-in/out policy |
 | `opencli trip attraction` | Browser (cookie) | Attractions and experiences (tickets + tours) search by destination keyword |
 | `opencli trip train` | Browser (cookie) | Train route timetable (departure/arrival times, duration, changes) |
+| `opencli trip car` | Browser (cookie) | Car-rental listing for a city (category, model, seats, daily price) |
 
 ## Usage Examples
 
@@ -39,6 +40,9 @@ opencli trip attraction Tokyo --limit 20
 
 # Train route timetable (country slug + cities)
 opencli trip train London Manchester --country uk --limit 20
+
+# Car-rental listing (numeric carhire city id, e.g. 313 for San Francisco)
+opencli trip car 313 --limit 10
 ```
 
 ## Flight Columns (`flight`)
@@ -166,6 +170,29 @@ Trip.com organises train routes as per-country SEO timetable pages
 lists journeys by departure / arrival times, stations, duration, and changes;
 per-journey fares sit behind the booking step and are out of scope here.
 
+## Car Columns (`car`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the rendered listing |
+| `category` | Vehicle class (e.g. `Mid-sized car`, `Compact SUV`) |
+| `vehicle` | Example model shown for the class (e.g. `Toyota Camry or Similar`) |
+| `seats` | Passenger capacity as an integer; `null` if absent |
+| `price`, `currency` | Representative daily price and `USD`; `price` is `null` when non-numeric |
+| `url` | The listing URL (vehicles share the city page) |
+
+Args:
+- `<city>` (positional, required): numeric Trip.com carhire city id (discover via the carhire search box; e.g. `313` for San Francisco).
+- `--limit` (1-50, default 20).
+
+Trip.com files car-rental listings under an SEO path whose text slugs are
+cosmetic, so only the numeric carhire city id routes the page. Rows come from
+`.card-item` cards, read by stable class fields (`.card-item-title` /
+`.card-item-vehicle-info` / `.car-daily-price`); the daily price is the site's
+near-term representative rate, while a dated pickup / drop-off quote sits behind
+the booking step and is out of scope here. Cards without a price are dropped
+rather than surfaced with blanks.
+
 ## Prerequisites
 
 - Chrome running with the [Browser Bridge extension](/guide/browser-bridge) installed.
@@ -177,5 +204,5 @@ per-journey fares sit behind the booking step and are out of scope here.
 
 - Trip.com is English/USD-facing. For the mainland Chinese site (Chinese UI, CNY,
   domestic rail), use the `ctrip` adapter instead.
-- Flights, hotels, attractions, and train timetables ship today. Trip.com's
-  remaining verticals (cars, airport transfers) are tracked as follow-ups in the adapter request issue.
+- Flights, hotels, attractions, train timetables, and car rentals ship today.
+  Trip.com's remaining vertical (airport transfers) is tracked as a follow-up in the adapter request issue.

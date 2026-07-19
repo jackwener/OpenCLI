@@ -7,12 +7,16 @@ import './hotel-search.js';
 import './hotel.js';
 import './attraction.js';
 import './train.js';
+import './car.js';
 import {
     WAIT_FOR_ATTRACTIONS_JS,
+    WAIT_FOR_CARS_JS,
     WAIT_FOR_HOTEL_DETAIL_JS,
     WAIT_FOR_TRAINS_JS,
     buildAttractionExtractJs,
     buildAttractionSearchUrl,
+    buildCarExtractJs,
+    buildCarListUrl,
     buildFlightExtractJs,
     buildFlightRoundSearchUrl,
     buildFlightSearchUrl,
@@ -744,5 +748,103 @@ describe('trip buildTrainExtractJs (JSDOM)', () => {
 
     it('drops the header row and rows missing a time or station', () => {
         expect(runExtract('<table><tr><th class="item item-departure">Departure</th><th class="item item-arrival">Arrival</th></tr></table>')).toEqual([]);
+    });
+});
+
+const CAR_CARDS = `
+  <div class="card-item">
+    <div class="card-item-title"><span>Mid-sized car</span><div class="title-info">Toyota Camry or Similar</div></div>
+    <div class="card-item-vehicle-info"><span>5</span> <span>3</span> <span>4</span></div>
+    <div class="card-item-price"><div class="card-item-price__main"><span class="car-daily-price">From $50 /day</span></div></div>
+  </div>
+  <div class="card-item">
+    <div class="card-item-title"><span>Compact car</span><div class="title-info">Toyota Corolla or Similar</div></div>
+    <div class="card-item-vehicle-info"><span>5</span> <span>3</span> <span>4</span></div>
+    <div class="card-item-price"><div class="card-item-price__main"><span class="car-daily-price">From $47 /day</span></div></div>
+  </div>`;
+
+const CAR_RAW = {
+    category: 'Mid-sized car',
+    vehicle: 'Toyota Camry or Similar',
+    seats: 5,
+    price: 50,
+    currency: 'USD',
+};
+
+describe('trip buildCarListUrl', () => {
+    it('routes by the numeric city id with cosmetic slugs', () => {
+        expect(buildCarListUrl('313')).toBe('https://www.trip.com/carhire/to-city-1/city-313/');
+    });
+});
+
+describe('trip car command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/car');
+
+    it('declares Strategy.COOKIE + browser:true + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects a non-numeric city and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { city: 'san francisco', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('numeric') });
+        await expect(cmd.func(page, { city: '313', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, EmptyResult on an empty listing, CommandExec on timeout or drift', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { city: '313', limit: 5 }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock(['empty']), { city: '313', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['timeout']), { city: '313', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render') });
+        await expect(cmd.func(createPageMock(['content', []]), { city: '313', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find') });
+    });
+
+    it('maps vehicle rows against the listing URL and respects --limit', async () => {
+        const page = createPageMock(['content', [CAR_RAW, { ...CAR_RAW, category: 'Compact car', price: 47 }]]);
+        const rows = await cmd.func(page, { city: '313', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, category: 'Mid-sized car', vehicle: 'Toyota Camry or Similar', seats: 5, price: 50, currency: 'USD' });
+        expect(rows[0].url).toBe('https://www.trip.com/carhire/to-city-1/city-313/');
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('trip buildCarExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { url: 'https://www.trip.com/carhire/to-city-1/city-313/' });
+        return Function('document', `return (${buildCarExtractJs()})`)(dom.window.document);
+    }
+
+    it('splits the category from the example model and reads seats + price', () => {
+        const rows = runExtract(CAR_CARDS);
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toEqual(CAR_RAW);
+        expect(rows[1]).toMatchObject({ category: 'Compact car', vehicle: 'Toyota Corolla or Similar', price: 47 });
+    });
+
+    it('drops cards without a rendered price', () => {
+        expect(runExtract('<div class="card-item"><div class="card-item-title"><div class="title-info">No Price Car</div></div></div>')).toEqual([]);
+    });
+});
+
+describe('trip WAIT_FOR_CARS_JS (JSDOM)', () => {
+    it('detects a rendered price anchor as content', async () => {
+        const dom = new JSDOM('<!doctype html><html><body><div class="card-item"><span class="car-daily-price">From $50 /day</span></div></body></html>', {
+            url: 'https://www.trip.com/carhire/to-city-1/city-313/',
+            runScripts: 'outside-only',
+        });
+        await expect(dom.window.Function(`return (${WAIT_FOR_CARS_JS})`)())
+            .resolves.toBe('content');
     });
 });
