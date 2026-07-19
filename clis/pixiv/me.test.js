@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
@@ -29,7 +30,7 @@ describe('pixiv me', () => {
     }]);
   });
 
-  it('accepts a DOM-derived current user fallback from the Pixiv shell', async () => {
+  it('accepts sparse current user data from trusted Pixiv globals', async () => {
     const page = createPageMock([{
       id: '66676548',
       name: '_ *',
@@ -43,6 +44,11 @@ describe('pixiv me', () => {
       profile_image: '',
       url: 'https://www.pixiv.net/users/66676548',
     }]);
+  });
+
+  it('does not use arbitrary profile links as current-account proof', () => {
+    const source = readFileSync(new URL('./utils.js', import.meta.url), 'utf8');
+    expect(source).not.toContain("querySelectorAll('a[href]')");
   });
 
   it('throws AuthRequiredError when Pixiv has no current user data', async () => {

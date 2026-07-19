@@ -18,6 +18,13 @@ describe('pixiv novel-series', () => {
     expect(page.goto).not.toHaveBeenCalled();
   });
 
+  it('throws ArgumentError on coerced limit strings before navigation', async () => {
+    const page = createPageMock([]);
+    await expect(cmd.func(page, { id: '1064235', limit: '1e2' })).rejects.toThrow(ArgumentError);
+    await expect(cmd.func(page, { id: '1064235', limit: '030' })).rejects.toThrow(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
   it('throws CommandExecutionError on malformed series content payload', async () => {
     const page = createPageMock([
       { body: { title: '示例系列作品' } },

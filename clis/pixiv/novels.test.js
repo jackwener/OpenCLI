@@ -18,6 +18,13 @@ describe('pixiv novels', () => {
     expect(page.goto).not.toHaveBeenCalled();
   });
 
+  it('throws ArgumentError on coerced limit strings before navigation', async () => {
+    const page = createPageMock([]);
+    await expect(cmd.func(page, { 'user-id': '37119297', limit: '1e2' })).rejects.toThrow(ArgumentError);
+    await expect(cmd.func(page, { 'user-id': '37119297', limit: '020' })).rejects.toThrow(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
   it('returns empty array when the user has no novels', async () => {
     const page = createPageMock([{ body: { novels: {} } }]);
     const result = await cmd.func(page, { 'user-id': '37119297', limit: 10 });
