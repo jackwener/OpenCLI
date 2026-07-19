@@ -470,4 +470,103 @@ export function buildScrollUntilJs(rowSelector, targetCount, maxScrolls = 8) {
     `;
 }
 
-export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT };
+const TRAIN_MIN_LIMIT = 1;
+const TRAIN_MAX_LIMIT = 50;
+const TRAIN_TYPES = { gaotie: 'G', dongche: 'D', normal: 'Z', other: 'L' };
+
+export function parseTrainLimit(raw, fallback = 20) {
+    if (raw === undefined || raw === null || raw === '') return fallback;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be an integer between ${TRAIN_MIN_LIMIT} and ${TRAIN_MAX_LIMIT}, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < TRAIN_MIN_LIMIT || parsed > TRAIN_MAX_LIMIT) {
+        throw new ArgumentError(`--limit must be between ${TRAIN_MIN_LIMIT} and ${TRAIN_MAX_LIMIT}, got ${parsed}`);
+    }
+    return parsed;
+}
+
+/** Validate a Chinese station/city name for the train-list query. */
+export function parseStationName(name, raw) {
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+        throw new ArgumentError(`--${name} is required (station or city name, e.g. 北京 / 上海虹桥)`);
+    }
+    const value = String(raw).trim();
+    // The train-list endpoint keys on the Chinese station/city name; reject
+    // control characters and over-long input rather than passing them through.
+    if (value.length > 20 || /[\x00-\x1f]/.test(value)) {
+        throw new ArgumentError(`--${name} is not a valid station name: ${JSON.stringify(raw)}`);
+    }
+    return value;
+}
+
+export function buildTrainListUrl(fromName, toName, date) {
+    const params = new URLSearchParams({
+        dStationName: fromName,
+        aStationName: toName,
+        dDate: date,
+        ticketType: '1',
+    });
+    return `https://trains.ctrip.com/webapp/train/list?${params.toString()}`;
+}
+
+/**
+ * Browser-context IIFE that extracts train rows from the trains.ctrip.com
+ * list page. Each `.card-white.list-item` exposes stable, class-keyed leaf
+ * fields (`.from/.mid/.to/.rbox/.surplus-list`), so we read by selector rather
+ * than parsing innerText. Rows missing the train number, endpoints, or times
+ * are dropped instead of surfaced with empty anchors.
+ */
+export function buildTrainExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const rows = [];
+        document.querySelectorAll('.card-white.list-item').forEach((card) => {
+          const trainNo = clean(card.querySelector('.checi'));
+          const departureTime = clean(card.querySelector('.from .time'));
+          const departureStation = clean(card.querySelector('.from .station'));
+          const arrivalTime = clean(card.querySelector('.to .time'));
+          const arrivalStation = clean(card.querySelector('.to .station'));
+          if (!trainNo || !departureTime || !departureStation || !arrivalTime || !arrivalStation) return;
+          const priceText = clean(card.querySelector('.rbox .price'));
+          const fromPrice = /^\\d+(?:\\.\\d+)?$/.test(priceText) ? Number(priceText) : null;
+          const seats = Array.from(card.querySelectorAll('.surplus-list > li'))
+            .map((li) => (li.textContent || '').replace(/\\s+/g, '').trim())
+            .filter(Boolean);
+          rows.push({
+            trainNo,
+            departureTime,
+            departureStation,
+            arrivalTime,
+            arrivalStation,
+            duration: clean(card.querySelector('.haoshi')) || null,
+            fromPrice,
+            seats,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the train list to render, or detect a captcha/verification wall. */
+export const WAIT_FOR_TRAINS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/验证码|verify the human|安全验证/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.card-white.list-item')) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 10000);
+  })
+`;
+
+export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT, TRAIN_MIN_LIMIT, TRAIN_MAX_LIMIT, TRAIN_TYPES };

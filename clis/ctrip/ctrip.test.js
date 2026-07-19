@@ -5,10 +5,13 @@ import './search.js';
 import './hotel-suggest.js';
 import './hotel-search.js';
 import './flight.js';
+import './train.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
     buildFlightExtractJs,
     buildScrollUntilJs,
+    buildTrainExtractJs,
+    buildTrainListUrl,
     buildUrl,
     mapHotelRow,
     mapSuggestRow,
@@ -16,6 +19,8 @@ import {
     parseIataCode,
     parseIsoDate,
     parseLimit,
+    parseStationName,
+    parseTrainLimit,
     pickCoords,
     pickHotelMapCoords,
 } from './utils.js';
@@ -715,5 +720,180 @@ describe('ctrip buildFlightExtractJs (JSDOM)', () => {
           </span></div>
         `;
         expect(runExtract(html)).toEqual([]);
+    });
+});
+
+describe('ctrip parseStationName', () => {
+    it('accepts Chinese station / city names', () => {
+        expect(parseStationName('from', '北京')).toBe('北京');
+        expect(parseStationName('to', ' 上海虹桥 ')).toBe('上海虹桥');
+    });
+
+    it('rejects empty / control-char / over-long names', () => {
+        expect(() => parseStationName('from', '')).toThrow('required');
+        expect(() => parseStationName('from', undefined)).toThrow('required');
+        expect(() => parseStationName('from', 'a'.repeat(21))).toThrow('not a valid station name');
+        expect(() => parseStationName('from', 'bad\x01name')).toThrow('not a valid station name');
+    });
+});
+
+describe('ctrip parseTrainLimit', () => {
+    it('falls back to default for empty / undefined / null', () => {
+        expect(parseTrainLimit(undefined)).toBe(20);
+        expect(parseTrainLimit('')).toBe(20);
+        expect(parseTrainLimit(undefined, 5)).toBe(5);
+    });
+
+    it('rejects out-of-range / non-integer values (no silent clamp)', () => {
+        expect(() => parseTrainLimit(0)).toThrow('--limit');
+        expect(() => parseTrainLimit(51)).toThrow('--limit');
+        expect(() => parseTrainLimit(1.5)).toThrow('--limit');
+        expect(() => parseTrainLimit('abc')).toThrow('--limit');
+    });
+});
+
+describe('ctrip buildTrainListUrl', () => {
+    it('encodes station names and pins ticketType', () => {
+        const url = buildTrainListUrl('北京', '上海', '2026-08-01');
+        expect(url).toContain('https://trains.ctrip.com/webapp/train/list?');
+        const qs = new URL(url).searchParams;
+        expect(qs.get('dStationName')).toBe('北京');
+        expect(qs.get('aStationName')).toBe('上海');
+        expect(qs.get('dDate')).toBe('2026-08-01');
+        expect(qs.get('ticketType')).toBe('1');
+    });
+});
+
+describe('ctrip train command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/train');
+
+    const TRAIN_RAW = {
+        trainNo: 'G531',
+        departureTime: '06:08',
+        departureStation: '北京南',
+        arrivalTime: '12:04',
+        arrivalStation: '上海虹桥',
+        duration: '5时56分',
+        fromPrice: 626,
+        seats: ['二等座有票', '一等座(抢)', '商务座(抢)'],
+    };
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('trains.ctrip.com');
+    });
+
+    it('rejects invalid station / date / from==to / limit before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: '', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: '北京', to: '北京', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: '北京', to: '上海', date: '08/01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--date') });
+        await expect(cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on render timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render train cards') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('throws EmptyResultError when no cards rendered, CommandExec when cards rendered but no anchors', async () => {
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 3, []]), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required train anchors') });
+    });
+
+    it('builds the encoded train-list URL from the raw station names', async () => {
+        const page = createPageMock(['content', 1, [TRAIN_RAW]]);
+        await cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 1 });
+        const url = page.goto.mock.calls[0][0];
+        expect(url).toContain('dStationName=%E5%8C%97%E4%BA%AC');
+        expect(url).toContain('dDate=2026-08-01');
+        expect(url).toContain('ticketType=1');
+    });
+
+    it('maps DOM-extracted rows, joins seats, and respects --limit', async () => {
+        const page = createPageMock([
+            'content',
+            2,
+            [TRAIN_RAW, { ...TRAIN_RAW, trainNo: 'G1', fromPrice: 661, seats: ['二等座有票'] }],
+        ]);
+        const rows = await cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            rank: 1,
+            trainNo: 'G531',
+            departureTime: '06:08',
+            departureStation: '北京南',
+            arrivalTime: '12:04',
+            arrivalStation: '上海虹桥',
+            duration: '5时56分',
+            fromPrice: 626,
+            seats: '二等座有票 / 一等座(抢) / 商务座(抢)',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+    });
+});
+
+describe('ctrip buildTrainExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://trains.ctrip.com/' });
+        const js = buildTrainExtractJs();
+        return Function('document', `return (${js})`)(dom.window.document);
+    }
+
+    const CARD = `
+      <div class="card-white list-item">
+        <div class="list-bd">
+          <div class="from"><div class="time">06:08</div><div class="station">北京南</div></div>
+          <div class="mid"><div class="haoshi">5时56分</div><div class="checi">G531<i class="ifont-cert"></i></div></div>
+          <div class="to"><div class="time">12:04</div><div class="station">上海虹桥</div></div>
+          <div class="rbox"><div class="price">626</div></div>
+        </div>
+        <ul class="surplus-list"><li>二等座有票</li><li>一等座(抢)</li><li>商务座(抢)</li></ul>
+      </div>`;
+
+    it('extracts a train card by stable class-keyed fields', () => {
+        expect(runExtract(CARD)).toEqual([{
+            trainNo: 'G531',
+            departureTime: '06:08',
+            departureStation: '北京南',
+            arrivalTime: '12:04',
+            arrivalStation: '上海虹桥',
+            duration: '5时56分',
+            fromPrice: 626,
+            seats: ['二等座有票', '一等座(抢)', '商务座(抢)'],
+        }]);
+    });
+
+    it('keeps fromPrice null when the price node is missing or non-numeric', () => {
+        const noPrice = CARD.replace('<div class="price">626</div>', '<div class="price">--</div>');
+        expect(runExtract(noPrice)[0].fromPrice).toBeNull();
+    });
+
+    it('drops cards missing the train number or endpoints (no sentinel rows)', () => {
+        const noCheci = CARD.replace('G531<i class="ifont-cert"></i>', '');
+        expect(runExtract(noCheci)).toEqual([]);
+        expect(runExtract('<div class="card-white list-item"></div>')).toEqual([]);
     });
 });

@@ -9113,6 +9113,60 @@
   },
   {
     "site": "ctrip",
+    "name": "train",
+    "description": "搜索携程火车票（按出发/到达站名 + 日期）",
+    "access": "read",
+    "domain": "trains.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure station or city name (e.g. 北京 / 上海虹桥)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival station or city name (e.g. 上海 / 杭州东)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of trains (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "trainNo",
+      "departureTime",
+      "departureStation",
+      "arrivalTime",
+      "arrivalStation",
+      "duration",
+      "fromPrice",
+      "seats",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/train.js",
+    "sourceFile": "ctrip/train.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "whoami",
     "description": "Show the current logged-in ctrip account",
     "access": "read",

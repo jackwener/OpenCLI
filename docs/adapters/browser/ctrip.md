@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `flight`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `flight`, `train`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -16,6 +16,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip hotel-suggest` | Public | Suggest cities, business areas and individual hotels |
 | `opencli ctrip hotel-search` | Browser (cookie) | List hotels for a city + check-in/out date range |
 | `opencli ctrip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
+| `opencli ctrip train` | Browser (cookie) | Train ticket search by station/city name + departure date |
 
 ## Usage Examples
 
@@ -31,6 +32,10 @@ opencli ctrip hotel-search 2 --checkin 2026-05-20 --checkout 2026-05-21 --limit 
 
 # One-way flight search
 opencli ctrip flight BJS SHA --date 2026-05-20 --limit 20
+
+# Train ticket search (station or city names)
+opencli ctrip train 北京 上海 --date 2026-05-20 --limit 20
+opencli ctrip train 杭州 上海虹桥 --date 2026-05-20 -f json
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -96,6 +101,29 @@ Rows are extracted from `.flight-list > span > div` cards because Ctrip's
 post-load XHR is not currently captured by the daemon network buffer (see
 "Caveats" below). Cards with missing departure/arrival/airline are dropped
 rather than emitted with sentinel values.
+
+## Train Columns (`train`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `trainNo` | Train number (`G531` / `D701` / `K528`); the `.checi` icon suffix is stripped |
+| `departureTime`, `arrivalTime` | `HH:MM` strings |
+| `departureStation`, `arrivalStation` | Station names (e.g. `北京南`, `上海虹桥`) |
+| `duration` | Trip length as shown (e.g. `5时56分`); `null` if absent |
+| `fromPrice` | Lowest fare shown for the train as a number; `null` if non-numeric |
+| `seats` | Seat-class availability joined by ` / ` (e.g. `二等座有票 / 一等座17张 / 商务座(抢)`) |
+| `url` | The search URL (train rows share the list page, no per-row deeplink) |
+
+Args:
+- `<from>`, `<to>` (positional, required): Chinese station or city names (e.g. `北京` / `上海虹桥`); the list page resolves them the same way the website search box does.
+- `--date` (required): `YYYY-MM-DD`.
+- `--limit` (1-50, default 20).
+
+Rows come from `.card-white.list-item` cards, read by stable class-keyed
+fields (`.from/.mid/.to/.rbox/.surplus-list`) rather than positional innerText.
+Cards missing the train number or endpoint times are dropped rather than
+emitted with sentinel values.
 
 ## Notes
 
