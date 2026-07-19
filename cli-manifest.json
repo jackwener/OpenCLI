@@ -34192,9 +34192,9 @@
     "name": "hot-rank",
     "description": "同花顺热股榜",
     "access": "read",
-    "domain": "eq.10jqka.com.cn",
-    "strategy": "cookie",
-    "browser": true,
+    "domain": "dq.10jqka.com.cn",
+    "strategy": "public",
+    "browser": false,
     "args": [
       {
         "name": "limit",
@@ -34213,8 +34213,7 @@
     ],
     "type": "js",
     "modulePath": "ths/hot-rank.js",
-    "sourceFile": "ths/hot-rank.js",
-    "navigateBefore": true
+    "sourceFile": "ths/hot-rank.js"
   },
   {
     "site": "tieba",
