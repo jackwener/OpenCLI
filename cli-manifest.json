@@ -8936,6 +8936,45 @@
   },
   {
     "site": "ctrip",
+    "name": "hotel",
+    "description": "查看携程单个酒店详情（评分细分、热门设施、入离政策、位置）",
+    "access": "read",
+    "domain": "hotels.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric Ctrip hotel id (use `ctrip hotel-suggest` to discover; e.g. 375539)"
+      }
+    ],
+    "columns": [
+      "hotelId",
+      "name",
+      "enName",
+      "star",
+      "score",
+      "scoreLabel",
+      "reviewCount",
+      "ratingBreakdown",
+      "facilities",
+      "checkInOut",
+      "cityName",
+      "address",
+      "lat",
+      "lon",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/hotel.js",
+    "sourceFile": "ctrip/hotel.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "hotel-search",
     "description": "搜索携程酒店列表（按城市 + 入住/离店日期）",
     "access": "read",

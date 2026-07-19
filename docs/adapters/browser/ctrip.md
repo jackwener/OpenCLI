@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `flight`, `train`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -15,6 +15,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip search` | Public | Suggest cities, scenic spots, railway stations and landmarks |
 | `opencli ctrip hotel-suggest` | Public | Suggest cities, business areas and individual hotels |
 | `opencli ctrip hotel-search` | Browser (cookie) | List hotels for a city + check-in/out date range |
+| `opencli ctrip hotel` | Browser (cookie) | Single-hotel detail: rating breakdown, facilities, check-in/out policy |
 | `opencli ctrip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
 | `opencli ctrip train` | Browser (cookie) | Train ticket search by station/city name + departure date |
 
@@ -29,6 +30,10 @@ opencli ctrip hotel-suggest 陆家嘴 --limit 5
 
 # Hotel listing (city ID from `search` / `hotel-suggest`)
 opencli ctrip hotel-search 2 --checkin 2026-05-20 --checkout 2026-05-21 --limit 10
+
+# Single-hotel detail (hotel id from `hotel-suggest`)
+opencli ctrip hotel 375539
+opencli ctrip hotel 375539 -f json
 
 # One-way flight search
 opencli ctrip flight BJS SHA --date 2026-05-20 --limit 20
@@ -124,6 +129,31 @@ Rows come from `.card-white.list-item` cards, read by stable class-keyed
 fields (`.from/.mid/.to/.rbox/.surplus-list`) rather than positional innerText.
 Cards missing the train number or endpoint times are dropped rather than
 emitted with sentinel values.
+
+## Hotel Detail Columns (`hotel`)
+
+| Column | Notes |
+|--------|-------|
+| `hotelId` | Echoes the requested id |
+| `name`, `enName` | Localised + English (English may be `null`) |
+| `star` | `1`-`5`, `null` for unrated / 客栈 entries |
+| `score`, `scoreLabel` | Overall rating (e.g. `4.8` / `"超棒"`); both `null` if unrated |
+| `reviewCount` | Total review count as an integer |
+| `ratingBreakdown` | The four sub-scores joined by ` / ` (e.g. `卫生 4.8 / 设施 4.8 / 环境 4.8 / 服务 4.8`) |
+| `facilities` | Hot facilities joined by ` / ` (e.g. `接机服务 / 无线WIFI免费 / 行李寄存`) |
+| `checkInOut` | Check-in / check-out policy lines joined by ` / ` |
+| `cityName`, `address` | Geo context |
+| `lat`, `lon` | Coordinates from the detail page; `null` if absent |
+| `url` | Canonical detail URL |
+
+Args:
+- `<id>` (positional, required): numeric Ctrip hotel id (discover via `ctrip hotel-suggest`; e.g. `375539`).
+
+The profile is read from `__NEXT_DATA__.props.pageProps.hotelDetailResponse`
+(the same SSR source style as `hotel-search`), surfacing the fields the listing
+row does not carry. Room-level nightly prices load via a post-SSR XHR and are
+out of scope here, the same way `flight`'s post-load price XHR is; `hotel-search`
+already reports a representative nightly price per hotel.
 
 ## Notes
 

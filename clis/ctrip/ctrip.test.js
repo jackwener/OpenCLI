@@ -6,9 +6,12 @@ import './hotel-suggest.js';
 import './hotel-search.js';
 import './flight.js';
 import './train.js';
+import './hotel.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
     buildFlightExtractJs,
+    buildHotelDetailExtractJs,
+    buildHotelDetailUrl,
     buildScrollUntilJs,
     buildTrainExtractJs,
     buildTrainListUrl,
@@ -16,6 +19,7 @@ import {
     mapHotelRow,
     mapSuggestRow,
     parseCityId,
+    parseHotelId,
     parseIataCode,
     parseIsoDate,
     parseLimit,
@@ -23,6 +27,7 @@ import {
     parseTrainLimit,
     pickCoords,
     pickHotelMapCoords,
+    WAIT_FOR_HOTEL_DETAIL_JS,
 } from './utils.js';
 
 function createPageMock(evaluateResults) {
@@ -895,5 +900,170 @@ describe('ctrip buildTrainExtractJs (JSDOM)', () => {
         const noCheci = CARD.replace('G531<i class="ifont-cert"></i>', '');
         expect(runExtract(noCheci)).toEqual([]);
         expect(runExtract('<div class="card-white list-item"></div>')).toEqual([]);
+    });
+});
+
+const HOTEL_DETAIL_SSR = {
+    hotelBaseInfo: {
+        masterHotelId: 375539,
+        cityName: '上海',
+        nameInfo: { name: '上海和平饭店', nameEn: '' },
+        starInfo: { level: 5, type: 'star' },
+    },
+    hotelPositionInfo: { address: '上海黄浦区南京东路20号', lat: '31.244714', lng: '121.496056' },
+    hotelComment: {
+        comment: {
+            score: '4.8',
+            scoreDescription: '超棒',
+            totalComment: 5920,
+            scoreDetail: [
+                { showName: '卫生', showScore: '4.8', showType: 'Cleanliness' },
+                { showName: '设施', showScore: '4.8', showType: 'Amenities' },
+                { showName: '环境', showScore: '4.8', showType: 'Location' },
+                { showName: '服务', showScore: '4.8', showType: 'Service' },
+            ],
+        },
+    },
+    hotelFacilityBelt: {
+        facilityList: [
+            { code: 105, facilityDesc: '接机服务', icon: 'ic_pickup' },
+            { code: 1, facilityDesc: '无线WIFI免费', icon: 'ic_wifi' },
+        ],
+    },
+    hotelPolicyInfo: {
+        checkInAndOut: {
+            content: [
+                { description: '入住时间： 15:00后', tags: [] },
+                { description: '退房时间： 12:00前', tags: [] },
+            ],
+        },
+    },
+};
+
+// Shape as projected by buildHotelDetailExtractJs (what page.evaluate returns).
+const HOTEL_DETAIL_ROW = {
+    hotelId: '375539',
+    name: '上海和平饭店',
+    enName: null,
+    star: 5,
+    score: 4.8,
+    scoreLabel: '超棒',
+    reviewCount: 5920,
+    ratingBreakdown: '卫生 4.8 / 设施 4.8 / 环境 4.8 / 服务 4.8',
+    facilities: '接机服务 / 无线WIFI免费',
+    checkInOut: '入住时间： 15:00后 / 退房时间： 12:00前',
+    cityName: '上海',
+    address: '上海黄浦区南京东路20号',
+    lat: 31.244714,
+    lon: 121.496056,
+};
+
+describe('ctrip parseHotelId', () => {
+    it('accepts a positive integer id as string or number', () => {
+        expect(parseHotelId('375539')).toBe(375539);
+        expect(parseHotelId(375539)).toBe(375539);
+    });
+
+    it('rejects blank, non-numeric, zero, negative, and fractional ids', () => {
+        for (const bad of ['', '  ', 'abc', '375539a', 0, -5, 3.5]) {
+            expect(() => parseHotelId(bad)).toThrow(/hotel id/);
+        }
+    });
+});
+
+describe('ctrip buildHotelDetailUrl', () => {
+    it('builds the canonical lowercase-hotelid detail URL', () => {
+        expect(buildHotelDetailUrl(375539)).toBe('https://hotels.ctrip.com/hotels/detail/?hotelid=375539');
+    });
+});
+
+describe('ctrip hotel command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/hotel');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('hotels.ctrip.com');
+    });
+
+    it('rejects a non-numeric / zero id before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { id: 'shanghai' }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('hotel id') });
+        await expect(cmd.func(page, { id: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT' });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { id: 375539 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on SSR timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { id: 375539 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not expose SSR hotel data') });
+        await expect(cmd.func(createPageMock(['content', null]), { id: 375539 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed data') });
+    });
+
+    it('throws EmptyResultError when the SSR profile lacks id or name', async () => {
+        await expect(cmd.func(createPageMock(['content', { hotelId: null, name: null }]), { id: 375539 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('maps the SSR profile into a single row carrying every declared column', async () => {
+        const page = createPageMock(['content', HOTEL_DETAIL_ROW]);
+        const rows = await cmd.func(page, { id: 375539 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            hotelId: '375539',
+            name: '上海和平饭店',
+            star: 5,
+            score: 4.8,
+            ratingBreakdown: '卫生 4.8 / 设施 4.8 / 环境 4.8 / 服务 4.8',
+            facilities: '接机服务 / 无线WIFI免费',
+            url: 'https://hotels.ctrip.com/hotels/detail/?hotelid=375539',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('hotelid=375539');
+    });
+});
+
+describe('ctrip buildHotelDetailExtractJs (JSDOM)', () => {
+    function runExtract(nextData) {
+        const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+            url: 'https://hotels.ctrip.com/hotels/detail/?hotelid=375539',
+            runScripts: 'outside-only',
+        });
+        dom.window.__NEXT_DATA__ = nextData;
+        const js = buildHotelDetailExtractJs();
+        return dom.window.Function(`return (${js})`)();
+    }
+
+    it('projects the hotel profile, joining sub-scores / facilities / policy', () => {
+        const out = runExtract({ props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } });
+        expect(out).toEqual(HOTEL_DETAIL_ROW);
+    });
+
+    it('returns null when the SSR detail block is absent', () => {
+        expect(runExtract({ props: { pageProps: {} } })).toBeNull();
+    });
+
+    it('detects the rendered SSR block as content via WAIT_FOR_HOTEL_DETAIL_JS', async () => {
+        const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+            url: 'https://hotels.ctrip.com/hotels/detail/?hotelid=375539',
+            runScripts: 'outside-only',
+        });
+        dom.window.__NEXT_DATA__ = { props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } };
+        await expect(dom.window.Function(`return (${WAIT_FOR_HOTEL_DETAIL_JS})`)())
+            .resolves.toBe('content');
     });
 });
