@@ -70,6 +70,7 @@ export default defineConfig({
                 { text: '51job', link: '/adapters/browser/51job' },
                 { text: 'PowerChina', link: '/adapters/browser/powerchina' },
                 { text: 'Ctrip', link: '/adapters/browser/ctrip' },
+                { text: 'Trip.com', link: '/adapters/browser/trip' },
                 { text: 'Booking.com', link: '/adapters/browser/booking' },
                 { text: 'GeoGebra', link: '/adapters/browser/geogebra' },
                 { text: 'Reuters', link: '/adapters/browser/reuters' },

@@ -36500,6 +36500,61 @@
     "sourceFile": "trae-solo/workspaces-fs.js"
   },
   {
+    "site": "trip",
+    "name": "flight",
+    "description": "Search Trip.com one-way flights by IATA route + departure date",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure IATA code (e.g. LON / LHR)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Arrival IATA code (e.g. NYC / JFK)"
+      },
+      {
+        "name": "date",
+        "type": "str",
+        "required": true,
+        "help": "Departure date (YYYY-MM-DD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of flights (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "airline",
+      "departureTime",
+      "departureAirport",
+      "arrivalTime",
+      "arrivalAirport",
+      "duration",
+      "stops",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/flight.js",
+    "sourceFile": "trip/flight.js",
+    "navigateBefore": false
+  },
+  {
     "site": "tvmaze",
     "name": "search",
     "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",
