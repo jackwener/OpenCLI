@@ -401,6 +401,7 @@ describe('chatgpt model selection validation', () => {
         expect(CHATGPT_MODEL_CHOICES).toEqual(expect.arrayContaining([
             'gpt-5.6-pro',
             'gpt-5-6-pro',
+            'gpt-5.6-sol-pro',
             'gpt-5.6',
             '5.6',
         ]));
@@ -501,7 +502,7 @@ describe('chatgpt model selection validation', () => {
         expect(page.nativeClick).not.toHaveBeenCalled();
     });
 
-    it('accepts an eligible exact model config when the picker only exposes generic Pro', async () => {
+    it('does not accept generic Pro read-back as proof of GPT-5.6 Pro selection', async () => {
         vi.spyOn(globalThis, 'fetch')
             .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'token' }), { status: 200 }))
             .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
@@ -519,13 +520,14 @@ describe('chatgpt model selection validation', () => {
                 if (objectCall === 2) return Promise.resolve({ model: 'pro', label: 'Pro' });
                 if (objectCall === 3) return Promise.resolve({ isLoggedIn: true, hasLoginGate: false, hasComposer: true });
                 if (objectCall === 4) return Promise.resolve({ model: 'pro', label: 'Pro' });
+                if (objectCall === 5) return Promise.resolve({ found: true, x: 10, y: 20 });
                 return Promise.resolve({ found: false });
             }),
         };
 
         await expect(selectChatGPTModel(page, 'gpt-5.6'))
-            .resolves.toEqual({ Status: 'Success', Model: 'GPT-5.6 Pro' });
-        expect(page.nativeClick).not.toHaveBeenCalled();
+            .rejects.toBeInstanceOf(CommandExecutionError);
+        expect(page.nativeClick).toHaveBeenCalledWith(10, 20);
     });
 
     it('falls back to the visible picker when the model config API does not prove selection', async () => {
@@ -1225,6 +1227,17 @@ describe('chatgpt current model detection', () => {
               <button type="button">
                 <span data-testid="model-switcher-gpt-5-6-pro">Pro</span>
               </button>
+            </form>
+        `);
+
+        await expect(getCurrentChatGPTModel(page))
+            .resolves.toEqual({ model: 'gpt-5.6-pro', label: 'GPT-5.6 Pro' });
+    });
+
+    it('recognizes the GPT-5.6 Sol Pro visible label', async () => {
+        const page = createDomEvaluatePage(`
+            <form>
+              <button type="button">GPT-5.6 Sol Pro</button>
             </form>
         `);
 

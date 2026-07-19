@@ -45,12 +45,11 @@ const CHATGPT_MODEL_TARGETS = {
     },
     'gpt-5.6-pro': {
         label: 'GPT-5.6 Pro',
-        labels: ['GPT-5.6 Pro', 'GPT-5.6 专业'],
-        optionLabels: ['GPT-5.6 Pro', 'GPT-5.6 专业'],
+        labels: ['GPT-5.6 Pro', 'GPT-5.6 Sol Pro', 'GPT-5.6 专业', 'GPT-5.6 Sol 专业'],
+        optionLabels: ['GPT-5.6 Pro', 'GPT-5.6 Sol Pro', 'GPT-5.6 专业', 'GPT-5.6 Sol 专业'],
         testIds: ['model-switcher-gpt-5-6-pro'],
-        aliases: ['gpt-5-6-pro', 'gpt-5.6', 'gpt-5-6', '5.6-pro', '5.6'],
+        aliases: ['gpt-5-6-pro', 'gpt-5.6-sol-pro', 'gpt-5-6-sol-pro', 'gpt-5.6', 'gpt-5-6', '5.6-pro', '5.6'],
         modelConfig: { modelSlug: 'gpt-5-6-pro', effort: 'standard' },
-        apiAcceptanceIsPostcondition: true,
     },
     pro: {
         label: 'Pro',
@@ -595,7 +594,7 @@ export async function selectChatGPTModel(page, model) {
             await ensureChatGPTComposer(page, 'ChatGPT model selection requires a logged-in ChatGPT session with a visible composer.');
             const afterApi = await getCurrentChatGPTModel(page);
             debugChatGPTModel(`after-api=${afterApi.model || 'none'}`);
-            if (afterApi.model === target.key || target.apiAcceptanceIsPostcondition) {
+            if (afterApi.model === target.key) {
                 return { Status: 'Success', Model: target.label };
             }
             debugChatGPTModel('api did not prove selection; falling back to visible picker');
