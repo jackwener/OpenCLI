@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -20,6 +20,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip train` | Browser (cookie) | Train ticket search by station/city name + departure date |
 | `opencli ctrip bus` | Browser (cookie) | Intercity coach ticket search by city name + departure date |
 | `opencli ctrip ferry` | Browser (cookie) | Passenger ferry sailing search by city name + departure date |
+| `opencli ctrip cruise` | Browser (cookie) | Cruise package search by departure port name |
 
 ## Usage Examples
 
@@ -49,6 +50,9 @@ opencli ctrip bus 北京 天津 --date 2026-05-20 --limit 20
 
 # Passenger ferry search (city names)
 opencli ctrip ferry 大连 烟台 --date 2026-05-20 --limit 20
+
+# Cruise package search (departure port name)
+opencli ctrip cruise 上海 --limit 20
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -184,6 +188,30 @@ not hydrate under the browser bridge, so the command navigates the results route
 directly via its `?param=<json>` deep link. Sailings arrive through the
 `getShipLineV2` XHR and are read from `.list-item-parent` cards by stable
 class-keyed fields rather than positional innerText.
+
+## Cruise Columns (`cruise`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `title` | Line, ship, and itinerary (e.g. `MSC地中海邮轮·荣耀号·上海-那霸(冲绳)-上海·5天4晚`) |
+| `star` | Product star rating (`1`-`5`); `null` if unrated |
+| `boarding` | Boarding / disembarking note (e.g. `上海登船/离船`) |
+| `sailingDate` | Next recommended sailing date; `null` if absent |
+| `tags` | Feature tags joined by ` / ` (e.g. `免签 / 岸上游 / 船上餐饮`) |
+| `price` | Lowest per-person fare as a number; `null` if non-numeric |
+| `url` | The port results URL (cruises share the list page, no per-row deeplink) |
+
+Args:
+- `<port>` (positional, required): a departure cruise port name (e.g. `上海` / `威尼斯` / `罗马`), matched against the ports Ctrip lists (`上海` carries most China departures, plus international ports).
+- `--limit` (1-50, default 20).
+
+Cruise results live on the legacy `newpackage/search/sN.html` pages keyed by an
+opaque per-port code, so the command first loads the 上海 page (which lists every
+port as a link) to resolve the requested port name to its code, then loads that
+port's results and reads the `.route_info` cards. A listed port with no current
+sailings raises `EmptyResultError`. River cruises (三峡) are a separate product
+and out of scope.
 
 ## Hotel Detail Columns (`hotel`)
 

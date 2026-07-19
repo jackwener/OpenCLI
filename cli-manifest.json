@@ -8931,6 +8931,45 @@
   },
   {
     "site": "ctrip",
+    "name": "cruise",
+    "description": "搜索携程邮轮线路（按出发港名）",
+    "access": "read",
+    "domain": "cruise.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "port",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Departure cruise port name (e.g. 上海 / 威尼斯 / 罗马)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of cruises (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "star",
+      "boarding",
+      "sailingDate",
+      "tags",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/cruise.js",
+    "sourceFile": "ctrip/cruise.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "ferry",
     "description": "搜索携程船票（按出发/到达城市名 + 日期）",
     "access": "read",

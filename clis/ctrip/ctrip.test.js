@@ -9,10 +9,14 @@ import './train.js';
 import './hotel.js';
 import './bus.js';
 import './ferry.js';
+import './cruise.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
     buildBusExtractJs,
     buildBusListUrl,
+    buildCruiseExtractJs,
+    buildCruisePortLookupJs,
+    buildCruiseSearchUrl,
     buildFerryExtractJs,
     buildFerryListUrl,
     buildFlightExtractJs,
@@ -1331,5 +1335,138 @@ describe('ctrip buildFerryExtractJs (JSDOM)', () => {
         const noPort = FERRY_CARD.replace('<div class="cor333 font12 margin-top7">烟台港客运站</div>', '');
         expect(runExtract(noPort)).toEqual([]);
         expect(runExtract('<div class="list-item-parent"></div>')).toEqual([]);
+    });
+});
+
+const CRUISE_CARD = `
+  <div class="route_info">
+    <h2 class="route_title"><span class="route_info_star"><span>4</span><i class="icon_star"></i></span>MSC地中海邮轮·荣耀号·上海-那霸(冲绳)-上海·5天4晚</h2>
+    <p class="route_setout"><span class="route_info_label">上海登船/离船</span></p>
+    <p class="route_sailing"><span class="gray_font">推荐班期：</span><span class="txt_link_strong">2026 09-30</span> 周三</p>
+    <div class="route_label_list"><span class="route_info_txt">免签</span><span class="route_info_txt">码头接送巴士</span></div>
+    <div class="price_sale"><div class="route_price"><span class="price"><dfn>¥</dfn><span>3980</span>起/人</span></div></div>
+  </div>`;
+
+const CRUISE_RAW = {
+    title: 'MSC地中海邮轮·荣耀号·上海-那霸(冲绳)-上海·5天4晚',
+    star: 4,
+    boarding: '上海登船/离船',
+    sailingDate: '2026 09-30',
+    tags: '免签 / 码头接送巴士',
+    price: 3980,
+};
+
+const CRUISE_PORT_LINKS = `
+  <a href="/newpackage/search/s2.html">上海港出发邮轮预订</a>
+  <a href="/newpackage/search/s154.html">天津港出发邮轮预订</a>
+  <a href="/newpackage/search/s340.html">威尼斯港出发邮轮预订</a>`;
+
+describe('ctrip buildCruiseSearchUrl', () => {
+    it('builds the legacy per-port search URL', () => {
+        expect(buildCruiseSearchUrl('154')).toBe('https://cruise.ctrip.com/newpackage/search/s154.html');
+    });
+});
+
+describe('ctrip buildCruisePortLookupJs (JSDOM)', () => {
+    function runLookup(html, port) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://cruise.ctrip.com/newpackage/search/s2.html' });
+        return Function('document', `return (${buildCruisePortLookupJs(port)})`)(dom.window.document);
+    }
+
+    it('resolves a port name to its sN code from the page links', () => {
+        expect(runLookup(CRUISE_PORT_LINKS, '天津')).toBe('154');
+        expect(runLookup(CRUISE_PORT_LINKS, '上海')).toBe('2');
+        expect(runLookup(CRUISE_PORT_LINKS, '威尼斯')).toBe('340');
+    });
+
+    it('returns null when no listed port matches', () => {
+        expect(runLookup(CRUISE_PORT_LINKS, '厦门')).toBeNull();
+    });
+});
+
+describe('ctrip cruise command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/cruise');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('cruise.ctrip.com');
+    });
+
+    it('rejects a blank / over-long port and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { port: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { port: '上海', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected on the index page', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { port: '上海', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError when no listed port matches (before any port navigation)', async () => {
+        const page = createPageMock(['content', null]);
+        await expect(cmd.func(page, { port: '厦门', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        // Only the index page was loaded; the port page is never navigated.
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError when the resolved port has no current sailings', async () => {
+        const page = createPageMock(['content', '154', 'empty']);
+        await expect(cmd.func(page, { port: '天津', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        // Index + resolved port page both navigated before the empty state.
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps rows for a port that is its own index (single navigation)', async () => {
+        const page = createPageMock(['content', '2', [CRUISE_RAW]]);
+        const rows = await cmd.func(page, { port: '上海', limit: 5 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, title: CRUISE_RAW.title, star: 4, price: 3980 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('s2.html');
+    });
+
+    it('resolves a non-index port with a second navigation and maps rows', async () => {
+        const page = createPageMock(['content', '340', 'content', [CRUISE_RAW]]);
+        const rows = await cmd.func(page, { port: '威尼斯', limit: 5 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].url).toContain('s340.html');
+        expect(page.goto).toHaveBeenCalledTimes(2);
+        expect(page.goto.mock.calls[1][0]).toContain('s340.html');
+    });
+});
+
+describe('ctrip buildCruiseExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://cruise.ctrip.com/newpackage/search/s2.html' });
+        return Function('document', `return (${buildCruiseExtractJs()})`)(dom.window.document);
+    }
+
+    it('extracts a cruise card, stripping the leading star digit from the title', () => {
+        expect(runExtract(CRUISE_CARD)).toEqual([CRUISE_RAW]);
+    });
+
+    it('keeps price null when the price node is missing or non-numeric', () => {
+        const noPrice = CRUISE_CARD.replace('<span>3980</span>', '<span>敬请期待</span>');
+        expect(runExtract(noPrice)[0].price).toBeNull();
+    });
+
+    it('drops cards without a title (no sentinel rows)', () => {
+        expect(runExtract('<div class="route_info"></div>')).toEqual([]);
     });
 });

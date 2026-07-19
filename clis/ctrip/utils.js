@@ -794,4 +794,86 @@ export const WAIT_FOR_FERRY_JS = `
   })
 `;
 
+/* ------------------------- cruise 邮轮 (browser, legacy search page) ------------------------- */
+
+/** Build a cruise search-results URL for a departure-port code (`s2` = 上海港). */
+export function buildCruiseSearchUrl(portCode) {
+    return `https://cruise.ctrip.com/newpackage/search/s${portCode}.html`;
+}
+
+/**
+ * Browser-context IIFE that resolves a departure-port name to its `sN` code by
+ * reading the port links every cruise search page lists (`<a
+ * href="/newpackage/search/sN.html">上海港出发邮轮...`). Returns the numeric code
+ * or `null` when no listed port contains the query text.
+ */
+export function buildCruisePortLookupJs(portName) {
+    return `
+      (() => {
+        const q = ${JSON.stringify(String(portName))};
+        const links = Array.from(document.querySelectorAll('a[href*="/newpackage/search/s"]'));
+        for (const a of links) {
+          if ((a.textContent || '').includes(q)) {
+            const m = (a.getAttribute('href') || '').match(/\\/s(\\d+)\\.html/);
+            if (m) return m[1];
+          }
+        }
+        return null;
+      })()
+    `;
+}
+
+/**
+ * Browser-context IIFE that extracts cruise packages from the search page's
+ * `.route_info` cards, read by stable class-keyed fields (`.route_title`,
+ * `.route_info_star`, `.route_setout`, `.route_sailing .txt_link_strong`,
+ * `.route_info_txt`, `.route_price .price`). The leading star digit is stripped
+ * from the title. Cards without a title are dropped rather than surfaced blank.
+ */
+export function buildCruiseExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const rows = [];
+        document.querySelectorAll('.route_info').forEach((card) => {
+          const starText = clean(card.querySelector('.route_info_star'));
+          let title = clean(card.querySelector('.route_title'));
+          if (starText && title.startsWith(starText)) title = title.slice(starText.length).trim();
+          if (!title) return;
+          const priceText = clean(card.querySelector('.route_price .price'));
+          const priceDigits = (priceText.match(/\\d[\\d,]*/) || [''])[0].replace(/,/g, '');
+          rows.push({
+            title,
+            star: /^\\d$/.test(starText) ? Number(starText) : null,
+            boarding: clean(card.querySelector('.route_setout')) || null,
+            sailingDate: clean(card.querySelector('.route_sailing .txt_link_strong')) || null,
+            tags: Array.from(card.querySelectorAll('.route_info_txt')).map(clean).filter(Boolean).join(' / ') || null,
+            price: priceDigits ? Number(priceDigits) : null,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the cruise search list to render, or detect an empty port / captcha wall. */
+export const WAIT_FOR_CRUISE_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (location.pathname.includes('captcha') || /验证码|verify the human|安全验证/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.route_info')) return 'content';
+      if (/没有找到符合条件|共0个产品|暂无符合/.test(document.body?.innerText || '')) return 'empty';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 12000);
+  })
+`;
+
 export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT, TRAIN_MIN_LIMIT, TRAIN_MAX_LIMIT, TRAIN_TYPES };
