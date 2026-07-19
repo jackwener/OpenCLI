@@ -876,26 +876,47 @@ export const WAIT_FOR_CRUISE_JS = `
   })
 `;
 
-/* ------------------------- tour 旅游 (browser, vacations search) ------------------------- */
+/* ------------------------- vacations 旅游 (browser: tour / package) ------------------------- */
 
-/** Build the vacations tour-search URL for a destination keyword (`sv`). */
-export function buildTourListUrl(destination) {
+/**
+ * Build a vacations search URL for a destination keyword (`sv`). `section`
+ * selects the product tab: `whole` (all tours) for `tour`, `freetravel`
+ * (自由行 / flight-plus-hotel) for `package`.
+ */
+export function buildVacationsListUrl(section, destination) {
     const params = new URLSearchParams({ sv: destination });
-    return `https://vacations.ctrip.com/list/whole/sc.html?${params.toString()}`;
+    return `https://vacations.ctrip.com/list/${section}/sc.html?${params.toString()}`;
+}
+
+/** Group / self-guided tour search (the `whole` product tab). */
+export function buildTourListUrl(destination) {
+    return buildVacationsListUrl('whole', destination);
+}
+
+/** Flight-plus-hotel package search (the `freetravel` product tab). */
+export function buildPackageListUrl(destination) {
+    return buildVacationsListUrl('freetravel', destination);
 }
 
 /**
- * Browser-context IIFE that extracts tour packages from the vacations search
- * page's `.list_product_item` cards, read by stable class-keyed fields
- * (`.list_product_title`, `.list_product_subtitle`, `.list_label_blue`,
- * `.list_product_score`, `.list_product_travel`, `.list_product_comment`,
- * `.list_sr_price`). Cards without a title are dropped rather than surfaced blank.
+ * Browser-context IIFE that extracts vacation products (tours and packages)
+ * from the vacations search page's `.list_product_item` cards, read by stable
+ * class-keyed fields (`.list_product_title`, `.list_product_subtitle`,
+ * `.list_label_blue`, `.list_product_score`, `.list_product_travel`,
+ * `.list_product_comment`, `.list_sr_price`). Cards without a title are dropped
+ * rather than surfaced blank.
  */
-export function buildTourExtractJs() {
+export function buildVacationsExtractJs() {
     return `
       (() => {
         const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
-        const num = (s) => { const m = String(s).replace(/[^0-9.]/g, ''); return m ? Number(m) : null; };
+        const num = (s) => {
+          const str = String(s);
+          const wan = str.match(/([\\d.]+)\\s*万/);
+          if (wan) return Math.round(Number(wan[1]) * 10000);
+          const d = str.replace(/[^0-9.]/g, '');
+          return d ? Number(d) : null;
+        };
         const rows = [];
         document.querySelectorAll('.list_product_item').forEach((card) => {
           const titleEl = card.querySelector('.list_product_title');
@@ -917,13 +938,14 @@ export function buildTourExtractJs() {
 }
 
 /**
- * Wait for the tour list to render, or detect an empty destination / captcha wall.
+ * Wait for the vacations list to render, or detect an empty destination / captcha
+ * wall.
  *
  * The cards render their title/subtitle first and lazy-load price / score / sold
  * a moment later, so "content" waits until every rendered card carries a price
  * node rather than firing on the first bare card.
  */
-export const WAIT_FOR_TOURS_JS = `
+export const WAIT_FOR_VACATIONS_JS = `
   new Promise((resolve) => {
     const detect = () => {
       if (location.pathname.includes('captcha') || /验证码|verify the human|安全验证/i.test(document.body?.innerText || '')) return 'captcha';

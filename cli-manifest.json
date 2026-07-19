@@ -9254,6 +9254,46 @@
   },
   {
     "site": "ctrip",
+    "name": "package",
+    "description": "搜索携程机+酒自由行套餐（按目的地关键词）",
+    "access": "read",
+    "domain": "vacations.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "destination",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Destination keyword (e.g. 三亚 / 北京 / 曼谷)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of packages (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "subtitle",
+      "tags",
+      "score",
+      "sold",
+      "reviews",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/package.js",
+    "sourceFile": "ctrip/package.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "search",
     "description": "搜索携程目的地、景区、火车站和地标联想结果",
     "access": "read",

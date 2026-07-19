@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`, `tour`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`, `tour`, `package`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -22,6 +22,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip ferry` | Browser (cookie) | Passenger ferry sailing search by city name + departure date |
 | `opencli ctrip cruise` | Browser (cookie) | Cruise package search by departure port name |
 | `opencli ctrip tour` | Browser (cookie) | Group / self-guided tour package search by destination keyword |
+| `opencli ctrip package` | Browser (cookie) | Flight-plus-hotel (自由行) package search by destination keyword |
 
 ## Usage Examples
 
@@ -57,6 +58,9 @@ opencli ctrip cruise 上海 --limit 20
 
 # Tour package search (destination keyword)
 opencli ctrip tour 北京 --limit 20
+
+# Flight-plus-hotel package search (destination keyword)
+opencli ctrip package 三亚 --limit 20
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -239,6 +243,17 @@ Results render server-side into `.list_product_item` cards; the price / score /
 sold fields lazy-load a moment after the titles, so the command waits until every
 rendered card carries a price before reading. A destination with no packages
 raises `EmptyResultError`.
+
+## Package Columns (`package`)
+
+`package` searches the 自由行 (flight-plus-hotel) tab of the same vacations search
+as `tour` and returns the identical column shape (`rank`, `title`, `subtitle`,
+`tags`, `score`, `sold`, `reviews`, `price`, `url`); it differs only in the
+product section (`freetravel` rather than `whole`).
+
+Args:
+- `<destination>` (positional, required): a destination keyword (e.g. `三亚` / `北京` / `曼谷`).
+- `--limit` (1-50, default 20).
 
 ## Hotel Detail Columns (`hotel`)
 

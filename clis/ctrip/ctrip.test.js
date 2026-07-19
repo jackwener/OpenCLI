@@ -11,6 +11,7 @@ import './bus.js';
 import './ferry.js';
 import './cruise.js';
 import './tour.js';
+import './package.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
     buildBusExtractJs,
@@ -23,11 +24,12 @@ import {
     buildFlightExtractJs,
     buildHotelDetailExtractJs,
     buildHotelDetailUrl,
+    buildPackageListUrl,
     buildScrollUntilJs,
-    buildTourExtractJs,
     buildTourListUrl,
     buildTrainExtractJs,
     buildTrainListUrl,
+    buildVacationsExtractJs,
     buildUrl,
     mapHotelRow,
     mapSuggestRow,
@@ -1561,15 +1563,22 @@ describe('ctrip tour command (registry-level)', () => {
     });
 });
 
-describe('ctrip buildTourExtractJs (JSDOM)', () => {
+describe('ctrip buildVacationsExtractJs (JSDOM)', () => {
     function runExtract(html) {
         const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
             { url: 'https://vacations.ctrip.com/list/whole/sc.html' });
-        return Function('document', `return (${buildTourExtractJs()})`)(dom.window.document);
+        return Function('document', `return (${buildVacationsExtractJs()})`)(dom.window.document);
     }
 
-    it('extracts a tour card by stable class-keyed fields', () => {
+    it('extracts a vacations product card by stable class-keyed fields', () => {
         expect(runExtract(TOUR_CARD)).toEqual([TOUR_RAW]);
+    });
+
+    it('multiplies 万 counts on sold / reviews', () => {
+        const wan = TOUR_CARD.replace('已售1968', '已售7.1万').replace('567条点评', '1.2万条点评');
+        const row = runExtract(wan)[0];
+        expect(row.sold).toBe(71000);
+        expect(row.reviews).toBe(12000);
     });
 
     it('keeps numeric fields null when their nodes are missing', () => {
@@ -1580,5 +1589,60 @@ describe('ctrip buildTourExtractJs (JSDOM)', () => {
 
     it('drops cards without a title (no sentinel rows)', () => {
         expect(runExtract('<div class="list_product_item"></div>')).toEqual([]);
+    });
+});
+
+describe('ctrip buildPackageListUrl', () => {
+    it('builds the vacations freetravel search URL with the sv destination param', () => {
+        const url = buildPackageListUrl('三亚');
+        expect(url.startsWith('https://vacations.ctrip.com/list/freetravel/sc.html?sv=')).toBe(true);
+        expect(url).toContain('sv=%E4%B8%89%E4%BA%9A');
+    });
+});
+
+describe('ctrip package command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/package');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('vacations.ctrip.com');
+    });
+
+    it('rejects a blank destination and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { destination: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { destination: '三亚', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { destination: '三亚', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError when the destination has no packages', async () => {
+        await expect(cmd.func(createPageMock(['empty']), { destination: '无人区', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', []]), { destination: '无人区', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('navigates the freetravel search and maps rows respecting --limit', async () => {
+        const page = createPageMock(['content', [TOUR_RAW, { ...TOUR_RAW, title: '三亚5日自由行', price: 2124 }]]);
+        const rows = await cmd.func(page, { destination: '三亚', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, price: 3726 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('list/freetravel/sc.html?sv=');
     });
 });
