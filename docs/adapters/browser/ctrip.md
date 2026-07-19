@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`, `tour`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -21,6 +21,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip bus` | Browser (cookie) | Intercity coach ticket search by city name + departure date |
 | `opencli ctrip ferry` | Browser (cookie) | Passenger ferry sailing search by city name + departure date |
 | `opencli ctrip cruise` | Browser (cookie) | Cruise package search by departure port name |
+| `opencli ctrip tour` | Browser (cookie) | Group / self-guided tour package search by destination keyword |
 
 ## Usage Examples
 
@@ -53,6 +54,9 @@ opencli ctrip ferry 大连 烟台 --date 2026-05-20 --limit 20
 
 # Cruise package search (departure port name)
 opencli ctrip cruise 上海 --limit 20
+
+# Tour package search (destination keyword)
+opencli ctrip tour 北京 --limit 20
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -212,6 +216,29 @@ port as a link) to resolve the requested port name to its code, then loads that
 port's results and reads the `.route_info` cards. A listed port with no current
 sailings raises `EmptyResultError`. River cruises (三峡) are a separate product
 and out of scope.
+
+## Tour Columns (`tour`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `title` | Package title (e.g. `北京5日4晚跟团游`) |
+| `subtitle` | Highlights line; `null` if absent |
+| `tags` | Feature tags joined by ` / ` (e.g. `0购物 / 成团保障 / 亲子甄选`) |
+| `score` | Rating out of 5; `null` if unrated |
+| `sold` | Units sold as an integer (from `已售N`); `null` if absent |
+| `reviews` | Review count as an integer; `null` if absent |
+| `price` | Lowest per-person fare as a number; `null` if non-numeric |
+| `url` | The search results URL (packages share the list page, no per-row deeplink) |
+
+Args:
+- `<destination>` (positional, required): a destination keyword (e.g. `北京` / `三亚` / `马尔代夫`), passed to the vacations search as `sv`.
+- `--limit` (1-50, default 20).
+
+Results render server-side into `.list_product_item` cards; the price / score /
+sold fields lazy-load a moment after the titles, so the command waits until every
+rendered card carries a price before reading. A destination with no packages
+raises `EmptyResultError`.
 
 ## Hotel Detail Columns (`hotel`)
 

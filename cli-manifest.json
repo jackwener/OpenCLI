@@ -9297,6 +9297,46 @@
   },
   {
     "site": "ctrip",
+    "name": "tour",
+    "description": "搜索携程旅游线路（按目的地关键词，跟团/自由行）",
+    "access": "read",
+    "domain": "vacations.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "destination",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Destination keyword (e.g. 北京 / 三亚 / 马尔代夫)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of packages (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "subtitle",
+      "tags",
+      "score",
+      "sold",
+      "reviews",
+      "price",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/tour.js",
+    "sourceFile": "ctrip/tour.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "train",
     "description": "搜索携程火车票（按出发/到达站名 + 日期）",
     "access": "read",

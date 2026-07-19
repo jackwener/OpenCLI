@@ -10,6 +10,7 @@ import './hotel.js';
 import './bus.js';
 import './ferry.js';
 import './cruise.js';
+import './tour.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
     buildBusExtractJs,
@@ -23,6 +24,8 @@ import {
     buildHotelDetailExtractJs,
     buildHotelDetailUrl,
     buildScrollUntilJs,
+    buildTourExtractJs,
+    buildTourListUrl,
     buildTrainExtractJs,
     buildTrainListUrl,
     buildUrl,
@@ -1468,5 +1471,114 @@ describe('ctrip buildCruiseExtractJs (JSDOM)', () => {
 
     it('drops cards without a title (no sentinel rows)', () => {
         expect(runExtract('<div class="route_info"></div>')).toEqual([]);
+    });
+});
+
+const TOUR_CARD = `
+  <div class="list_product_item flex flex-row">
+    <div class="list_product_right flex flex-col">
+      <p class="list_product_title" title="北京5日4晚跟团游"><span>北京5日4晚跟团游</span></p>
+      <p class="list_product_subtitle">封顶12人小团</p>
+      <div class="list_label_box"><span class="list_label_blue"><span>0购物</span></span><span class="list_label_blue"><span>成团保障</span></span></div>
+      <div class="list_tiny_comment_box">
+        <span class="list_product_score"><span>4.7</span>分</span>
+        <span class="list_product_travel">已售1968</span>
+        <span class="list_product_comment">567条点评</span>
+      </div>
+    </div>
+    <div class="list_pricetag_container"><span class="list_sr_price">¥3726</span></div>
+  </div>`;
+
+const TOUR_RAW = {
+    title: '北京5日4晚跟团游',
+    subtitle: '封顶12人小团',
+    tags: '0购物 / 成团保障',
+    score: 4.7,
+    sold: 1968,
+    reviews: 567,
+    price: 3726,
+};
+
+describe('ctrip buildTourListUrl', () => {
+    it('builds the vacations search URL with the sv destination param', () => {
+        const url = buildTourListUrl('北京');
+        expect(url.startsWith('https://vacations.ctrip.com/list/whole/sc.html?sv=')).toBe(true);
+        expect(url).toContain('sv=%E5%8C%97%E4%BA%AC');
+    });
+});
+
+describe('ctrip tour command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/tour');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('vacations.ctrip.com');
+    });
+
+    it('rejects a blank destination and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { destination: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { destination: '北京', limit: 99 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { destination: '北京', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError when the destination has no packages', async () => {
+        await expect(cmd.func(createPageMock(['empty']), { destination: '无人区', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', []]), { destination: '无人区', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('throws CommandExecutionError on render timeout and malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { destination: '北京', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render package cards') });
+        await expect(cmd.func(createPageMock(['content', { rows: [] }]), { destination: '北京', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('maps rows and respects --limit', async () => {
+        const page = createPageMock(['content', [TOUR_RAW, { ...TOUR_RAW, title: '北京5日4晚拼小团', price: 4253 }]]);
+        const rows = await cmd.func(page, { destination: '北京', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, title: '北京5日4晚跟团游', score: 4.7, sold: 1968, reviews: 567, price: 3726 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('sv=');
+    });
+});
+
+describe('ctrip buildTourExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://vacations.ctrip.com/list/whole/sc.html' });
+        return Function('document', `return (${buildTourExtractJs()})`)(dom.window.document);
+    }
+
+    it('extracts a tour card by stable class-keyed fields', () => {
+        expect(runExtract(TOUR_CARD)).toEqual([TOUR_RAW]);
+    });
+
+    it('keeps numeric fields null when their nodes are missing', () => {
+        const bare = `<div class="list_product_item"><p class="list_product_title" title="北京5日4晚跟团游"><span>北京5日4晚跟团游</span></p></div>`;
+        const row = runExtract(bare)[0];
+        expect(row).toMatchObject({ title: '北京5日4晚跟团游', score: null, sold: null, reviews: null, price: null, tags: null });
+    });
+
+    it('drops cards without a title (no sentinel rows)', () => {
+        expect(runExtract('<div class="list_product_item"></div>')).toEqual([]);
     });
 });
