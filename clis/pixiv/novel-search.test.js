@@ -28,6 +28,14 @@ describe('pixiv novel-search', () => {
     expect(page.goto).not.toHaveBeenCalled();
   });
 
+  it('throws ArgumentError on coerced pagination strings before navigation', async () => {
+    const page = createPageMock([]);
+    await expect(cmd.func(page, { query: 'test', limit: '1e2' })).rejects.toThrow(ArgumentError);
+    await expect(cmd.func(page, { query: 'test', limit: '020' })).rejects.toThrow(ArgumentError);
+    await expect(cmd.func(page, { query: 'test', page: ' 2 ' })).rejects.toThrow(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
   it('throws CommandExecutionError on malformed search payload shape', async () => {
     const page = createPageMock([{ body: { novel: {} } }]);
     await expect(cmd.func(page, { query: 'test', limit: 5 })).rejects.toThrow(CommandExecutionError);

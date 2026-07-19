@@ -74,6 +74,14 @@ describe('pixiv bookmarks', () => {
     expect(page.evaluate.mock.calls[1][0]).toContain('rest=hide');
   });
 
+  it('throws ArgumentError on coerced pagination strings before navigation', async () => {
+    const page = createPageMock([]);
+    await expect(cmd.func(page, { type: 'illust', limit: '1e2' })).rejects.toThrow(ArgumentError);
+    await expect(cmd.func(page, { type: 'illust', limit: '020' })).rejects.toThrow(ArgumentError);
+    await expect(cmd.func(page, { type: 'illust', offset: ' 1 ' })).rejects.toThrow(ArgumentError);
+    expect(page.goto).not.toHaveBeenCalled();
+  });
+
   it('throws CommandExecutionError on malformed bookmark payload shape', async () => {
     const page = createPageMock([{ id: '37119297' }, { body: { unexpected: [] } }]);
     await expect(cmd.func(page, { type: 'illust', limit: 10 })).rejects.toThrow(CommandExecutionError);

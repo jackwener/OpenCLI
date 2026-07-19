@@ -99,7 +99,17 @@ export const BATCH_SIZE = 48;
 
 export function normalizePixivPositiveInteger(value, defaultValue, label, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
     const raw = value ?? defaultValue;
-    const numberValue = Number(raw);
+    let numberValue;
+    if (typeof raw === 'number') {
+        numberValue = raw;
+    } else if (typeof raw === 'string') {
+        if (!/^(0|[1-9]\d*)$/.test(raw)) {
+            throw new ArgumentError(`${label} must be a decimal integer`);
+        }
+        numberValue = Number(raw);
+    } else {
+        throw new ArgumentError(`${label} must be an integer`);
+    }
     if (!Number.isInteger(numberValue)) {
         throw new ArgumentError(`${label} must be an integer`);
     }
@@ -184,25 +194,6 @@ export async function getCurrentPixivUser(page) {
           if (parsed?.user) return parsed.user;
         } catch {}
       }
-      const userLink = Array.from(document.querySelectorAll('a[href]'))
-        .map((node) => {
-          try {
-            const url = new URL(node.getAttribute('href'), location.href);
-            const pathname = url.pathname;
-            if (!pathname.startsWith('/users/')) return null;
-            const id = pathname.slice('/users/'.length);
-            if (!id || !Array.from(id).every((ch) => ch >= '0' && ch <= '9')) return null;
-            return {
-              id,
-              name: node.textContent?.trim() || '',
-              profileImageUrl: node.querySelector('img')?.src || '',
-            };
-          } catch {
-            return null;
-          }
-        })
-        .find(Boolean);
-      if (userLink) return userLink;
       return null;
     })()
   `));
