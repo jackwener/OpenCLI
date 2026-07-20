@@ -1019,6 +1019,106 @@ describe('background tab isolation', () => {
     expect(chrome.windows.remove).not.toHaveBeenCalled();
   });
 
+  it('explicitly closes an idle owned container and releases every lease on that surface', async () => {
+    const { chrome, tabs } = createChromeMock();
+    // Keep the fixture's unrelated chrome:// tab out of the owned window so
+    // this case models a dedicated OpenCLI container.
+    tabs[2].windowId = 2;
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('first'));
+    await mod.__test__.resolveTabId(undefined, adapterKey('second'));
+
+    const result = await mod.__test__.handleCommand({
+      id: 'close-adapter-container',
+      action: 'close-container',
+      session: 'cleanup',
+      surface: 'adapter',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: true,
+      data: expect.objectContaining({
+        closed: true,
+        surface: 'adapter',
+        releasedSessions: 2,
+        closedWindowIds: [1],
+      }),
+    }));
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
+    expect(mod.__test__.getSession(adapterKey('first'))).toBeNull();
+    expect(mod.__test__.getSession(adapterKey('second'))).toBeNull();
+  });
+
+  it('preserves a user window while removing owned tabs during container cleanup', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, browserKey('work'));
+
+    const result = await mod.__test__.handleCommand({
+      id: 'close-mixed-browser-container',
+      action: 'close-container',
+      session: 'cleanup',
+      surface: 'browser',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: true,
+      data: expect.objectContaining({
+        closed: false,
+        preservedWindowIds: [1],
+        removedTabIds: [1],
+      }),
+    }));
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.ungroup).toHaveBeenCalledWith([1]);
+    expect(mod.__test__.getSession(browserKey('work'))).toBeNull();
+  });
+
+  it('refuses container cleanup while another command is active on that surface', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const evaluateStarted = deferred<void>();
+    const releaseEvaluate = deferred<unknown>();
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      evaluateAsync: vi.fn(async () => {
+        evaluateStarted.resolve();
+        return releaseEvaluate.promise;
+      }),
+    }));
+
+    const mod = await import('./background');
+    const running = mod.__test__.handleCommand({
+      id: 'active-adapter-command',
+      action: 'exec',
+      session: 'active',
+      surface: 'adapter',
+      code: 'document.title',
+    });
+    await evaluateStarted.promise;
+
+    const result = await mod.__test__.handleCommand({
+      id: 'busy-container-cleanup',
+      action: 'close-container',
+      session: 'cleanup',
+      surface: 'adapter',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      errorCode: 'container_busy',
+    }));
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+
+    releaseEvaluate.resolve('ok');
+    await running;
+  });
+
   it('releases the current owned tab lease when tabs close targets it', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
