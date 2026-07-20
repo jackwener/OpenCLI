@@ -58,12 +58,17 @@ cli({
         if (result.status === 'captcha') {
             throw new AuthRequiredError('trip.com', 'Trip.com is asking for a verification; complete it in your browser session and retry');
         }
+        if (result.status === 'empty') {
+            throw new EmptyResultError('trip tour', `No ${kwargs.type || 'private'} tours for "${query}"`);
+        }
         if (result.status !== 'content') {
             throw new CommandExecutionError(`Trip.com tour search did not return results (state=${String(result.status)})`);
         }
+        // Products captured but none carry a name is drift (schema moved), not an empty search;
+        // a genuine no-match resolves as status 'empty' above off the page's "0 routes found".
         const rows = Array.isArray(result.rows) ? result.rows.filter((r) => r.name) : [];
         if (rows.length === 0) {
-            throw new EmptyResultError('trip tour', `No ${kwargs.type || 'private'} tours for "${query}"`);
+            throw new CommandExecutionError('Trip.com tour search captured products but none carried a name (the product markup may have changed)');
         }
         return rows.slice(0, limit).map((r, i) => ({
             rank: i + 1,

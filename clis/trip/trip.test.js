@@ -994,10 +994,11 @@ describe('trip buildTourSearchUrl', () => {
 });
 
 describe('trip buildTourSearchJs', () => {
-    it('embeds the keyword and the products-content capture guard', () => {
+    it('embeds the keyword, the products-content capture guard, and the empty-result guard', () => {
         const js = buildTourSearchJs('Bali');
         expect(js).toContain('"Bali"');
         expect(js).toContain('"products":[');
+        expect(js).toContain('routes?');
     });
 });
 
@@ -1022,15 +1023,17 @@ describe('trip tour command (registry-level)', () => {
         expect(page.goto).not.toHaveBeenCalled();
     });
 
-    it('throws AuthRequired on verification, EmptyResult on empty, CommandExec on timeout / malformed', async () => {
+    it('throws AuthRequired on verification, EmptyResult on a genuine no-match, CommandExec on timeout / malformed / drift', async () => {
         await expect(cmd.func(createPageMock([{ status: 'captcha' }]), { query: 'Kyoto', type: 'private', limit: 5 }))
             .rejects.toThrow('Trip.com is asking for a verification');
-        await expect(cmd.func(createPageMock([{ status: 'content', rows: [] }]), { query: 'Nowherexyz', type: 'private', limit: 5 }))
+        await expect(cmd.func(createPageMock([{ status: 'empty' }]), { query: 'Nowherexyz', type: 'private', limit: 5 }))
             .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
         await expect(cmd.func(createPageMock([{ status: 'timeout' }]), { query: 'Kyoto', type: 'private', limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not return results') });
         await expect(cmd.func(createPageMock([null]), { query: 'Kyoto', type: 'private', limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed') });
+        await expect(cmd.func(createPageMock([{ status: 'content', rows: [] }]), { query: 'Kyoto', type: 'private', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('none carried a name') });
     });
 
     it('maps captured products, drops nameless rows, and respects --type / --limit', async () => {

@@ -609,7 +609,8 @@ export function buildTourSearchUrl(keyword, tourType) {
  * captures the response body carrying the `"products"` array, drives the page's
  * own search box (re-submitting the keyword) so the page issues its own signed
  * request, then resolves once the response lands. Returns `{ status, rows }`,
- * where `status` is `content` / `captcha` / `noinput` / `timeout`.
+ * where `status` is `content` / `captcha` / `empty` / `noinput` / `timeout`
+ * (`empty` when the results page reports `0 routes found` for a genuine no-match).
  */
 export function buildTourSearchJs(keyword) {
     return `
@@ -627,7 +628,7 @@ export function buildTourSearchJs(keyword) {
           } catch (e) {}
           return promise;
         };
-        const input = document.querySelector('input');
+        const input = document.querySelector('input[placeholder]') || document.querySelector('input');
         if (input) {
           const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
           input.focus();
@@ -658,6 +659,7 @@ export function buildTourSearchJs(keyword) {
             return resolve({ status: 'content', rows });
           }
           if (!input) { clearInterval(timer); window.fetch = origFetch; return resolve({ status: 'noinput' }); }
+          if (!captured.length && elapsed >= 6000 && /0\\s+routes?\\s+found/i.test((document.body && document.body.innerText) || '')) { clearInterval(timer); window.fetch = origFetch; return resolve({ status: 'empty' }); }
           if (elapsed >= 16000) { clearInterval(timer); window.fetch = origFetch; return resolve({ status: 'timeout' }); }
         }, 300);
       })
