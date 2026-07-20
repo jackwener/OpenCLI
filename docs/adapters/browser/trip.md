@@ -185,7 +185,9 @@ The products load client-side into hashed CSS-module cards, so rows anchor on
 each card's stable `things-to-do/detail/<id>` link (name is its text, `url` its
 href) and read rating / reviews / booked / price from the card text by
 data-format pattern. Trip.com's "Attractions & Tours" combines tickets, tours,
-and experiences into this one result set.
+and experiences into this one result set. Travel eSIM / SIM data plans are also
+sold as things-to-do products, so `trip attraction eSIM` (or a destination
+keyword) surfaces them with the same columns.
 
 ## Train Columns (`train`)
 
