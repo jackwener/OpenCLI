@@ -526,4 +526,68 @@ export const WAIT_FOR_CARS_JS = `
   })
 `;
 
+/**
+ * Build the airport-transfer listing URL. Trip.com files transfers under an SEO
+ * path keyed on the city slug plus the airport IATA code
+ * (`airport-transfers/<city>/airport-<iata>/`); a mismatched city bounces to the
+ * landing page, so both are required and slugified here.
+ */
+export function buildTransferListUrl(city, airport) {
+    const slug = (s) => String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return `https://www.trip.com/airport-transfers/${slug(city)}/airport-${slug(airport)}/`;
+}
+
+/**
+ * Browser-context IIFE that extracts airport-transfer rows from a Trip.com
+ * transfer listing. Each `.vehicle-card` carries the vehicle type in
+ * `.vehicle-card__title-text`, passenger and luggage capacity in
+ * `.vehicle-card__capacity-text` / `.vehicle-card__luggage-text`, and the
+ * from-price in `.vehicle-card__price-row` (the `$N off` promo sits in a
+ * separate discount tag and is excluded). Cards without a type or price are
+ * dropped rather than surfaced with blanks.
+ */
+export function buildTransferExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const intOf = (el) => { const m = clean(el).match(/\\d+/); return m ? Number(m[0]) : null; };
+        const rows = [];
+        document.querySelectorAll('.vehicle-card').forEach((card) => {
+          const type = clean(card.querySelector('.vehicle-card__title-text'));
+          const priceText = clean(card.querySelector('.vehicle-card__price-row'));
+          const priceM = priceText.match(/\\$\\s?([\\d,]+(?:\\.\\d+)?)/);
+          if (!type || !priceM) return;
+          rows.push({
+            type,
+            passengers: intOf(card.querySelector('.vehicle-card__capacity-text')),
+            luggage: intOf(card.querySelector('.vehicle-card__luggage-text')),
+            price: Number(priceM[1].replace(/,/g, '')),
+            currency: /\\$/.test(priceText) ? 'USD' : null,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the transfer listing to render, or detect a verification wall. */
+export const WAIT_FOR_TRANSFERS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('.vehicle-card .vehicle-card__price-row')) return 'content';
+      if (/no results|no matching|couldn.t find|not available/i.test(document.body?.innerText || '')) return 'empty';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 15000);
+  })
+`;
+
 export const __test__ = { MIN_LIMIT, MAX_LIMIT };

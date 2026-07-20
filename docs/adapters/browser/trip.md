@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`)
+**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -18,6 +18,7 @@ the same company. These commands search worldwide flights and hotels on
 | `opencli trip attraction` | Browser (cookie) | Attractions and experiences (tickets + tours) search by destination keyword |
 | `opencli trip train` | Browser (cookie) | Train route timetable (departure/arrival times, duration, changes) |
 | `opencli trip car` | Browser (cookie) | Car-rental listing for a city (category, model, seats, daily price) |
+| `opencli trip transfer` | Browser (cookie) | Airport-transfer listing for a city + airport (type, seats, from-price) |
 
 ## Usage Examples
 
@@ -43,6 +44,9 @@ opencli trip train London Manchester --country uk --limit 20
 
 # Car-rental listing (numeric carhire city id, e.g. 313 for San Francisco)
 opencli trip car 313 --limit 10
+
+# Airport-transfer listing (airport city + IATA code)
+opencli trip transfer Bangkok DMK --limit 10
 ```
 
 ## Flight Columns (`flight`)
@@ -193,6 +197,32 @@ near-term representative rate, while a dated pickup / drop-off quote sits behind
 the booking step and is out of scope here. Cards without a price are dropped
 rather than surfaced with blanks.
 
+## Transfer Columns (`transfer`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the rendered listing |
+| `type` | Vehicle type (e.g. `Standard Car`, `Minibus`, `Business 7 seater`) |
+| `passengers` | Maximum passengers as an integer; `null` if absent |
+| `luggage` | Maximum luggage pieces as an integer; `null` if absent |
+| `price`, `currency` | Representative from-price and `USD`; `price` is `null` when non-numeric |
+| `url` | The listing URL (vehicles share the airport page) |
+
+Args:
+- `<city>` (positional, required): the airport city (e.g. `Bangkok` / `Beijing` / `Da Nang`), slugified into the URL.
+- `<airport>` (positional, required): the 3-letter airport IATA code (e.g. `DMK` / `PKX` / `DAD`).
+- `--limit` (1-50, default 20).
+
+Trip.com files airport transfers under an SEO path keyed on the city slug plus
+the airport IATA code (`airport-transfers/<city>/airport-<iata>/`). A city that
+does not match the airport bounces to the transfer landing, so the command checks
+the landed path and raises `CommandExecutionError` rather than returning the
+generic landing list. Rows come from `.vehicle-card` cards, read by stable class
+fields (`.vehicle-card__title-text` / `.vehicle-card__capacity-text` /
+`.vehicle-card__luggage-text` / `.vehicle-card__price-row`); the `$N off` promo
+sits in a separate discount tag and is excluded, and the dated pickup quote sits
+behind the booking step.
+
 ## Prerequisites
 
 - Chrome running with the [Browser Bridge extension](/guide/browser-bridge) installed.
@@ -204,5 +234,5 @@ rather than surfaced with blanks.
 
 - Trip.com is English/USD-facing. For the mainland Chinese site (Chinese UI, CNY,
   domestic rail), use the `ctrip` adapter instead.
-- Flights, hotels, attractions, train timetables, and car rentals ship today.
-  Trip.com's remaining vertical (airport transfers) is tracked as a follow-up in the adapter request issue.
+- This adapter covers Trip.com's travel verticals end to end: flights, hotels,
+  attractions, train timetables, car rentals, and airport transfers.

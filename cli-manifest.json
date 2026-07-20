@@ -36837,6 +36837,51 @@
     "navigateBefore": false
   },
   {
+    "site": "trip",
+    "name": "transfer",
+    "description": "List Trip.com airport-transfer vehicles for a city + airport (type, seats, from-price)",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Airport city (e.g. Bangkok / Beijing / Da Nang)"
+      },
+      {
+        "name": "airport",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "3-letter airport IATA code (e.g. DMK / PKX / DAD)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of vehicles (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "passengers",
+      "luggage",
+      "price",
+      "currency",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/transfer.js",
+    "sourceFile": "trip/transfer.js",
+    "navigateBefore": false
+  },
+  {
     "site": "tvmaze",
     "name": "search",
     "description": "TVmaze TV show search by title (returns id, name, network, premiered/ended, rating)",

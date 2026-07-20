@@ -8,11 +8,13 @@ import './hotel.js';
 import './attraction.js';
 import './train.js';
 import './car.js';
+import './transfer.js';
 import {
     WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_CARS_JS,
     WAIT_FOR_HOTEL_DETAIL_JS,
     WAIT_FOR_TRAINS_JS,
+    WAIT_FOR_TRANSFERS_JS,
     buildAttractionExtractJs,
     buildAttractionSearchUrl,
     buildCarExtractJs,
@@ -26,6 +28,8 @@ import {
     buildHotelSearchUrl,
     buildTrainExtractJs,
     buildTrainRouteUrl,
+    buildTransferExtractJs,
+    buildTransferListUrl,
     parseCityId,
     parseHotelId,
     parseIataCode,
@@ -845,6 +849,116 @@ describe('trip WAIT_FOR_CARS_JS (JSDOM)', () => {
             runScripts: 'outside-only',
         });
         await expect(dom.window.Function(`return (${WAIT_FOR_CARS_JS})`)())
+            .resolves.toBe('content');
+    });
+});
+
+const TRANSFER_CARDS = `
+  <div class="vehicle-booking-list">
+    <div class="vehicle-card">
+      <div class="vehicle-card__title"><span class="vehicle-card__title-text">Standard Car</span></div>
+      <span class="vehicle-card__capacity-text">Max 4</span>
+      <span class="vehicle-card__luggage-text">1</span>
+      <div class="vehicle-card__price-block"><span class="vehicle-card__discount-tag">$ 4.21 off</span><div class="vehicle-card__price-row">From $15.73 Incl. taxes &amp; fees</div></div>
+    </div>
+    <div class="vehicle-card">
+      <div class="vehicle-card__title"><span class="vehicle-card__title-text">Minibus</span></div>
+      <span class="vehicle-card__capacity-text">Max 9</span>
+      <span class="vehicle-card__luggage-text">3</span>
+      <div class="vehicle-card__price-block"><div class="vehicle-card__price-row">From $30.81 Incl. taxes &amp; fees</div></div>
+    </div>
+  </div>`;
+
+const TRANSFER_RAW = {
+    type: 'Standard Car',
+    passengers: 4,
+    luggage: 1,
+    price: 15.73,
+    currency: 'USD',
+};
+
+describe('trip buildTransferListUrl', () => {
+    it('slugifies the city and airport code into the SEO path', () => {
+        expect(buildTransferListUrl('Bangkok', 'DMK'))
+            .toBe('https://www.trip.com/airport-transfers/bangkok/airport-dmk/');
+        expect(buildTransferListUrl('Ho Chi Minh City', 'SGN'))
+            .toBe('https://www.trip.com/airport-transfers/ho-chi-minh-city/airport-sgn/');
+    });
+});
+
+describe('trip transfer command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/transfer');
+
+    it('declares Strategy.COOKIE + browser:true + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects a blank city / non-IATA airport and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { city: '', airport: 'DMK', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { city: 'Bangkok', airport: 'BANGKOK', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('IATA') });
+        await expect(cmd.func(page, { city: 'Bangkok', airport: 'DMK', limit: 99 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, EmptyResult on no listing, CommandExec on timeout', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { city: 'Bangkok', airport: 'DMK', limit: 5 }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock(['empty']), { city: 'Bangkok', airport: 'DMK', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['timeout']), { city: 'Bangkok', airport: 'DMK', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render') });
+    });
+
+    it('flags a landing-page bounce when the city does not match the airport', async () => {
+        await expect(cmd.func(createPageMock(['content', '/airport-transfers/']), { city: 'Paris', airport: 'DMK', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('bounced') });
+    });
+
+    it('maps vehicle rows against the listing URL and respects --limit', async () => {
+        const page = createPageMock(['content', '/airport-transfers/bangkok/airport-dmk/', [TRANSFER_RAW, { ...TRANSFER_RAW, type: 'Minibus', passengers: 9, price: 30.81 }]]);
+        const rows = await cmd.func(page, { city: 'Bangkok', airport: 'DMK', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, type: 'Standard Car', passengers: 4, luggage: 1, price: 15.73, currency: 'USD' });
+        expect(rows[0].url).toBe('https://www.trip.com/airport-transfers/bangkok/airport-dmk/');
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('trip buildTransferExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { url: 'https://www.trip.com/airport-transfers/bangkok/airport-dmk/' });
+        return Function('document', `return (${buildTransferExtractJs()})`)(dom.window.document);
+    }
+
+    it('reads type / passengers / luggage / price and excludes the discount tag', () => {
+        const rows = runExtract(TRANSFER_CARDS);
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toEqual(TRANSFER_RAW);
+        expect(rows[1]).toMatchObject({ type: 'Minibus', passengers: 9, luggage: 3, price: 30.81 });
+    });
+
+    it('drops cards without a type or price', () => {
+        expect(runExtract('<div class="vehicle-card"><div class="vehicle-card__price-row">From $15 Incl.</div></div>')).toEqual([]);
+    });
+});
+
+describe('trip WAIT_FOR_TRANSFERS_JS (JSDOM)', () => {
+    it('detects a rendered price row as content', async () => {
+        const dom = new JSDOM('<!doctype html><html><body><div class="vehicle-card"><div class="vehicle-card__price-row">From $15.73</div></div></body></html>', {
+            url: 'https://www.trip.com/airport-transfers/bangkok/airport-dmk/',
+            runScripts: 'outside-only',
+        });
+        await expect(dom.window.Function(`return (${WAIT_FOR_TRANSFERS_JS})`)())
             .resolves.toBe('content');
     });
 });
