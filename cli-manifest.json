@@ -36578,6 +36578,35 @@
   },
   {
     "site": "trip",
+    "name": "deals",
+    "description": "List Trip.com live promotions from the Top Deals hub: campaign title, offer, discount, and link",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of deals (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "offer",
+      "discount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "trip/deals.js",
+    "sourceFile": "trip/deals.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "trip",
     "name": "flight",
     "description": "Search Trip.com one-way flights by IATA route + departure date",
     "access": "read",

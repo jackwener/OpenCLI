@@ -12,9 +12,11 @@ import './transfer.js';
 import './tour.js';
 import './search.js';
 import './package.js';
+import './deals.js';
 import {
     WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_CARS_JS,
+    WAIT_FOR_DEALS_JS,
     WAIT_FOR_HOTEL_DETAIL_JS,
     WAIT_FOR_TRAINS_JS,
     WAIT_FOR_TRANSFERS_JS,
@@ -22,6 +24,8 @@ import {
     buildAttractionSearchUrl,
     buildCarExtractJs,
     buildCarListUrl,
+    buildDealsExtractJs,
+    buildDealsUrl,
     buildFlightExtractJs,
     buildFlightRoundSearchUrl,
     buildFlightSearchUrl,
@@ -1257,5 +1261,113 @@ describe('trip package command (registry-level)', () => {
         stubPackageFetch({ pkgStatus: 503 });
         await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
             .rejects.toMatchObject({ code: 'FETCH_ERROR' });
+    });
+});
+
+const DEALS_HTML = `
+  <div class="top-deals_root">
+    <a class="top-deals_link-item" href="https://us.trip.com/sale/w/37676/gojapan.html">
+      <img class="top-deals_item-img" />
+      <div class="top-deals_item-text">
+        <div class="top-deals_item-tit">Go Japan</div>
+        <div class="top-deals_item-desc">Hotel up to 50% off</div>
+      </div>
+    </a>
+    <a class="top-deals_link-item" href="https://us.trip.com/sale/w/19280/gochina.html">
+      <div class="top-deals_item-text">
+        <div class="top-deals_item-tit">Go China</div>
+        <div class="top-deals_item-desc">Exclusive Summer Deals</div>
+      </div>
+    </a>
+  </div>`;
+
+const DEALS_RAW = {
+    title: 'Go Japan',
+    offer: 'Hotel up to 50% off',
+    discount: '50%',
+    url: 'https://us.trip.com/sale/w/37676/gojapan.html',
+};
+
+describe('trip buildDealsUrl', () => {
+    it('pins the Top Deals hub URL with English / USD', () => {
+        const url = buildDealsUrl();
+        expect(url.startsWith('https://www.trip.com/sale/deals/?')).toBe(true);
+        expect(url).toContain('locale=en-US');
+        expect(url).toContain('curr=USD');
+    });
+});
+
+describe('trip deals command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/deals');
+
+    it('declares Strategy.COOKIE + browser:true + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects an invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, CommandExec on timeout / malformed, EmptyResult on no deals', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { limit: 5 }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock(['timeout']), { limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render deal tiles') });
+        await expect(cmd.func(createPageMock(['content', null]), { limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+        await expect(cmd.func(createPageMock(['content', []]), { limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('maps deal rows against the hub URL and respects --limit', async () => {
+        const page = createPageMock(['content', [DEALS_RAW, { ...DEALS_RAW, title: 'Go China', offer: 'Exclusive Summer Deals', discount: null }]]);
+        const rows = await cmd.func(page, { limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, title: 'Go Japan', offer: 'Hotel up to 50% off', discount: '50%', url: DEALS_RAW.url });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('/sale/deals/');
+    });
+});
+
+describe('trip buildDealsExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { url: 'https://www.trip.com/sale/deals/' });
+        return Function('document', `return (${buildDealsExtractJs()})`)(dom.window.document);
+    }
+
+    it('extracts tiles with title / offer / parsed discount and dedupes by campaign URL', () => {
+        const rows = runExtract(DEALS_HTML + DEALS_HTML);
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toEqual(DEALS_RAW);
+        expect(rows[1]).toMatchObject({ title: 'Go China', offer: 'Exclusive Summer Deals', discount: null });
+    });
+
+    it('parses a $N off discount and prefixes a relative campaign href', () => {
+        const rows = runExtract('<a class="top-deals_link-item" href="/sale/w/9/z.html"><div class="top-deals_item-tit">Flights</div><div class="top-deals_item-desc">Get $15 off</div></a>');
+        expect(rows[0]).toMatchObject({ discount: '$15 off', url: 'https://www.trip.com/sale/w/9/z.html' });
+    });
+
+    it('drops tiles without a title or offer', () => {
+        expect(runExtract('<a class="top-deals_link-item" href="/sale/w/1/x.html"></a>')).toEqual([]);
+    });
+});
+
+describe('trip WAIT_FOR_DEALS_JS (JSDOM)', () => {
+    it('detects a rendered deal tile as content', async () => {
+        const dom = new JSDOM('<!doctype html><html><body><a class="top-deals_link-item" href="/sale/w/1/x.html"></a></body></html>', {
+            url: 'https://www.trip.com/sale/deals/',
+            runScripts: 'outside-only',
+        });
+        await expect(dom.window.Function(`return (${WAIT_FOR_DEALS_JS})`)())
+            .resolves.toBe('content');
     });
 });

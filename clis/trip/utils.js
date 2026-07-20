@@ -664,6 +664,69 @@ export function buildTourSearchJs(keyword) {
     `;
 }
 
+/** Build the "Today's Top Deals" hub URL (English / USD). */
+export function buildDealsUrl() {
+    const params = new URLSearchParams({ locale: 'en-US', curr: 'USD' });
+    return `https://www.trip.com/sale/deals/?${params.toString()}`;
+}
+
+/**
+ * Browser-context IIFE that extracts running-promotion rows from Trip.com's
+ * "Today's Top Deals" hub. Each promotion is an `.top-deals_link-item` tile whose
+ * title sits in `.top-deals_item-tit`, offer line in `.top-deals_item-desc`, and
+ * campaign page in the tile `href`; the `discount` is the percentage or `$N off`
+ * parsed out of the title + offer text (`null` when the campaign states none).
+ * The campaign `url` is normalised to its canonical path, dropping the per-session
+ * promo tracking query. Tiles are deduped by that URL, and those without a title
+ * or offer are dropped rather than surfaced with blanks.
+ */
+export function buildDealsExtractJs() {
+    return `
+      (() => {
+        const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const rows = [];
+        const seen = new Set();
+        document.querySelectorAll('a[class*="top-deals_link-item"]').forEach((a) => {
+          const raw = a.getAttribute('href') || '';
+          if (!raw) return;
+          const url = (raw.startsWith('http') ? raw : ('https://www.trip.com' + raw)).split('?')[0];
+          if (seen.has(url)) return;
+          const title = clean(a.querySelector('[class*="top-deals_item-tit"]'));
+          const offer = clean(a.querySelector('[class*="top-deals_item-desc"]'));
+          if (!title && !offer) return;
+          seen.add(url);
+          const discM = [title, offer].filter(Boolean).join(' ').match(/\\d+(?:\\.\\d+)?%|\\$\\s?\\d+(?:\\.\\d+)?\\s*off/i);
+          rows.push({
+            title: title || null,
+            offer: offer || null,
+            discount: discM ? discM[0].replace(/\\s+/g, ' ').trim() : null,
+            url,
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the deals hub to render, or detect a verification wall. */
+export const WAIT_FOR_DEALS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelector('a[class*="top-deals_link-item"]')) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 15000);
+  })
+`;
+
 /**
  * Query Trip.com's public destination-suggest endpoint (the same POI search the
  * flight / hotel boxes call). It takes an unsigned JSON POST and returns city /

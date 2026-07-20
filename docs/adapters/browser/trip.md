@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🌐 Public (`search`, `package`) · 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`, `tour`)
+**Mode**: 🌐 Public (`search`, `package`) · 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`, `tour`, `deals`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -22,6 +22,7 @@ the same company. These commands search worldwide flights and hotels on
 | `opencli trip transfer` | Browser (cookie) | Airport-transfer listing for a city + airport (type, seats, from-price) |
 | `opencli trip tour` | Browser (cookie) | Tour-package search by destination keyword (private or group tours) |
 | `opencli trip package` | Public | Flight+hotel package search by route + dates (package flight options at the bundle rate) |
+| `opencli trip deals` | Browser (cookie) | List Trip.com live promotions (Top Deals hub): campaign title, offer, discount, link |
 
 ## Usage Examples
 
@@ -60,6 +61,9 @@ opencli trip tour Bangkok --type group --limit 10
 
 # Flight+hotel package search (city keywords + dates)
 opencli trip package Seoul Tokyo --depart 2026-08-05 --return 2026-08-08 --limit 10
+
+# Live promotions (Top Deals hub)
+opencli trip deals --limit 10
 ```
 
 ## Search Columns (`search`)
@@ -310,6 +314,26 @@ package search (no browser session needed), and lists those flights. The specifi
 hotel is chosen in a later booking step, so per-row hotel detail and the return leg
 (which rides on the hotel checkout date) are out of scope here.
 
+## Deals Columns (`deals`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the Top Deals hub |
+| `title` | Campaign title (e.g. `Go Japan`, `Explore Taiwan`) |
+| `offer` | Offer line as shown (e.g. `Hotel up to 50% off`); `null` if the tile carries none |
+| `discount` | Discount parsed from the title / offer (e.g. `50%`, `$15 off`); `null` when the campaign states none |
+| `url` | Canonical campaign page URL (per-session promo tracking stripped) |
+
+Args:
+- `--limit` (1-50, default 20).
+
+Trip.com curates its running campaigns on a "Today's Top Deals" hub
+(`/sale/deals/`), each a promo tile linking to a dedicated campaign page. Rows come
+from the rendered `.top-deals_link-item` tiles (title in `.top-deals_item-tit`,
+offer in `.top-deals_item-desc`), deduped by the canonical campaign URL; tiles
+without a title or offer are dropped. The per-campaign terms and the bookable
+inventory behind each campaign are out of scope here.
+
 ## Prerequisites
 
 - Chrome running with the [Browser Bridge extension](/guide/browser-bridge) installed.
@@ -323,4 +347,4 @@ hotel is chosen in a later booking step, so per-row hotel detail and the return 
   domestic rail), use the `ctrip` adapter instead.
 - This adapter covers Trip.com's travel verticals end to end: flights, hotels,
   attractions, train timetables, car rentals, airport transfers, tour packages,
-  and flight+hotel packages.
+  flight+hotel packages, and the live-promotions hub.
