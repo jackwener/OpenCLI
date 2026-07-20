@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`, `tour`, `package`, `attraction`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `flight-round`, `train`, `bus`, `ferry`, `cruise`, `tour`, `package`, `attraction`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -17,6 +17,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip hotel-search` | Browser (cookie) | List hotels for a city + check-in/out date range |
 | `opencli ctrip hotel` | Browser (cookie) | Single-hotel detail: rating breakdown, facilities, check-in/out policy |
 | `opencli ctrip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
+| `opencli ctrip flight-round` | Browser (cookie) | Round-trip flight search by IATA route + depart/return dates |
 | `opencli ctrip train` | Browser (cookie) | Train ticket search by station/city name + departure date |
 | `opencli ctrip bus` | Browser (cookie) | Intercity coach ticket search by city name + departure date |
 | `opencli ctrip ferry` | Browser (cookie) | Passenger ferry sailing search by city name + departure date |
@@ -43,6 +44,9 @@ opencli ctrip hotel 375539 -f json
 
 # One-way flight search
 opencli ctrip flight BJS SHA --date 2026-05-20 --limit 20
+
+# Round-trip flight search (depart + return dates)
+opencli ctrip flight-round SHA BJS --depart 2026-08-15 --return 2026-08-22 --limit 20
 
 # Train ticket search (station or city names)
 opencli ctrip train 北京 上海 --date 2026-05-20 --limit 20
@@ -130,6 +134,24 @@ Rows are extracted from `.flight-list > span > div` cards because Ctrip's
 post-load XHR is not currently captured by the daemon network buffer (see
 "Caveats" below). Cards with missing departure/arrival/airline are dropped
 rather than emitted with sentinel values.
+
+## Round-Trip Flight Columns (`flight-round`)
+
+`flight-round` returns the outbound (去程) leg of a round-trip search with the
+same column shape as `flight` (`rank`, `airline`, `flightNo`, `aircraft`,
+`departureTime`, `departureAirport`, `arrivalTime`, `arrivalAirport`, `terminal`,
+`price`, `currency`, `cabin`, `url`), read from the `.flight-item` cards on the
+`round-<from>-<to>` results page.
+
+Args:
+- `<from>`, `<to>` (positional, required): 3-letter IATA codes (`BJS`/`SHA` metro codes work alongside single-airport codes like `PEK`/`PVG`).
+- `--depart`, `--return` (required): `YYYY-MM-DD`, with `return` on or after `depart`.
+- `--limit` (1-50, default 20).
+
+Two differences from the one-way list: `price` is the round-trip total (往返总价)
+for the outbound flight shown, and the round-trip cards omit the flight number, so
+`flightNo` and `aircraft` are usually `null` (never a sentinel). Picking the return
+leg is a second step in Ctrip's flow and is out of scope here.
 
 ## Train Columns (`train`)
 

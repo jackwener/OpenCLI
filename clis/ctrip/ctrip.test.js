@@ -5,6 +5,7 @@ import './search.js';
 import './hotel-suggest.js';
 import './hotel-search.js';
 import './flight.js';
+import './flight-round.js';
 import './train.js';
 import './hotel.js';
 import './bus.js';
@@ -744,6 +745,114 @@ describe('ctrip buildFlightExtractJs (JSDOM)', () => {
           </span></div>
         `;
         expect(runExtract(html)).toEqual([]);
+    });
+});
+
+const ROUND_ITEM = `
+  <div class="flight-item">
+    <span>新海航｜海南航空</span>
+    <span>19:00</span><span>虹桥国际机场</span><span>T2</span>
+    <span>21:15</span><span>首都国际机场</span><span>T2</span>
+    <span>¥</span><span>817</span><span>起</span>
+    <span>往返总价</span><span>选为去程</span>
+  </div>`;
+
+describe('ctrip buildFlightExtractJs (round-trip .flight-item, optional flightNo)', () => {
+    function runExtract(html, requireFlightNo) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://flights.ctrip.com/' });
+        return Function('document', `return (${buildFlightExtractJs('.flight-item', requireFlightNo)})`)(dom.window.document);
+    }
+
+    it('extracts a round-trip card that omits the flight number (flightNo null, not dropped)', () => {
+        expect(runExtract(ROUND_ITEM, false)).toEqual([{
+            airline: '新海航｜海南航空',
+            flightNo: null,
+            aircraft: null,
+            departureTime: '19:00',
+            departureAirport: '虹桥国际机场',
+            arrivalTime: '21:15',
+            arrivalAirport: '首都国际机场',
+            terminal: 'T2',
+            price: 817,
+            currency: '¥',
+            cabin: null,
+        }]);
+    });
+
+    it('still drops a flightNo-less card when requireFlightNo is true (one-way guard preserved)', () => {
+        expect(runExtract(ROUND_ITEM, true)).toEqual([]);
+    });
+});
+
+describe('ctrip flight-round command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/flight-round');
+
+    const ROUND_RAW = {
+        airline: '新海航｜海南航空',
+        flightNo: null,
+        aircraft: null,
+        departureTime: '19:00',
+        departureAirport: '虹桥国际机场',
+        arrivalTime: '21:15',
+        arrivalAirport: '首都国际机场',
+        terminal: 'T2',
+        price: 817,
+        currency: '¥',
+        cabin: null,
+    };
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('flights.ctrip.com');
+    });
+
+    it('rejects invalid IATA / date / from==to / return-before-depart / limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: 'PE', to: 'SHA', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('IATA') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'PEK', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', depart: '08/15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--depart') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', depart: '2026-08-22', return: '2026-08-15', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('on or after') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', depart: '2026-08-15', return: '2026-08-22', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on captcha, EmptyResult on no flights, CommandExec on drift / timeout', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 2, []]), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required flight anchors') });
+        await expect(cmd.func(createPageMock(['timeout']), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render flight cards') });
+    });
+
+    it('builds the round-<from>-<to> URL with the depart_return date pair', async () => {
+        const page = createPageMock(['content', 1, [ROUND_RAW]]);
+        await cmd.func(page, { from: 'sha', to: 'bjs', depart: '2026-08-15', return: '2026-08-22', limit: 1 });
+        const url = page.goto.mock.calls[0][0];
+        expect(url).toContain('round-sha-bjs');
+        expect(url).toContain('depdate=2026-08-15_2026-08-22');
+        expect(url).toContain('cabin=Y_S_C_F');
+    });
+
+    it('maps round-trip rows (flightNo may be null) and respects --limit', async () => {
+        const page = createPageMock(['content', 2, [ROUND_RAW, { ...ROUND_RAW, departureTime: '20:15', price: 846 }]]);
+        const rows = await cmd.func(page, { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, airline: '新海航｜海南航空', flightNo: null, departureTime: '19:00', price: 817 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
     });
 });
 

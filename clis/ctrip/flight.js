@@ -7,8 +7,8 @@
  * extract from the rendered `.flight-list > span > div` cards using a
  * position-anchored innerText parser (see `buildFlightExtractJs` in utils).
  *
- * Round-trip + advanced filters (airline whitelist, cabin selection beyond
- * 全舱位) are out of scope for v1 — track in #1481 follow-up if requested.
+ * Round-trip search lives in the sibling `flight-round` command; advanced filters
+ * (airline whitelist, cabin selection beyond 全舱位) remain out of scope here.
  */
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';

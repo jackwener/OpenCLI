@@ -329,7 +329,7 @@ export function mapHotelRow(entry, index) {
  *
  * The host is baked in so `normalizeUrl` for booking links resolves on the calling site.
  */
-export function buildFlightExtractJs() {
+export function buildFlightExtractJs(cardSelector = '.flight-list > span > div', requireFlightNo = true) {
     return `
       (() => {
         const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
@@ -339,7 +339,7 @@ export function buildFlightExtractJs() {
         const isFlightNo = (s) => /^[A-Z0-9]{2}\\d{3,4}[A-Z]?$/.test(s);
 
         const rows = [];
-        document.querySelectorAll('.flight-list > span > div').forEach((card) => {
+        document.querySelectorAll(${JSON.stringify(cardSelector)}).forEach((card) => {
           // Collect ordered text chunks (text nodes only, skip whitespace-only).
           const chunks = [];
           const walk = (node) => {
@@ -359,9 +359,16 @@ export function buildFlightExtractJs() {
           const firstTimeIdx = chunks.findIndex(isTime);
           if (firstTimeIdx < 1) return;
           const airline = chunks[0];
-          const flightNo = chunks[1] || null;
-          if (!airline || !isFlightNo(flightNo)) return;
-          const aircraft = chunks[2] && !isTime(chunks[2]) ? chunks[2] : null;
+          if (!airline || isTime(airline)) return;
+          // flightNo / aircraft sit between the airline and the first time, but the
+          // round-trip list omits them, so treat both as optional rather than required.
+          let flightNo = null;
+          let aircraft = null;
+          for (let i = 1; i < firstTimeIdx; i++) {
+            if (flightNo === null && isFlightNo(chunks[i])) flightNo = chunks[i];
+            else if (aircraft === null && !isFlightNo(chunks[i])) aircraft = chunks[i];
+          }
+          ${requireFlightNo ? 'if (!flightNo) return;' : ''}
 
           const depTime = chunks[firstTimeIdx];
           const depAirport = chunks[firstTimeIdx + 1] || null;
