@@ -11,6 +11,7 @@ import './car.js';
 import './transfer.js';
 import './tour.js';
 import './search.js';
+import './package.js';
 import {
     WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_CARS_JS,
@@ -36,6 +37,7 @@ import {
     buildTransferListUrl,
     fetchPoiSearch,
     flattenPoiResults,
+    mapPackageRow,
     mapSearchRow,
     parseCityId,
     parseHotelId,
@@ -43,6 +45,7 @@ import {
     parseIsoDate,
     parseKeyword,
     parseListLimit,
+    resolvePackageCity,
 } from './utils.js';
 
 function createPageMock(evaluateResults) {
@@ -1119,5 +1122,140 @@ describe('trip search command (registry-level)', () => {
         await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR' });
         vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('socket hang up'))));
         await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR', message: expect.stringContaining('socket hang up') });
+    });
+});
+
+const PKG_GROUP = {
+    flightlist: [{
+        binfo: { flightno: 'TW247', airlineName: "T'Way Air" },
+        dportinfo: { aport: 'ICN' },
+        aportinfo: { aport: 'NRT' },
+        dateinfo: { dtime: '2026-08-05 18:15:00', atime: '2026-08-05 20:45:00' },
+    }],
+    policylist: [{ price: { price: 53.4 } }],
+};
+
+const PKG_ROW = {
+    rank: 1,
+    airline: "T'Way Air",
+    flightNo: 'TW247',
+    from: 'ICN',
+    to: 'NRT',
+    departure: '2026-08-05 18:15:00',
+    arrival: '2026-08-05 20:45:00',
+    stops: 0,
+    price: 53.4,
+    currency: 'USD',
+};
+
+const PKG_POIS = {
+    Seoul: [{ name: 'Seoul', cityId: 274, cityCode: 'SEL', airportCode: '' }],
+    Tokyo: [{ name: 'Tokyo', cityId: 228, cityCode: 'TYO', airportCode: '' }],
+};
+
+function stubPackageFetch({ pois = PKG_POIS, pkg = { grouplist: [PKG_GROUP] }, pkgStatus = 200 } = {}) {
+    vi.stubGlobal('fetch', vi.fn((url, opts) => {
+        if (String(url).includes('poiSearch')) {
+            const key = JSON.parse(opts.body).key;
+            return Promise.resolve(new Response(JSON.stringify({ results: pois[key] || [] }), { status: 200 }));
+        }
+        return Promise.resolve(new Response(JSON.stringify(pkg), { status: pkgStatus }));
+    }));
+}
+
+describe('trip mapPackageRow', () => {
+    it('projects a nonstop group into the route summary row', () => {
+        expect(mapPackageRow(PKG_GROUP, 0)).toEqual(PKG_ROW);
+    });
+    it('reads the arrival off the last leg, counts stops, and keeps a missing price null', () => {
+        const connection = {
+            flightlist: [
+                { binfo: { flightno: 'KE1', airlineName: 'Korean Air' }, dportinfo: { aport: 'ICN' }, aportinfo: { aport: 'PVG' }, dateinfo: { dtime: '2026-08-05 08:00:00', atime: '2026-08-05 10:00:00' } },
+                { binfo: { flightno: 'KE2', airlineName: 'Korean Air' }, dportinfo: { aport: 'PVG' }, aportinfo: { aport: 'NRT' }, dateinfo: { dtime: '2026-08-05 12:00:00', atime: '2026-08-05 15:00:00' } },
+            ],
+            policylist: [],
+        };
+        expect(mapPackageRow(connection, 1)).toMatchObject({
+            rank: 2, airline: 'Korean Air', flightNo: 'KE1', from: 'ICN', to: 'NRT',
+            departure: '2026-08-05 08:00:00', arrival: '2026-08-05 15:00:00', stops: 1, price: null,
+        });
+    });
+});
+
+describe('trip resolvePackageCity', () => {
+    beforeEach(() => vi.unstubAllGlobals());
+
+    it('resolves the first city carrying both a metro code and id', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ results: [{ name: 'Tokyo', cityId: 228, cityCode: 'tyo', airportCode: '' }] }), { status: 200 }))));
+        await expect(resolvePackageCity('Tokyo')).resolves.toEqual({ name: 'Tokyo', cityCode: 'TYO', cityId: 228 });
+    });
+
+    it('skips airport-only children and returns null when no city has a code', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ results: [
+            { name: 'Narita International Airport', cityId: 228, cityCode: 'TYO', airportCode: 'NRT' },
+            { name: 'Some Province', cityId: 0, cityCode: '' },
+        ] }), { status: 200 }))));
+        await expect(resolvePackageCity('nowhere')).resolves.toBeNull();
+    });
+});
+
+describe('trip package command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/package');
+    beforeEach(() => vi.unstubAllGlobals());
+
+    it('declares Strategy.PUBLIC + browser:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(false);
+        expect(String(cmd.strategy)).toContain('public');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects a blank keyword, malformed dates, depart>=return, and invalid adults / limit', async () => {
+        await expect(cmd.func({ from: '', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '08/05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--depart') });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-08', return: '2026-08-05', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--depart must be before --return') });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 0, limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--adults') });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+    });
+
+    it('rejects an unresolvable keyword and a from==to that resolves to one city', async () => {
+        stubPackageFetch({ pois: { Tokyo: PKG_POIS.Tokyo } });
+        await expect(cmd.func({ from: 'Nowherexyz', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('Could not resolve origin') });
+        await expect(cmd.func({ from: 'Tokyo', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+    });
+
+    it('resolves both endpoints, maps package rows, and respects --limit', async () => {
+        stubPackageFetch({ pkg: { grouplist: [PKG_GROUP, { ...PKG_GROUP, policylist: [{ price: { price: 61 } }] }] } });
+        const rows = await cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toEqual(PKG_ROW);
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+    });
+
+    it('throws EmptyResult when the endpoint returns no package groups', async () => {
+        stubPackageFetch({ pkg: { grouplist: [] } });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('throws CommandExec (drift) when groups return but none carry an itinerary', async () => {
+        stubPackageFetch({ pkg: { grouplist: [{ policylist: [{ price: { price: 53.4 } }] }] } });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('parseable flight itinerary') });
+    });
+
+    it('surfaces a package endpoint failure as typed FETCH_ERROR', async () => {
+        stubPackageFetch({ pkgStatus: 503 });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'FETCH_ERROR' });
     });
 });

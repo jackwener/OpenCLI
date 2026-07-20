@@ -12,6 +12,7 @@ const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const POI_SEARCH_ENDPOINT = 'https://www.trip.com/restapi/soa2/14427/poiSearch';
+const PACKAGE_SEARCH_ENDPOINT = 'https://www.trip.com/restapi/soa2/19866/FlightSelectSearch';
 
 export function parseIataCode(name, raw) {
     if (raw === undefined || raw === null || raw === '') {
@@ -734,4 +735,104 @@ export function mapSearchRow(item, index) {
     };
 }
 
-export const __test__ = { MIN_LIMIT, MAX_LIMIT, POI_SEARCH_ENDPOINT };
+/**
+ * Resolve a destination keyword to the Trip.com city its flight+hotel package
+ * search needs: the metro `cityCode` (e.g. `SEL`) drives the flight leg and the
+ * numeric `cityId` drives the hotel leg, both of which the public POI search
+ * returns for a city match. Picks the first result carrying both (an airport
+ * child only carries an `airportCode`), so one keyword resolves both endpoints.
+ * Returns `null` when no city matches.
+ */
+export async function resolvePackageCity(keyword) {
+    const results = await fetchPoiSearch(keyword);
+    for (const item of results) {
+        if (!item || typeof item !== 'object' || item.airportCode) continue;
+        const cityCode = item.cityCode ? String(item.cityCode).trim().toUpperCase() : '';
+        const cityId = Number.isFinite(item.cityId) && item.cityId !== 0 ? item.cityId : null;
+        if (cityCode && cityId) {
+            return { name: item.name ? String(item.name).replace(/\s+/g, ' ').trim() : keyword, cityCode, cityId };
+        }
+    }
+    return null;
+}
+
+/**
+ * Query Trip.com's flight+hotel package search (the flight-selection step of the
+ * package booking flow). It takes an unsigned JSON POST keyed on the metro city
+ * codes plus the destination hotel city id and returns the package's flight
+ * options priced at the bundle rate, so this needs no browser session. `fmap` 19
+ * is the flight+hotel product map and `sgrade` 4 economy; the return date rides on
+ * the hotel checkout, so the flight criteria carries just the outbound segment,
+ * the same shape the results page submits. Returns the raw `grouplist` array.
+ */
+export async function fetchPackageSearch({ dcode, acode, hcityid, depart, ret, adults }) {
+    const body = {
+        head: {
+            cid: '', ctok: '', cver: '1.0', lang: '01', sid: '8888', syscode: '09', auth: '', xsid: '',
+            extension: [
+                { name: 'locale', value: 'en-US' },
+                { name: 'currency', value: 'USD' },
+                { name: 'productLine', value: 'FlightHotel' },
+                { name: 'source', value: 'ONLINE' },
+            ],
+            Locale: 'en-US', Language: 'en', Currency: 'USD', ClientID: '',
+        },
+        platform: { src: 'PC', lang: 'en-US', currency: 'USD', sitesrc: 'trip' },
+        flightcriteria: {
+            osource: 1, triptype: 1, fmap: 19, sflag: 0, rtype: 2,
+            seglist: [{ segno: 1, ddate: depart, sgrade: 4, dcode, acode }],
+            pinfo: { adults, children: 0, babys: 0 },
+        },
+        hotelcriteria: { chin: depart, chout: ret, hcityid, rnum: 1 },
+    };
+    let response;
+    try {
+        response = await fetch(PACKAGE_SEARCH_ENDPOINT, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', currency: 'USD' },
+            body: JSON.stringify(body),
+        });
+    } catch (err) {
+        throw new CliError('FETCH_ERROR', `Trip.com package search fetch failed: ${err instanceof Error ? err.message : String(err)}`, 'Check your network connection and retry');
+    }
+    if (!response.ok) {
+        throw new CliError('FETCH_ERROR', `Trip.com package search failed with status ${response.status}`, 'Retry the command or verify trip.com is reachable');
+    }
+    let payload;
+    try {
+        payload = await response.json();
+    } catch (err) {
+        throw new CliError('COMMAND_EXEC', `Trip.com package search returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`, 'Trip.com may have changed the endpoint response format; retry later');
+    }
+    return Array.isArray(payload?.grouplist) ? payload.grouplist : [];
+}
+
+/**
+ * Project a package flight group into the stable adapter column shape. A group's
+ * `flightlist` is the itinerary legs (one for a nonstop), so the route summary
+ * reads the departure off the first leg and the arrival off the last, with the
+ * leg count minus one as the stop count. `price` is the per-person package
+ * starting fare (`policylist[0].price.price`); missing values stay `null`.
+ */
+export function mapPackageRow(group, index) {
+    const legs = Array.isArray(group?.flightlist) ? group.flightlist : [];
+    const first = legs[0] || {};
+    const last = legs[legs.length - 1] || {};
+    const binfo = first.binfo || {};
+    const price = group?.policylist?.[0]?.price?.price;
+    const str = (v) => (v == null || v === '') ? null : String(v).replace(/\s+/g, ' ').trim();
+    return {
+        rank: index + 1,
+        airline: str(binfo.airlineName),
+        flightNo: str(binfo.flightno),
+        from: str(first.dportinfo && first.dportinfo.aport),
+        to: str(last.aportinfo && last.aportinfo.aport),
+        departure: str(first.dateinfo && first.dateinfo.dtime),
+        arrival: str(last.dateinfo && last.dateinfo.atime),
+        stops: legs.length ? legs.length - 1 : null,
+        price: (typeof price === 'number' && isFinite(price)) ? price : null,
+        currency: 'USD',
+    };
+}
+
+export const __test__ = { MIN_LIMIT, MAX_LIMIT, POI_SEARCH_ENDPOINT, PACKAGE_SEARCH_ENDPOINT };

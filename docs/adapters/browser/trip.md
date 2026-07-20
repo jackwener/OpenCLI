@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🌐 Public (`search`) · 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`, `tour`)
+**Mode**: 🌐 Public (`search`, `package`) · 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`, `tour`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -21,6 +21,7 @@ the same company. These commands search worldwide flights and hotels on
 | `opencli trip car` | Browser (cookie) | Car-rental listing for a city (category, model, seats, daily price) |
 | `opencli trip transfer` | Browser (cookie) | Airport-transfer listing for a city + airport (type, seats, from-price) |
 | `opencli trip tour` | Browser (cookie) | Tour-package search by destination keyword (private or group tours) |
+| `opencli trip package` | Public | Flight+hotel package search by route + dates (package flight options at the bundle rate) |
 
 ## Usage Examples
 
@@ -56,6 +57,9 @@ opencli trip transfer Bangkok DMK --limit 10
 # Tour-package search (destination keyword; private tours by default)
 opencli trip tour Kyoto --limit 20
 opencli trip tour Bangkok --type group --limit 10
+
+# Flight+hotel package search (city keywords + dates)
+opencli trip package Seoul Tokyo --depart 2026-08-05 --return 2026-08-08 --limit 10
 ```
 
 ## Search Columns (`search`)
@@ -278,6 +282,32 @@ captures the `products` response. Rows read the product `name`, `type`, rating,
 review count, starting price, and per-tour detail URL from that JSON; per-departure
 pricing and availability sit behind the booking step.
 
+## Package Columns (`package`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the returned package groups |
+| `airline` | Operating airline of the outbound flight |
+| `flightNo` | Outbound flight number |
+| `from`, `to` | Outbound departure / arrival IATA airport codes (arrival read off the last leg for a connection) |
+| `departure`, `arrival` | Outbound `YYYY-MM-DD HH:MM:SS` local times |
+| `stops` | Number of stops on the outbound (`0` for a nonstop) |
+| `price`, `currency` | Per-person package starting fare and `USD`; `price` is `null` when absent |
+
+Args:
+- `<from>`, `<to>` (positional, required): origin and destination city keywords (e.g. `Seoul` / `Tokyo`), resolved through the same POI search `search` uses.
+- `--depart`, `--return` (required): `YYYY-MM-DD`, with `depart` before `return`.
+- `--adults` (1-9, default 2).
+- `--limit` (1-50, default 20).
+
+Trip.com prices flight+hotel packages through the flight-selection step of the
+booking flow: a public, unsigned POST keyed on the metro city codes plus the
+destination hotel city id returns the outbound flight options priced at the bundle
+rate. So the command resolves both keywords to their city code + id, posts the
+package search (no browser session needed), and lists those flights. The specific
+hotel is chosen in a later booking step, so per-row hotel detail and the return leg
+(which rides on the hotel checkout date) are out of scope here.
+
 ## Prerequisites
 
 - Chrome running with the [Browser Bridge extension](/guide/browser-bridge) installed.
@@ -290,4 +320,5 @@ pricing and availability sit behind the booking step.
 - Trip.com is English/USD-facing. For the mainland Chinese site (Chinese UI, CNY,
   domestic rail), use the `ctrip` adapter instead.
 - This adapter covers Trip.com's travel verticals end to end: flights, hotels,
-  attractions, train timetables, car rentals, airport transfers, and tour packages.
+  attractions, train timetables, car rentals, airport transfers, tour packages,
+  and flight+hotel packages.

@@ -36786,6 +36786,72 @@
   },
   {
     "site": "trip",
+    "name": "package",
+    "description": "Search Trip.com flight+hotel packages by route + dates; lists the package flight options priced at the bundle rate",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "from",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Origin city keyword (e.g. Seoul / London / Bangkok)"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Destination city keyword (e.g. Tokyo / Paris / Singapore)"
+      },
+      {
+        "name": "depart",
+        "type": "str",
+        "required": true,
+        "help": "Outbound date (YYYY-MM-DD)"
+      },
+      {
+        "name": "return",
+        "type": "str",
+        "required": true,
+        "help": "Return date (YYYY-MM-DD)"
+      },
+      {
+        "name": "adults",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Number of adults (1-9, default 2)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of packages (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "airline",
+      "flightNo",
+      "from",
+      "to",
+      "departure",
+      "arrival",
+      "stops",
+      "price",
+      "currency"
+    ],
+    "type": "js",
+    "modulePath": "trip/package.js",
+    "sourceFile": "trip/package.js"
+  },
+  {
+    "site": "trip",
     "name": "search",
     "description": "Suggest Trip.com destinations (cities, airports) for a keyword; resolves the ids the other commands take",
     "access": "read",
