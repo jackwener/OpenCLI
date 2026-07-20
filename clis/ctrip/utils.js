@@ -966,4 +966,76 @@ export const WAIT_FOR_VACATIONS_JS = `
   })
 `;
 
+/* ------------------------- you.ctrip 门票 (browser: attraction) ------------------------- */
+
+/**
+ * Build a destination guide URL for a Ctrip city id. you.ctrip.com routes the
+ * place page by the trailing numeric city id and redirects any slug to the
+ * canonical one, so a placeholder slug plus the id is enough; discover the id
+ * via `ctrip search`.
+ */
+export function buildAttractionPlaceUrl(cityId) {
+    return `https://you.ctrip.com/place/dest${cityId}.html`;
+}
+
+/**
+ * Browser-context IIFE that extracts a destination's top attractions from a
+ * you.ctrip.com place page. Each attraction is a `/sight/<city>/<id>.html` link
+ * whose text carries the name plus a `<rating>分<reviews>条点评` summary; the name
+ * is the text before the rating, and rating / reviews are read from that summary
+ * (`w` / `万` expanded to thousands). Links are deduped by sight id and dropped
+ * when they carry no name.
+ */
+export function buildAttractionExtractJs() {
+    return `
+      (() => {
+        const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+        const kNum = (s) => { if (!s) return null; const raw = String(s); const n = Number(raw.replace(/[wW万,]/g, '')); if (!Number.isFinite(n)) return null; return /[wW万]/.test(raw) ? Math.round(n * 10000) : n; };
+        const rows = [];
+        const seen = new Set();
+        document.querySelectorAll('a[href*="/sight/"]').forEach((link) => {
+          const href = link.getAttribute('href') || '';
+          const idMatch = href.match(/\\/(\\d+)\\.html/);
+          const id = idMatch ? idMatch[1] : null;
+          if (!id || seen.has(id)) return;
+          const full = clean(link.textContent);
+          const ratingM = full.match(/([\\d.]+)\\s*分/);
+          const reviewsM = full.match(/([\\d.]+[wW万]?)\\s*条点评/);
+          let cut = full.length;
+          if (ratingM) cut = Math.min(cut, full.indexOf(ratingM[0]));
+          if (reviewsM) cut = Math.min(cut, full.indexOf(reviewsM[0]));
+          const name = clean(full.slice(0, cut));
+          if (!name) return;
+          seen.add(id);
+          rows.push({
+            name,
+            rating: ratingM ? Number(ratingM[1]) : null,
+            reviews: kNum(reviewsM && reviewsM[1]),
+            url: href.startsWith('http') ? href : ('https://you.ctrip.com' + href),
+          });
+        });
+        return rows;
+      })()
+    `;
+}
+
+/** Wait for the place page's attraction links to render, or detect a captcha wall. */
+export const WAIT_FOR_ATTRACTIONS_JS = `
+  new Promise((resolve) => {
+    const detect = () => {
+      if (location.pathname.includes('captcha') || /验证码|安全验证|访问验证/i.test(document.body?.innerText || '')) return 'captcha';
+      if (document.querySelectorAll('a[href*="/sight/"]').length > 2) return 'content';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const result = detect();
+      if (result) { observer.disconnect(); resolve(result); }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 15000);
+  })
+`;
+
 export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT };

@@ -12,8 +12,11 @@ import './ferry.js';
 import './cruise.js';
 import './tour.js';
 import './package.js';
+import './attraction.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
+    buildAttractionExtractJs,
+    buildAttractionPlaceUrl,
     buildBusExtractJs,
     buildBusListUrl,
     buildCruiseExtractJs,
@@ -42,6 +45,7 @@ import {
     parsePlaceName,
     pickCoords,
     pickHotelMapCoords,
+    WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_HOTEL_DETAIL_JS,
 } from './utils.js';
 
@@ -1649,5 +1653,114 @@ describe('ctrip package command (registry-level)', () => {
         }
         expect(page.goto).toHaveBeenCalledTimes(1);
         expect(page.goto.mock.calls[0][0]).toContain('list/freetravel/sc.html?sv=');
+    });
+});
+
+const ATTRACTION_LINKS = `
+  <div>
+    <a href="/sight/beijing1/229.html?poiType=3">故宫博物院4.8分19.7w条点评穿越明清两朝的皇家宫殿群</a>
+    <a href="/sight/beijing1/62722.html?poiType=3">中国国家博物馆1.3w条点评穿越千年看中华珍宝</a>
+    <a href="/sight/beijing1/230.html?poiType=3">八达岭长城4.7分6.1w条点评不到长城非好汉</a>
+  </div>`;
+
+const ATTRACTION_RAW = {
+    name: '故宫博物院',
+    rating: 4.8,
+    reviews: 197000,
+    url: 'https://you.ctrip.com/sight/beijing1/229.html?poiType=3',
+};
+
+describe('ctrip buildAttractionPlaceUrl', () => {
+    it('routes the place page by the numeric city id with a placeholder slug', () => {
+        expect(buildAttractionPlaceUrl(1)).toBe('https://you.ctrip.com/place/dest1.html');
+        expect(buildAttractionPlaceUrl(2)).toBe('https://you.ctrip.com/place/dest2.html');
+    });
+});
+
+describe('ctrip attraction command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/attraction');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('you.ctrip.com');
+    });
+
+    it('rejects a non-numeric city and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { city: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { city: 'beijing', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('city ID') });
+        await expect(cmd.func(page, { city: '1', limit: 99 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { city: '1', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExec on render timeout, malformed extraction, and rendered-but-unparsed', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { city: '1', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render attraction links') });
+        await expect(cmd.func(createPageMock(['content', { rows: [] }]), { city: '1', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+        await expect(cmd.func(createPageMock(['content', []]), { city: '1', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required sight anchors') });
+    });
+
+    it('maps attraction rows against the sight detail URL and respects --limit', async () => {
+        const page = createPageMock(['content', [ATTRACTION_RAW, { ...ATTRACTION_RAW, name: '八达岭长城', rating: 4.7 }]]);
+        const rows = await cmd.func(page, { city: '1', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, name: '故宫博物院', rating: 4.8, reviews: 197000 });
+        expect(rows[0].url).toBe('https://you.ctrip.com/sight/beijing1/229.html?poiType=3');
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toBe('https://you.ctrip.com/place/dest1.html');
+    });
+});
+
+describe('ctrip buildAttractionExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://you.ctrip.com/place/beijing1.html' });
+        return Function('document', `return (${buildAttractionExtractJs()})`)(dom.window.document);
+    }
+
+    it('reads name / rating / reviews from each sight link, expanding 万 / w counts', () => {
+        const rows = runExtract(ATTRACTION_LINKS);
+        expect(rows).toHaveLength(3);
+        expect(rows[0]).toEqual(ATTRACTION_RAW);
+        expect(rows[2]).toMatchObject({ name: '八达岭长城', rating: 4.7, reviews: 61000 });
+    });
+
+    it('keeps rating null when a sight lists only a review count', () => {
+        const rows = runExtract(ATTRACTION_LINKS);
+        expect(rows[1]).toMatchObject({ name: '中国国家博物馆', rating: null, reviews: 13000 });
+    });
+
+    it('dedupes repeated sight ids and drops links without a name', () => {
+        expect(runExtract(ATTRACTION_LINKS + ATTRACTION_LINKS)).toHaveLength(3);
+        expect(runExtract('<a href="/sight/beijing1/229.html">4.8分</a>')).toEqual([]);
+    });
+});
+
+describe('ctrip WAIT_FOR_ATTRACTIONS_JS (JSDOM)', () => {
+    it('detects the rendered sight links as content', async () => {
+        const dom = new JSDOM(`<!doctype html><html><body>${ATTRACTION_LINKS}</body></html>`, {
+            url: 'https://you.ctrip.com/place/beijing1.html',
+            runScripts: 'outside-only',
+        });
+        await expect(dom.window.Function(`return (${WAIT_FOR_ATTRACTIONS_JS})`)())
+            .resolves.toBe('content');
     });
 });

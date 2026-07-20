@@ -8879,6 +8879,42 @@
   },
   {
     "site": "ctrip",
+    "name": "attraction",
+    "description": "列出携程某城市的热门景点（评分/点评数，城市 id 经 ctrip search 获取）",
+    "access": "read",
+    "domain": "you.ctrip.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "city",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric Ctrip city id (from `ctrip search`, e.g. 1 for 北京)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of attractions (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "rating",
+      "reviews",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "ctrip/attraction.js",
+    "sourceFile": "ctrip/attraction.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "ctrip",
     "name": "bus",
     "description": "搜索携程汽车票（按出发/到达城市名 + 日期）",
     "access": "read",

@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`, `tour`, `package`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `train`, `bus`, `ferry`, `cruise`, `tour`, `package`, `attraction`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -23,6 +23,7 @@ and `flights.ctrip.com`.
 | `opencli ctrip cruise` | Browser (cookie) | Cruise package search by departure port name |
 | `opencli ctrip tour` | Browser (cookie) | Group / self-guided tour package search by destination keyword |
 | `opencli ctrip package` | Browser (cookie) | Flight-plus-hotel (自由行) package search by destination keyword |
+| `opencli ctrip attraction` | Browser (cookie) | Top attractions for a city id (rating, review count, detail link) |
 
 ## Usage Examples
 
@@ -61,6 +62,9 @@ opencli ctrip tour 北京 --limit 20
 
 # Flight-plus-hotel package search (destination keyword)
 opencli ctrip package 三亚 --limit 20
+
+# Top attractions for a city (numeric city id from `ctrip search`, e.g. 1 for 北京)
+opencli ctrip attraction 1 --limit 20
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -254,6 +258,27 @@ product section (`freetravel` rather than `whole`).
 Args:
 - `<destination>` (positional, required): a destination keyword (e.g. `三亚` / `北京` / `曼谷`).
 - `--limit` (1-50, default 20).
+
+## Attraction Columns (`attraction`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the rendered list |
+| `name` | Attraction name |
+| `rating` | Guest rating out of 5; `null` when the card lists only a review count |
+| `reviews` | Review count as an integer (`19.7w` / `1.3万` expanded to thousands); `null` if absent |
+| `url` | The attraction's `you.ctrip.com/sight/<city>/<id>.html` detail page |
+
+Args:
+- `<city>` (positional, required): a numeric Ctrip city id (discover via `ctrip search`; e.g. `1` for 北京, `2` for 上海).
+- `--limit` (1-50, default 20).
+
+The `you.ctrip.com` place page routes by the trailing numeric city id (redirecting
+any slug to the canonical one) and lists a destination's top-rated attractions as
+`/sight/<city>/<id>.html` links carrying the name, rating, and review count. Rows
+anchor on those stable links, deduped by sight id, and drop links without a name.
+Per-attraction ticket prices sit on each sight's own detail page and are out of
+scope here.
 
 ## Hotel Detail Columns (`hotel`)
 
