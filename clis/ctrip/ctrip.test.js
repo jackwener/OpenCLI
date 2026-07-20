@@ -645,9 +645,16 @@ describe('ctrip flight command (registry-level)', () => {
     });
 
     it('throws CommandExecutionError when every flight row misses core anchors', async () => {
-        const page = createPageMock(['content', 2, [{ ...FLIGHT_RAW, departureAirport: '' }, { ...FLIGHT_RAW, flightNo: null }]]);
+        const page = createPageMock(['content', 2, [{ ...FLIGHT_RAW, departureAirport: '' }, { ...FLIGHT_RAW, arrivalTime: '' }]]);
         await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('required airline/flight/time/airport anchors') });
+    });
+
+    it('keeps a row whose .flight-item card omits the flight number (flightNo null, not dropped)', async () => {
+        const page = createPageMock(['content', 1, [{ ...FLIGHT_RAW, flightNo: null }]]);
+        const rows = await cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].flightNo).toBeNull();
     });
 });
 

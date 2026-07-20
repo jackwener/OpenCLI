@@ -119,7 +119,7 @@ Args:
 | Column | Notes |
 |--------|-------|
 | `rank` | 1-based position after filtering incomplete rows |
-| `airline`, `flightNo`, `aircraft` | Free-text from the rendered card; `aircraft` may be `null` |
+| `airline`, `flightNo`, `aircraft` | Free-text from the rendered card; `flightNo` and `aircraft` may be `null` (the current `.flight-item` cards often omit the flight number) |
 | `departureTime`, `arrivalTime` | `HH:MM` strings |
 | `departureAirport`, `arrivalAirport`, `terminal` | Airport names + optional `T1`/`T2` chunk |
 | `price`, `currency`, `cabin` | First quoted fare; `cabin` is the Chinese suffix (e.g. `经济舱`) |
@@ -130,10 +130,11 @@ Args:
 - `--date` (required) — `YYYY-MM-DD`.
 - `--limit` (1-50, default 20).
 
-Rows are extracted from `.flight-list > span > div` cards because Ctrip's
-post-load XHR is not currently captured by the daemon network buffer (see
-"Caveats" below). Cards with missing departure/arrival/airline are dropped
-rather than emitted with sentinel values.
+Rows are extracted from the rendered `.flight-item` cards (Ctrip migrated the
+flight list to these; they omit a text flight number, so `flightNo` is often
+`null`) because Ctrip's post-load XHR is not currently captured by the daemon
+network buffer (see "Caveats" below). Cards with missing departure/arrival/airline
+are dropped rather than emitted with sentinel values.
 
 ## Round-Trip Flight Columns (`flight-round`)
 

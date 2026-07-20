@@ -316,8 +316,10 @@ export function mapHotelRow(entry, index) {
 
 /**
  * Build the browser-context IIFE that extracts flight rows from a caller-supplied
- * card selector (default `.flight-list > span > div` for the one-way list; the
- * round-trip list passes `.flight-item`).
+ * card selector. Ctrip migrated the live flight lists to `.flight-item` cards that
+ * omit a text flight number, so both `flight` and `flight-round` pass
+ * `('.flight-item', false)`; the `.flight-list > span > div` + `requireFlightNo`
+ * default is the legacy one-way layout still covered by tests.
  *
  * Each card's innerText has a stable ordering (verified 2026-05-12 on bjs→sha route):
  *
