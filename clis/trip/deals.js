@@ -8,7 +8,7 @@
  * browser-mode trip commands read their result cards. The per-campaign terms and
  * bookable inventory live on the linked page and are out of scope here.
  */
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { WAIT_FOR_DEALS_JS, buildDealsExtractJs, buildDealsUrl, parseListLimit } from './utils.js';
 
@@ -45,11 +45,12 @@ cli({
         if (!Array.isArray(raw)) {
             throw new CommandExecutionError('Trip.com deals DOM extraction returned malformed rows');
         }
-        const rows = raw.filter((r) => r.title || r.offer);
-        if (rows.length === 0) {
-            throw new EmptyResultError('trip deals', 'No live promotions found on the Trip.com deals hub');
+        // The Top Deals hub is a permanent curated page, so once the wait confirms it
+        // rendered, zero parsed tiles means the tile markup drifted, not an empty hub.
+        if (raw.length === 0) {
+            throw new CommandExecutionError('Trip.com deals hub rendered but no promotion tiles parsed (the tile markup may have changed)');
         }
-        return rows.slice(0, limit).map((r, i) => ({
+        return raw.slice(0, limit).map((r, i) => ({
             rank: i + 1,
             title: r.title,
             offer: r.offer,

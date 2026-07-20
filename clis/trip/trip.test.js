@@ -1127,6 +1127,11 @@ describe('trip search command (registry-level)', () => {
         vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('socket hang up'))));
         await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR', message: expect.stringContaining('socket hang up') });
     });
+
+    it('surfaces a 200 with an unparseable body as typed COMMAND_EXEC', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('<html>not json</html>', { status: 200 }))));
+        await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('invalid JSON') });
+    });
 });
 
 const PKG_GROUP = {
@@ -1262,6 +1267,18 @@ describe('trip package command (registry-level)', () => {
         await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
             .rejects.toMatchObject({ code: 'FETCH_ERROR' });
     });
+
+    it('surfaces a 200 package body that will not parse as typed COMMAND_EXEC', async () => {
+        vi.stubGlobal('fetch', vi.fn((url, opts) => {
+            if (String(url).includes('poiSearch')) {
+                const key = JSON.parse(opts.body).key;
+                return Promise.resolve(new Response(JSON.stringify({ results: PKG_POIS[key] || [] }), { status: 200 }));
+            }
+            return Promise.resolve(new Response('<html>not json</html>', { status: 200 }));
+        }));
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('invalid JSON') });
+    });
 });
 
 const DEALS_HTML = `
@@ -1314,15 +1331,16 @@ describe('trip deals command (registry-level)', () => {
         expect(page.goto).not.toHaveBeenCalled();
     });
 
-    it('throws AuthRequired on verification, CommandExec on timeout / malformed, EmptyResult on no deals', async () => {
+    it('throws AuthRequired on verification, CommandExec on timeout / malformed / no parsed tiles', async () => {
         await expect(cmd.func(createPageMock(['captcha']), { limit: 5 }))
             .rejects.toThrow('Trip.com is asking for a verification');
         await expect(cmd.func(createPageMock(['timeout']), { limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render deal tiles') });
         await expect(cmd.func(createPageMock(['content', null]), { limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+        // The hub is never legitimately empty, so rendered-but-nothing-parsed is drift, not empty.
         await expect(cmd.func(createPageMock(['content', []]), { limit: 5 }))
-            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('no promotion tiles parsed') });
     });
 
     it('maps deal rows against the hub URL and respects --limit', async () => {
