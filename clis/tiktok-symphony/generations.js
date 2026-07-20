@@ -1,43 +1,52 @@
 // tiktok-symphony generations — assets in the Symphony Creative Studio Library.
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { DEEP_QUERY_SRC, HOST, LIBRARY_URL, normalizeLimit, waitForValue } from './utils.js';
+import {
+    DEEP_QUERY_SRC,
+    HOST,
+    LIBRARY_SCROLL_SRC,
+    LIBRARY_URL,
+    normalizeLimit,
+    readStable,
+    waitForValue,
+} from './utils.js';
 
 /**
  * Collect every rendered Library tile. Runs in page context.
  *
- * The Library grid has no generation id anywhere in the DOM — the only
- * per-asset identity is the path segment of the signed CDN URL, so that is
- * what we surface and what `download` consumes.
+ * Images and clips are two different worlds here:
+ *   image → <img> on ad-site-sign-sg/ad-creative-sg, identity = path segment
+ *   clip  → <video> on v16-ad-creative.tiktokcdn-row.com, identity = `vid` param
+ * Neither carries a generation id, and the URLs are signed and short-lived, so
+ * these handles are all `download` has to work with.
+ *
+ * The type comes from the element kind rather than the tile's badge text: the
+ * badge is localized, and clip tiles are labelled with the tool name
+ * ("Reference to video") instead of a "Video" badge at all.
  */
 const SCRAPE_SRC = `(() => {
     ${DEEP_QUERY_SRC}
-    const imgs = __deepAll(document, (el) => el.tagName === 'IMG'
-        && /ad-site-sign-sg\\.tiktokcdn\\.com\\/ad-creative-sg\\//.test(el.src || ''));
-    if (!imgs.length) return null;
-
     const seen = new Set();
     const rows = [];
-    for (const img of imgs) {
-        const m = /\\/ad-creative-sg\\/([A-Za-z0-9]+)~/.exec(img.src);
-        if (!m) continue;
-        const assetId = m[1];
-        if (seen.has(assetId)) continue;
-        seen.add(assetId);
 
-        // The tile badge reads "Image" or "Video"; walk up until we meet it.
-        let kind = null;
-        let node = img;
-        for (let i = 0; i < 6 && node; i++) {
-            const t = (node.textContent || '').trim();
-            // Tile text reads e.g. "ImageDownload" — no word boundary after the badge.
-            const hit = /^(Image|Video)/.exec(t);
-            if (hit) { kind = hit[1]; break; }
-            node = node.parentElement;
-        }
-
-        rows.push({ assetId, type: kind, url: img.src });
+    for (const img of __deepAll(document, (el) => el.tagName === 'IMG')) {
+        const m = /ad-site-sign-sg\\.tiktokcdn\\.com\\/ad-creative-sg\\/([A-Za-z0-9]+)~/.exec(img.src || '');
+        if (!m || seen.has(m[1])) continue;
+        seen.add(m[1]);
+        rows.push({ assetId: m[1], type: 'Image', url: img.src });
     }
+
+    for (const v of __deepAll(document, (el) => el.tagName === 'VIDEO')) {
+        const src = v.src || v.currentSrc || '';
+        if (!src || /lf-creative-factory/.test(src)) continue; // static demo clip
+        const vid = /[?&]vid=([A-Za-z0-9]+)/.exec(src);
+        const tos = /\\/video\\/tos\\/[^/]+\\/[^/]+\\/([A-Za-z0-9]+)\\//.exec(src);
+        const assetId = (vid && vid[1]) || (tos && tos[1]);
+        if (!assetId || seen.has(assetId)) continue;
+        seen.add(assetId);
+        rows.push({ assetId, type: 'Video', url: src });
+    }
+
     return rows.length ? rows : null;
 })()`;
 
@@ -52,6 +61,10 @@ cli({
     strategy: Strategy.UI,
     browser: true,
     navigateBefore: LIBRARY_URL,
+    // The Library/feed tiles mount lazily via IntersectionObserver. A
+    // background tab is never rendered, so nothing ever intersects and the
+    // grid stays empty — this command is only correct in the foreground.
+    defaultWindowMode: 'foreground',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of assets to return (max 200)' },
     ],
@@ -59,22 +72,40 @@ cli({
     func: async (page, args) => {
         const limit = normalizeLimit(args.limit, 20, 200, 'limit');
 
-        let rows = await waitForValue(page, SCRAPE_SRC, { label: 'Symphony Library grid', timeoutMs: 30000 });
+        await waitForValue(page, SCRAPE_SRC, { label: 'Symphony Library grid', timeoutMs: 30000 });
 
-        // The grid pages in on scroll. Keep scrolling while it still grows and
-        // we are short of `limit`, with a hard stop so a stuck grid cannot spin.
-        for (let attempt = 0; rows.length < limit && attempt < 12; attempt++) {
-            const before = rows.length;
-            await page.scroll('down', 3);
-            await new Promise((resolve) => setTimeout(resolve, 1200));
-            const next = await page.evaluate(SCRAPE_SRC);
-            if (!Array.isArray(next) || next.length <= before) break;
-            rows = next;
+        // Tiles are accumulated across reads rather than replaced: the grid
+        // mounts them lazily on scroll, and nothing guarantees an earlier tile
+        // is still mounted by the time we reach the bottom.
+        const found = new Map();
+        const collect = async (src, opts) => {
+            const batch = opts ? await readStable(page, src, opts) : await page.evaluate(src);
+            if (!Array.isArray(batch)) {
+                if (batch !== null) throw new CommandExecutionError('Library scrape returned an unexpected shape');
+                return;
+            }
+            for (const row of batch) if (!found.has(row.assetId)) found.set(row.assetId, row);
+        };
+
+        await collect(SCRAPE_SRC, { tries: 8, intervalMs: 1200 });
+
+        // Thumbnails have been observed taking the better part of a minute to
+        // decode, so reaching the bottom of the grid is not a reason to stop —
+        // only a stretch with nothing new arriving is. Bounded by a deadline so
+        // a genuinely empty tail cannot spin.
+        const deadline = Date.now() + 60000;
+        let stalls = 0;
+        while (found.size < limit && Date.now() < deadline && stalls < 6) {
+            const before = found.size;
+            await page.evaluate(LIBRARY_SCROLL_SRC);
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await collect(SCRAPE_SRC);
+            stalls = found.size > before ? 0 : stalls + 1;
         }
 
-        if (!Array.isArray(rows)) {
-            throw new CommandExecutionError('Library scrape returned an unexpected shape');
-        }
+        await collect(SCRAPE_SRC, { tries: 6, intervalMs: 1200 });
+
+        const rows = [...found.values()];
         if (rows.length === 0) {
             throw new EmptyResultError('tiktok-symphony generations', 'The Library has no generated assets yet');
         }

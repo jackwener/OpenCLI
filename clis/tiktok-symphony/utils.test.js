@@ -2,11 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import {
     IMAGE_MODELS,
+    VIDEO_DURATIONS,
+    VIDEO_MODELS,
+    VIDEO_MODES,
     assetIdFromUrl,
     isOutputAssetUrl,
     normalizeLimit,
     normalizePositiveInteger,
     resolveModel,
+    resolveVideoDuration,
+    resolveVideoFrameMode,
+    resolveVideoMode,
+    resolveVideoModel,
 } from './utils.js';
 
 describe('tiktok-symphony resolveModel', () => {
@@ -74,5 +81,64 @@ describe('tiktok-symphony asset identity', () => {
         // Both are CDN images; only the first is something `download` can fetch.
         expect(isOutputAssetUrl(output)).toBe(true);
         expect(isOutputAssetUrl(reference)).toBe(false);
+    });
+});
+
+describe('tiktok-symphony video mode resolution', () => {
+    it('accepts both the short key and the on-screen label', () => {
+        for (const mode of VIDEO_MODES) {
+            expect(resolveVideoMode(mode.key).key).toBe(mode.key);
+            expect(resolveVideoMode(mode.label).key).toBe(mode.key);
+        }
+        expect(resolveVideoMode('Image To Video').key).toBe('image');
+        expect(resolveVideoMode('REFERENCE').key).toBe('reference');
+    });
+
+    it('carries the sub-app URL fragment each mode is reached through', () => {
+        // Navigating straight to the sub-app is what removes the need to click
+        // the mode dropdown, so a missing subApp is a real breakage.
+        for (const mode of VIDEO_MODES) {
+            expect(mode.subApp).toMatch(/^CreativeStudio\//);
+        }
+    });
+
+    it('rejects an unknown mode instead of falling back', () => {
+        expect(() => resolveVideoMode('audio')).toThrow(ArgumentError);
+        expect(() => resolveVideoMode('img2vid')).toThrow(ArgumentError);
+    });
+});
+
+describe('tiktok-symphony video duration', () => {
+    it('accepts a bare number or the dropdown label', () => {
+        for (const seconds of VIDEO_DURATIONS) {
+            expect(resolveVideoDuration(seconds)).toEqual({ seconds, label: `${seconds}s` });
+            expect(resolveVideoDuration(`${seconds}s`)).toEqual({ seconds, label: `${seconds}s` });
+        }
+    });
+
+    it('rejects a length the dropdown does not offer', () => {
+        // Credits are charged per second, so a silently coerced duration would
+        // bill the caller for something they never asked for.
+        expect(() => resolveVideoDuration(7)).toThrow(ArgumentError);
+        expect(() => resolveVideoDuration('8s')).toThrow(ArgumentError);
+        expect(() => resolveVideoDuration('long')).toThrow(ArgumentError);
+    });
+});
+
+describe('tiktok-symphony video model and frames', () => {
+    it('accepts the canonical model name, case-insensitively', () => {
+        expect(resolveVideoModel(VIDEO_MODELS[0])).toBe(VIDEO_MODELS[0]);
+        expect(resolveVideoModel('video 1.5 pro')).toBe('Video 1.5 Pro');
+    });
+
+    it('rejects an image model on the video tab', () => {
+        expect(() => resolveVideoModel('Nano Banana')).toThrow(ArgumentError);
+    });
+
+    it('maps frame modes to the number of references they need', () => {
+        expect(resolveVideoFrameMode('first').refs).toBe(1);
+        expect(resolveVideoFrameMode('first-last').refs).toBe(2);
+        expect(resolveVideoFrameMode('First and last frame').key).toBe('first-last');
+        expect(() => resolveVideoFrameMode('middle')).toThrow(ArgumentError);
     });
 });
