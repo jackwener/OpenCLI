@@ -1051,6 +1051,7 @@ Examples:
   type BrowserSessionCommandContext = {
     session: string;
     contextId?: string;
+    command?: Command;
   };
 
   function browserSessionCommandAction(fn: (ctx: BrowserSessionCommandContext) => Promise<void>) {
@@ -1063,7 +1064,7 @@ Examples:
         const { BrowserBridge } = await import('./browser/index.js');
         const bridge = new BrowserBridge();
         await bridge.connect({ timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT, session, surface: 'browser', ...profileRouteParams(profileSelection) });
-        await fn({ session, contextId });
+        await fn({ session, contextId, command });
       } catch (err) {
         if (err instanceof BrowserCommandError) {
           emitBrowserCommandErrorEnvelope(err);
@@ -2967,10 +2968,39 @@ cli({
 
   // ── Session ──
 
-  browser.command('close').description('Release the current browser session tab lease')
-    .action(browserAction(async (page) => {
-      await page.closeWindow?.();
-      console.log('Browser session tab lease released');
+  browser.command('close')
+    .description('Release the current browser session tab lease')
+    .option('--container', 'Also close the entire OpenCLI-owned container after safely releasing its sessions')
+    .option('--surface <surface>', 'Container surface to close with --container: browser, adapter, or all', 'browser')
+    .action(browserSessionCommandAction(async ({ session, contextId, command }) => {
+      const opts = command?.opts() as { container?: boolean; surface?: string } | undefined;
+      const surface = opts?.surface ?? 'browser';
+      if (!['browser', 'adapter', 'all'].includes(surface)) {
+        throw new Error(`--surface must be one of: browser, adapter, all. Received: "${surface}"`);
+      }
+
+      if (!opts?.container) {
+        if (surface !== 'browser') throw new Error('--surface requires --container');
+        await sendCommand('close-window', { session, surface: 'browser', ...(contextId && { contextId }) });
+        saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+        console.log('Browser session tab lease released');
+        return;
+      }
+
+      const surfaces = surface === 'all' ? ['adapter', 'browser'] as const : [surface as 'browser' | 'adapter'];
+      const results: Array<{ surface: 'browser' | 'adapter'; result: unknown }> = [];
+      for (const targetSurface of surfaces) {
+        const result = await sendCommand('close-container', {
+          session,
+          surface: targetSurface,
+          ...(contextId && { contextId }),
+        });
+        results.push({ surface: targetSurface, result });
+        if (targetSurface === 'browser') {
+          saveBrowserTargetState(undefined, getBrowserScope(session, contextId));
+        }
+      }
+      console.log(JSON.stringify({ containerCleanup: true, session, results }, null, 2));
     }));
 
   // ── Built-in: doctor / completion ──────────────────────────────────────────

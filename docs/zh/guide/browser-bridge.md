@@ -62,9 +62,17 @@ OpenCLI 拥有的 browser session 使用交互式 tab lease，默认空闲超时
 opencli browser my-session close
 ```
 
+默认的 `close` 会保留 OpenCLI 自有窗口以便复用。若工作流已经结束，希望同时清理 browser 与 adapter 容器，可显式执行：
+
+```bash
+opencli browser my-session close --container --surface all
+```
+
+容器清理会先解散仍处于打开状态的 OpenCLI 标签组。如果候选窗口中包含未被 OpenCLI 租用的用户页面，OpenCLI 会保留整个窗口，只移除自己拥有的标签页。
+
 如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
 
-`OpenCLI Browser` 和 `OpenCLI Adapter` tab group 是扩展管理的自动化容器；请不要把自己的长期 tab 放进去，也不要重命名。
+`OpenCLI Browser` tab group，以及旧版扩展遗留的 `OpenCLI Adapter` tab group，都是扩展管理的自动化容器；请不要把自己的长期 tab 放进去，也不要重命名。
 
 ## Daemon 生命周期
 

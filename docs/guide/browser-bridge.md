@@ -64,9 +64,17 @@ Owned browser sessions use an interactive tab lease with a 10-minute idle timeou
 opencli browser my-session close
 ```
 
+The default `close` keeps OpenCLI's owned window available for reuse. To finish a workflow and remove the owned browser and adapter containers, use explicit container cleanup:
+
+```bash
+opencli browser my-session close --container --surface all
+```
+
+Container cleanup first dissolves live OpenCLI tab groups. If a candidate window contains an unleased user page, OpenCLI preserves that window and removes only its own tabs.
+
 Use `opencli browser <session> bind` when you want to attach OpenCLI to a Chrome tab you already opened manually. Bound sessions do not have the owned-session idle close timer; they stay attached until `unbind`, tab close, window close, or daemon restart. For owned sessions, use `--window foreground` to watch OpenCLI work in a visible automation window, or `--window background` to keep that automation window out of the way.
 
-The `OpenCLI Browser` and `OpenCLI Adapter` tab groups are extension-managed automation containers; avoid putting your own long-lived tabs in them or renaming them.
+The `OpenCLI Browser` tab group, and any legacy `OpenCLI Adapter` group from an older extension, are extension-managed automation containers; avoid putting your own long-lived tabs in them or renaming them.
 
 ## How It Works
 
