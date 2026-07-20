@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { prepareCommandArgs } from '../../src/execution.js';
 import './search.js';
 import './hotel-suggest.js';
 import './hotel-search.js';
@@ -926,6 +927,29 @@ describe('ctrip command-specific limit parsers', () => {
         for (const bad of ['1e1', ' 10 ', '01']) {
             expect(() => flightTest.parseFlightLimit(bad)).toThrow('--limit');
             expect(() => hotelSearchTest.parseHotelLimit(bad)).toThrow('--limit');
+        }
+    });
+
+    it('preserves raw CLI limit strings so adapter-level strict parsing can reject coercive forms', () => {
+        const requiredArgsByName = {
+            search: { query: '上海' },
+            'hotel-suggest': { query: '汉庭' },
+            'hotel-search': { city: '2', checkin: '2026-08-01', checkout: '2026-08-02' },
+            flight: { from: 'PEK', to: 'SHA', date: '2026-08-01' },
+            'flight-round': { from: 'SHA', to: 'BJS', depart: '2026-08-01', return: '2026-08-08' },
+            train: { from: '北京', to: '上海', date: '2026-08-01' },
+            bus: { from: '北京', to: '天津', date: '2026-08-01' },
+            ferry: { from: '大连', to: '烟台', date: '2026-08-01' },
+            cruise: { port: '上海' },
+            tour: { destination: '北京' },
+            package: { destination: '三亚' },
+            attraction: { city: '1' },
+        };
+        for (const [name, requiredArgs] of Object.entries(requiredArgsByName)) {
+            const cmd = getRegistry().get(`ctrip/${name}`);
+            const limitArg = cmd.args.find((arg) => arg.name === 'limit');
+            expect(limitArg?.type).not.toBe('int');
+            expect(prepareCommandArgs(cmd, { ...requiredArgs, limit: '01' }).limit).toBe('01');
         }
     });
 });

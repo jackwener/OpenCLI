@@ -31,7 +31,7 @@ cli({
         { name: 'from', required: true, positional: true, help: 'Departure station or city name (e.g. 北京 / 上海虹桥)' },
         { name: 'to', required: true, positional: true, help: 'Arrival station or city name (e.g. 上海 / 杭州东)' },
         { name: 'date', required: true, help: 'Departure date (YYYY-MM-DD)' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of trains (1-50)' },
+        { name: 'limit', default: 20, help: 'Number of trains (1-50)' },
     ],
     columns: [
         'rank',

@@ -67,7 +67,7 @@ cli({
         { name: 'from', required: true, positional: true, help: 'Departure IATA code (e.g. BJS / PEK)' },
         { name: 'to', required: true, positional: true, help: 'Arrival IATA code (e.g. SHA / PVG)' },
         { name: 'date', required: true, help: 'Departure date (YYYY-MM-DD)' },
-        { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: `Number of flights (${MIN_LIMIT}-${MAX_LIMIT})` },
+        { name: 'limit', default: DEFAULT_LIMIT, help: `Number of flights (${MIN_LIMIT}-${MAX_LIMIT})` },
     ],
     columns: [
         'rank',

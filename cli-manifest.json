@@ -8895,7 +8895,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of attractions (1-50)"
@@ -8944,7 +8944,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of departures (1-50)"
@@ -8983,7 +8983,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of cruises (1-50)"
@@ -9035,7 +9035,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of sailings (1-50)"
@@ -9089,7 +9089,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of flights (1-50)"
@@ -9152,7 +9152,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of flights (1-50)"
@@ -9247,7 +9247,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 10,
         "required": false,
         "help": "Number of hotels (1-30); SSR first page returns ~13 entries"
@@ -9293,7 +9293,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 15,
         "required": false,
         "help": "Number of results (1-50)"
@@ -9369,7 +9369,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of packages (1-50)"
@@ -9408,7 +9408,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 15,
         "required": false,
         "help": "Number of results (1-50)"
@@ -9452,7 +9452,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of packages (1-50)"
@@ -9505,7 +9505,7 @@
       },
       {
         "name": "limit",
-        "type": "int",
+        "type": "str",
         "default": 20,
         "required": false,
         "help": "Number of trains (1-50)"

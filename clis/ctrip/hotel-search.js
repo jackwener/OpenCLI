@@ -78,7 +78,7 @@ cli({
         { name: 'city', required: true, positional: true, help: 'Numeric Ctrip city ID (use `ctrip search` or `ctrip hotel-suggest` to discover)' },
         { name: 'checkin', required: true, help: 'Check-in date (YYYY-MM-DD)' },
         { name: 'checkout', required: true, help: 'Check-out date (YYYY-MM-DD)' },
-        { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: `Number of hotels (${MIN_LIMIT}-${MAX_LIMIT}); SSR first page returns ~13 entries` },
+        { name: 'limit', default: DEFAULT_LIMIT, help: `Number of hotels (${MIN_LIMIT}-${MAX_LIMIT}); SSR first page returns ~13 entries` },
     ],
     columns: [
         'rank', 'hotelId', 'name', 'enName',

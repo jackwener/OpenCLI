@@ -27,7 +27,7 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'destination', required: true, positional: true, help: 'Destination keyword (e.g. 三亚 / 北京 / 曼谷)' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of packages (1-50)' },
+        { name: 'limit', default: 20, help: 'Number of packages (1-50)' },
     ],
     columns: [
         'rank',

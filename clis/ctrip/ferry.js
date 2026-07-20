@@ -32,7 +32,7 @@ cli({
         { name: 'from', required: true, positional: true, help: 'Departure city name (e.g. 大连 / 海口)' },
         { name: 'to', required: true, positional: true, help: 'Arrival city name (e.g. 烟台 / 海安)' },
         { name: 'date', required: true, help: 'Departure date (YYYY-MM-DD)' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of sailings (1-50)' },
+        { name: 'limit', default: 20, help: 'Number of sailings (1-50)' },
     ],
     columns: [
         'rank',

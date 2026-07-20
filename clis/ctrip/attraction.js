@@ -34,7 +34,7 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'city', required: true, positional: true, help: 'Numeric Ctrip city id (from `ctrip search`, e.g. 1 for 北京)' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of attractions (1-50)' },
+        { name: 'limit', default: 20, help: 'Number of attractions (1-50)' },
     ],
     columns: [
         'rank',

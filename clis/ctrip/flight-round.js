@@ -52,7 +52,7 @@ cli({
         { name: 'to', required: true, positional: true, help: 'Arrival IATA code (e.g. SHA / PVG)' },
         { name: 'depart', required: true, help: 'Outbound date (YYYY-MM-DD)' },
         { name: 'return', required: true, help: 'Return date (YYYY-MM-DD), on or after depart' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of flights (1-50)' },
+        { name: 'limit', default: 20, help: 'Number of flights (1-50)' },
     ],
     columns: [
         'rank',

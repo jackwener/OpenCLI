@@ -33,7 +33,7 @@ cli({
         { name: 'from', required: true, positional: true, help: 'Departure city name (e.g. 北京 / 上海)' },
         { name: 'to', required: true, positional: true, help: 'Arrival city name (e.g. 天津 / 杭州)' },
         { name: 'date', required: true, help: 'Departure date (YYYY-MM-DD)' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of departures (1-50)' },
+        { name: 'limit', default: 20, help: 'Number of departures (1-50)' },
     ],
     columns: [
         'rank',

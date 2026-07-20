@@ -32,7 +32,7 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'port', required: true, positional: true, help: 'Departure cruise port name (e.g. 上海 / 威尼斯 / 罗马)' },
-        { name: 'limit', type: 'int', default: 20, help: 'Number of cruises (1-50)' },
+        { name: 'limit', default: 20, help: 'Number of cruises (1-50)' },
     ],
     columns: [
         'rank',

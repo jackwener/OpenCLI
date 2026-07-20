@@ -18,7 +18,7 @@ cli({
     browser: false,
     args: [
         { name: 'query', required: true, positional: true, help: 'Search keyword (city, business area, or hotel name)' },
-        { name: 'limit', type: 'int', default: 15, help: 'Number of results (1-50)' },
+        { name: 'limit', default: 15, help: 'Number of results (1-50)' },
     ],
     columns: [
         'rank', 'id', 'type', 'displayType', 'name', 'eName',
