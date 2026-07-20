@@ -14,6 +14,7 @@ import './cruise.js';
 import './tour.js';
 import './package.js';
 import './attraction.js';
+import { __test__ as flightTest } from './flight.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
     buildAttractionExtractJs,
@@ -110,8 +111,11 @@ describe('ctrip parseLimit', () => {
         expect(parseLimit('25')).toBe(25);
     });
     it('rejects non-integer', () => {
-        expect(() => parseLimit('abc')).toThrow('--limit must be an integer');
-        expect(() => parseLimit(3.5)).toThrow('--limit must be an integer');
+        expect(() => parseLimit('abc')).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit(3.5)).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit('1e1')).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit(' 10 ')).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit('01')).toThrow('--limit must be a positive integer');
     });
     it('rejects out-of-range without silent clamp', () => {
         expect(() => parseLimit(0)).toThrow('--limit must be between 1 and 50, got 0');
@@ -238,6 +242,16 @@ describe('ctrip search command (registry-level)', () => {
         });
     });
 
+    it('surfaces malformed response shape as typed COMMAND_EXEC, not empty data', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(ok({
+            Result: true, ErrorCode: 0, Response: {},
+        }))));
+        await expect(cmd.func({ query: '上海', limit: 3 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('searchResults'),
+        });
+    });
+
     it('surfaces empty results as EmptyResultError', async () => {
         vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(ok({
             Result: true, ErrorCode: 0, Response: { searchResults: [] },
@@ -306,6 +320,7 @@ describe('ctrip parseIsoDate', () => {
     it('rejects malformed strings', () => {
         expect(() => parseIsoDate('checkin', '2026/06/15')).toThrow(/must be YYYY-MM-DD/);
         expect(() => parseIsoDate('checkin', 'tomorrow')).toThrow(/must be YYYY-MM-DD/);
+        expect(() => parseIsoDate('checkin', ' 2026-06-15 ')).toThrow(/must be YYYY-MM-DD/);
     });
     it('rejects out-of-range month/day before Date math', () => {
         expect(() => parseIsoDate('checkin', '2026-13-01')).toThrow(/invalid month\/day/);
@@ -342,6 +357,9 @@ describe('ctrip parseCityId', () => {
         expect(() => parseCityId(-1)).toThrow(/positive integer/);
         expect(() => parseCityId(2.5)).toThrow(/positive integer/);
         expect(() => parseCityId('shanghai')).toThrow(/positive integer/);
+        expect(() => parseCityId('1e2')).toThrow(/positive integer/);
+        expect(() => parseCityId(' 2 ')).toThrow(/positive integer/);
+        expect(() => parseCityId('02')).toThrow(/positive integer/);
         expect(() => parseCityId('')).toThrow(/--city is required/);
     });
 });
@@ -897,6 +915,18 @@ describe('ctrip parseListLimit', () => {
         expect(() => parseListLimit(51)).toThrow('--limit');
         expect(() => parseListLimit(1.5)).toThrow('--limit');
         expect(() => parseListLimit('abc')).toThrow('--limit');
+        expect(() => parseListLimit('1e1')).toThrow('--limit');
+        expect(() => parseListLimit(' 10 ')).toThrow('--limit');
+        expect(() => parseListLimit('01')).toThrow('--limit');
+    });
+});
+
+describe('ctrip command-specific limit parsers', () => {
+    it('rejects coercive string numerics consistently', () => {
+        for (const bad of ['1e1', ' 10 ', '01']) {
+            expect(() => flightTest.parseFlightLimit(bad)).toThrow('--limit');
+            expect(() => hotelSearchTest.parseHotelLimit(bad)).toThrow('--limit');
+        }
     });
 });
 
@@ -999,6 +1029,12 @@ describe('ctrip train command (registry-level)', () => {
         for (const row of rows) {
             for (const col of cmd.columns) expect(row).toHaveProperty(col);
         }
+    });
+
+    it('keeps missing seat availability as null instead of an empty-string sentinel', async () => {
+        const page = createPageMock(['content', 1, [{ ...TRAIN_RAW, seats: [] }]]);
+        const rows = await cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 1 });
+        expect(rows[0].seats).toBeNull();
     });
 });
 
@@ -1108,7 +1144,7 @@ describe('ctrip parseHotelId', () => {
     });
 
     it('rejects blank, non-numeric, zero, negative, and fractional ids', () => {
-        for (const bad of ['', '  ', 'abc', '375539a', 0, -5, 3.5]) {
+        for (const bad of ['', '  ', 'abc', '375539a', '1e2', ' 375539 ', '0375539', 0, -5, 3.5]) {
             expect(() => parseHotelId(bad)).toThrow(/hotel id/);
         }
     });
@@ -1877,6 +1913,13 @@ describe('ctrip buildAttractionExtractJs (JSDOM)', () => {
         expect(runExtract(ATTRACTION_LINKS + crossCity, '1')).toHaveLength(3);
         expect(runExtract(crossCity, '1')).toEqual([]);
         expect(runExtract(crossCity, '2')).toHaveLength(1);
+    });
+
+    it('drops off-domain and non-https sight-like anchors', () => {
+        const bait = `
+          <a href="https://evil.example/sight/beijing1/229.html">假景点4.8分10条点评</a>
+          <a href="http://you.ctrip.com/sight/beijing1/230.html">明文景点4.7分20条点评</a>`;
+        expect(runExtract(bait)).toEqual([]);
     });
 
     it('dedupes repeated sight ids and drops links without a name or rating/review signature', () => {

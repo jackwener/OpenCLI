@@ -15,22 +15,14 @@
  */
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { mapHotelRow, parseCityId, parseIsoDate } from './utils.js';
+import { mapHotelRow, parseCityId, parseIsoDate, parseStrictIntegerRange } from './utils.js';
 
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 30;
 const DEFAULT_LIMIT = 10;
 
 function parseHotelLimit(raw) {
-    if (raw === undefined || raw === null || raw === '') return DEFAULT_LIMIT;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${JSON.stringify(raw)}`);
-    }
-    if (parsed < MIN_LIMIT || parsed > MAX_LIMIT) {
-        throw new ArgumentError(`--limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${parsed}`);
-    }
-    return parsed;
+    return parseStrictIntegerRange('limit', raw, DEFAULT_LIMIT, MIN_LIMIT, MAX_LIMIT);
 }
 
 /**

@@ -79,7 +79,7 @@ cli({
             arrivalStation: r.arrivalStation,
             duration: r.duration,
             fromPrice: r.fromPrice,
-            seats: Array.isArray(r.seats) ? r.seats.join(' / ') : '',
+            seats: Array.isArray(r.seats) && r.seats.length ? r.seats.join(' / ') : null,
             url: searchUrl,
         }));
     },

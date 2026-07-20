@@ -15,16 +15,34 @@ const ENDPOINT = 'https://m.ctrip.com/restapi/soa2/21881/json/gaHotelSearchEngin
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 
-export function parseLimit(raw, fallback = 15) {
-    if (raw === undefined || raw === null || raw === '') return fallback;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${JSON.stringify(raw)}`);
+function parseStrictDecimalInteger(name, raw) {
+    if (typeof raw === 'number') {
+        if (Number.isInteger(raw)) return raw;
+        throw new ArgumentError(`--${name} must be a positive integer, got ${JSON.stringify(raw)}`);
     }
-    if (parsed < MIN_LIMIT || parsed > MAX_LIMIT) {
-        throw new ArgumentError(`--limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${parsed}`);
+    if (typeof raw === 'string' && /^(0|[1-9]\d*)$/.test(raw)) {
+        return Number(raw);
+    }
+    throw new ArgumentError(`--${name} must be a positive integer, got ${JSON.stringify(raw)}`);
+}
+
+export function parseStrictPositiveInteger(name, raw) {
+    const parsed = parseStrictDecimalInteger(name, raw);
+    if (parsed > 0) return parsed;
+    throw new ArgumentError(`--${name} must be a positive integer, got ${JSON.stringify(raw)}`);
+}
+
+export function parseStrictIntegerRange(name, raw, fallback, min = MIN_LIMIT, max = MAX_LIMIT) {
+    if (raw === undefined || raw === null || raw === '') return fallback;
+    const parsed = parseStrictDecimalInteger(name, raw);
+    if (parsed < min || parsed > max) {
+        throw new ArgumentError(`--${name} must be between ${min} and ${max}, got ${parsed}`);
     }
     return parsed;
+}
+
+export function parseLimit(raw, fallback = 15) {
+    return parseStrictIntegerRange('limit', raw, fallback);
 }
 
 export async function fetchSuggest(query, searchType) {
@@ -82,7 +100,14 @@ export async function fetchSuggest(query, searchType) {
             'Verify keyword and retry; this typically means upstream rejected the query envelope',
         );
     }
-    return Array.isArray(payload?.Response?.searchResults) ? payload.Response.searchResults : [];
+    if (!payload || typeof payload !== 'object' || !payload.Response || typeof payload.Response !== 'object' || !Array.isArray(payload.Response.searchResults)) {
+        throw new CliError(
+            'COMMAND_EXEC',
+            'ctrip suggest returned malformed response shape: Response.searchResults is missing or not an array',
+            'Ctrip may have changed the endpoint response format; retry later',
+        );
+    }
+    return payload.Response.searchResults;
 }
 
 /**
@@ -181,10 +206,10 @@ const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
  * month/day, malformed input, and silent NaN. Does NOT coerce or shift timezones.
  */
 export function parseIsoDate(name, raw) {
-    if (raw === undefined || raw === null || raw === '') {
+    if (raw === undefined || raw === null || raw === '' || String(raw).trim() === '') {
         throw new ArgumentError(`--${name} is required (YYYY-MM-DD)`);
     }
-    const value = String(raw).trim();
+    const value = String(raw);
     const m = ISO_DATE_RE.exec(value);
     if (!m) {
         throw new ArgumentError(`--${name} must be YYYY-MM-DD, got ${JSON.stringify(raw)}`);
@@ -222,14 +247,14 @@ export function parseIataCode(name, raw) {
  * Validate a numeric Ctrip city ID (returned by `ctrip search` / `ctrip hotel-suggest`).
  */
 export function parseCityId(raw) {
-    if (raw === undefined || raw === null || raw === '') {
+    if (raw === undefined || raw === null || raw === '' || String(raw).trim() === '') {
         throw new ArgumentError('--city is required (numeric city ID from `ctrip search` or `ctrip hotel-suggest`)');
     }
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    try {
+        return parseStrictPositiveInteger('city', raw);
+    } catch {
         throw new ArgumentError(`--city must be a positive integer city ID, got ${JSON.stringify(raw)}`);
     }
-    return parsed;
 }
 
 /**
@@ -484,15 +509,7 @@ export function buildScrollUntilJs(rowSelector, targetCount, maxScrolls = 8) {
 
 /** Validate a 1-50 result limit shared by the browser-mode list commands (default 20). */
 export function parseListLimit(raw, fallback = 20) {
-    if (raw === undefined || raw === null || raw === '') return fallback;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${JSON.stringify(raw)}`);
-    }
-    if (parsed < MIN_LIMIT || parsed > MAX_LIMIT) {
-        throw new ArgumentError(`--limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${parsed}`);
-    }
-    return parsed;
+    return parseStrictIntegerRange('limit', raw, fallback);
 }
 
 /** Validate a Chinese place keyword (station, city, port, or destination) for the browser list queries. */
@@ -585,11 +602,11 @@ export function parseHotelId(raw) {
     if (raw === undefined || raw === null || String(raw).trim() === '') {
         throw new ArgumentError('hotel id is required (numeric id from `ctrip hotel-suggest`, e.g. 375539)');
     }
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    try {
+        return parseStrictPositiveInteger('id', raw);
+    } catch {
         throw new ArgumentError(`hotel id must be a positive integer, got ${JSON.stringify(raw)}`);
     }
-    return parsed;
 }
 
 export function buildHotelDetailUrl(hotelId) {
@@ -1011,7 +1028,10 @@ export function buildAttractionExtractJs(cityId) {
         const seen = new Set();
         document.querySelectorAll('a[href*="/sight/"]').forEach((link) => {
           const href = link.getAttribute('href') || '';
-          const m = href.match(/\\/sight\\/([^/]+)\\/(\\d+)\\.html/);
+          let url;
+          try { url = new URL(href, 'https://you.ctrip.com'); } catch { return; }
+          if (url.protocol !== 'https:' || url.hostname !== 'you.ctrip.com') return;
+          const m = url.pathname.match(/^\\/sight\\/([^/]+)\\/(\\d+)\\.html$/);
           if (!m) return;
           const citySeg = m[1].match(/(\\d+)$/);
           if (!citySeg || citySeg[1] !== cityId) return;
@@ -1031,7 +1051,7 @@ export function buildAttractionExtractJs(cityId) {
             name,
             rating: ratingM ? Number(ratingM[1]) : null,
             reviews: kNum(reviewsM && reviewsM[1]),
-            url: href.startsWith('http') ? href : ('https://you.ctrip.com' + href),
+            url: url.toString(),
           });
         });
         return rows;
