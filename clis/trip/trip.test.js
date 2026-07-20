@@ -1270,7 +1270,19 @@ describe('trip package command (registry-level)', () => {
     it('throws CommandExec (drift) when groups return but none carry an itinerary', async () => {
         stubPackageFetch({ pkg: { grouplist: [{ policylist: [{ price: { price: 53.4 } }] }] } });
         await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
-            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('parseable flight itinerary') });
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('parseable flight identity') });
+    });
+
+    it('throws CommandExec (drift) when package legs lack flight identity, route, or times', async () => {
+        stubPackageFetch({ pkg: { grouplist: [{ flightlist: [{}], policylist: [{ price: { price: 53.4 } }] }] } });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('parseable flight identity') });
+    });
+
+    it('drops malformed package groups and reranks parseable rows', async () => {
+        stubPackageFetch({ pkg: { grouplist: [{ flightlist: [{}] }, { ...PKG_GROUP, policylist: [] }] } });
+        const rows = await cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 });
+        expect(rows).toEqual([{ ...PKG_ROW, rank: 1, price: null }]);
     });
 
     it('surfaces a package endpoint failure as typed COMMAND_EXEC', async () => {

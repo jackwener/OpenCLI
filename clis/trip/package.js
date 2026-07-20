@@ -81,10 +81,13 @@ cli({
         if (groups.length === 0) {
             throw new EmptyResultError('trip package', `No flight+hotel packages for ${origin.name} to ${dest.name} on ${depart} .. ${ret}`);
         }
-        const valid = groups.filter((g) => g && Array.isArray(g.flightlist) && g.flightlist.length);
-        if (valid.length === 0) {
-            throw new CommandExecutionError(`Trip.com package search returned ${groups.length} group(s) but none carried a parseable flight itinerary`);
+        const rows = groups
+            .filter((g) => g && Array.isArray(g.flightlist) && g.flightlist.length)
+            .map((g) => mapPackageRow(g, 0))
+            .filter((row) => row.flightNo && row.from && row.to && row.departure && row.arrival);
+        if (rows.length === 0) {
+            throw new CommandExecutionError(`Trip.com package search returned ${groups.length} group(s) but none carried a parseable flight identity, route, and time`);
         }
-        return valid.slice(0, limit).map((g, i) => mapPackageRow(g, i));
+        return rows.slice(0, limit).map((row, i) => ({ ...row, rank: i + 1 }));
     },
 });
