@@ -11,7 +11,7 @@
  */
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { buildFlightExtractJs, parseIataCode, parseIsoDate, parseListLimit } from './utils.js';
+import { buildFlightExtractJs, buildScrollUntilJs, parseIataCode, parseIsoDate, parseListLimit } from './utils.js';
 
 const ROUND_CARD_SELECTOR = '.flight-item';
 
@@ -24,7 +24,7 @@ const WAIT_FOR_FLIGHTS_ROUND_JS = `
     const detect = () => {
       if (location.pathname.includes('captcha') || /验证码|verify the human/i.test(document.body?.innerText || '')) return 'captcha';
       const items = document.querySelectorAll('.flight-item');
-      if (items.length && [...items].some((el) => { const t = el.textContent || ''; return /\\d{1,2}:\\d{2}/.test(t) && /[¥$]/.test(t); })) return 'content';
+      if (items.length && [...items].some((el) => { const t = el.textContent || ''; return /\\d{1,2}:\\d{2}/.test(t) && /[¥$€£]/.test(t); })) return 'content';
       return null;
     };
     const found = detect();
@@ -86,7 +86,7 @@ cli({
         if (waitResult !== 'content') {
             throw new CommandExecutionError(`Ctrip round-trip flight page did not render flight cards (state=${String(waitResult)})`);
         }
-        const renderedCardCount = await page.evaluate(`document.querySelectorAll(${JSON.stringify(ROUND_CARD_SELECTOR)}).length`);
+        const renderedCardCount = await page.evaluate(buildScrollUntilJs(ROUND_CARD_SELECTOR, limit));
         const raw = await page.evaluate(buildFlightExtractJs(ROUND_CARD_SELECTOR, false));
         if (!Array.isArray(raw)) {
             throw new CommandExecutionError('Ctrip round-trip flight DOM extraction returned malformed rows');

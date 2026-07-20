@@ -315,10 +315,11 @@ export function mapHotelRow(entry, index) {
 }
 
 /**
- * Build the browser-context IIFE that extracts flight rows from `.flight-list`.
+ * Build the browser-context IIFE that extracts flight rows from a caller-supplied
+ * card selector (default `.flight-list > span > div` for the one-way list; the
+ * round-trip list passes `.flight-item`).
  *
- * Flights are rendered as `.flight-list > span > div` cards. Each card's innerText
- * has a stable ordering (verified 2026-05-12 on bjs→sha route):
+ * Each card's innerText has a stable ordering (verified 2026-05-12 on bjs→sha route):
  *
  *   [airline, flightNo, aircraft, lowPriceTag?, depTime, depAirport,
  *    arrTime, arrAirport, terminal?, savings?, promo?, currency, price,
@@ -326,6 +327,8 @@ export function mapHotelRow(entry, index) {
  *
  * `lowPriceTag` (e.g. "当日低价") + `terminal` (e.g. "T2") + `savings` + `promo`
  * are optional — we use position-of-first-time-match to anchor and parse around it.
+ * `requireFlightNo` drops cards without a flight number (the one-way default); the
+ * round-trip cards omit it, so `flight-round` passes `requireFlightNo=false`.
  *
  * The host is baked in so `normalizeUrl` for booking links resolves on the calling site.
  */
@@ -987,27 +990,35 @@ export function buildAttractionPlaceUrl(cityId) {
 
 /**
  * Browser-context IIFE that extracts a destination's top attractions from a
- * you.ctrip.com place page. Each attraction is a `/sight/<city>/<id>.html` link
- * whose text carries the name plus a `<rating>分<reviews>条点评` summary; the name
- * is the text before the rating, and rating / reviews are read from that summary
- * (`w` / `万` expanded to thousands). Links are deduped by sight id and dropped
- * when they carry no name.
+ * you.ctrip.com place page. Each attraction is a `/sight/<city><cityId>/<id>.html`
+ * link whose text carries the name plus a `<rating>分<reviews>条点评` summary; the
+ * name is the text before the rating, and rating / reviews are read from that
+ * summary (`w` / `万` expanded to thousands). The place page also carries
+ * cross-sell `/sight/` anchors for OTHER cities (周边热门, breadcrumbs), so rows
+ * are scoped to the requested `cityId` by the trailing digits of the link's city
+ * segment, must carry a rating or review signature, are deduped by sight id, and
+ * are dropped when they carry no name.
  */
-export function buildAttractionExtractJs() {
+export function buildAttractionExtractJs(cityId) {
     return `
       (() => {
+        const cityId = ${JSON.stringify(String(cityId))};
         const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
         const kNum = (s) => { if (!s) return null; const raw = String(s); const n = Number(raw.replace(/[wW万,]/g, '')); if (!Number.isFinite(n)) return null; return /[wW万]/.test(raw) ? Math.round(n * 10000) : n; };
         const rows = [];
         const seen = new Set();
         document.querySelectorAll('a[href*="/sight/"]').forEach((link) => {
           const href = link.getAttribute('href') || '';
-          const idMatch = href.match(/\\/(\\d+)\\.html/);
-          const id = idMatch ? idMatch[1] : null;
-          if (!id || seen.has(id)) return;
+          const m = href.match(/\\/sight\\/([^/]+)\\/(\\d+)\\.html/);
+          if (!m) return;
+          const citySeg = m[1].match(/(\\d+)$/);
+          if (!citySeg || citySeg[1] !== cityId) return;
+          const id = m[2];
+          if (seen.has(id)) return;
           const full = clean(link.textContent);
           const ratingM = full.match(/([\\d.]+)\\s*分/);
-          const reviewsM = full.match(/([\\d.]+[wW万]?)\\s*条点评/);
+          const reviewsM = full.match(/([\\d.,]+[wW万]?)\\s*条点评/);
+          if (!ratingM && !reviewsM) return;
           let cut = full.length;
           if (ratingM) cut = Math.min(cut, full.indexOf(ratingM[0]));
           if (reviewsM) cut = Math.min(cut, full.indexOf(reviewsM[0]));
@@ -1026,23 +1037,37 @@ export function buildAttractionExtractJs() {
     `;
 }
 
-/** Wait for the place page's attraction links to render, or detect a captcha wall. */
-export const WAIT_FOR_ATTRACTIONS_JS = `
-  new Promise((resolve) => {
-    const detect = () => {
-      if (location.pathname.includes('captcha') || /验证码|安全验证|访问验证/i.test(document.body?.innerText || '')) return 'captcha';
-      if (document.querySelectorAll('a[href*="/sight/"]').length > 2) return 'content';
-      return null;
-    };
-    const found = detect();
-    if (found) return resolve(found);
-    const observer = new MutationObserver(() => {
-      const result = detect();
-      if (result) { observer.disconnect(); resolve(result); }
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 15000);
-  })
-`;
+/**
+ * Wait for the place page's own attractions (scoped to `cityId` the same way the
+ * extractor is) to render, or detect a captcha wall. Scoping the gate to the
+ * requested city means a stale / invalid id that redirects to another city's
+ * page times out into a `CommandExecutionError` rather than passing on foreign
+ * `/sight/` anchors.
+ */
+export function buildWaitForAttractionsJs(cityId) {
+    return `
+      new Promise((resolve) => {
+        const cityId = ${JSON.stringify(String(cityId))};
+        const cityMatches = () => Array.from(document.querySelectorAll('a[href*="/sight/"]')).filter((a) => {
+          const m = (a.getAttribute('href') || '').match(/\\/sight\\/([^/]+)\\/\\d+\\.html/);
+          const seg = m && m[1].match(/(\\d+)$/);
+          return seg && seg[1] === cityId;
+        }).length;
+        const detect = () => {
+          if (location.pathname.includes('captcha') || /验证码|安全验证|访问验证/i.test(document.body?.innerText || '')) return 'captcha';
+          if (cityMatches() > 2) return 'content';
+          return null;
+        };
+        const found = detect();
+        if (found) return resolve(found);
+        const observer = new MutationObserver(() => {
+          const result = detect();
+          if (result) { observer.disconnect(); resolve(result); }
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+        setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 15000);
+      })
+    `;
+}
 
 export const __test__ = { ENDPOINT, MIN_LIMIT, MAX_LIMIT };

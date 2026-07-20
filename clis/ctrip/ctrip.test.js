@@ -35,6 +35,7 @@ import {
     buildTrainListUrl,
     buildUrl,
     buildVacationsExtractJs,
+    buildWaitForAttractionsJs,
     mapHotelRow,
     mapSuggestRow,
     parseCityId,
@@ -46,7 +47,6 @@ import {
     parsePlaceName,
     pickCoords,
     pickHotelMapCoords,
-    WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_HOTEL_DETAIL_JS,
 } from './utils.js';
 
@@ -825,7 +825,7 @@ describe('ctrip flight-round command (registry-level)', () => {
         expect(page.goto).not.toHaveBeenCalled();
     });
 
-    it('throws AuthRequired on captcha, EmptyResult on no flights, CommandExec on drift / timeout', async () => {
+    it('throws AuthRequired on captcha, EmptyResult on no flights, CommandExec on drift / timeout / malformed', async () => {
         await expect(cmd.func(createPageMock(['captcha']), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
             .rejects.toThrow('Ctrip is asking for a captcha');
         await expect(cmd.func(createPageMock(['content', 0, []]), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
@@ -834,6 +834,8 @@ describe('ctrip flight-round command (registry-level)', () => {
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required flight anchors') });
         await expect(cmd.func(createPageMock(['timeout']), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render flight cards') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
     });
 
     it('builds the round-<from>-<to> URL with the depart_return date pair', async () => {
@@ -853,6 +855,12 @@ describe('ctrip flight-round command (registry-level)', () => {
         for (const row of rows) {
             for (const col of cmd.columns) expect(row).toHaveProperty(col);
         }
+    });
+
+    it('throws CommandExecutionError when every round-trip row misses core anchors', async () => {
+        const page = createPageMock(['content', 2, [{ ...ROUND_RAW, airline: '' }, { ...ROUND_RAW, departureAirport: '' }]]);
+        await expect(cmd.func(page, { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('required airline/flight/time/airport anchors') });
     });
 });
 
@@ -1839,10 +1847,10 @@ describe('ctrip attraction command (registry-level)', () => {
 });
 
 describe('ctrip buildAttractionExtractJs (JSDOM)', () => {
-    function runExtract(html) {
+    function runExtract(html, cityId = '1') {
         const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
             { url: 'https://you.ctrip.com/place/beijing1.html' });
-        return Function('document', `return (${buildAttractionExtractJs()})`)(dom.window.document);
+        return Function('document', `return (${buildAttractionExtractJs(cityId)})`)(dom.window.document);
     }
 
     it('reads name / rating / reviews from each sight link, expanding 万 / w counts', () => {
@@ -1857,19 +1865,27 @@ describe('ctrip buildAttractionExtractJs (JSDOM)', () => {
         expect(rows[1]).toMatchObject({ name: '中国国家博物馆', rating: null, reviews: 13000 });
     });
 
-    it('dedupes repeated sight ids and drops links without a name', () => {
+    it('scopes rows to the requested city, dropping other-city sight anchors', () => {
+        const crossCity = '<a href="/sight/shanghai2/75.html">上海外滩4.7分3.2w条点评</a>';
+        expect(runExtract(ATTRACTION_LINKS + crossCity, '1')).toHaveLength(3);
+        expect(runExtract(crossCity, '1')).toEqual([]);
+        expect(runExtract(crossCity, '2')).toHaveLength(1);
+    });
+
+    it('dedupes repeated sight ids and drops links without a name or rating/review signature', () => {
         expect(runExtract(ATTRACTION_LINKS + ATTRACTION_LINKS)).toHaveLength(3);
         expect(runExtract('<a href="/sight/beijing1/229.html">4.8分</a>')).toEqual([]);
+        expect(runExtract('<a href="/sight/beijing1/229.html">故宫博物院</a>')).toEqual([]);
     });
 });
 
-describe('ctrip WAIT_FOR_ATTRACTIONS_JS (JSDOM)', () => {
-    it('detects the rendered sight links as content', async () => {
+describe('ctrip buildWaitForAttractionsJs (JSDOM)', () => {
+    it('detects the rendered city-scoped sight links as content', async () => {
         const dom = new JSDOM(`<!doctype html><html><body>${ATTRACTION_LINKS}</body></html>`, {
             url: 'https://you.ctrip.com/place/beijing1.html',
             runScripts: 'outside-only',
         });
-        await expect(dom.window.Function(`return (${WAIT_FOR_ATTRACTIONS_JS})`)())
+        await expect(dom.window.Function(`return (${buildWaitForAttractionsJs('1')})`)())
             .resolves.toBe('content');
     });
 });
