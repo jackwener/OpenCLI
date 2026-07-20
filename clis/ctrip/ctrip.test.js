@@ -682,6 +682,39 @@ describe('ctrip buildFlightExtractJs (JSDOM)', () => {
         }]);
     });
 
+    it('extracts current data-testid cards via stable field ids', () => {
+        const html = `
+          <div data-testid="flight-item-1">
+            <span id="airlineName3U8282_1784385000000-0">四川航空</span>
+            <div id="comfort-3U8282_1784385000000-0">
+              <span>3U8282<span>空客320(中)</span></span>
+            </div>
+            <div>22:30</div>
+            <span id="departureFlightTrain3U8282_1784385000000-0">首都国际机场</span>
+            <span id="departureTerminal3U8282_1784385000000-0">T2</span>
+            <div>01:55<span id="crossDays3U8282_1784385000000-0">+1天</span></div>
+            <span id="arrivalFlightTrain3U8282_1784385000000-0">长水国际机场</span>
+            <span id="arrivalTerminal3U8282_1784385000000-0">T1</span>
+            <span id="travelPackage_price_undefined">900<dfn>¥</dfn></span>
+            <div>经济舱 3.3折</div>
+          </div>
+        `;
+        const rows = runExtract(html);
+        expect(rows).toEqual([{
+            airline: '四川航空',
+            flightNo: '3U8282',
+            aircraft: '空客320(中)',
+            departureTime: '22:30',
+            departureAirport: '首都国际机场',
+            arrivalTime: '01:55',
+            arrivalAirport: '长水国际机场',
+            terminal: 'T1',
+            price: 900,
+            currency: '¥',
+            cabin: '经济舱',
+        }]);
+    });
+
     it('omits terminal when not present after arrAirport', () => {
         const html = `
           <div class="flight-list"><span>

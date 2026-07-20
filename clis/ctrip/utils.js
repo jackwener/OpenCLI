@@ -314,11 +314,13 @@ export function mapHotelRow(entry, index) {
     };
 }
 
+export const FLIGHT_CARD_SELECTOR = '.flight-list > span > div, [data-testid^="flight-item-"]';
+
 /**
- * Build the browser-context IIFE that extracts flight rows from `.flight-list`.
+ * Build the browser-context IIFE that extracts flight rows from Ctrip's flight cards.
  *
- * Flights are rendered as `.flight-list > span > div` cards. Each card's innerText
- * has a stable ordering (verified 2026-05-12 on bjs→sha route):
+ * Legacy cards use `.flight-list > span > div` and have a stable innerText ordering
+ * (verified 2026-05-12 on bjs→sha route):
  *
  *   [airline, flightNo, aircraft, lowPriceTag?, depTime, depAirport,
  *    arrTime, arrAirport, terminal?, savings?, promo?, currency, price,
@@ -327,7 +329,8 @@ export function mapHotelRow(entry, index) {
  * `lowPriceTag` (e.g. "当日低价") + `terminal` (e.g. "T2") + `savings` + `promo`
  * are optional — we use position-of-first-time-match to anchor and parse around it.
  *
- * The host is baked in so `normalizeUrl` for booking links resolves on the calling site.
+ * Current cards use `data-testid="flight-item-*"` plus stable field-id prefixes.
+ * Keep both paths so the adapter remains compatible while Ctrip rolls the DOM out.
  */
 export function buildFlightExtractJs() {
     return `
@@ -339,7 +342,7 @@ export function buildFlightExtractJs() {
         const isFlightNo = (s) => /^[A-Z0-9]{2}\\d{3,4}[A-Z]?$/.test(s);
 
         const rows = [];
-        document.querySelectorAll('.flight-list > span > div').forEach((card) => {
+        document.querySelectorAll(${JSON.stringify(FLIGHT_CARD_SELECTOR)}).forEach((card) => {
           // Collect ordered text chunks (text nodes only, skip whitespace-only).
           const chunks = [];
           const walk = (node) => {
@@ -353,6 +356,46 @@ export function buildFlightExtractJs() {
             }
           };
           walk(card);
+
+          if (card.matches('[data-testid^="flight-item-"]')) {
+            const airlineNode = card.querySelector('[id^="airlineName"]');
+            const airline = cleanText(airlineNode?.textContent);
+            const idFlightNo = /^airlineName([A-Z0-9]{2}\\d{3,4}[A-Z]?)(?:_|$)/.exec(airlineNode?.id || '')?.[1] || null;
+            const flightNoIdx = chunks.findIndex(isFlightNo);
+            const flightNo = idFlightNo || (flightNoIdx >= 0 ? chunks[flightNoIdx] : null);
+            const aircraftCandidate = flightNoIdx >= 0 ? chunks[flightNoIdx + 1] : null;
+            const aircraft = aircraftCandidate && !isTime(aircraftCandidate) && !/^(共享|经停|直飞)$/.test(aircraftCandidate)
+              ? aircraftCandidate
+              : null;
+            const times = chunks.filter(isTime);
+            const departureAirport = cleanText(card.querySelector('[id^="departureFlightTrain"]')?.textContent) || null;
+            const arrivalAirport = cleanText(card.querySelector('[id^="arrivalFlightTrain"]')?.textContent) || null;
+
+            if (!airline || !isFlightNo(flightNo) || times.length < 2 || !departureAirport || !arrivalAirport) return;
+
+            const priceNode = card.querySelector('[id^="travelPackage_price_"]');
+            const priceText = cleanText(priceNode?.textContent);
+            const priceMatch = /(\\d[\\d,]*(?:\\.\\d+)?)/.exec(priceText);
+            const currency = cleanText(priceNode?.querySelector('dfn')?.textContent) ||
+              ((priceText.match(/[¥$€£]/) || [])[0] ?? null);
+            const cabinMatch = cleanText(card.textContent).match(/(超级经济舱|经济舱|公务\\/头等舱|公务舱|商务舱|头等舱)/);
+
+            rows.push({
+              airline,
+              flightNo,
+              aircraft,
+              departureTime: times[0],
+              departureAirport,
+              arrivalTime: times[1],
+              arrivalAirport,
+              terminal: cleanText(card.querySelector('[id^="arrivalTerminal"]')?.textContent) || null,
+              price: priceMatch ? Number(priceMatch[1].replace(/,/g, '')) : null,
+              currency,
+              cabin: cabinMatch?.[1] || null,
+            });
+            return;
+          }
+
           if (chunks.length < 8) return;
 
           // Anchor on first HH:MM — that's depTime; depAirport is immediately after.
