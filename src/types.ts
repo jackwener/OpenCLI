@@ -12,7 +12,28 @@ export interface BrowserCookie {
   path?: string;
   secure?: boolean;
   httpOnly?: boolean;
+  /** Seconds since UNIX epoch. Absent for session cookies. Normalized from CDP `expires`. */
   expirationDate?: number;
+  /** "Strict" | "Lax" | "None" | "no_restriction" | "unspecified" — name varies by source. */
+  sameSite?: string;
+  /** True if the cookie has no expiry (session-scoped). */
+  session?: boolean;
+  /** Cookie size in bytes (CDP only). */
+  size?: number;
+  /** "Low" | "Medium" | "High" — CDP only. */
+  priority?: string;
+  /** Source scheme of the response that set the cookie (CDP only). */
+  sourceScheme?: string;
+  /** Source port of the response that set the cookie (CDP only). */
+  sourcePort?: number;
+  /** True if cookie is host-only (no leading dot in domain) — Chrome cookies API only. */
+  hostOnly?: boolean;
+  /** Cookie store ID — Chrome cookies API only. */
+  storeId?: string;
+  /** SameParty cookies (CDP only). */
+  sameParty?: boolean;
+  /** Cookie partition key (CDP CHIPS, third-party storage partitioning). */
+  partitionKey?: string;
 }
 
 export interface SnapshotOptions {

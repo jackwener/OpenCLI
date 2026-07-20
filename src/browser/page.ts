@@ -26,6 +26,14 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
     || (normalized.includes('network capture') && normalized.includes('not supported'));
 }
 
+function isBrowserCookie(value: unknown): value is BrowserCookie {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as { name?: unknown }).name === 'string'
+    && typeof (value as { value?: unknown }).value === 'string'
+    && typeof (value as { domain?: unknown }).domain === 'string';
+}
+
 // The extension throws "Page not found: <id> — stale page identity" when our cached
 // `_page` targetId no longer maps to a live tab — e.g. the user closed the automation
 // window, or a long-running script left the cache pointing at an evicted target.
@@ -186,7 +194,14 @@ export class Page extends BasePage {
 
   async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
     const result = await sendCommand('cookies', { ...this._sessionOpts(), ...opts });
-    return Array.isArray(result) ? result : [];
+    if (!Array.isArray(result)) {
+      throw new Error('Browser cookies command returned malformed result: expected an array');
+    }
+    const malformedIndex = result.findIndex((cookie) => !isBrowserCookie(cookie));
+    if (malformedIndex !== -1) {
+      throw new Error(`Browser cookies command returned malformed cookie at index ${malformedIndex}`);
+    }
+    return result;
   }
 
   /** Release the current browser session lease in the extension */
