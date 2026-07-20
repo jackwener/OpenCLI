@@ -34,6 +34,14 @@ function requireFinite(value, name) {
     return value;
 }
 
+function requireText(value, name) {
+    const text = normalize(value);
+    if (!text) {
+        throw new CommandExecutionError(`kimi usage returned malformed payload: missing "${name}"`);
+    }
+    return text;
+}
+
 cli({
     site: 'kimi',
     name: 'usage',
@@ -136,11 +144,11 @@ cli({
             membershipName: normalize(data.membershipName) || null,
             membershipValidUntil: data.membershipValidUntil || null,
             totalUsagePct: requireFinite(parsePct(data.totalUsagePct), 'totalUsagePct'),
-            totalResetIn: normalize(data.totalResetIn) || null,
-            fiveHourUsagePct: parsePct(data.fiveHourUsagePct),
-            fiveHourResetIn: normalize(data.fiveHourResetIn) || null,
-            sevenDayUsagePct: parsePct(data.sevenDayUsagePct),
-            sevenDayResetIn: normalize(data.sevenDayResetIn) || null,
+            totalResetIn: requireText(data.totalResetIn, 'totalResetIn'),
+            fiveHourUsagePct: requireFinite(parsePct(data.fiveHourUsagePct), 'fiveHourUsagePct'),
+            fiveHourResetIn: requireText(data.fiveHourResetIn, 'fiveHourResetIn'),
+            sevenDayUsagePct: requireFinite(parsePct(data.sevenDayUsagePct), 'sevenDayUsagePct'),
+            sevenDayResetIn: requireText(data.sevenDayResetIn, 'sevenDayResetIn'),
             giftUsagePct: parsePct(data.giftUsagePct),
             giftValidUntil: normalize(data.giftValidUntil) || null,
             balance: normalize(data.balance) || null,

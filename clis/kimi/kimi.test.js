@@ -49,45 +49,60 @@ describe('kimi adapter registration', () => {
 describe('kimi usage command', () => {
     const usageCommand = getRegistry().get('kimi/usage');
 
-    it('returns Kimi Code console usage cards as a single read row', async () => {
+    it('returns Kimi membership quota usage as a single read row', async () => {
         const page = makePage([{
-            '本周用量': ['12.5%', '3 天后重置'],
-            '频限明细': ['45%', '1 小时后重置'],
-            '我的权益': ['Kimi Pro', '会员权益'],
-            '模型权限': ['K2.6', '高级模型消耗 2x'],
+            membershipName: 'Kimi Pro',
+            membershipValidUntil: '2026-12-31',
+            totalUsagePct: '12.5%',
+            totalResetIn: '3 天后重置',
+            fiveHourUsagePct: '45%',
+            fiveHourResetIn: '1 小时后重置',
+            sevenDayUsagePct: '22%',
+            sevenDayResetIn: '4 天后重置',
+            giftUsagePct: '6.5%',
+            giftValidUntil: '2026-08-01',
+            balance: '¥12.30',
+            monthlySpend: '¥2.00 / ¥100',
         }]);
 
         await expect(usageCommand.func(page)).resolves.toEqual([{
-            weeklyUsagePct: 12.5,
-            weeklyResetIn: '3 天后重置',
-            rateLimitPct: 45,
-            rateLimitResetIn: '1 小时后重置',
             membershipName: 'Kimi Pro',
-            membershipTier: '会员权益',
-            modelPermission: 'K2.6',
-            modelCost: '高级模型消耗 2x',
+            membershipValidUntil: '2026-12-31',
+            totalUsagePct: 12.5,
+            totalResetIn: '3 天后重置',
+            fiveHourUsagePct: 45,
+            fiveHourResetIn: '1 小时后重置',
+            sevenDayUsagePct: 22,
+            sevenDayResetIn: '4 天后重置',
+            giftUsagePct: 6.5,
+            giftValidUntil: '2026-08-01',
+            balance: '¥12.30',
+            monthlySpend: '¥2.00 / ¥100',
         }]);
-        expect(page.goto).toHaveBeenCalledWith('https://www.kimi.com/code/console');
+        expect(page.goto).toHaveBeenCalledWith('https://www.kimi.com/membership/subscription?tab=quota');
     });
 
-    it('typed-fails when the usage console exposes no dashboard cards', async () => {
+    it('typed-fails when the membership quota page exposes no required usage sections', async () => {
         const page = makePage([{}]);
 
         await expect(usageCommand.func(page)).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
-    it('typed-fails malformed usage payloads instead of returning null success rows', async () => {
+    it('typed-fails malformed membership quota payloads instead of returning null success rows', async () => {
         await expect(usageCommand.func(makePage([[]]))).rejects.toBeInstanceOf(CommandExecutionError);
         await expect(usageCommand.func(makePage([{
-            '本周用量': ['12%'],
-            '频限明细': ['45%'],
-            '我的权益': ['Kimi Pro'],
+            totalUsagePct: '12%',
+            totalResetIn: '3 天后重置',
+            fiveHourUsagePct: '45%',
+            fiveHourResetIn: '1 小时后重置',
         }]))).rejects.toBeInstanceOf(CommandExecutionError);
         await expect(usageCommand.func(makePage([{
-            '本周用量': ['not a percent'],
-            '频限明细': ['45%'],
-            '我的权益': ['Kimi Pro'],
-            '模型权限': ['K2.6'],
+            totalUsagePct: 'not a percent',
+            totalResetIn: '3 天后重置',
+            fiveHourUsagePct: '45%',
+            fiveHourResetIn: '1 小时后重置',
+            sevenDayUsagePct: '22%',
+            sevenDayResetIn: '4 天后重置',
         }]))).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

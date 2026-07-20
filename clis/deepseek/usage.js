@@ -3,7 +3,7 @@
 // Uses the internal API for account summary + innerText extraction for time-dimension cards.
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const DS_DOMAIN = 'platform.deepseek.com';
 const USAGE_URL = 'https://platform.deepseek.com/usage';
@@ -33,18 +33,43 @@ const EVAL_JS = `
     // --- API: user summary ---
     async function fetchApiData() {
         var summary = await fetchJson(BASE + '/api/v0/users/get_user_summary');
-        var normalW = (summary.normal_wallets || []).find(function(w) { return w.currency === 'CNY'; });
-        var bonusW = (summary.bonus_wallets || []).find(function(w) { return w.currency === 'CNY'; });
+        if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+            throw new Error('MALFORMED summary');
+        }
+        if (!Array.isArray(summary.normal_wallets)) throw new Error('MALFORMED normal_wallets');
+        if (!Array.isArray(summary.bonus_wallets)) throw new Error('MALFORMED bonus_wallets');
+        if (!Array.isArray(summary.total_costs)) throw new Error('MALFORMED total_costs');
+        if (!Array.isArray(summary.monthly_costs)) throw new Error('MALFORMED monthly_costs');
+        if (summary.monthly_token_usage === undefined) throw new Error('MALFORMED monthly_token_usage');
+        if (summary.total_usage === undefined) throw new Error('MALFORMED total_usage');
+        if (summary.total_available_token_estimation === undefined) {
+            throw new Error('MALFORMED total_available_token_estimation');
+        }
+
+        function amount(value, label) {
+            var n = Number(value);
+            if (!Number.isFinite(n)) throw new Error('MALFORMED ' + label);
+            return n.toFixed(2);
+        }
+
+        function integerish(value, label) {
+            var s = String(value);
+            if (!/^\\d+(?:\\.\\d+)?$/.test(s)) throw new Error('MALFORMED ' + label);
+            return s;
+        }
+
+        var normalW = summary.normal_wallets.find(function(w) { return w && w.currency === 'CNY'; });
+        var bonusW = summary.bonus_wallets.find(function(w) { return w && w.currency === 'CNY'; });
         return {
-            balance: normalW ? Number(normalW.balance).toFixed(2) : '0',
-            bonusBalance: bonusW ? Number(bonusW.balance).toFixed(2) : '0',
+            balance: normalW ? amount(normalW.balance, 'balance') : '0.00',
+            bonusBalance: bonusW ? amount(bonusW.balance, 'bonusBalance') : '0.00',
             cumulativeSpend: (summary.total_costs || []).length > 0
-                ? Number(summary.total_costs[0].amount).toFixed(2) : '0',
+                ? amount(summary.total_costs[0].amount, 'cumulativeSpend') : '0.00',
             monthlySpend: (summary.monthly_costs || []).length > 0
-                ? Number(summary.monthly_costs[0].amount).toFixed(2) : '0',
-            monthlyTokens: summary.monthly_token_usage || '0',
-            monthlyApiCalls: String(summary.total_usage || 0),
-            currentTokenEstimation: summary.total_available_token_estimation || '0',
+                ? amount(summary.monthly_costs[0].amount, 'monthlySpend') : '0.00',
+            monthlyTokens: integerish(summary.monthly_token_usage, 'monthlyTokens'),
+            monthlyApiCalls: integerish(summary.total_usage, 'monthlyApiCalls'),
+            currentTokenEstimation: integerish(summary.total_available_token_estimation, 'currentTokenEstimation'),
         };
     }
 
@@ -116,13 +141,40 @@ const EVAL_JS = `
             monthlyApiCalls: apiData.monthlyApiCalls,
             monthlyTokens: apiData.monthlyTokens,
             currentTokenEstimation: apiData.currentTokenEstimation,
-            timePeriod: domData.timePeriod || '近 7 天',
-            periodSpend: domData.periodSpend || '0',
-            periodApiCalls: domData.periodApiCalls || '0',
-            periodTokens: domData.periodTokens || '0',
+            timePeriod: domData.timePeriod,
+            periodSpend: domData.periodSpend,
+            periodApiCalls: domData.periodApiCalls,
+            periodTokens: domData.periodTokens,
         };
     });
 `;
+
+function errorMessage(error) {
+    return error && typeof error.message === 'string' ? error.message : String(error || '');
+}
+
+function requirePlainObject(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new CommandExecutionError('deepseek usage returned malformed payload: expected object');
+    }
+    return value;
+}
+
+function requireText(value, name) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        throw new CommandExecutionError(`deepseek usage returned malformed payload: missing "${name}"`);
+    }
+    return text;
+}
+
+function requireNumericText(value, name, { decimal = false } = {}) {
+    const text = requireText(value, name);
+    if (!/^\d+(?:\.\d+)?$/.test(text)) {
+        throw new CommandExecutionError(`deepseek usage returned malformed payload: invalid "${name}"`);
+    }
+    return decimal ? Number(text).toFixed(2) : text;
+}
 
 cli({
     site: 'deepseek',
@@ -152,27 +204,31 @@ cli({
         await page.goto(USAGE_URL);
         await page.wait(3);
 
-        const data = await page.evaluate(`(() => {${EVAL_JS}})()`);
+        let data;
+        try {
+            data = await page.evaluate(`(() => {${EVAL_JS}})()`);
+        } catch (error) {
+            const message = errorMessage(error);
+            if (/\bHTTP\s+(401|403)\b/i.test(message) || /unauth|login|token/i.test(message)) {
+                throw new AuthRequiredError(DS_DOMAIN, 'DeepSeek platform usage requires a logged-in platform session');
+            }
+            throw new CommandExecutionError(`deepseek usage failed: ${message || 'unknown error'}`);
+        }
 
-        if (!data || typeof data !== 'object' || Array.isArray(data)) {
-            throw new CommandExecutionError('deepseek usage returned malformed payload: expected object');
-        }
-        if (data.balance === undefined) {
-            throw new CommandExecutionError('deepseek usage returned malformed payload: missing balance');
-        }
+        requirePlainObject(data);
 
         return [{
-            balance: String(data.balance),
-            bonusBalance: String(data.bonusBalance),
-            cumulativeSpend: String(data.cumulativeSpend),
-            monthlySpend: String(data.monthlySpend),
-            monthlyApiCalls: String(data.monthlyApiCalls),
-            monthlyTokens: String(data.monthlyTokens),
-            currentTokenEstimation: String(data.currentTokenEstimation),
-            timePeriod: String(data.timePeriod || '近 7 天'),
-            periodSpend: String(data.periodSpend),
-            periodApiCalls: String(data.periodApiCalls),
-            periodTokens: String(data.periodTokens),
+            balance: requireNumericText(data.balance, 'balance', { decimal: true }),
+            bonusBalance: requireNumericText(data.bonusBalance, 'bonusBalance', { decimal: true }),
+            cumulativeSpend: requireNumericText(data.cumulativeSpend, 'cumulativeSpend', { decimal: true }),
+            monthlySpend: requireNumericText(data.monthlySpend, 'monthlySpend', { decimal: true }),
+            monthlyApiCalls: requireNumericText(data.monthlyApiCalls, 'monthlyApiCalls'),
+            monthlyTokens: requireNumericText(data.monthlyTokens, 'monthlyTokens'),
+            currentTokenEstimation: requireNumericText(data.currentTokenEstimation, 'currentTokenEstimation'),
+            timePeriod: requireText(data.timePeriod, 'timePeriod'),
+            periodSpend: requireNumericText(data.periodSpend, 'periodSpend', { decimal: true }),
+            periodApiCalls: requireNumericText(data.periodApiCalls, 'periodApiCalls'),
+            periodTokens: requireNumericText(data.periodTokens, 'periodTokens'),
         }];
     },
 });

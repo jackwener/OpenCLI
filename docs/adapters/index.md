@@ -158,7 +158,7 @@ Run `opencli list` for the live registry.
 | **[suno](./browser/suno.md)**                     | `generate` `status` `list` `download`                                                                                                          | 🔐 Browser   |
 | **[weread-official](./browser/weread-official.md)** | `search` `shelf` `book` `notes` `review` `readdata` `discover` `list-apis`                                                                  | 🌐 Public    |
 | **[qwen](./browser/qwen.md)**                     | `new` `ask` `send` `read` `status` `history` `detail` `image`                                                                                  | 🔐 Browser   |
-| **[deepseek](./browser/deepseek.md)**             | `new` `ask` `send` `read` `status` `history` `detail`                                                                                          | 🔐 Browser   |
+| **[deepseek](./browser/deepseek.md)**             | `new` `ask` `send` `read` `status` `history` `detail` `usage`                                                                                  | 🔐 Browser   |
 | **[yahoo](./browser/yahoo.md)**                   | `search`                                                                                                                                       | 🔐 Browser   |
 | **[1point3acres](./browser/1point3acres.md)**     | `hot` `latest` `forums` `forum` `thread` `digest` `search` `user` `notifications`                                                              | 🌐 Public    |
 | **[brave](./browser/brave.md)**                   | `search`                                                                                                                                       | 🔐 Browser   |
