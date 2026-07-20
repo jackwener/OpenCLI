@@ -1124,16 +1124,24 @@ describe('trip search command (registry-level)', () => {
         await expect(cmd.func({ query: 'Nowherexyz', limit: 5 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
     });
 
-    it('surfaces HTTP + network failures as typed FETCH_ERROR', async () => {
+    it('surfaces HTTP + network failures as typed COMMAND_EXEC', async () => {
         vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 503 }))));
-        await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR' });
+        await expect(cmd.func({ query: 'Bali', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('status 503') });
         vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('socket hang up'))));
-        await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR', message: expect.stringContaining('socket hang up') });
+        await expect(cmd.func({ query: 'Bali', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('socket hang up') });
     });
 
     it('surfaces a 200 with an unparseable body as typed COMMAND_EXEC', async () => {
         vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('<html>not json</html>', { status: 200 }))));
         await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('invalid JSON') });
+    });
+
+    it('surfaces a 200 POI body missing the results array as typed COMMAND_EXEC', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(poiResponse({ data: [] }))));
+        await expect(cmd.func({ query: 'Bali', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('missing results array') });
     });
 });
 
@@ -1265,10 +1273,10 @@ describe('trip package command (registry-level)', () => {
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('parseable flight itinerary') });
     });
 
-    it('surfaces a package endpoint failure as typed FETCH_ERROR', async () => {
+    it('surfaces a package endpoint failure as typed COMMAND_EXEC', async () => {
         stubPackageFetch({ pkgStatus: 503 });
         await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
-            .rejects.toMatchObject({ code: 'FETCH_ERROR' });
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('status 503') });
     });
 
     it('surfaces a 200 package body that will not parse as typed COMMAND_EXEC', async () => {
@@ -1281,6 +1289,12 @@ describe('trip package command (registry-level)', () => {
         }));
         await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('invalid JSON') });
+    });
+
+    it('surfaces a 200 package body missing grouplist as typed COMMAND_EXEC', async () => {
+        stubPackageFetch({ pkg: { data: [] } });
+        await expect(cmd.func({ from: 'Seoul', to: 'Tokyo', depart: '2026-08-05', return: '2026-08-08', adults: 2, limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('missing grouplist array') });
     });
 });
 

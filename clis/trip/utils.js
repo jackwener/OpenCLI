@@ -6,7 +6,7 @@
  * Flight rows are `.result-item` cards keyed by stable `data-testid` anchors
  * (`flights-name`, `stopInfoText`, `flight_price_*`).
  */
-import { ArgumentError, CliError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
@@ -733,7 +733,8 @@ export const WAIT_FOR_DEALS_JS = `
  * Query Trip.com's public destination-suggest endpoint (the same POI search the
  * flight / hotel boxes call). It takes an unsigned JSON POST and returns city /
  * airport / place matches, so this needs no browser session. Returns the raw
- * `results` array (empty when the payload has none).
+ * `results` array. Missing/non-array `results` means schema drift; an explicit
+ * empty array is the only valid empty-result shape.
  */
 export async function fetchPoiSearch(keyword) {
     let response;
@@ -749,18 +750,21 @@ export async function fetchPoiSearch(keyword) {
             }),
         });
     } catch (err) {
-        throw new CliError('FETCH_ERROR', `Trip.com poiSearch fetch failed: ${err instanceof Error ? err.message : String(err)}`, 'Check your network connection and retry');
+        throw new CommandExecutionError(`Trip.com poiSearch fetch failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!response.ok) {
-        throw new CliError('FETCH_ERROR', `Trip.com poiSearch failed with status ${response.status}`, 'Retry the command or verify trip.com is reachable');
+        throw new CommandExecutionError(`Trip.com poiSearch failed with status ${response.status}`);
     }
     let payload;
     try {
         payload = await response.json();
     } catch (err) {
-        throw new CliError('COMMAND_EXEC', `Trip.com poiSearch returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`, 'Trip.com may have changed the endpoint response format; retry later');
+        throw new CommandExecutionError(`Trip.com poiSearch returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
     }
-    return Array.isArray(payload?.results) ? payload.results : [];
+    if (!Array.isArray(payload?.results)) {
+        throw new CommandExecutionError('Trip.com poiSearch returned malformed payload: missing results array');
+    }
+    return payload.results;
 }
 
 /**
@@ -828,7 +832,8 @@ export async function resolvePackageCity(keyword) {
  * options priced at the bundle rate, so this needs no browser session. `fmap` 19
  * is the flight+hotel product map and `sgrade` 4 economy; the return date rides on
  * the hotel checkout, so the flight criteria carries just the outbound segment,
- * the same shape the results page submits. Returns the raw `grouplist` array.
+ * the same shape the results page submits. Returns the raw `grouplist` array;
+ * missing/non-array `grouplist` means schema drift, not "no packages".
  */
 export async function fetchPackageSearch({ dcode, acode, hcityid, depart, ret, adults }) {
     const body = {
@@ -858,18 +863,21 @@ export async function fetchPackageSearch({ dcode, acode, hcityid, depart, ret, a
             body: JSON.stringify(body),
         });
     } catch (err) {
-        throw new CliError('FETCH_ERROR', `Trip.com package search fetch failed: ${err instanceof Error ? err.message : String(err)}`, 'Check your network connection and retry');
+        throw new CommandExecutionError(`Trip.com package search fetch failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!response.ok) {
-        throw new CliError('FETCH_ERROR', `Trip.com package search failed with status ${response.status}`, 'Retry the command or verify trip.com is reachable');
+        throw new CommandExecutionError(`Trip.com package search failed with status ${response.status}`);
     }
     let payload;
     try {
         payload = await response.json();
     } catch (err) {
-        throw new CliError('COMMAND_EXEC', `Trip.com package search returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`, 'Trip.com may have changed the endpoint response format; retry later');
+        throw new CommandExecutionError(`Trip.com package search returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
     }
-    return Array.isArray(payload?.grouplist) ? payload.grouplist : [];
+    if (!Array.isArray(payload?.grouplist)) {
+        throw new CommandExecutionError('Trip.com package search returned malformed payload: missing grouplist array');
+    }
+    return payload.grouplist;
 }
 
 /**
