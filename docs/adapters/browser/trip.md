@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`)
+**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`, `tour`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -19,6 +19,7 @@ the same company. These commands search worldwide flights and hotels on
 | `opencli trip train` | Browser (cookie) | Train route timetable (departure/arrival times, duration, changes) |
 | `opencli trip car` | Browser (cookie) | Car-rental listing for a city (category, model, seats, daily price) |
 | `opencli trip transfer` | Browser (cookie) | Airport-transfer listing for a city + airport (type, seats, from-price) |
+| `opencli trip tour` | Browser (cookie) | Tour-package search by destination keyword (private or group tours) |
 
 ## Usage Examples
 
@@ -47,6 +48,10 @@ opencli trip car 313 --limit 10
 
 # Airport-transfer listing (airport city + IATA code)
 opencli trip transfer Bangkok DMK --limit 10
+
+# Tour-package search (destination keyword; private tours by default)
+opencli trip tour Kyoto --limit 20
+opencli trip tour Bangkok --type group --limit 10
 ```
 
 ## Flight Columns (`flight`)
@@ -223,6 +228,31 @@ fields (`.vehicle-card__title-text` / `.vehicle-card__capacity-text` /
 sits in a separate discount tag and is excluded, and the dated pickup quote sits
 behind the booking step.
 
+## Tour Columns (`tour`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the rendered result set |
+| `name` | Tour title (e.g. `4D3N · Private Tours · Japan + Osaka + Kyoto ...`) |
+| `type` | Product line as shown (`Private Tours` / `Group Tours`) |
+| `rating` | Guest rating out of 5; `null` when the tour has no reviews yet |
+| `reviews` | Review count as an integer; `null` when absent |
+| `price`, `currency` | Starting per-person estimate and `USD`; `price` is `null` when non-numeric |
+| `url` | Per-tour detail URL (`package-tours/detail/<id>`) |
+
+Args:
+- `<query>` (positional, required): a destination or tour keyword (e.g. `Tokyo` / `Kyoto` / `Bali`).
+- `--type` (`private` or `group`, default `private`): the tour product line.
+- `--limit` (1-50, default 20).
+
+Trip.com serves tour results (`package-tours/list?kwd=<keyword>`) through a signed
+POST that only fires on a search submit, so rather than replaying the signature
+the command opens the results page and re-submits the keyword in the page's own
+search box, letting the page issue its own signed request while a fetch hook
+captures the `products` response. Rows read the product `name`, `type`, rating,
+review count, starting price, and per-tour detail URL from that JSON; per-departure
+pricing and availability sit behind the booking step.
+
 ## Prerequisites
 
 - Chrome running with the [Browser Bridge extension](/guide/browser-bridge) installed.
@@ -235,4 +265,4 @@ behind the booking step.
 - Trip.com is English/USD-facing. For the mainland Chinese site (Chinese UI, CNY,
   domestic rail), use the `ctrip` adapter instead.
 - This adapter covers Trip.com's travel verticals end to end: flights, hotels,
-  attractions, train timetables, car rentals, and airport transfers.
+  attractions, train timetables, car rentals, airport transfers, and tour packages.

@@ -9,6 +9,7 @@ import './attraction.js';
 import './train.js';
 import './car.js';
 import './transfer.js';
+import './tour.js';
 import {
     WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_CARS_JS,
@@ -26,6 +27,8 @@ import {
     buildHotelDetailUrl,
     buildHotelExtractJs,
     buildHotelSearchUrl,
+    buildTourSearchJs,
+    buildTourSearchUrl,
     buildTrainExtractJs,
     buildTrainRouteUrl,
     buildTransferExtractJs,
@@ -960,5 +963,74 @@ describe('trip WAIT_FOR_TRANSFERS_JS (JSDOM)', () => {
         });
         await expect(dom.window.Function(`return (${WAIT_FOR_TRANSFERS_JS})`)())
             .resolves.toBe('content');
+    });
+});
+
+const TOUR_RAW = {
+    name: '2D1N · Private Tours · Japan Osaka + Kyoto + Nara Kansai Three-City Travel Route',
+    type: 'Private Tours',
+    rating: 4.9,
+    reviews: 48,
+    price: 88,
+    url: 'https://us.trip.com/package-tours/detail/70457661?city=219&locale=en-US&curr=USD',
+};
+
+describe('trip buildTourSearchUrl', () => {
+    it('builds the package-tours list URL with kwd + tabType', () => {
+        expect(buildTourSearchUrl('Kyoto', 'privateTours'))
+            .toBe('https://www.trip.com/package-tours/list?kwd=Kyoto&tabType=privateTours&locale=en-US&curr=USD');
+    });
+});
+
+describe('trip buildTourSearchJs', () => {
+    it('embeds the keyword and the products-content capture guard', () => {
+        const js = buildTourSearchJs('Bali');
+        expect(js).toContain('"Bali"');
+        expect(js).toContain('"products":[');
+    });
+});
+
+describe('trip tour command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/tour');
+
+    it('declares Strategy.COOKIE + browser:true + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.domain).toBe('trip.com');
+    });
+
+    it('rejects a blank query, invalid --type, and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { query: '', type: 'private', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { query: 'Kyoto', type: 'luxury', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--type') });
+        await expect(cmd.func(page, { query: 'Kyoto', type: 'private', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on verification, EmptyResult on empty, CommandExec on timeout / malformed', async () => {
+        await expect(cmd.func(createPageMock([{ status: 'captcha' }]), { query: 'Kyoto', type: 'private', limit: 5 }))
+            .rejects.toThrow('Trip.com is asking for a verification');
+        await expect(cmd.func(createPageMock([{ status: 'content', rows: [] }]), { query: 'Nowherexyz', type: 'private', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock([{ status: 'timeout' }]), { query: 'Kyoto', type: 'private', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not return results') });
+        await expect(cmd.func(createPageMock([null]), { query: 'Kyoto', type: 'private', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed') });
+    });
+
+    it('maps captured products, drops nameless rows, and respects --type / --limit', async () => {
+        const page = createPageMock([{ status: 'content', rows: [TOUR_RAW, { name: null }, { ...TOUR_RAW, name: 'Osaka Group Tour', price: 119 }] }]);
+        const rows = await cmd.func(page, { query: 'Kyoto', type: 'group', limit: 5 });
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toMatchObject({ rank: 1, name: TOUR_RAW.name, type: 'Private Tours', rating: 4.9, reviews: 48, price: 88, currency: 'USD', url: TOUR_RAW.url });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('tabType=groupTours');
     });
 });

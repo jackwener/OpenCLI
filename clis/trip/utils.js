@@ -590,4 +590,76 @@ export const WAIT_FOR_TRANSFERS_JS = `
   })
 `;
 
+/**
+ * Build the tour search URL. Trip.com files tour packages under
+ * `package-tours/list?kwd=<keyword>` with a `tabType` selecting the product line
+ * (`privateTours` / `groupTours`).
+ */
+export function buildTourSearchUrl(keyword, tourType) {
+    const params = new URLSearchParams({ kwd: keyword, tabType: tourType, locale: 'en-US', curr: 'USD' });
+    return `https://www.trip.com/package-tours/list?${params.toString()}`;
+}
+
+/**
+ * Browser-context Promise that reads a tour search off the results page. The
+ * product list is served by a signed POST that only fires on a search submit, so
+ * rather than replaying the signed request this installs a fetch hook that
+ * captures the response body carrying the `"products"` array, drives the page's
+ * own search box (re-submitting the keyword) so the page issues its own signed
+ * request, then resolves once the response lands. Returns `{ status, rows }`,
+ * where `status` is `content` / `captcha` / `noinput` / `timeout`.
+ */
+export function buildTourSearchJs(keyword) {
+    return `
+      new Promise((resolve) => {
+        const captured = [];
+        const origFetch = window.fetch;
+        window.fetch = function (url) {
+          const promise = origFetch.apply(this, arguments);
+          try {
+            promise.then((res) => { res.clone().text().then((text) => {
+              if (text.indexOf('"products":[') !== -1) {
+                try { const data = JSON.parse(text); if (Array.isArray(data.products) && data.products.length) captured.push(data.products); } catch (e) {}
+              }
+            }).catch(() => {}); }).catch(() => {});
+          } catch (e) {}
+          return promise;
+        };
+        const input = document.querySelector('input');
+        if (input) {
+          const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          input.focus();
+          setValue.call(input, ''); input.dispatchEvent(new Event('input', { bubbles: true }));
+          setValue.call(input, ${JSON.stringify(keyword)}); input.dispatchEvent(new Event('input', { bubbles: true }));
+          ['keydown', 'keyup'].forEach((type) => input.dispatchEvent(new KeyboardEvent(type, { bubbles: true, key: 'Enter', keyCode: 13 })));
+        }
+        const num = (v) => (typeof v === 'number' && isFinite(v)) ? v : null;
+        let elapsed = 0;
+        const timer = setInterval(() => {
+          elapsed += 300;
+          if (/captcha|verify you are human|security check/i.test(document.body?.innerText || '')) { clearInterval(timer); window.fetch = origFetch; return resolve({ status: 'captcha' }); }
+          if (captured.length) {
+            clearInterval(timer); window.fetch = origFetch;
+            const products = captured[captured.length - 1];
+            const rows = products.map((p) => {
+              const basic = p.basicInfo || {};
+              const comment = (p.statistics && p.statistics.commentInfo) || {};
+              return {
+                name: basic.name || null,
+                type: basic.productTypeName || null,
+                rating: num(comment.score),
+                reviews: num(comment.count),
+                price: num(p.priceInfo && p.priceInfo.price),
+                url: (basic.detailUrl && basic.detailUrl.ONLINE) || null,
+              };
+            });
+            return resolve({ status: 'content', rows });
+          }
+          if (!input) { clearInterval(timer); window.fetch = origFetch; return resolve({ status: 'noinput' }); }
+          if (elapsed >= 16000) { clearInterval(timer); window.fetch = origFetch; return resolve({ status: 'timeout' }); }
+        }, 300);
+      })
+    `;
+}
+
 export const __test__ = { MIN_LIMIT, MAX_LIMIT };
