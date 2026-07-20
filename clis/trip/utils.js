@@ -6,11 +6,12 @@
  * Flight rows are `.result-item` cards keyed by stable `data-testid` anchors
  * (`flights-name`, `stopInfoText`, `flight_price_*`).
  */
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CliError } from '@jackwener/opencli/errors';
 
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const POI_SEARCH_ENDPOINT = 'https://www.trip.com/restapi/soa2/14427/poiSearch';
 
 export function parseIataCode(name, raw) {
     if (raw === undefined || raw === null || raw === '') {
@@ -662,4 +663,75 @@ export function buildTourSearchJs(keyword) {
     `;
 }
 
-export const __test__ = { MIN_LIMIT, MAX_LIMIT };
+/**
+ * Query Trip.com's public destination-suggest endpoint (the same POI search the
+ * flight / hotel boxes call). It takes an unsigned JSON POST and returns city /
+ * airport / place matches, so this needs no browser session. Returns the raw
+ * `results` array (empty when the payload has none).
+ */
+export async function fetchPoiSearch(keyword) {
+    let response;
+    try {
+        response = await fetch(POI_SEARCH_ENDPOINT, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', currency: 'USD' },
+            body: JSON.stringify({
+                key: keyword,
+                mode: '0',
+                tripType: 'RT',
+                Head: { Currency: 'USD', Locale: 'en-US', Source: 'ONLINE', Channel: 'EnglishSite', ClientID: 'opencli-trip' },
+            }),
+        });
+    } catch (err) {
+        throw new CliError('FETCH_ERROR', `Trip.com poiSearch fetch failed: ${err instanceof Error ? err.message : String(err)}`, 'Check your network connection and retry');
+    }
+    if (!response.ok) {
+        throw new CliError('FETCH_ERROR', `Trip.com poiSearch failed with status ${response.status}`, 'Retry the command or verify trip.com is reachable');
+    }
+    let payload;
+    try {
+        payload = await response.json();
+    } catch (err) {
+        throw new CliError('COMMAND_EXEC', `Trip.com poiSearch returned invalid JSON: ${err instanceof Error ? err.message : String(err)}`, 'Trip.com may have changed the endpoint response format; retry later');
+    }
+    return Array.isArray(payload?.results) ? payload.results : [];
+}
+
+/**
+ * Flatten POI results into a flat suggestion list: each top-level city keeps its
+ * own row, and its `childResults` (nearby airports) follow, so a single search
+ * surfaces both the city id and the airport codes.
+ */
+export function flattenPoiResults(results) {
+    const rows = [];
+    for (const result of results) {
+        if (!result || typeof result !== 'object') continue;
+        rows.push(result);
+        if (Array.isArray(result.childResults)) {
+            for (const child of result.childResults) {
+                if (child && typeof child === 'object') rows.push(child);
+            }
+        }
+    }
+    return rows;
+}
+
+/**
+ * Project a POI suggestion into the stable adapter column shape. A row carrying
+ * an airport code is an `airport` (feeds `flight` / `transfer`); otherwise it is a
+ * `city` (feeds `hotel-search` / `car` / `tour`). Missing values stay `null`.
+ */
+export function mapSearchRow(item, index) {
+    const airportCode = item?.airportCode ? String(item.airportCode).trim() : '';
+    return {
+        rank: index + 1,
+        name: item?.name ? String(item.name).replace(/\s+/g, ' ').trim() : null,
+        type: airportCode ? 'airport' : 'city',
+        cityId: Number.isFinite(item?.cityId) && item.cityId !== 0 ? item.cityId : null,
+        airportCode: airportCode || null,
+        province: item?.provinceName ? String(item.provinceName).trim() : null,
+        country: item?.countryName ? String(item.countryName).trim() : null,
+    };
+}
+
+export const __test__ = { MIN_LIMIT, MAX_LIMIT, POI_SEARCH_ENDPOINT };

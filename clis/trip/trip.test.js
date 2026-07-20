@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './flight.js';
@@ -10,6 +10,7 @@ import './train.js';
 import './car.js';
 import './transfer.js';
 import './tour.js';
+import './search.js';
 import {
     WAIT_FOR_ATTRACTIONS_JS,
     WAIT_FOR_CARS_JS,
@@ -33,6 +34,9 @@ import {
     buildTrainRouteUrl,
     buildTransferExtractJs,
     buildTransferListUrl,
+    fetchPoiSearch,
+    flattenPoiResults,
+    mapSearchRow,
     parseCityId,
     parseHotelId,
     parseIataCode,
@@ -1032,5 +1036,88 @@ describe('trip tour command (registry-level)', () => {
         }
         expect(page.goto).toHaveBeenCalledTimes(1);
         expect(page.goto.mock.calls[0][0]).toContain('tabType=groupTours');
+    });
+});
+
+const POI_CITY = {
+    name: 'Bali',
+    cityId: 723,
+    provinceName: 'Bali Province',
+    countryName: 'Indonesia',
+    airportCode: '',
+    childResults: [
+        { name: 'Ngurah Rai International Airport', cityId: 723, airportCode: 'DPS', provinceName: 'Bali Province', countryName: 'Indonesia' },
+    ],
+};
+
+function poiResponse(payload) {
+    return new Response(JSON.stringify(payload), { status: 200 });
+}
+
+describe('trip mapSearchRow', () => {
+    it('classifies a city vs an airport and preserves ids (no silent drop)', () => {
+        expect(mapSearchRow(POI_CITY, 0)).toEqual({
+            rank: 1, name: 'Bali', type: 'city', cityId: 723, airportCode: null,
+            province: 'Bali Province', country: 'Indonesia',
+        });
+        expect(mapSearchRow(POI_CITY.childResults[0], 1)).toMatchObject({
+            rank: 2, name: 'Ngurah Rai International Airport', type: 'airport', cityId: 723, airportCode: 'DPS',
+        });
+    });
+    it('keeps cityId null when the entry has none (e.g. a province)', () => {
+        expect(mapSearchRow({ name: 'Bali Province', provinceName: 'Bali Province', countryName: 'Indonesia' }, 0).cityId).toBeNull();
+    });
+});
+
+describe('trip flattenPoiResults', () => {
+    it('flattens each city plus its child airports in order', () => {
+        const rows = flattenPoiResults([POI_CITY]);
+        expect(rows).toHaveLength(2);
+        expect(rows[0].name).toBe('Bali');
+        expect(rows[1].airportCode).toBe('DPS');
+    });
+    it('skips non-object entries', () => {
+        expect(flattenPoiResults([null, POI_CITY, 'x'])).toHaveLength(2);
+    });
+});
+
+describe('trip search command (registry-level)', () => {
+    const cmd = getRegistry().get('trip/search');
+    beforeEach(() => vi.unstubAllGlobals());
+
+    it('declares Strategy.PUBLIC + browser:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(false);
+        expect(String(cmd.strategy)).toContain('public');
+    });
+
+    it('rejects a blank query and invalid limit', async () => {
+        await expect(cmd.func({ query: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func({ query: 'Bali', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+    });
+
+    it('maps flattened suggestions and respects --limit', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(poiResponse({ results: [POI_CITY] }))));
+        const rows = await cmd.func({ query: 'Bali', limit: 5 });
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toMatchObject({ rank: 1, name: 'Bali', type: 'city', cityId: 723 });
+        expect(rows[1]).toMatchObject({ rank: 2, type: 'airport', airportCode: 'DPS' });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+    });
+
+    it('throws EmptyResult when the endpoint returns no results', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(poiResponse({ results: [] }))));
+        await expect(cmd.func({ query: 'Nowherexyz', limit: 5 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('surfaces HTTP + network failures as typed FETCH_ERROR', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 503 }))));
+        await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR' });
+        vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('socket hang up'))));
+        await expect(cmd.func({ query: 'Bali', limit: 5 })).rejects.toMatchObject({ code: 'FETCH_ERROR', message: expect.stringContaining('socket hang up') });
     });
 });

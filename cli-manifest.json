@@ -36786,6 +36786,43 @@
   },
   {
     "site": "trip",
+    "name": "search",
+    "description": "Suggest Trip.com destinations (cities, airports) for a keyword; resolves the ids the other commands take",
+    "access": "read",
+    "domain": "trip.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Destination keyword (e.g. Tokyo / Bali / London)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of suggestions (1-50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "type",
+      "cityId",
+      "airportCode",
+      "province",
+      "country"
+    ],
+    "type": "js",
+    "modulePath": "trip/search.js",
+    "sourceFile": "trip/search.js"
+  },
+  {
+    "site": "trip",
     "name": "tour",
     "description": "Search Trip.com tour packages by destination keyword (private or group tours)",
     "access": "read",

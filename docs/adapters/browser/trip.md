@@ -1,6 +1,6 @@
 # Trip.com
 
-**Mode**: 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`, `tour`)
+**Mode**: 🌐 Public (`search`) · 🖥️ Browser + Cookie (`flight`, `flight-round`, `hotel-search`, `hotel`, `attraction`, `train`, `car`, `transfer`, `tour`)
 **Domain**: `trip.com`
 
 Trip.com is the international (English) sibling of the `ctrip` adapter, run by
@@ -11,6 +11,7 @@ the same company. These commands search worldwide flights and hotels on
 
 | Command | Mode | Description |
 |---------|------|-------------|
+| `opencli trip search` | Public | Suggest destinations (cities + airports) for a keyword, resolving the ids other commands take |
 | `opencli trip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
 | `opencli trip flight-round` | Browser (cookie) | Round-trip flight search by IATA route + depart/return dates |
 | `opencli trip hotel-search` | Browser (cookie) | List hotels for a city id + check-in/out date range |
@@ -24,6 +25,9 @@ the same company. These commands search worldwide flights and hotels on
 ## Usage Examples
 
 ```bash
+# Destination suggest (resolves city ids + airport codes for the commands below)
+opencli trip search Tokyo --limit 10
+
 # One-way flight search (English, USD)
 opencli trip flight LON NYC --date 2026-08-15 --limit 20
 opencli trip flight LHR JFK --date 2026-08-15 -f json
@@ -53,6 +57,27 @@ opencli trip transfer Bangkok DMK --limit 10
 opencli trip tour Kyoto --limit 20
 opencli trip tour Bangkok --type group --limit 10
 ```
+
+## Search Columns (`search`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the suggest list |
+| `name` | Destination name (city, airport, province, or place) |
+| `type` | `airport` when the row carries an airport code, otherwise `city` |
+| `cityId` | Numeric Trip.com city id (feeds `hotel-search` / `car` / `tour`); `null` for non-city rows |
+| `airportCode` | 3-letter IATA code (feeds `flight` / `transfer`); `null` for non-airport rows |
+| `province`, `country` | Geo context |
+
+Args:
+- `<query>` (positional, required): a destination keyword (e.g. `Tokyo` / `Bali` / `London`).
+- `--limit` (1-50, default 20).
+
+`search` is a public, unsigned POST to Trip.com's POI-suggest endpoint (no browser
+session needed), the same lookup the flight / hotel search boxes use. Each matched
+city keeps its own row and its nearby airports follow, so one call surfaces both
+the `cityId` and the `airportCode` the id-based commands take. Rows without an id
+keep `cityId` / `airportCode` as `null` rather than a sentinel.
 
 ## Flight Columns (`flight`)
 
