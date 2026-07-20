@@ -39741,6 +39741,13 @@
         "default": true,
         "required": false,
         "help": "Download images locally"
+      },
+      {
+        "name": "stdout",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Print markdown to stdout instead of saving to a file"
       }
     ],
     "columns": [
