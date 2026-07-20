@@ -1,14 +1,11 @@
-// Kimi Code console usage summary.
-// Reads the four dashboard cards from https://www.kimi.com/code/console
+// Kimi membership quota usage summary.
+// Reads usage cards from https://www.kimi.com/membership/subscription?tab=quota
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import {
-    CommandExecutionError,
-} from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@jackwener/opencli/errors';
 
 const KIMI_DOMAIN = 'kimi.com';
-const KIMI_URL = 'https://www.kimi.com/';
-const CONSOLE_URL = `${KIMI_URL}code/console`;
+const QUOTA_URL = 'https://www.kimi.com/membership/subscription?tab=quota';
 
 const IS_VISIBLE_JS = `
   const isVisible = (el) => {
@@ -21,38 +18,35 @@ const IS_VISIBLE_JS = `
   };
 `;
 
-const CATEGORIES = ['本周用量', '频限明细', '我的权益', '模型权限'];
-
 function parsePct(value) {
     const m = String(value || '').match(/(\d+(?:\.\d+)?)\s*%/);
     return m ? Number(m[1]) : null;
 }
 
-function requireCard(cards, name) {
-    const values = cards[name];
-    if (!Array.isArray(values) || values.length === 0) {
-        throw new CommandExecutionError(`kimi usage returned malformed payload: missing "${name}" card`);
-    }
-    const normalized = values.map((value) => String(value || '').trim()).filter(Boolean);
-    if (normalized.length === 0) {
-        throw new CommandExecutionError(`kimi usage returned malformed payload: missing "${name}" card`);
-    }
-    return normalized;
+function normalize(s) {
+    return String(s || '').trim();
 }
 
-function requirePct(values, name) {
-    const pct = parsePct(values[0]);
-    if (!Number.isFinite(pct)) {
-        throw new CommandExecutionError(`kimi usage returned malformed payload: "${name}" card is missing a percentage`);
+function requireFinite(value, name) {
+    if (!Number.isFinite(value)) {
+        throw new CommandExecutionError(`kimi usage returned malformed payload: missing or invalid "${name}"`);
     }
-    return pct;
+    return value;
+}
+
+function requireText(value, name) {
+    const text = normalize(value);
+    if (!text) {
+        throw new CommandExecutionError(`kimi usage returned malformed payload: missing "${name}"`);
+    }
+    return text;
 }
 
 cli({
     site: 'kimi',
     name: 'usage',
     access: 'read',
-    description: 'Read Kimi Code console usage cards: weekly quota, rate limit, membership, and model permission.',
+    description: 'Read Kimi membership quota usage from the subscription page: total usage, rate limits, gift quota, and booster balance.',
     domain: KIMI_DOMAIN,
     strategy: Strategy.COOKIE,
     browser: true,
@@ -60,85 +54,105 @@ cli({
     navigateBefore: true,
     args: [],
     columns: [
-        'weeklyUsagePct',
-        'weeklyResetIn',
-        'rateLimitPct',
-        'rateLimitResetIn',
         'membershipName',
-        'membershipTier',
-        'modelPermission',
-        'modelCost',
+        'membershipValidUntil',
+        'totalUsagePct',
+        'totalResetIn',
+        'fiveHourUsagePct',
+        'fiveHourResetIn',
+        'sevenDayUsagePct',
+        'sevenDayResetIn',
+        'giftUsagePct',
+        'giftValidUntil',
+        'balance',
+        'monthlySpend',
     ],
     func: async (page) => {
-        await page.goto(CONSOLE_URL);
+        await page.goto(QUOTA_URL);
         await page.wait(3);
 
-        const cards = await page.evaluate(`(() => {
+        const data = await page.evaluate(`(() => {
             ${IS_VISIBLE_JS}
 
-            const getDirectText = (el) => {
-                let text = '';
-                for (const node of el.childNodes) {
-                    if (node.nodeType === Node.TEXT_NODE) text += node.textContent;
-                }
-                return text.trim();
-            };
+            const result = {};
 
-            const cards = {};
-            const section = document.querySelector('section');
-            if (!section) return cards;
+            // Usage sections: total, 5-hour, 7-day, gift
+            const sections = Array.from(document.querySelectorAll('.usage-section')).filter(isVisible);
+            for (const section of sections) {
+                const titleEl = section.querySelector('.usage-section-title');
+                const contentEl = section.querySelector('.usage-section-content');
+                if (!titleEl || !contentEl) continue;
 
-            // The first child of the first <section> holds the 4 dashboard cards.
-            const cardContainer = section.children[0];
-            if (!cardContainer) return cards;
+                const titleSpans = Array.from(titleEl.querySelectorAll('span'))
+                    .filter(isVisible)
+                    .map((s) => s.textContent.trim());
+                const label = titleSpans[0] || '';
+                const pct = titleSpans[1] || '';
+                const contentText = contentEl.innerText.trim().replace(/\\s+/g, ' ');
 
-            const cardDivs = Array.from(cardContainer.children).filter(isVisible).slice(0, 4);
-            for (const card of cardDivs) {
-                const header = card.children[0];
-                const body = card.children[1];
-                if (!header || !body) continue;
-
-                const categoryEl = header.querySelector('p');
-                const category = categoryEl ? getDirectText(categoryEl) : '';
-                if (!category || !${JSON.stringify(CATEGORIES)}.includes(category)) continue;
-
-                const values = [...new Set(
-                    Array.from(body.querySelectorAll('span, p, div'))
-                        .filter(isVisible)
-                        .map(getDirectText)
-                        .filter((t) => t)
-                )];
-
-                if (values.length > 0) {
-                    cards[category] = values.slice(0, 3);
+                if (label === '总使用量') {
+                    if (contentText.includes('后重置')) {
+                        result.totalUsagePct = pct;
+                        const m = contentText.match(/Kimi\\s*Code\\s*(.+)/);
+                        result.totalResetIn = m ? m[1].trim() : null;
+                    } else if (contentText.includes('截止至')) {
+                        result.giftUsagePct = pct;
+                        const m = contentText.match(/截止至\\s*(.+)/);
+                        result.giftValidUntil = m ? m[1].trim() : null;
+                    }
+                } else if (label === '5 小时用量') {
+                    const m = contentText.match(/Code\\s+([\\d.]+)%\\s*(.+)/);
+                    if (m) {
+                        result.fiveHourUsagePct = m[1] + '%';
+                        result.fiveHourResetIn = m[2].trim();
+                    }
+                } else if (label === '7 天用量') {
+                    const m = contentText.match(/Code\\s+([\\d.]+)%\\s*(.+)/);
+                    if (m) {
+                        result.sevenDayUsagePct = m[1] + '%';
+                        result.sevenDayResetIn = m[2].trim();
+                    }
                 }
             }
-            return cards;
+
+            // Booster balance
+            const booster = document.querySelector('.booster');
+            if (booster && isVisible(booster)) {
+                const text = booster.innerText.trim().replace(/\\s+/g, ' ');
+                const balanceMatch = text.match(/当前余额\\s*¥\\s*([\\d.]+)/);
+                const spendMatch = text.match(/本月消费\\s*¥\\s*([\\d.]+)\\s*\\/\\s*(.+)/);
+                result.balance = balanceMatch ? '¥' + balanceMatch[1] : null;
+                result.monthlySpend = spendMatch ? '¥' + spendMatch[1] + ' / ' + spendMatch[2].trim() : null;
+            }
+
+            // Membership header
+            const h1 = document.querySelector('h1');
+            result.membershipName = h1 ? h1.textContent.trim() : null;
+
+            const bodyText = document.body.innerText.trim().replace(/\\s+/g, ' ');
+            const validMatch = bodyText.match(/有效期至：\\s*(\\d{4}-\\d{2}-\\d{2})/);
+            result.membershipValidUntil = validMatch ? validMatch[1] : null;
+
+            return result;
         })()`);
 
-        if (!cards || typeof cards !== 'object' || Array.isArray(cards)) {
-            throw new CommandExecutionError('kimi usage returned malformed payload: usage cards must be an object');
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+            throw new CommandExecutionError('kimi usage returned malformed payload: expected object');
         }
-        if (Object.keys(cards).length === 0) {
-            throw new CommandExecutionError('kimi usage returned malformed payload: no usage cards found on the console page');
-        }
-
-        const weekly = requireCard(cards, '本周用量');
-        const rate = requireCard(cards, '频限明细');
-        const member = requireCard(cards, '我的权益');
-        const model = requireCard(cards, '模型权限');
-        const weeklyUsagePct = requirePct(weekly, '本周用量');
-        const rateLimitPct = requirePct(rate, '频限明细');
 
         return [{
-            weeklyUsagePct,
-            weeklyResetIn: weekly.find((t) => /重置/.test(t)) || null,
-            rateLimitPct,
-            rateLimitResetIn: rate.find((t) => /重置/.test(t)) || null,
-            membershipName: member[0] || null,
-            membershipTier: member.find((t) => t !== member[0]) || null,
-            modelPermission: model[0] || null,
-            modelCost: model.find((t) => t !== model[0]) || null,
+            membershipName: normalize(data.membershipName) || null,
+            membershipValidUntil: data.membershipValidUntil || null,
+            totalUsagePct: requireFinite(parsePct(data.totalUsagePct), 'totalUsagePct'),
+            totalResetIn: requireText(data.totalResetIn, 'totalResetIn'),
+            fiveHourUsagePct: requireFinite(parsePct(data.fiveHourUsagePct), 'fiveHourUsagePct'),
+            fiveHourResetIn: requireText(data.fiveHourResetIn, 'fiveHourResetIn'),
+            sevenDayUsagePct: requireFinite(parsePct(data.sevenDayUsagePct), 'sevenDayUsagePct'),
+            sevenDayResetIn: requireText(data.sevenDayResetIn, 'sevenDayResetIn'),
+            giftUsagePct: parsePct(data.giftUsagePct),
+            giftValidUntil: normalize(data.giftValidUntil) || null,
+            balance: normalize(data.balance) || null,
+            monthlySpend: normalize(data.monthlySpend) || null,
         }];
     },
 });
