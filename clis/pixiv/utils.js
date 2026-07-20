@@ -5,7 +5,7 @@
  * On failure the HTTP status code is used to distinguish auth (401/403),
  * not-found (404), and other errors.
  */
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 const PIXIV_DOMAIN = 'www.pixiv.net';
 
 function unwrapEvaluateResult(payload) {
@@ -96,3 +96,113 @@ export async function pixivFetch(page, path, opts = {}) {
 }
 /** Maximum number of illust IDs per batch detail request (Pixiv server limit). */
 export const BATCH_SIZE = 48;
+
+export function normalizePixivPositiveInteger(value, defaultValue, label, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+    const raw = value ?? defaultValue;
+    let numberValue;
+    if (typeof raw === 'number') {
+        numberValue = raw;
+    } else if (typeof raw === 'string') {
+        if (!/^(0|[1-9]\d*)$/.test(raw)) {
+            throw new ArgumentError(`${label} must be a decimal integer`);
+        }
+        numberValue = Number(raw);
+    } else {
+        throw new ArgumentError(`${label} must be an integer`);
+    }
+    if (!Number.isInteger(numberValue)) {
+        throw new ArgumentError(`${label} must be an integer`);
+    }
+    if (numberValue < min) {
+        throw new ArgumentError(`${label} must be >= ${min}`);
+    }
+    if (numberValue > max) {
+        throw new ArgumentError(`${label} must be <= ${max}`);
+    }
+    return numberValue;
+}
+
+export function normalizePixivNonNegativeInteger(value, defaultValue, label, { max = Number.MAX_SAFE_INTEGER } = {}) {
+    return normalizePixivPositiveInteger(value, defaultValue, label, { min: 0, max });
+}
+
+export function requirePixivPayloadObject(value, label) {
+    if (!value || Array.isArray(value) || typeof value !== 'object') {
+        throw new CommandExecutionError(`${label} returned malformed payload`);
+    }
+    return value;
+}
+
+export function requirePixivId(value, label) {
+    const id = String(value ?? '').trim();
+    if (!/^\d+$/.test(id)) {
+        throw new CommandExecutionError(`${label} returned malformed Pixiv ID`);
+    }
+    return id;
+}
+
+export function requirePixivString(value, label) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        throw new CommandExecutionError(`${label} returned malformed text field`);
+    }
+    return text;
+}
+
+export function normalizePixivUserData(raw) {
+    if (!raw || Array.isArray(raw) || typeof raw !== 'object') {
+        return null;
+    }
+    const id = String(raw.id ?? raw.userId ?? raw.user_id ?? '').trim();
+    const name = String(raw.name ?? raw.userName ?? raw.user_name ?? '').trim();
+    if (!/^\d+$/.test(id)) {
+        return null;
+    }
+    return {
+        id,
+        name,
+        premium: Boolean(raw.premium ?? raw.isPremium ?? raw.is_premium ?? false),
+        profileImageUrl: String(raw.profileImageUrl ?? raw.imageBig ?? raw.image ?? raw.avatar ?? '').trim(),
+    };
+}
+
+export async function getCurrentPixivUser(page) {
+    try {
+        await page.goto(`https://${PIXIV_DOMAIN}`);
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv navigation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    let data;
+    try {
+        data = unwrapEvaluateResult(await page.evaluate(`
+    (() => {
+      const candidates = [
+        globalThis?.pixiv?.context?.userData,
+        globalThis?.pixiv?.user,
+        globalThis?.globalInitData?.userData,
+        globalThis?.globalInitData?.user,
+        globalThis?.__PIXIV_CONTEXT__?.userData,
+      ];
+      for (const value of candidates) {
+        if (value && typeof value === 'object') return value;
+      }
+      const meta = document.querySelector('meta[name="global-data"]')?.content;
+      if (meta) {
+        try {
+          const parsed = JSON.parse(meta);
+          if (parsed?.userData) return parsed.userData;
+          if (parsed?.user) return parsed.user;
+        } catch {}
+      }
+      return null;
+    })()
+  `));
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv current-account lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const user = normalizePixivUserData(data);
+    if (!user) {
+        throw new AuthRequiredError(PIXIV_DOMAIN, 'Authentication required — please log in to Pixiv in Chrome');
+    }
+    return user;
+}
