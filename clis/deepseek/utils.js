@@ -3,6 +3,10 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 export const DEEPSEEK_DOMAIN = 'chat.deepseek.com';
 export const DEEPSEEK_URL = 'https://chat.deepseek.com/';
 export const TEXTAREA_SELECTOR = 'textarea[placeholder*="DeepSeek"]';
+// DeepSeek renders messages inside a virtualised list.  Each turn is a
+// .ds-message element — these are stable and never duplicated, unlike the
+// outer virtual-list-item wrappers whose CSS-module class names vary per build.
+// Assistant turns carry .ds-assistant-message-main-content as a reliable role marker.
 export const MESSAGE_SELECTOR = '.ds-message';
 const CONVERSATION_ID_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
@@ -59,12 +63,14 @@ export async function getPageState(page) {
         const url = window.location.href;
         const title = document.title;
         const textarea = document.querySelector('${TEXTAREA_SELECTOR}');
-        const avatar = document.querySelector('img[src*="user-avatar"]');
+        // If the composer textarea is visible the user is logged in;
+        // DeepSeek's login page renders a different UI without a textarea.
+        const isLoggedIn = !!textarea;
         return {
             url,
             title,
             hasTextarea: !!textarea,
-            isLoggedIn: !!avatar,
+            isLoggedIn,
         };
     })()`);
 }
@@ -103,28 +109,24 @@ export async function sendMessage(page, prompt) {
         if (!box) return { ok: false, reason: 'textarea not found' };
 
         box.focus();
-        box.value = '';
-        document.execCommand('selectAll');
+        // execCommand('insertText') works reliably on DeepSeek's native
+        // <textarea> — unlike Kimi's Lexical editor, React-controlled
+        // textareas pick up this DOM mutation and fire onChange.
+        document.execCommand('selectAll', false);
         document.execCommand('insertText', false, ${promptJson});
-        await new Promise(r => setTimeout(r, 800));
+        // Let React reconcile the controlled component.
+        await new Promise(r => setTimeout(r, 500));
 
-        // Find the send button: last non-toggle button in the textarea's container
-        var container = box.parentElement;
-        while (container && !container.querySelector('div[role="button"]')) {
-            container = container.parentElement;
-        }
-        if (container) {
-            var btns = container.querySelectorAll('div[role="button"]:not(.ds-toggle-button)');
-            var sendBtn = btns[btns.length - 1];
-            if (sendBtn && sendBtn.getAttribute('aria-disabled') === 'false'
-                && sendBtn.querySelectorAll('svg').length > 0) {
-                sendBtn.click();
-                return { ok: true };
-            }
+        // Send button: ds-button--primary + ds-button--filled + ds-button--circle.
+        var sendBtn = document.querySelector('div[role="button"].ds-button--primary.ds-button--filled.ds-button--circle');
+        if (sendBtn && !sendBtn.classList.contains('ds-button--disabled')) {
+            sendBtn.click();
+            return { ok: true, method: 'direct-click' };
         }
 
+        // Fallback: Enter key in the textarea.
         box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-        return { ok: true, method: 'enter' };
+        return { ok: true, method: 'enter-fallback' };
     })()`);
 }
 
@@ -170,6 +172,15 @@ export async function waitForResponse(page, baselineCount, prompt, timeoutMs, pa
 
     while (Date.now() - startTime < timeoutMs) {
         await page.wait(3);
+
+        // Virtual list: scroll to bottom so off-screen responses become visible
+        await page.evaluate(`(() => {
+            const list = document.querySelector('.ds-virtual-list-visible-items');
+            if (list) {
+                const parent = list.parentElement;
+                if (parent) parent.scrollTop = parent.scrollHeight;
+            }
+        })()`);
 
         let result;
         try {
@@ -264,10 +275,12 @@ export async function getVisibleMessages(page) {
     const result = await page.evaluate(`(() => {
         const msgs = document.querySelectorAll('${MESSAGE_SELECTOR}');
         return Array.from(msgs).map(m => {
-            // User messages carry an extra hash-class alongside ds-message
-            const isUser = m.className.split(/\\s+/).length > 2;
+            // Reliable role detection: assistant turns carry
+            // .ds-assistant-message-main-content inside the .ds-message wrapper.
+            // Class-name counting is fragile across builds.
+            const isAssistant = !!m.querySelector('.ds-assistant-message-main-content');
             return {
-                Role: isUser ? 'user' : 'assistant',
+                Role: isAssistant ? 'assistant' : 'user',
                 Text: (m.innerText || '').trim(),
             };
         }).filter(m => m.Text);

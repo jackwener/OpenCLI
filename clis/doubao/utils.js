@@ -168,6 +168,17 @@ function getTurnsScript() {
         // [class*="top-item-"] and the only reliable assistant signal is the
         // .flow-markdown-body / .md-box-root content container WITHOUT any
         // send-bubble marker.
+        // 2026-07: Doubao removed ALL data-testid attributes. User turns keep
+        // bg-g-send-msg-bubble; assistant turns have neither that nor
+        // bg-g-receive-msg-bubble.  An inner-item- without a send-bubble is
+        // an assistant turn (even if flow-markdown-body hasn't rendered yet).
+        if (
+          root.matches('[class*="inner-item-"], [class*="top-item-"]')
+          && !root.matches('[class*="bg-g-send-msg-bubble"]')
+          && !root.querySelector('[class*="bg-g-send-msg-bubble"]')
+        ) {
+          return 'Assistant';
+        }
         if (
           (root.matches('[class*="inner-item-"], [class*="top-item-"]')
             || root.closest('[class*="inner-item-"], [class*="top-item-"]'))
@@ -182,6 +193,12 @@ function getTurnsScript() {
       };
 
       const messageTextSelectors = [
+        // 2026-07: Doubao removed all data-testid. Use .flow-markdown-body
+        // for assistant content and .whitespace-pre-wrap for user bubbles.
+        '.flow-markdown-body',
+        '.md-box-root',
+        '[class*="md-box-root"]',
+        '[class*="whitespace-pre-wrap"]',
         '[data-testid="message_text_content"]',
         '[data-testid="message_content"]',
         '[data-testid*="message_text"]',
@@ -189,10 +206,6 @@ function getTurnsScript() {
         '[class*="message-text"]',
         '[class*="message-content"]',
         '[class*="bg-g-send-msg-bubble"]',
-        '[class*="bg-g-receive-msg-bubble"]',
-        '.flow-markdown-body',
-        '.md-box-root',
-        '[class*="md-box-root"]',
         '[class*="bubble"]',
       ];
       const messageImageSelector = messageTextSelectors.map((s) => s + ' img').join(', ');
@@ -748,12 +761,10 @@ export async function waitForDoubaoResponse(page, beforeLines, beforeTurns, prom
         const visibleCandidate = assistantCandidate ? sanitizeCandidate(assistantCandidate.Text) : '';
         if (visibleCandidate)
             return visibleCandidate;
-        const lines = await getDoubaoTranscriptLines(page);
-        const additions = collectDoubaoTranscriptAdditions(beforeLines, lines, promptText, sanitizeCandidate)
-            .split('\n')
-            .filter(Boolean);
-        const shortCandidate = additions.find((line) => line.length <= 120);
-        return shortCandidate || additions[additions.length - 1] || '';
+        // 2026-07: transcript fallback is unreliable (returns full-page noise
+        // when the assistant bubble is still rendering).  Skip it and keep
+        // polling — the turn text will populate once generation finishes.
+        return '';
     };
     const pollIntervalSeconds = 2;
     const maxPolls = Math.max(1, Math.ceil(timeoutSeconds / pollIntervalSeconds));

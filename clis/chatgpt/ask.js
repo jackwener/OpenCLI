@@ -32,7 +32,9 @@ async function waitForConversationUrl(page, timeoutSeconds = 30) {
             await page.wait(1);
         }
     }
-    throw new CommandExecutionError('ChatGPT did not create a conversation URL after sending the message.');
+    // ChatGPT SPA may keep the URL at / or /new during the first exchange;
+    // return empty IDs instead of throwing so the response can still be read.
+    return { conversationId: '', conversationUrl: '' };
 }
 
 export const askCommand = cli({
