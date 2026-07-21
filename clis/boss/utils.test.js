@@ -12,6 +12,30 @@ describe('assertOk', () => {
         expect(() => assertOk({ code: 37, message: 'expired' })).toThrow(AuthRequiredError);
     });
 
+    it('does not misclassify code 37 environment rejection as expired login', () => {
+        let error;
+        try {
+            assertOk({ code: 37, message: '您的环境存在异常.' }, 'Boss search failed');
+        } catch (caught) {
+            error = caught;
+        }
+
+        expect(error).toBeInstanceOf(CommandExecutionError);
+        expect(error).not.toBeInstanceOf(AuthRequiredError);
+        expect(error.code).toBe('COMMAND_EXEC');
+        expect(error.message).toContain('环境存在异常');
+        expect(error.message).toContain('code=37');
+        expect(error.hint).toContain('重新登录通常无法解决');
+    });
+
+    it('keeps code 37 login-expiry responses as auth required', () => {
+        expect(() => assertOk({ code: 37, message: '登录状态已失效' })).toThrow(AuthRequiredError);
+    });
+
+    it('keeps code 7 responses as auth required', () => {
+        expect(() => assertOk({ code: 7, message: '请重新登录' })).toThrow(AuthRequiredError);
+    });
+
     it('maps code 24 (identity mismatch) to AuthRequiredError with recruiter-only hint', () => {
         try {
             assertOk({ code: 24, message: '请切换身份后再试' });
