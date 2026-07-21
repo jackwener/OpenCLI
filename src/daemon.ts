@@ -13,6 +13,10 @@
  *      Browser Bridge extension origin so the extension can probe daemon reachability
  *   4. Body size limit — 1 MB max to prevent OOM
  *   5. WebSocket verifyClient — reject upgrade before connection is established
+ *   6. Bearer token — require Authorization: Bearer <token> on /command and
+ *      /shutdown endpoints. The token is randomly generated at daemon startup
+ *      and written to ~/.opencli/daemon.token (mode 0600) for the CLI to read.
+ *      This prevents unauthorized local processes from dispatching commands.
  *
  * Lifecycle:
  *   - Auto-spawned by opencli on first browser command
@@ -22,6 +26,10 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
+import { randomBytes } from 'node:crypto';
+import { writeFileSync, readFileSync, existsSync, chmodSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { DEFAULT_DAEMON_PORT, isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 import { EXIT_CODES } from './errors.js';
 import { log } from './logger.js';
@@ -47,6 +55,52 @@ const PORT = DEFAULT_DAEMON_PORT;
 if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
   log.error(unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT));
   process.exit(EXIT_CODES.USAGE_ERROR);
+}
+
+// ─── Bearer token authentication ──────────────────────────────────────
+// Generate a random token on startup, persist it so the CLI can read it.
+// The token file is created with owner-only permissions (0600) so other
+// local users/processes cannot read it without privilege escalation.
+
+const DAEMON_TOKEN_PATH = join(homedir(), '.opencli', 'daemon.token');
+
+function loadOrGenerateToken(): string {
+  // If the token file already exists (e.g. daemon restart), reuse it so the
+  // CLI doesn't need to re-read between daemon restarts.
+  try {
+    if (existsSync(DAEMON_TOKEN_PATH)) {
+      const existing = readFileSync(DAEMON_TOKEN_PATH, 'utf-8').trim();
+      if (existing.length >= 16) return existing;
+    }
+  } catch {
+    // Fall through to generate new token
+  }
+
+  const token = randomBytes(32).toString('hex');
+
+  try {
+    const dir = join(homedir(), '.opencli');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(DAEMON_TOKEN_PATH, token, 'utf-8');
+    chmodSync(DAEMON_TOKEN_PATH, 0o600);
+    log.debug(`[daemon] Authentication token written to ${DAEMON_TOKEN_PATH}`);
+  } catch (err) {
+    log.warn(`[daemon] Could not write auth token to ${DAEMON_TOKEN_PATH}: ${err instanceof Error ? err.message : String(err)}`);
+    // Non-fatal: the daemon still works without file persistence for existing
+    // CLI sessions that already hold the token, or during development.
+  }
+
+  return token;
+}
+
+const DAEMON_TOKEN = loadOrGenerateToken();
+
+function verifyAuth(req: IncomingMessage): boolean {
+  const auth = req.headers['authorization'] as string | undefined;
+  if (!auth) return false;
+  // Accept both "Bearer <token>" and bare-token forms for robustness
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+  return token === DAEMON_TOKEN;
 }
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -341,12 +395,20 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === 'POST' && pathname === '/shutdown') {
+    if (!verifyAuth(req)) {
+      jsonResponse(res, 401, { ok: false, error: "Unauthorized: invalid or missing bearer token", errorCode: "unauthorized" });
+      return;
+    }
     jsonResponse(res, 200, { ok: true, message: 'Shutting down' });
     setTimeout(() => shutdown(), 100);
     return;
   }
 
   if (req.method === 'POST' && url === '/command') {
+    if (!verifyAuth(req)) {
+      jsonResponse(res, 401, { ok: false, error: "Unauthorized: invalid or missing bearer token", errorCode: "unauthorized" });
+      return;
+    }
     try {
       const body = JSON.parse(await readBody(req));
       if (!body.id) {
