@@ -63,6 +63,7 @@ export default defineConfig({
                 { text: 'YouTube', link: '/adapters/browser/youtube' },
                 { text: 'Xueqiu', link: '/adapters/browser/xueqiu' },
                 { text: 'V2EX', link: '/adapters/browser/v2ex' },
+                { text: 'NodeSeek', link: '/adapters/browser/nodeseek' },
                 { text: 'Bloomberg', link: '/adapters/browser/bloomberg' },
                 { text: 'LinkedIn', link: '/adapters/browser/linkedin' },
                 { text: 'Coupang', link: '/adapters/browser/coupang' },
