@@ -336,4 +336,80 @@ describe('xiaohongshu download buildDownloadExtractJs carousel ordering (JSDOM)'
         expect(videos).toEqual(['https://sns-video-bd.xhscdn.com/test.mp4']);
         expect(result.media.map((m) => m.type)).toEqual(['video', 'image']);
     });
+
+    it('picks the highest-resolution master across codecs (1080p h265 over 720p h264)', () => {
+        // Modern xiaohongshu video notes expose no origin url; the 1080p rendition
+        // is carried only by h265, so an h264-only read silently capped at 720p.
+        const initialState = {
+            note: {
+                noteDetailMap: {
+                    '69f9716c000000003601f90e': {
+                        note: {
+                            video: {
+                                media: {
+                                    stream: {
+                                        h264: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/h264-720.mp4', height: 1280, width: 720, videoBitrate: 1205288 }],
+                                        h265: [
+                                            { masterUrl: 'https://sns-video-bd.xhscdn.com/h265-720.mp4', height: 1280, width: 720, videoBitrate: 933371 },
+                                            { masterUrl: 'https://sns-video-bd.xhscdn.com/h265-1080.mp4', height: 1920, width: 1080, videoBitrate: 1054537 },
+                                        ],
+                                        h266: [],
+                                        av1: [],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const result = runExtract({ initialState });
+        const videos = result.media.filter((m) => m.type === 'video').map((m) => m.url);
+        expect(videos).toEqual(['https://sns-video-bd.xhscdn.com/h265-1080.mp4']);
+    });
+
+    it('falls back to an h264-only stream when no higher-codec rendition exists', () => {
+        const initialState = {
+            note: {
+                noteDetailMap: {
+                    '69f9716c000000003601f90e': {
+                        note: {
+                            video: { media: { stream: { h264: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/only-h264.mp4', height: 1280, videoBitrate: 1200000 }] } } },
+                        },
+                    },
+                },
+            },
+        };
+        const result = runExtract({ initialState });
+        const videos = result.media.filter((m) => m.type === 'video').map((m) => m.url);
+        expect(videos).toEqual(['https://sns-video-bd.xhscdn.com/only-h264.mp4']);
+    });
+
+    it('prefers the more compatible h264 master at equal resolution, even when h265 has the higher bitrate', () => {
+        // Locks in explicit codec preference: at equal resolution the tie-break
+        // is codec rank (h264 > h265 > h266 > av1), NOT bitrate. Here h265
+        // carries the higher bitrate yet h264 must still win — this would fail
+        // under a bitrate-only tie-break.
+        const initialState = {
+            note: {
+                noteDetailMap: {
+                    '69f9716c000000003601f90e': {
+                        note: {
+                            video: {
+                                media: {
+                                    stream: {
+                                        h264: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/h264-1080.mp4', height: 1920, width: 1080, videoBitrate: 1400000 }],
+                                        h265: [{ masterUrl: 'https://sns-video-bd.xhscdn.com/h265-1080.mp4', height: 1920, width: 1080, videoBitrate: 2000000 }],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const result = runExtract({ initialState });
+        const videos = result.media.filter((m) => m.type === 'video').map((m) => m.url);
+        expect(videos).toEqual(['https://sns-video-bd.xhscdn.com/h264-1080.mp4']);
+    });
 });
