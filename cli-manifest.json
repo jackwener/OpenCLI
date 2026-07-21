@@ -21702,6 +21702,303 @@
     "siteSession": "persistent"
   },
   {
+    "site": "lark-console",
+    "name": "add-scope",
+    "description": "Apply permission scope(s) to an app (draft; requires --execute)",
+    "access": "write",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      },
+      {
+        "name": "scopes",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Scope name(s) or id(s), comma-separated (e.g. im:message,contact:contact.base:readonly)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually apply the change (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "app_id",
+      "scope_id",
+      "operation",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/scope-write.js",
+    "sourceFile": "lark-console/scope-write.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "admins",
+    "description": "List an app’s admins / collaborators",
+    "access": "read",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      }
+    ],
+    "columns": [
+      "name",
+      "en_name",
+      "user_id"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/scopes.js",
+    "sourceFile": "lark-console/scopes.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "app",
+    "description": "Show one app’s basic info (name, abilities, languages, description)",
+    "access": "read",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      }
+    ],
+    "columns": [
+      "app_id",
+      "name",
+      "ability",
+      "primary_lang",
+      "langs",
+      "desc"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/app.js",
+    "sourceFile": "lark-console/app.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "apps",
+    "description": "List the apps/bots in your Lark Open Platform developer console",
+    "access": "read",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "name",
+      "app_id",
+      "ability",
+      "version",
+      "role",
+      "updated"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/apps.js",
+    "sourceFile": "lark-console/apps.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "login",
+    "description": "Open the Lark Open Platform developer console and wait until the browser session is signed in",
+    "access": "write",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "user_id",
+      "tenant_id"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/auth.js",
+    "sourceFile": "lark-console/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "lark-console",
+    "name": "remove-scope",
+    "description": "Remove permission scope(s) from an app (draft; requires --execute)",
+    "access": "write",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      },
+      {
+        "name": "scopes",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Scope name(s) or id(s), comma-separated (e.g. im:message,contact:contact.base:readonly)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually apply the change (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "app_id",
+      "scope_id",
+      "operation",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/scope-write.js",
+    "sourceFile": "lark-console/scope-write.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "scopes",
+    "description": "List the API permission scopes an app has applied for",
+    "access": "read",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      }
+    ],
+    "columns": [
+      "scope",
+      "biz",
+      "scope_id",
+      "desc"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/scopes.js",
+    "sourceFile": "lark-console/scopes.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "secret",
+    "description": "Reveal an app’s App ID + App Secret (credentials for a bot runtime)",
+    "access": "read",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      }
+    ],
+    "columns": [
+      "app_id",
+      "app_secret"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/app.js",
+    "sourceFile": "lark-console/app.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "versions",
+    "description": "List an app’s version history (which one is live, publish dates, release notes)",
+    "access": "read",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "app",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "App ID (cli_…) or a console URL containing it"
+      }
+    ],
+    "columns": [
+      "version",
+      "online",
+      "published",
+      "remark"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/versions.js",
+    "sourceFile": "lark-console/versions.js",
+    "navigateBefore": "https://open.larksuite.com"
+  },
+  {
+    "site": "lark-console",
+    "name": "whoami",
+    "description": "Show the current Lark Open Platform developer-console login (user + tenant id)",
+    "access": "read",
+    "domain": "open.larksuite.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "user_id",
+      "tenant_id"
+    ],
+    "type": "js",
+    "modulePath": "lark-console/auth.js",
+    "sourceFile": "lark-console/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "lesswrong",
     "name": "comments",
     "description": "Top comments on a post",
