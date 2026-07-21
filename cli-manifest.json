@@ -35465,6 +35465,317 @@
     "siteSession": "persistent"
   },
   {
+    "site": "tiktok-symphony",
+    "name": "credits",
+    "description": "Symphony Creative Studio credit balance and plan",
+    "access": "read",
+    "example": "opencli tiktok-symphony credits",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "credits",
+      "plan",
+      "account"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/credits.js",
+    "sourceFile": "tiktok-symphony/credits.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/image-to-video?subApp=CreativeStudio/ImageGeneration/I2VImageGeneration"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "delete",
+    "aliases": [
+      "rm"
+    ],
+    "description": "Permanently delete a generation from the Library (irreversible; requires --yes)",
+    "access": "write",
+    "example": "opencli tiktok-symphony delete 202607205d0d326f7499347f469b9861 --yes",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "asset",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "assetId from `generations`"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually delete. Without it the asset is only located and reported (status: dry-run)"
+      }
+    ],
+    "columns": [
+      "assetId",
+      "status",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/delete.js",
+    "sourceFile": "tiktok-symphony/delete.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/create/history",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "download",
+    "description": "Download a generated Symphony asset by assetId (see: generations)",
+    "access": "read",
+    "example": "opencli tiktok-symphony download 202607195d0d7ea36ed139b74eccb1e4 --out ./downloads",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "asset",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "assetId from `generations`, or a full asset URL"
+      },
+      {
+        "name": "out",
+        "type": "string",
+        "default": ".",
+        "required": false,
+        "help": "Directory to write the file into"
+      }
+    ],
+    "columns": [
+      "assetId",
+      "file",
+      "bytes",
+      "contentType"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/download.js",
+    "sourceFile": "tiktok-symphony/download.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/create/history",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "generate",
+    "description": "Generate images from a prompt and up to 4 reference images (spends Symphony credits)",
+    "access": "write",
+    "example": "opencli tiktok-symphony generate \"turn this into 3D chibi style\" --refs ./cat.png",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "What to generate"
+      },
+      {
+        "name": "refs",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated reference image paths (max 4)"
+      },
+      {
+        "name": "model",
+        "type": "string",
+        "default": "Nano Banana",
+        "required": false,
+        "help": "Model: Nano Banana / Flux Kontext Max"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Seconds to wait for rendering"
+      }
+    ],
+    "columns": [
+      "index",
+      "assetId",
+      "url",
+      "model",
+      "prompt"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/generate.js",
+    "sourceFile": "tiktok-symphony/generate.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "generate-video",
+    "aliases": [
+      "video"
+    ],
+    "description": "Generate a video clip from a prompt and optional reference images (spends Symphony credits)",
+    "access": "write",
+    "example": "opencli tiktok-symphony generate-video \"a duck floating on a pool, slow zoom out\" --duration 5",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "What to generate"
+      },
+      {
+        "name": "mode",
+        "type": "string",
+        "default": "auto",
+        "required": false,
+        "help": "Sub-app: text / image / reference. \"auto\" picks text with no refs, image with 1, reference with 2+"
+      },
+      {
+        "name": "refs",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Comma-separated reference image paths (image: 1-2, reference: 1-4)"
+      },
+      {
+        "name": "frames",
+        "type": "string",
+        "default": "first",
+        "required": false,
+        "help": "Image mode only: first / first-last"
+      },
+      {
+        "name": "model",
+        "type": "string",
+        "default": "Video 1.5 Pro",
+        "required": false,
+        "help": "Model: Video 1.5 Pro"
+      },
+      {
+        "name": "duration",
+        "type": "string",
+        "default": "5",
+        "required": false,
+        "help": "Clip length: 5s / 10s / 12s"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 5400,
+        "required": false,
+        "help": "Seconds to wait when --wait true (rendering has been observed to exceed an hour)"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Block until the clip renders. Off by default: rendering runs for tens of minutes, so the job is submitted and `generations` picks it up later"
+      }
+    ],
+    "columns": [
+      "index",
+      "status",
+      "assetId",
+      "url",
+      "mode",
+      "model",
+      "duration",
+      "prompt"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/generate-video.js",
+    "sourceFile": "tiktok-symphony/generate-video.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "generations",
+    "aliases": [
+      "library"
+    ],
+    "description": "List generated assets in the Symphony Creative Studio Library",
+    "access": "read",
+    "example": "opencli tiktok-symphony generations --limit 10",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of assets to return (max 200)"
+      }
+    ],
+    "columns": [
+      "index",
+      "assetId",
+      "type",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/generations.js",
+    "sourceFile": "tiktok-symphony/generations.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/create/history",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "tiktok-symphony",
+    "name": "jobs",
+    "aliases": [
+      "queue"
+    ],
+    "description": "Show generations in the Create feed with their render progress",
+    "access": "read",
+    "example": "opencli tiktok-symphony jobs",
+    "domain": "ads.tiktok.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of cards to return (max 50)"
+      },
+      {
+        "name": "pending",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Only cards that have not produced an output yet (generating or finishing)"
+      }
+    ],
+    "columns": [
+      "index",
+      "status",
+      "progress",
+      "taskId",
+      "model",
+      "prompt",
+      "error"
+    ],
+    "type": "js",
+    "modulePath": "tiktok-symphony/jobs.js",
+    "sourceFile": "tiktok-symphony/jobs.js",
+    "navigateBefore": "https://ads.tiktok.com/creative/creativestudio/image-to-video?subApp=CreativeStudio/MiniApp/TextToVideo",
+    "defaultWindowMode": "foreground"
+  },
+  {
     "site": "toutiao",
     "name": "articles",
     "description": "获取头条号创作者后台文章列表及数据",
