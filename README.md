@@ -229,6 +229,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **xiaoyuzhou** | Audio, Transcript | Downloads episode audio and transcript JSON/text with local credentials |
 | **zhihu** | Articles (Markdown) | Exports with optional image download |
 | **weixin** | Articles (Markdown) | WeChat Official Account articles |
+| **anthropic** | Articles (Markdown) | Anthropic articles with frontmatter and local image assets |
 
 For video downloads, install `yt-dlp` first: `brew install yt-dlp`
 
