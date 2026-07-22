@@ -34038,6 +34038,232 @@
     "sourceFile": "steam/top-sellers.js"
   },
   {
+    "site": "steamdb",
+    "name": "hot-tags",
+    "description": "Tags / mechanics / genres the community is turning toward, ranked by the summed 7-day momentum of the rising games carrying them",
+    "access": "read",
+    "example": "opencli steamdb hot-tags --phase upcoming --scan 80 --limit 20",
+    "domain": "steamdb.info",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "phase",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Cohort to read tags from: all / released / new-releases / upcoming"
+      },
+      {
+        "name": "scan",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "How many top-rising games to sample tags from (max 200). 1 request/game"
+      },
+      {
+        "name": "within-days",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "For --phase new-releases: released within this many days"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of tags to return (max 100)"
+      },
+      {
+        "name": "min-games",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Only keep tags shared by at least this many sampled games"
+      }
+    ],
+    "columns": [
+      "rank",
+      "tag",
+      "games",
+      "momentum",
+      "avgGain",
+      "sharePct",
+      "examples"
+    ],
+    "type": "js",
+    "modulePath": "steamdb/hot-tags.js",
+    "sourceFile": "steamdb/hot-tags.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "steamdb",
+    "name": "player-gainers",
+    "description": "Released games whose concurrent player count is climbing fastest this week (real GetGraphWeek history), hot->cold",
+    "access": "read",
+    "example": "opencli steamdb player-gainers --scan 60 --by pct --min-players 2000 --limit 20",
+    "domain": "steamdb.info",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "scan",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "How many Most-Played games to analyze (max 200). 1 request/game"
+      },
+      {
+        "name": "by",
+        "type": "string",
+        "default": "pct",
+        "required": false,
+        "help": "Rank by: pct (relative growth) or abs (absolute player gain)"
+      },
+      {
+        "name": "min-players",
+        "type": "int",
+        "default": 1000,
+        "required": false,
+        "help": "Ignore games below this current player count (noise floor for pct)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Rows to return (max 200)"
+      },
+      {
+        "name": "detail",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Enrich each game via its hover card (tags/microtrailer/etc). 1 request/game"
+      }
+    ],
+    "columns": [
+      "rank",
+      "appid",
+      "name",
+      "growthPct",
+      "growthAbs",
+      "playersNow",
+      "players7dAgo",
+      "peakWeek",
+      "chartRank",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "steamdb/player-gainers.js",
+    "sourceFile": "steamdb/player-gainers.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "steamdb",
+    "name": "rankings",
+    "description": "SteamDB Menu leaderboards (most played, top sellers, top rated, most followed/wishlisted, daily active). --detail adds tags/video/etc",
+    "access": "read",
+    "example": "opencli steamdb rankings --type most-played --limit 25 --detail",
+    "domain": "steamdb.info",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "type",
+        "type": "string",
+        "default": "most-played",
+        "required": false,
+        "help": "Ranking table: most-played / top-sellers-global / top-rated / most-followed / most-wishlisted / daily-active"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Rows to return (max 250)"
+      },
+      {
+        "name": "detail",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Enrich each game via its hover card (tags, microtrailer, screenshots, developer, platforms, anti-cheat). 1 request/game"
+      }
+    ],
+    "columns": [
+      "rank",
+      "appid",
+      "name",
+      "currentPlayers",
+      "peak24h",
+      "peakAllTime",
+      "store",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "steamdb/rankings.js",
+    "sourceFile": "steamdb/rankings.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "steamdb",
+    "name": "rising",
+    "description": "Games gaining community attention fastest by 7-day follower/wishlist gain, hot->cold. Phases: released / upcoming / new-releases / all",
+    "access": "read",
+    "example": "opencli steamdb rising --phase upcoming --limit 20 --detail",
+    "domain": "steamdb.info",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "phase",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Which cohort: all / released / new-releases / upcoming"
+      },
+      {
+        "name": "within-days",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "For --phase new-releases: released within this many days"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Rows to return (max 250)"
+      },
+      {
+        "name": "detail",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Enrich each game via its hover card (tags/microtrailer/etc). 1 request/game"
+      }
+    ],
+    "columns": [
+      "rank",
+      "appid",
+      "name",
+      "gain7d",
+      "follows",
+      "status",
+      "releaseDate",
+      "currentPlayers",
+      "store",
+      "detail"
+    ],
+    "type": "js",
+    "modulePath": "steamdb/rising.js",
+    "sourceFile": "steamdb/rising.js",
+    "navigateBefore": false
+  },
+  {
     "site": "substack",
     "name": "feed",
     "description": "Substack 热门文章 Feed",
