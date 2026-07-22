@@ -25695,6 +25695,163 @@
   },
   {
     "site": "nowcoder",
+    "name": "comments",
+    "description": "Get and mine post comments, authors, and reply relationships",
+    "access": "read",
+    "domain": "www.nowcoder.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Post numeric ID, moment UUID, or Nowcoder URL"
+      },
+      {
+        "name": "with-replies",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Expand replies under each top-level comment"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "valueRequired": true,
+        "help": "Starting page for top-level comments"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "valueRequired": true,
+        "help": "Top-level comments to scan (max 100)"
+      },
+      {
+        "name": "replies-limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "valueRequired": true,
+        "help": "Replies to fetch per top-level comment (max 100)"
+      },
+      {
+        "name": "order",
+        "type": "string",
+        "default": "default",
+        "required": false,
+        "valueRequired": true,
+        "help": "Nowcoder server-side comment order",
+        "choices": [
+          "default",
+          "new",
+          "hot"
+        ]
+      },
+      {
+        "name": "min-likes",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments with at least this many likes"
+      },
+      {
+        "name": "min-replies",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments with at least this many server-reported replies"
+      },
+      {
+        "name": "min-direct-replies",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments with at least this many direct replies in the fetched result; requires --with-replies"
+      },
+      {
+        "name": "author-id",
+        "type": "string",
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments from this numeric user ID"
+      },
+      {
+        "name": "author",
+        "type": "string",
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments whose author name contains this text"
+      },
+      {
+        "name": "contains",
+        "type": "string",
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments containing this text"
+      },
+      {
+        "name": "since",
+        "type": "string",
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments at or after this ISO date/time"
+      },
+      {
+        "name": "until",
+        "type": "string",
+        "required": false,
+        "valueRequired": true,
+        "help": "Only keep comments at or before this ISO date/time"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "thread",
+        "required": false,
+        "valueRequired": true,
+        "help": "Sort output; thread preserves reply-tree order",
+        "choices": [
+          "thread",
+          "likes",
+          "replies",
+          "direct-replies",
+          "time"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "root_id",
+      "parent_id",
+      "depth",
+      "ancestry_complete",
+      "author_id",
+      "author",
+      "reply_to_author_id",
+      "reply_to_author",
+      "content",
+      "likes",
+      "replies",
+      "direct_replies",
+      "time",
+      "location"
+    ],
+    "type": "js",
+    "modulePath": "nowcoder/comments.js",
+    "sourceFile": "nowcoder/comments.js"
+  },
+  {
+    "site": "nowcoder",
     "name": "companies",
     "description": "Hot companies for interview prep",
     "access": "read",
