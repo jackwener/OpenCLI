@@ -197,6 +197,37 @@ describe('commanderAdapter value-required optional options', () => {
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
 
+  it('requires values for Nowcoder comment-mining scalar options', async () => {
+    const scalarOptions = [
+      'page', 'limit', 'replies-limit', 'order', 'min-likes', 'min-replies',
+      'min-direct-replies', 'author-id', 'author', 'contains', 'since', 'until', 'sort',
+    ];
+    const nowcoderComments: CliCommand = {
+      site: 'nowcoder',
+      name: 'comments',
+      access: 'read',
+      description: 'Mine comments',
+      browser: false,
+      args: [
+        { name: 'id', positional: true, required: true },
+        ...scalarOptions.map(name => ({ name, valueRequired: true })),
+      ],
+      func: vi.fn(),
+    };
+    for (const option of scalarOptions) {
+      const program = new Command();
+      program.exitOverride();
+      program.configureOutput({ writeErr: () => {} });
+      const siteCmd = program.command('nowcoder');
+      registerCommandToProgram(siteCmd, nowcoderComments);
+
+      await expect(program.parseAsync([
+        'node', 'opencli', 'nowcoder', 'comments', '1656390', `--${option}`,
+      ])).rejects.toMatchObject({ code: 'commander.optionMissingArgument' });
+    }
+    expect(mockExecuteCommand).not.toHaveBeenCalled();
+  });
+
   it('runs validateArgs before executeCommand so missing media does not dispatch the browser command', async () => {
     const program = new Command();
     const siteCmd = program.command('instagram');
