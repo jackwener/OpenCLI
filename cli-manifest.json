@@ -27545,6 +27545,71 @@
     "sourceFile": "paperreview/submit.js"
   },
   {
+    "site": "pinterest",
+    "name": "create-pin",
+    "description": "Create and publish a Pinterest Pin from the logged-in browser session",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "image",
+        "type": "string",
+        "required": true,
+        "help": "Local image path (jpg/jpeg/png/webp/gif)"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "help": "Pinterest board name to publish into"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "help": "Pin title"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "help": "Pin description"
+      },
+      {
+        "name": "link",
+        "type": "string",
+        "required": false,
+        "help": "Destination link URL"
+      },
+      {
+        "name": "alt-text",
+        "type": "string",
+        "required": false,
+        "help": "Image alt text, when Pinterest exposes the field"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Max seconds to wait for upload and publish confirmation (15-300)"
+      }
+    ],
+    "columns": [
+      "status",
+      "board",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/create-pin.js",
+    "sourceFile": "pinterest/create-pin.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
+  },
+  {
     "site": "pixiv",
     "name": "detail",
     "description": "View illustration details (tags, stats, URLs)",
@@ -40672,6 +40737,25 @@
         "type": "str",
         "required": false,
         "help": "文章摘要"
+      },
+      {
+        "name": "original-declaration",
+        "type": "str",
+        "required": false,
+        "help": "开启原创声明并填写原创署名，例如：一页科学课"
+      },
+      {
+        "name": "reward",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "开启公众号赞赏"
+      },
+      {
+        "name": "reward-account",
+        "type": "str",
+        "required": false,
+        "help": "赞赏账户名称；默认使用原创署名或作者名"
       },
       {
         "name": "timeout",
