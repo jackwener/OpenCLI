@@ -43,7 +43,7 @@ cli({
         { name: 'detail', type: 'bool', default: false, help: 'Enrich each game via its hover card (tags/microtrailer/etc). 1 request/game' },
     ],
     columns: [
-        'rank', 'appid', 'name', 'gain7d', 'follows',
+        'rank', 'appid', 'name', 'storeUrl', 'gain7d', 'follows',
         'status', 'releaseDate', 'currentPlayers', 'store', 'detail',
     ],
     func: async (page, args) => {
@@ -82,6 +82,7 @@ cli({
             rank: i + 1,
             appid: r.appid,
             name: r.name,
+            storeUrl: `https://store.steampowered.com/app/${r.appid}/`,
             gain7d: r.gain7d,
             follows: r.follows ?? null,
             status: isReleased(r) ? 'released' : 'upcoming',

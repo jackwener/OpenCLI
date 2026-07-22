@@ -190,6 +190,7 @@ describe('steamdb/rankings func()', () => {
             rank: 1,
             appid: '730',
             name: 'Counter-Strike 2',
+            storeUrl: 'https://store.steampowered.com/app/730/',
             currentPlayers: 542976,
             peak24h: 1219924,
             peakAllTime: 1862531,

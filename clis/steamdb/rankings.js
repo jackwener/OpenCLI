@@ -51,7 +51,7 @@ cli({
     // Player metrics stay flat (they identify most rankings); store metrics and
     // hover detail are grouped so a row stays <=12 agent-native top-level keys.
     columns: [
-        'rank', 'appid', 'name',
+        'rank', 'appid', 'name', 'storeUrl',
         'currentPlayers', 'peak24h', 'peakAllTime',
         'store', 'detail',
     ],
@@ -80,6 +80,7 @@ cli({
             rank: i + 1,
             appid: r.appid,
             name: r.name,
+            storeUrl: `https://store.steampowered.com/app/${r.appid}/`,
             currentPlayers: r.currentPlayers ?? null,
             peak24h: r.peak24h ?? null,
             peakAllTime: r.peakAllTime ?? null,
