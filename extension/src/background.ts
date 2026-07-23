@@ -1237,6 +1237,16 @@ chrome.runtime.onStartup.addListener(() => {
 // initialize() is idempotent, so lifecycle events remain harmless.
 initialize();
 
+// Reconnect when the user becomes active after OS resume or screen unlock.
+// The keepalive alarm fires every ~24 s, but Chrome may suspend the service
+// worker across long sleeps, so an alarm tick can be skipped past resume.
+// `chrome.idle.onStateChanged` wakes the worker on the first active signal.
+if (chrome.idle?.onStateChanged?.addListener) {
+  chrome.idle.onStateChanged.addListener((newState) => {
+    if (newState === 'active') void connect();
+  });
+}
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   // Idle-lease alarms and keepalive can both fire in a freshly woken worker;
   // gate on recovery so releaseLease never persists an empty snapshot.
