@@ -14177,6 +14177,875 @@
     "siteSession": "persistent"
   },
   {
+    "site": "garmin",
+    "name": "activities",
+    "description": "Your recent Garmin Connect activities",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of activities"
+      },
+      {
+        "name": "start",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Offset for paging"
+      }
+    ],
+    "columns": [
+      "rank",
+      "activity_id",
+      "name",
+      "type",
+      "distance_km",
+      "duration",
+      "calories",
+      "avg_hr",
+      "date"
+    ],
+    "type": "js",
+    "modulePath": "garmin/activities.js",
+    "sourceFile": "garmin/activities.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "activity",
+    "description": "A single Garmin Connect activity in detail",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Activity ID or activity URL"
+      }
+    ],
+    "columns": [
+      "activity_id",
+      "name",
+      "type",
+      "distance_km",
+      "duration",
+      "calories",
+      "avg_hr",
+      "max_hr",
+      "elevation_gain",
+      "avg_speed",
+      "location",
+      "date"
+    ],
+    "type": "js",
+    "modulePath": "garmin/activities.js",
+    "sourceFile": "garmin/activities.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "badges",
+    "description": "Badges you have earned",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of badges"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "points",
+      "category_id",
+      "earned_date"
+    ],
+    "type": "js",
+    "modulePath": "garmin/profile.js",
+    "sourceFile": "garmin/profile.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "bodybattery",
+    "description": "Body Battery energy for a day (charged / drained / current)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "charged",
+      "drained",
+      "current"
+    ],
+    "type": "js",
+    "modulePath": "garmin/health.js",
+    "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "connections",
+    "description": "Your Garmin Connect connections (friends)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of connections"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "display_name",
+      "location"
+    ],
+    "type": "js",
+    "modulePath": "garmin/profile.js",
+    "sourceFile": "garmin/profile.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "course",
+    "description": "A single Garmin course / route in detail",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Course ID or course URL"
+      }
+    ],
+    "columns": [
+      "course_id",
+      "name",
+      "distance_km",
+      "elevation_gain",
+      "elevation_loss",
+      "description",
+      "geo_route_pk",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/courses.js",
+    "sourceFile": "garmin/courses.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "courses",
+    "description": "Your saved Garmin courses / routes (路书)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of courses"
+      }
+    ],
+    "columns": [
+      "rank",
+      "course_id",
+      "name",
+      "type",
+      "distance_km",
+      "elevation_gain",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/courses.js",
+    "sourceFile": "garmin/courses.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "devices",
+    "description": "Your registered Garmin devices",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "name",
+      "part_number",
+      "application_key"
+    ],
+    "type": "js",
+    "modulePath": "garmin/profile.js",
+    "sourceFile": "garmin/profile.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "follow",
+    "description": "Follow a Garmin athlete (requires --execute)",
+    "access": "write",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete display id (from `garmin search`) or profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually follow (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "display_name"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "followers",
+    "description": "Athletes who follow you",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "display_name",
+      "location",
+      "follow_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "following",
+    "description": "Athletes you follow",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number to return"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "display_name",
+      "location",
+      "follow_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "gear",
+    "description": "Your registered Garmin gear (shoes, bikes, …)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "name",
+      "make",
+      "model",
+      "type",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "garmin/profile.js",
+    "sourceFile": "garmin/profile.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "heartrate",
+    "description": "Daily heart-rate summary (resting / max / min)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "resting_hr",
+      "max_hr",
+      "min_hr",
+      "seven_day_avg_resting"
+    ],
+    "type": "js",
+    "modulePath": "garmin/health.js",
+    "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "hrv",
+    "description": "Heart-rate variability summary for a night",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "last_night_avg",
+      "last_night_5min_high",
+      "weekly_avg",
+      "status",
+      "feedback"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "hydration",
+    "description": "Daily hydration — water intake vs goal, sweat loss",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "intake_ml",
+      "goal_ml",
+      "sweat_loss_ml",
+      "activity_intake_ml",
+      "unit"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "load",
+    "description": "Training load: acute (short-term), chronic and load focus",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "acute_load",
+      "chronic_load",
+      "acwr_ratio",
+      "acwr_status",
+      "focus",
+      "aerobic_low",
+      "aerobic_high",
+      "anaerobic"
+    ],
+    "type": "js",
+    "modulePath": "garmin/metrics.js",
+    "sourceFile": "garmin/metrics.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "login",
+    "description": "Log into Garmin Connect in the bound browser (run once)",
+    "access": "write",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "full_name",
+      "user_name",
+      "display_name",
+      "location"
+    ],
+    "type": "js",
+    "modulePath": "garmin/auth.js",
+    "sourceFile": "garmin/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "garmin",
+    "name": "powercurve",
+    "description": "Cycling power curve — best power held for each duration",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "days",
+        "type": "int",
+        "default": 365,
+        "required": false,
+        "help": "Look back this many days"
+      }
+    ],
+    "columns": [
+      "rank",
+      "duration",
+      "duration_sec",
+      "power_w",
+      "activity_date"
+    ],
+    "type": "js",
+    "modulePath": "garmin/metrics.js",
+    "sourceFile": "garmin/metrics.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "prs",
+    "description": "Your Garmin Connect personal records",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of records"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type_id",
+      "activity_type",
+      "value",
+      "activity_name",
+      "activity_id",
+      "date"
+    ],
+    "type": "js",
+    "modulePath": "garmin/profile.js",
+    "sourceFile": "garmin/profile.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "respiration",
+    "description": "Daily respiration rate (breaths per minute)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "avg_waking",
+      "avg_sleep",
+      "highest",
+      "lowest"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "search",
+    "description": "Search Garmin Connect athletes by name",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Name to search"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "display_name",
+      "location",
+      "follow_status",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "sleep",
+    "description": "Sleep breakdown for a night (deep / light / rem / awake)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "total_sleep",
+      "deep",
+      "light",
+      "rem",
+      "awake"
+    ],
+    "type": "js",
+    "modulePath": "garmin/health.js",
+    "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "spo2",
+    "description": "Daily blood-oxygen (pulse ox) summary",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "avg_spo2",
+      "lowest_spo2",
+      "latest_spo2",
+      "seven_day_avg"
+    ],
+    "type": "js",
+    "modulePath": "garmin/wellness.js",
+    "sourceFile": "garmin/wellness.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "stats",
+    "description": "Daily wellness summary (steps, calories, distance, floors)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "steps",
+      "step_goal",
+      "total_calories",
+      "active_calories",
+      "distance_km",
+      "floors",
+      "intensity_min"
+    ],
+    "type": "js",
+    "modulePath": "garmin/health.js",
+    "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "status",
+    "description": "Training status, fitness trend and VO2 max",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "training_status",
+      "feedback",
+      "fitness_trend",
+      "sport",
+      "vo2max_running",
+      "vo2max_cycling"
+    ],
+    "type": "js",
+    "modulePath": "garmin/metrics.js",
+    "sourceFile": "garmin/metrics.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "stress",
+    "description": "Daily stress level (average / max)",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "date",
+        "type": "str",
+        "required": false,
+        "help": "Date YYYY-MM-DD (default: today)"
+      }
+    ],
+    "columns": [
+      "date",
+      "avg_stress",
+      "max_stress"
+    ],
+    "type": "js",
+    "modulePath": "garmin/health.js",
+    "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "unfollow",
+    "description": "Unfollow a Garmin athlete (requires --execute)",
+    "access": "write",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "athlete",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Athlete display id or profile URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually unfollow (otherwise refuses)"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "display_name"
+    ],
+    "type": "js",
+    "modulePath": "garmin/social.js",
+    "sourceFile": "garmin/social.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "weight",
+    "description": "Body weight log over the last N days",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "days",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Look back this many days"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows"
+      }
+    ],
+    "columns": [
+      "rank",
+      "date",
+      "weight_kg",
+      "bmi"
+    ],
+    "type": "js",
+    "modulePath": "garmin/health.js",
+    "sourceFile": "garmin/health.js",
+    "navigateBefore": "https://connect.garmin.com"
+  },
+  {
+    "site": "garmin",
+    "name": "whoami",
+    "description": "Show the currently logged-in Garmin Connect athlete",
+    "access": "read",
+    "domain": "connect.garmin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "full_name",
+      "user_name",
+      "display_name",
+      "location"
+    ],
+    "type": "js",
+    "modulePath": "garmin/auth.js",
+    "sourceFile": "garmin/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "gemini",
     "name": "ask",
     "description": "Send a prompt to Gemini and return only the assistant response",
