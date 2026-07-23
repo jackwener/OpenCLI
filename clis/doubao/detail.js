@@ -1,4 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import { DOUBAO_DOMAIN, getConversationDetail, parseDoubaoConversationId } from './utils.js';
 export const detailCommand = cli({
     site: 'doubao',
@@ -18,7 +19,7 @@ export const detailCommand = cli({
         const conversationId = parseDoubaoConversationId(kwargs.id);
         const { messages, meeting } = await getConversationDetail(page, conversationId);
         if (messages.length === 0 && !meeting) {
-            return [{ Role: 'System', Text: 'No messages found. Verify the conversation ID.' }];
+            throw new EmptyResultError('doubao detail', `No messages were extracted for conversation ${conversationId}. Verify the conversation ID and login state.`);
         }
         const result = [];
         if (meeting) {

@@ -823,7 +823,7 @@ function getRecentConversationsScript(limit) {
     return `
     (async () => {
       const clean = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
-      const requestedLimit = Math.max(1, Math.min(Number(${JSON.stringify(limit)}) || 50, 1000));
+      const requestedLimit = Number(${JSON.stringify(limit)});
       const resources = performance.getEntriesByType('resource')
         .map((entry) => entry.name)
         .filter((name) => typeof name === 'string');
@@ -836,7 +836,7 @@ function getRecentConversationsScript(limit) {
       let hasMore = true;
       let pcPinQueryType = 0;
 
-      for (let pageIndex = 0; pageIndex < 60 && hasMore && conversations.length < requestedLimit; pageIndex += 1) {
+      for (let pageIndex = 0; pageIndex < 100 && hasMore && conversations.length < requestedLimit; pageIndex += 1) {
         const batchLimit = Math.max(1, Math.min(50, requestedLimit - conversations.length));
         const body = {
           cmd: 3200,
@@ -932,7 +932,7 @@ function getConversationListScript() {
 }
 export async function getDoubaoConversationList(page, options = {}) {
     await ensureDoubaoChatPage(page);
-    const requestedLimit = Math.max(1, parseInt(String(options.limit || '50'), 10) || 50);
+    const requestedLimit = Number(options.limit ?? 50);
     const apiResult = await page.evaluate(getRecentConversationsScript(requestedLimit)).catch(() => null);
     if (apiResult?.ok && Array.isArray(apiResult.conversations) && apiResult.conversations.length > 0) {
         return apiResult.conversations.map((item) => ({

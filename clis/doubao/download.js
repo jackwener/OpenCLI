@@ -2,10 +2,22 @@ import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 import { DOUBAO_DOMAIN, getConversationAssets, parseDoubaoConversationId } from './utils.js';
 
 const SUPPORTED_VARIANTS = new Set(['original', 'raw', 'preview', 'thumb']);
+
+function parseIntegerOption(rawValue, fallback, label, allowZero = false) {
+    const value = rawValue ?? String(fallback);
+    const parsed = Number(value);
+    const minimum = allowZero ? 0 : 1;
+    if (!Number.isInteger(parsed) || parsed < minimum) {
+        throw new ArgumentError(`Invalid Doubao ${label}: ${value}`, allowZero
+            ? 'Use 0 or a positive integer.'
+            : 'Use a positive integer.');
+    }
+    return parsed;
+}
 
 function sanitizeFilenamePart(value) {
     return String(value || '')
@@ -65,18 +77,12 @@ export const downloadCommand = cli({
         if (!SUPPORTED_VARIANTS.has(variant)) {
             throw new ArgumentError(`Invalid Doubao image variant: ${variant}`, 'Use original, raw, preview, or thumb.');
         }
-        const limit = parseInt(String(kwargs.limit || '0'), 10) || 0;
-        if (limit < 0) {
-            throw new ArgumentError(`Invalid Doubao media limit: ${kwargs.limit}`, 'Use 0 for all media, or a positive integer.');
-        }
-        const timeout = parseInt(String(kwargs.timeout || '15000'), 10) || 15000;
-        if (timeout <= 0) {
-            throw new ArgumentError(`Invalid Doubao download timeout: ${kwargs.timeout}`, 'Use a positive timeout in milliseconds.');
-        }
+        const limit = parseIntegerOption(kwargs.limit, 0, 'media limit', true);
+        const timeout = parseIntegerOption(kwargs.timeout, 15000, 'download timeout');
         const assets = await getConversationAssets(page, conversationId, { variant });
         const selectedAssets = limit > 0 ? assets.slice(0, limit) : assets;
         if (selectedAssets.length === 0) {
-            return [{ index: 0, type: '-', status: 'failed', size: 'No media found' }];
+            throw new EmptyResultError('doubao download', `No media was extracted for conversation ${conversationId}.`);
         }
         const cookies = formatCookieHeader(await page.getCookies({ domain: 'doubao.com' }));
         const mediaItems = selectedAssets.map((asset, index) => ({

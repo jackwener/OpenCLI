@@ -86,12 +86,12 @@ describe('doubao download', () => {
         }));
     });
 
-    it('returns an explicit failed row when no media is present', async () => {
+    it('throws a typed empty-result error when no media is present', async () => {
         const page = createPageMock();
         mockGetConversationAssets.mockResolvedValue([]);
-        await expect(download.func(page, { id: '1234567890123' })).resolves.toEqual([
-            { index: 0, type: '-', status: 'failed', size: 'No media found' },
-        ]);
+        await expect(download.func(page, { id: '1234567890123' })).rejects.toMatchObject({
+            code: 'EMPTY_RESULT',
+        });
         expect(mockDownloadMedia).not.toHaveBeenCalled();
     });
 
@@ -109,7 +109,13 @@ describe('doubao download', () => {
         await expect(download.func(page, { id: '1234567890123', limit: '-1' })).rejects.toMatchObject({
             code: 'ARGUMENT',
         });
+        await expect(download.func(page, { id: '1234567890123', limit: '2.5' })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+        });
         await expect(download.func(page, { id: '1234567890123', timeout: '-1' })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+        });
+        await expect(download.func(page, { id: '1234567890123', timeout: 'ten' })).rejects.toMatchObject({
             code: 'ARGUMENT',
         });
         expect(mockGetConversationAssets).not.toHaveBeenCalled();

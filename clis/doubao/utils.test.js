@@ -1,6 +1,5 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
-import { JSDOM } from 'jsdom';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     __test__,

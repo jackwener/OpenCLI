@@ -29,14 +29,13 @@ describe('doubao detail', () => {
             { Role: 'Meeting', Text: 'Weekly Sync (2026-03-28 10:00)' },
         ]);
     });
-    it('still returns an error row for a truly empty conversation', async () => {
+    it('throws a typed empty-result error for a truly empty conversation', async () => {
         mockGetConversationDetail.mockResolvedValue({
             messages: [],
             meeting: null,
         });
-        const result = await detail.func({}, { id: '1234567890' });
-        expect(result).toEqual([
-            { Role: 'System', Text: 'No messages found. Verify the conversation ID.' },
-        ]);
+        await expect(detail.func({}, { id: '1234567890' })).rejects.toMatchObject({
+            code: 'EMPTY_RESULT',
+        });
     });
 });

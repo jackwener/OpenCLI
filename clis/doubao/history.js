@@ -1,5 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
 import { DOUBAO_DOMAIN, getDoubaoConversationList } from './utils.js';
+const MAX_HISTORY_LIMIT = 5000;
 export const historyCommand = cli({
     site: 'doubao',
     name: 'history',
@@ -15,10 +17,14 @@ export const historyCommand = cli({
     ],
     columns: ['Index', 'Id', 'Title', 'Url'],
     func: async (page, kwargs) => {
-        const limit = parseInt(kwargs.limit, 10) || 50;
+        const rawLimit = kwargs.limit ?? '50';
+        const limit = Number(rawLimit);
+        if (!Number.isInteger(limit) || limit < 1 || limit > MAX_HISTORY_LIMIT) {
+            throw new ArgumentError(`Doubao history limit must be an integer between 1 and ${MAX_HISTORY_LIMIT}: ${rawLimit}`);
+        }
         const conversations = await getDoubaoConversationList(page, { limit });
         if (conversations.length === 0) {
-            return [{ Index: 0, Id: '', Title: 'No conversation history found. Make sure you are logged in.', Url: '' }];
+            throw new EmptyResultError('doubao history', 'No conversations were extracted. Verify the Doubao login state and retry.');
         }
         return conversations.slice(0, limit).map((conv, i) => ({
             Index: i + 1,
