@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './create-draft.js';
+import './create-sticker.js';
 import './drafts.js';
 import './search.js';
 
@@ -19,10 +20,46 @@ describe('weixin command registration', () => {
         const registry = getRegistry();
         const values = [...registry.values()];
         expect(values.find(c => c.site === 'weixin' && c.name === 'create-draft')).toBeDefined();
+        expect(values.find(c => c.site === 'weixin' && c.name === 'create-sticker')).toBeDefined();
         const draftsCommand = values.find(c => c.site === 'weixin' && c.name === 'drafts');
         expect(draftsCommand).toBeDefined();
         expect(draftsCommand.args.find((arg) => arg.name === 'timeout')).toMatchObject({ type: 'int', default: 60 });
         expect(values.find(c => c.site === 'weixin' && c.name === 'search')).toBeDefined();
+    });
+});
+
+describe('weixin create-sticker command', () => {
+    it('opens the sticker editor and saves a sticker draft', async () => {
+        const command = getRegistry().get('weixin/create-sticker');
+        const imagePath = new URL('../../extension/icons/icon-16.png', import.meta.url).pathname;
+        const page = createPageMock({
+            evaluate: vi.fn().mockImplementation(async (code) => {
+                if (code.includes('window.location.href.match')) return '123456';
+                if (code.includes('filetransfer?action=upload_material')) return {
+                    ok: true,
+                    fileId: 456,
+                    cdnUrl: 'https://mmbiz.qpic.cn/test.jpg',
+                };
+                if (code.includes('vm.innerList')) return { ok: true };
+                if (code.includes('!!document.querySelector') && code.includes('.image-selector')) return true;
+                if (code.includes('textarea#title')) return true;
+                if (code.includes('.share-text__input .ProseMirror')) return true;
+                if (code.includes('#js_submit')) return { ok: true };
+                if (code.includes('保存成功')) return true;
+                return undefined;
+            }),
+        });
+
+        const result = await command.func(page, {
+            image: imagePath,
+            title: '贴图标题',
+            content: '贴图描述',
+        });
+
+        expect(page.goto).toHaveBeenCalledWith(expect.stringContaining('createType=8'));
+        expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('filetransfer?action=upload_material'));
+        expect(page.setFileInput).not.toHaveBeenCalled();
+        expect(result).toEqual([{ status: 'sticker draft saved', detail: '"贴图标题" (sticker)' }]);
     });
 });
 
