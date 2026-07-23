@@ -37829,6 +37829,52 @@
   },
   {
     "site": "twitter",
+    "name": "collection",
+    "description": "Fetch a user timeline with relationship facts and a bounded completion receipt.",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Twitter screen name (with or without @)."
+      },
+      {
+        "name": "until",
+        "type": "string",
+        "required": true,
+        "help": "RFC3339 lower time boundary that must be reached or exhausted."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10000,
+        "required": false,
+        "help": "Safety ceiling; reaching it is a typed failure."
+      },
+      {
+        "name": "page-delay",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Seconds to wait between cursor pages."
+      }
+    ],
+    "columns": [
+      "posts",
+      "receipt"
+    ],
+    "type": "js",
+    "modulePath": "twitter/collection.js",
+    "sourceFile": "twitter/collection.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
     "name": "delete",
     "description": "Delete a specific tweet by URL",
     "access": "write",
