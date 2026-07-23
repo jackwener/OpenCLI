@@ -299,6 +299,7 @@ const IDLE_TIMEOUT_DEFAULT = 30_000;      // 30s — adapter-driven automation
 const IDLE_TIMEOUT_INTERACTIVE = 600_000; // 10min — human-paced browser:* / operate:*
 const IDLE_TIMEOUT_NONE = -1;             // borrowed bound tabs stay bound until unbound/closed
 const REGISTRY_KEY = 'opencli_target_lease_registry_v2';
+const BROWSER_TAB_GROUPS_ENABLED_KEY = 'opencli_browser_tab_groups_enabled';
 const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
 const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
   interactive: 'OpenCLI Browser',
@@ -326,6 +327,18 @@ const ownedContainers: Record<OwnedWindowRole, {
 // creates a visible group. Persisted as part of the session registry (see
 // StoredRegistry) and restored by reconcileTargetLeaseRegistry().
 const interactiveGroupLedger = new Set<number>();
+let browserTabGroupingEnabled = true;
+
+async function loadBrowserTabGroupingPreference(): Promise<void> {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return;
+    const raw = await local.get(BROWSER_TAB_GROUPS_ENABLED_KEY) as Record<string, unknown>;
+    browserTabGroupingEnabled = raw[BROWSER_TAB_GROUPS_ENABLED_KEY] !== false;
+  } catch {
+    browserTabGroupingEnabled = true;
+  }
+}
 
 type StoredLease = Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt'> & {
   idleDeadlineAt: number;
@@ -863,7 +876,7 @@ async function ensureOwnedContainerGroup(
   // Adapter automation runs in an owned background window but no longer creates
   // a visible "OpenCLI Adapter" tab group. Its ownership anchors are the
   // persisted container windowId and per-lease preferredTabId.
-  if (role === 'automation') return null;
+  if (role === 'automation' || !browserTabGroupingEnabled) return null;
 
   const ids = [...new Set(tabIds.filter((id): id is number => id !== undefined))];
 
@@ -877,6 +890,29 @@ async function ensureOwnedContainerGroup(
   });
   container.groupPromise = trackedGroupPromise;
   return trackedGroupPromise;
+}
+
+async function removeOwnedBrowserTabGroups(): Promise<void> {
+  const container = ownedContainers.interactive;
+  const pendingGroup = container.groupPromise;
+  if (pendingGroup) await pendingGroup.catch(() => null);
+
+  const groups = await chrome.tabGroups.query({ title: CONTAINER_TAB_GROUP_TITLE.interactive }).catch(() => []);
+  for (const group of groups) {
+    const tabs = await chrome.tabs.query({ groupId: group.id }).catch(() => []);
+    const tabIds = tabs.map((tab) => tab.id).filter((id): id is number => id !== undefined);
+    if (tabIds.length > 0) await chrome.tabs.ungroup(tabIds).catch(() => {});
+  }
+
+  container.groupId = null;
+  interactiveGroupLedger.clear();
+  await persistRuntimeState();
+}
+
+async function setBrowserTabGroupingEnabled(enabled: boolean): Promise<void> {
+  await chrome.storage?.local?.set?.({ [BROWSER_TAB_GROUPS_ENABLED_KEY]: enabled });
+  browserTabGroupingEnabled = enabled;
+  if (!enabled) await withLeaseMutation(removeOwnedBrowserTabGroups);
 }
 
 async function ensureOwnedContainerGroupUnlocked(
@@ -1212,7 +1248,9 @@ function initialize(): void {
   workerRecovered = false;
   workerReady = (async () => {
     await getCurrentContextId();
+    await loadBrowserTabGroupingPreference();
     await reconcileTargetLeaseRegistry();
+    if (!browserTabGroupingEnabled) await removeOwnedBrowserTabGroups();
   })().catch((err) => {
     // Never leave workerReady rejected/pending: a wedged gate would freeze
     // every gated handler for the life of the worker.
@@ -1258,6 +1296,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'getStatus') {
     void (async () => {
+      await workerReady;
       const contextId = await getCurrentContextId();
       const connected = ws?.readyState === WebSocket.OPEN;
       const extensionVersion = chrome.runtime.getManifest().version;
@@ -1268,7 +1307,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         contextId,
         extensionVersion,
         daemonVersion,
+        browserTabGroupingEnabled,
       });
+    })();
+    return true;
+  }
+  if (msg?.type === 'setBrowserTabGrouping' && typeof msg.enabled === 'boolean') {
+    void (async () => {
+      await workerReady;
+      try {
+        await setBrowserTabGroupingEnabled(msg.enabled);
+        sendResponse({ ok: true, browserTabGroupingEnabled });
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          browserTabGroupingEnabled,
+        });
+      }
     })();
     return true;
   }
