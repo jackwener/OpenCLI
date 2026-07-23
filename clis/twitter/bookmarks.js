@@ -1,9 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { extractMedia, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const BOOKMARKS_QUERY_ID = 'Fy0QMy4q_aZCpkO0PnyLYw';
-const MAX_PAGINATION_PAGES = 100;
+// Safety cap only. Full-archive runs can set a higher page budget via --max-pages.
+const DEFAULT_MAX_PAGINATION_PAGES = 100;
+const HARD_MAX_PAGINATION_PAGES = 100000;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -100,6 +104,88 @@ export function parseBookmarks(data, seen) {
     }
     return { tweets, nextCursor };
 }
+function readResumeFile(filePath) {
+    if (!filePath || !fs.existsSync(filePath))
+        return null;
+    try {
+        const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        return {
+            cursor: parsed?.cursor || null,
+            count: Number(parsed?.count || 0),
+            tweets: Array.isArray(parsed?.tweets) ? parsed.tweets : [],
+            complete: Boolean(parsed?.complete),
+            source: parsed?.source || null,
+            outputFile: parsed?.outputFile || null,
+            updatedAt: parsed?.updatedAt || null,
+        };
+    }
+    catch {
+        return null;
+    }
+}
+function ensureParentDir(filePath) {
+    if (!filePath)
+        return;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
+function removeFile(filePath) {
+    if (!filePath)
+        return;
+    try {
+        fs.rmSync(filePath, { force: true });
+    }
+    catch {
+    }
+}
+function loadSeenIdsFromJsonl(filePath) {
+    const seen = new Set();
+    if (!filePath || !fs.existsSync(filePath))
+        return seen;
+    const text = fs.readFileSync(filePath, 'utf8');
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed)
+            continue;
+        try {
+            const row = JSON.parse(trimmed);
+            if (row?.id)
+                seen.add(String(row.id));
+        }
+        catch {
+        }
+    }
+    return seen;
+}
+function appendJsonlRows(filePath, rows) {
+    if (!filePath || !Array.isArray(rows) || rows.length === 0)
+        return;
+    ensureParentDir(filePath);
+    // Escape LS/PS so JSONL stays one physical line even when tweet text contains them.
+    const text = rows
+        .map((row) => JSON.stringify(row).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'))
+        .join('\n') + '\n';
+    fs.appendFileSync(filePath, text, 'utf8');
+}
+function writeResumeFile(filePath, payload) {
+    if (!filePath)
+        return;
+    ensureParentDir(filePath);
+    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n');
+}
+function removeResumeFile(filePath) {
+    removeFile(filePath);
+}
+function resolveMaxPages(kwargs, fetchAll) {
+    const raw = kwargs['max-pages'];
+    if (raw === undefined || raw === null || raw === '') {
+        return fetchAll ? HARD_MAX_PAGINATION_PAGES : DEFAULT_MAX_PAGINATION_PAGES;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 1 || value > HARD_MAX_PAGINATION_PAGES) {
+        throw new ArgumentError(`--max-pages must be an integer between 1 and ${HARD_MAX_PAGINATION_PAGES}`);
+    }
+    return value;
+}
 cli({
     site: 'twitter',
     name: 'bookmarks',
@@ -109,12 +195,28 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'limit', type: 'int', default: 20, help: 'Maximum number of bookmarks to return (default 20).' },
-        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (saved-time) ordering.' },
+        { name: 'limit', type: 'int', default: 20, help: 'Maximum number of bookmarks to return (default 20). Ignored when --all is set.' },
+        { name: 'all', type: 'bool', default: false, help: 'Fetch all bookmark pages until exhausted. Prefer --output-file for large archives.' },
+        { name: 'resume-file', type: 'string', help: 'Resume file for long-running all-pages bookmark syncs.' },
+        { name: 'output-file', type: 'string', help: 'Write all-page results to a JSONL file instead of returning one large JSON array.' },
+        { name: 'max-pages', type: 'int', help: `Optional pagination safety cap (default ${DEFAULT_MAX_PAGINATION_PAGES}; raised automatically with --all).` },
+        { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (saved-time) ordering. Incompatible with --output-file.' },
     ],
     columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters'],
     func: async (page, kwargs) => {
-        const limit = kwargs.limit || 20;
+        const fetchAll = Boolean(kwargs.all);
+        const limit = fetchAll ? Number.POSITIVE_INFINITY : (kwargs.limit || 20);
+        const resumeFile = kwargs['resume-file'] || '';
+        const outputFile = kwargs['output-file'] || '';
+        const useOutputFile = Boolean(fetchAll && outputFile);
+        const maxPages = resolveMaxPages(kwargs, fetchAll);
+        const topByEngagement = Number(kwargs['top-by-engagement'] || 0);
+        if (useOutputFile && topByEngagement > 0) {
+            throw new ArgumentError('--top-by-engagement cannot be combined with --output-file');
+        }
+        if (outputFile && !fetchAll) {
+            throw new ArgumentError('--output-file requires --all');
+        }
         const cookies = await page.getCookies({ url: 'https://x.com' });
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
@@ -149,33 +251,85 @@ cli({
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
         });
-        const allTweets = [];
-        const seen = new Set();
-        let cursor = null;
-        // Runaway guard only; --limit and cursor exhaustion control normal pagination.
-        for (let i = 0; i < MAX_PAGINATION_PAGES && allTweets.length < limit; i++) {
-            const fetchCount = Math.min(100, limit - allTweets.length + 10);
+        let resumed = fetchAll ? readResumeFile(resumeFile) : null;
+        if (useOutputFile && resumed && !fs.existsSync(outputFile)) {
+            removeResumeFile(resumeFile);
+            resumed = null;
+        }
+        if (useOutputFile && !resumed)
+            removeFile(outputFile);
+        const allTweets = useOutputFile ? [] : (resumed?.tweets ? [...resumed.tweets] : []);
+        const seen = useOutputFile
+            ? loadSeenIdsFromJsonl(outputFile)
+            : new Set(allTweets.map((tweet) => tweet?.id).filter(Boolean));
+        let outputCount = useOutputFile
+            ? Math.max(seen.size, Number(resumed?.count || 0))
+            : 0;
+        let cursor = resumed?.cursor || null;
+        let pages = 0;
+        let exhausted = false;
+        // Runaway guard only; --limit/--all and cursor exhaustion control normal pagination.
+        while (pages < maxPages && (fetchAll || allTweets.length < limit)) {
+            pages += 1;
+            const currentCount = useOutputFile ? outputCount : allTweets.length;
+            const remaining = fetchAll ? 100 : (limit - currentCount + 10);
+            const fetchCount = Math.min(100, remaining);
             const apiUrl = buildBookmarksUrl(fetchCount, cursor).replace(BOOKMARKS_QUERY_ID, queryId);
             const data = await page.evaluate(`async () => {
-        const r = await fetch("${apiUrl}", { headers: ${headers}, credentials: 'include' });
+        const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
         return r.ok ? await r.json() : { error: r.status };
       }`);
             if (data?.error) {
-                if (allTweets.length === 0)
+                if ((useOutputFile ? outputCount : allTweets.length) === 0)
                     throw new CommandExecutionError(describeTwitterApiError('Bookmarks', data.error));
                 break;
             }
             const { tweets, nextCursor } = parseBookmarks(data, seen);
-            allTweets.push(...tweets);
-            if (!nextCursor || nextCursor === cursor)
+            if (useOutputFile) {
+                appendJsonlRows(outputFile, tweets);
+                outputCount += tweets.length;
+            }
+            else {
+                allTweets.push(...tweets);
+            }
+            const pageComplete = !nextCursor || nextCursor === cursor;
+            writeResumeFile(resumeFile, {
+                cursor: pageComplete ? null : nextCursor,
+                count: useOutputFile ? outputCount : allTweets.length,
+                tweets: useOutputFile ? undefined : allTweets,
+                updatedAt: new Date().toISOString(),
+                complete: pageComplete,
+                source: 'bookmarks',
+                outputFile: useOutputFile ? outputFile : null,
+            });
+            if (pageComplete) {
+                exhausted = true;
                 break;
+            }
             cursor = nextCursor;
         }
-        const trimmed = allTweets.slice(0, limit);
-        return applyTopByEngagement(trimmed, kwargs['top-by-engagement']);
+        // Resume is only removed after the timeline is truly exhausted. Hitting
+        // --max-pages, partial API errors after some rows, or an interrupt must
+        // leave the resume file so the next run can continue.
+        if (exhausted)
+            removeResumeFile(resumeFile);
+        if (useOutputFile) {
+            return {
+                outputFile,
+                count: outputCount,
+                source: 'bookmarks',
+                complete: exhausted,
+                pages,
+                ...(exhausted ? {} : { cursor, resumeFile: resumeFile || null }),
+            };
+        }
+        const trimmed = fetchAll ? allTweets : allTweets.slice(0, limit);
+        return applyTopByEngagement(trimmed, topByEngagement);
     },
 });
 export const __test__ = {
     parseBookmarks,
     extractBookmarkTweet,
+    appendJsonlRows,
+    readResumeFile,
 };

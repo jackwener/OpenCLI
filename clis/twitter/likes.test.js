@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
@@ -216,5 +217,125 @@ describe('twitter likes command', () => {
         const likesCall = page.evaluate.mock.calls.find(([script]) => String(script).includes('/Likes')) || [];
         expect(decodeURIComponent(String(likesCall[0]))).toContain('"userId":"42"');
         expect(decodeURIComponent(String(likesCall[0]))).not.toContain('[object Object]');
+    });
+
+    it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const resumeFile = `/tmp/opencli-likes-resume-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-likes-out-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('AppTabBar_Profile_Link')) {
+                    return { session: 'site:twitter', data: '/viewer' };
+                }
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) {
+                    return { session: 'site:twitter', data: '42' };
+                }
+                if (text.includes('/Likes')) {
+                    const payload = likesPayload();
+                    payload.data.user.result.timeline_v2.timeline.instructions[0].entries.push({
+                        entryId: 'cursor-bottom-1',
+                        content: {
+                            entryType: 'TimelineTimelineCursor',
+                            cursorType: 'Bottom',
+                            value: 'NEXT_CURSOR',
+                        },
+                    });
+                    return { session: 'site:twitter', data: payload };
+                }
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'likes',
+                username: 'viewer',
+                complete: false,
+                pages: 1,
+                cursor: 'NEXT_CURSOR',
+                resumeFile,
+            });
+            expect(fs.existsSync(resumeFile)).toBe(true);
+            expect(fs.existsSync(outputFile)).toBe(true);
+            const resume = __test__.readResumeFile(resumeFile);
+            expect(resume).toMatchObject({
+                cursor: 'NEXT_CURSOR',
+                count: 1,
+                complete: false,
+                source: 'likes',
+                username: 'viewer',
+                outputFile,
+            });
+            expect(fs.readFileSync(outputFile, 'utf8').trim().split('\n')).toHaveLength(1);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
+    });
+
+    it('removes resume file only after the likes timeline is exhausted', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const resumeFile = `/tmp/opencli-likes-resume-done-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-likes-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('AppTabBar_Profile_Link')) {
+                    return { session: 'site:twitter', data: '/viewer' };
+                }
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) {
+                    return { session: 'site:twitter', data: '42' };
+                }
+                if (text.includes('/Likes')) {
+                    return { session: 'site:twitter', data: likesPayload() };
+                }
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'likes',
+                username: 'viewer',
+                complete: true,
+                pages: 1,
+            });
+            expect(result.cursor).toBeUndefined();
+            expect(fs.existsSync(resumeFile)).toBe(false);
+            expect(fs.existsSync(outputFile)).toBe(true);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
     });
 });
