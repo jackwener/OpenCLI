@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 import { __test__ } from './tweets.js';
+import { buildUserTweetsUrl } from './user-timeline.js';
 
 function makeTweetEntry(id, author = 'jakevin7') {
     return {
@@ -56,6 +57,19 @@ function makeTimelinePayload(startId, count, nextCursor = null) {
 }
 
 describe('twitter tweets helpers', () => {
+    it('keeps tweets command arguments and columns unchanged after transport extraction', () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        expect(cmd?.args?.map((arg) => arg.name)).toEqual([
+            'username', 'limit', 'page-delay', 'top-by-engagement',
+        ]);
+        expect(cmd?.columns).toEqual([
+            'id', 'author', 'created_at', 'is_retweet', 'text', 'likes',
+            'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls',
+            'media_posters', 'quoted_tweet',
+        ]);
+        expect(buildUserTweetsUrl('query', '42', 20, 'cursor')).toContain('/UserTweets');
+    });
+
     it('registers id and is_retweet in the default columns', () => {
         const cmd = getRegistry().get('twitter/tweets');
         expect(cmd?.columns).toEqual(['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet']);
