@@ -53,6 +53,10 @@ function textContainsNormalized(haystack, needle) {
   return !n || h.includes(n);
 }
 
+function hasLineBreaks(value) {
+  return /\r|\n/.test(String(value ?? ''));
+}
+
 function selectBestHeaderName(headerNames, expectedName) {
   const expected = normalizeName(expectedName);
   const names = (Array.isArray(headerNames) ? headerNames : [])
@@ -104,6 +108,12 @@ function assessThreadSafety(probe, expected) {
 function requireStringArg(args, key, label = key) {
   const value = normalizeWhitespace(args[key]);
   if (!value) throw new ArgumentError(`${label} is required`);
+  return value;
+}
+
+function requireRawStringArg(args, key, label = key) {
+  const value = String(args[key] ?? '');
+  if (!normalizeWhitespace(value)) throw new ArgumentError(`${label} is required`);
   return value;
 }
 
@@ -198,6 +208,78 @@ function buildReadComposerScript() {
   })()`;
 }
 
+function buildFillComposerMultilineScript(message) {
+  return `(() => {
+    const marker = '__OPENCLI_LINKEDIN_FILL_COMPOSER_MULTILINE__';
+    void marker;
+    const message = ${JSON.stringify(String(message ?? ''))};
+    const normalize = (s) => String(s || '').replace(/[\\u00a0\\u202f]/g, ' ').replace(/\\s+/g, ' ').trim();
+    const composer = Array.from(document.querySelectorAll('[contenteditable="true"][role="textbox"], div.msg-form__contenteditable[contenteditable="true"], [aria-label*="Write a message" i]'))
+      .find((el) => !el.closest('[aria-hidden="true"]') && el.offsetParent !== null);
+    if (!composer) return { ok: false, error: 'composer_not_found', composerText: '', method: '' };
+
+    const setDomMultiline = () => {
+      composer.innerHTML = '';
+      const normalized = message.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
+      const lines = normalized.split('\\n');
+      lines.forEach((line, index) => {
+        if (index > 0) composer.appendChild(document.createElement('br'));
+        if (line) composer.appendChild(document.createTextNode(line));
+      });
+      composer.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertFromPaste',
+        data: message,
+      }));
+      composer.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        inputType: 'insertFromPaste',
+        data: message,
+      }));
+      return { method: 'dom_multiline' };
+    };
+
+    composer.focus();
+    composer.innerHTML = '';
+    composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
+
+    let method = 'dom_multiline';
+    try {
+      if (typeof DataTransfer !== 'undefined' && typeof ClipboardEvent !== 'undefined') {
+        const data = new DataTransfer();
+        data.setData('text/plain', message);
+        const paste = new ClipboardEvent('paste', {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true,
+        });
+        composer.dispatchEvent(paste);
+        method = 'paste_event';
+      }
+    } catch {
+      method = 'dom_multiline';
+    }
+
+    if (normalize(composer.innerText || composer.textContent) !== normalize(message)) {
+      method = setDomMultiline().method;
+    }
+
+    const brCount = composer.querySelectorAll('br').length;
+    const childBlockCount = Array.from(composer.children).filter((el) => {
+      const tag = String(el.tagName || '').toLowerCase();
+      return tag === 'br' || tag === 'div' || tag === 'p';
+    }).length;
+
+    return {
+      ok: normalize(composer.innerText || composer.textContent) === normalize(message),
+      composerText: composer.innerText || composer.textContent || '',
+      method,
+      renderedBreaks: brCount + childBlockCount,
+    };
+  })()`;
+}
+
 function buildClickSendScript() {
   return String.raw`(() => {
     const marker = '__OPENCLI_LINKEDIN_CLICK_SEND__';
@@ -224,6 +306,24 @@ async function probeThread(page) {
   };
 }
 
+async function fillComposer(page, message) {
+  if (!hasLineBreaks(message)) {
+    await page.insertText(message);
+    return { method: 'insert_text', renderedBreaks: 0 };
+  }
+
+  const result = unwrapEvaluateResult(await page.evaluate(buildFillComposerMultilineScript(message)));
+  if (result?.ok) {
+    return {
+      method: result.method || 'dom_multiline',
+      renderedBreaks: Number(result.renderedBreaks || 0),
+    };
+  }
+
+  await page.insertText(message);
+  return { method: 'insert_text_fallback', renderedBreaks: 0 };
+}
+
 cli({
   site: 'linkedin',
   name: 'safe-send',
@@ -247,7 +347,7 @@ cli({
 
     const threadUrl = requireLinkedInThreadUrl(requireStringArg(args, 'thread-url', '--thread-url'), '--thread-url');
     const expectedName = requireStringArg(args, 'expected-name', '--expected-name');
-    const message = requireStringArg(args, 'message', '--message');
+    const message = requireRawStringArg(args, 'message', '--message');
 
     await page.goto('https://www.linkedin.com/messaging/');
     await page.wait(4);
@@ -308,7 +408,7 @@ cli({
     const focus = unwrapEvaluateResult(await page.evaluate(buildFocusComposerScript()));
     if (!focus?.ok) throw new CommandExecutionError(`LinkedIn safe-send blocked: ${focus?.error || 'composer_focus_failed'}`);
 
-    await page.insertText(message);
+    await fillComposer(page, message);
     await page.wait(0.6 + Math.random() * 0.8);
 
     const composer = unwrapEvaluateResult(await page.evaluate(buildReadComposerScript()));
@@ -353,5 +453,8 @@ export const __test__ = {
   normalizeName,
   canonicalizeLinkedInThreadUrl,
   hashText,
+  hasLineBreaks,
+  requireRawStringArg,
+  buildFillComposerMultilineScript,
   assessThreadSafety,
 };
