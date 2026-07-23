@@ -16083,6 +16083,52 @@
   },
   {
     "site": "grok",
+    "name": "stream",
+    "description": "Send a message to Grok and capture the full streamed response (final text, thinking, model, conversationId, generated image URLs)",
+    "access": "write",
+    "domain": "grok.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Prompt to send to Grok"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Max seconds to wait for the stream to complete (default: 180)"
+      },
+      {
+        "name": "new",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Start a new chat before sending (default: false)"
+      }
+    ],
+    "columns": [
+      "response",
+      "thinking",
+      "model",
+      "conversationId",
+      "responseId",
+      "title",
+      "images"
+    ],
+    "type": "js",
+    "modulePath": "grok/stream.js",
+    "sourceFile": "grok/stream.js",
+    "navigateBefore": "https://grok.com",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "grok",
     "name": "unpin",
     "description": "Unpin a Grok conversation by ID",
     "access": "write",
