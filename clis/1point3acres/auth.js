@@ -22,11 +22,14 @@ async function verify1Point3AcresIdentity(page) {
       if (loginLink && /登录/.test(loginLink.innerText || '')) {
         return { kind: 'auth', detail: '1point3acres bbs shows 登录 link — anonymous' };
       }
-      const nameEl = document.querySelector('#um .vwmy h4 a, a.username, .vwmy a');
+      const nameEl = document.querySelector('a[title="访问我的空间"], #um .vwmy h4 a, a.username, .vwmy a');
       const username = (nameEl?.innerText || '').trim();
       const uid = (nameEl?.getAttribute('href') || '').match(/uid[=-](\\d+)/)?.[1] || '';
-      if (!uid && !username) {
-        return { kind: 'auth', detail: '1point3acres bbs rendered but no #um identity — anonymous or shape drifted' };
+      // Header user-menu ids render only when logged in and don't depend on UI
+      // wording, so they stay a reliable login signal even if the username-link
+      // markup drifts again.
+      if (!uid && !username && !document.querySelector('#g_upmine, #extcreditmenu')) {
+        return { kind: 'auth', detail: '1point3acres bbs rendered but no logged-in identity' };
       }
       return { ok: true, user_id: uid, username };
     })()
