@@ -69,6 +69,65 @@ describe('twitter post command', () => {
         expect(page.insertText).toHaveBeenCalledWith('hello world');
     });
 
+    it('falls back to CreateTweet when the standalone composer does not render for text-only posts', async () => {
+        const command = getCommand();
+        const wait = vi.fn()
+            .mockRejectedValueOnce(new Error('Selector not found: [data-testid="tweetTextarea_0"]'));
+        const page = makePage([
+            {
+                queryId: 'createTweetQueryId',
+                features: { responsive_web_edit_tweet_api_enabled: true },
+                fieldToggles: {},
+            },
+            {
+                session: 'browser:default',
+                data: {
+                    ok: true,
+                    httpStatus: 200,
+                    bodyText: '{}',
+                    bodyJson: {
+                        data: {
+                            create_tweet: {
+                                tweet_results: {
+                                    result: {
+                                        rest_id: '2054239044884693381',
+                                        core: {
+                                            user_results: {
+                                                result: {
+                                                    core: { screen_name: 'mock_user' },
+                                                },
+                                            },
+                                        },
+                                        legacy: { full_text: 'fallback via api' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        ], {
+            wait,
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf-token' }]),
+        });
+
+        const result = await command.func(page, { text: 'fallback via api' });
+
+        expect(result).toEqual([{
+            status: 'success',
+            message: 'Tweet posted successfully.',
+            text: 'fallback via api',
+            id: '2054239044884693381',
+            url: 'https://x.com/mock_user/status/2054239044884693381',
+        }]);
+        expect(page.goto).toHaveBeenNthCalledWith(1, 'https://x.com/compose/post', { waitUntil: 'load', settleMs: 2500 });
+        expect(page.goto).toHaveBeenNthCalledWith(2, 'https://x.com/home', { waitUntil: 'load', settleMs: 1000 });
+        expect(page.getCookies).toHaveBeenCalledWith({ url: 'https://x.com' });
+        expect(page.insertText).not.toHaveBeenCalled();
+        expect(page.evaluate.mock.calls[1][0]).toContain('/i/api/graphql/createTweetQueryId/CreateTweet');
+        expect(page.evaluate.mock.calls[1][0]).toContain('\\"tweet_text\\":\\"fallback via api\\"');
+    });
+
     it('returns the created tweet URL from the success toast when available', async () => {
         const command = getCommand();
         const page = makePage([
