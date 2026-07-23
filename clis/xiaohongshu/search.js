@@ -10,7 +10,8 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwe
 /**
  * Wait for search results or login wall using MutationObserver (max 5s).
  * Returns 'content' if note items appeared, 'login_wall' if login gate
- * detected, or 'timeout' if neither appeared within the deadline.
+ * detected, 'security_block' for Xiaohongshu's account/security restriction
+ * page, or 'timeout' if none appeared within the deadline.
  *
  * Note-item detection tries the legacy `section.note-item` class first
  * (still observed in many sessions, including rednote) and falls back to
@@ -24,7 +25,12 @@ const WAIT_FOR_CONTENT_JS = `
     );
     const detect = () => {
       if (findNoteCard()) return 'content';
-      if (/登录后查看搜索结果/.test(document.body?.innerText || '')) return 'login_wall';
+      const text = document.body?.innerText || '';
+      if (/登录后查看搜索结果/.test(text)) return 'login_wall';
+      if (
+        /安全限制|Account abnormal|300011/.test(text) ||
+        /\\/website-login\\/error/.test(location.pathname)
+      ) return 'security_block';
       return null;
     };
     const found = detect();
@@ -35,6 +41,33 @@ const WAIT_FOR_CONTENT_JS = `
     });
     observer.observe(document.body, { childList: true, subtree: true });
     setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 5000);
+  })
+`;
+const WAIT_FOR_SEARCH_ROUTE_JS = `
+  new Promise((resolve) => {
+    const isSearchRoute = () => /\\/search_result(?:_ai)?/.test(location.pathname);
+    const isSecurityBlock = () => {
+      const text = document.body?.innerText || '';
+      return /安全限制|Account abnormal|300011/.test(text) || /\\/website-login\\/error/.test(location.pathname);
+    };
+    const detect = () => {
+      if (isSearchRoute()) return 'search_route';
+      if (isSecurityBlock()) return 'security_block';
+      return null;
+    };
+    const found = detect();
+    if (found) return resolve(found);
+    const timer = setInterval(() => {
+      const result = detect();
+      if (result) {
+        clearInterval(timer);
+        resolve(result);
+      }
+    }, 100);
+    setTimeout(() => {
+      clearInterval(timer);
+      resolve('timeout');
+    }, 8000);
   })
 `;
 /**
@@ -79,6 +112,23 @@ function requireSearchRows(payload, phase) {
         throw new CommandExecutionError(`Unexpected Xiaohongshu search ${phase} payload shape; expected an array of rows.`);
     }
     return rows;
+}
+function assertSearchRoute(payload) {
+    const result = unwrapEvaluateResult(payload);
+    if (result === 'search_route') {
+        return;
+    }
+    if (result === 'security_block') {
+        throw new CommandExecutionError('Xiaohongshu search hit a security restriction page instead of search results.');
+    }
+    throw new CommandExecutionError('Xiaohongshu search did not reach a search results route after submitting the query.');
+}
+async function submitSearchFromHome(page, query) {
+    await page.goto('https://www.xiaohongshu.com/');
+    await page.wait?.(1);
+    await page.click('#search-input-in-feeds');
+    await page.typeText('#search-input-in-feeds', query);
+    await page.pressKey('Enter');
 }
 export function parseLimit(raw) {
     const parsed = Number(raw ?? 20);
@@ -282,8 +332,8 @@ export const command = cli({
     columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
     func: async (page, kwargs) => {
         const limit = parseLimit(kwargs.limit);
-        const keyword = encodeURIComponent(kwargs.query);
-        await page.goto(`https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
+        await submitSearchFromHome(page, kwargs.query);
+        assertSearchRoute(await page.evaluate(WAIT_FOR_SEARCH_ROUTE_JS));
         // Wait for search results to render (or login wall to appear).
         // Uses MutationObserver to resolve as soon as content appears,
         // instead of a fixed delay + blind retry.
