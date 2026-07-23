@@ -34,4 +34,5 @@ existing live OpenCLI groups as well as future browser sessions.
 
 Chrome does not expose saved tab groups through the extension API. Turning the
 setting off prevents new saved `OpenCLI Browser` entries, but previously saved
-entries must be removed once from Chrome's saved tab groups bar.
+`OpenCLI Browser` entries and legacy `OpenCLI Adapter` entries must be removed
+once from Chrome's saved tab groups bar.
