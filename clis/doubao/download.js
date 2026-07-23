@@ -69,7 +69,7 @@ export const downloadCommand = cli({
         { name: 'limit', required: false, default: '0', help: 'Max media files to download; 0 means all' },
         { name: 'timeout', required: false, default: '15000', help: 'Per-file download timeout in milliseconds' },
     ],
-    columns: ['index', 'type', 'status', 'size'],
+    columns: ['index', 'type', 'status', 'size', 'filename', 'url'],
     func: async (page, kwargs) => {
         const conversationId = parseDoubaoConversationId(String(kwargs.id || ''));
         const output = String(kwargs.output || './doubao-downloads');
