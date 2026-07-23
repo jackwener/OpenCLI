@@ -11921,7 +11921,9 @@
       "index",
       "type",
       "status",
-      "size"
+      "size",
+      "filename",
+      "url"
     ],
     "type": "js",
     "modulePath": "doubao/download.js",
