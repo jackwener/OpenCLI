@@ -25078,6 +25078,239 @@
     "navigateBefore": "https://mubu.com"
   },
   {
+    "site": "naukri",
+    "name": "headline-set",
+    "description": "Update the logged-in Naukri resume headline and verify it was saved",
+    "access": "write",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "help": "New resume headline text"
+      }
+    ],
+    "columns": [
+      "status",
+      "resume_headline"
+    ],
+    "type": "js",
+    "modulePath": "naukri/headline-set.js",
+    "sourceFile": "naukri/headline-set.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "naukri",
+    "name": "key-skills-list",
+    "description": "List current logged-in Naukri key skill chips",
+    "access": "read",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "rank",
+      "skill"
+    ],
+    "type": "js",
+    "modulePath": "naukri/key-skills-list.js",
+    "sourceFile": "naukri/key-skills-list.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "naukri",
+    "name": "key-skills-resolve",
+    "description": "Resolve desired key skills against Naukri autocomplete labels without saving changes",
+    "access": "read",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "skills",
+        "type": "str",
+        "required": true,
+        "help": "Comma, semicolon, or newline separated desired skill labels"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 8,
+        "required": false,
+        "help": "Max suggestions to inspect per skill (1-15)"
+      }
+    ],
+    "columns": [
+      "input",
+      "resolved",
+      "status",
+      "confidence",
+      "alternatives"
+    ],
+    "type": "js",
+    "modulePath": "naukri/key-skills-resolve.js",
+    "sourceFile": "naukri/key-skills-resolve.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "naukri",
+    "name": "key-skills-set",
+    "description": "Replace Naukri key skills and verify the final saved chips",
+    "access": "write",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "skills",
+        "type": "str",
+        "required": true,
+        "help": "Comma, semicolon, or newline separated final Naukri key skill labels"
+      }
+    ],
+    "columns": [
+      "status",
+      "skills",
+      "missing",
+      "extra"
+    ],
+    "type": "js",
+    "modulePath": "naukri/key-skills-set.js",
+    "sourceFile": "naukri/key-skills-set.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "naukri",
+    "name": "key-skills-suggest",
+    "description": "Inspect Naukri key-skill autocomplete suggestions without saving changes",
+    "access": "read",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "help": "Skill query to type into the Naukri key-skill autocomplete"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max suggestions to return (1-25)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "suggestion",
+      "source",
+      "endpoint"
+    ],
+    "type": "js",
+    "modulePath": "naukri/key-skills-suggest.js",
+    "sourceFile": "naukri/key-skills-suggest.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "naukri",
+    "name": "profile-read",
+    "description": "Read the logged-in Naukri jobseeker profile sections from Mynaukri",
+    "access": "read",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "profile_url",
+      "name",
+      "current_title",
+      "current_company",
+      "profile_last_updated",
+      "profile_completion",
+      "photo_status",
+      "location",
+      "total_experience",
+      "current_salary",
+      "phone",
+      "email",
+      "notice_status",
+      "resume_file",
+      "resume_uploaded_on",
+      "resume_headline",
+      "key_skills",
+      "employment",
+      "education",
+      "it_skills",
+      "projects",
+      "profile_summary",
+      "accomplishments",
+      "career_profile",
+      "personal_details",
+      "diversity_inclusion"
+    ],
+    "type": "js",
+    "modulePath": "naukri/profile-read.js",
+    "sourceFile": "naukri/profile-read.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "naukri",
+    "name": "resume-upload",
+    "description": "Upload a resume file to the logged-in Naukri profile and verify the uploaded filename",
+    "access": "write",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Resume file path (doc, docx, rtf, pdf; max 2 MB)"
+      }
+    ],
+    "columns": [
+      "status",
+      "resume_file",
+      "resume_uploaded_on"
+    ],
+    "type": "js",
+    "modulePath": "naukri/resume-upload.js",
+    "sourceFile": "naukri/resume-upload.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "naukri",
+    "name": "summary-set",
+    "description": "Update the logged-in Naukri profile summary and verify it was saved",
+    "access": "write",
+    "domain": "www.naukri.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "help": "New profile summary text"
+      }
+    ],
+    "columns": [
+      "status",
+      "profile_summary"
+    ],
+    "type": "js",
+    "modulePath": "naukri/summary-set.js",
+    "sourceFile": "naukri/summary-set.js",
+    "navigateBefore": false
+  },
+  {
     "site": "notebooklm",
     "name": "add-source",
     "description": "Add a URL, text, or local file source to an existing NotebookLM notebook",
