@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { cityUrl, gotoKe } from './utils.js';
+import { buildErshoufangFilterPath } from './filters.js';
 
 cli({
     site: 'ke',
@@ -10,11 +11,21 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)' },
-        { name: 'district', help: '区域拼音，如 chaoyang, haidian, tianhe' },
+        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)' },
+        { name: 'district', help: '区域拼音，如 chaoyang, haidian, tianhe, xihuqu4' },
         { name: 'min-price', type: 'int', help: '最低总价（万元）' },
         { name: 'max-price', type: 'int', help: '最高总价（万元）' },
+        { name: 'min-area', type: 'int', help: '最小建筑面积（㎡）' },
+        { name: 'max-area', type: 'int', help: '最大建筑面积（㎡）' },
         { name: 'rooms', type: 'int', help: '几居室 (1-5)' },
+        { name: 'orientation', choices: ['south-north', 'south', 'east', 'north', 'west'], help: '朝向：south-north(南北)/south(朝南)/east(朝东)/north(朝北)/west(朝西)' },
+        { name: 'floor', choices: ['low', 'mid', 'high'], help: '楼层：low(低)/mid(中)/high(高)' },
+        { name: 'age', choices: ['5', '10', '15', '20', '20+'], help: '楼龄：5/10/15/20 年以内，20+ 为 20 年以上' },
+        { name: 'decoration', choices: ['fine', 'simple', 'rough'], help: '装修：fine(精装)/simple(普通)/rough(毛坯)' },
+        { name: 'elevator', choices: ['yes', 'no'], help: '电梯：yes(有)/no(无)' },
+        { name: 'features', help: '房源特色，逗号分隔多选：must-see,five-years,two-years,near-subway,vr,new-7d,anytime-view' },
+        { name: 'usage', choices: ['residential', 'commercial', 'villa', 'courtyard', 'parking', 'other'], help: '用途：residential(普通住宅)/commercial(商业类)/villa(别墅)/courtyard(四合院)/parking(车位)/other(其他)' },
+        { name: 'sort', choices: ['newest', 'total-price-asc', 'total-price-desc', 'unit-price-asc', 'unit-price-desc', 'area-asc', 'area-desc'], help: '排序：newest(最新发布)/total-price-asc|desc(总价)/unit-price-asc|desc(单价)/area-asc|desc(面积)' },
         { name: 'limit', type: 'int', default: 20, help: '返回数量' },
     ],
     columns: ['title', 'community', 'layout', 'area', 'direction', 'total_price', 'unit_price', 'url'],
@@ -28,19 +39,7 @@ cli({
             path = `/ershoufang/${kwargs.district}/`;
         }
 
-        const priceParts = [];
-        if (kwargs['min-price'] || kwargs['max-price']) {
-            const min = kwargs['min-price'] || '';
-            const max = kwargs['max-price'] || '';
-            priceParts.push(`p${min}t${max}`);
-        }
-
-        const roomParts = [];
-        if (kwargs.rooms) {
-            roomParts.push(`l${kwargs.rooms}`);
-        }
-
-        const filters = [...priceParts, ...roomParts].join('');
+        const filters = buildErshoufangFilterPath(kwargs);
         const url = base + path + (filters ? filters + '/' : '');
 
         await gotoKe(page, url);
