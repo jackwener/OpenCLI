@@ -17,39 +17,87 @@ function buildQuoteComposerUrl(url) {
     return `https://x.com/compose/post?url=${encodeURIComponent(parsed.url)}`;
 }
 
-async function submitQuote(page, text, tweetId) {
+async function openQuoteComposerFromRetweetMenu(page, target) {
+    await page.goto(target.url, { waitUntil: 'load', settleMs: 2500 });
+    await page.wait({ selector: '[data-testid="primaryColumn"]', timeout: 15 });
+    const opened = await page.evaluate(`(async () => {
+        try {
+            ${buildTwitterArticleScopeSource(target.id)}
+            const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+            let retweetBtn = null;
+            let targetArticle = null;
+            for (let i = 0; i < 20; i++) {
+                targetArticle = findTargetArticle();
+                retweetBtn = targetArticle?.querySelector('[data-testid="retweet"], [data-testid="unretweet"]') || null;
+                if (retweetBtn && visible(retweetBtn)) break;
+                await new Promise(r => setTimeout(r, 500));
+            }
+            if (!retweetBtn || !targetArticle) {
+                return { ok: false, message: 'Could not find the repost menu button on the target tweet.' };
+            }
+            retweetBtn.click();
+
+            let quoteItem = null;
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 250));
+                const items = Array.from(document.querySelectorAll('[role="menuitem"]'));
+                quoteItem = items.find((el) => visible(el) && /^Quote$/i.test((el.innerText || el.textContent || '').trim()));
+                if (quoteItem) break;
+            }
+            if (!quoteItem) {
+                return { ok: false, message: 'Repost menu opened but the Quote option did not appear.' };
+            }
+            quoteItem.click();
+            return { ok: true };
+        } catch (e) {
+            return { ok: false, message: e.toString() };
+        }
+    })()`);
+    if (!opened?.ok) return opened;
+    await page.wait({ selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
+    return { ok: true };
+}
+
+async function submitQuote(page, text, target, { allowMenuFallback = true } = {}) {
     return page.evaluate(`(async () => {
         try {
-            ${buildTwitterArticleScopeSource(tweetId)}
+            ${buildTwitterArticleScopeSource(target.id)}
             const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+            const normalize = s => String(s || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+            const insertTextIntoBox = async (box, value) => {
+                box.focus();
+                if (!document.execCommand('insertText', false, value)) {
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.setData('text/plain', value);
+                    box.dispatchEvent(new ClipboardEvent('paste', {
+                        clipboardData: dataTransfer,
+                        bubbles: true,
+                        cancelable: true,
+                    }));
+                }
+                await new Promise(r => setTimeout(r, 1000));
+                const actual = box.innerText || box.textContent || '';
+                return normalize(actual).includes(normalize(value));
+            };
+
             const boxes = Array.from(document.querySelectorAll('[data-testid="tweetTextarea_0"]'));
             const box = boxes.find(visible) || boxes[0];
             if (!box) {
                 return { ok: false, message: 'Could not find the quote composer text area. Are you logged in?' };
             }
 
-            box.focus();
             const textToInsert = ${JSON.stringify(text)};
-            // execCommand('insertText') is more reliable with Twitter's Draft.js editor.
-            if (!document.execCommand('insertText', false, textToInsert)) {
-                // Fallback to paste event if execCommand fails.
-                const dataTransfer = new DataTransfer();
-                dataTransfer.setData('text/plain', textToInsert);
-                box.dispatchEvent(new ClipboardEvent('paste', {
-                    clipboardData: dataTransfer,
-                    bubbles: true,
-                    cancelable: true,
-                }));
+            if (!(await insertTextIntoBox(box, textToInsert))) {
+                return { ok: false, message: 'Could not verify quote text in the composer after typing.' };
             }
 
-            await new Promise(r => setTimeout(r, 1000));
-
-            // Confirm the quoted card is rendered before submitting; otherwise
-            // we may accidentally post a plain tweet without the quote
-            // attachment. The compose page does not wrap the card in an
-            // <article>, so we probe the document for any link whose path
-            // exactly matches the requested status id (uses __twHasLinkToTarget
-            // from buildTwitterArticleScopeSource).
+            // Confirm the quoted card is rendered before submitting. The
+            // compose page does not wrap the card in an <article>, so we probe
+            // the document for any link whose path exactly matches the
+            // requested status id (uses __twHasLinkToTarget from
+            // buildTwitterArticleScopeSource). If the dedicated compose URL
+            // misses the card, the caller retries through the target post's
+            // repost menu and Quote item.
             let cardAttempts = 0;
             let hasQuoteCard = false;
             while (cardAttempts < 20) {
@@ -59,7 +107,11 @@ async function submitQuote(page, text, tweetId) {
                 cardAttempts++;
             }
             if (!hasQuoteCard) {
-                return { ok: false, message: 'Quote target did not render in the composer. The source tweet may be deleted or restricted.' };
+                const allowMenuFallback = ${JSON.stringify(allowMenuFallback)};
+                if (allowMenuFallback) {
+                    return { ok: false, retryWithMenuFallback: true, message: 'Quote target did not render in the dedicated composer; retrying through the repost menu.' };
+                }
+                return { ok: false, message: 'Quote target did not render after opening the quote composer from the repost menu.' };
             }
 
             let btn = null;
@@ -77,7 +129,6 @@ async function submitQuote(page, text, tweetId) {
 
             btn.click();
 
-            const normalize = s => String(s || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
             const expectedText = normalize(textToInsert);
             for (let i = 0; i < 30; i++) {
                 await new Promise(r => setTimeout(r, 500));
@@ -147,7 +198,18 @@ cli({
                 await attachComposerImage(page, localImagePath);
             }
 
-            const result = await submitQuote(page, kwargs.text, target.id);
+            let result = await submitQuote(page, kwargs.text, target);
+            if (result.retryWithMenuFallback) {
+                const opened = await openQuoteComposerFromRetweetMenu(page, target);
+                if (!opened?.ok) {
+                    return [{ status: 'failed', message: opened?.message ?? 'Could not open quote composer from repost menu.', text: kwargs.text }];
+                }
+                if (localImagePath) {
+                    await page.wait({ selector: COMPOSER_FILE_INPUT_SELECTOR, timeout: 20 });
+                    await attachComposerImage(page, localImagePath);
+                }
+                result = await submitQuote(page, kwargs.text, target, { allowMenuFallback: false });
+            }
             if (result.ok) {
                 // Wait for network submission to complete
                 await page.wait(3);

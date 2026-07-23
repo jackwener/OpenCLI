@@ -38812,6 +38812,93 @@
   },
   {
     "site": "twitter",
+    "name": "schedule",
+    "description": "Schedule a new X post through the web composer",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "The text content of the scheduled post"
+      },
+      {
+        "name": "at",
+        "type": "string",
+        "required": false,
+        "help": "Local scheduled time, e.g. \"2026-05-24 21:30\""
+      },
+      {
+        "name": "delay-minutes",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Schedule this many minutes from now"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "text",
+      "scheduledFor"
+    ],
+    "type": "js",
+    "modulePath": "twitter/schedule.js",
+    "sourceFile": "twitter/schedule.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "scheduled-delete",
+    "description": "Delete a scheduled X post by matching a text fragment",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "match",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Text fragment that uniquely identifies the scheduled post"
+      }
+    ],
+    "columns": [
+      "status",
+      "message",
+      "match"
+    ],
+    "type": "js",
+    "modulePath": "twitter/scheduled-delete.js",
+    "sourceFile": "twitter/scheduled-delete.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
+    "name": "scheduled-list",
+    "description": "List X posts currently scheduled in the web composer",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "index",
+      "scheduledFor",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "twitter/scheduled-list.js",
+    "sourceFile": "twitter/scheduled-list.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "search",
     "description": "Search Twitter/X for tweets, with optional --from / --has / --exclude / --product filters mapped to X's search operators",
     "access": "read",
