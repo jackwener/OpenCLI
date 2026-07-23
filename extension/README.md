@@ -24,3 +24,14 @@ Suggested Chrome Web Store justification for `downloads`:
 > so agents can wait for downloads triggered during an automation workflow. The
 > command filters by a user-provided filename or URL pattern and timeout. We do
 > not modify, redirect, or persist user download history.
+
+## Browser Tab Groups
+
+OpenCLI groups browser-session tabs under `OpenCLI Browser` by default. To keep
+those tabs ungrouped, open the extension popup and turn off **Group browser
+tabs**. The preference is stored in the Chrome profile and takes effect for
+existing live OpenCLI groups as well as future browser sessions.
+
+Chrome does not expose saved tab groups through the extension API. Turning the
+setting off prevents new saved `OpenCLI Browser` entries, but previously saved
+entries must be removed once from Chrome's saved tab groups bar.
