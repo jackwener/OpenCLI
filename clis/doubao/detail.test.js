@@ -39,14 +39,14 @@ describe('doubao detail', () => {
             },
         ]);
     });
-    it('throws a typed empty-result error for a truly empty conversation', async () => {
+    it('returns an empty result when the API proves a conversation is complete but has no messages', async () => {
         mockGetConversationDetail.mockResolvedValue({
             messages: [],
             meeting: null,
+            captureComplete: true,
+            hasMore: false,
         });
-        await expect(detail.func({}, { id: '1234567890', 'max-pages': 500 })).rejects.toMatchObject({
-            code: 'EMPTY_RESULT',
-        });
+        await expect(detail.func({}, { id: '1234567890', 'max-pages': 500 })).resolves.toEqual([]);
     });
     it('rejects invalid max-pages without silently clamping it', async () => {
         await expect(detail.func({}, { id: '1234567890', 'max-pages': 0 })).rejects.toMatchObject({

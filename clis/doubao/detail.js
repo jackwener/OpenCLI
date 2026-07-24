@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { DOUBAO_DOMAIN, getConversationDetail, parseDoubaoConversationId } from './utils.js';
 function parseMaxPages(value) {
     const pages = Number(value ?? 500);
@@ -27,9 +27,6 @@ export const detailCommand = cli({
         const conversationId = parseDoubaoConversationId(kwargs.id);
         const maxPages = parseMaxPages(kwargs['max-pages']);
         const { messages, meeting } = await getConversationDetail(page, conversationId, { maxPages });
-        if (messages.length === 0 && !meeting) {
-            throw new EmptyResultError('doubao detail', `No messages were extracted for conversation ${conversationId}. Verify the conversation ID and login state.`);
-        }
         const result = [];
         if (meeting) {
             result.push({
