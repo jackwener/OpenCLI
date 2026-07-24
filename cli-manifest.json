@@ -3533,7 +3533,7 @@
   {
     "site": "bilibili",
     "name": "comments",
-    "description": "获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复）",
+    "description": "获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复；用 --top 只看置顶评论）",
     "access": "read",
     "domain": "www.bilibili.com",
     "strategy": "cookie",
@@ -3551,6 +3551,13 @@
         "type": "int",
         "required": false,
         "help": "rpid of a comment — fetch the replies under it instead of top-level comments"
+      },
+      {
+        "name": "top",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "只返回置顶评论（与 --parent 互斥）"
       },
       {
         "name": "limit",

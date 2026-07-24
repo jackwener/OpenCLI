@@ -77,6 +77,56 @@ describe('bilibili comments', () => {
         expect(result[0].rpid).toBe('888');
         expect(result[0].text).toBe('视频总结：作者开了一家咖啡馆');
     });
+    it('returns pinned comments from top_replies when --top is given', async () => {
+        mockApiGet
+            .mockResolvedValueOnce({ code: 0, data: { aid: 12345 } }) // view endpoint
+            .mockResolvedValueOnce({
+            code: 0,
+            data: {
+                top_replies: [
+                    {
+                        rpid: 999,
+                        member: { uname: 'UP主' },
+                        content: { message: '置顶：欢迎大家' },
+                        like: 100,
+                        rcount: 5,
+                        ctime: 1700000000,
+                    },
+                ],
+                replies: [
+                    { rpid: 777, member: { uname: 'Alice' }, content: { message: 'Great video!' }, like: 42, rcount: 3, ctime: 1700000000 },
+                ],
+            },
+        });
+        const result = await command.func({}, { bvid: 'BV1WtAGzYEBm', top: true, limit: 5 });
+        expect(mockApiGet).toHaveBeenNthCalledWith(2, {}, '/x/v2/reply/main', {
+            params: { oid: 12345, type: 1, mode: 3, ps: 5 },
+            signed: true,
+        });
+        expect(result).toEqual([
+            {
+                rank: 1,
+                rpid: '999',
+                author: 'UP主',
+                text: '置顶：欢迎大家',
+                likes: 100,
+                replies: 5,
+                time: new Date(1700000000 * 1000).toISOString().slice(0, 16).replace('T', ' '),
+            },
+        ]);
+    });
+    it('rejects --top combined with --parent before fetching', async () => {
+        await expect(command.func({}, { bvid: 'BV1xxx', top: true, parent: 777, limit: 5 }))
+            .rejects.toBeInstanceOf(ArgumentError);
+        expect(mockApiGet).not.toHaveBeenCalled();
+    });
+    it('throws EmptyResultError when --top finds no pinned comment', async () => {
+        mockApiGet
+            .mockResolvedValueOnce({ code: 0, data: { aid: 1 } })
+            .mockResolvedValueOnce({ code: 0, data: { top_replies: null, replies: [] } });
+        await expect(command.func({}, { bvid: 'BV1xxx', top: true, limit: 5 }))
+            .rejects.toBeInstanceOf(EmptyResultError);
+    });
     it('throws when aid cannot be resolved', async () => {
         mockApiGet.mockResolvedValueOnce({ code: 0, data: {} }); // no aid
         await expect(command.func({}, { bvid: 'BVinvalid123', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
