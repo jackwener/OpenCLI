@@ -1076,6 +1076,7 @@ function cleanDoubaoText(value) {
     return String(value || '')
         .replace(/\u00a0/g, ' ')
         .replace(/\r\n?/g, '\n')
+        .replace(/[ \t]+$/gm, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }

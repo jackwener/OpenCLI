@@ -82,7 +82,7 @@ describe('doubao full-detail API normalization', () => {
                     parent_id: 'thinking-1',
                     content: {
                         text_block: {
-                            text: '这是完整思考内容。',
+                            text: '这是完整思考内容。  \n第二行。 \t',
                         },
                     },
                 },
@@ -125,7 +125,7 @@ describe('doubao full-detail API normalization', () => {
             CreatedAt: '2026-07-24T20:04:24.000Z',
         });
         expect(row.Text).toContain('Thinking: 明确录音转写相关疑问');
-        expect(row.Text).toContain('Thinking detail:\n这是完整思考内容。');
+        expect(row.Text).toContain('Thinking detail:\n这是完整思考内容。\n第二行。');
         expect(row.Text).toContain('Referenced message: 50890292596784898');
         expect(row.Text).toContain('AI document card:');
         expect(row.Text).toContain('智能纪要：新录音 2026年7月25日');
