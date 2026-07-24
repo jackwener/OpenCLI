@@ -5,6 +5,7 @@ import {
     __test__,
     collectDoubaoTranscriptAdditions,
     mergeTranscriptSnapshots,
+    normalizeDoubaoApiMessage,
     parseDoubaoConversationId,
     sendDoubaoMessage,
     waitForDoubaoResponse,
@@ -43,6 +44,106 @@ describe('parseDoubaoConversationId', () => {
     });
     it('keeps a raw id unchanged', () => {
         expect(parseDoubaoConversationId('1234567890123')).toBe('1234567890123');
+    });
+});
+describe('doubao full-detail API normalization', () => {
+    it('keeps mode metadata, thinking detail, references, and AI document cards', () => {
+        const row = normalizeDoubaoApiMessage({
+            conversation_id: '38435747148282626',
+            message_id: '50884875153104386',
+            index_in_conv: '26',
+            user_type: 2,
+            content_type: 9999,
+            create_time: '1784923464',
+            ext: {
+                need_deep_think: '4',
+                cot_switch: '4',
+                model_id: '38',
+                agent_name: 'Agent-GeneralTask',
+                feishu_record_id: '7666165203839044576',
+                feishu_note_id: '7666178835515591969',
+                feishu_record_generated_type: 'audio_subtitle',
+                general_task_param: JSON.stringify({ selected_skills: ['doubao-record'] }),
+            },
+            content_block: [
+                {
+                    block_type: 10040,
+                    block_id: 'thinking-1',
+                    parent_id: '',
+                    content: {
+                        thinking_block: {
+                            finish_title: '明确录音转写相关疑问',
+                        },
+                    },
+                },
+                {
+                    block_type: 10000,
+                    block_id: 'thinking-text',
+                    parent_id: 'thinking-1',
+                    content: {
+                        text_block: {
+                            text: '这是完整思考内容。',
+                        },
+                    },
+                },
+                {
+                    block_type: 10056,
+                    block_id: 'reference-1',
+                    parent_id: '',
+                    content: {
+                        reference_block: {
+                            text: {
+                                text: '你开始录音，帮我录一下。',
+                                message_id: '50890292596784898',
+                            },
+                        },
+                    },
+                },
+                {
+                    block_type: 10030,
+                    block_id: 'artifact-1',
+                    parent_id: '',
+                    content: {
+                        artifact_block: {
+                            title: '智能纪要：新录音 2026年7月25日',
+                            brief: '未能生成纪要，可查看原始记录',
+                            resource_id: 'BHpodrxcdoWz8XxPqwIcCumknMb',
+                            artifact_meta_id: '50854067750682626',
+                            artifact_version_id: '50854067750682882',
+                            resource_content_type: 'type/ddxml',
+                        },
+                    },
+                },
+            ],
+        });
+        expect(row).toMatchObject({
+            Index: 26,
+            MessageId: '50884875153104386',
+            Role: 'Assistant',
+            Type: 'thinking+reference+artifact',
+            Mode: 'deep_think=4; cot=4; model=38; skills=doubao-record',
+            CreatedAt: '2026-07-24T20:04:24.000Z',
+        });
+        expect(row.Text).toContain('Thinking: 明确录音转写相关疑问');
+        expect(row.Text).toContain('Thinking detail:\n这是完整思考内容。');
+        expect(row.Text).toContain('Referenced message: 50890292596784898');
+        expect(row.Text).toContain('AI document card:');
+        expect(row.Text).toContain('智能纪要：新录音 2026年7月25日');
+        expect(row.Text).toContain('Resource ID: BHpodrxcdoWz8XxPqwIcCumknMb');
+        expect(JSON.parse(row.Metadata)).toMatchObject({
+            feishu_record_id: '7666165203839044576',
+            feishu_note_id: '7666178835515591969',
+            feishu_record_generated_type: 'audio_subtitle',
+        });
+    });
+    it('builds a cursor loop with the required Doubao gateway headers', () => {
+        const script = __test__.getConversationDetailScript('38435747148282626', 500);
+        expect(script).toContain("'Agw-Js-Conv': 'str'");
+        expect(script).toContain("'Content-Type': 'application/json; encoding=utf-8'");
+        expect(script).toContain('anchor_index: anchorIndex');
+        expect(script).toContain('downlink.next_index');
+        expect(script).toContain('while (hasMore && pages < maxPages)');
+        expect(script).toContain("reason: hasMore ? 'single-chain max page limit reached' : ''");
     });
 });
 describe('doubao send strategy', () => {

@@ -958,160 +958,257 @@ export function parseDoubaoConversationId(input) {
     const match = input.match(/(\d{10,})/);
     return match ? match[1] : input;
 }
-function getConversationDetailScript() {
+function getConversationDetailScript(conversationId, maxPages) {
     return `
-    (() => {
-      const clean = (v) => (v || '')
-        .replace(/\\u00a0/g, ' ')
-        .replace(/\\n{3,}/g, '\\n\\n')
-        .trim();
+    (async () => {
+      const conversationId = ${JSON.stringify(conversationId)};
+      const maxPages = ${JSON.stringify(maxPages)};
+      const resources = performance.getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((name) => typeof name === 'string');
+      const singleUrl = [...resources].reverse().find((name) => name.includes('/im/chain/single'));
+      if (!singleUrl) {
+        return { ok: false, reason: 'single-chain resource not found', messages: [], pages: 0, hasMore: true };
+      }
 
-      const isVisible = (el) => {
-        if (!(el instanceof HTMLElement)) return false;
-        const style = window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden') return false;
-        const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
-      };
+      const messages = [];
+      const seenMessageIds = new Set();
+      const seenAnchors = new Set();
+      let anchorIndex = Number.MAX_SAFE_INTEGER;
+      let hasMore = true;
+      let pages = 0;
 
-      const messageList = document.querySelector(
-        '[data-testid="message-list"], .conversation-page-message-host, [class*="message-list-"]'
-      );
-      if (!messageList) return { messages: [], meeting: null };
-
-      const meetingCard = messageList.querySelector('[data-testid="meeting-minutes-card"]');
-      let meeting = null;
-      if (meetingCard) {
-        const raw = clean(meetingCard.textContent || '');
-        const match = raw.match(/^(.+?)(?:会议时间：|\\s*$)(.*)/);
-        meeting = {
-          title: match ? match[1].trim() : raw,
-          time: match && match[2] ? match[2].trim() : '',
+      while (hasMore && pages < maxPages) {
+        if (seenAnchors.has(anchorIndex)) {
+          return {
+            ok: false,
+            reason: 'single-chain cursor repeated',
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        seenAnchors.add(anchorIndex);
+        const body = {
+          cmd: 3100,
+          uplink_body: {
+            pull_singe_chain_uplink_body: {
+              conversation_id: conversationId,
+              anchor_index: anchorIndex,
+              conversation_type: 3,
+              direction: 1,
+              limit: 20,
+              ext: {},
+              filter: { index_list: [] },
+              evaluate_ab_params: '',
+              evaluate_common_params: '',
+            },
+          },
+          sequence_id: String(Date.now()) + '_' + pages,
+          channel: 2,
+          version: '1',
         };
-      }
-
-      const roleFor = (root) => {
-        if (
-          root.matches('[data-testid="send_message"], [class*="send-message"], [class*="justify-end"]')
-          || root.querySelector('[data-testid="send_message"], [class*="send-message"], [class*="bg-g-send-msg-bubble"]')
-          || root.querySelector('[data-foundation-type="send-message-action-bar"]')
-        ) {
-          return 'User';
-        }
-        if (
-          root.matches('[data-testid="receive_message"], [data-testid*="receive_message"], [class*="receive-message"]')
-          || root.querySelector('[data-testid="receive_message"], [data-testid*="receive_message"], [class*="receive-message"]')
-          || root.querySelector('[data-foundation-type="receive-message-action-bar"]')
-          || root.querySelector('.md-box-root, [class*="md-box-root"], .flow-markdown-body, [class*="markdown"]')
-        ) {
-          return 'Assistant';
-        }
-        return '';
-      };
-
-      const textSelectors = [
-        '[data-testid="message_text_content"]',
-        '[data-testid="message_content"]',
-        '[data-testid*="message_text"]',
-        '[data-testid*="message_content"]',
-        '[class*="bg-g-send-msg-bubble"]',
-        '[class*="bg-g-receive-msg-bubble"]',
-        '.md-box-root',
-        '[class*="md-box-root"]',
-        '.flow-markdown-body',
-        '[class*="message-content"]',
-      ];
-
-      const extractImageLines = (root) => Array.from(root.querySelectorAll('img'))
-        .filter((img) => img instanceof HTMLImageElement && isVisible(img))
-        .map((img) => {
-          const width = img.naturalWidth || img.width || 0;
-          const height = img.naturalHeight || img.height || 0;
-          if (width > 0 && height > 0 && width <= 48 && height <= 48) return '';
-          const url = clean(img.currentSrc || img.src || '');
-          return /^https?:\\/\\//i.test(url) ? 'Image: ' + url : '';
-        })
-        .filter((line, index, lines) => line && lines.indexOf(line) === index);
-
-      const extractText = (root) => {
-        const chunks = [];
-        const seenText = new Set();
-        for (const selector of textSelectors) {
-          const nodes = Array.from(root.querySelectorAll(selector)).filter(isVisible);
-          for (const node of nodes) {
-            const text = clean(node.innerText || node.textContent || '');
-            if (!text || seenText.has(text)) continue;
-            seenText.add(text);
-            chunks.push(text);
-          }
-          if (chunks.length > 0) break;
-        }
-        const text = chunks.length > 0 ? clean(chunks.join('\\n')) : clean(root.innerText || root.textContent || '');
-        const imageLines = extractImageLines(root);
-        return clean([text, ...imageLines].filter(Boolean).join('\\n'));
-      };
-
-      const roots = [];
-      const seenNodes = new Set();
-      const selectors = [
-        '[data-testid="union_message"]',
-        '[data-testid="message-block-container"]',
-        '.v_list_row [data-message-id]',
-        '[data-message-id]',
-      ];
-      for (const selector of selectors) {
-        messageList.querySelectorAll(selector).forEach((node) => {
-          if (!(node instanceof HTMLElement) || seenNodes.has(node)) return;
-          seenNodes.add(node);
-          roots.push(node);
+        const response = await fetch(singleUrl, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json, text/plain, */*',
+            'Agw-Js-Conv': 'str',
+            'Content-Type': 'application/json; encoding=utf-8',
+          },
+          body: JSON.stringify(body),
         });
+        if (!response.ok) {
+          return {
+            ok: false,
+            reason: 'single-chain HTTP ' + response.status,
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        const json = await response.json().catch(() => ({}));
+        if (json.status_code !== 0) {
+          return {
+            ok: false,
+            reason: json.status_desc || json.message || 'single-chain request failed',
+            statusCode: json.status_code,
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        const downlink = json.downlink_body?.pull_singe_chain_downlink_body || {};
+        const batch = Array.isArray(downlink.messages) ? downlink.messages : [];
+        for (const message of batch) {
+          const id = String(message?.message_id || '');
+          if (!id || seenMessageIds.has(id)) continue;
+          seenMessageIds.add(id);
+          messages.push(message);
+        }
+        pages += 1;
+        hasMore = Boolean(downlink.has_more);
+        if (!hasMore) break;
+        const nextIndex = Number(downlink.next_index);
+        if (!Number.isSafeInteger(nextIndex) || nextIndex < 0 || nextIndex >= anchorIndex || batch.length === 0) {
+          return {
+            ok: false,
+            reason: 'single-chain returned an invalid next_index',
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        anchorIndex = nextIndex;
       }
 
-      const filteredRoots = roots
-        .filter((node) => isVisible(node) && !node.closest('script, style, noscript'))
-        .filter((node, index, nodes) => !nodes.some((other, otherIndex) => otherIndex !== index && other.contains(node)));
-
-      filteredRoots.sort((a, b) => {
-        if (a === b) return 0;
-        const pos = a.compareDocumentPosition(b);
-        return pos & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
-      });
-
-      const deduped = [];
-      const seenMessages = new Set();
-      for (const root of filteredRoots) {
-        const role = roleFor(root) || 'System';
-        const text = extractText(root);
-        if (!text) continue;
-        const key = role + '::' + text;
-        if (seenMessages.has(key)) continue;
-        seenMessages.add(key);
-        deduped.push({
-          role,
-          text,
-          hasMeetingCard: !!root.querySelector('[data-testid="meeting-minutes-card"]'),
-        });
-      }
-
-      const messages = deduped.filter((message) => message.text);
-      if (messages.length > 0) return { messages, meeting };
-
-      const unions = Array.from(messageList.querySelectorAll('[data-testid="union_message"]'));
-      const legacyMessages = unions.map(u => {
-        const isSend = !!u.querySelector('[data-testid="send_message"]');
-        const isReceive = !!u.querySelector('[data-testid="receive_message"]');
-        const textEl = u.querySelector('[data-testid="message_text_content"]');
-        const text = textEl ? clean(textEl.innerText || textEl.textContent || '') : '';
-        return {
-          role: isSend ? 'User' : isReceive ? 'Assistant' : 'System',
-          text,
-          hasMeetingCard: !!u.querySelector('[data-testid="meeting-minutes-card"]'),
-        };
-      }).filter(m => m.text);
-
-      return { messages: legacyMessages, meeting };
+      return {
+        ok: !hasMore,
+        reason: hasMore ? 'single-chain max page limit reached' : '',
+        messages,
+        pages,
+        hasMore,
+      };
     })()
   `;
+}
+function cleanDoubaoText(value) {
+    return String(value || '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/\r\n?/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+function parseGeneralTaskSkills(ext) {
+    try {
+        const parsed = JSON.parse(ext?.general_task_param || '{}');
+        return Array.isArray(parsed.selected_skills) ? parsed.selected_skills.map(String) : [];
+    }
+    catch {
+        return [];
+    }
+}
+function formatDoubaoMode(ext = {}) {
+    const parts = [];
+    const needDeepThink = cleanDoubaoText(ext.need_deep_think);
+    const cotSwitch = cleanDoubaoText(ext.cot_switch);
+    const modelId = cleanDoubaoText(ext.model_id || ext.model_type || ext.llm_model_type);
+    if (needDeepThink)
+        parts.push(`deep_think=${needDeepThink}`);
+    if (cotSwitch)
+        parts.push(`cot=${cotSwitch}`);
+    if (modelId)
+        parts.push(`model=${modelId}`);
+    if (cleanDoubaoText(ext.cot_ui_style))
+        parts.push(`ui=${cleanDoubaoText(ext.cot_ui_style)}`);
+    const skills = parseGeneralTaskSkills(ext);
+    if (skills.length > 0)
+        parts.push(`skills=${skills.join(',')}`);
+    return parts.join('; ');
+}
+function formatReferenceBlock(reference) {
+    const text = cleanDoubaoText(reference?.text?.text || reference?.text);
+    const messageId = cleanDoubaoText(reference?.text?.message_id);
+    return [
+        'Reference:',
+        text,
+        messageId ? `Referenced message: ${messageId}` : '',
+    ].filter(Boolean).join('\n');
+}
+function formatArtifactBlock(artifact) {
+    const lines = [
+        'AI document card:',
+        cleanDoubaoText(artifact?.title),
+        cleanDoubaoText(artifact?.brief),
+        artifact?.resource_id ? `Resource ID: ${artifact.resource_id}` : '',
+        artifact?.artifact_meta_id ? `Artifact meta ID: ${artifact.artifact_meta_id}` : '',
+        artifact?.artifact_version_id ? `Artifact version ID: ${artifact.artifact_version_id}` : '',
+        artifact?.resource_content_type ? `Content type: ${artifact.resource_content_type}` : '',
+    ];
+    return lines.filter(Boolean).join('\n');
+}
+function jsonForUnknownBlock(block) {
+    try {
+        return `Block ${block?.block_type ?? 'unknown'}:\n${JSON.stringify(block?.content || {}, null, 2)}`;
+    }
+    catch {
+        return `Block ${block?.block_type ?? 'unknown'}: [unserializable content]`;
+    }
+}
+export function normalizeDoubaoApiMessage(message) {
+    const blocks = Array.isArray(message?.content_block) ? message.content_block : [];
+    const thinkingIds = new Set(blocks
+        .filter((block) => block?.content?.thinking_block)
+        .map((block) => String(block.block_id || ''))
+        .filter(Boolean));
+    const parts = [];
+    const types = [];
+    for (const block of blocks) {
+        const content = block?.content || {};
+        if (content.thinking_block) {
+            const thinking = content.thinking_block;
+            const title = cleanDoubaoText(thinking.finish_title
+                || thinking.unfold_streaming_title
+                || thinking.streaming_title);
+            parts.push(`Thinking${title ? `: ${title}` : ''}`);
+            types.push('thinking');
+            continue;
+        }
+        if (content.text_block) {
+            const text = cleanDoubaoText(content.text_block.text);
+            if (text) {
+                const isThinking = thinkingIds.has(String(block.parent_id || ''));
+                parts.push(isThinking ? `Thinking detail:\n${text}` : text);
+                types.push(isThinking ? 'thinking' : 'text');
+            }
+            continue;
+        }
+        if (content.reference_block) {
+            parts.push(formatReferenceBlock(content.reference_block));
+            types.push('reference');
+            continue;
+        }
+        if (content.artifact_block) {
+            parts.push(formatArtifactBlock(content.artifact_block));
+            types.push('artifact');
+            continue;
+        }
+        parts.push(jsonForUnknownBlock(block));
+        types.push(`block-${block?.block_type ?? 'unknown'}`);
+    }
+    const ext = message?.ext || {};
+    const metadata = {
+        conversation_id: cleanDoubaoText(message?.conversation_id),
+        content_type: message?.content_type ?? null,
+        record_status: cleanDoubaoText(ext.record_status),
+        feishu_record_id: cleanDoubaoText(ext.feishu_record_id),
+        feishu_note_id: cleanDoubaoText(ext.feishu_note_id),
+        feishu_record_generated_type: cleanDoubaoText(ext.feishu_record_generated_type),
+        agent_name: cleanDoubaoText(ext.agent_name),
+        general_task_param: cleanDoubaoText(ext.general_task_param),
+    };
+    const compactMetadata = Object.fromEntries(Object.entries(metadata)
+        .filter(([, value]) => value !== '' && value != null));
+    if (parts.length === 0) {
+        const legacyText = cleanDoubaoText(message?.content || message?.thinking_content);
+        parts.push(legacyText || JSON.stringify(compactMetadata));
+        types.push(legacyText ? 'legacy-text' : 'metadata');
+    }
+    const seconds = Number(message?.create_time);
+    const createdAt = Number.isFinite(seconds) && seconds > 0
+        ? new Date(seconds * 1000).toISOString()
+        : null;
+    const numericIndex = Number(message?.index_in_conv);
+    return {
+        Index: Number.isSafeInteger(numericIndex) ? numericIndex : cleanDoubaoText(message?.index_in_conv),
+        MessageId: cleanDoubaoText(message?.message_id),
+        Role: Number(message?.user_type) === 1 ? 'User' : Number(message?.user_type) === 2 ? 'Assistant' : 'System',
+        Type: [...new Set(types)].join('+'),
+        Mode: formatDoubaoMode(ext),
+        CreatedAt: createdAt,
+        Text: parts.filter(Boolean).join('\n\n'),
+        Metadata: JSON.stringify(compactMetadata),
+    };
 }
 export async function navigateToConversation(page, conversationId) {
     const url = `${DOUBAO_CHAT_URL}/${conversationId}`;
@@ -1123,15 +1220,33 @@ export async function navigateToConversation(page, conversationId) {
     await page.goto(url, { waitUntil: 'load', settleMs: 3000 });
     await page.wait(2);
 }
-export async function getConversationDetail(page, conversationId) {
-    await navigateToConversation(page, conversationId);
-    const raw = await page.evaluate(getConversationDetailScript());
-    const messages = (raw.messages || []).map((m) => ({
-        Role: m.role,
-        Text: m.text,
-        HasMeetingCard: m.hasMeetingCard,
-    }));
-    return { messages, meeting: raw.meeting };
+function hasConversationDetailResourceScript() {
+    return `
+    performance.getEntriesByType('resource')
+      .some((entry) => typeof entry.name === 'string' && entry.name.includes('/im/chain/single'))
+  `;
+}
+export async function getConversationDetail(page, conversationId, options = {}) {
+    const hasSingleChainResource = await page.evaluate(hasConversationDetailResourceScript()).catch(() => false);
+    if (!hasSingleChainResource) {
+        await navigateToConversation(page, conversationId);
+    }
+    const maxPages = Number(options.maxPages ?? 500);
+    const raw = await page.evaluate(getConversationDetailScript(conversationId, maxPages));
+    if (!raw?.ok) {
+        throw new CommandExecutionError(`Doubao full detail capture failed: ${raw?.reason || 'unknown error'} (pages=${raw?.pages || 0}, captured=${raw?.messages?.length || 0})`);
+    }
+    const messages = (raw.messages || [])
+        .map(normalizeDoubaoApiMessage)
+        .sort((a, b) => Number(a.Index) - Number(b.Index));
+    return {
+        messages,
+        meeting: null,
+        captureComplete: true,
+        hasMore: false,
+        pages: raw.pages,
+        messagesTotal: messages.length,
+    };
 }
 function getConversationAssetsScript(conversationId, variant) {
     return `
@@ -1547,6 +1662,8 @@ export const __test__ = {
     composerStateScript,
     detectDoubaoVerificationScript,
     getRecentConversationsScript,
+    getConversationDetailScript,
+    hasConversationDetailResourceScript,
     getConversationAssetsScript,
     getTurnsScript,
     getTranscriptLinesScript,

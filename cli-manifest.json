@@ -11860,11 +11860,24 @@
         "required": true,
         "positional": true,
         "help": "Conversation ID (numeric or full URL)"
+      },
+      {
+        "name": "max-pages",
+        "type": "number",
+        "default": 500,
+        "required": false,
+        "help": "Maximum /im/chain/single pages to fetch (1-1000)"
       }
     ],
     "columns": [
+      "Index",
+      "MessageId",
       "Role",
-      "Text"
+      "Type",
+      "Mode",
+      "CreatedAt",
+      "Text",
+      "Metadata"
     ],
     "type": "js",
     "modulePath": "doubao/detail.js",

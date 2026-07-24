@@ -24,9 +24,19 @@ describe('doubao detail', () => {
                 time: '2026-03-28 10:00',
             },
         });
-        const result = await detail.func({}, { id: '1234567890' });
+        const result = await detail.func({}, { id: '1234567890', 'max-pages': 500 });
+        expect(mockGetConversationDetail).toHaveBeenCalledWith({}, '1234567890', { maxPages: 500 });
         expect(result).toEqual([
-            { Role: 'Meeting', Text: 'Weekly Sync (2026-03-28 10:00)' },
+            {
+                Index: 0,
+                MessageId: '',
+                Role: 'Meeting',
+                Type: 'meeting',
+                Mode: '',
+                CreatedAt: null,
+                Text: 'Weekly Sync (2026-03-28 10:00)',
+                Metadata: '{}',
+            },
         ]);
     });
     it('throws a typed empty-result error for a truly empty conversation', async () => {
@@ -34,8 +44,13 @@ describe('doubao detail', () => {
             messages: [],
             meeting: null,
         });
-        await expect(detail.func({}, { id: '1234567890' })).rejects.toMatchObject({
+        await expect(detail.func({}, { id: '1234567890', 'max-pages': 500 })).rejects.toMatchObject({
             code: 'EMPTY_RESULT',
+        });
+    });
+    it('rejects invalid max-pages without silently clamping it', async () => {
+        await expect(detail.func({}, { id: '1234567890', 'max-pages': 0 })).rejects.toMatchObject({
+            code: 'ARGUMENT',
         });
     });
 });
