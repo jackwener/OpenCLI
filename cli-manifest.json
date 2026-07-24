@@ -30631,7 +30631,7 @@
         "type": "boolean",
         "default": false,
         "required": false,
-        "help": "Include nested replies (楼中楼)"
+        "help": "Include nested replies; reply_to is the direct target shown by the page"
       }
     ],
     "columns": [
@@ -42583,7 +42583,7 @@
         "type": "boolean",
         "default": false,
         "required": false,
-        "help": "Include nested replies (楼中楼)"
+        "help": "Include nested replies; reply_to is the direct target shown by the page"
       }
     ],
     "columns": [

@@ -262,12 +262,17 @@ export function buildCommentsExtractJs(withReplies, limit = 20) {
             p.querySelectorAll('.reply-container .comment-item-sub, .sub-comment-list .comment-item').forEach(sub => {
               const sAuthor = clean(sub.querySelector('.name, .user-name'))
               const sAuthorHrefRaw = extractAuthorHref(sub)
-              const sText = clean(sub.querySelector('.content, .note-text'))
+              const sContent = sub.querySelector('.content, .note-text')
+              const sText = clean(sContent)
+              // Xiaohongshu renders the direct target only for reply-to-reply
+              // rows (回复 <span class="nickname">Bob</span> : ...). A nested
+              // row without that marker is a direct reply to the thread root.
+              const sReplyTo = clean(sContent?.querySelector(':scope > .nickname')) || author
               const sLikes = parseLikes(sub.querySelector('.count'))
               const sTime = clean(sub.querySelector('.date, .time'))
               const sImages = extractImages(sub)
               if (!sText) return
-              results.push({ author: sAuthor, authorHrefRaw: sAuthorHrefRaw, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: author, images: sImages })
+              results.push({ author: sAuthor, authorHrefRaw: sAuthorHrefRaw, text: sText, likes: sLikes, time: sTime, is_reply: true, reply_to: sReplyTo, images: sImages })
             })
           }
         }
@@ -287,7 +292,7 @@ export const command = cli({
     args: [
         { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
-        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
+        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies; reply_to is the direct target shown by the page' },
     ],
     columns: ['rank', 'author', 'userId', 'profileUrl', 'text', 'likes', 'time', 'is_reply', 'reply_to', 'images'],
     func: async (page, kwargs) => {

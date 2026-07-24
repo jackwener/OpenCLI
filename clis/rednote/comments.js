@@ -31,7 +31,7 @@ cli({
     args: [
         { name: 'note-id', required: true, positional: true, help: 'Full rednote note URL with xsec_token' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
-        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
+        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies; reply_to is the direct target shown by the page' },
     ],
     columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to', 'images'],
     func: async (page, kwargs) => {
