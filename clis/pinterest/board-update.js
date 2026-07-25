@@ -15,9 +15,8 @@ cli({
   args: [
     { name: 'board', type: 'string', positional: true, required: true, help: '<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board' },
     { name: 'name', type: 'string', default: '', help: 'New board name' },
-    // No default: an omitted flag stays undefined, so `--description ""` can clear the field.
     { name: 'description', type: 'string', help: 'New board description (pass "" to clear)' },
-    { name: 'privacy', type: 'string', default: '', choices: PRIVACY, help: 'New privacy: public or secret' },
+    { name: 'privacy', type: 'string', choices: PRIVACY, help: 'New privacy: public or secret' },
   ],
   columns: ['boardId', 'name', 'privacy', 'url'],
   func: async (page, kwargs) => {

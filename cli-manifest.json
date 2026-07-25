@@ -28397,7 +28397,6 @@
       {
         "name": "privacy",
         "type": "string",
-        "default": "",
         "required": false,
         "help": "New privacy: public or secret",
         "choices": [
