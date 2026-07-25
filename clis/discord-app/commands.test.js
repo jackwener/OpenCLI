@@ -13,6 +13,7 @@ import {
     buildDiscordChannelUrl,
     buildListChannelsScript,
     buildListThreadsScript,
+    buildReadMessagesScript,
     listDiscordChannels,
     listDiscordServers,
     listDiscordThreads,
@@ -135,6 +136,33 @@ describe('discord-app DOM extraction scripts', () => {
             url: 'https://discord.com/channels/111/333/555',
         })]);
     });
+
+    it('reads the current message instead of its quoted reply context', () => {
+        const rows = runDomScript(`
+          <ol>
+            <li id="chat-messages-222-999">
+              <div id="message-reply-context-999">
+                <span class="username_reply">Quoted User</span>
+                <time datetime="2026-06-14T23:00:00.000Z">yesterday</time>
+                <div id="message-content-888">quoted question</div>
+              </div>
+              <h3>
+                <span id="message-username-999" class="username_current">Current User</span>
+                <time id="message-timestamp-999" datetime="2026-06-15T01:02:03.000Z">today</time>
+              </h3>
+              <div id="message-content-999">current answer</div>
+            </li>
+          </ol>
+        `, buildReadMessagesScript(10));
+
+        expect(rows).toEqual([{
+            Author: 'Current User',
+            Time: '2026-06-15T01:02:03.000Z',
+            Message: 'current answer',
+            channel_id: '222',
+            message_id: '999',
+        }]);
+    });
 });
 
 describe('discord-app command registration', () => {
@@ -151,19 +179,29 @@ describe('discord-app command registration', () => {
 
 describe('discord-app search', () => {
     function createSearchPage(bodyText = '', resultRows = []) {
+        let typedQuery = '';
         return {
             pressKey: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
+            nativeType: vi.fn(async (query) => {
+                typedQuery = query;
+            }),
+            cdp: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn(async (script) => {
-                if (script.includes('const input = document.querySelector')) return undefined;
+                if (script.includes('const editor = document.querySelector')) return true;
+                if (script.includes('document.activeElement?.textContent')) return typedQuery;
                 if (script.includes('const items = []')) {
                     const rowsHtml = resultRows.map((row, index) => `
-                      <div class="searchResult_${index}" id="search-result-${index}">
-                        <span class="username">${row.author}</span>
-                        <div id="message-content-${index}">${row.message}</div>
+                      <div id="search-results-${index}">
+                        <div class="searchResult_${index}">
+                          <div id="search-result-${index}">
+                            <span class="username">${row.author}</span>
+                            <div id="message-content-${index}">${row.message}</div>
+                          </div>
+                        </div>
                       </div>
                     `).join('');
-                    const dom = new JSDOM(`<!doctype html><body>${bodyText}${rowsHtml}</body>`, {
+                    const dom = new JSDOM(`<!doctype html><body>${bodyText}<div id="search-results">${rowsHtml}</div></body>`, {
                         url: 'https://discord.com/channels/111/222',
                         runScripts: 'outside-only',
                     });
@@ -173,6 +211,33 @@ describe('discord-app search', () => {
             }),
         };
     }
+
+    it('submits Draft.js search natively and returns each result once', async () => {
+        const cmd = getRegistry().get('discord-app/search');
+        const page = createSearchPage('', [
+            { author: 'Ada', message: 'iron condor result' },
+            { author: 'Lin', message: 'calendar spread result' },
+        ]);
+
+        await expect(cmd.func(page, { query: 'iron condor' })).resolves.toEqual([
+            { Index: 1, Author: 'Ada', Message: 'iron condor result' },
+            { Index: 2, Author: 'Lin', Message: 'calendar spread result' },
+        ]);
+
+        expect(page.nativeType).toHaveBeenCalledWith('iron condor');
+        expect(page.cdp).toHaveBeenNthCalledWith(1, 'Input.dispatchKeyEvent', expect.objectContaining({
+            type: 'keyDown',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+        }));
+        expect(page.cdp).toHaveBeenNthCalledWith(2, 'Input.dispatchKeyEvent', expect.objectContaining({
+            type: 'keyUp',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+        }));
+    });
 
     it('throws EmptyResultError when Discord shows an explicit no-results state', async () => {
         const cmd = getRegistry().get('discord-app/search');

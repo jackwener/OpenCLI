@@ -254,15 +254,28 @@ export function buildReadMessagesScript(count) {
 
         nodes.forEach(function(node) {
           var route = routeOfMessage(node);
-          var contentEl = node.querySelector('[id^="message-content-"], [class*="messageContent"]');
+          var contentEl = route.message_id
+            ? node.querySelector('#message-content-' + route.message_id)
+            : null;
+          if (!contentEl) {
+            contentEl = node.querySelector('[id^="message-content-"], [class*="messageContent"]');
+          }
           if (!contentEl) return;
 
           var key = route.message_id || textOf(contentEl);
           if (!key || seen.has(key)) return;
           seen.add(key);
 
-          var authorEl = node.querySelector('[class*="username"], [class*="headerText"] span, h3 span');
-          var timeEl = node.querySelector('time');
+          var authorEl = route.message_id
+            ? node.querySelector('#message-username-' + route.message_id)
+            : null;
+          if (!authorEl) {
+            authorEl = node.querySelector('[class*="username"], [class*="headerText"] span, h3 span');
+          }
+          var timeEl = route.message_id
+            ? node.querySelector('#message-timestamp-' + route.message_id)
+            : null;
+          if (!timeEl) timeEl = node.querySelector('time');
           results.push({
             Author: textOf(authorEl) || '—',
             Time: timeEl ? (timeEl.getAttribute('datetime') || textOf(timeEl)) : '',
