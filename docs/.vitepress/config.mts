@@ -105,6 +105,7 @@ export default defineConfig({
                 { text: 'Indeed', link: '/adapters/browser/indeed' },
                 { text: 'Upwork', link: '/adapters/browser/upwork' },
                 { text: 'Instagram', link: '/adapters/browser/instagram' },
+                { text: 'Pinterest', link: '/adapters/browser/pinterest' },
                 { text: 'JD.com', link: '/adapters/browser/jd' },
                 { text: 'Medium', link: '/adapters/browser/medium' },
                 { text: 'Mercury', link: '/adapters/browser/mercury' },

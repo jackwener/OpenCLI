@@ -28136,6 +28136,788 @@
     "sourceFile": "paperreview/submit.js"
   },
   {
+    "site": "pinterest",
+    "name": "board-create",
+    "description": "Create a new board on your account",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Board name"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Board description"
+      },
+      {
+        "name": "privacy",
+        "type": "string",
+        "default": "public",
+        "required": false,
+        "help": "public or secret",
+        "choices": [
+          "public",
+          "secret"
+        ]
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "privacy",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-create.js",
+    "sourceFile": "pinterest/board-create.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-delete",
+    "description": "Delete one of your own boards",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete — without it the board is only previewed"
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "pinCount",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-delete.js",
+    "sourceFile": "pinterest/board-delete.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-pins",
+    "description": "List pins inside a Pinterest board",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of pins (max 100)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-pins.js",
+    "sourceFile": "pinterest/board-pins.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-section-create",
+    "description": "Create a section inside one of your boards",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "help": "Section title"
+      }
+    ],
+    "columns": [
+      "sectionId",
+      "title",
+      "slug",
+      "board",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-section-create.js",
+    "sourceFile": "pinterest/board-section-create.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-section-delete",
+    "description": "Delete a section from one of your boards",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "required": true,
+        "help": "Section id or slug (from `board-sections`)"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete — without it nothing is removed"
+      }
+    ],
+    "columns": [
+      "sectionId",
+      "board",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-section-delete.js",
+    "sourceFile": "pinterest/board-section-delete.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-sections",
+    "description": "List the sections inside a Pinterest board",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Number of sections (max 250)"
+      }
+    ],
+    "columns": [
+      "sectionId",
+      "title",
+      "slug",
+      "pinCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-sections.js",
+    "sourceFile": "pinterest/board-sections.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-update",
+    "description": "Update the name, description, or privacy of your board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "New board name"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "help": "New board description (pass \"\" to clear)"
+      },
+      {
+        "name": "privacy",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "New privacy: public or secret",
+        "choices": [
+          "public",
+          "secret"
+        ]
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "privacy",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-update.js",
+    "sourceFile": "pinterest/board-update.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "download",
+    "description": "Download a pin's original image to disk",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      },
+      {
+        "name": "output",
+        "type": "string",
+        "default": "./pinterest-downloads",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "status",
+      "size",
+      "path"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/download.js",
+    "sourceFile": "pinterest/download.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin",
+    "description": "Get details of a Pinterest pin",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "saveCount",
+      "commentCount",
+      "link",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin.js",
+    "sourceFile": "pinterest/pin.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin-create",
+    "description": "Create a pin from a remote image URL onto a board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "image",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Direct image URL Pinterest can fetch (not a page URL), e.g. https://example.com/image.jpg"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "help": "Target board: <username>/<slug>, board URL, or board id (a new pin always needs a board)"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional board section id or slug"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Pin title"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Pin description (Pinterest may override it for scraped images)"
+      },
+      {
+        "name": "link",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Destination link for the pin"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "board",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-create.js",
+    "sourceFile": "pinterest/pin-create.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin-delete",
+    "description": "Delete one of your own pins",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete — without it the pin is only previewed"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "board",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-delete.js",
+    "sourceFile": "pinterest/pin-delete.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin-update",
+    "description": "Update a pin's title, description, link, or board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "New pin title"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "help": "New pin description (pass \"\" to clear)"
+      },
+      {
+        "name": "link",
+        "type": "string",
+        "required": false,
+        "help": "New destination link (pass \"\" to clear)"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Move the pin to this board: <username>/<slug>, board URL, or board id"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Move the pin to this board section id or slug (requires --board)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "board",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-update.js",
+    "sourceFile": "pinterest/pin-update.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "save",
+    "description": "Save a pin to your profile or a board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL to repin, e.g. 1234567890123456"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false,
+        "help": "Target board: <username>/<slug>, board URL, or board id (omit to save to your profile)"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional board section id or slug (requires --board)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "sourcePinId",
+      "board",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/save.js",
+    "sourceFile": "pinterest/save.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "search-boards",
+    "description": "Search for boards on Pinterest",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of boards (max 100)"
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "pinCount",
+      "owner",
+      "description",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/search-boards.js",
+    "sourceFile": "pinterest/search-boards.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "search-pins",
+    "description": "Search pins on Pinterest",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of pins (max 100)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/search-pins.js",
+    "sourceFile": "pinterest/search-pins.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "search-users",
+    "description": "Search for users on Pinterest",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of users (max 100)"
+      }
+    ],
+    "columns": [
+      "username",
+      "fullName",
+      "followerCount",
+      "pinCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/search-users.js",
+    "sourceFile": "pinterest/search-users.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "user",
+    "description": "Get a Pinterest user's public profile stats",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username or profile URL, e.g. janedoe"
+      }
+    ],
+    "columns": [
+      "username",
+      "fullName",
+      "followerCount",
+      "followingCount",
+      "interestFollowingCount",
+      "pinCount",
+      "boardCount",
+      "about",
+      "website",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/user.js",
+    "sourceFile": "pinterest/user.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "user-boards",
+    "description": "List a user's boards",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username or profile URL, e.g. janedoe"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of boards (max 250)"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "last_pinned_to",
+        "required": false,
+        "help": "Board sort order",
+        "choices": [
+          "last_pinned_to",
+          "alphabetical",
+          "custom"
+        ]
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "pinCount",
+      "sectionCount",
+      "privacy",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/user-boards.js",
+    "sourceFile": "pinterest/user-boards.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "user-pins",
+    "description": "List pins created by a Pinterest user",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username or profile URL, e.g. janedoe"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of pins (max 100)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/user-pins.js",
+    "sourceFile": "pinterest/user-pins.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
     "site": "pixiv",
     "name": "detail",
     "description": "View illustration details (tags, stats, URLs)",
