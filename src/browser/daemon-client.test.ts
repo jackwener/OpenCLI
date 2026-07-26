@@ -137,7 +137,7 @@ describe('daemon-client', () => {
     await expect(getDaemonHealth()).resolves.toEqual({ state: 'profile-required', status });
   });
 
-  it('fetchDaemonStatus includes contextId in the status query', async () => {
+  it('fetchDaemonStatus includes profile routing in the status query', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({
@@ -151,9 +151,9 @@ describe('daemon-client', () => {
       }),
     } as Response);
 
-    await fetchDaemonStatus({ contextId: 'work' });
+    await fetchDaemonStatus({ contextId: 'work', preferredContextId: 'personal profile' });
 
-    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
+    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work&preferredContextId=personal\+profile$/);
   });
 
   it('rejects OPENCLI_DAEMON_PORT so CLI and extension cannot split bridge ports', async () => {
