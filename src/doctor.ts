@@ -4,6 +4,8 @@
  * Simplified for the daemon-based architecture.
  */
 
+import { fileURLToPath } from 'node:url';
+import * as path from 'node:path';
 import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { BrowserBridge } from './browser/index.js';
 import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
@@ -15,6 +17,7 @@ import type { BrowserProfileStatus } from './browser/daemon-transport.js';
 import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
+import { findPackageRoot, hasLocalExtensionSource } from './package-paths.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
 const DOCTOR_SESSION = '__doctor__';
@@ -151,13 +154,18 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
         '  Open that Chrome profile and make sure the OpenCLI extension is enabled.',
       );
     } else {
+      const packageRoot = findPackageRoot(fileURLToPath(import.meta.url));
+      const installSteps = hasLocalExtensionSource(packageRoot)
+        ? '  1. Open chrome://extensions/ → Enable Developer Mode\n' +
+          `  2. Click "Load unpacked" → select this checkout's extension/ folder (${path.join(packageRoot, 'extension')})`
+        : '  1. Download from https://github.com/jackwener/opencli/releases\n' +
+          '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
+          '  3. Click "Load unpacked" → select the unzipped folder';
       issues.push(
         'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
         'If the extension is already installed, try: opencli daemon restart\n' +
         'If the extension is not installed:\n' +
-        '  1. Download from https://github.com/jackwener/opencli/releases\n' +
-        '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
-        '  3. Click "Load unpacked" → select the extension folder',
+        installSteps,
       );
     }
   }

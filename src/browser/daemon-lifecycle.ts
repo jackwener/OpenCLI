@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULT_DAEMON_PORT } from '../constants.js';
 import { BrowserConnectError } from '../errors.js';
+import { findPackageRoot, hasLocalExtensionSource } from '../package-paths.js';
 import { PKG_VERSION } from '../version.js';
 import { waitForBridgeReady } from './bridge-readiness.js';
 import { fetchDaemonStatus, getDaemonHealth, requestDaemonShutdown, type DaemonHealth, type DaemonStatus } from './daemon-transport.js';
@@ -181,12 +182,17 @@ function browserConnectErrorFromHealth(health: DaemonHealth, contextId?: string)
     );
   }
   if (health.state === 'no-extension') {
+    const packageRoot = findPackageRoot(fileURLToPath(import.meta.url));
+    const installSteps = hasLocalExtensionSource(packageRoot)
+      ? '  1. Open chrome://extensions → Developer Mode → Load unpacked\n' +
+        `  2. Select this checkout's extension/ folder (${path.join(packageRoot, 'extension')})`
+      : '  1. Download: https://github.com/jackwener/opencli/releases\n' +
+        '  2. Open chrome://extensions → Developer Mode → Load unpacked';
     return new BrowserConnectError(
       'Browser Bridge extension not connected',
       'Make sure Chrome/Chromium is open and the OpenCLI extension is enabled.\n' +
       'If not installed:\n' +
-      '  1. Download: https://github.com/jackwener/opencli/releases\n' +
-      '  2. Open chrome://extensions → Developer Mode → Load unpacked',
+      installSteps,
       'extension-not-connected',
     );
   }

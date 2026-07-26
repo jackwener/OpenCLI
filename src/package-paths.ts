@@ -56,3 +56,16 @@ export function getCliManifestPath(clisDir: string): string {
 export function getFetchAdaptersScriptPath(packageRoot: string): string {
   return path.join(packageRoot, 'scripts', 'fetch-adapters.js');
 }
+
+/**
+ * True when a Browser Bridge extension source tree is sitting next to this
+ * checkout (dev/source checkout of the OpenCLI repo itself). The published
+ * npm package's `files` list excludes `extension/`, so this is false for a
+ * real global install — those users need the release zip instead.
+ */
+export function hasLocalExtensionSource(
+  packageRoot: string,
+  fileExists: (candidate: string) => boolean = fs.existsSync,
+): boolean {
+  return fileExists(path.join(packageRoot, 'extension', 'manifest.json'));
+}
