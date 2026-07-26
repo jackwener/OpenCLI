@@ -27,14 +27,13 @@ describe('twitter delete command', () => {
         expect(script).toContain('__twHasLinkToTarget');
         expect(script).toContain('__twGetStatusIdFromHref');
         expect(script).toContain("document.querySelectorAll('article')");
-        expect(script).toContain("targetArticle.querySelectorAll('button,[role=\"button\"]')");
         expect(script).toContain("closest('article') === targetArticle");
-        expect(script).toContain(".filter(belongsToTargetArticle)");
-        // Localized "More" caret: prefer the language-agnostic data-testid, fall
-        // back to a multilingual aria-label match (zh-Hans 更多), and poll for the
-        // late-hydrating target article before giving up.
-        expect(script).toContain('[data-testid="caret"]');
-        expect(script).toContain('/^(More|更多)/');
+        // Caret probing: prefer the target article's caret but fall back to
+        // every visible caret (the focal tweet on a status page has no
+        // self-permalink, so findTargetArticle can miss it). Wrong menus are
+        // dismissed with Escape; only the caller's own tweet exposes Delete.
+        expect(script).toContain('article [data-testid="caret"]');
+        expect(script).toContain("'Escape'");
         expect(script).toContain('i < 20');
         // Delete menu item is localized (删除) and must exclude the Lists item in
         // both languages (List / 列表).
@@ -134,7 +133,7 @@ describe('twitter delete command', () => {
         expect(staleDeleteClicked).toBe(false);
         expect(result).toEqual({
             ok: false,
-            message: 'The matched tweet menu did not contain Delete. This tweet may not belong to you.',
+            message: 'No opened menu contained Delete. This tweet may not belong to you.',
         });
     });
     it('rejects malformed or off-domain URLs with ArgumentError before navigation', async () => {

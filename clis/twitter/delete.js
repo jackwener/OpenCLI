@@ -15,35 +15,40 @@ function buildDeleteScript(tweetId) {
               targetArticle = findTargetArticle();
           }
 
-          if (!targetArticle) {
-              return { ok: false, message: 'Could not find the tweet card matching the requested URL.' };
-          }
-
-          const belongsToTargetArticle = (el) => el.closest('article') === targetArticle;
-          const buttons = Array.from(targetArticle.querySelectorAll('button,[role="button"]')).filter(belongsToTargetArticle);
-          // X localizes the "More" caret aria-label (zh-Hans: 更多), so prefer the
-          // language-agnostic data-testid and fall back to a multilingual label match.
-          const moreMenu = Array.from(targetArticle.querySelectorAll('[data-testid="caret"]')).filter(belongsToTargetArticle).find(visible)
-              || buttons.find((el) => visible(el) && /^(More|更多)/.test((el.getAttribute('aria-label') || '').trim()));
-          if (!moreMenu) {
+          // The focal tweet on a status detail page has no self-permalink (its
+          // timestamp is plain text), so findTargetArticle can miss it. Fall
+          // back to probing every visible caret; only the caller's own tweet
+          // exposes a Delete item, so opening the wrong menu is harmless — we
+          // dismiss it and move on.
+          const belongsToTargetArticle = (el) => targetArticle && el.closest('article') === targetArticle;
+          const carets = Array.from(document.querySelectorAll('article [data-testid="caret"]')).filter(visible);
+          carets.sort((a, b) => (belongsToTargetArticle(b) ? 1 : 0) - (belongsToTargetArticle(a) ? 1 : 0));
+          if (!carets.length) {
               return { ok: false, message: 'Could not find the "More" context menu on the matched tweet. Are you sure you are logged in and looking at a valid tweet?' };
           }
 
-          const beforeMenuItems = new Set(document.querySelectorAll('[role="menuitem"]'));
-          moreMenu.click();
-          await new Promise(r => setTimeout(r, 1000));
-
-          const items = Array.from(document.querySelectorAll('[role="menuitem"]'))
-              .filter((item) => visible(item) && !beforeMenuItems.has(item));
-          const deleteBtn = items.find((item) => {
+          const findDeleteItem = (items) => items.find((item) => {
               const text = (item.textContent || '').trim();
               // X localizes the menu item (zh-Hans: 删除); exclude the "Add/remove
               // from Lists" item in both languages so we never click the wrong row.
               return (text.includes('Delete') || text.includes('删除')) && !text.includes('List') && !text.includes('列表');
           });
 
+          let deleteBtn = null;
+          for (const caret of carets) {
+              const beforeMenuItems = new Set(document.querySelectorAll('[role="menuitem"]'));
+              caret.click();
+              await new Promise(r => setTimeout(r, 800));
+              const items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+                  .filter((item) => visible(item) && !beforeMenuItems.has(item));
+              deleteBtn = findDeleteItem(items);
+              if (deleteBtn) break;
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+              await new Promise(r => setTimeout(r, 400));
+          }
+
           if (!deleteBtn) {
-              return { ok: false, message: 'The matched tweet menu did not contain Delete. This tweet may not belong to you.' };
+              return { ok: false, message: 'No opened menu contained Delete. This tweet may not belong to you.' };
           }
 
           deleteBtn.click();
