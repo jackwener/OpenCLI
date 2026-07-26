@@ -62,6 +62,23 @@ describe('github-trending/repos', () => {
         ]);
     });
 
+    it('parses the singular "1 star today" GitHub renders for a single-star day', async () => {
+        // GitHub drops the plural "s" when the period count is exactly 1
+        // (e.g. delta-io/delta-rs on a slow trending day). The `since` regex
+        // must accept "star" as well as "stars".
+        const html = pageHtml([
+            article({ repo: 'delta-io/delta-rs', desc: 'A native Rust library for Delta Lake', lang: 'Rust', stars: '3,271', forks: '642', since: '1' })
+                .replace('1 stars today', '1 star today'),
+        ]);
+        mockHtmlOnce(html);
+
+        const rows = await loadCommand().func({ since: 'daily', language: 'rust', limit: 25 });
+
+        expect(rows).toEqual([
+            { rank: 1, repo: 'delta-io/delta-rs', description: 'A native Rust library for Delta Lake', language: 'Rust', stars: 3271, forks: 642, starsSince: 1, url: 'https://github.com/delta-io/delta-rs' },
+        ]);
+    });
+
     it('honors --limit by truncating the result set', async () => {
         const html = pageHtml([
             article({ repo: 'a/a', desc: 'a', lang: 'Go', stars: '1', forks: '1', since: '1' }),

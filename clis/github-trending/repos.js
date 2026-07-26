@@ -80,7 +80,7 @@ function parseTrendingHtml(html, limit) {
         const escapedRepo = escapeRegExp(repo);
         const starsMatch = block.match(new RegExp(`<a\\b[^>]*href="/${escapedRepo}/stargazers"[^>]*>([\\s\\S]*?)</a>`));
         const forksMatch = block.match(new RegExp(`<a\\b[^>]*href="/${escapedRepo}/forks"[^>]*>([\\s\\S]*?)</a>`));
-        const sinceMatch = block.match(/([\d,]+)\s+stars\s+(?:today|this week|this month)/i);
+        const sinceMatch = block.match(/([\d,]+)\s+stars?\s+(?:today|this week|this month)/i);
 
         rows.push({
             repo,
