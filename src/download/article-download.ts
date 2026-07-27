@@ -111,10 +111,10 @@ function createTurndown(
   td.use(gfm);
   td.remove(STRIPPED_TAGS);
   // turndown-plugin-gfm@1.0.2 reads `table.rows[0].parentNode` from both its
-  // table rule and its keep filter, so a table carrying no `tr` (rich-text
-  // editors emit them around plain blocks) throws before either can decide.
-  // Rules added here are matched before the plugin's, so claim those tables and
-  // keep their text rather than losing the whole document.
+  // table rule and its keep filter, so a table carrying no `tr` throws before
+  // either can decide, taking the whole document with it. Claiming those tables
+  // here bypasses both: `addRule` unshifts onto the rule array, and `forNode`
+  // exhausts that array before it consults the keep list.
   td.addRule('rowlessTable', {
     filter: (node) => node.nodeName === 'TABLE' && !(node as HTMLTableElement).rows?.length,
     replacement: (content) => (content.trim() ? `\n\n${content.trim()}\n\n` : ''),
