@@ -22,8 +22,13 @@ describe('amazon shared helpers', () => {
     it('accepts sibling marketplaces but rejects look-alike hosts', () => {
         expect(__test__.amazonHostFromInput('https://www.amazon.co.uk/dp/B0FJS72893')).toBe('www.amazon.co.uk');
         expect(__test__.amazonHostFromInput('https://amazon.de/dp/B0FJS72893')).toBe('amazon.de');
+        expect(__test__.amazonHostFromInput('https://amazon.com.au/dp/B0FJS72893')).toBe('amazon.com.au');
         expect(__test__.amazonHostFromInput('https://evilamazon.com/dp/B0FJS72893')).toBeNull();
         expect(__test__.amazonHostFromInput('https://amazon.com.evil.com/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://amazon.evil.com/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://x.amazon.evil.com/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://amazon.attacker.io/dp/B0FJS72893')).toBeNull();
+        expect(() => __test__.canonicalizeAmazonUrl('https://amazon.evil.com/gp/bestsellers')).toThrow('Invalid Amazon URL');
         expect(__test__.canonicalizeAmazonUrl('https://www.amazon.co.uk/gp/bestsellers/books')).toBe('https://www.amazon.co.uk/gp/bestsellers/books');
         expect(() => __test__.canonicalizeAmazonUrl('https://evilamazon.com/gp/bestsellers')).toThrow('Invalid Amazon URL');
     });

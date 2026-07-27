@@ -9,9 +9,6 @@ export const SEARCH_URL_PREFIX = 'https://www.amazon.com/s?k=';
 export const PRODUCT_URL_PREFIX = 'https://www.amazon.com/dp/';
 export const DISCUSSION_URL_PREFIX = 'https://www.amazon.com/product-reviews/';
 export const STRATEGY = 'cookie';
-// Anchored so sibling marketplaces (amazon.co.uk, amazon.com.au) resolve while
-// look-alike hosts such as evilamazon.com do not.
-const MARKETPLACE_HOST_PATTERN = /^(?:[a-z0-9-]+\.)*amazon\.[a-z]{2,}(?:\.[a-z]{2,})?$/i;
 export const PRIMARY_PRICE_SELECTORS = [
     '#corePrice_feature_div .a-offscreen',
     '#corePriceDisplay_desktop_feature_div .a-offscreen',
@@ -23,6 +20,10 @@ export const PRIMARY_PRICE_SELECTORS = [
     '#priceblock_dealprice',
     '#tp_price_block_total_price_ww',
 ];
+// Every Amazon storefront is amazon.<tld> or amazon.co<m?>.<tld>, so anchoring on
+// that shape accepts the sibling marketplaces while rejecting hosts that merely
+// contain the name (evilamazon.com) or park it on another domain (amazon.evil.com).
+const MARKETPLACE_HOST_PATTERN = /^(?:[a-z0-9-]+\.)*amazon\.(?:[a-z]{2,}|co(?:m)?\.[a-z]{2,})$/i;
 const ROBOT_TEXT_PATTERNS = [
     'Sorry, we just need to make sure you\'re not a robot',
     'Enter the characters you see below',
