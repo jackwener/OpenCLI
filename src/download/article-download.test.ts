@@ -70,6 +70,26 @@ describe('downloadArticle', () => {
       expect(md).toMatch(/\|\s*1\s*\|\s*2\s*\|/);
     });
 
+    it('keeps the text of a table that carries no rows instead of failing the download', async () => {
+      const md = await runAndRead(
+        '<p>before</p>' +
+        '<table><tbody><div>orphan cell</div></tbody></table>' +
+        '<p>after</p>',
+      );
+      expect(md).toContain('orphan cell');
+      expect(md).toContain('before');
+      expect(md).toContain('after');
+    });
+
+    it('converts a real table in the same document as a row-less one', async () => {
+      const md = await runAndRead(
+        '<table></table>' +
+        '<table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>',
+      );
+      expect(md).toMatch(/\|\s*a\s*\|/);
+      expect(md).toMatch(/\|\s*1\s*\|/);
+    });
+
     it('converts strikethrough and task lists', async () => {
       const md = await runAndRead(
         '<p><del>gone</del></p>' +
