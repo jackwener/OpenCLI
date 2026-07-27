@@ -19,7 +19,7 @@ cli({
     args: [
         { name: 'tweet-id', type: 'string', positional: true, required: true, help: 'Tweet ID or URL containing the article' },
     ],
-    columns: ['title', 'author', 'content', 'url'],
+    columns: ['title', 'author', 'content', 'url', 'published_at', 'preview_text'],
     func: async (page, kwargs) => {
         // Extract tweet ID from URL if needed.
         // Article URLs (x.com/i/article/{articleId}) use a different ID than
@@ -173,6 +173,27 @@ cli({
         if (!Array.isArray(blocks)) {
           return {error: 'Twitter API response article blocks were malformed'};
         }
+        const entityMap = contentState.entityMap || {};
+        const mediaEntities = articleResults.media_entities || {};
+
+        // Canonicalize https://pbs.twimg.com/media/XXX.jpg -> ...?format=jpg&name=large
+        function canonicalizeImgUrl(url) {
+          if (!url) return url;
+          const qIdx = url.indexOf('?');
+          const baseUrl = qIdx >= 0 ? url.substring(0, qIdx) : url;
+          const dotIdx = baseUrl.lastIndexOf('.');
+          if (dotIdx < 0) return url;
+          const ext = baseUrl.substring(dotIdx + 1).toLowerCase().replace('jpeg', 'jpg');
+          if (['jpg', 'png', 'webp', 'gif'].indexOf(ext) < 0) return url;
+          return baseUrl.substring(0, dotIdx) + '?format=' + ext + '&name=large';
+        }
+
+        // Build media_id -> canonicalized original_img_url lookup from media_entities
+        const mediaUrlById = {};
+        for (const [, me] of Object.entries(mediaEntities)) {
+          const url = me?.media_info?.original_img_url;
+          if (url && me?.media_id) mediaUrlById[me.media_id] = canonicalizeImgUrl(url);
+        }
 
         // Convert draft.js blocks to Markdown
         const parts = [];
@@ -180,7 +201,17 @@ cli({
         for (const block of blocks) {
           if (!block || typeof block !== 'object' || Array.isArray(block)) continue;
           const blockType = block.type || 'unstyled';
-          if (blockType === 'atomic') continue;
+          if (blockType === 'atomic') {
+            const entityKey = block.entityRanges?.[0]?.key;
+            const entity = entityMap[entityKey];
+            if (entity?.value?.type === 'MEDIA') {
+              const mediaId = entity.value.data?.mediaItems?.[0]?.mediaId;
+              const imgUrl = mediaId ? mediaUrlById[mediaId] : null;
+              const caption = entity.value.data?.caption || 'Imagen';
+              if (imgUrl) parts.push('![' + caption + '](' + imgUrl + ')');
+            }
+            continue;
+          }
           const text = block.text || '';
           if (!text) continue;
           if (blockType !== 'ordered-list-item') orderedCounter = 0;
@@ -203,6 +234,8 @@ cli({
           author: screenName,
           content: parts.join('\\n\\n') || legacy.full_text || '',
           url: 'https://x.com/' + screenName + '/status/' + tweetId,
+          published_at: legacy.created_at || '',
+          preview_text: (articleResults.preview_text || '').trim(),
         }];
       }
     `));
