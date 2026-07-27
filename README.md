@@ -185,6 +185,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | Site | Commands |
 |------|----------|
 | **xiaohongshu** | `search` `ask` `note` `comments` `feed` `user` `download` `publish` `follow` `unfollow` `notifications` `creator-notes` `creator-notes-summary` `creator-note-detail` `creator-profile` `creator-stats` |
+| **chanmama** | `categories` `products` `product` `product-analysis` `authors` `videos` `video` `live` `card` `audience` `author-sales-videos` |
 | **bilibili** | `hot` `search` `history` `feed` `ranking` `download` `comments` `dynamic` `favorite` `following` `follow` `unfollow` `me` `subtitle` `summary` `video` `user-videos` |
 | **zhihu** | `hot` `search` `question` `download` `follow` `like` `favorite` `comment` `answer` |
 | **hackernews** | `top` `new` `best` `ask` `show` `jobs` `search` `user` |

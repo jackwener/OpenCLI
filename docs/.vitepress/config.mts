@@ -56,6 +56,7 @@ export default defineConfig({
                 { text: 'Bilibili', link: '/adapters/browser/bilibili' },
                 { text: 'Zhihu', link: '/adapters/browser/zhihu' },
                 { text: 'Xiaohongshu', link: '/adapters/browser/xiaohongshu' },
+                { text: 'ChanMama (蝉妈妈)', link: '/adapters/browser/chanmama' },
                 { text: 'Rednote', link: '/adapters/browser/rednote' },
                 { text: 'WeChat Channels (视频号)', link: '/adapters/browser/wechat-channels' },
                 { text: 'Xiaoe', link: '/adapters/browser/xiaoe' },
