@@ -9,6 +9,9 @@ export const SEARCH_URL_PREFIX = 'https://www.amazon.com/s?k=';
 export const PRODUCT_URL_PREFIX = 'https://www.amazon.com/dp/';
 export const DISCUSSION_URL_PREFIX = 'https://www.amazon.com/product-reviews/';
 export const STRATEGY = 'cookie';
+// Anchored so sibling marketplaces (amazon.co.uk, amazon.com.au) resolve while
+// look-alike hosts such as evilamazon.com do not.
+const MARKETPLACE_HOST_PATTERN = /^(?:[a-z0-9-]+\.)*amazon\.[a-z]{2,}(?:\.[a-z]{2,})?$/i;
 export const PRIMARY_PRICE_SELECTORS = [
     '#corePrice_feature_div .a-offscreen',
     '#corePriceDisplay_desktop_feature_div .a-offscreen',
@@ -91,19 +94,33 @@ export function extractAsin(input) {
     const match = normalized.match(/\/(?:dp|gp\/product|product-reviews)\/([A-Z0-9]{10})/i);
     return match ? match[1].toUpperCase() : null;
 }
+export function amazonHostFromInput(input) {
+    const normalized = cleanText(input);
+    if (!normalized)
+        return null;
+    try {
+        const url = new URL(normalized);
+        return MARKETPLACE_HOST_PATTERN.test(url.hostname) ? url.hostname : null;
+    }
+    catch {
+        return null;
+    }
+}
 export function buildProductUrl(input) {
     const asin = extractAsin(input);
     if (!asin) {
         throw new ArgumentError('amazon product expects an ASIN or product URL', 'Example: opencli amazon product B0FJS72893');
     }
-    return `${PRODUCT_URL_PREFIX}${asin}`;
+    const host = amazonHostFromInput(input);
+    return host ? `https://${host}/dp/${asin}` : `${PRODUCT_URL_PREFIX}${asin}`;
 }
 export function buildDiscussionUrl(input) {
     const asin = extractAsin(input);
     if (!asin) {
         throw new ArgumentError('amazon discussion expects an ASIN or product URL', 'Example: opencli amazon discussion B0FJS72893');
     }
-    return `${DISCUSSION_URL_PREFIX}${asin}`;
+    const host = amazonHostFromInput(input);
+    return host ? `https://${host}/product-reviews/${asin}` : `${DISCUSSION_URL_PREFIX}${asin}`;
 }
 function getRankingSpec(listType) {
     return AMAZON_RANKING_SPECS[listType];
@@ -206,7 +223,7 @@ export function resolveBestsellersUrl(input) {
 export function canonicalizeAmazonUrl(input) {
     try {
         const url = new URL(input);
-        if (!url.hostname.endsWith(DOMAIN)) {
+        if (!MARKETPLACE_HOST_PATTERN.test(url.hostname)) {
             throw new Error('not-amazon');
         }
         return url.toString();
@@ -230,7 +247,7 @@ export function normalizeProductUrl(value) {
     const normalized = cleanText(value);
     const asin = extractAsin(normalized);
     if (asin)
-        return buildProductUrl(asin);
+        return buildProductUrl(normalized);
     return toAbsoluteAmazonUrl(normalized);
 }
 export function parsePriceText(text) {
@@ -347,8 +364,11 @@ export function assertUsableState(state, action) {
 export const __test__ = {
     buildSearchUrl,
     extractAsin,
+    amazonHostFromInput,
     buildProductUrl,
     buildDiscussionUrl,
+    normalizeProductUrl,
+    canonicalizeAmazonUrl,
     resolveBestsellersUrl,
     resolveRankingUrl,
     isSupportedRankingPath,

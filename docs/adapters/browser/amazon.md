@@ -47,6 +47,7 @@ opencli amazon discussion B0FJS72893 --limit 5 -f json
 - `bestsellers`, `movers-shakers`, `new-releases`, and `search` are for candidate discovery; `product`, `offer`, and `discussion` are the validation surfaces.
 - `offer` is the right surface for `sold_by`, `ships_from`, and Amazon-retail exclusion.
 - `discussion` may return review data even when Q&A is absent. Missing Q&A is a normal outcome, not an error.
+- A product or review URL from a sibling marketplace (`amazon.co.uk`, `amazon.de`, `amazon.com.au`, …) is read on that marketplace, and the emitted URLs stay on it. A bare ASIN still defaults to `amazon.com`.
 
 ## Troubleshooting
 

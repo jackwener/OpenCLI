@@ -9,7 +9,7 @@ function normalizeDiscussionPayload(payload) {
     const provenance = buildProvenance(sourceUrl);
     return {
         asin,
-        product_url: asin ? normalizeProductUrl(asin) : null,
+        product_url: asin ? normalizeProductUrl(sourceUrl) : null,
         discussion_url: sourceUrl,
         ...provenance,
         average_rating_text: averageRatingText,
@@ -111,7 +111,8 @@ cli({
         const payload = await readDiscussionPayload(page, input, limit);
         const normalized = normalizeDiscussionPayload(payload);
         if (!normalized.average_rating_text && !normalized.total_review_count_text) {
-            throw new CommandExecutionError('amazon discussion page did not expose review summary', 'The review page may have changed or hit a robot check. Open the review page in Chrome and retry.');
+            const landedUrl = cleanText(payload.href) || buildDiscussionUrl(input);
+            throw new CommandExecutionError(`amazon discussion page did not expose review summary (landed on ${landedUrl})`, 'The review page may have changed or hit a robot check. Open the review page in Chrome and retry.');
         }
         return [normalized];
     },
