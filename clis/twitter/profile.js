@@ -12,6 +12,63 @@ function stringField(value) {
     return typeof value === 'string' ? value : '';
 }
 
+// #1745 / #2188: X keeps relocating profile fields out of result.legacy. First
+// name/screen_name/created_at moved into result.core; then the counts
+// (followers_count, friends_count, statuses_count, favourites_count) and the bio
+// (description) followed into an as-yet-unnamed container, so the legacy-only
+// reads silently returned 0 / ''. Resolve each field from its known homes first
+// (legacy → core → top level), then fall back to a bounded breadth-first search
+// so wherever X parks the field next we still surface it. BFS yields the
+// shallowest match, i.e. the canonical user-level field rather than a nested
+// copy sitting deeper in the tree.
+//
+// Shallowest-wins is not enough on its own: when the field is absent from the
+// user object entirely, BFS would otherwise descend into an embedded tweet and
+// report its favourites_count as the user's likes, or its text as the bio. So
+// never cross into containers that describe a *different* entity — better to
+// return 0 / '' than confidently wrong numbers.
+const NON_USER_CONTAINERS = new Set([
+    'pinned_tweet', 'tweet', 'status', 'quoted_status', 'retweeted_status',
+    'entities', 'extended_entities', 'media', 'highlights',
+]);
+
+function deepFindValue(root, key, accept, maxDepth = 6) {
+    const queue = [{ node: root, depth: 0 }];
+    while (queue.length > 0) {
+        const { node, depth } = queue.shift();
+        if (!node || typeof node !== 'object' || depth > maxDepth)
+            continue;
+        if (!Array.isArray(node) && accept(node[key]))
+            return node[key];
+        const children = Array.isArray(node)
+            ? node
+            : Object.entries(node).filter(([k]) => !NON_USER_CONTAINERS.has(k)).map(([, v]) => v);
+        for (const child of children) {
+            if (child && typeof child === 'object')
+                queue.push({ node: child, depth: depth + 1 });
+        }
+    }
+    return undefined;
+}
+
+function resolveCount(result, key) {
+    for (const source of [result.legacy, result.core, result]) {
+        if (isPlainObject(source) && typeof source[key] === 'number' && Number.isFinite(source[key]))
+            return source[key];
+    }
+    const found = deepFindValue(result, key, (value) => typeof value === 'number' && Number.isFinite(value));
+    return typeof found === 'number' ? found : 0;
+}
+
+function resolveText(result, key) {
+    for (const source of [result.legacy, result.core, result]) {
+        if (isPlainObject(source) && typeof source[key] === 'string' && source[key].trim() !== '')
+            return source[key];
+    }
+    const found = deepFindValue(result, key, (value) => typeof value === 'string' && value.trim() !== '');
+    return typeof found === 'string' ? found : '';
+}
+
 export function mapTwitterProfileResult(result, screenName) {
     if (!isPlainObject(result)) {
         throw new CommandExecutionError(`Twitter profile response for @${screenName} is malformed`);
@@ -31,13 +88,13 @@ export function mapTwitterProfileResult(result, screenName) {
     return [{
         screen_name: stringField(core.screen_name) || stringField(legacy.screen_name) || screenName,
         name: stringField(core.name) || stringField(legacy.name),
-        bio: stringField(legacy.description),
+        bio: resolveText(result, 'description'),
         location: stringField(location.location) || stringField(legacy.location),
         url: stringField(expandedUrl),
-        followers: legacy.followers_count || 0,
-        following: legacy.friends_count || 0,
-        tweets: legacy.statuses_count || 0,
-        likes: legacy.favourites_count || 0,
+        followers: resolveCount(result, 'followers_count'),
+        following: resolveCount(result, 'friends_count'),
+        tweets: resolveCount(result, 'statuses_count'),
+        likes: resolveCount(result, 'favourites_count'),
         verified: Boolean(result.is_blue_verified || legacy.verified),
         created_at: stringField(core.created_at) || stringField(legacy.created_at),
     }];
@@ -171,4 +228,4 @@ cli({
     }
 });
 
-export const __test__ = { mapTwitterProfileResult };
+export const __test__ = { mapTwitterProfileResult, deepFindValue, resolveCount, resolveText };
