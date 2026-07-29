@@ -11,7 +11,7 @@
  * Engine handles commit, verify, guard, keep/discard, and logging.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, type AutoResearchConfig } from '../config.js';
@@ -20,6 +20,31 @@ import { PRESETS } from '../presets/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..', '..');
+const CLAUDE_ALLOWED_TOOLS = 'Bash(npm:*),Bash(npx:*),Bash(git:*),Read,Edit,Write,Glob,Grep';
+
+export function buildClaudeModifyInvocation(prompt: string) {
+  const options: ExecFileSyncOptionsWithStringEncoding = {
+    cwd: ROOT,
+    timeout: 300_000,
+    encoding: 'utf-8',
+    input: prompt,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env,
+  };
+  return {
+    command: 'claude',
+    args: [
+      '-p',
+      '--dangerously-skip-permissions',
+      '--allowedTools',
+      CLAUDE_ALLOWED_TOOLS,
+      '--output-format',
+      'text',
+      '--no-session-persistence',
+    ],
+    options,
+  };
+}
 
 function buildModifyPrompt(ctx: ModifyContext, config: AutoResearchConfig): string {
   const recent = ctx.recentLog.slice(-10).map(r =>
@@ -60,20 +85,13 @@ async function modify(ctx: ModifyContext, config: AutoResearchConfig): Promise<s
 
   console.log('  Claude Code making a change...');
   try {
-    // Pass prompt via stdin `input` option to avoid shell metacharacter injection
-    // (prompt is built from git log messages and file names, which may contain
-    // untrusted characters such as $(...), backticks, or backslashes that are
-    // not neutralized by simple double-quote escaping).
-    const result = execSync(
-      'claude -p --dangerously-skip-permissions --allowedTools "Bash(npm:*),Bash(npx:*),Bash(git:*),Read,Edit,Write,Glob,Grep" --output-format text --no-session-persistence',
-      {
-        cwd: ROOT,
-        timeout: 300_000,
-        encoding: 'utf-8',
-        input: prompt,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: process.env,
-      }
+    // Keep command structure and the repository-derived prompt out of a shell.
+    // Claude reads the prompt from stdin when -p has no positional prompt.
+    const invocation = buildClaudeModifyInvocation(prompt);
+    const result = execFileSync(
+      invocation.command,
+      invocation.args,
+      invocation.options
     ).trim();
 
     // Extract description from Claude's response (last non-empty line or summary)
@@ -140,4 +158,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main();
+}
