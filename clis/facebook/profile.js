@@ -17,19 +17,48 @@ cli({
     pipeline: [
         { navigate: { url: 'https://www.facebook.com/${{ args.username }}', settleMs: 3000 } },
         { evaluate: `(() => {
-  const h1 = document.querySelector('h1');
-  let name = h1 ? h1.textContent.trim() : '';
+  const username = \${{ args.username | json }};
+  const main = document.querySelector('[role="main"]') || document;
+  const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+  const h1 = main.querySelector('h1');
+  let name = clean(h1 && h1.textContent);
 
-  // Find friends/followers links
-  const links = Array.from(document.querySelectorAll('a'));
-  const friendsLink = links.find(a => a.href && a.href.includes('/friends'));
-  const followersLink = links.find(a => a.href && a.href.includes('/followers'));
+  // Facebook's current profile header no longer uses an h1. The profile-avatar
+  // link carries the display name on both the link and its role=img child.
+  // Scope this fallback to the requested profile path so page chrome cannot win.
+  if (!name) {
+    const requestedPrefix = '/' + String(username).toLowerCase() + '/';
+    const profileMediaLink = Array.from(main.querySelectorAll('a[aria-label][href]')).find((link) => {
+      const href = link.getAttribute('href') || '';
+      let path = '';
+      try { path = new URL(href, window.location.href).pathname.toLowerCase(); } catch {}
+      const image = link.querySelector('[role="img"][aria-label]');
+      return path.startsWith(requestedPrefix)
+        && image
+        && clean(link.getAttribute('aria-label')) === clean(image.getAttribute('aria-label'));
+    });
+    name = clean(profileMediaLink && profileMediaLink.getAttribute('aria-label'));
+  }
+
+  // Scope relationship links to the profile main region. Global navigation also
+  // contains /friends and previously produced empty or generic chrome text.
+  const links = Array.from(main.querySelectorAll('a[href]'));
+  const hasProfilePath = (link, suffix) => {
+    try {
+      const path = new URL(link.getAttribute('href') || '', window.location.href).pathname
+        .replace(/\\/+$/, '')
+        .toLowerCase();
+      return path === '/' + String(username).toLowerCase() + suffix;
+    } catch { return false; }
+  };
+  const friendsLink = links.find((a) => hasProfilePath(a, '/friends'));
+  const followersLink = links.find((a) => hasProfilePath(a, '/followers'));
 
   return [{
     name: name,
-    username: \${{ args.username | json }},
-    friends: friendsLink ? friendsLink.textContent.trim() : '-',
-    followers: followersLink ? followersLink.textContent.trim() : '-',
+    username,
+    friends: friendsLink ? clean(friendsLink.textContent) : '-',
+    followers: followersLink ? clean(followersLink.textContent) : '-',
     url: window.location.href,
   }];
 })()
