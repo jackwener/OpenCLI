@@ -24533,6 +24533,51 @@
   },
   {
     "site": "medium",
+    "name": "draft-create",
+    "aliases": [
+      "draft_create"
+    ],
+    "description": "Create and confirm an autosaved Medium story draft",
+    "access": "write",
+    "domain": "medium.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Story body text"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "help": "Story title"
+      },
+      {
+        "name": "image",
+        "type": "string",
+        "required": false,
+        "help": "Local inline image path; separate multiple paths with commas (jpg/png/gif/webp/avif)"
+      }
+    ],
+    "columns": [
+      "status",
+      "title",
+      "images",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "medium/draft-create.js",
+    "sourceFile": "medium/draft-create.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "medium",
     "name": "feed",
     "description": "Medium 热门文章 Feed",
     "access": "read",

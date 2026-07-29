@@ -32,7 +32,7 @@ function parseTags(value) {
     return [...new Set(tags)];
 }
 
-async function waitForEditor(page) {
+export async function waitForEditor(page) {
     for (let attempt = 0; attempt < EDITOR_READY_TIMEOUT_SECONDS * 2; attempt++) {
         const state = await page.evaluate(`(() => ({
             url: location.href,
@@ -44,13 +44,22 @@ async function waitForEditor(page) {
     throw new AuthRequiredError('medium.com', 'Medium editor did not load. Run `opencli medium login` and retry.');
 }
 
-async function fillStory(page, title, content) {
+export async function fillStory(page, title, content) {
     // Native input is important here: Medium enables its Publish button only
     // after it receives trusted editor input events, not synthetic DOM edits.
     if (page.fillText) {
         const story = `${title}\n${content}`;
         const result = await page.fillText('[role="textbox"][contenteditable="true"]', story);
         if (result?.verified) return;
+        // Medium serializes each entered paragraph with additional newlines in
+        // innerText. Compare meaningful text rather than its DOM whitespace.
+        const normalized = await page.evaluate(`(expected => {
+            const editor = document.querySelector('[role="textbox"][contenteditable="true"]');
+            const compact = value => String(value || '').replace(/\\s+/g, ' ').trim();
+            const actual = String(editor?.innerText || editor?.textContent || '');
+            return { ok: compact(actual) === compact(expected), actual };
+        })(${JSON.stringify(story)})`);
+        if (normalized?.ok) return;
         throw new CommandExecutionError(`Could not fill Medium story: content verification failed (${result?.actual || ''})`);
     }
     if (page.insertText) {
@@ -227,7 +236,7 @@ async function waitForPublishedStory(page) {
     throw new TimeoutError('medium publish confirmation', PUBLISH_TIMEOUT_SECONDS);
 }
 
-cli({
+export const publishCommand = cli({
     site: 'medium',
     name: 'publish',
     access: 'write',

@@ -12,6 +12,7 @@
 | `opencli medium tag <tag>` | Latest articles for a Medium tag (public RSS, no browser) |
 | `opencli medium login` | Open the Medium sign-in page and wait for the browser session to authenticate |
 | `opencli medium whoami` | Confirm the active Medium account |
+| `opencli medium draft-create <content> --title <title> [--image <paths>]` | Create and confirm an autosaved Medium story draft with optional inline images |
 | `opencli medium publish <content> --title <title>` | Write and immediately publish a Medium story |
 
 ## Usage Examples
@@ -35,9 +36,14 @@ opencli medium tag artificial-intelligence --limit 20
 
 # Write and publish a story from the authenticated Chrome session
 opencli medium publish "The complete story body." --title "A practical title" --tags ai,writing
+
+# Create a draft without opening Medium's publish dialog
+opencli medium draft-create "The complete story body." --title "A practical title" --image /tmp/diagram.png
 ```
 
 `publish` fills Medium's `/new-story` editor, opens the publishing dialog, applies optional topic tags, and returns the story URL only after Medium redirects away from the editor.
+
+`draft-create` fills the same editor and waits for Medium's autosave acknowledgement (or a draft edit URL). `--image` accepts one local image path or a comma-separated list; images are inserted at the end of the story and each upload is verified before the draft is confirmed. It does not open the publishing dialog. `draft_create` is accepted as a compatibility alias.
 
 ## `tag` columns
 
@@ -51,4 +57,4 @@ opencli medium publish "The complete story body." --title "A practical title" --
 
 - `opencli medium search` and `opencli medium tag` can run without a browser (the latter parses `medium.com/feed/tag/<tag>` RSS)
 - `opencli medium feed` and `opencli medium user` require Browser Bridge access to `medium.com`
-- `opencli medium publish` requires a logged-in Medium browser session; run `opencli medium login` first when needed.
+- `opencli medium draft-create` and `opencli medium publish` require a logged-in Medium browser session; run `opencli medium login` first when needed.
