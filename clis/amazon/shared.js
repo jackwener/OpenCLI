@@ -20,10 +20,42 @@ export const PRIMARY_PRICE_SELECTORS = [
     '#priceblock_dealprice',
     '#tp_price_block_total_price_ww',
 ];
-// Every Amazon storefront is amazon.<tld> or amazon.co<m?>.<tld>, so anchoring on
-// that shape accepts the sibling marketplaces while rejecting hosts that merely
-// contain the name (evilamazon.com) or park it on another domain (amazon.evil.com).
-const MARKETPLACE_HOST_PATTERN = /^(?:[a-z0-9-]+\.)*amazon\.(?:[a-z]{2,}|co(?:m)?\.[a-z]{2,})$/i;
+// Keep this explicit because these hosts are navigation targets in the user's
+// signed-in browser. A shape-only `amazon.<tld>` pattern also accepts unrelated
+// registrable domains such as amazon.shop or amazon.zip.
+const MARKETPLACE_DOMAINS = new Set([
+    'amazon.com',
+    'amazon.ca',
+    'amazon.com.mx',
+    'amazon.com.br',
+    'amazon.co.uk',
+    'amazon.de',
+    'amazon.fr',
+    'amazon.it',
+    'amazon.es',
+    'amazon.nl',
+    'amazon.pl',
+    'amazon.se',
+    'amazon.com.be',
+    'amazon.ie',
+    'amazon.com.tr',
+    'amazon.ae',
+    'amazon.sa',
+    'amazon.eg',
+    'amazon.co.za',
+    'amazon.in',
+    'amazon.co.jp',
+    'amazon.com.au',
+    'amazon.sg',
+]);
+function isAmazonMarketplaceHost(hostname) {
+    const normalized = cleanText(hostname).toLowerCase().replace(/\.$/, '');
+    for (const domain of MARKETPLACE_DOMAINS) {
+        if (normalized === domain || normalized.endsWith(`.${domain}`))
+            return true;
+    }
+    return false;
+}
 const ROBOT_TEXT_PATTERNS = [
     'Sorry, we just need to make sure you\'re not a robot',
     'Enter the characters you see below',
@@ -101,7 +133,7 @@ export function amazonHostFromInput(input) {
         return null;
     try {
         const url = new URL(normalized);
-        return MARKETPLACE_HOST_PATTERN.test(url.hostname) ? url.hostname : null;
+        return isAmazonMarketplaceHost(url.hostname) ? url.hostname : null;
     }
     catch {
         return null;
@@ -224,7 +256,7 @@ export function resolveBestsellersUrl(input) {
 export function canonicalizeAmazonUrl(input) {
     try {
         const url = new URL(input);
-        if (!MARKETPLACE_HOST_PATTERN.test(url.hostname)) {
+        if (!isAmazonMarketplaceHost(url.hostname)) {
             throw new Error('not-amazon');
         }
         return url.toString();
