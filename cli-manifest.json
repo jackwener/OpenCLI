@@ -24570,6 +24570,77 @@
   },
   {
     "site": "medium",
+    "name": "login",
+    "description": "Open medium login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "medium.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "medium/auth.js",
+    "sourceFile": "medium/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "medium",
+    "name": "publish",
+    "description": "Write and publish a Medium story from the logged-in browser session",
+    "access": "write",
+    "domain": "medium.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Story body text"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "help": "Story title"
+      },
+      {
+        "name": "tags",
+        "type": "string",
+        "required": false,
+        "help": "Comma-separated topic tags (maximum 5)"
+      }
+    ],
+    "columns": [
+      "status",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "medium/publish.js",
+    "sourceFile": "medium/publish.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "medium",
     "name": "search",
     "description": "搜索 Medium 文章",
     "access": "read",
@@ -24679,6 +24750,26 @@
     "modulePath": "medium/user.js",
     "sourceFile": "medium/user.js",
     "navigateBefore": "https://medium.com"
+  },
+  {
+    "site": "medium",
+    "name": "whoami",
+    "description": "Show the current logged-in medium account",
+    "access": "read",
+    "domain": "medium.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "medium/auth.js",
+    "sourceFile": "medium/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "mercury",

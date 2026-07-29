@@ -1,6 +1,6 @@
 # Medium
 
-**Mode**: 🌗 Mixed · **Domain**: `medium.com`
+**Mode**: Mixed · **Domain**: `medium.com`
 
 ## Commands
 
@@ -10,6 +10,9 @@
 | `opencli medium search` | Search Medium posts by keyword |
 | `opencli medium user` | Get recent articles by a user |
 | `opencli medium tag <tag>` | Latest articles for a Medium tag (public RSS, no browser) |
+| `opencli medium login` | Open the Medium sign-in page and wait for the browser session to authenticate |
+| `opencli medium whoami` | Confirm the active Medium account |
+| `opencli medium publish <content> --title <title>` | Write and immediately publish a Medium story |
 
 ## Usage Examples
 
@@ -29,7 +32,12 @@ opencli medium feed --topic programming -f json
 # Latest articles for a tag (public RSS — fastest, no browser)
 opencli medium tag programming --limit 10
 opencli medium tag artificial-intelligence --limit 20
+
+# Write and publish a story from the authenticated Chrome session
+opencli medium publish "The complete story body." --title "A practical title" --tags ai,writing
 ```
+
+`publish` fills Medium's `/new-story` editor, opens the publishing dialog, applies optional topic tags, and returns the story URL only after Medium redirects away from the editor.
 
 ## `tag` columns
 
@@ -43,3 +51,4 @@ opencli medium tag artificial-intelligence --limit 20
 
 - `opencli medium search` and `opencli medium tag` can run without a browser (the latter parses `medium.com/feed/tag/<tag>` RSS)
 - `opencli medium feed` and `opencli medium user` require Browser Bridge access to `medium.com`
+- `opencli medium publish` requires a logged-in Medium browser session; run `opencli medium login` first when needed.
