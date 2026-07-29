@@ -107,6 +107,24 @@ describe('facebook search', () => {
     ]);
   });
 
+  it('keeps profile and photo identities without treating arbitrary query params as identity', () => {
+    const payload = runExtract(`
+      <div role="feed">
+        <div><a role="link" href="https://www.facebook.com/profile.php?id=1001&ref=search">First profile result with details</a></div>
+        <div><a role="link" href="https://www.facebook.com/profile.php?id=2002&ref=search">Second profile result with details</a></div>
+        <div><a role="link" href="https://www.facebook.com/photo.php?fbid=3003&id=1001&__tn__=R">Photo result with useful details</a></div>
+        <div><a role="link" href="https://www.facebook.com/realpage?id=tracking-a">Same vanity page first render</a></div>
+        <div><a role="link" href="https://www.facebook.com/realpage?id=tracking-b">Same vanity page second render</a></div>
+      </div>
+    `);
+    expect(payload.rows.map((r) => r.url)).toEqual([
+      'https://www.facebook.com/profile.php?id=1001',
+      'https://www.facebook.com/profile.php?id=2002',
+      'https://www.facebook.com/photo.php?fbid=3003&id=1001',
+      'https://www.facebook.com/realpage',
+    ]);
+  });
+
   it('dedupes one post rendered with different per-render tracking nonces', () => {
     // FB appends __cft__ / __tn__ nonces that differ on every render; keeping
     // them in the key would make the same post appear as multiple rows.

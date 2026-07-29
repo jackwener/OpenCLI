@@ -61,7 +61,7 @@ function buildSearchExtractScript(limit) {
       if (/^\\/search(\\/|$)/i.test(p)) return false;                  // decoy links back to search (incl. bare /search)
       // chrome / non-result destinations that the catch-all below would keep
       if (/^\\/(login|checkpoint|help|policies|privacy|settings|bookmarks|messages|notifications|marketplace|gaming|friends|requests|saved|me)\\b/i.test(p)) return false;
-      return /^\\/(profile\\.php|groups\\/|events\\/|watch\\/|reel\\/|pages\\/|permalink\\.php|story\\.php|[^/]+\\/posts\\/|[^/]+\\/videos\\/|[A-Za-z0-9.\\-]{2,}\\/?$)/i.test(p);
+      return /^\\/(profile\\.php|photo\\.php|groups\\/|events\\/|watch\\/|reel\\/|pages\\/|permalink\\.php|story\\.php|[^/]+\\/posts\\/|[^/]+\\/videos\\/|[A-Za-z0-9.\\-]{2,}\\/?$)/i.test(p);
     }
 
     // Query-identity destinations (permalink.php?story_fbid=…, story.php,
@@ -70,9 +70,15 @@ function buildSearchExtractScript(limit) {
     // params, but only those: FB appends per-render tracking nonces (__cft__,
     // __tn__, ref) that would otherwise defeat dedup by making the same post look
     // unique on every render.
-    const ID_PARAMS = ['story_fbid', 'fbid', 'id', 'v', 'story_id'];
     function entityKey(u) {
-      const ids = ID_PARAMS
+      const p = u.pathname.toLowerCase();
+      let identityParams = [];
+      if (p === '/profile.php') identityParams = ['id'];
+      else if (p === '/permalink.php' || p === '/story.php') {
+        identityParams = ['story_fbid', 'story_id', 'fbid', 'id'];
+      } else if (p === '/photo.php') identityParams = ['fbid', 'id'];
+      else if (p === '/watch' || p === '/watch/') identityParams = ['v'];
+      const ids = identityParams
         .filter((k) => u.searchParams.has(k))
         .map((k) => k + '=' + u.searchParams.get(k));
       return ids.length ? (u.origin + u.pathname + '?' + ids.join('&')) : (u.origin + u.pathname);
