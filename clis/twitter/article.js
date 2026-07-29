@@ -19,7 +19,7 @@ cli({
     args: [
         { name: 'tweet-id', type: 'string', positional: true, required: true, help: 'Tweet ID or URL containing the article' },
     ],
-    columns: ['title', 'author', 'content', 'url', 'published_at', 'preview_text'],
+    columns: ['title', 'author', 'content', 'url'],
     func: async (page, kwargs) => {
         // Extract tweet ID from URL if needed.
         // Article URLs (x.com/i/article/{articleId}) use a different ID than
@@ -173,26 +173,31 @@ cli({
         if (!Array.isArray(blocks)) {
           return {error: 'Twitter API response article blocks were malformed'};
         }
-        const entityMap = contentState.entityMap || {};
-        const mediaEntities = articleResults.media_entities || {};
-
-        // Canonicalize https://pbs.twimg.com/media/XXX.jpg -> ...?format=jpg&name=large
-        function canonicalizeImgUrl(url) {
-          if (!url) return url;
-          const qIdx = url.indexOf('?');
-          const baseUrl = qIdx >= 0 ? url.substring(0, qIdx) : url;
-          const dotIdx = baseUrl.lastIndexOf('.');
-          if (dotIdx < 0) return url;
-          const ext = baseUrl.substring(dotIdx + 1).toLowerCase().replace('jpeg', 'jpg');
-          if (['jpg', 'png', 'webp', 'gif'].indexOf(ext) < 0) return url;
-          return baseUrl.substring(0, dotIdx) + '?format=' + ext + '&name=large';
+        // The current GraphQL response serializes Draft.js entityMap as an
+        // unordered [{key, value}] array, not an object keyed by entity id.
+        // Normalize both representations before resolving atomic blocks.
+        const rawEntityMap = contentState.entityMap || {};
+        const entityByKey = {};
+        if (Array.isArray(rawEntityMap)) {
+          for (const entry of rawEntityMap) {
+            if (entry && entry.key != null && entry.value) {
+              entityByKey[String(entry.key)] = entry.value;
+            }
+          }
+        } else {
+          for (const [key, entry] of Object.entries(rawEntityMap)) {
+            entityByKey[String(key)] = entry?.value || entry;
+          }
         }
 
-        // Build media_id -> canonicalized original_img_url lookup from media_entities
+        // Build media_id -> original_img_url lookup from media_entities.
+        const mediaEntities = articleResults.media_entities || [];
         const mediaUrlById = {};
-        for (const [, me] of Object.entries(mediaEntities)) {
+        for (const me of Object.values(mediaEntities)) {
           const url = me?.media_info?.original_img_url;
-          if (url && me?.media_id) mediaUrlById[me.media_id] = canonicalizeImgUrl(url);
+          if (typeof url === 'string' && me?.media_id != null) {
+            mediaUrlById[String(me.media_id)] = url;
+          }
         }
 
         // Convert draft.js blocks to Markdown
@@ -203,11 +208,11 @@ cli({
           const blockType = block.type || 'unstyled';
           if (blockType === 'atomic') {
             const entityKey = block.entityRanges?.[0]?.key;
-            const entity = entityMap[entityKey];
-            if (entity?.value?.type === 'MEDIA') {
-              const mediaId = entity.value.data?.mediaItems?.[0]?.mediaId;
-              const imgUrl = mediaId ? mediaUrlById[mediaId] : null;
-              const caption = entity.value.data?.caption || 'Imagen';
+            const entity = entityKey == null ? null : entityByKey[String(entityKey)];
+            if (entity?.type === 'MEDIA') {
+              const mediaId = entity.data?.mediaItems?.[0]?.mediaId;
+              const imgUrl = mediaId == null ? null : mediaUrlById[String(mediaId)];
+              const caption = String(entity.data?.caption || 'Image').replaceAll(']', '&#93;');
               if (imgUrl) parts.push('![' + caption + '](' + imgUrl + ')');
             }
             continue;
@@ -234,8 +239,6 @@ cli({
           author: screenName,
           content: parts.join('\\n\\n') || legacy.full_text || '',
           url: 'https://x.com/' + screenName + '/status/' + tweetId,
-          published_at: legacy.created_at || '',
-          preview_text: (articleResults.preview_text || '').trim(),
         }];
       }
     `));
