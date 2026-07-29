@@ -4,7 +4,7 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwe
 
 import './publish.js';
 
-function makePage(evaluateResults = []) {
+function makePage(evaluateResults = [], overrides = {}) {
     const evaluate = vi.fn();
     for (const result of evaluateResults) evaluate.mockResolvedValueOnce(result);
     evaluate.mockResolvedValue({ ok: true, url: 'https://medium.com/@writer/a-story' });
@@ -12,6 +12,7 @@ function makePage(evaluateResults = []) {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
         evaluate,
+        ...overrides,
     };
 }
 
@@ -37,6 +38,7 @@ describe('medium publish command', () => {
         expect(page.goto).toHaveBeenCalledWith('https://medium.com/new-story');
         expect(page.evaluate.mock.calls[1][0]).toContain('editorTitleParagraph');
         expect(page.evaluate.mock.calls[1][0]).toContain('A practical title');
+        expect(page.evaluate.mock.calls[1][0]).not.toContain('range.collapse');
         expect(page.evaluate.mock.calls[3][0]).toContain('publish now');
     });
 
@@ -56,6 +58,43 @@ describe('medium publish command', () => {
         expect(page.evaluate.mock.calls[3][0]).toContain('"ai"');
         expect(page.evaluate.mock.calls[4][0]).toContain('"writing"');
         expect(page.evaluate).toHaveBeenCalledTimes(7);
+    });
+
+    it('uses native browser input for each editor paragraph when it is available', async () => {
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = makePage([
+            { hasEditor: true, url: 'https://medium.com/new-story' },
+            { ok: true },
+            { ok: true, actual: 'Title' },
+            { ok: true },
+            { ok: true },
+            { ok: true },
+            { ok: true, actual: 'Body' },
+            { ok: true },
+            { ok: true, label: 'Publish' },
+            { ok: true, url: 'https://medium.com/@writer/story-123' },
+        ], { insertText });
+
+        await getCommand().func(page, { title: 'Title', content: 'Body' });
+
+        expect(insertText).toHaveBeenNthCalledWith(1, 'Title');
+        expect(insertText).toHaveBeenNthCalledWith(2, 'Body');
+        expect(page.evaluate.mock.calls[1][0]).toContain('editorTitleParagraph');
+        expect(page.evaluate.mock.calls[5][0]).toContain('p.graf--p');
+    });
+
+    it('fills the editor root in one native operation when fillText is available', async () => {
+        const fillText = vi.fn().mockResolvedValue({ verified: true, actual: 'Title\nBody' });
+        const page = makePage([
+            { hasEditor: true, url: 'https://medium.com/new-story' },
+            { ok: true },
+            { ok: true, label: 'Publish' },
+            { ok: true, url: 'https://medium.com/@writer/story-123' },
+        ], { fillText });
+
+        await getCommand().func(page, { title: 'Title', content: 'Body' });
+
+        expect(fillText).toHaveBeenCalledWith('[role="textbox"][contenteditable="true"]', 'Title\nBody');
     });
 
     it('validates arguments before opening the editor', async () => {

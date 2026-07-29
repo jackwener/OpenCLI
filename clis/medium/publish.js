@@ -45,10 +45,79 @@ async function waitForEditor(page) {
 }
 
 async function fillStory(page, title, content) {
+    // Native input is important here: Medium enables its Publish button only
+    // after it receives trusted editor input events, not synthetic DOM edits.
+    if (page.fillText) {
+        const story = `${title}\n${content}`;
+        const result = await page.fillText('[role="textbox"][contenteditable="true"]', story);
+        if (result?.verified) return;
+        throw new CommandExecutionError(`Could not fill Medium story: content verification failed (${result?.actual || ''})`);
+    }
+    if (page.insertText) {
+        const fillNative = async (selector, value, label) => {
+            const prepared = await page.evaluate(`(selector => {
+                const el = document.querySelector(selector);
+                if (!el) {
+                    const editor = document.querySelector('[role="textbox"][contenteditable="true"]');
+                    return {
+                        ok: false,
+                        reason: selector + ' not found',
+                        url: location.href,
+                        editorText: String(editor?.innerText || '').trim().slice(0, 300),
+                        editorNodes: Array.from(editor?.querySelectorAll?.('*') || []).map(node => node.tagName).join(','),
+                    };
+                }
+                el.focus();
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                return { ok: true };
+            })(${JSON.stringify(selector)})`);
+            if (!prepared?.ok) throw new CommandExecutionError(
+                `Could not prepare Medium ${label}: ${prepared?.reason || 'unknown error'}` +
+                `${prepared?.editorText ? ` (editor: ${prepared.editorText})` : ''}`,
+            );
+            await page.insertText(value);
+            const verified = await page.evaluate(`(data => {
+                const el = document.querySelector(data.selector);
+                const actual = String(el?.innerText || el?.textContent || '').trim();
+                return { ok: actual === data.value, actual };
+            })(${JSON.stringify({ selector, value })})`);
+            if (!verified?.ok) throw new CommandExecutionError(`Could not fill Medium ${label}: content verification failed (${verified?.actual || ''})`);
+        };
+        await fillNative('[data-testid="editorTitleParagraph"]', title, 'title');
+        // Medium creates the first body paragraph only after leaving the title
+        // with Enter; its initial placeholder paragraph is discarded on title input.
+        const caretReady = await page.evaluate(`(() => {
+            const title = document.querySelector('[data-testid="editorTitleParagraph"], .graf--title');
+            const editor = document.querySelector('[role="textbox"][contenteditable="true"]');
+            if (!title || !editor) return { ok: false };
+            editor.focus();
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(title);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return { ok: true };
+        })()`);
+        if (!caretReady?.ok) throw new CommandExecutionError('Could not place the Medium editor caret after the title');
+        const paragraphReady = await page.evaluate(`(() => {
+            document.execCommand('insertParagraph', false);
+            const body = document.querySelector('[data-testid="editorParagraphText"], p.graf--p, p.graf');
+            return { ok: !!body, tag: body?.tagName || '' };
+        })()`);
+        if (!paragraphReady?.ok) throw new CommandExecutionError('Could not create the Medium story body paragraph');
+        await fillNative('[data-testid="editorParagraphText"], p.graf--p, p.graf', content, 'body');
+        return;
+    }
+
     const result = await page.evaluate(`(data => {
         const editor = document.querySelector('[role="textbox"][contenteditable="true"]');
         const titleEl = editor?.querySelector('[data-testid="editorTitleParagraph"], .graf--title');
-        const bodyEl = editor?.querySelector('[data-testid="editorParagraphText"], p.graf--p');
+        const bodyEl = editor?.querySelector('[data-testid="editorParagraphText"], p.graf--p, p.graf');
         if (!editor || !titleEl || !bodyEl) return { ok: false, reason: 'Medium title or body editor not found' };
 
         const replace = (el, value) => {
@@ -56,7 +125,6 @@ async function fillStory(page, title, content) {
             const selection = window.getSelection();
             const range = document.createRange();
             range.selectNodeContents(el);
-            range.collapse(true);
             selection.removeAllRanges();
             selection.addRange(range);
             document.execCommand('insertText', false, value);
