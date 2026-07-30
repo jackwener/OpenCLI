@@ -427,6 +427,31 @@ describe('twitter bookmarks archive safety', () => {
         }
     });
 
+    it('rejects output files whose JSONL record count differs from resume state', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const outputFile = `/tmp/opencli-bookmarks-count-mismatch-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = `${outputFile}.resume.json`;
+        fs.writeFileSync(outputFile, '{"id":"1"}\n{"id":"2"}\n');
+        fs.writeFileSync(resumeFile, JSON.stringify({
+            cursor: 'NEXT',
+            count: 1,
+            complete: false,
+            source: 'bookmarks',
+            outputFile,
+        }));
+        try {
+            await expect(command.func(pageFor(), {
+                all: true,
+                'output-file': outputFile,
+                'resume-file': resumeFile,
+            })).rejects.toThrow(/expected resume count 1/);
+        }
+        finally {
+            fs.rmSync(outputFile, { force: true });
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
     it('throws for an incomplete in-memory --all run while retaining resume state', async () => {
         const command = getRegistry().get('twitter/bookmarks');
         const resumeFile = `/tmp/opencli-bookmarks-memory-${process.pid}-${Date.now()}.json`;

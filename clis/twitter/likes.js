@@ -205,10 +205,11 @@ function removeFile(filePath) {
     catch {
     }
 }
-function loadSeenIdsFromJsonl(filePath) {
+function loadJsonlArchiveState(filePath) {
     const seen = new Set();
+    let count = 0;
     if (!filePath || !fs.existsSync(filePath))
-        return seen;
+        return { seen, count };
     const text = fs.readFileSync(filePath, 'utf8');
     for (const [index, line] of text.split('\n').entries()) {
         const trimmed = line.trim();
@@ -218,13 +219,17 @@ function loadSeenIdsFromJsonl(filePath) {
             const row = JSON.parse(trimmed);
             if (!row?.id)
                 throw new Error('missing id');
-            seen.add(String(row.id));
+            const id = String(row.id);
+            if (seen.has(id))
+                throw new Error(`duplicate id ${id}`);
+            seen.add(id);
+            count += 1;
         }
         catch (error) {
             throw new CommandExecutionError(`Invalid JSONL record in ${filePath} at line ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    return seen;
+    return { seen, count };
 }
 function appendJsonlRows(filePath, rows) {
     if (!filePath || !Array.isArray(rows) || rows.length === 0)
@@ -366,15 +371,14 @@ cli({
             throw new ArgumentError(`Refusing to overwrite existing Twitter likes output file: ${outputFile}`);
         }
         const allTweets = useOutputFile ? [] : (resumed?.tweets ? [...resumed.tweets] : []);
+        const jsonlState = useOutputFile ? loadJsonlArchiveState(outputFile) : null;
         const seen = useOutputFile
-            ? loadSeenIdsFromJsonl(outputFile)
+            ? jsonlState.seen
             : new Set(allTweets.map((tweet) => tweet?.id).filter(Boolean));
-        if (useOutputFile && resumed && seen.size < resumed.count) {
-            throw new CommandExecutionError(`Twitter likes output file has ${seen.size} record(s), fewer than resume count ${resumed.count}`);
+        if (useOutputFile && resumed && jsonlState.count !== resumed.count) {
+            throw new CommandExecutionError(`Twitter likes output file has ${jsonlState.count} record(s), expected resume count ${resumed.count}`);
         }
-        let outputCount = useOutputFile
-            ? Math.max(seen.size, Number(resumed?.count || 0))
-            : 0;
+        let outputCount = useOutputFile ? jsonlState.count : 0;
         let cursor = resumed?.cursor || null;
         let lastRawResponse = null;
         let pages = 0;
