@@ -28,7 +28,7 @@ import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
+import { getBrowserFactory, getConfiguredCdpEndpoint, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
@@ -235,12 +235,13 @@ export async function executeCommand(
   try {
     if (shouldUseBrowserSession(cmd)) {
       const electron = isElectronApp(cmd.site);
+      const manualEndpoint = getConfiguredCdpEndpoint();
       let cdpEndpoint: string | undefined;
 
-      if (electron) {
-        // Electron apps: respect manual endpoint override, then try auto-detect
-        const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
-        if (manualEndpoint) {
+      if (manualEndpoint) {
+        // Direct CDP for any site (Chrome remote debugging / Android / Electron override).
+        // Probe only for Electron: historical path assumes localhost port via launcher.
+        if (electron) {
           const port = Number(new URL(manualEndpoint).port);
           if (!await probeCDP(port)) {
             throw new CommandExecutionError(
@@ -248,10 +249,10 @@ export async function executeCommand(
               'Check that the app is running with --remote-debugging-port and the endpoint is correct.',
             );
           }
-          cdpEndpoint = manualEndpoint;
-        } else {
-          cdpEndpoint = await resolveElectronEndpoint(cmd.site);
         }
+        cdpEndpoint = manualEndpoint;
+      } else if (electron) {
+        cdpEndpoint = await resolveElectronEndpoint(cmd.site);
       }
 
       const BrowserFactory = getBrowserFactory(cmd.site);

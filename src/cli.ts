@@ -41,7 +41,7 @@ import { aliasForContextId, loadProfileConfig, profileRouteParams, renameProfile
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
-import type { BrowserWindowMode } from './runtime.js';
+import { getBrowserFactory, type BrowserWindowMode } from './runtime.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
@@ -522,8 +522,9 @@ async function getBrowserPage(
   profileSelection?: ProfileSelection,
   opts: { windowMode?: BrowserWindowMode } = {},
 ): Promise<import('./types.js').IPage> {
-  const { BrowserBridge } = await import('./browser/index.js');
-  const bridge = new BrowserBridge();
+  // OPENCLI_CDP_ENDPOINT → CDPBridge (no extension); otherwise BrowserBridge.
+  const BrowserFactory = getBrowserFactory();
+  const bridge = new BrowserFactory();
   // Internal GC timeout for browser sessions. Not the per-command runtime timeout.
   const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;

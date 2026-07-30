@@ -7,11 +7,21 @@ import { DEFAULT_BROWSER_COMMAND_TIMEOUT, DEFAULT_BROWSER_CONNECT_TIMEOUT } from
 export { DEFAULT_BROWSER_COMMAND_TIMEOUT, DEFAULT_BROWSER_CONNECT_TIMEOUT };
 
 /**
- * Returns the appropriate browser factory based on site type.
- * Uses CDPBridge for registered Electron apps, otherwise BrowserBridge.
+ * Explicit CDP endpoint override (direct WebSocket, no Chrome extension).
+ * Empty / whitespace-only values are treated as unset.
+ */
+export function getConfiguredCdpEndpoint(): string | undefined {
+  const endpoint = process.env.OPENCLI_CDP_ENDPOINT?.trim();
+  return endpoint || undefined;
+}
+
+/**
+ * Returns the appropriate browser factory based on site type / env.
+ * CDPBridge when OPENCLI_CDP_ENDPOINT is set or the site is a registered
+ * Electron app; otherwise BrowserBridge (daemon + extension).
  */
 export function getBrowserFactory(site?: string): new () => IBrowserFactory {
-  if (site && isElectronApp(site)) return CDPBridge;
+  if (getConfiguredCdpEndpoint() || (site && isElectronApp(site))) return CDPBridge;
   return BrowserBridge;
 }
 
