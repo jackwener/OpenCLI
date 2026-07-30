@@ -1,4 +1,5 @@
 import * as os from 'node:os';
+import * as path from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
@@ -99,9 +100,9 @@ describe('instagram download command', () => {
         });
         expect(result).toBeNull();
         expect(page.goto.mock.calls[0]?.[0]).toBe('https://www.instagram.com/p/DWUR_azCWbN/');
-        expect(mockHttpDownload).toHaveBeenNthCalledWith(1, 'https://cdn.example.com/photo.webp?foo=1', expect.stringContaining('instagram-test/DWUR_azCWbN/DWUR_azCWbN_01.webp'), expect.objectContaining({ timeout: 60000 }));
-        expect(mockHttpDownload).toHaveBeenNthCalledWith(2, 'https://cdn.example.com/video.mp4?bar=2', expect.stringContaining('instagram-test/DWUR_azCWbN/DWUR_azCWbN_02.mp4'), expect.objectContaining({ timeout: 120000 }));
-        expect(logSpy).toHaveBeenCalledWith('📁 saved: instagram-test/DWUR_azCWbN');
+        expect(mockHttpDownload).toHaveBeenNthCalledWith(1, 'https://cdn.example.com/photo.webp?foo=1', path.join('instagram-test', 'DWUR_azCWbN', 'DWUR_azCWbN_01.webp'), { timeout: 60000 });
+        expect(mockHttpDownload).toHaveBeenNthCalledWith(2, 'https://cdn.example.com/video.mp4?bar=2', path.join('instagram-test', 'DWUR_azCWbN', 'DWUR_azCWbN_02.mp4'), { timeout: 120000 });
+        expect(logSpy).toHaveBeenCalledWith(`📁 saved: ${path.join('instagram-test', 'DWUR_azCWbN')}`);
     });
     it('uses a cross-platform Downloads default when path is omitted', async () => {
         mockHttpDownload.mockResolvedValueOnce({ success: true, size: 120_000 });
@@ -113,6 +114,6 @@ describe('instagram download command', () => {
             ],
         });
         await cmd.func(page, { url: 'https://www.instagram.com/p/DWUR_azCWbN/' });
-        expect(mockHttpDownload).toHaveBeenCalledWith('https://cdn.example.com/photo.webp?foo=1', expect.stringContaining(`${os.homedir()}/Downloads/Instagram/DWUR_azCWbN/DWUR_azCWbN_01.webp`), expect.objectContaining({ timeout: 60000 }));
+        expect(mockHttpDownload).toHaveBeenCalledWith('https://cdn.example.com/photo.webp?foo=1', path.join(os.homedir(), 'Downloads', 'Instagram', 'DWUR_azCWbN', 'DWUR_azCWbN_01.webp'), { timeout: 60000 });
     });
 });

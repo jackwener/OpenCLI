@@ -110,13 +110,16 @@ jobs:
       - name: Run unit tests under Bun
         run: bun vitest run --project unit --reporter=verbose
 
-  # Adapter tests are pure unit tests — OS doesn't affect results. Gated off
-  # `pull_request` to keep PR CI under ~2 minutes; adapter authors run focused
-  # tests locally before pushing, and `push` to main / nightly cron / manual
-  # dispatch still guard the merged state.
+  # Adapter tests are isolated, but filesystem behavior can still vary by OS.
+  # Keep them off `pull_request` to preserve fast PR feedback, while Linux and
+  # Windows guard the merged state on push / nightly cron / manual dispatch.
   adapter-test:
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     needs: build
     steps:
       - uses: actions/checkout@v6

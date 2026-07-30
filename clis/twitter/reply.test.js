@@ -95,7 +95,8 @@ describe('twitter reply command', () => {
         const uploadedPath = setFileInput.mock.calls[0][0][0];
         // Tmp dir is created by utils.downloadRemoteImage with the
         // 'opencli-twitter-' prefix; final extension comes from Content-Type.
-        expect(uploadedPath).toMatch(/opencli-twitter-.*\/image\.png$/);
+        expect(path.basename(path.dirname(uploadedPath))).toMatch(/^opencli-twitter-/);
+        expect(path.basename(uploadedPath)).toBe('image.png');
         // Per-call tmp dir is removed in the adapter's finally block, so the
         // downloaded file no longer exists once the command returns.
         expect(fs.existsSync(uploadedPath)).toBe(false);
