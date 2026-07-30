@@ -24530,6 +24530,51 @@
   },
   {
     "site": "medium",
+    "name": "draft-create",
+    "aliases": [
+      "draft_create"
+    ],
+    "description": "Create and confirm an autosaved Medium story draft",
+    "access": "write",
+    "domain": "medium.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Story body text"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "help": "Story title"
+      },
+      {
+        "name": "image",
+        "type": "string",
+        "required": false,
+        "help": "Local inline image path; separate multiple paths with commas (jpg/png/gif/webp/avif)"
+      }
+    ],
+    "columns": [
+      "status",
+      "title",
+      "images",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "medium/draft-create.js",
+    "sourceFile": "medium/draft-create.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "medium",
     "name": "feed",
     "description": "Medium 热门文章 Feed",
     "access": "read",
@@ -24564,6 +24609,77 @@
     "modulePath": "medium/feed.js",
     "sourceFile": "medium/feed.js",
     "navigateBefore": "https://medium.com"
+  },
+  {
+    "site": "medium",
+    "name": "login",
+    "description": "Open medium login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "medium.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "medium/auth.js",
+    "sourceFile": "medium/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "medium",
+    "name": "publish",
+    "description": "Write and publish a Medium story from the logged-in browser session",
+    "access": "write",
+    "domain": "medium.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Story body text"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "help": "Story title"
+      },
+      {
+        "name": "tags",
+        "type": "string",
+        "required": false,
+        "help": "Comma-separated topic tags (maximum 5)"
+      }
+    ],
+    "columns": [
+      "status",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "medium/publish.js",
+    "sourceFile": "medium/publish.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "medium",
@@ -24676,6 +24792,26 @@
     "modulePath": "medium/user.js",
     "sourceFile": "medium/user.js",
     "navigateBefore": "https://medium.com"
+  },
+  {
+    "site": "medium",
+    "name": "whoami",
+    "description": "Show the current logged-in medium account",
+    "access": "read",
+    "domain": "medium.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username"
+    ],
+    "type": "js",
+    "modulePath": "medium/auth.js",
+    "sourceFile": "medium/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "mercury",
@@ -27540,6 +27676,71 @@
     "type": "js",
     "modulePath": "paperreview/submit.js",
     "sourceFile": "paperreview/submit.js"
+  },
+  {
+    "site": "pinterest",
+    "name": "create-pin",
+    "description": "Create and publish a Pinterest Pin from the logged-in browser session",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "image",
+        "type": "string",
+        "required": true,
+        "help": "Local image path (jpg/jpeg/png/webp/gif)"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "help": "Pinterest board name to publish into"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "help": "Pin title"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "help": "Pin description"
+      },
+      {
+        "name": "link",
+        "type": "string",
+        "required": false,
+        "help": "Destination link URL"
+      },
+      {
+        "name": "alt-text",
+        "type": "string",
+        "required": false,
+        "help": "Image alt text, when Pinterest exposes the field"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 90,
+        "required": false,
+        "help": "Max seconds to wait for upload and publish confirmation (15-300)"
+      }
+    ],
+    "columns": [
+      "status",
+      "board",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/create-pin.js",
+    "sourceFile": "pinterest/create-pin.js",
+    "navigateBefore": false,
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "pixiv",
@@ -40715,6 +40916,25 @@
         "type": "str",
         "required": false,
         "help": "文章摘要"
+      },
+      {
+        "name": "original-declaration",
+        "type": "str",
+        "required": false,
+        "help": "开启原创声明并填写原创署名，例如：一页科学课"
+      },
+      {
+        "name": "reward",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "开启公众号赞赏"
+      },
+      {
+        "name": "reward-account",
+        "type": "str",
+        "required": false,
+        "help": "赞赏账户名称；默认使用原创署名或作者名"
       },
       {
         "name": "timeout",
