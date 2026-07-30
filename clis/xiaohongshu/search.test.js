@@ -45,27 +45,87 @@ describe('xiaohongshu search', () => {
         });
         expect(page.goto).not.toHaveBeenCalled();
     });
+    it('submits the keyword through the Xiaohongshu search box instead of direct-linking search results', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            'search_route',
+            'content',
+            [
+                {
+                    title: 'Result A',
+                    author: 'UserA',
+                    likes: '10',
+                    url: 'https://www.xiaohongshu.com/search_result/aaa',
+                    author_url: '',
+                },
+            ],
+        ]);
+
+        await cmd.func(page, { query: '增额寿险靠谱吗', limit: 1 });
+
+        expect(page.goto).toHaveBeenCalledWith('https://www.xiaohongshu.com/');
+        expect(page.click).toHaveBeenCalledWith('#search-input-in-feeds');
+        expect(page.typeText).toHaveBeenCalledWith('#search-input-in-feeds', '增额寿险靠谱吗');
+        expect(page.pressKey).toHaveBeenCalledWith('Enter');
+    });
     it('throws a clear error when the search page is blocked by a login wall', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
-            // First evaluate: MutationObserver wait (login wall detected)
+            // First evaluate: search route reached
+            'search_route',
+            // Second evaluate: MutationObserver wait (login wall detected)
             'login_wall',
         ]);
         await expect(cmd.func(page, { query: '特斯拉', limit: 5 })).rejects.toThrow('Xiaohongshu search results are blocked behind a login wall');
         // No scroll-until / autoScroll call when a login wall is detected early.
-        expect(page.evaluate).toHaveBeenCalledTimes(1);
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
         expect(page.autoScroll).not.toHaveBeenCalled();
     });
     it('unwraps a browser-bridge envelope before handling login-wall wait result', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([
+            'search_route',
             { session: 'site:xiaohongshu', data: 'login_wall' },
         ]);
 
         await expect(cmd.func(page, { query: '特斯拉', limit: 5 })).rejects.toMatchObject({
             code: 'AUTH_REQUIRED',
             message: expect.stringContaining('blocked behind a login wall'),
+        });
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+    });
+    it('throws a clear error when Xiaohongshu redirects search to a security restriction page', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            { session: 'site:xiaohongshu', data: 'security_block' },
+        ]);
+
+        await expect(cmd.func(page, { query: '增额寿险靠谱吗', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('security restriction'),
+        });
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+    it('does not extract homepage feed cards when search submission never reaches a search results route', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            'timeout',
+            'content',
+            [
+                {
+                    title: 'Homepage feed card',
+                    author: 'FeedUser',
+                    likes: '1',
+                    url: 'https://www.xiaohongshu.com/explore/homefeed',
+                    author_url: '',
+                },
+            ],
+        ]);
+
+        await expect(cmd.func(page, { query: '增额寿险靠谱吗', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('did not reach a search results route'),
         });
         expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
@@ -84,9 +144,11 @@ describe('xiaohongshu search', () => {
             },
         ];
         const page = createPageMock([
-            // First evaluate: MutationObserver wait (content appeared)
+            // First evaluate: search route reached
+            'search_route',
+            // Second evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: initial DOM extraction (already enough results) through Browser Bridge envelope.
+            // Third evaluate: initial DOM extraction (already enough results) through Browser Bridge envelope.
             { session: 'site:xiaohongshu', data: rows },
         ]);
         const result = await cmd.func(page, { query: '特斯拉', limit: 1 });
@@ -107,6 +169,7 @@ describe('xiaohongshu search', () => {
     it('fails typed instead of silently returning [] for malformed extraction payloads', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([
+            'search_route',
             'content',
             { session: 'site:xiaohongshu', data: { rows: [] } },
         ]);
@@ -120,9 +183,11 @@ describe('xiaohongshu search', () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
-            // First evaluate: MutationObserver wait (content appeared)
+            // First evaluate: search route reached
+            'search_route',
+            // Second evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: initial DOM extraction (already enough valid rows)
+            // Third evaluate: initial DOM extraction (already enough valid rows)
             [
                 {
                     title: 'Result A',
@@ -156,26 +221,29 @@ describe('xiaohongshu search', () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
-            // First evaluate: MutationObserver wait (content appeared)
+            // First evaluate: search route reached
+            'search_route',
+            // Second evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: initial extraction (no rows rendered)
+            // Third evaluate: initial extraction (no rows rendered)
             [],
-            // Third evaluate: scroll-until row count
+            // Fourth evaluate: scroll-until row count
             0,
-            // Fourth evaluate: post-scroll extraction (still no rows)
+            // Fifth evaluate: post-scroll extraction (still no rows)
             [],
         ]);
         const result = (await cmd.func(page, { query: '测试等待', limit: 5 }));
         expect(result).toHaveLength(0);
         // Only one navigation, no retry
         expect(page.goto).toHaveBeenCalledTimes(1);
-        // Four evaluate calls: wait, initial extraction, scroll-until, post-scroll extraction.
-        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        // Five evaluate calls: route wait, content wait, initial extraction, scroll-until, post-scroll extraction.
+        expect(page.evaluate).toHaveBeenCalledTimes(5);
     });
     it('scrolls only when the initial extraction has fewer rows than requested', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
+            'search_route',
             'content',
             [
                 { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
@@ -191,7 +259,7 @@ describe('xiaohongshu search', () => {
 
         expect(result).toHaveLength(2);
         expect(result.map((item) => item.title)).toEqual(['Result A', 'Result B']);
-        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.evaluate).toHaveBeenCalledTimes(5);
     });
     it('separates fallback author text from appended relative date', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
@@ -208,6 +276,7 @@ describe('xiaohongshu search', () => {
         `, { url: 'https://www.xiaohongshu.com/search_result?keyword=test' });
         markVisible(dom.window.document.querySelector('section.note-item'));
         const page = createPageMock([]);
+        page.evaluate.mockImplementationOnce(async () => 'search_route');
         page.evaluate.mockImplementationOnce(async () => 'content');
         page.evaluate.mockImplementationOnce(async (script) => Function('document', 'getComputedStyle', `return (${script})`)(dom.window.document, dom.window.getComputedStyle.bind(dom.window)));
 
