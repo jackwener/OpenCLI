@@ -41,7 +41,7 @@ import { aliasForContextId, loadProfileConfig, profileRouteParams, renameProfile
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
-import { getBrowserFactory, type BrowserWindowMode } from './runtime.js';
+import { applyCdpEndpointFromCli, getBrowserFactory, type BrowserWindowMode } from './runtime.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
@@ -709,6 +709,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .description('Make any website your CLI. Zero setup. AI-powered.')
     .version(PKG_VERSION)
     .option('--profile <name>', 'Chrome profile/context alias for Browser Bridge commands')
+    .option('--cdp-endpoint <url>', 'CDP endpoint; overrides OPENCLI_CDP_ENDPOINT; skips Chrome extension')
     .enablePositionalOptions();
 
   // ── Built-in: list ────────────────────────────────────────────────────────
@@ -1011,6 +1012,8 @@ Examples:
       let page: Awaited<ReturnType<typeof getBrowserPage>> | null = null;
       try {
         const command = args.at(-1) instanceof Command ? args.at(-1) as Command : undefined;
+        const cdpEndpointOpt = getCommandOption(command, 'cdpEndpoint');
+        applyCdpEndpointFromCli(typeof cdpEndpointOpt === 'string' ? cdpEndpointOpt : undefined);
         const targetPage = getBrowserTargetId(command);
         const session = getBrowserSession(command);
         const profileSelection = getBrowserProfileSelection(command);

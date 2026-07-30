@@ -57,9 +57,9 @@ const BROWSER_SUBCOMMAND_NAMES: ReadonlySet<string> = new Set([
  * `opencli --profile work browser foo state` is recognised as the `browser`
  * command with `<session>=foo`, not the value of --profile).
  *
- * Keep in sync with `program.option(...)` calls in cli.ts.
+ * Keep in sync with `program.option(...)` value-taking flags in cli.ts.
  */
-const ROOT_VALUE_FLAGS: ReadonlySet<string> = new Set(['--profile']);
+const ROOT_VALUE_FLAGS: ReadonlySet<string> = new Set(['--profile', '--cdp-endpoint']);
 
 /**
  * Returns the set of reserved subcommand names (exposed for tests so they stay
@@ -122,7 +122,34 @@ export function rewriteBrowserArgv(argv: readonly string[]): string[] {
   // form into the namespace-option slot instead of mirroring the option onto
   // every browser leaf command.
   hoistBrowserWindowOption(result, sessionIdx + 2);
+  // `--cdp-endpoint` is a root program option (like `--profile`). Trailing use
+  // `browser work state --cdp-endpoint http://127.0.0.1:9222` must be hoisted
+  // to the front so commander does not treat it as an unknown leaf option.
+  hoistTrailingRootCdpEndpoint(result);
   return result;
+}
+
+/**
+ * Move one trailing `--cdp-endpoint <url>` / `--cdp-endpoint=<url>` to the
+ * front of argv (root option slot). Stops at `--`. Mutates `argv` in place.
+ */
+function hoistTrailingRootCdpEndpoint(argv: string[]): void {
+  for (let i = 0; i < argv.length; i += 1) {
+    const tok = argv[i];
+    if (tok === '--') return;
+    if (tok.startsWith('--cdp-endpoint=')) {
+      const removed = argv.splice(i, 1);
+      argv.unshift(...removed);
+      return;
+    }
+    if (tok === '--cdp-endpoint') {
+      const value = argv[i + 1];
+      if (value === undefined || value === '--') return;
+      const removed = argv.splice(i, 2);
+      argv.unshift(...removed);
+      return;
+    }
+  }
 }
 
 /**

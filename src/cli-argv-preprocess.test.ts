@@ -106,12 +106,39 @@ describe('rewriteBrowserArgv', () => {
       'mercury',
       'state',
     ]);
+    // `--cdp-endpoint` is a root value flag like `--profile`.
+    expect(rewriteBrowserArgv(['--cdp-endpoint', 'http://127.0.0.1:9222', 'browser', 'work', 'state'])).toEqual([
+      '--cdp-endpoint',
+      'http://127.0.0.1:9222',
+      'browser',
+      '--session',
+      'work',
+      'state',
+    ]);
     // Boolean flags don't consume values.
     expect(rewriteBrowserArgv(['-v', 'browser', 'mercury', 'state'])).toEqual([
       '-v',
       'browser',
       '--session',
       'mercury',
+      'state',
+    ]);
+  });
+
+  it('hoists a trailing root --cdp-endpoint option to the front', () => {
+    expect(rewriteBrowserArgv(['browser', 'work', 'state', '--cdp-endpoint', 'http://127.0.0.1:9688'])).toEqual([
+      '--cdp-endpoint',
+      'http://127.0.0.1:9688',
+      'browser',
+      '--session',
+      'work',
+      'state',
+    ]);
+    expect(rewriteBrowserArgv(['browser', 'work', 'state', '--cdp-endpoint=http://127.0.0.1:9688'])).toEqual([
+      '--cdp-endpoint=http://127.0.0.1:9688',
+      'browser',
+      '--session',
+      'work',
       'state',
     ]);
   });

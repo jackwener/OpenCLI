@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { BrowserBridge, CDPBridge } from './browser/index.js';
-import { getBrowserFactory, getConfiguredCdpEndpoint } from './runtime.js';
+import { applyCdpEndpointFromCli, getBrowserFactory, getConfiguredCdpEndpoint } from './runtime.js';
 
 describe('getConfiguredCdpEndpoint / getBrowserFactory', () => {
   afterEach(() => {
@@ -33,5 +33,28 @@ describe('getConfiguredCdpEndpoint / getBrowserFactory', () => {
     expect(getBrowserFactory('bilibili')).toBe(CDPBridge);
     expect(getBrowserFactory('zhihu')).toBe(CDPBridge);
     expect(getBrowserFactory()).toBe(CDPBridge);
+  });
+});
+
+describe('applyCdpEndpointFromCli', () => {
+  afterEach(() => {
+    delete process.env.OPENCLI_CDP_ENDPOINT;
+  });
+
+  it('overrides pre-existing OPENCLI_CDP_ENDPOINT when CLI value is set', () => {
+    process.env.OPENCLI_CDP_ENDPOINT = 'http://127.0.0.1:9999';
+    applyCdpEndpointFromCli('  http://127.0.0.1:9222  ');
+    expect(process.env.OPENCLI_CDP_ENDPOINT).toBe('http://127.0.0.1:9222');
+    expect(getConfiguredCdpEndpoint()).toBe('http://127.0.0.1:9222');
+  });
+
+  it('leaves env unchanged for empty or blank CLI values', () => {
+    process.env.OPENCLI_CDP_ENDPOINT = 'http://127.0.0.1:9999';
+    applyCdpEndpointFromCli(undefined);
+    expect(process.env.OPENCLI_CDP_ENDPOINT).toBe('http://127.0.0.1:9999');
+    applyCdpEndpointFromCli('');
+    expect(process.env.OPENCLI_CDP_ENDPOINT).toBe('http://127.0.0.1:9999');
+    applyCdpEndpointFromCli('   ');
+    expect(process.env.OPENCLI_CDP_ENDPOINT).toBe('http://127.0.0.1:9999');
   });
 });

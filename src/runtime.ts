@@ -15,6 +15,12 @@ export function getConfiguredCdpEndpoint(): string | undefined {
   return endpoint || undefined;
 }
 
+/** CLI --cdp-endpoint wins over pre-existing env for this process. */
+export function applyCdpEndpointFromCli(cliEndpoint?: string): void {
+  const v = cliEndpoint?.trim();
+  if (v) process.env.OPENCLI_CDP_ENDPOINT = v;
+}
+
 /**
  * Returns the appropriate browser factory based on site type / env.
  * CDPBridge when OPENCLI_CDP_ENDPOINT is set or the site is a registered

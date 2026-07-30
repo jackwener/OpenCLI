@@ -16,6 +16,7 @@ import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
 import { render as renderOutput } from './output.js';
 import { executeCommand, prepareCommandArgs } from './execution.js';
+import { applyCdpEndpointFromCli } from './runtime.js';
 import {
   commandHelpData,
   formatCommandHelpText,
@@ -114,6 +115,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       const formatExplicit = subCmd.getOptionValueSource('format') === 'cli';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
       const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};
+      applyCdpEndpointFromCli(typeof globals.cdpEndpoint === 'string' ? globals.cdpEndpoint : undefined);
       const result = await executeCommand(cmd, kwargs, verbose, {
         prepared: true,
         ...(typeof globals.profile === 'string' && globals.profile.trim() ? { profile: globals.profile.trim() } : {}),
