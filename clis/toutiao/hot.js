@@ -23,7 +23,7 @@ cli({
         { name: 'limit', type: 'int', default: 30, help: '返回条数 (1-50)' },
     ],
     columns: ['rank', 'group_id', 'title', 'query', 'hot_value', 'label', 'url', 'image_url'],
-    func: async (_page, kwargs) => {
+    func: async (kwargs) => {
         const limit = parseHotLimit(kwargs?.limit, 30);
         let resp;
         try {

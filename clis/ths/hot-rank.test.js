@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { CliError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
-import './hot-rank.js';
+import { __test__ } from './hot-rank.js';
 
 describe('ths hot-rank command', () => {
   it('registers the command with correct metadata', () => {
@@ -10,9 +11,10 @@ describe('ths hot-rank command', () => {
       site: 'ths',
       name: 'hot-rank',
       description: expect.stringContaining('同花顺'),
-      domain: 'eq.10jqka.com.cn',
-      navigateBefore: true,
+      domain: 'dq.10jqka.com.cn',
+      browser: false,
     });
+    expect(command.strategy).toBe('public');
     expect(command.columns).toEqual(['rank', 'name', 'changePercent', 'heat', 'tags']);
   });
 
@@ -21,44 +23,106 @@ describe('ths hot-rank command', () => {
     expect(command.columns).toContain('tags');
   });
 
-  it('returns hot stock data with tags field', async () => {
+  it('fetches the public hot list API and maps authoritative ranks', async () => {
     const command = getRegistry().get('ths/hot-rank');
-    const mockData = [
-      { rank: 1, name: '圣阳股份', changePercent: '+10.00%', heat: '28.5万', tags: '动力电池回收,钠离子电池' },
-    ];
-    const page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      wait: vi.fn().mockResolvedValue(undefined),
-      evaluate: vi.fn().mockResolvedValue(mockData),
-    };
-    const result = await command.func(page, { limit: 20 });
-    expect(result).toHaveLength(1);
-    expect(result[0].tags).toBe('动力电池回收,钠离子电池');
-    expect(result[0].name).toBe('圣阳股份');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          stock_list: [
+            {
+              order: 21,
+              name: '圣阳股份',
+              rise_and_fall: '+10.00%',
+              rate: '28.5万',
+              tag: { concept_tag: ['动力电池回收'], popularity_tag: ['钠离子电池'] },
+            },
+          ],
+        },
+      }),
+    });
+
+    try {
+      const result = await command.func({ limit: 20 });
+      expect(fetchSpy).toHaveBeenCalledWith(__test__.THS_HOT_API_URL, expect.objectContaining({
+        headers: expect.objectContaining({ Referer: 'https://eq.10jqka.com.cn/' }),
+      }));
+      expect(result).toEqual([
+        { rank: 21, name: '圣阳股份', changePercent: '+10.00%', heat: '28.5万', tags: '动力电池回收,钠离子电池' },
+      ]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('respects the limit parameter', async () => {
     const command = getRegistry().get('ths/hot-rank');
-    const mockData = Array.from({ length: 30 }, (_, i) => ({
-      rank: i + 1, name: `stock${i}`, changePercent: '0%', heat: '0', tags: '',
-    }));
-    const page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      wait: vi.fn().mockResolvedValue(undefined),
-      evaluate: vi.fn().mockResolvedValue(mockData),
-    };
-    const result = await command.func(page, { limit: 10 });
-    expect(result).toHaveLength(10);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          stock_list: Array.from({ length: 30 }, (_, i) => ({
+            order: i + 1,
+            name: `stock${i}`,
+            rise_and_fall: '0%',
+            rate: '0',
+            tag: {},
+          })),
+        },
+      }),
+    });
+
+    try {
+      const result = await command.func({ limit: 10 });
+      expect(result).toHaveLength(10);
+      expect(result[9].rank).toBe(10);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
-  it('returns empty array when evaluate returns non-array', async () => {
+  it('throws NO_DATA when the API shape has no stock list', async () => {
     const command = getRegistry().get('ths/hot-rank');
-    const page = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      wait: vi.fn().mockResolvedValue(undefined),
-      evaluate: vi.fn().mockResolvedValue(null),
-    };
-    const result = await command.func(page, { limit: 20 });
-    expect(result).toEqual([]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: {} }),
+    });
+
+    try {
+      await expect(command.func({ limit: 20 })).rejects.toMatchObject({ code: 'NO_DATA' });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('throws HTTP_ERROR when the API request fails', async () => {
+    const command = getRegistry().get('ths/hot-rank');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+
+    try {
+      await expect(command.func({ limit: 20 })).rejects.toBeInstanceOf(CliError);
+      await expect(command.func({ limit: 20 })).rejects.toMatchObject({ code: 'HTTP_ERROR' });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('rejects invalid limits before fetching', async () => {
+    const command = getRegistry().get('ths/hot-rank');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    await expect(command.func({ limit: 0 })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(command.func({ limit: 101 })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(command.func({ limit: 'abc' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('combines concept and popularity tags', () => {
+    expect(__test__.tagsFromStock({
+      tag: { concept_tag: ['AI'], popularity_tag: ['算力'] },
+    })).toBe('AI,算力');
   });
 });

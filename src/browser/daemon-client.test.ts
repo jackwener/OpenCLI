@@ -2,12 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BrowserCommandError,
+  clearDaemonRunContext,
   fetchDaemonStatus,
   getDaemonHealth,
+  isUnknownOutcomeError,
   requestDaemonShutdown,
   sendCommand,
   setDaemonCommandTimeoutSeconds,
+  setDaemonRunContext,
 } from './daemon-client.js';
+import { SessionBusyError } from '../errors.js';
 import * as daemonLifecycle from './daemon-lifecycle.js';
 
 describe('daemon-client', () => {
@@ -18,6 +22,7 @@ describe('daemon-client', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    setDaemonRunContext(null);
   });
 
   it('fetchDaemonStatus sends the shared status request and returns parsed data', async () => {
@@ -213,6 +218,75 @@ describe('daemon-client', () => {
     expect(ids[0]).toMatch(new RegExp(`^cmd_${process.pid}_1763000000000_\\d+$`));
     expect(ids[1]).toMatch(new RegExp(`^cmd_${process.pid}_1763000000000_\\d+$`));
     expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('attaches the run context (runId/command/access) to every command as a lease heartbeat', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+    setDaemonRunContext({ runId: 'run_4242_1_a', command: 'chatgpt ask', access: 'write' });
+
+    await sendCommand('exec', { code: '1 + 1', surface: 'adapter', session: 'site:chatgpt', siteSession: 'persistent' });
+    await sendCommand('exec', { code: '2 + 2', surface: 'adapter', session: 'site:chatgpt', siteSession: 'persistent' });
+
+    for (const call of vi.mocked(fetch).mock.calls) {
+      const body = JSON.parse(String(call[1]?.body)) as { runId?: string; command?: string; access?: string };
+      expect(body.runId).toBe('run_4242_1_a');
+      expect(body.command).toBe('chatgpt ask');
+      expect(body.access).toBe('write');
+    }
+  });
+
+  it('clearDaemonRunContext only clears the context that still belongs to the runId', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+    setDaemonRunContext({ runId: 'run_4242_1_a', command: 'chatgpt ask', access: 'write' });
+
+    // A stale run's deferred cleanup must not strip a different owner's context.
+    clearDaemonRunContext('run_9999_2_b');
+    await sendCommand('exec', { code: '1 + 1', surface: 'adapter', session: 'site:chatgpt', siteSession: 'persistent' });
+    const kept = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { runId?: string };
+    expect(kept.runId).toBe('run_4242_1_a');
+
+    clearDaemonRunContext('run_4242_1_a');
+    await sendCommand('exec', { code: '2 + 2', surface: 'adapter', session: 'site:chatgpt', siteSession: 'persistent' });
+    const cleared = JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body)) as { runId?: string };
+    expect(cleared.runId).toBeUndefined();
+  });
+
+  it('omits run-context fields when no run context is set (read/ephemeral commands)', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1' });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { runId?: string; access?: string };
+    expect(body.runId).toBeUndefined();
+    expect(body.access).toBeUndefined();
+  });
+
+  it('throws a terminal SessionBusyError on a session_busy response without retrying', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      status: 409,
+      json: () => Promise.resolve({
+        id: 'server',
+        ok: false,
+        errorCode: 'session_busy',
+        error: 'Session "site:chatgpt" is busy: chatgpt ask (pid 111) has been driving it for 42s.',
+        errorHint: 'Wait for it to finish, or stop it with `kill 111` if it is stuck. Read-only commands are not blocked.',
+      }),
+    } as Response);
+
+    await expect(
+      sendCommand('exec', { code: '1 + 1', surface: 'adapter', session: 'site:chatgpt', siteSession: 'persistent' }),
+    ).rejects.toBeInstanceOf(SessionBusyError);
+    // Terminal: no ensure-bridge / re-dispatch — exactly one request went out.
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
 
   it('sendCommand forwards OPENCLI_PROFILE as a hard contextId requirement', async () => {
@@ -598,5 +672,25 @@ describe('daemon-client', () => {
 
     expect(ensureSpy).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('isUnknownOutcomeError', () => {
+  it('is true for each unknown-outcome code', () => {
+    for (const code of ['command_result_unknown', 'command_lost', 'result_evicted']) {
+      expect(isUnknownOutcomeError(new BrowserCommandError('unknown', code))).toBe(true);
+    }
+  });
+
+  it('is false for an ordinary failure code and for a success (no error)', () => {
+    expect(isUnknownOutcomeError(new BrowserCommandError('boom', 'attach_failed'))).toBe(false);
+    expect(isUnknownOutcomeError(new Error('plain failure'))).toBe(false);
+    expect(isUnknownOutcomeError(undefined)).toBe(false);
+    expect(isUnknownOutcomeError(null)).toBe(false);
+  });
+
+  it('unwraps an unknown-outcome error nested in a cause chain', () => {
+    const wrapped = new Error('adapter failed', { cause: new BrowserCommandError('lost', 'command_lost') });
+    expect(isUnknownOutcomeError(wrapped)).toBe(true);
   });
 });

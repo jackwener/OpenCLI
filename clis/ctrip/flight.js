@@ -4,51 +4,53 @@
  * Unlike `hotel-search`, the flight rows are NOT in `__NEXT_DATA__` — they
  * arrive via a post-load XHR that the daemon network buffer currently can't
  * capture (see MEMORY `daemon_capture_pipeline_bug_2026_05_07`). We instead
- * extract from the rendered `.flight-list > span > div` cards using a
- * position-anchored innerText parser (see `buildFlightExtractJs` in utils).
+ * extract from the rendered `.flight-item` cards, which Ctrip migrated the flight
+ * list to and which omit a text flight number, using a position-anchored innerText
+ * parser (see `buildFlightExtractJs` in utils).
  *
- * Round-trip + advanced filters (airline whitelist, cabin selection beyond
- * 全舱位) are out of scope for v1 — track in #1481 follow-up if requested.
+ * Round-trip search lives in the sibling `flight-round` command; advanced filters
+ * (airline whitelist, cabin selection beyond 全舱位) remain out of scope here.
  */
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { buildFlightExtractJs, buildScrollUntilJs, parseIataCode, parseIsoDate } from './utils.js';
+import { buildFlightExtractJs, buildScrollUntilJs, parseIataCode, parseIsoDate, parseStrictIntegerRange } from './utils.js';
 
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 20;
 
+// Ctrip migrated the flight list to `.flight-item` cards (which omit a text flight
+// number), so the command reads those with the flight-number requirement relaxed.
+const FLIGHT_CARD_SELECTOR = '.flight-item';
+
 function parseFlightLimit(raw) {
-    if (raw === undefined || raw === null || raw === '') return DEFAULT_LIMIT;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new ArgumentError(`--limit must be an integer between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${JSON.stringify(raw)}`);
-    }
-    if (parsed < MIN_LIMIT || parsed > MAX_LIMIT) {
-        throw new ArgumentError(`--limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}, got ${parsed}`);
-    }
-    return parsed;
+    return parseStrictIntegerRange('limit', raw, DEFAULT_LIMIT, MIN_LIMIT, MAX_LIMIT);
 }
 
 /**
- * Wait for `.flight-list > span > div` to render (the post-load XHR settles
- * 1-3s after navigation), or detect a captcha/login redirect.
+ * Wait for the flight cards to finish rendering, or detect a captcha/login
+ * redirect. The post-load XHR settles 1-3s after navigation and the cards fill in
+ * progressively, so this polls the count of cards carrying a time + price and
+ * resolves `content` only once that count has held steady, rather than firing on
+ * the first card and under-reading the rest.
  */
 const WAIT_FOR_FLIGHTS_JS = `
   new Promise((resolve) => {
-    const detect = () => {
-      if (location.pathname.includes('captcha') || /验证码|verify the human/i.test(document.body?.innerText || '')) return 'captcha';
-      if (document.querySelector('.flight-list > span > div')) return 'content';
-      return null;
-    };
-    const found = detect();
-    if (found) return resolve(found);
-    const observer = new MutationObserver(() => {
-      const result = detect();
-      if (result) { observer.disconnect(); resolve(result); }
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 8000);
+    const isCaptcha = () => location.pathname.includes('captcha') || /验证码|verify the human/i.test(document.body?.innerText || '');
+    const fullCount = () => [...document.querySelectorAll('.flight-item')]
+      .filter((el) => { const t = el.textContent || ''; return /\\d{1,2}:\\d{2}/.test(t) && /[¥$€£]/.test(t); }).length;
+    let last = -1;
+    let stable = 0;
+    let elapsed = 0;
+    const iv = setInterval(() => {
+      elapsed += 400;
+      if (isCaptcha()) { clearInterval(iv); return resolve('captcha'); }
+      const c = fullCount();
+      if (c > 0 && c === last) {
+        if (++stable >= 2) { clearInterval(iv); return resolve('content'); }
+      } else { last = c; stable = 0; }
+      if (elapsed >= 18000) { clearInterval(iv); return resolve('timeout'); }
+    }, 400);
   })
 `;
 
@@ -65,7 +67,7 @@ cli({
         { name: 'from', required: true, positional: true, help: 'Departure IATA code (e.g. BJS / PEK)' },
         { name: 'to', required: true, positional: true, help: 'Arrival IATA code (e.g. SHA / PVG)' },
         { name: 'date', required: true, help: 'Departure date (YYYY-MM-DD)' },
-        { name: 'limit', type: 'int', default: DEFAULT_LIMIT, help: `Number of flights (${MIN_LIMIT}-${MAX_LIMIT})` },
+        { name: 'limit', default: DEFAULT_LIMIT, help: `Number of flights (${MIN_LIMIT}-${MAX_LIMIT})` },
     ],
     columns: [
         'rank',
@@ -96,8 +98,8 @@ cli({
             throw new CommandExecutionError(`Ctrip flight page did not render flight cards (state=${String(waitResult)})`);
         }
         // Scroll until enough flight cards rendered (Ctrip lazy-loads beyond ~8).
-        const renderedCardCount = await page.evaluate(buildScrollUntilJs('.flight-list > span > div', limit));
-        const raw = await page.evaluate(buildFlightExtractJs());
+        const renderedCardCount = await page.evaluate(buildScrollUntilJs(FLIGHT_CARD_SELECTOR, limit));
+        const raw = await page.evaluate(buildFlightExtractJs(FLIGHT_CARD_SELECTOR, false));
         if (!Array.isArray(raw)) {
             throw new CommandExecutionError('Ctrip flight DOM extraction returned malformed rows');
         }
@@ -109,7 +111,7 @@ cli({
             throw new EmptyResultError('ctrip flight', `No flights for ${fromCode}→${toCode} on ${date}`);
         }
         const completeRows = rows
-            .filter((r) => r.departureTime && r.departureAirport && r.arrivalTime && r.arrivalAirport && r.airline && r.flightNo)
+            .filter((r) => r.departureTime && r.departureAirport && r.arrivalTime && r.arrivalAirport && r.airline)
             .slice(0, limit)
             .map((r, i) => ({
                 rank: i + 1,

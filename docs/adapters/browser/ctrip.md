@@ -1,6 +1,6 @@
 # Ctrip (携程)
 
-**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `flight`)
+**Mode**: 🌐 Public (`search`, `hotel-suggest`) · 🖥️ Browser + Cookie (`hotel-search`, `hotel`, `flight`, `flight-round`, `train`, `bus`, `ferry`, `cruise`, `tour`, `package`, `attraction`)
 **Domain**: `ctrip.com`
 
 Public destination + hotel-context suggestion lookup against the
@@ -15,7 +15,16 @@ and `flights.ctrip.com`.
 | `opencli ctrip search` | Public | Suggest cities, scenic spots, railway stations and landmarks |
 | `opencli ctrip hotel-suggest` | Public | Suggest cities, business areas and individual hotels |
 | `opencli ctrip hotel-search` | Browser (cookie) | List hotels for a city + check-in/out date range |
+| `opencli ctrip hotel` | Browser (cookie) | Single-hotel detail: rating breakdown, facilities, check-in/out policy |
 | `opencli ctrip flight` | Browser (cookie) | One-way flight search by IATA route + departure date |
+| `opencli ctrip flight-round` | Browser (cookie) | Round-trip flight search by IATA route + depart/return dates |
+| `opencli ctrip train` | Browser (cookie) | Train ticket search by station/city name + departure date |
+| `opencli ctrip bus` | Browser (cookie) | Intercity coach ticket search by city name + departure date |
+| `opencli ctrip ferry` | Browser (cookie) | Passenger ferry sailing search by city name + departure date |
+| `opencli ctrip cruise` | Browser (cookie) | Cruise package search by departure port name |
+| `opencli ctrip tour` | Browser (cookie) | Group / self-guided tour package search by destination keyword |
+| `opencli ctrip package` | Browser (cookie) | Flight-plus-hotel (自由行) package search by destination keyword |
+| `opencli ctrip attraction` | Browser (cookie) | Top attractions for a city id (rating, review count, detail link) |
 
 ## Usage Examples
 
@@ -29,8 +38,37 @@ opencli ctrip hotel-suggest 陆家嘴 --limit 5
 # Hotel listing (city ID from `search` / `hotel-suggest`)
 opencli ctrip hotel-search 2 --checkin 2026-05-20 --checkout 2026-05-21 --limit 10
 
+# Single-hotel detail (hotel id from `hotel-suggest`)
+opencli ctrip hotel 375539
+opencli ctrip hotel 375539 -f json
+
 # One-way flight search
 opencli ctrip flight BJS SHA --date 2026-05-20 --limit 20
+
+# Round-trip flight search (depart + return dates)
+opencli ctrip flight-round SHA BJS --depart 2026-08-15 --return 2026-08-22 --limit 20
+
+# Train ticket search (station or city names)
+opencli ctrip train 北京 上海 --date 2026-05-20 --limit 20
+opencli ctrip train 杭州 上海虹桥 --date 2026-05-20 -f json
+
+# Intercity coach ticket search (city names)
+opencli ctrip bus 北京 天津 --date 2026-05-20 --limit 20
+
+# Passenger ferry search (city names)
+opencli ctrip ferry 大连 烟台 --date 2026-05-20 --limit 20
+
+# Cruise package search (departure port name)
+opencli ctrip cruise 上海 --limit 20
+
+# Tour package search (destination keyword)
+opencli ctrip tour 北京 --limit 20
+
+# Flight-plus-hotel package search (destination keyword)
+opencli ctrip package 三亚 --limit 20
+
+# Top attractions for a city (numeric city id from `ctrip search`, e.g. 1 for 北京)
+opencli ctrip attraction 1 --limit 20
 
 # JSON output
 opencli ctrip search 上海 -f json
@@ -81,7 +119,7 @@ Args:
 | Column | Notes |
 |--------|-------|
 | `rank` | 1-based position after filtering incomplete rows |
-| `airline`, `flightNo`, `aircraft` | Free-text from the rendered card; `aircraft` may be `null` |
+| `airline`, `flightNo`, `aircraft` | Free-text from the rendered card; `flightNo` and `aircraft` may be `null` (the current `.flight-item` cards often omit the flight number) |
 | `departureTime`, `arrivalTime` | `HH:MM` strings |
 | `departureAirport`, `arrivalAirport`, `terminal` | Airport names + optional `T1`/`T2` chunk |
 | `price`, `currency`, `cabin` | First quoted fare; `cabin` is the Chinese suffix (e.g. `经济舱`) |
@@ -92,10 +130,203 @@ Args:
 - `--date` (required) — `YYYY-MM-DD`.
 - `--limit` (1-50, default 20).
 
-Rows are extracted from `.flight-list > span > div` cards because Ctrip's
-post-load XHR is not currently captured by the daemon network buffer (see
-"Caveats" below). Cards with missing departure/arrival/airline are dropped
-rather than emitted with sentinel values.
+Rows are extracted from the rendered `.flight-item` cards (Ctrip migrated the
+flight list to these; they omit a text flight number, so `flightNo` is often
+`null`) because Ctrip's post-load XHR is not currently captured by the daemon
+network buffer (see "Caveats" below). Cards with missing departure/arrival/airline
+are dropped rather than emitted with sentinel values.
+
+## Round-Trip Flight Columns (`flight-round`)
+
+`flight-round` returns the outbound (去程) leg of a round-trip search with the
+same column shape as `flight` (`rank`, `airline`, `flightNo`, `aircraft`,
+`departureTime`, `departureAirport`, `arrivalTime`, `arrivalAirport`, `terminal`,
+`price`, `currency`, `cabin`, `url`), read from the `.flight-item` cards on the
+`round-<from>-<to>` results page.
+
+Args:
+- `<from>`, `<to>` (positional, required): 3-letter IATA codes (`BJS`/`SHA` metro codes work alongside single-airport codes like `PEK`/`PVG`).
+- `--depart`, `--return` (required): `YYYY-MM-DD`, with `return` on or after `depart`.
+- `--limit` (1-50, default 20).
+
+Two differences from the one-way list: `price` is the round-trip total (往返总价)
+for the outbound flight shown, and the round-trip cards omit the flight number, so
+`flightNo` and `aircraft` are usually `null` (never a sentinel). Picking the return
+leg is a second step in Ctrip's flow and is out of scope here.
+
+## Train Columns (`train`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `trainNo` | Train number (`G531` / `D701` / `K528`); the `.checi` icon suffix is stripped |
+| `departureTime`, `arrivalTime` | `HH:MM` strings |
+| `departureStation`, `arrivalStation` | Station names (e.g. `北京南`, `上海虹桥`) |
+| `duration` | Trip length as shown (e.g. `5时56分`); `null` if absent |
+| `fromPrice` | Lowest fare shown for the train as a number; `null` if non-numeric |
+| `seats` | Seat-class availability joined by ` / ` (e.g. `二等座有票 / 一等座17张 / 商务座(抢)`) |
+| `url` | The search URL (train rows share the list page, no per-row deeplink) |
+
+Args:
+- `<from>`, `<to>` (positional, required): Chinese station or city names (e.g. `北京` / `上海虹桥`); the list page resolves them the same way the website search box does.
+- `--date` (required): `YYYY-MM-DD`.
+- `--limit` (1-50, default 20).
+
+Rows come from `.card-white.list-item` cards, read by stable class-keyed
+fields (`.from/.mid/.to/.rbox/.surplus-list`) rather than positional innerText.
+Cards missing the train number or endpoint times are dropped rather than
+emitted with sentinel values.
+
+## Bus Columns (`bus`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `departureTime` | `HH:MM` departure time |
+| `fromStation`, `toStation` | Departure and arrival coach stations |
+| `duration` | Trip length as shown (e.g. `约2时30分`); `null` if absent |
+| `price` | Fare as a number; `null` if non-numeric |
+| `status` | Availability text (e.g. `暂停网售`, or a remaining-ticket count) |
+| `url` | The results URL (coach rows share the list page, no per-row deeplink) |
+
+Args:
+- `<from>`, `<to>` (positional, required): Chinese city names (e.g. `北京` / `天津`); the results page returns the station-level departures between them.
+- `--date` (required): `YYYY-MM-DD`.
+- `--limit` (1-50, default 20).
+
+The `bus.ctrip.com/` landing is a client-only SPA that does not hydrate under
+the browser bridge, so the command navigates the results route directly via its
+`?param=<json>` deep link. Coach rows arrive through the `busListV2` XHR and are
+read from `.list-item-parent` cards by stable utility-class fields rather than
+positional innerText.
+
+## Ferry Columns (`ferry`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `shipName` | Vessel name (e.g. `渤海晶珠`); `null` if absent |
+| `departureTime`, `arrivalTime` | `HH:MM` strings |
+| `fromPort`, `toPort` | Departure and arrival passenger ports |
+| `duration` | Trip length as shown (e.g. `6时30分`); `null` if absent |
+| `price` | Lowest fare as a number; `null` if non-numeric |
+| `status` | Availability text (e.g. `选择舱位`, `售罄`) |
+| `url` | The results URL (sailings share the list page, no per-row deeplink) |
+
+Args:
+- `<from>`, `<to>` (positional, required): Chinese city names (e.g. `大连` / `烟台`); the results page returns the port-level sailings between them.
+- `--date` (required): `YYYY-MM-DD`.
+- `--limit` (1-50, default 20).
+
+Sibling of `bus`: the `ship.ctrip.com/` landing is a client-only SPA that does
+not hydrate under the browser bridge, so the command navigates the results route
+directly via its `?param=<json>` deep link. Sailings arrive through the
+`getShipLineV2` XHR and are read from `.list-item-parent` cards by stable
+class-keyed fields rather than positional innerText.
+
+## Cruise Columns (`cruise`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `title` | Line, ship, and itinerary (e.g. `MSC地中海邮轮·荣耀号·上海-那霸(冲绳)-上海·5天4晚`) |
+| `star` | Product star rating (`1`-`5`); `null` if unrated |
+| `boarding` | Boarding / disembarking note (e.g. `上海登船/离船`) |
+| `sailingDate` | Next recommended sailing date; `null` if absent |
+| `tags` | Feature tags joined by ` / ` (e.g. `免签 / 岸上游 / 船上餐饮`) |
+| `price` | Lowest per-person fare as a number; `null` if non-numeric |
+| `url` | The port results URL (cruises share the list page, no per-row deeplink) |
+
+Args:
+- `<port>` (positional, required): a departure cruise port name (e.g. `上海` / `威尼斯` / `罗马`), matched against the ports Ctrip lists (`上海` carries most China departures, plus international ports).
+- `--limit` (1-50, default 20).
+
+Cruise results live on the legacy `newpackage/search/sN.html` pages keyed by an
+opaque per-port code, so the command first loads the 上海 page (which lists every
+port as a link) to resolve the requested port name to its code, then loads that
+port's results and reads the `.route_info` cards. A listed port with no current
+sailings raises `EmptyResultError`. River cruises (三峡) are a separate product
+and out of scope.
+
+## Tour Columns (`tour`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position after filtering incomplete rows |
+| `title` | Package title (e.g. `北京5日4晚跟团游`) |
+| `subtitle` | Highlights line; `null` if absent |
+| `tags` | Feature tags joined by ` / ` (e.g. `0购物 / 成团保障 / 亲子甄选`) |
+| `score` | Rating out of 5; `null` if unrated |
+| `sold` | Units sold as an integer (from `已售N`); `null` if absent |
+| `reviews` | Review count as an integer; `null` if absent |
+| `price` | Lowest per-person fare as a number; `null` if non-numeric |
+| `url` | The search results URL (packages share the list page, no per-row deeplink) |
+
+Args:
+- `<destination>` (positional, required): a destination keyword (e.g. `北京` / `三亚` / `马尔代夫`), passed to the vacations search as `sv`.
+- `--limit` (1-50, default 20).
+
+Results render server-side into `.list_product_item` cards; the price / score /
+sold fields lazy-load a moment after the titles, so the command waits until every
+rendered card carries a price before reading. A destination with no packages
+raises `EmptyResultError`.
+
+## Package Columns (`package`)
+
+`package` searches the 自由行 (flight-plus-hotel) tab of the same vacations search
+as `tour` and returns the identical column shape (`rank`, `title`, `subtitle`,
+`tags`, `score`, `sold`, `reviews`, `price`, `url`); it differs only in the
+product section (`freetravel` rather than `whole`).
+
+Args:
+- `<destination>` (positional, required): a destination keyword (e.g. `三亚` / `北京` / `曼谷`).
+- `--limit` (1-50, default 20).
+
+## Attraction Columns (`attraction`)
+
+| Column | Notes |
+|--------|-------|
+| `rank` | 1-based position in the rendered list |
+| `name` | Attraction name |
+| `rating` | Guest rating out of 5; `null` when the card lists only a review count |
+| `reviews` | Review count as an integer (`19.7w` / `1.3万` expanded to thousands); `null` if absent |
+| `url` | The attraction's `you.ctrip.com/sight/<city>/<id>.html` detail page |
+
+Args:
+- `<city>` (positional, required): a numeric Ctrip city id (discover via `ctrip search`; e.g. `1` for 北京, `2` for 上海).
+- `--limit` (1-50, default 20).
+
+The `you.ctrip.com` place page routes by the trailing numeric city id (redirecting
+any slug to the canonical one) and lists a destination's top-rated attractions as
+`/sight/<city>/<id>.html` links carrying the name, rating, and review count. Rows
+anchor on those stable links, deduped by sight id, and drop links without a name.
+Per-attraction ticket prices sit on each sight's own detail page and are out of
+scope here.
+
+## Hotel Detail Columns (`hotel`)
+
+| Column | Notes |
+|--------|-------|
+| `hotelId` | Echoes the requested id |
+| `name`, `enName` | Localised + English (English may be `null`) |
+| `star` | `1`-`5`, `null` for unrated / 客栈 entries |
+| `score`, `scoreLabel` | Overall rating (e.g. `4.8` / `"超棒"`); both `null` if unrated |
+| `reviewCount` | Total review count as an integer |
+| `ratingBreakdown` | The four sub-scores joined by ` / ` (e.g. `卫生 4.8 / 设施 4.8 / 环境 4.8 / 服务 4.8`) |
+| `facilities` | Hot facilities joined by ` / ` (e.g. `接机服务 / 无线WIFI免费 / 行李寄存`) |
+| `checkInOut` | Check-in / check-out policy lines joined by ` / ` |
+| `cityName`, `address` | Geo context |
+| `lat`, `lon` | Coordinates from the detail page; `null` if absent |
+| `url` | Canonical detail URL |
+
+Args:
+- `<id>` (positional, required): numeric Ctrip hotel id (discover via `ctrip hotel-suggest`; e.g. `375539`).
+
+The profile is read from `__NEXT_DATA__.props.pageProps.hotelDetailResponse`
+(the same SSR source style as `hotel-search`), surfacing the fields the listing
+row does not carry. Room-level nightly prices load via a post-SSR XHR and are
+out of scope here, the same way `flight`'s post-load price XHR is; `hotel-search`
+already reports a representative nightly price per hotel.
 
 ## Notes
 

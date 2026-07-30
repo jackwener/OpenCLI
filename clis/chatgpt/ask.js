@@ -105,7 +105,7 @@ export const askCommand = cli({
             if (Date.now() - settleStart > timeout * 1000) {
                 throw new CommandExecutionError('ChatGPT conversation is still generating; wait for it to finish before sending another message.');
             }
-            await page.wait(3);
+            await page.sleep(3);
         }
 
         const baselineMessages = await getVisibleMessages(page);

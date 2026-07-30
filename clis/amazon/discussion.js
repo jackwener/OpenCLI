@@ -1,6 +1,6 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { buildProductUrl, buildDiscussionUrl, buildProvenance, cleanText, extractAsin, normalizeProductUrl, parseRatingValue, parseReviewCount, trimRatingPrefix, uniqueNonEmpty, assertUsableState, gotoAndReadState, } from './shared.js';
+import { DOMAIN, amazonHostFromInput, buildProductUrl, buildDiscussionUrl, buildProvenance, cleanText, extractAsin, normalizeProductUrl, parseRatingValue, parseReviewCount, trimRatingPrefix, uniqueNonEmpty, assertUsableState, gotoAndReadState, } from './shared.js';
 function normalizeDiscussionPayload(payload) {
     const sourceUrl = cleanText(payload.href) || buildDiscussionUrl(payload.href ?? '');
     const asin = extractAsin(payload.href ?? '') ?? null;
@@ -9,7 +9,7 @@ function normalizeDiscussionPayload(payload) {
     const provenance = buildProvenance(sourceUrl);
     return {
         asin,
-        product_url: asin ? normalizeProductUrl(asin) : null,
+        product_url: asin ? normalizeProductUrl(sourceUrl) : null,
         discussion_url: sourceUrl,
         ...provenance,
         average_rating_text: averageRatingText,
@@ -71,7 +71,7 @@ async function readDiscussionPayload(page, input, limit) {
     const productState = await gotoAndReadState(page, productUrl, 2500, 'discussion');
     assertUsableState(productState, 'discussion');
     if (isSignInState(reviewState) && isSignInState(productState)) {
-        throw new AuthRequiredError('amazon.com', 'Amazon review discussion requires an active signed-in Amazon session in the shared Chrome profile.');
+        throw new AuthRequiredError(amazonHostFromInput(input) ?? DOMAIN, 'Amazon review discussion requires an active signed-in Amazon session in the shared Chrome profile.');
     }
     const productPayload = await readCurrentDiscussionPayload(page, limit);
     if (hasDiscussionSummary(productPayload)) {
@@ -111,7 +111,8 @@ cli({
         const payload = await readDiscussionPayload(page, input, limit);
         const normalized = normalizeDiscussionPayload(payload);
         if (!normalized.average_rating_text && !normalized.total_review_count_text) {
-            throw new CommandExecutionError('amazon discussion page did not expose review summary', 'The review page may have changed or hit a robot check. Open the review page in Chrome and retry.');
+            const landedUrl = cleanText(payload.href) || buildDiscussionUrl(input);
+            throw new CommandExecutionError(`amazon discussion page did not expose review summary (landed on ${landedUrl})`, 'The review page may have changed or hit a robot check. Open the review page in Chrome and retry.');
         }
         return [normalized];
     },

@@ -6,6 +6,35 @@ describe('amazon shared helpers', () => {
         expect(__test__.buildProductUrl('https://www.amazon.com/dp/B0FJS72893/ref=something')).toBe('https://www.amazon.com/dp/B0FJS72893');
         expect(__test__.buildDiscussionUrl('https://www.amazon.com/dp/B0FJS72893')).toBe('https://www.amazon.com/product-reviews/B0FJS72893');
     });
+    it('keeps the input marketplace instead of rewriting it to the US store', () => {
+        expect(__test__.buildProductUrl('https://www.amazon.co.uk/dp/B0FGCPFY9L')).toBe('https://www.amazon.co.uk/dp/B0FGCPFY9L');
+        expect(__test__.buildProductUrl('https://www.amazon.de/dp/B0FJS72893/ref=something')).toBe('https://www.amazon.de/dp/B0FJS72893');
+        expect(__test__.buildProductUrl('https://www.amazon.com.au/dp/B0FJS72893')).toBe('https://www.amazon.com.au/dp/B0FJS72893');
+        expect(__test__.buildDiscussionUrl('https://www.amazon.co.uk/product-reviews/B0FGCPFY9L?pageNumber=1')).toBe('https://www.amazon.co.uk/product-reviews/B0FGCPFY9L');
+        expect(__test__.normalizeProductUrl('https://www.amazon.co.uk/dp/B0FGCPFY9L')).toBe('https://www.amazon.co.uk/dp/B0FGCPFY9L');
+    });
+    it('defaults to the US store for bare ASINs and non-marketplace hosts', () => {
+        expect(__test__.amazonHostFromInput('B0FJS72893')).toBeNull();
+        expect(__test__.buildProductUrl('B0FJS72893')).toBe('https://www.amazon.com/dp/B0FJS72893');
+        expect(__test__.buildDiscussionUrl('B0FJS72893')).toBe('https://www.amazon.com/product-reviews/B0FJS72893');
+        expect(__test__.normalizeProductUrl('B0FJS72893')).toBe('https://www.amazon.com/dp/B0FJS72893');
+    });
+    it('accepts sibling marketplaces but rejects look-alike hosts', () => {
+        expect(__test__.amazonHostFromInput('https://www.amazon.co.uk/dp/B0FJS72893')).toBe('www.amazon.co.uk');
+        expect(__test__.amazonHostFromInput('https://amazon.de/dp/B0FJS72893')).toBe('amazon.de');
+        expect(__test__.amazonHostFromInput('https://amazon.com.au/dp/B0FJS72893')).toBe('amazon.com.au');
+        expect(__test__.amazonHostFromInput('https://smile.amazon.com.be/dp/B0FJS72893')).toBe('smile.amazon.com.be');
+        expect(__test__.amazonHostFromInput('https://evilamazon.com/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://amazon.com.evil.com/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://amazon.evil.com/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://x.amazon.evil.com/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://amazon.attacker.io/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://amazon.shop/dp/B0FJS72893')).toBeNull();
+        expect(__test__.amazonHostFromInput('https://amazon.zip/dp/B0FJS72893')).toBeNull();
+        expect(() => __test__.canonicalizeAmazonUrl('https://amazon.evil.com/gp/bestsellers')).toThrow('Invalid Amazon URL');
+        expect(__test__.canonicalizeAmazonUrl('https://www.amazon.co.uk/gp/bestsellers/books')).toBe('https://www.amazon.co.uk/gp/bestsellers/books');
+        expect(() => __test__.canonicalizeAmazonUrl('https://evilamazon.com/gp/bestsellers')).toThrow('Invalid Amazon URL');
+    });
     it('parses price, rating, and review-count text', () => {
         expect(__test__.parsePriceText('1 offer from $34.11')).toEqual({
             price_text: '$34.11',

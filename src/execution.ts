@@ -26,11 +26,11 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
-import { adapterLoadError, ArgumentError, CommandExecutionError, attachTraceReceipt, getErrorMessage } from './errors.js';
+import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
-import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
+import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
@@ -265,6 +265,22 @@ export async function executeCommand(
       const session = resolveAdapterBrowserSession(cmd, siteSession);
       const keepTab = resolveKeepTab(siteSession, opts.keepTab);
       const windowMode = resolveBrowserWindowMode(cmd.defaultWindowMode ?? 'background', opts.windowMode);
+      // Persistent-session write commands take a logical lease on the site
+      // session so a concurrent retry fails fast instead of driving the same
+      // Chrome tab. The runId flows to the daemon on every command (acquire +
+      // heartbeat); we release it explicitly when the command settles. Read and
+      // ephemeral commands are never leased.
+      const leaseRun = siteSession === 'persistent' && cmd.access === 'write'
+        ? { runId: generateRunId(), session }
+        : null;
+      if (leaseRun) setDaemonRunContext({ runId: leaseRun.runId, command: fullName(cmd), access: 'write' });
+      let browserRunError: unknown;
+      // `as` casts defeat literal narrowing: both are assigned only inside the
+      // browserSession callback, which TS's flow analysis does not see from the
+      // finally block below.
+      let adapterStillRunning = false as boolean;
+      let adapterRun = null as Promise<unknown> | null;
+      try {
       result = await browserSession(BrowserFactory, async (page) => {
         const observation = traceMode === 'off'
           ? null
@@ -309,6 +325,9 @@ export async function executeCommand(
               data: { url: preNavUrl },
             });
           } catch (err) {
+            // A busy-session rejection is the whole point of the arbitration —
+            // surface it verbatim instead of burying it in a pre-nav wrapper.
+            if (err instanceof SessionBusyError) throw err;
             observation?.record({
               stream: 'action',
               name: 'pre_navigate',
@@ -319,6 +338,10 @@ export async function executeCommand(
               `Pre-navigation to ${preNavUrl} failed: ${err instanceof Error ? err.message : err}`,
               'Check that the site is reachable and the browser extension is running.',
             );
+            // Keep the original error reachable: the lease-release decision walks
+            // the cause chain, and a pre-nav navigate/exec can itself end with an
+            // unknown outcome while still running against the persistent tab.
+            wrapped.cause = err;
             if (observation && (traceMode === 'on' || traceMode === 'retain-on-failure')) {
               observation.record({
                 stream: 'error',
@@ -333,11 +356,19 @@ export async function executeCommand(
             throw wrapped;
           }
         }
+        const browserTimeout = userTimeoutSec !== null
+          ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
+          : DEFAULT_BROWSER_COMMAND_TIMEOUT;
+        const commandRun = runCommand(cmd, page, kwargs, debug);
+        adapterRun = commandRun;
+        // runWithTimeout races but never cancels: when the CLI-layer timeout
+        // wins, the adapter promise keeps driving the tab from this process.
+        // Track settledness so the lease-release decision can tell a finished
+        // adapter apart from one still running behind a timeout.
+        let commandSettled = false;
+        commandRun.then(() => { commandSettled = true; }, () => { commandSettled = true; });
         try {
-          const browserTimeout = userTimeoutSec !== null
-            ? userTimeoutSec + RUNTIME_TIMEOUT_PADDING_SECONDS
-            : DEFAULT_BROWSER_COMMAND_TIMEOUT;
-          const result = await runWithTimeout(runCommand(cmd, page, kwargs, debug), {
+          const result = await runWithTimeout(commandRun, {
             timeout: browserTimeout,
             label: fullName(cmd),
           });
@@ -356,6 +387,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           return result;
         } catch (err) {
+          if (!commandSettled) adapterStillRunning = true;
           if (observation) {
             observation.record({
               stream: 'action',
@@ -380,6 +412,50 @@ export async function executeCommand(
           throw err;
         }
       }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession });
+      } catch (err) {
+        browserRunError = err;
+        throw err;
+      } finally {
+        // Clear the run identity whether the command succeeded or failed, then
+        // release the lease so a retry succeeds immediately. Best-effort: TTL
+        // reclaims it if the release is lost.
+        //
+        // Exceptions — cases where the session may still be driven, so an
+        // immediate explicit release would hand the lease to a challenger that
+        // then collides with the stale work (the very collision this lease
+        // prevents):
+        // - A CLI-layer timeout does not cancel the adapter promise, and the
+        //   process only exits when the event loop drains, so the adapter may
+        //   keep driving the tab for minutes. Keep the run identity bound: its
+        //   follow-up commands heartbeat the lease (challengers stay blocked
+        //   past the TTL), and cleanup runs when the adapter finally settles.
+        //   If the process dies first, the daemon TTL reclaims the lease.
+        // - An unknown-outcome failure (result-unknown / command-lost /
+        //   result-evicted, anywhere in the cause chain) means the browser-side
+        //   command may STILL be running against the persistent tab; there is
+        //   nothing to await client-side, so the TTL is the quiet period.
+        if (leaseRun) {
+          if (adapterStillRunning && adapterRun) {
+            const runId = leaseRun.runId;
+            const session = leaseRun.session;
+            const settle = (err?: unknown) => {
+              clearDaemonRunContext(runId);
+              // Same rule as the immediate path below: an unknown-outcome
+              // ending means the browser side may still be busy — skip the
+              // explicit release and leave the lease to TTL reclamation.
+              if (!isUnknownOutcomeError(err)) {
+                void releaseSiteSessionLease({ runId, session, surface: 'adapter' });
+              }
+            };
+            adapterRun.then(() => settle(), (err) => settle(err));
+          } else {
+            setDaemonRunContext(null);
+            if (!isUnknownOutcomeError(browserRunError)) {
+              await releaseSiteSessionLease({ runId: leaseRun.runId, session: leaseRun.session, surface: 'adapter' });
+            }
+          }
+        }
+      }
     } else {
       // Non-browser commands: enforce a timeout only when the command exposes
       // a `--timeout` arg (and the resolved value is positive). Without that

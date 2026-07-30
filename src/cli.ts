@@ -1966,8 +1966,13 @@ Examples:
         process.exitCode = EXIT_CODES.USAGE_ERROR;
         return;
       }
-      const { matches_n, match_level } = await page.click(resolvedTarget, parsed.opts);
-      console.log(JSON.stringify({ clicked: true, target: resolvedTarget, matches_n, match_level }, null, 2));
+      const { matches_n, match_level, click_method, hit, retargeted } = await page.click(resolvedTarget, parsed.opts);
+      console.log(JSON.stringify({
+        clicked: true, target: resolvedTarget, matches_n, match_level,
+        ...(click_method && { click_method }),
+        ...(hit && { hit }),
+        ...(retargeted && { retargeted }),
+      }, null, 2));
     }));
 
   addBrowserTabOption(

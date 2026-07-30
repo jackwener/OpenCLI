@@ -564,7 +564,14 @@ function installDependencies(dir: string): void {
   if (!fs.existsSync(pkgJsonPath)) return;
 
   try {
-    execFileSync('npm', ['install', '--omit=dev'], {
+    // --ignore-scripts is a security boundary, not an optimization: the plugin
+    // repo was just cloned from an untrusted third-party Git URL, and without
+    // this flag npm would execute preinstall/install/postinstall lifecycle
+    // scripts declared by the plugin (and every transitive dep) with the user's
+    // privileges at install time. Adapter plugins don't need lifecycle scripts
+    // to work — the adapter code is loaded later by the discovery path — so we
+    // deny that extra execution vector unconditionally. See issue #1753.
+    execFileSync('npm', ['install', '--omit=dev', '--ignore-scripts'], {
       cwd: dir,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],

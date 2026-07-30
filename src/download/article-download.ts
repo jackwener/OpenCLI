@@ -110,6 +110,15 @@ function createTurndown(
   });
   td.use(gfm);
   td.remove(STRIPPED_TAGS);
+  // turndown-plugin-gfm@1.0.2 reads `table.rows[0].parentNode` from both its
+  // table rule and its keep filter, so a table carrying no `tr` throws before
+  // either can decide, taking the whole document with it. Claiming those tables
+  // here bypasses both: `addRule` unshifts onto the rule array, and `forNode`
+  // exhausts that array before it consults the keep list.
+  td.addRule('rowlessTable', {
+    filter: (node) => node.nodeName === 'TABLE' && !(node as HTMLTableElement).rows?.length,
+    replacement: (content) => (content.trim() ? `\n\n${content.trim()}\n\n` : ''),
+  });
   // turndown-plugin-gfm@1.0.2 emits single-tilde strikethrough (`~x~`), which
   // is not the canonical GFM form. Override it so exported markdown is
   // portable across common renderers.
