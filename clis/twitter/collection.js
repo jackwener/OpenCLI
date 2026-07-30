@@ -1,6 +1,11 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { extractMedia, extractQuotedTweet, normalizeTwitterScreenName } from './shared.js';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import {
+    extractMedia,
+    extractQuotedTweet,
+    looksLikePrivateTwitterTimeline,
+    normalizeTwitterScreenName,
+} from './shared.js';
 import {
     DEFAULT_USER_TWEETS_PAGE_DELAY_SECONDS,
     MAX_USER_TWEETS_LIMIT,
@@ -10,11 +15,39 @@ import {
     resolveUserTimelineContext,
 } from './user-timeline.js';
 
-const RFC3339_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+const RFC3339_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+function isLeapYear(year) {
+    return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
 
 function normalizeUntil(raw) {
     const value = String(raw ?? '').trim();
-    if (!RFC3339_TIMESTAMP.test(value)) {
+    const match = value.match(RFC3339_TIMESTAMP);
+    if (!match) {
+        throw new ArgumentError(
+            'twitter collection --until must be an RFC3339 timestamp',
+            'Example: opencli twitter collection @jack --until 2026-07-23T00:00:00Z',
+        );
+    }
+    const [, yearRaw, monthRaw, dayRaw, hourRaw, minuteRaw, secondRaw, , zone, , offsetHourRaw, offsetMinuteRaw] = match;
+    const year = Number(yearRaw);
+    const month = Number(monthRaw);
+    const day = Number(dayRaw);
+    const hour = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    const second = Number(secondRaw);
+    const offsetHour = zone === 'Z' ? 0 : Number(offsetHourRaw);
+    const offsetMinute = zone === 'Z' ? 0 : Number(offsetMinuteRaw);
+    const daysInMonth = month === 2
+        ? (isLeapYear(year) ? 29 : 28)
+        : ([4, 6, 9, 11].includes(month) ? 30 : 31);
+    if (
+        month < 1 || month > 12
+        || day < 1 || day > daysInMonth
+        || hour > 23 || minute > 59 || second > 59
+        || offsetHour > 23 || offsetMinute > 59
+    ) {
         throw new ArgumentError(
             'twitter collection --until must be an RFC3339 timestamp',
             'Example: opencli twitter collection @jack --until 2026-07-23T00:00:00Z',
@@ -154,6 +187,12 @@ function extractCollectionPost(result, seen) {
 }
 
 function parseCollectionPage(payload, seen) {
+    if (looksLikePrivateTwitterTimeline(payload)) {
+        throw new EmptyResultError(
+            'twitter collection',
+            'Timeline is private or unavailable to the current X account; completion cannot be proven.',
+        );
+    }
     const result = payload?.data?.user?.result;
     if (!result || typeof result !== 'object') {
         throw new CommandExecutionError('twitter_collection_protocol_error: missing UserTweets result');
@@ -162,6 +201,11 @@ function parseCollectionPage(payload, seen) {
         result.timeline_v2?.timeline?.instructions,
         result.timeline?.timeline?.instructions,
     ].filter(Array.isArray);
+    if (instructionSets.length === 0) {
+        throw new CommandExecutionError(
+            'twitter_collection_protocol_error: missing UserTweets timeline instructions',
+        );
+    }
     const posts = [];
     let nextCursor = null;
     const visit = (value) => {
@@ -272,7 +316,10 @@ cli({
         const until = normalizeUntil(kwargs.until);
         const limit = normalizeCollectionLimit(kwargs.limit);
         const pageDelaySeconds = normalizeCollectionPageDelaySeconds(kwargs['page-delay']);
-        const context = await resolveUserTimelineContext(page, kwargs.username, { allowLoggedInDefault: false });
+        const context = await resolveUserTimelineContext(page, kwargs.username, {
+            allowLoggedInDefault: false,
+            commandName: 'collection',
+        });
         return paginateCollection({
             until,
             limit,

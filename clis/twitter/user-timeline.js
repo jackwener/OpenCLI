@@ -151,11 +151,20 @@ export function buildUserByScreenNameUrl(operation, screenName) {
     return appendGraphqlParams(`/i/api/graphql/${normalized.queryId}/UserByScreenName`, vars, normalized);
 }
 
-export async function resolveUserTimelineContext(page, rawUsername, { allowLoggedInDefault = false } = {}) {
+export async function resolveUserTimelineContext(
+    page,
+    rawUsername,
+    { allowLoggedInDefault = false, commandName = 'tweets' } = {},
+) {
     const raw = String(rawUsername ?? '').trim();
     let username = normalizeTwitterScreenName(raw);
     if (raw && !username) {
-        throw new ArgumentError('twitter tweets username must be a valid Twitter/X handle', 'Example: opencli twitter tweets @jack --limit 20');
+        throw new ArgumentError(
+            `twitter ${commandName} username must be a valid Twitter/X handle`,
+            commandName === 'collection'
+                ? 'Example: opencli twitter collection @jack --until 2026-07-23T00:00:00Z'
+                : 'Example: opencli twitter tweets @jack --limit 20',
+        );
     }
     if (!username && !allowLoggedInDefault) {
         throw new ArgumentError('twitter collection username must be a valid Twitter/X handle', 'Example: opencli twitter collection @jack --until 2026-07-23T00:00:00Z');

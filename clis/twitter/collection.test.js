@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './tweets.js';
 import { __test__ } from './collection.js';
 
@@ -121,8 +121,25 @@ describe('twitter collection', () => {
 
     it('accepts only RFC3339 lower boundaries', () => {
         expect(__test__.normalizeUntil('2026-07-23T00:00:00Z')).toBeInstanceOf(Date);
+        expect(__test__.normalizeUntil('2026-07-23T00:00:00.123456Z')).toBeInstanceOf(Date);
+        expect(__test__.normalizeUntil('2024-02-29T00:00:00+08:00')).toBeInstanceOf(Date);
         expect(() => __test__.normalizeUntil('2026-07-23')).toThrow(ArgumentError);
         expect(() => __test__.normalizeUntil('not-a-date')).toThrow(ArgumentError);
+        expect(() => __test__.normalizeUntil('2026-02-29T00:00:00Z')).toThrow(ArgumentError);
+        expect(() => __test__.normalizeUntil('2026-07-23T24:00:00Z')).toThrow(ArgumentError);
+        expect(() => __test__.normalizeUntil('2026-07-23T00:00:00+24:00')).toThrow(ArgumentError);
+    });
+
+    it('fails closed for private, unavailable, and malformed timelines', () => {
+        expect(() => __test__.parseCollectionPage({
+            data: { user: { result: { __typename: 'User', timeline_v2: { timeline: {} } } } },
+        }, new Set())).toThrow(EmptyResultError);
+        expect(() => __test__.parseCollectionPage({
+            data: { user: { result: { __typename: 'UserUnavailable' } } },
+        }, new Set())).toThrow(/missing UserTweets timeline instructions/);
+        expect(() => __test__.parseCollectionPage({
+            data: { user: { result: { timeline_v2: { timeline: { unexpected: true } } } } },
+        }, new Set())).toThrow(/missing UserTweets timeline instructions/);
     });
 
     it('completes only after the lower boundary is reached', async () => {
@@ -192,6 +209,25 @@ describe('twitter collection', () => {
             posts: [{ id: '27', relationship: { kind: 'original' } }],
             receipt: { completed: true, stop_reason: 'time_boundary_reached' },
         });
+    });
+
+    it('uses collection-specific validation errors before touching the browser', async () => {
+        const command = getRegistry().get('twitter/collection');
+        const page = {
+            goto: vi.fn(),
+            getCookies: vi.fn(),
+            evaluate: vi.fn(),
+        };
+
+        await expect(command.func(page, {
+            username: 'home/extra',
+            until: '2026-07-23T00:00:00Z',
+            limit: 10,
+            'page-delay': 0,
+        })).rejects.toThrow(/twitter collection username/);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.getCookies).not.toHaveBeenCalled();
+        expect(page.evaluate).not.toHaveBeenCalled();
     });
 
     it('fails on repeated cursor, limit, page guard, and malformed timestamps', async () => {
