@@ -39190,7 +39190,7 @@
         "name": "output-file",
         "type": "string",
         "required": false,
-        "help": "Write all-page results to a JSONL file instead of returning one large JSON array."
+        "help": "Write all-page results to JSONL. Requires --all and --resume-file."
       },
       {
         "name": "max-pages",
@@ -39607,7 +39607,7 @@
         "name": "output-file",
         "type": "string",
         "required": false,
-        "help": "Write all-page results to a JSONL file instead of returning one large JSON array."
+        "help": "Write all-page results to JSONL. Requires --all and --resume-file."
       },
       {
         "name": "max-pages",

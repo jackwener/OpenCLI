@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { extractMedia, describeTwitterApiError } from './shared.js';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { extractMedia, describeTwitterApiError, resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const BOOKMARKS_QUERY_ID = 'Fy0QMy4q_aZCpkO0PnyLYw';
 // Safety cap only. Full-archive runs can set a higher page budget via --max-pages.
@@ -104,24 +104,54 @@ export function parseBookmarks(data, seen) {
     }
     return { tweets, nextCursor };
 }
-function readResumeFile(filePath) {
+function resolveOptionalFilePath(raw, label) {
+    if (raw === undefined || raw === null || raw === '')
+        return '';
+    const value = String(raw).trim();
+    if (!value)
+        throw new ArgumentError(`${label} cannot be empty`);
+    return path.resolve(value);
+}
+function readResumeFile(filePath, expected = null) {
     if (!filePath || !fs.existsSync(filePath))
         return null;
+    let parsed;
     try {
-        const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        return {
-            cursor: parsed?.cursor || null,
-            count: Number(parsed?.count || 0),
-            tweets: Array.isArray(parsed?.tweets) ? parsed.tweets : [],
-            complete: Boolean(parsed?.complete),
-            source: parsed?.source || null,
-            outputFile: parsed?.outputFile || null,
-            updatedAt: parsed?.updatedAt || null,
-        };
+        parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     }
-    catch {
-        return null;
+    catch (error) {
+        throw new CommandExecutionError(`Could not parse Twitter bookmarks resume file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
     }
+    const count = parsed?.count;
+    const cursor = parsed?.cursor == null ? null : String(parsed.cursor);
+    const outputFile = parsed?.outputFile ? path.resolve(String(parsed.outputFile)) : null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+        || !Number.isInteger(count) || count < 0
+        || (parsed.cursor != null && typeof parsed.cursor !== 'string')
+        || (cursor !== null && !cursor.trim())) {
+        throw new CommandExecutionError(`Twitter bookmarks resume file ${filePath} has an invalid shape`);
+    }
+    if (expected) {
+        if (parsed.source !== expected.source)
+            throw new ArgumentError(`Resume file source mismatch: expected ${expected.source}, found ${parsed.source || 'unknown'}`);
+        if (outputFile !== expected.outputFile)
+            throw new ArgumentError(`Resume file output mismatch: expected ${expected.outputFile || 'in-memory mode'}, found ${outputFile || 'in-memory mode'}`);
+        if (!expected.outputFile && !Array.isArray(parsed.tweets))
+            throw new CommandExecutionError(`Twitter bookmarks resume file ${filePath} is missing in-memory tweets`);
+        if (!expected.outputFile && parsed.tweets.length !== count)
+            throw new CommandExecutionError(`Twitter bookmarks resume file ${filePath} count does not match its in-memory tweets`);
+        if (parsed.complete)
+            throw new CommandExecutionError(`Twitter bookmarks resume file ${filePath} is already marked complete`);
+    }
+    return {
+        cursor,
+        count,
+        tweets: Array.isArray(parsed.tweets) ? parsed.tweets : [],
+        complete: Boolean(parsed.complete),
+        source: parsed.source || null,
+        outputFile,
+        updatedAt: parsed.updatedAt || null,
+    };
 }
 function ensureParentDir(filePath) {
     if (!filePath)
@@ -142,16 +172,18 @@ function loadSeenIdsFromJsonl(filePath) {
     if (!filePath || !fs.existsSync(filePath))
         return seen;
     const text = fs.readFileSync(filePath, 'utf8');
-    for (const line of text.split('\n')) {
+    for (const [index, line] of text.split('\n').entries()) {
         const trimmed = line.trim();
         if (!trimmed)
             continue;
         try {
             const row = JSON.parse(trimmed);
-            if (row?.id)
-                seen.add(String(row.id));
+            if (!row?.id)
+                throw new Error('missing id');
+            seen.add(String(row.id));
         }
-        catch {
+        catch (error) {
+            throw new CommandExecutionError(`Invalid JSONL record in ${filePath} at line ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
     return seen;
@@ -170,7 +202,19 @@ function writeResumeFile(filePath, payload) {
     if (!filePath)
         return;
     ensureParentDir(filePath);
-    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n');
+    const temporaryPath = `${filePath}.tmp-${process.pid}`;
+    try {
+        fs.writeFileSync(temporaryPath, JSON.stringify(payload, null, 2) + '\n');
+        fs.renameSync(temporaryPath, filePath);
+    }
+    catch (error) {
+        try {
+            fs.rmSync(temporaryPath, { force: true });
+        }
+        catch {
+        }
+        throw new CommandExecutionError(`Could not persist Twitter bookmarks resume state: ${error instanceof Error ? error.message : String(error)}`);
+    }
 }
 function removeResumeFile(filePath) {
     removeFile(filePath);
@@ -198,7 +242,7 @@ cli({
         { name: 'limit', type: 'int', default: 20, help: 'Maximum number of bookmarks to return (default 20). Ignored when --all is set.' },
         { name: 'all', type: 'bool', default: false, help: 'Fetch all bookmark pages until exhausted. Prefer --output-file for large archives.' },
         { name: 'resume-file', type: 'string', help: 'Resume file for long-running all-pages bookmark syncs.' },
-        { name: 'output-file', type: 'string', help: 'Write all-page results to a JSONL file instead of returning one large JSON array.' },
+        { name: 'output-file', type: 'string', help: 'Write all-page results to JSONL. Requires --all and --resume-file.' },
         { name: 'max-pages', type: 'int', help: `Optional pagination safety cap (default ${DEFAULT_MAX_PAGINATION_PAGES}; raised automatically with --all).` },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (saved-time) ordering. Incompatible with --output-file.' },
     ],
@@ -206,8 +250,8 @@ cli({
     func: async (page, kwargs) => {
         const fetchAll = Boolean(kwargs.all);
         const limit = fetchAll ? Number.POSITIVE_INFINITY : (kwargs.limit || 20);
-        const resumeFile = kwargs['resume-file'] || '';
-        const outputFile = kwargs['output-file'] || '';
+        const resumeFile = resolveOptionalFilePath(kwargs['resume-file'], '--resume-file');
+        const outputFile = resolveOptionalFilePath(kwargs['output-file'], '--output-file');
         const useOutputFile = Boolean(fetchAll && outputFile);
         const maxPages = resolveMaxPages(kwargs, fetchAll);
         const topByEngagement = Number(kwargs['top-by-engagement'] || 0);
@@ -217,51 +261,40 @@ cli({
         if (outputFile && !fetchAll) {
             throw new ArgumentError('--output-file requires --all');
         }
+        if (resumeFile && !fetchAll) {
+            throw new ArgumentError('--resume-file requires --all');
+        }
+        if (outputFile && !resumeFile) {
+            throw new ArgumentError('--output-file requires --resume-file so partial archives remain resumable');
+        }
         const cookies = await page.getCookies({ url: 'https://x.com' });
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        const queryId = await page.evaluate(`async () => {
-      try {
-        const ghResp = await fetch('https://raw.githubusercontent.com/fa0311/twitter-openapi/refs/heads/main/src/config/placeholder.json');
-        if (ghResp.ok) {
-          const data = await ghResp.json();
-          const entry = data['Bookmarks'];
-          if (entry && entry.queryId) return entry.queryId;
-        }
-      } catch {}
-      try {
-        const scripts = performance.getEntriesByType('resource')
-          .filter(r => r.name.includes('client-web') && r.name.endsWith('.js'))
-          .map(r => r.name);
-        for (const scriptUrl of scripts.slice(0, 15)) {
-          try {
-            const text = await (await fetch(scriptUrl)).text();
-            const re = /queryId:"([A-Za-z0-9_-]+)"[^}]{0,200}operationName:"Bookmarks"/;
-            const m = text.match(re);
-            if (m) return m[1];
-          } catch {}
-        }
-      } catch {}
-      return null;
-    }`) || BOOKMARKS_QUERY_ID;
+        const queryId = await resolveTwitterQueryId(page, 'Bookmarks', BOOKMARKS_QUERY_ID);
         const headers = JSON.stringify({
             'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
             'X-Csrf-Token': ct0,
             'X-Twitter-Auth-Type': 'OAuth2Session',
             'X-Twitter-Active-User': 'yes',
         });
-        let resumed = fetchAll ? readResumeFile(resumeFile) : null;
-        if (useOutputFile && resumed && !fs.existsSync(outputFile)) {
-            removeResumeFile(resumeFile);
-            resumed = null;
+        const resumed = fetchAll ? readResumeFile(resumeFile, {
+            source: 'bookmarks',
+            outputFile: useOutputFile ? outputFile : null,
+        }) : null;
+        if (useOutputFile && resumed && resumed.count > 0 && !fs.existsSync(outputFile)) {
+            throw new CommandExecutionError(`Twitter bookmarks output file is missing for resume state: ${outputFile}`);
         }
-        if (useOutputFile && !resumed)
-            removeFile(outputFile);
+        if (useOutputFile && !resumed && fs.existsSync(outputFile)) {
+            throw new ArgumentError(`Refusing to overwrite existing Twitter bookmarks output file: ${outputFile}`);
+        }
         const allTweets = useOutputFile ? [] : (resumed?.tweets ? [...resumed.tweets] : []);
         const seen = useOutputFile
             ? loadSeenIdsFromJsonl(outputFile)
             : new Set(allTweets.map((tweet) => tweet?.id).filter(Boolean));
+        if (useOutputFile && resumed && seen.size < resumed.count) {
+            throw new CommandExecutionError(`Twitter bookmarks output file has ${seen.size} record(s), fewer than resume count ${resumed.count}`);
+        }
         let outputCount = useOutputFile
             ? Math.max(seen.size, Number(resumed?.count || 0))
             : 0;
@@ -275,14 +308,19 @@ cli({
             const remaining = fetchAll ? 100 : (limit - currentCount + 10);
             const fetchCount = Math.min(100, remaining);
             const apiUrl = buildBookmarksUrl(fetchCount, cursor).replace(BOOKMARKS_QUERY_ID, queryId);
-            const data = await page.evaluate(`async () => {
+            const data = unwrapBrowserResult(await page.evaluate(`async () => {
         const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
         return r.ok ? await r.json() : { error: r.status };
-      }`);
+      }`));
             if (data?.error) {
                 if ((useOutputFile ? outputCount : allTweets.length) === 0)
                     throw new CommandExecutionError(describeTwitterApiError('Bookmarks', data.error));
                 break;
+            }
+            const hasInstructions = Array.isArray(data?.data?.bookmark_timeline_v2?.timeline?.instructions)
+                || Array.isArray(data?.data?.bookmark_timeline?.timeline?.instructions);
+            if (!hasInstructions) {
+                throw new CommandExecutionError('twitter_bookmarks_protocol_error: missing Bookmarks timeline instructions');
             }
             const { tweets, nextCursor } = parseBookmarks(data, seen);
             if (useOutputFile) {
@@ -292,7 +330,7 @@ cli({
             else {
                 allTweets.push(...tweets);
             }
-            const pageComplete = !nextCursor || nextCursor === cursor;
+            const pageComplete = !nextCursor;
             writeResumeFile(resumeFile, {
                 cursor: pageComplete ? null : nextCursor,
                 count: useOutputFile ? outputCount : allTweets.length,
@@ -306,7 +344,14 @@ cli({
                 exhausted = true;
                 break;
             }
+            if (nextCursor === cursor) {
+                throw new CommandExecutionError('twitter_bookmarks_repeated_cursor: archive completion cannot be proven; resume state was retained');
+            }
             cursor = nextCursor;
+        }
+        const finalCount = useOutputFile ? outputCount : allTweets.length;
+        if (finalCount === 0) {
+            throw new EmptyResultError('twitter bookmarks', 'No bookmarks found for the logged-in account');
         }
         // Resume is only removed after the timeline is truly exhausted. Hitting
         // --max-pages, partial API errors after some rows, or an interrupt must
@@ -322,6 +367,12 @@ cli({
                 pages,
                 ...(exhausted ? {} : { cursor, resumeFile: resumeFile || null }),
             };
+        }
+        if (fetchAll && !exhausted) {
+            throw new CommandExecutionError(
+                `twitter_bookmarks_archive_incomplete: stopped after ${pages} page(s); completion cannot be proven`,
+                resumeFile ? `Resume with --resume-file ${resumeFile}` : 'Rerun with --resume-file to preserve continuation state.',
+            );
         }
         const trimmed = fetchAll ? allTweets : allTweets.slice(0, limit);
         return applyTopByEngagement(trimmed, topByEngagement);

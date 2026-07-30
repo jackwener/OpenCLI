@@ -500,7 +500,3 @@ export async function sendCommandFull(
 export async function bindTab(session: string, opts: { contextId?: string } = {}): Promise<unknown> {
   return sendCommand('bind', { session, surface: 'browser', ...opts });
 }
-
-export async function listCurrentWindowTabs(session: string, opts: { contextId?: string } = {}): Promise<unknown> {
-  return sendCommand('tabs', { op: 'current-window', session, surface: 'browser', ...opts });
-}
