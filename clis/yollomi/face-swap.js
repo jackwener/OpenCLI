@@ -3,9 +3,9 @@
  * Uses swap_image / input_image field names matching the frontend.
  */
 import * as path from 'node:path';
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
-import { log } from '@jackwener/opencli/logger';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
+import { log } from '@woosau/opencli/logger';
 import { YOLLOMI_DOMAIN, yollomiPost, downloadOutput, fmtBytes } from './utils.js';
 cli({
     site: 'yollomi',

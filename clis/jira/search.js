@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { jiraConfig, issueSummaryRow, jiraRowsOrEmpty, parseJiraLimit } from './shared.js';
 import { atlassianRequest, requirePayloadArray, requirePayloadObject, requireString } from '../_atlassian/shared.js';
 

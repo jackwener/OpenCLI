@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { parseSubredditName } from './subreddit-info.js';
 import './subreddit-info.js';
 

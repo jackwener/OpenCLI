@@ -4,8 +4,8 @@
 // Sort by semver (descending) and return up to `--limit` rows; per-tag publish
 // time comes from `@v/<ver>.info` and is fetched only when `--with-time` is set,
 // since it costs one HTTP request per row.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import {
     GOPROXY_BASE, goproxyJson, goproxyText, requireBoundedInt, requireModulePath, sortVersionsDescending, trimDate,
 } from './utils.js';

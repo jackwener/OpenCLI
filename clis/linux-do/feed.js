@@ -12,8 +12,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 const LINUX_DO_HOME = 'https://linux.do';
 const LINUX_DO_METADATA_TTL_MS = 24 * 60 * 60 * 1000;
 let liveTagsPromise = null;

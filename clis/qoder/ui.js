@@ -12,12 +12,12 @@
 //   account         — read user info (the "leo"-style button at bottom)
 //   more-actions    — open More Actions menu + list items
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     ArgumentError,
     CommandExecutionError,
     EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import { IS_VISIBLE_JS, clickByTextScript, clickFirstScript, evaluateQoder, parsePositiveInt, requireArrayResult } from './_utils.js';
 
 // -------- sidebar-toggle --------

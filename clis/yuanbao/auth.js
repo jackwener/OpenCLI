@@ -1,4 +1,4 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 import { hasLoginGate, ensureYuanbaoPage, YUANBAO_DOMAIN, YUANBAO_URL } from './shared.js';
 

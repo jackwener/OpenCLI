@@ -5,8 +5,8 @@
 // only as a lower-authority fallback. All requests run inside the live page so
 // cookies + msToken are forwarded by the browser.
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import {
     BROWSER_HELPERS,
     MAX_PAGES,

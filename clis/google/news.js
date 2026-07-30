@@ -2,8 +2,8 @@
  * Google News via public RSS feed.
  * Supports top stories (no keyword) and search (with keyword).
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import { parseRssItems } from './utils.js';
 cli({
     site: 'google',

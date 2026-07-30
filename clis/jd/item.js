@@ -4,8 +4,8 @@
  * 依赖: 需要在 Chrome 已登录京东
  * 用法: opencli jd item 100291143898
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 function normalizePositiveInt(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;

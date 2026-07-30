@@ -1,4 +1,4 @@
-import { cli } from '@jackwener/opencli/registry';
+import { cli } from '@woosau/opencli/registry';
 cli({
     site: 'instagram',
     name: 'profile',

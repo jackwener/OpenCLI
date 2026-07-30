@@ -10,7 +10,7 @@ function makePackageRoot(): string {
   fs.mkdirSync(path.join(root, 'skills', 'opencli-browser', 'references'), { recursive: true });
   fs.mkdirSync(path.join(root, 'skills', 'opencli-autofix'), { recursive: true });
   fs.mkdirSync(path.join(root, 'skills', 'smart-search'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'package.json'), '{"name":"@jackwener/opencli"}\n');
+  fs.writeFileSync(path.join(root, 'package.json'), '{"name":"@woosau/opencli"}\n');
   fs.writeFileSync(path.join(root, 'skills', 'opencli-browser', 'SKILL.md'), [
     '---',
     'name: opencli-browser',

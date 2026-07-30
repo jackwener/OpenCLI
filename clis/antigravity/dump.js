@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import * as fs from 'node:fs';
 export const dumpCommand = cli({
     site: 'antigravity',

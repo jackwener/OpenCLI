@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { getNotebooklmPageState, listNotebooklmHistoryViaRpc, requireNotebooklmSession, } from './utils.js';
 cli({

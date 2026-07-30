@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach, vi } from 'vitest';
 import { __test__ } from './shared.js';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 
 const ENV_KEYS = [
     'ATLASSIAN_CONFLUENCE_BASE_URL',

@@ -1,6 +1,6 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
+import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@woosau/opencli/utils';
 import { extractMedia, extractCard, extractQuotedTweet, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────

@@ -5,7 +5,7 @@
  *   <a href="forum-<fid>-1.html" ... class="... overflow-hidden whitespace-nowrap hidden desktop:block">版块名</a>
  * and an adjacent description element. We dedupe by fid and return name + url.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { fetchHtml, decodeEntities, BASE } from './utils.js';
 
 cli({

@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const LIKES_QUERY_ID = 'CDWHmpZeSdIJ3HGeRbNm0w';

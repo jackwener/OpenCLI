@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import './like.js';
 import { createPageMock } from '../test-utils.js';
 

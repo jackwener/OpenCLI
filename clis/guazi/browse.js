@@ -8,7 +8,7 @@
  * no network) so it runs identically in the unit test against a frozen page.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     BROWSE_COLUMNS,
     CommandExecutionError,

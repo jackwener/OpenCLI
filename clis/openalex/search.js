@@ -4,8 +4,8 @@
 // agent-useful projection: OpenAlex Work id (round-trips into `openalex
 // work`), DOI, title, year, citation count, first author, primary venue,
 // open-access status.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import {
     OPENALEX_BASE,
     appendMailto,

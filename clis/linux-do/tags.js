@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { fetchLinuxDoJson } from './feed.js';
 cli({
     site: 'linux-do',

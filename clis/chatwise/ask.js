@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { selectorError, TimeoutError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { selectorError, TimeoutError } from '@woosau/opencli/errors';
 import {
     buildChatwiseInjectTextJs,
     buildChatwiseMessageCountJs,

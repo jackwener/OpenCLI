@@ -32,7 +32,7 @@ All adapters use TypeScript. Use the pipeline API for data-fetching commands, an
 Create a file like `clis/<site>/<command>.js`:
 
 ```typescript
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 cli({
   site: 'mysite',
@@ -67,7 +67,7 @@ See [`hackernews/top.js`](clis/hackernews/top.js) for a real example.
 Create a file like `clis/<site>/<command>.js`:
 
 ```typescript
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 cli({
   site: 'mysite',

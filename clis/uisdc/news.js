@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError, getErrorMessage } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError, getErrorMessage } from '@woosau/opencli/errors';
 
 const UISDC_NEWS_URL = 'https://www.uisdc.com/news';
 const DEFAULT_LIMIT = 20;

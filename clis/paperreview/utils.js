@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { CliError, getErrorMessage } from '@jackwener/opencli/errors';
+import { CliError, getErrorMessage } from '@woosau/opencli/errors';
 export const PAPERREVIEW_DOMAIN = 'paperreview.ai';
 export const PAPERREVIEW_BASE_URL = `https://${PAPERREVIEW_DOMAIN}`;
 export const MAX_PDF_BYTES = 10 * 1024 * 1024;

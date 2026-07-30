@@ -1,7 +1,7 @@
 /**
  * YouTube search — innertube API via browser session.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 cli({
     site: 'youtube',
     name: 'search',

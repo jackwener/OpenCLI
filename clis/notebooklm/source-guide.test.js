@@ -17,7 +17,7 @@ vi.mock('./utils.js', async () => {
         requireNotebooklmSession: mockRequireNotebooklmSession,
     };
 });
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './source-guide.js';
 describe('notebooklm source-guide', () => {
     const command = getRegistry().get('notebooklm/source-guide');

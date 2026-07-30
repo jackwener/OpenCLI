@@ -4,8 +4,8 @@
 // agent-useful projection: localised label/description/aliases plus high-level
 // counts (claim properties, sitelinks). The full claim graph is huge; we keep
 // the projection narrow by design.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { WIKIDATA_BASE, joinAliases, pickLocalised, requireEntityId, requireLanguage, wikidataFetch } from './utils.js';
 
 cli({

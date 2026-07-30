@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError } from '@woosau/opencli/errors';
 
 const USERNAME_RE = /^[A-Za-z0-9_]{1,15}$/;
 const DEFAULT_INTERVAL_SECONDS = 5;

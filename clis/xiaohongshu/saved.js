@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { COLLECT_API_PATTERN, fetchXhsCollectionNotes, parseCollectionLimit, resolveXhsUserId, SAVED_PROFILE_TAB } from './collection-helpers.js';
 
 cli({

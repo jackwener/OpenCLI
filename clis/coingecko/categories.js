@@ -2,8 +2,8 @@
 //
 // Hits the public `/api/v3/coins/categories` endpoint. Useful for spotting
 // which sectors (DeFi, L1, gaming, RWAs, …) are leading the market.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const ORDER_OPTIONS = ['market_cap_desc', 'market_cap_asc', 'name_desc', 'name_asc', 'market_cap_change_24h_desc', 'market_cap_change_24h_asc'];
 

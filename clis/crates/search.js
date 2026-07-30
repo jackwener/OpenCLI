@@ -3,8 +3,8 @@
 // Hits `https://crates.io/api/v1/crates?q=…&per_page=…`. Returns name (round-
 // trips into `crates crate`), latest version, description, downloads, recent
 // downloads, repository, last-update.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { CRATES_BASE, cratesFetch, requireBoundedInt, requireString } from './utils.js';
 
 cli({

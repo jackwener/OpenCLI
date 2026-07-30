@@ -1,5 +1,5 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { stripHtml } from './utils.js';
 cli({
     site: 'hupu',

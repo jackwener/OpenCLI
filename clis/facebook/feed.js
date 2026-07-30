@@ -1,5 +1,5 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 const FACEBOOK_HOME = 'https://www.facebook.com/';
 const MAX_LIMIT = 50;

@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const ALLOWED_HOSTS = new Set([
   'share.note.youdao.com',

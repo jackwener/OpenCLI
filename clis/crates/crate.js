@@ -4,8 +4,8 @@
 // projection: name, latest version, description, total + recent downloads,
 // homepage / docs / repo, license (from latest version row), version count,
 // created / updated timestamps.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { CRATES_BASE, cratesFetch, requireCrateName } from './utils.js';
 
 cli({

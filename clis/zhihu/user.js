@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { parseZhihuUser } from './user-arg.js';
 import { unwrapEvaluateResult } from './paginate.js';
 

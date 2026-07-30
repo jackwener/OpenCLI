@@ -3,8 +3,8 @@
  * Uses /x/v2/reply/add, authenticated by the logged-in cookie + bili_jct CSRF token.
  * @username mentions in the message are resolved to real mentions (at_name_to_mid).
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { apiGet, apiPost, requireOkPayload, resolveBvid, resolveUid } from './utils.js';
 
 function readPositiveInteger(value, label) {

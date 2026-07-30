@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { createHash } from 'node:crypto';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';

@@ -1,4 +1,4 @@
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { AuthRequiredError } from '@woosau/opencli/errors';
 const STS2_URL = 'https://creator.douyin.com/aweme/mid/video/sts2/?scene=web&aid=1128&cookie_enabled=true&device_platform=web';
 /**
  * Fetch STS2 temporary credentials from the creator center.

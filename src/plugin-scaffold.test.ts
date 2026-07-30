@@ -56,7 +56,7 @@ describe('createPluginScaffold', () => {
     createPluginScaffold('test-pkg', { dir });
     const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'));
     expect(pkg.type).toBe('module');
-    expect(pkg.peerDependencies?.['@jackwener/opencli']).toBeDefined();
+    expect(pkg.peerDependencies?.['@woosau/opencli']).toBeDefined();
   });
 
   it('generates a TS sample that matches the current plugin API', () => {
@@ -66,7 +66,7 @@ describe('createPluginScaffold', () => {
     createPluginScaffold('test-ts', { dir });
     const tsSample = fs.readFileSync(path.join(dir, 'greet.ts'), 'utf-8');
 
-    expect(tsSample).toContain(`import { cli, Strategy } from '@jackwener/opencli/registry';`);
+    expect(tsSample).toContain(`import { cli, Strategy } from '@woosau/opencli/registry';`);
     expect(tsSample).toContain(`strategy: Strategy.PUBLIC`);
     expect(tsSample).toContain(`help: 'Name to greet'`);
     expect(tsSample).toContain(`func: async (kwargs)`);

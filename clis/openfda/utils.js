@@ -3,7 +3,7 @@
 // Free public tier with anonymous rate limit (~240 req/min, 1000 req/day per IP).
 // API key bumps that to 240 req/min × ~120000 req/day, but is not required for
 // modest read traffic.
-import { ArgumentError, EmptyResultError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, EmptyResultError, CommandExecutionError } from '@woosau/opencli/errors';
 
 export const OPENFDA_BASE = 'https://api.fda.gov';
 const UA = 'opencli-openfda/1.0';

@@ -3,8 +3,8 @@
  *
  * Navigates to the Product Hunt homepage and scrapes rendered product cards.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import { pickVoteCount } from './utils.js';
 cli({
     site: 'producthunt',

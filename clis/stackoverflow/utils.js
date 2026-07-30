@@ -8,7 +8,7 @@ import {
     ArgumentError,
     CommandExecutionError,
     EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 
 export const SE_API = 'https://api.stackexchange.com/2.3';
 export const SE_SITE = 'stackoverflow';

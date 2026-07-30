@@ -7,8 +7,8 @@ vi.mock('./_shared/public-api.js', () => ({
     fetchDouyinUserVideos: fetchDouyinUserVideosMock,
     fetchDouyinComments: fetchDouyinCommentsMock,
 }));
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { DEFAULT_COMMENT_LIMIT, MAX_USER_VIDEOS_LIMIT, normalizeCommentLimit, normalizeSecUid, normalizeUserVideosLimit } from './user-videos.js';
 describe('douyin user-videos', () => {
     beforeEach(() => {

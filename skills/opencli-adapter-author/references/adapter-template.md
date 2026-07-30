@@ -12,8 +12,8 @@
 
 ```javascript
 // eastmoney convertible — on-market convertible bond listing.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 
 const SORTS = {
   change:   { fid: 'f3',   order: 'desc' },
@@ -123,7 +123,7 @@ columns: ['rank', 'bondCode', 'bondName', /* ... */ ],
 ### 3. func — 主体
 
 ```javascript
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 func: async (args) => {
   // 1. 解析参数 — 越界一律抛，不要 silent clamp
@@ -180,8 +180,8 @@ PUBLIC 模式不够（接口 401 / 302 到 login / 响应是"请登录"页）就
 3. Declaration 加 `browser: true`；不需要真的打开目标页时 `navigateBefore: false`。
 
 ```javascript
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const BASE = 'https://www.example.com';
 const HOST = 'www.example.com';
@@ -350,7 +350,7 @@ for (const opts of [{ domain: HOST }, { domain: ROOT }]) { ... }
 历史上这里写的是"返回一行说明 row 比 `return []` 安全"。**这条已经反过来了**——见 PR #1329 R3 的 four anti-pattern fixes。现在的契约：
 
 ```javascript
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { EmptyResultError } from '@woosau/opencli/errors';
 
 // ❌ 老写法：sentinel 行污染 row 合同，让 listing→detail round-trip 拿到 tid='' 白跑
 if (/暂时没有提醒内容/.test(html)) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import './search.js';
 import { __test__ } from './search.js';
 

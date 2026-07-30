@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import './creator-stats.js';
 
 describe('xiaohongshu creator-stats', () => {

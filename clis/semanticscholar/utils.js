@@ -7,7 +7,7 @@
 // accept Semantic Scholar paperIds, DOIs, arXiv ids, ACL ids, MAG ids, PMID,
 // or full URLs; they round-trip through `paper <ref>` to `citations <ref>`
 // and `recommendations <ref>`.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const S2_GRAPH_BASE = 'https://api.semanticscholar.org/graph/v1';
 export const S2_REC_BASE = 'https://api.semanticscholar.org/recommendations/v1';

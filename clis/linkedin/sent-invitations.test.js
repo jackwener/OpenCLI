@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './sent-invitations.js';
 
 const { buildSentInvitationsScript } = await import('./sent-invitations.js').then((m) => m.__test__);

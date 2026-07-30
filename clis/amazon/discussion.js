@@ -1,5 +1,5 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { DOMAIN, amazonHostFromInput, buildProductUrl, buildDiscussionUrl, buildProvenance, cleanText, extractAsin, normalizeProductUrl, parseRatingValue, parseReviewCount, trimRatingPrefix, uniqueNonEmpty, assertUsableState, gotoAndReadState, } from './shared.js';
 function normalizeDiscussionPayload(payload) {
     const sourceUrl = cleanText(payload.href) || buildDiscussionUrl(payload.href ?? '');

@@ -7,7 +7,7 @@
  * adapter only pins the web host. Mirrors how rednote's note/comments/search/
  * download/user adapters reuse the xiaohongshu implementations.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { runFeed } from '../xiaohongshu/feed.js';
 
 export const command = cli({

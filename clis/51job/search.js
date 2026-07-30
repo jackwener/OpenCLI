@@ -7,8 +7,8 @@
  * `pageFetchJson` helper runs inside the page so the WAF sees a real browser.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import {
     WE_ORIGIN, SEARCH_COLUMNS,
     SALARY_CODES, WORKYEAR_CODES, DEGREE_CODES,

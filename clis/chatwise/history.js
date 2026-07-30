@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 export const historyCommand = cli({
     site: 'chatwise',
     name: 'history',

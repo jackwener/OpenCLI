@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import {
     __test__,
     collectDoubaoTranscriptAdditions,

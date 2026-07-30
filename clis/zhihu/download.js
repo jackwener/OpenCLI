@@ -4,8 +4,8 @@
  * Usage:
  *   opencli zhihu download --url "https://zhuanlan.zhihu.com/p/xxx" --output ./zhihu
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { downloadArticle } from '@jackwener/opencli/download/article-download';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { downloadArticle } from '@woosau/opencli/download/article-download';
 cli({
     site: 'zhihu',
     name: 'download',

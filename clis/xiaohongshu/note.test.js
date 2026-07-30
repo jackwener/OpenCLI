@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 import './note.js';
 function createPageMock(evaluateResult) {

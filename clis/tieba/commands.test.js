@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Strategy, getRegistry } from '@jackwener/opencli/registry';
+import { Strategy, getRegistry } from '@woosau/opencli/registry';
 import './hot.js';
 import './posts.js';
 import './read.js';

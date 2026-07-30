@@ -3,7 +3,7 @@
 // Hits the `article_rank` endpoint that backs the "hot" board on the Juejin
 // web UI. Returns a different envelope from the recommend feed
 // (`content` / `content_counter` / `author`), so the mapping lives in utils.
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     CATEGORY_ALIASES,
     juejinFetch,

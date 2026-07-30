@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, EmptyResultError } from '@woosau/opencli/errors';
 import './marketplace-listings.js';
 import './marketplace-inbox.js';
 

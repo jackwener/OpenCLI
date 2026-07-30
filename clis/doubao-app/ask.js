@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { SEL, injectTextScript, clickSendScript, pollResponseScript } from './utils.js';
 export const askCommand = cli({
     site: 'doubao-app',

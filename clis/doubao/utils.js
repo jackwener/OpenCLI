@@ -1,4 +1,4 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 
 export const DOUBAO_DOMAIN = 'www.doubao.com';
 export const DOUBAO_CHAT_URL = 'https://www.doubao.com/chat';

@@ -2,7 +2,7 @@
  * Shared helpers for the public Chess.com REST API
  * (https://api.chess.com/pub/). No auth, no rate-limit headers.
  */
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const API_BASE = 'https://api.chess.com/pub';
 export const UA = 'Mozilla/5.0 (compatible; opencli/1.0)';

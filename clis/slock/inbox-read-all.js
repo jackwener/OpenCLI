@@ -1,5 +1,5 @@
 // inbox-read-all.js
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { buildFetchSnippet } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';

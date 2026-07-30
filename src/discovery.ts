@@ -36,11 +36,11 @@ function parseStrategy(rawStrategy: string | undefined, fallback: Strategy = Str
 const PACKAGE_ROOT = findPackageRoot(fileURLToPath(import.meta.url));
 
 /**
- * Ensure ~/.opencli/node_modules/@jackwener/opencli symlink exists so that
- * user CLIs in ~/.opencli/clis/ can `import { cli } from '@jackwener/opencli/registry'`.
+ * Ensure ~/.opencli/node_modules/@woosau/opencli symlink exists so that
+ * user CLIs in ~/.opencli/clis/ can `import { cli } from '@woosau/opencli/registry'`.
  *
  * This is the sole resolution mechanism — adapters use package exports
- * (e.g. `@jackwener/opencli/registry`, `@jackwener/opencli/errors`) and
+ * (e.g. `@woosau/opencli/registry`, `@woosau/opencli/errors`) and
  * Node.js resolves them through this symlink.
  */
 export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DIR): Promise<void> {
@@ -56,7 +56,7 @@ export async function ensureUserCliCompatShims(baseDir: string = USER_OPENCLI_DI
     await fs.promises.writeFile(pkgJsonPath, pkgJsonContent, 'utf-8');
   }
 
-  // Create node_modules/@jackwener/opencli symlink pointing to the installed package root.
+  // Create node_modules/@woosau/opencli symlink pointing to the installed package root.
   const opencliRoot = PACKAGE_ROOT;
   const symlinkDir = path.join(baseDir, 'node_modules', '@jackwener');
   const symlinkPath = path.join(symlinkDir, 'opencli');

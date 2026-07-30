@@ -5,10 +5,10 @@
 // the warm `__UNIVERSAL_DATA_FOR_REHYDRATION__` snapshot, then page through
 // `/api/user/list/?scene=21` (TikTok's own following endpoint).
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import {
     BROWSER_HELPERS,
     MAX_PAGES,

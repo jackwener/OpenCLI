@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { getRegistry, Strategy } from '@jackwener/opencli/registry';
+import { getRegistry, Strategy } from '@woosau/opencli/registry';
 
 import {
     BRAND_COLUMNS,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 import './connect.js';
 
 const {

@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { normalizeLimit, readPlayerMatches } from './utils.js';
 
 function round(value, digits = 2) {

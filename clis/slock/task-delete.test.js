@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
 import './task-delete.js';
 
 function makePage(envelope) {

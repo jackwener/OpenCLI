@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError, ConfigError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, ConfigError } from '@woosau/opencli/errors';
 import { SLOCK_DOMAIN } from './shared.js';
 
 // EvaluateResult is the envelope every in-page snippet returns. Kinds:

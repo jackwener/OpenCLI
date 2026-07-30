@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 import './salesnav-thread.js';
 
 const {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import { __test__ } from './generate-audio.js';
 
 const { AUDIO_OVERVIEW_CONFIG_BLOCK, buildCreateAudioArgs, parseAudioIdFromResult } = __test__;

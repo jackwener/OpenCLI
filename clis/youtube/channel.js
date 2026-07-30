@@ -1,8 +1,8 @@
 /**
  * YouTube channel — get channel info and recent videos via InnerTube API.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 
 export function extractSelectedRichGridContents(browseData) {
     const tabs = browseData?.contents?.twoColumnBrowseResultsRenderer?.tabs || [];

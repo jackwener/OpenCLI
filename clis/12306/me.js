@@ -6,8 +6,8 @@
  * own response (12306 already masks the ID number server-side; this
  * adapter never decodes that mask).
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { isAuthLikePayload, maskEmail, maskMobile, maskChineseName, require12306Login, requireEvaluateObject } from './utils.js';
 
 const ACCOUNT_INFO_URL = 'https://kyfw.12306.cn/otn/modifyUser/initQueryUserInfoApi';

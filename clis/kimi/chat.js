@@ -1,12 +1,12 @@
 // Chat lifecycle + per-message actions for Kimi.
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     ArgumentError,
     CommandExecutionError,
     EmptyResultError,
     TimeoutError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import {
     KIMI_DOMAIN,
     KIMI_URL,

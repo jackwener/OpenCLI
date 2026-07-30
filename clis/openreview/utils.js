@@ -4,7 +4,7 @@
  * Public OpenReview v2 API — no key required for everyone-readable notes.
  * https://docs.openreview.net/reference/api-v2
  */
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 export const OPENREVIEW_API = 'https://api2.openreview.net';
 export const OPENREVIEW_BASE = 'https://openreview.net';

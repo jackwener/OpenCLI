@@ -5,7 +5,7 @@
 // (so `dockerhub image nginx` ≡ `dockerhub image library/nginx`). Returns a
 // one-row projection: official-flag, star / pull counters, last-updated /
 // registered timestamps, repo status, short description, hub URL.
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { HUB_BASE, hubFetch, parseImage } from './utils.js';
 
 function trimDate(value) {

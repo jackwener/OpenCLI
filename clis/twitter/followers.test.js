@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { __test__ } from './followers.js';
 
 describe('twitter followers command', () => {

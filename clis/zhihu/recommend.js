@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CliError } from '@woosau/opencli/errors';
 
 function normalizeUrl(item) {
     const target = item.target || {};

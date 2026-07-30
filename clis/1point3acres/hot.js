@@ -1,7 +1,7 @@
 /**
  * 一亩三分地 热门帖子 — Discuz guide=hot view.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { fetchHtml, parseThreadList, normalizeLimit, BASE } from './utils.js';
 
 cli({

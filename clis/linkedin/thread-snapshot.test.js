@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 import './thread-snapshot.js';
 
 const { canonicalizeLinkedInThreadUrl, parseMaxScrolls } = await import('./thread-snapshot.js').then((m) => m.__test__);

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 import './search.js';
 let cmd;

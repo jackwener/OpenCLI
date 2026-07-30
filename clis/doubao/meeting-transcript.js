@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { DOUBAO_DOMAIN, openMeetingPanel, getMeetingTranscript, parseDoubaoConversationId, triggerTranscriptDownload, } from './utils.js';
 export const meetingTranscriptCommand = cli({
     site: 'doubao',

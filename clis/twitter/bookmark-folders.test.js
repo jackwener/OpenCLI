@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import { __test__ } from './bookmark-folders.js';
 
 const { parseBookmarkFolders, buildUrl } = __test__;

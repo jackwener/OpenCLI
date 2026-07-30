@@ -1,4 +1,4 @@
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 /**
  * Shared utilities for GeoGebra adapters.

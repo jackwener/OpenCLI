@@ -8,8 +8,8 @@
  *
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 const NOTE_DETAIL_DATETIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const NOTE_DETAIL_METRICS = [
     { label: '曝光数', section: '基础数据' },

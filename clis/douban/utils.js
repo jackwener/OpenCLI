@@ -1,7 +1,7 @@
 /**
  * Douban adapter utilities.
  */
-import { ArgumentError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CliError, EmptyResultError } from '@woosau/opencli/errors';
 import { clamp } from '../_shared/common.js';
 const DOUBAN_PHOTO_PAGE_SIZE = 30;
 const MAX_DOUBAN_PHOTOS = 500;

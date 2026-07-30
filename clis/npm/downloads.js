@@ -3,8 +3,8 @@
 // Hits `api.npmjs.org/downloads/range/<period>/<pkg>`. Default window is the
 // last 7 days (one row per day). Use `--period last-month` for 30 days, or
 // pass a custom `YYYY-MM-DD:YYYY-MM-DD` range.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, EmptyResultError } from '@woosau/opencli/errors';
 import { NPM_API, npmFetch, requirePackageName } from './utils.js';
 
 const FIXED_PERIODS = new Set(['last-day', 'last-week', 'last-month', 'last-year']);

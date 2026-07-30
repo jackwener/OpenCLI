@@ -37,7 +37,7 @@ const page = Math.max(1, Number(args.page) || 1);
 **修法**（[`clis/1point3acres/utils.js`](../../../clis/1point3acres/utils.js) 的 `normalizePositiveInteger` / `normalizeLimit`）：
 
 ```js
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 
 /** Validate a positive integer arg without silently flooring/clamping. */
 export function normalizePositiveInteger(value, defaultValue, label = 'value', { min = 1 } = {}) {
@@ -118,7 +118,7 @@ if (!asset?.ok) {
 **修法**：
 
 ```js
-import { EmptyResultError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { EmptyResultError, CommandExecutionError } from '@woosau/opencli/errors';
 
 if (/暂时没有提醒内容/.test(html)) {
     throw new EmptyResultError('1point3acres notifications', '暂时没有提醒内容');

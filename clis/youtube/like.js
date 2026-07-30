@@ -1,9 +1,9 @@
 /**
  * YouTube like — like a video via InnerTube like API (requires SAPISIDHASH auth).
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { parseVideoId, prepareYoutubeApiPage, readYoutubeSapisid, SAPISID_HASH_FN } from './utils.js';
-import { CommandExecutionError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, AuthRequiredError } from '@woosau/opencli/errors';
 
 cli({
     site: 'youtube',

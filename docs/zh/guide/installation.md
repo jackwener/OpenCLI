@@ -8,7 +8,7 @@
 ## 通过 npm 安装（推荐）
 
 ```bash
-npm install -g @jackwener/opencli
+npm install -g @woosau/opencli
 ```
 
 ## 从源码安装
@@ -25,7 +25,7 @@ opencli list
 ## 更新
 
 ```bash
-npm install -g @jackwener/opencli@latest
+npm install -g @woosau/opencli@latest
 
 # 如果你在用打包发布的 OpenCLI skills，也一起刷新
 npx skills add jackwener/opencli

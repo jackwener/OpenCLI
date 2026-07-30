@@ -5,8 +5,8 @@
  * main post; the rest are replies. Columns are shaped so `--limit 1` gives
  * just the main post, and larger limits walk down the thread.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, EmptyResultError } from '@woosau/opencli/errors';
 import { fetchHtml, decodeEntities, stripHtml, truncate, normalizePositiveInteger, BASE } from './utils.js';
 
 function extract(html, regex, group = 1) {

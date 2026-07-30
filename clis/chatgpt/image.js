@@ -1,9 +1,9 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { saveBase64ToFile } from '@jackwener/opencli/utils';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { saveBase64ToFile } from '@woosau/opencli/utils';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { clearChatGPTDraft, getChatGPTVisibleImageUrls, navigateToProject, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, unwrapEvaluateResult, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';

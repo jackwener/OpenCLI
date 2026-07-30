@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_SITE } from './shared.js';
 import { getNotebooklmPageState } from './utils.js';
 cli({

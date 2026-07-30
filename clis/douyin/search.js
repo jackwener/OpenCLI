@@ -40,8 +40,8 @@
  * https://www.douyin.com. The search results page renders an empty
  * skeleton for anonymous visitors, which we surface as AuthRequiredError.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const MAX_SEARCH_LIMIT = 30;
 // Time budget for the SPA's initial DOM commit. Empirically the

@@ -4,8 +4,8 @@
 // Default search field is brand_name OR generic_name (Lucene syntax via openfda
 // query DSL). Returns label sections (purpose, warnings, dosage, etc.) and
 // metadata (manufacturer, product_ndc, route, etc.).
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import {
     OPENFDA_BASE,
     firstOrNull,

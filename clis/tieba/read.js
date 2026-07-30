@@ -1,5 +1,5 @@
-import { EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { buildTiebaReadItems } from './utils.js';
 function getThreadUrl(kwargs) {
     const threadId = String(kwargs.id || '');

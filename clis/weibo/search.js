@@ -1,8 +1,8 @@
 /**
  * Weibo search — browser DOM extraction from search results.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import { requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',

@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@woosau/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
 import { callNotebooklmRpc, getNotebooklmPageAuth, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';

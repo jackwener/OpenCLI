@@ -4,8 +4,8 @@
 // Returns the agent-useful projection: id, published / last-modified dates,
 // vuln status, English description, CVSS v3.1 base score / severity / vector,
 // CWE id(s), CISA KEV flag.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const NVD_BASE = 'https://services.nvd.nist.gov/rest/json/cves/2.0';
 const UA = 'opencli-nvd-adapter (+https://github.com/jackwener/opencli)';

@@ -2,8 +2,8 @@
 //
 // Hits `wbsearchentities` on the public MediaWiki API. Returns Q-IDs that
 // round-trip into `wikidata entity` for full detail.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { WIKIDATA_BASE, requireBoundedInt, requireLanguage, requireString, wikidataFetch } from './utils.js';
 
 cli({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { __test__ } from './convertible.js';
 
 const { SORTS, extractConvertibleDiff, mapConvertibleRows, parseConvertibleLimit } = __test__;

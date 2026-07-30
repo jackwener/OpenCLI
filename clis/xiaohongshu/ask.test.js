@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { getRegistry, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError, TimeoutError } from '@woosau/opencli/errors';
 import {
     buildAskResult,
     buildAskEvaluateJs,

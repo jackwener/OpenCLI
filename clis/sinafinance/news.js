@@ -4,8 +4,8 @@
  * Uses the public CJ API — no key or browser required.
  * https://app.cj.sina.com.cn/api/news/pc
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 // User-facing type (0-9) → Sina API tag ID
 const TYPE_MAP = [
     0, // 0: 全部

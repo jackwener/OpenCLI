@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { TRAE_USER_RULES } from './_fs.js';
 
 // -------- user-rules --------

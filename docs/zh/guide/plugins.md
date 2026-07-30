@@ -117,7 +117,7 @@ my-plugin/
 `hot.ts`:
 
 ```typescript
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 cli({
   site: 'my-plugin',
@@ -150,7 +150,7 @@ my-plugin/
 ```
 
 ```ts
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 cli({
   site: 'my-plugin',
@@ -169,7 +169,7 @@ cli({
 
 1. 安装 plugin 自身依赖
 2. 补齐 TypeScript 运行环境
-3. 将宿主 `@jackwener/opencli` 链接到 plugin 的 `node_modules/`，保证 `@jackwener/opencli/registry` 指向当前宿主版本
+3. 将宿主 `@woosau/opencli` 链接到 plugin 的 `node_modules/`，保证 `@woosau/opencli/registry` 指向当前宿主版本
 
 ## 示例 plugins
 
@@ -182,7 +182,7 @@ cli({
 
 ### TS plugin import 报错
 
-如果看到 `Cannot find module '@jackwener/opencli/registry'`，通常是宿主 symlink 失效。重新安装 plugin 即可：
+如果看到 `Cannot find module '@woosau/opencli/registry'`，通常是宿主 symlink 失效。重新安装 plugin 即可：
 
 ```bash
 opencli plugin uninstall my-plugin

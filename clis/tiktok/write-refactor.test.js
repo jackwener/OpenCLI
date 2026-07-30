@@ -14,7 +14,7 @@ import {
     ArgumentError,
     AuthRequiredError,
     CommandExecutionError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import { commentCommand, __test__ as commentTest } from './comment.js';
 import { followCommand, __test__ as followTest } from './follow.js';
 import { unfollowCommand, __test__ as unfollowTest } from './unfollow.js';

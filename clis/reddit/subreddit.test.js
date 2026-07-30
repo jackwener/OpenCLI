@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './subreddit.js';
 
 describe('reddit subreddit adapter', () => {

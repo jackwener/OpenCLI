@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { CliError, CommandExecutionError, ConfigError, EXIT_CODES, getErrorMessage } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, ConfigError, EXIT_CODES, getErrorMessage } from '@woosau/opencli/errors';
 
 export const XIAOYUZHOU_API_BASE_URL = 'https://api.xiaoyuzhoufm.com';
 export const XIAOYUZHOU_TOKEN_TTL_MS = 20 * 60 * 1000;

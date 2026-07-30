@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { CLAUDE_DOMAIN, getConversationList, ensureClaudeLogin, requirePositiveInt } from './utils.js';
 
 export const historyCommand = cli({

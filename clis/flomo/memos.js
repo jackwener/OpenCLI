@@ -1,10 +1,10 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
   ArgumentError,
   AuthRequiredError,
   CommandExecutionError,
   EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import { createHash } from 'node:crypto';
 
 const FLOMO_APP_DOMAIN = 'v.flomoapp.com';

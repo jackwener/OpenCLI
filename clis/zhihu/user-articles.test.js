@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { AuthRequiredError, CliError, CommandExecutionError } from '@woosau/opencli/errors';
 import './user-articles.js';
 
 describe('zhihu user-articles', () => {

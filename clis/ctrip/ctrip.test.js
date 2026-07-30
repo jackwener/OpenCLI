@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './search.js';
 import './hotel-suggest.js';
 import './hotel-search.js';

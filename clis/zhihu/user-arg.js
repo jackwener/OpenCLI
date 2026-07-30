@@ -1,4 +1,4 @@
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 
 const SLUG_RE = /^[A-Za-z0-9_-]+$/;
 const USER_PREFIX_RE = /^user:([A-Za-z0-9_-]+)$/;

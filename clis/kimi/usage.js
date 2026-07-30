@@ -1,8 +1,8 @@
 // Kimi membership quota usage summary.
 // Reads usage cards from https://www.kimi.com/membership/subscription?tab=quota
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 
 const KIMI_DOMAIN = 'kimi.com';
 const QUOTA_URL = 'https://www.kimi.com/membership/subscription?tab=quota';

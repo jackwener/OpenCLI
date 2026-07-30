@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { AuthRequiredError } from '@woosau/opencli/errors';
 import { __test__ } from './item.js';
 import './item.js';
 const originalPerformance = globalThis.performance;

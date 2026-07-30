@@ -6,10 +6,10 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { formatCookieHeader, httpDownload } from '@jackwener/opencli/download';
-import { formatBytes } from '@jackwener/opencli/download/progress';
-import { CommandExecutionError, EmptyResultError, getErrorMessage } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { formatCookieHeader, httpDownload } from '@woosau/opencli/download';
+import { formatBytes } from '@woosau/opencli/download/progress';
+import { CommandExecutionError, EmptyResultError, getErrorMessage } from '@woosau/opencli/errors';
 import { pixivFetch } from './utils.js';
 cli({
     site: 'pixiv',

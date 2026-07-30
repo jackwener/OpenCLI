@@ -10,8 +10,8 @@
  *      letter (M=一等座, O=二等座, A9=商务座, A1=硬座, A3=硬卧,
  *      A4=软卧, F=动卧, P=特等座, WZ=无座, etc.)
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { fetchStationBundle, mintSession, resolveStation, validateDate } from './utils.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36';

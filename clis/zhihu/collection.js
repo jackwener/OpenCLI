@@ -1,6 +1,6 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { log } from '@jackwener/opencli/logger';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { log } from '@woosau/opencli/logger';
 import { stripHtml } from './text.js';
 
 function validatePositiveInt(value, name) {

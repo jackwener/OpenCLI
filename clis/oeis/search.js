@@ -3,8 +3,8 @@
 // OEIS' search supports both natural-language queries ("fibonacci") and
 // numeric pattern queries ("1,1,2,3,5,8"). Returns up to 10 results per
 // page; we honor `--limit` by paginating via `&start=`.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { OEIS_BASE, formatId, oeisFetch, previewTerms, requireBoundedInt, requireString } from './utils.js';
 
 cli({

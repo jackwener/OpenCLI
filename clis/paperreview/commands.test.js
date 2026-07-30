@@ -17,7 +17,7 @@ vi.mock('./utils.js', async () => {
         parseYesNo: mockParseYesNo,
     };
 });
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './submit.js';
 import './review.js';
 import './feedback.js';

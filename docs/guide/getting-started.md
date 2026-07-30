@@ -3,9 +3,9 @@
 > **Make any website or Electron App your CLI.**
 > Zero risk · Reuse Chrome login · AI-powered discovery · Browser + Desktop automation
 
-[![npm](https://img.shields.io/npm/v/@jackwener/opencli?style=flat-square)](https://www.npmjs.com/package/@jackwener/opencli)
-[![Node.js Version](https://img.shields.io/node/v/@jackwener/opencli?style=flat-square)](https://nodejs.org)
-[![License](https://img.shields.io/npm/l/@jackwener/opencli?style=flat-square)](https://github.com/jackwener/opencli/blob/main/LICENSE)
+[![npm](https://img.shields.io/npm/v/@woosau/opencli?style=flat-square)](https://www.npmjs.com/package/@woosau/opencli)
+[![Node.js Version](https://img.shields.io/node/v/@woosau/opencli?style=flat-square)](https://nodejs.org)
+[![License](https://img.shields.io/npm/l/@woosau/opencli?style=flat-square)](https://github.com/jackwener/opencli/blob/main/LICENSE)
 
 OpenCLI turns **any website** or **Electron app** into a command-line interface — Bilibili, Zhihu, 小红书, Twitter/X, Reddit, YouTube, Antigravity, and [many more](/adapters/) — powered by browser session reuse and AI-native discovery.
 
@@ -24,7 +24,7 @@ OpenCLI turns **any website** or **Electron app** into a command-line interface 
 ### Install via npm
 
 ```bash
-npm install -g @jackwener/opencli
+npm install -g @woosau/opencli
 ```
 
 ### Basic Usage

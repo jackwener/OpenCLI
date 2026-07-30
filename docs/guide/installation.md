@@ -8,7 +8,7 @@
 ## Install via npm (Recommended)
 
 ```bash
-npm install -g @jackwener/opencli
+npm install -g @woosau/opencli
 ```
 
 ## Install from Source
@@ -25,7 +25,7 @@ opencli list  # Now you can use it anywhere!
 ## Update
 
 ```bash
-npm install -g @jackwener/opencli@latest
+npm install -g @woosau/opencli@latest
 
 # If you use the packaged OpenCLI skills, refresh them too
 npx skills add jackwener/opencli

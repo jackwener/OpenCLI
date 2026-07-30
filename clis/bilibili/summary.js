@@ -2,8 +2,8 @@
  * Bilibili summary — fetches the official AI-generated video summary (the "AI总结"
  * shown on the video page) via /x/web-interface/view/conclusion/get.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { apiGet, resolveBvid } from './utils.js';
 
 const BILIBILI_HOST_RE = /(^|\.)bilibili\.com$/i;

@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 function normalize(value) {
     return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 }

@@ -23,7 +23,7 @@ const CACHE_DIR = path.join(os.homedir(), '.opencli');
 const CACHE_FILE = path.join(CACHE_DIR, 'update-check.json');
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const EXTENSION_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7d
-const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@jackwener/opencli/latest';
+const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@woosau/opencli/latest';
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/jackwener/OpenCLI/releases?per_page=20';
 
 interface UpdateCache {
@@ -103,7 +103,7 @@ function buildUpdateNotices({ cliVersion, cache, now }: NoticeInputs): NoticeLin
   if (cache.latestVersion && isNewer(cache.latestVersion, cliVersion)) {
     lines.cli =
       `\n  Update available: v${cliVersion} → v${cache.latestVersion}\n` +
-      `  Run: npm install -g @jackwener/opencli\n`;
+      `  Run: npm install -g @woosau/opencli\n`;
   }
   const { currentExtensionVersion, latestExtensionVersion, extensionLastSeenAt } = cache;
   if (

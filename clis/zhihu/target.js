@@ -1,4 +1,4 @@
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 const USER_RE = /^user:([A-Za-z0-9_-]+)$/;
 const QUESTION_RE = /^question:(\d+)$/;
 const ANSWER_RE = /^answer:(\d+):(\d+)$/;

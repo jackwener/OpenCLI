@@ -2,8 +2,8 @@
 //
 // Hits `/api/player/top/<n>/<perf>`. Returns the leaderboard rows; usernames
 // round-trip into `lichess user` for full profile detail.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { LICHESS_BASE, lichessFetch, requireBoundedInt, requirePerf } from './utils.js';
 
 cli({

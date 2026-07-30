@@ -21,7 +21,7 @@
  * second search in the same process skips both navigations.
  */
 
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 import { CITY_ID, resolveCityId } from './utils.js';
 
 const CHINESE_RE = /^[一-龥]+$/;

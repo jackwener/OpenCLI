@@ -1,8 +1,8 @@
 /**
  * V2EX Me (Profile/Balance) adapter.
  */
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 cli({
     site: 'v2ex',
     name: 'me',

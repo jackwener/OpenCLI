@@ -3,8 +3,8 @@
 // Hits `https://dblp.org/search/venue/api?q=…&format=json&h=…`. Returns a
 // row per matched venue. Useful for resolving an acronym (e.g. "ICLR" →
 // dblp's canonical venue page) and for browsing venues that match a topic.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import {
     DBLP_ORIGIN,
     decodeXmlEntities,

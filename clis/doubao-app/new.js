@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { clickNewChatScript } from './utils.js';
 export const newCommand = cli({
     site: 'doubao-app',

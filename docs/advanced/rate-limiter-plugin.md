@@ -47,7 +47,7 @@ OPENCLI_NO_RATE=1 opencli bilibili comments BV1WtAGzYEBm
 3. Create `~/.opencli/plugins/rate-limiter/index.js`:
 
    ```js
-   import { onAfterExecute } from '@jackwener/opencli/hooks'
+   import { onAfterExecute } from '@woosau/opencli/hooks'
 
    const BROWSER_DOMAINS = [
      'xiaohongshu', 'weibo', 'bilibili', 'douyin', 'tiktok',
@@ -86,7 +86,7 @@ Plugins are plain JS/TS files in `~/.opencli/plugins/<name>/`. A plugin file mus
 
 ```js
 // ~/.opencli/plugins/my-plugin/index.js
-import { onAfterExecute } from '@jackwener/opencli/hooks'
+import { onAfterExecute } from '@woosau/opencli/hooks'
 
 onAfterExecute(async (ctx) => {
   // ctx.command — e.g. "bilibili/comments"

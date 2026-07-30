@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { requireString } from '../_atlassian/shared.js';
 import { confluenceConfig, getPage, normalizeConfluencePage } from './shared.js';
 

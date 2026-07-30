@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import { __test__ } from './search.js';
 import './search.js';
 describe('xianyu search helpers', () => {

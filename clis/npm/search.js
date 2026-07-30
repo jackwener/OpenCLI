@@ -3,8 +3,8 @@
 // Hits `https://registry.npmjs.org/-/v1/search?text=…`. Returns enough per-row
 // to feed back into `npm package` / `npm downloads`: name (round-trips as id),
 // description, version, weekly downloads, dependents count, license, links.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { NPM_REGISTRY, npmFetch, requireBoundedInt, requireString } from './utils.js';
 
 cli({

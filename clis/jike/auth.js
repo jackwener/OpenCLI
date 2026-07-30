@@ -1,4 +1,4 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 
 // Jike web (web.okjike.com) is an SPA shell that stores a JWT in localStorage

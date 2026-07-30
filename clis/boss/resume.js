@@ -9,7 +9,7 @@
  *  .experience-content.detail-list → details (company·position / school·major·degree)
  *  .position-content → job being discussed + expectation
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList } from './utils.js';
 cli({
     site: 'boss',

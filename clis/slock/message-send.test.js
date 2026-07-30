@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import './message-send.js';
 
 function makePage(result = { kind: 'ok', rows: [{ id: 'm1' }] }) {

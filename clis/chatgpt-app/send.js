@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, ConfigError, getErrorMessage } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError, ConfigError, getErrorMessage } from '@woosau/opencli/errors';
 import { activateChatGPT, selectModel, MODEL_CHOICES, sendPrompt } from './ax.js';
 export const sendCommand = cli({
     site: 'chatgpt-app',

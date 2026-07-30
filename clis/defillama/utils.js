@@ -2,7 +2,7 @@
 //
 // DefiLlama serves a public REST API (no auth) over https://api.llama.fi.
 // Docs: https://defillama.com/docs/api
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const LLAMA_BASE = 'https://api.llama.fi';
 const UA = 'opencli-defillama-adapter (+https://github.com/jackwener/opencli)';

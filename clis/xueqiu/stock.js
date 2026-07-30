@@ -1,5 +1,5 @@
-import { cli } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { fetchXueqiuJson } from './utils.js';
 function fmtAmount(v) {
     if (v == null)

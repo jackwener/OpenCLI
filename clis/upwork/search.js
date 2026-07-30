@@ -8,12 +8,12 @@
  * change frequently while the state shape has been stable.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     CommandExecutionError,
     EmptyResultError,
     AuthRequiredError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import {
     buildSearchUrl,
     isPlainObject,

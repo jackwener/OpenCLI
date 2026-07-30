@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, selectGeminiModel, selectGeminiThinking, sendGeminiMessage, } from './utils.js';
 function createPageMock() {
     return {

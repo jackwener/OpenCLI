@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import { createPageMock } from '../test-utils.js';
 import './saved.js';
 

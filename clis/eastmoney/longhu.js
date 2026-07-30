@@ -3,8 +3,8 @@
 //   opencli eastmoney longhu
 //   opencli eastmoney longhu --date 2025-12-10 --limit 20
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 
 function defaultTradeDate() {
   // Default window = 30 days back; results sorted DESC so latest comes first.

@@ -2,7 +2,7 @@
 //
 // OSV.dev publishes a free, unauthenticated REST API at https://api.osv.dev.
 // Docs: https://google.github.io/osv.dev/api/
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const OSV_BASE = 'https://api.osv.dev';
 const UA = 'opencli-osv-adapter (+https://github.com/jackwener/opencli)';

@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { buildProductUrl, buildProvenance, cleanText, extractAsin, PRIMARY_PRICE_SELECTORS, parsePriceText, parseRatingValue, parseReviewCount, normalizeProductUrl, uniqueNonEmpty, assertUsableState, gotoAndReadState, } from './shared.js';
 const PRODUCT_TITLE_SELECTOR = '#productTitle, #title span, [data-feature-name="title"] h1 span';
 const BYLINE_SELECTOR = '#bylineInfo, [data-feature-name="bylineInfo"] #bylineInfo';

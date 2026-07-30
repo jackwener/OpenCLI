@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 const { mockHttpDownload, mockLoadDoubanSubjectPhotos, mockMkdirSync } = vi.hoisted(() => ({
     mockHttpDownload: vi.fn(),
     mockLoadDoubanSubjectPhotos: vi.fn(),
     mockMkdirSync: vi.fn(),
 }));
-vi.mock('@jackwener/opencli/download', () => ({
+vi.mock('@woosau/opencli/download', () => ({
     httpDownload: mockHttpDownload,
     sanitizeFilename: vi.fn((value) => value.replace(/\s+/g, '_')),
 }));
@@ -17,7 +17,7 @@ vi.mock('./utils.js', async () => {
         loadDoubanSubjectPhotos: mockLoadDoubanSubjectPhotos,
     };
 });
-vi.mock('@jackwener/opencli/download/progress', () => ({
+vi.mock('@woosau/opencli/download/progress', () => ({
     formatBytes: vi.fn((size) => `${size} B`),
 }));
 vi.mock('node:fs', () => ({

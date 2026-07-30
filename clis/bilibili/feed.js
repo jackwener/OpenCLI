@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { apiGet, payloadData, resolveUid, stripHtml } from './utils.js';
 
 /** Map bilibili dynamic type to readable short name */

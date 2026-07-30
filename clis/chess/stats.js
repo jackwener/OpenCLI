@@ -2,8 +2,8 @@
  * Chess.com player stats across game kinds (rapid / blitz / bullet /
  * daily / chess960 / etc) via the public stats endpoint.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { chessApi, validateUsername, summarizeStats } from './utils.js';
 
 const KINDS = ['chess_rapid', 'chess_blitz', 'chess_bullet', 'chess_daily', 'chess960_daily', 'chess_daily_960'];

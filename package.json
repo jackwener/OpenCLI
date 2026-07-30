@@ -1,6 +1,6 @@
 {
-  "name": "@jackwener/opencli",
-  "version": "1.8.6",
+  "name": "@woosau/opencli",
+  "version": "1.8.6-2026730.1",
   "publishConfig": {
     "access": "public"
   },
@@ -72,11 +72,11 @@
     "web",
     "ai"
   ],
-  "author": "jackwener",
+  "author": "woosau",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jackwener/opencli.git"
+    "url": "git+https://github.com/ownduck/OpenCLI.git"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

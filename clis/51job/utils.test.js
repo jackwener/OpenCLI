@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 import { parseCompanyJobCard, pageFetchJson, resolveCity } from './utils.js';
 
 describe('51job resolveCity', () => {

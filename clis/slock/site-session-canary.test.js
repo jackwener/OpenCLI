@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 

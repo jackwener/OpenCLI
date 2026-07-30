@@ -4,8 +4,8 @@
 // (newest first), with the latest version, release / EOL / LTS / support dates,
 // and an `eolStatus` projection (`active` / `eol` / `ongoing`) so agents can
 // answer "is this version still supported" without parsing dates themselves.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { EOL_BASE, eolFetch, normaliseDateOrFlag, requireProduct } from './utils.js';
 
 cli({

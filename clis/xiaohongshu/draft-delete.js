@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     DRAFT_DB_NAME,
     STORE_NAME_MAP,

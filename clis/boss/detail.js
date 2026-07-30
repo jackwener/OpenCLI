@@ -1,7 +1,7 @@
 /**
  * BOSS直聘 job detail — fetch full job posting details via browser cookie API.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { requirePage, navigateTo, bossFetch, verbose } from './utils.js';
 cli({
     site: 'boss',

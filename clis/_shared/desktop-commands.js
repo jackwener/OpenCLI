@@ -4,7 +4,7 @@
  * across cursor, codex, chatwise, etc.
  */
 import * as fs from 'node:fs';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 /**
  * Factory: capture DOM HTML + accessibility snapshot.
  */

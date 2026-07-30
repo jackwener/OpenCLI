@@ -11,7 +11,7 @@ import {
     requirePayloadString,
     requireString,
 } from '../_atlassian/shared.js';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 
 const DEFAULT_ISSUE_FIELDS = [
     'summary',

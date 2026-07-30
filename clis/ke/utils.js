@@ -1,4 +1,4 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 
 const CAPTCHA_TEXT_PATTERNS = [
     '请拖动下方滑块完成验证',

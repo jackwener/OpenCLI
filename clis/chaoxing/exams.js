@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { getCourses, initSession, enterCourse, getTabIframeUrl, parseExamsFromDom, sleep, } from './utils.js';
 cli({
     site: 'chaoxing',

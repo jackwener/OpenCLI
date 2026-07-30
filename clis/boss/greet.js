@@ -1,7 +1,7 @@
 /**
  * BOSS直聘 greet — send greeting to a new candidate (initiate chat).
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { requirePage, navigateToChat, findFriendByUid, clickCandidateInList, typeAndSendMessage, verbose, } from './utils.js';
 cli({
     site: 'boss',

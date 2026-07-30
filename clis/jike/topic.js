@@ -1,5 +1,5 @@
-import { cli } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli } from '@woosau/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 cli({
     site: 'jike',
     name: 'topic',

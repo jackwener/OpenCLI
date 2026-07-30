@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { __test__, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {

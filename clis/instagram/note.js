@@ -1,5 +1,5 @@
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 const INSTAGRAM_INBOX_URL = 'https://www.instagram.com/direct/inbox/';
 const INSTAGRAM_NOTE_DOC_ID = '25155183657506484';
 const INSTAGRAM_NOTE_MUTATION_NAME = 'usePolarisCreateInboxTrayItemSubmitMutation';

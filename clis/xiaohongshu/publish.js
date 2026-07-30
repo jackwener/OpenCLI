@@ -17,8 +17,8 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CommandExecutionError, ArgumentError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, ArgumentError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?from=menu_left&target=image';
 const MAX_IMAGES = 9;
 const MAX_TITLE_LEN = 20;

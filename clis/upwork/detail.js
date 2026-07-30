@@ -10,12 +10,12 @@
  * applicants, …}`. We read straight from that store.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     CommandExecutionError,
     EmptyResultError,
     AuthRequiredError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import {
     DETAIL_COLUMNS,
     buildJobUrl,

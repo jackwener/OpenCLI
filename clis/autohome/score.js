@@ -10,7 +10,7 @@
  * is intentionally not scraped — this command surfaces the aggregate only.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     AH_KOUBEI_BASE,
     SCORE_COLUMNS,

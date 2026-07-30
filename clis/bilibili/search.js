@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { apiGet, stripHtml } from './utils.js';
 cli({
     site: 'bilibili', name: 'search', access: 'read', description: 'Search Bilibili videos or users', domain: 'www.bilibili.com', strategy: Strategy.COOKIE,

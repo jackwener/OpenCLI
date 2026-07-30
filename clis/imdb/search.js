@@ -1,5 +1,5 @@
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { forceEnglishUrl, isChallengePage, normalizeImdbTitleType, waitForImdbPath, waitForImdbSearchReady, } from './utils.js';
 /**
  * Search IMDb via the public search page and parse Next.js payload first.

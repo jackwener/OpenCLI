@@ -3,7 +3,7 @@
 // Hits the public, unauthenticated `search.maven.org/solrsearch/select` Solr
 // endpoint that powers the Maven Central search UI. No auth required for
 // read-only queries.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const MAVEN_BASE = 'https://search.maven.org/solrsearch/select';
 export const MAVEN_REPO_BASE = 'https://repo1.maven.org/maven2';

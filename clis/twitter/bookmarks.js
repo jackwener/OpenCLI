@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { extractMedia, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const BOOKMARKS_QUERY_ID = 'Fy0QMy4q_aZCpkO0PnyLYw';

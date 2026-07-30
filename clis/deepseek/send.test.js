@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 
 import './send.js';
 

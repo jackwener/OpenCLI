@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { extractPwdId, formatDate, getShareList, getToken, } from './utils.js';
 async function buildTree(page, pwdId, stoken, pdirFid, depth, maxDepth) {
     if (depth > maxDepth)

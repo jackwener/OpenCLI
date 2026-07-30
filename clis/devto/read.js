@@ -8,8 +8,8 @@
  * therefore emits one row with the article body. If/when comments become
  * available we can extend to a POST + L0/L1 shape like `hackernews read`.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const DEVTO_ARTICLE_BASE = 'https://dev.to/api/articles';
 

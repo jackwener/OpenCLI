@@ -1,7 +1,7 @@
 /**
  * Regression tests for package exports.
  *
- * Ensures adapter files use @jackwener/opencli/... package imports
+ * Ensures adapter files use @woosau/opencli/... package imports
  * (not fragile relative paths) and that all declared exports resolve
  * to real files. Prevents regressions like #788 / #791.
  */
@@ -32,7 +32,7 @@ function collectAdapterFiles(dir: string, opts?: { excludeTests?: boolean }): st
 }
 
 const ALLOWED_BARE_IMPORTS = new Set([
-  '@jackwener/opencli',
+  '@woosau/opencli',
   ...builtinModules.flatMap((name) => name.startsWith('node:')
     ? [name, name.slice(5)]
     : [name, `node:${name}`]),
@@ -42,7 +42,7 @@ function isAllowedImport(specifier: string): boolean {
   return specifier.startsWith('./')
     || specifier.startsWith('../')
     || specifier.startsWith('/')
-    || specifier.startsWith('@jackwener/opencli/')
+    || specifier.startsWith('@woosau/opencli/')
     || ALLOWED_BARE_IMPORTS.has(specifier);
 }
 

@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { buildXhsNoteUrl, normalizeXhsUserId } from './user-helpers.js';
 
 export const COLLECT_API_PATTERN = 'note/collect/page';

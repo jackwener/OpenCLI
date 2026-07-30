@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { runProcurementDetail } from './shared/procurement-detail.js';
 cli({
     site: 'jianyu',

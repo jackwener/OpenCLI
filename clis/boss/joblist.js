@@ -1,7 +1,7 @@
 /**
  * BOSS直聘 job list — list my published jobs via boss API.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { requirePage, navigateToChat, bossFetch, verbose } from './utils.js';
 cli({
     site: 'boss',

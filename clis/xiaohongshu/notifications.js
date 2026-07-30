@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 /**
  * Build the notifications pipeline for the given web host. Exported so the
  * rednote adapter can register the same pipeline against www.rednote.com.

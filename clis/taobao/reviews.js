@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { clampInt, normalizeNumericId } from '../_shared/common.js';
 cli({
     site: 'taobao',

@@ -3,7 +3,7 @@
 // Lichess exposes a generous unauthenticated API at `lichess.org/api`. We keep
 // the surface narrow: `user` (profile) + `top` (per-perf top-N leaderboard).
 // No API key required; rate limit is 60 req/min per IP.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const LICHESS_BASE = 'https://lichess.org';
 const UA = 'opencli-lichess-adapter/1.0 (+https://github.com/jackwener/opencli; mailto:opencli@example.com)';

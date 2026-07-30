@@ -1,4 +1,4 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 
 // DeepSeek authenticates via a Bearer token stored in localStorage (userToken),

@@ -5,8 +5,8 @@
  * New approach: navigate to `search.smzdm.com/?c=home&s=<keyword>&v=b`
  * and scrape the rendered DOM directly.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 function unwrapEvaluateResult(payload) {
     if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {

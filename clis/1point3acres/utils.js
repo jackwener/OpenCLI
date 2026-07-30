@@ -8,7 +8,7 @@
  * - User profile:     /bbs/space-uid-<uid>.html  or  /bbs/space-username-<name>.html
  * - Search:           /bbs/search.php?mod=forum  (COOKIE — guests get an alert page)
  */
-import { AuthRequiredError, ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 export const BASE = 'https://www.1point3acres.com/bbs';
 

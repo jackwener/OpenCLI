@@ -4,7 +4,7 @@
  * Uses the public iTunes Search API — no API key required.
  * https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/
  */
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 const BASE = 'https://itunes.apple.com';
 export async function itunesFetch(path) {
     const resp = await fetch(`${BASE}${path}`);

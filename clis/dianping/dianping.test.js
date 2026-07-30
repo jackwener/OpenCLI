@@ -8,8 +8,8 @@ import {
     AuthRequiredError,
     CommandExecutionError,
     EmptyResultError,
-} from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+} from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import {
     SEARCH_COLUMNS,
     SHOP_COLUMNS,

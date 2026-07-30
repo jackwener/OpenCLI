@@ -5,8 +5,8 @@
  * public image search UI and extracts visible image candidates, preferring
  * image URLs exposed in /imgres links and falling back to rendered thumbnails.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import {
     requireBoundedInteger,
     requireRows,

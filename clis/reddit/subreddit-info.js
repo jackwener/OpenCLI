@@ -1,5 +1,5 @@
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 // Reddit subreddit names: 3–21 chars, letters/digits/underscore, must start
 // with a letter. Accept an optional `r/` prefix and normalise it off.

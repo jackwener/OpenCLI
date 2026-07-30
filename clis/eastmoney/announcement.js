@@ -3,8 +3,8 @@
 //   opencli eastmoney announcement
 //   opencli eastmoney announcement --market SHA --limit 30
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 
 cli({
   site: 'eastmoney',

@@ -14,7 +14,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import { TRAE_APP_SUPPORT } from './_fs.js';
 
 export const TRAE_USER_DIR_APP = path.join(TRAE_APP_SUPPORT, 'User');

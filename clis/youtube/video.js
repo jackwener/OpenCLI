@@ -1,9 +1,9 @@
 /**
  * YouTube video metadata — fetch watch HTML and parse bootstrap data without opening the watch UI.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 
 function unwrapBrowserResult(value) {
     if (value && typeof value === 'object' && 'session' in value && 'data' in value) {

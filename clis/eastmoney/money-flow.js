@@ -3,8 +3,8 @@
 //   opencli eastmoney money-flow
 //   opencli eastmoney money-flow --range 5d --limit 30
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 
 const A_MARKET = 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048';
 

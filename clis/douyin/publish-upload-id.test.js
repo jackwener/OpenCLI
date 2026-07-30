@@ -43,7 +43,7 @@ describe('douyin publish upload identifier handling', () => {
     const video = path.join(tmpDir, 'video.mp4');
     fs.writeFileSync(video, Buffer.from('fake-video'));
 
-    const { getRegistry } = await import('@jackwener/opencli/registry');
+    const { getRegistry } = await import('@woosau/opencli/registry');
     getRegistry().delete('douyin/publish');
     await import('./publish.js');
     const cmd = getRegistry().get('douyin/publish');
@@ -74,7 +74,7 @@ describe('douyin publish upload identifier handling', () => {
     const video = path.join(tmpDir, 'video.mp4');
     fs.writeFileSync(video, Buffer.from('fake-video'));
 
-    const { getRegistry } = await import('@jackwener/opencli/registry');
+    const { getRegistry } = await import('@woosau/opencli/registry');
     getRegistry().delete('douyin/publish');
     await import('./publish.js');
     const cmd = getRegistry().get('douyin/publish');
@@ -117,7 +117,7 @@ describe('douyin publish upload identifier handling', () => {
       return { status_code: 0 };
     });
 
-    const { getRegistry } = await import('@jackwener/opencli/registry');
+    const { getRegistry } = await import('@woosau/opencli/registry');
     getRegistry().delete('douyin/publish');
     await import('./publish.js');
     const cmd = getRegistry().get('douyin/publish');
@@ -153,7 +153,7 @@ describe('douyin publish upload identifier handling', () => {
         .mockResolvedValueOnce({ session: 'site:douyin:test', data: { Result: {} } }),
     };
 
-    const { getRegistry } = await import('@jackwener/opencli/registry');
+    const { getRegistry } = await import('@woosau/opencli/registry');
     getRegistry().delete('douyin/publish');
     await import('./publish.js');
     const cmd = getRegistry().get('douyin/publish');
@@ -186,7 +186,7 @@ describe('douyin publish upload identifier handling', () => {
 
     const page = { evaluate: vi.fn().mockResolvedValueOnce({ session: 'site:douyin:test', data: { Result: { UploadAddress: { StoreInfos: [] } } } }) };
 
-    const { getRegistry } = await import('@jackwener/opencli/registry');
+    const { getRegistry } = await import('@woosau/opencli/registry');
     getRegistry().delete('douyin/publish');
     await import('./publish.js');
     const cmd = getRegistry().get('douyin/publish');

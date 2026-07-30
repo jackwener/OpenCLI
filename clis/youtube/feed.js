@@ -2,8 +2,8 @@
  * YouTube feed — homepage recommended videos.
  * Reads ytInitialData from the homepage directly (personalized, no separate API call needed).
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 cli({
     site: 'youtube',

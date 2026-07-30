@@ -6,8 +6,8 @@
  * (`.card-white.list-item`), so unlike `flight` this reads by selector instead
  * of position-anchored innerText (see `buildTrainExtractJs` in utils).
  */
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     WAIT_FOR_TRAINS_JS,
     buildScrollUntilJs,

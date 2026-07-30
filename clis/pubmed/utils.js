@@ -1,4 +1,4 @@
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 export const EUTILS_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 export const SEARCH_COLUMNS = ['rank', 'pmid', 'title', 'authors', 'journal', 'year', 'article_type', 'doi', 'url'];

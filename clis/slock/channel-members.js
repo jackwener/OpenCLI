@@ -1,6 +1,6 @@
 // channel-members.js
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { buildChannelScopedSnippet } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL } from './shared.js';

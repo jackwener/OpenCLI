@@ -3,7 +3,7 @@
 // Hits `https://formulae.brew.sh/api/formula/<name>.json`. Returns one row:
 // canonical name, latest stable version, license, dependencies, deprecated /
 // disabled flags, homepage, source tarball URL.
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { BREW_BASE, brewFetch, requireToken } from './utils.js';
 
 cli({

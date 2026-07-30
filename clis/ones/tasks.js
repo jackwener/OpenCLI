@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import { gotoOnesHome, onesFetchInPage } from './common.js';
 import { enrichPeekEntriesWithDetails } from './enrich-tasks.js';
 import { resolveTaskListLabels } from './resolve-labels.js';

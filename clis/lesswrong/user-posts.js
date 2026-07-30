@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { DOMAIN, SITE, gqlEscape, gqlRequest, resolveUserId } from './_helpers.js';
 cli({
     site: SITE,

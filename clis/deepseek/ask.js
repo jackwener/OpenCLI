@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@woosau/opencli/errors';
 import {
     DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,

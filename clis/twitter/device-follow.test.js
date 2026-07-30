@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import './device-follow.js';
 
 const { buildDeviceFollowUrl, extractEntries, joinEntryToTweet, shapeRow, parseDeviceFollow, parseLimit } = await import('./device-follow.js').then((m) => m.__test__);

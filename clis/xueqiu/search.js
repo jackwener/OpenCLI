@@ -1,4 +1,4 @@
-import { cli } from '@jackwener/opencli/registry';
+import { cli } from '@woosau/opencli/registry';
 import { fetchXueqiuJson } from './utils.js';
 cli({
     site: 'xueqiu',

@@ -11,7 +11,7 @@ import {
     AuthRequiredError,
     CommandExecutionError,
     EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import { exploreCommand, __test__ as exploreTest } from './explore.js';
 import { friendsCommand, __test__ as friendsTest } from './friends.js';
 import { followingCommand, __test__ as followingTest } from './following.js';

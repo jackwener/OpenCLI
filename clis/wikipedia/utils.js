@@ -5,7 +5,7 @@
  * REST API: https://en.wikipedia.org/api/rest_v1/
  * Action API: https://en.wikipedia.org/w/api.php
  */
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 /** Maximum character length for article extract fields. */
 export const EXTRACT_MAX_LEN = 300;
 /** Maximum character length for short description fields. */

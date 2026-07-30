@@ -2,7 +2,7 @@
 //
 // TVmaze publishes a free, unauthenticated REST API at https://api.tvmaze.com.
 // Docs: https://www.tvmaze.com/api
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const TVMAZE_BASE = 'https://api.tvmaze.com';
 const UA = 'opencli-tvmaze-adapter (+https://github.com/jackwener/opencli)';

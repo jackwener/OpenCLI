@@ -6,8 +6,8 @@
  * Pre-checks the current relation so the result row reports `already-following`
  * accurately instead of relying on the modify API's idempotent silent success.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { apiPost, fetchJson, getSelfUid, requireOkPayload, resolveUid } from './utils.js';
 
 const RELATION_VERIFY_TIMEOUT_MS = 5000;

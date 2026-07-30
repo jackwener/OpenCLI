@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 
 export const CLAUDE_DOMAIN = 'claude.ai';
 export const CLAUDE_URL = 'https://claude.ai/new';

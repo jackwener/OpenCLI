@@ -1,10 +1,10 @@
 // hf models — list top Hugging Face models (by downloads / likes / trending).
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     ArgumentError,
     CommandExecutionError,
     EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 
 const SORT_OPTIONS = ['downloads', 'likes', 'trending', 'created_at', 'last_modified'];
 const SORT_ALIAS = { lastmodified: 'last_modified', createdat: 'created_at' };

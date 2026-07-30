@@ -16,7 +16,7 @@ Also works as a CLI hub for local tools: `gh`, `docker`, `vercel`, `wrangler`, `
 ## Install
 
 ```bash
-npm install -g @jackwener/opencli
+npm install -g @woosau/opencli
 # Install Browser Bridge extension from Chrome Web Store
 # Run: opencli doctor
 ```
@@ -67,7 +67,7 @@ Cursor, Trae CN, Codex, Antigravity, ChatGPT App, ChatWise, Discord, Doubao, Tra
 
 - Website: https://opencli.info
 - GitHub: https://github.com/jackwener/opencli
-- npm: https://www.npmjs.com/package/@jackwener/opencli
+- npm: https://www.npmjs.com/package/@woosau/opencli
 - Chrome Extension: https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk
 - Docs: https://opencli.info
 - Plugins: https://opencli.info/plugins

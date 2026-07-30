@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import os from 'node:os';
 import path from 'node:path';
 import { ensureApplet, ggbEval, ggbListObjects, ggbWaitForObjectCount, normalizeNumber, requireGgbSuccess } from './utils.js';

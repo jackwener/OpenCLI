@@ -1,5 +1,5 @@
 import * as crypto from 'node:crypto';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { unwrapEvaluateResult } from './evaluate-result.js';
 
 const AUTH_V5_URL = 'https://creator.douyin.com/web/api/media/upload/auth/v5/';

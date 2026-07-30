@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 import { resolveTwitterQueryId, describeTwitterApiError } from './shared.js';
 

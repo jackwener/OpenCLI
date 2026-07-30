@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 import { __test__ } from './target.js';
 describe('zhihu target parser', () => {
     it('parses typed answer IDs into canonical targets', () => {

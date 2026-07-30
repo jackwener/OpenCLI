@@ -4,8 +4,8 @@
  * Combines creator-notes and creator-note-detail into a single command that
  * returns one summary row per note, suitable for quick review or downstream JSON use.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { fetchCreatorNotes } from './creator-notes.js';
 import { fetchCreatorNoteDetailRows } from './creator-note-detail.js';
 function findDetailValue(rows, metric) {

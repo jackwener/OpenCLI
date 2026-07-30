@@ -6,8 +6,8 @@
  * passenger's Chinese real name and birth date by default; pass
  * `--include-sensitive` to surface the unmasked-by-12306 fields.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { isAuthLikePayload, maskChineseName, require12306Login, requireEvaluateObject } from './utils.js';
 
 const PASSENGER_QUERY_URL = 'https://kyfw.12306.cn/otn/passengers/query';

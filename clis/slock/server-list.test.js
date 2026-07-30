@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './server-list.js';
 
 describe('slock server-list', () => {

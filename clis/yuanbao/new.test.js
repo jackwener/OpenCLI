@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { AuthRequiredError } from '@woosau/opencli/errors';
 import { newCommand } from './new.js';
 function createNewPageMock(overrides = {}) {
     const currentUrl = overrides.currentUrl ?? 'https://yuanbao.tencent.com/';

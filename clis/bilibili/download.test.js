@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CliError, CommandExecutionError } from '@woosau/opencli/errors';
 
 const { mockApiGet, mockDownloadMedia, mockCheckYtdlp } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
@@ -12,16 +12,16 @@ vi.mock('./utils.js', async (importOriginal) => ({
   apiGet: mockApiGet,
 }));
 
-vi.mock('@jackwener/opencli/download', () => ({
+vi.mock('@woosau/opencli/download', () => ({
   checkYtdlp: mockCheckYtdlp,
   sanitizeFilename: (s) => s,
 }));
 
-vi.mock('@jackwener/opencli/download/media-download', () => ({
+vi.mock('@woosau/opencli/download/media-download', () => ({
   downloadMedia: mockDownloadMedia,
 }));
 
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './download.js';
 
 /** view API 成功响应的最小骨架 */

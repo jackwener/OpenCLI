@@ -3,8 +3,8 @@
  *
  * Fetches the full content of a 36kr article given its ID or URL.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 /** Extract article ID from a full URL or a bare numeric ID string */
 function parseArticleId(input) {
     const m = input.match(/\/p\/(\d+)/);

@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { uisdcNewsCommand, __test__ } from './news.js';
 
 function runBrowserScript(html, script, url = 'https://www.uisdc.com/news') {

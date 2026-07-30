@@ -1,7 +1,7 @@
 /**
  * ONES filters/peek 响应解析（tasks / my-tasks 共用）
  */
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 /** ONES task 里 field_values 常为 [{ field_uuid, value }, ...] */
 function pickTitleFromFieldValuesArray(fv) {
     if (!Array.isArray(fv))

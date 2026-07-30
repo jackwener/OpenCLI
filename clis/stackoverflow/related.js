@@ -4,8 +4,8 @@
 // research from a single SO question — agents can read one question with
 // `stackoverflow read`, then expand the search to related/duplicate threads
 // without rerunning a free-text search.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
 import {
     seFetch,
     normalizeLimit,

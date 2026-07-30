@@ -3,7 +3,7 @@
 // Hits the public, unauthenticated `packagist.org` JSON endpoints. Composer's
 // canonical package registry. Package names are `<vendor>/<package>`,
 // lowercase letters / digits / `_-.`, with each segment 1-100 chars.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const PACKAGIST_BASE = 'https://packagist.org';
 const UA = 'opencli-packagist-adapter (+https://github.com/jackwener/opencli)';

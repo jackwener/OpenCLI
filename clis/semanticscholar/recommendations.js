@@ -3,8 +3,8 @@
 // arxiv; it is the Semantic Scholar adapter's main differentiating surface.
 //
 // Hits `https://api.semanticscholar.org/recommendations/v1/papers/forpaper/{ref}`.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import {
     S2_REC_BASE,
     normalizePaperRow,

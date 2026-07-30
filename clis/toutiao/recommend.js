@@ -6,11 +6,11 @@
  * Single-shot: the response echoes a `next.max_behot_time` cursor but does not
  * honour it, so a pagination flag would be a no-op.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     CommandExecutionError,
     EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import {
     RECOMMEND_CATEGORIES,
     RECOMMEND_URL,

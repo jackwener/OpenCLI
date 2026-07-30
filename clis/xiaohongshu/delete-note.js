@@ -12,8 +12,8 @@
  *
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 const NOTE_MANAGER_URL = 'https://creator.xiaohongshu.com/new/note-manager';
 const ROW_SETTLE_MS = 3000;
 const MODAL_SETTLE_MS = 2000;

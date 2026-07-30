@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CliError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { fetchDouyinComments, fetchDouyinUserVideos } from './_shared/public-api.js';
 export const MAX_USER_VIDEOS_LIMIT = 20;
 export const USER_VIDEO_COMMENT_CONCURRENCY = 4;

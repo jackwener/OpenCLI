@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError } from '@woosau/opencli/errors';
 
 export const YUANBAO_DOMAIN = 'yuanbao.tencent.com';
 export const YUANBAO_URL = 'https://yuanbao.tencent.com/';

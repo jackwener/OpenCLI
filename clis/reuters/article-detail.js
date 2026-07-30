@@ -4,8 +4,8 @@
  * Pairs with `reuters search` (use the `url` column to round-trip into
  * detail). Reads the in-page Fusion globalContent payload + paragraph DOM.
  */
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { buildArticleDetailScript, mapArticleDetail } from './utils.js';
 
 const REUTERS_HOST = /^https?:\/\/(?:www\.)?reuters\.com\//i;

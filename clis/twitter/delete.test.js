@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import { __test__ } from './delete.js';
 describe('twitter delete command', () => {
     it('targets the matched tweet article instead of the first More button on the page', async () => {

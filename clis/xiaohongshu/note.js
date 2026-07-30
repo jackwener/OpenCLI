@@ -6,8 +6,8 @@
  *
  * Requires a full Xiaohongshu note URL with xsec_token.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { AuthRequiredError, CliError, EmptyResultError } from '@woosau/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
 /**
  * Host-agnostic IIFE that scrapes note title / author / counts / tags from a

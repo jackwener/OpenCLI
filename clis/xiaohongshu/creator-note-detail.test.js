@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import { appendAudienceRows, appendTrendRows, parseCreatorNoteDetailDomData, parseCreatorNoteDetailText } from './creator-note-detail.js';
 import './creator-note-detail.js';
 function createPageMock(evaluateResult) {

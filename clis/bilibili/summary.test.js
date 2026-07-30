@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const { mockApiGet, mockResolveBvid } = vi.hoisted(() => ({
     mockApiGet: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
     resolveBvid: mockResolveBvid,
 }));
 
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './summary.js';
 
 describe('bilibili summary', () => {

@@ -1,8 +1,8 @@
 /**
  * 携程旅行 destination suggest — public city/landmark/scenic-spot lookup.
  */
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { fetchSuggest, mapSuggestRow, parseLimit } from './utils.js';
 
 cli({

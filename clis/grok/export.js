@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, EmptyResultError, TimeoutError } from '@woosau/opencli/errors';
 import { normalizeConversationRows, requireObjectEvaluateResult } from './export-utils.js';
 
 const GROK_DOMAIN = 'grok.com';

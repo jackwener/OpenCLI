@@ -37,7 +37,7 @@ vi.mock('./utils.js', () => ({
     getChatGPTImageAssets: mocks.getChatGPTImageAssets,
 }));
 
-vi.mock('@jackwener/opencli/utils', () => ({
+vi.mock('@woosau/opencli/utils', () => ({
     saveBase64ToFile: mocks.saveBase64ToFile,
 }));
 

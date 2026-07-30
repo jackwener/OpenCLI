@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import './connections.js';
 
 const { mapConnection } = await import('./connections.js').then((m) => m.__test__);

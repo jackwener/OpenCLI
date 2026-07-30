@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import {
     extractDouyinVideoId,
     MAX_SEARCH_LIMIT,

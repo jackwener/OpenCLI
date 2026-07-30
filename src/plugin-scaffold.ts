@@ -70,7 +70,7 @@ export function createPluginScaffold(name: string, opts: ScaffoldOptions = {}): 
     type: 'module',
     description: opts.description ?? `An opencli plugin: ${name}`,
     peerDependencies: {
-      '@jackwener/opencli': `>=${PKG_VERSION}`,
+      '@woosau/opencli': `>=${PKG_VERSION}`,
     },
   };
   writeFile(targetDir, 'package.json', JSON.stringify(pkg, null, 2) + '\n');
@@ -82,7 +82,7 @@ export function createPluginScaffold(name: string, opts: ScaffoldOptions = {}): 
  * Demonstrates the declarative pipeline API.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 cli({
   site: '${name}',
@@ -106,7 +106,7 @@ cli({
  * Demonstrates the programmatic cli() registration API.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 
 cli({
   site: '${name}',

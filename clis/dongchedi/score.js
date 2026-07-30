@@ -7,8 +7,8 @@
  * Scores are rescaled from x100 ints to /5 floats (422 -> 4.22).
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import {
     SCORE_COLUMNS,
     dcdFetchPageProps,

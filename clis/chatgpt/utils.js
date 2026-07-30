@@ -3,8 +3,8 @@
  * Cross-platform: works on Linux/macOS/Windows via OpenCLI's CDP browser automation.
  */
 
-import { htmlToMarkdown } from '@jackwener/opencli/utils';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { htmlToMarkdown } from '@woosau/opencli/utils';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@woosau/opencli/errors';
 
 export const CHATGPT_DOMAIN = 'chatgpt.com';
 export const CHATGPT_URL = 'https://chatgpt.com';

@@ -1,7 +1,7 @@
 /**
  * Product Hunt latest posts — public Atom feed, no browser needed.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { fetchFeed, PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
 cli({
     site: 'producthunt',

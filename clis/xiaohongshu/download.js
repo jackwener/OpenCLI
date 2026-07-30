@@ -6,10 +6,10 @@
  *
  * Accepts a full xiaohongshu.com URL with xsec_token or an xhslink short link.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { formatCookieHeader } from '@jackwener/opencli/download';
-import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { formatCookieHeader } from '@woosau/opencli/download';
+import { downloadMedia } from '@woosau/opencli/download/media-download';
+import { CliError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { buildNoteUrl, parseNoteId } from './note-helpers.js';
 /**
  * Build the media-extraction IIFE. The note id is interpolated as a default

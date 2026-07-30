@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import './note.js';
 import { createPageMock } from '../test-utils.js';
 describe('instagram note registration', () => {

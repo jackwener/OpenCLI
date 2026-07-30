@@ -9,7 +9,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 export const YOLLOMI_DOMAIN = 'yollomi.com';
 /**
  * Ensure the browser tab is on yollomi.com.

@@ -4,7 +4,7 @@
 // pulls are throttled but search / metadata reads are friendly enough for
 // ad-hoc CLI use. Image names follow `[<owner>/]<name>` with `library` as the
 // implicit owner for Docker official images.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const HUB_BASE = 'https://hub.docker.com/v2';
 const UA = 'opencli-dockerhub-adapter (+https://github.com/jackwener/opencli)';

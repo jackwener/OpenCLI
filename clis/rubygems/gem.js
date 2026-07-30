@@ -3,7 +3,7 @@
 // Hits `https://rubygems.org/api/v1/gems/<name>.json`. Returns a one-row
 // projection: latest version + release date, lifetime / version downloads,
 // license(s), author(s), homepage, source, bug tracker, short info.
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { GEMS_BASE, gemsFetch, requireGemName, trimDate } from './utils.js';
 
 cli({

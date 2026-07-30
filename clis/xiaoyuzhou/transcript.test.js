@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 
 const { mockLoadCredentials, mockRequestJson, mockFetchTranscriptBody, mockMkdirSync, mockWriteFileSync } = vi.hoisted(() => ({
     mockLoadCredentials: vi.fn(),

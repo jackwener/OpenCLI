@@ -2,7 +2,7 @@
 //
 // OEIS exposes a single search endpoint that handles both keyword search and
 // id lookup via `q=id:Annnnnn`. JSON output via `fmt=json`. No API key.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const OEIS_BASE = 'https://oeis.org';
 const UA = 'opencli-oeis-adapter/1.0 (+https://github.com/jackwener/opencli; mailto:opencli@example.com)';

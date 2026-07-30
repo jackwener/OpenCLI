@@ -1,4 +1,4 @@
-import { ArgumentError, CommandExecutionError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError, selectorError } from '@woosau/opencli/errors';
 
 export const TRAE_CN_COMPOSER_SELECTOR = '.chat-input-v2-input-box-editable[data-lexical-editor="true"], .chat-input-v2-input-box-editable[contenteditable="true"]';
 export const TRAE_CN_SEND_BUTTON_SELECTOR = '.chat-input-v2-send-button';

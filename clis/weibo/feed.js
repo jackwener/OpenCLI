@@ -1,7 +1,7 @@
 /**
  * Weibo feed — for-you or following timeline.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { getSelfUid, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 const TIMELINE_ENDPOINTS = {
     'for-you': 'unreadfriendstimeline',

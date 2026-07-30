@@ -7,8 +7,8 @@
  * render into `.list-item-parent` rows read by stable class-keyed fields (see
  * `buildFerryExtractJs` in utils).
  */
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     WAIT_FOR_FERRY_JS,
     buildFerryExtractJs,

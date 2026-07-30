@@ -235,7 +235,7 @@ DONE
 
 ## 关键约定
 
-- adapter 只引 `@jackwener/opencli/registry` + `@jackwener/opencli/errors`，不用第三方
+- adapter 只引 `@woosau/opencli/registry` + `@woosau/opencli/errors`，不用第三方
 - `columns` 数组和 `func` 返回对象 keys 完全对齐（含顺序）
 - **中间解析对象 key 不能跟 `columns` 任一项重叠**（否则 silent-column-drop audit 误判，PR #1329 R1 真踩过；改成专属命名 + push row 时 destructure aliasing）
 - **`browser:` field 决定 func 签名**：`browser:false → (args)`，`browser:true → (page, args)`。搞反时 `args` 实际是 debug flag，所有外部参数 silent fallback 到 default（PR #1329 upstream 之前 8 个 non-browser adapter 全踩过这个）

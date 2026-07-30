@@ -5,7 +5,7 @@ const { mockApiGet } = vi.hoisted(() => ({
 vi.mock('./utils.js', () => ({
     apiGet: mockApiGet,
 }));
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './dynamic.js';
 describe('bilibili dynamic adapter', () => {
     const command = getRegistry().get('bilibili/dynamic');

@@ -1,4 +1,4 @@
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 export const BLOOMBERG_FEEDS = {
     main: 'https://feeds.bloomberg.com/news.rss',
     markets: 'https://feeds.bloomberg.com/markets/news.rss',

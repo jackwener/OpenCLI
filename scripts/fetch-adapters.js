@@ -207,7 +207,7 @@ export function fetchAdapters() {
   // 4. Clean up legacy compat shim files from ~/.opencli/
   // These were created by an older approach that placed re-export shims directly
   // in ~/.opencli/ (e.g., registry.js, errors.js, browser/). The current approach
-  // uses a node_modules/@jackwener/opencli symlink instead.
+  // uses a node_modules/@woosau/opencli symlink instead.
   const LEGACY_SHIM_FILES = [
     'registry.js', 'errors.js', 'utils.js', 'launcher.js', 'logger.js', 'types.js',
   ];

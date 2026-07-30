@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import { fetchPrivateApi, fetchWebApi, resolveShelfReader, WEREAD_UA, WEREAD_WEB_ORIGIN, } from './utils.js';
 function decodeHtmlText(value) {
     return value

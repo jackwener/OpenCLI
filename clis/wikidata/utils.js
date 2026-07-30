@@ -4,7 +4,7 @@
 //   • `wbsearchentities` on `www.wikidata.org/w/api.php` for keyword → Q-IDs
 //   • `Special:EntityData/<qid>.json` for the canonical entity dump
 // No API key. Anonymous traffic is rate-limited but generous; we set a polite UA.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const WIKIDATA_BASE = 'https://www.wikidata.org';
 const UA = 'opencli-wikidata-adapter/1.0 (+https://github.com/jackwener/opencli; mailto:opencli@example.com)';

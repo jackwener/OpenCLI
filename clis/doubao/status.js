@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { DOUBAO_DOMAIN, getDoubaoPageState } from './utils.js';
 export const statusCommand = cli({
     site: 'doubao',

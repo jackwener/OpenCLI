@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const { mockApiPost, mockFetchJson, mockGetSelfUid, mockResolveUid } = vi.hoisted(() => ({
     mockApiPost: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
     resolveUid: mockResolveUid,
 }));
 
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './follow.js';
 import './unfollow.js';
 

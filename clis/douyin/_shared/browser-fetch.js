@@ -1,4 +1,4 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { unwrapEvaluateResult } from './evaluate-result.js';
 
 function isAuthLikeError(code, message) {

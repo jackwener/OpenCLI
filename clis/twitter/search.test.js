@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import { __test__ } from './search.js';
 
 const { buildSearchQuery, resolveSearchFParam, resolveSearchProduct, buildSearchTimelineRequest, parseSearchTimeline, HAS_CHOICES, EXCLUDE_CHOICES, PRODUCT_CHOICES, EXCLUDE_TO_OPERATOR, PRODUCT_TO_F_PARAM, FROM_USER_PATTERN } = __test__;

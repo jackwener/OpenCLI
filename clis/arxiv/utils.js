@@ -4,7 +4,7 @@
  * arXiv exposes a public Atom/XML API — no key required.
  * https://info.arxiv.org/help/api/index.html
  */
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 export const ARXIV_BASE = 'https://export.arxiv.org/api/query';
 const ARXIV_CATEGORY_PATTERN = /^[a-z]+(?:-[a-z]+)*(?:\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)?$/;
 export async function arxivFetch(params) {

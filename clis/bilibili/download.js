@@ -7,10 +7,10 @@
  * Requirements:
  *   - yt-dlp must be installed: pip install yt-dlp
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError, CommandExecutionError, EXIT_CODES } from '@jackwener/opencli/errors';
-import { checkYtdlp, sanitizeFilename } from '@jackwener/opencli/download';
-import { downloadMedia } from '@jackwener/opencli/download/media-download';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError, CommandExecutionError, EXIT_CODES } from '@woosau/opencli/errors';
+import { checkYtdlp, sanitizeFilename } from '@woosau/opencli/download';
+import { downloadMedia } from '@woosau/opencli/download/media-download';
 import { apiGet, resolveBvid, parsePageArg, selectVideoPart } from './utils.js';
 
 const PAYMENT_LABELS = {

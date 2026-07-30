@@ -4,8 +4,8 @@
 // the columns most useful for an agent: name, type, free flag, release
 // date, developers / publishers, price, metacritic, recommendations,
 // genres / categories joined.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { STEAM_STORE, decodeHtmlEntities, priceCents, requireAppId, requireCountryCode, steamFetch } from './utils.js';
 
 function joinNames(list) {

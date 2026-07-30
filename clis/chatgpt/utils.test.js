@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { CHATGPT_MODEL_CHOICES, __test__, getChatGPTDetailRows, getChatGPTImageAssets, getChatGPTResponsePairCounts, getChatGPTVisibleImageUrls, getCurrentChatGPTModel, getCurrentChatGPTTool, getVisibleMessages, isGenerating, navigateToProject, openChatGPTConversation, prepareChatGPTImagePaths, selectChatGPTModel, selectChatGPTTool, sendChatGPTMessage, uploadChatGPTImages, waitForChatGPTDeepResearchResult, waitForChatGPTDetailRows, waitForChatGPTImages, waitForChatGPTResponse } from './utils.js';
 
 const tempDirs = [];

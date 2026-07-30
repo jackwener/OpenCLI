@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import { buildCommentsExtractJs, buildXhsProfileUrl, parseXhsLikeCountText, parseXhsProfileHref } from './comments.js';
 function createPageMock(evaluateResult) {
     return {

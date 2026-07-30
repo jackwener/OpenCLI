@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { extractJsonLd, forceEnglishUrl, formatDuration, getCurrentImdbId, isChallengePage, normalizeImdbId, waitForImdbPath, } from './utils.js';
 /**
  * Read IMDb title details from JSON-LD on the public page.

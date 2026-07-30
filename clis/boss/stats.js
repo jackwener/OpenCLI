@@ -1,7 +1,7 @@
 /**
  * BOSS直聘 stats — job statistics overview.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { requirePage, navigateToChat, bossFetch, fetchFriendList, verbose } from './utils.js';
 cli({
     site: 'boss',

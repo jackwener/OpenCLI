@@ -1,5 +1,5 @@
-import { AuthRequiredError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { clampInt, requireNonEmptyQuery } from '../_shared/common.js';
 cli({
     site: 'taobao',

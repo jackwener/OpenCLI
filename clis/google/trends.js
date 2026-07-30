@@ -2,8 +2,8 @@
  * Google Trends via public RSS feed.
  * Shows daily trending searches for a given region.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import { parseRssItems } from './utils.js';
 cli({
     site: 'google',

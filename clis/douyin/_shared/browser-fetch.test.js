@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 import { browserFetch } from './browser-fetch.js';
 function makePage(result) {
     return {

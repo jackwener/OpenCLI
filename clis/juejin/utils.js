@@ -3,7 +3,7 @@
 // Juejin is a Chinese developer community (similar to Dev.to). The public
 // REST API is unauthenticated; all read endpoints are reachable without a
 // browser session. Article URLs round-trip as `https://juejin.cn/post/<id>`.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const JUEJIN_API_BASE = 'https://api.juejin.cn';
 export const JUEJIN_POST_URL = 'https://juejin.cn/post';

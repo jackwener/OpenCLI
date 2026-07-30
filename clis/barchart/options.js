@@ -2,7 +2,7 @@
  * Barchart options chain — strike, bid/ask, volume, OI, greeks, IV.
  * Auth: CSRF token from <meta name="csrf-token"> + session cookies.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 cli({
     site: 'barchart',
     name: 'options',

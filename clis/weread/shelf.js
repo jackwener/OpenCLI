@@ -1,6 +1,6 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
-import { log } from '@jackwener/opencli/logger';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
+import { log } from '@woosau/opencli/logger';
 import { buildWebShelfEntries, fetchPrivateApi, loadWebShelfSnapshot, } from './utils.js';
 function normalizeShelfLimit(limit) {
     if (!Number.isFinite(limit))

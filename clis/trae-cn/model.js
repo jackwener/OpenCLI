@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { inspectTraeShellScript } from './utils.js';
 
 export const modelCommand = cli({

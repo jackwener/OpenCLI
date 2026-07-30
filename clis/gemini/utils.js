@@ -1,4 +1,4 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 export const GEMINI_DOMAIN = 'gemini.google.com';
 export const GEMINI_APP_URL = 'https://gemini.google.com/app';
 export const GEMINI_DEEP_RESEARCH_DEFAULT_TOOL_LABELS = ['Deep Research', 'Deep research', '\u6df1\u5ea6\u7814\u7a76'];

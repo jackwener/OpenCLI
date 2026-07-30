@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 import { askCommand } from './ask.js';
 import { historyCommand } from './history.js';
 import { projectsCommand } from './projects.js';

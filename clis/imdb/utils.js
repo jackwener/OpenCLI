@@ -1,4 +1,4 @@
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 /**
  * Normalize an IMDb title or person input to a bare ID.
  * Accepts bare IDs, desktop URLs, mobile URLs, and URLs with language prefixes or query params.

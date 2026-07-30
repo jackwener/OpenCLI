@@ -2,7 +2,7 @@
  * ONES 旧版 Project API — 经 Browser Bridge 在已登录标签页内 fetch（携带 Cookie）。
  * 文档：https://developer.ones.cn/zh-CN/docs/api/readme/
  */
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 export const API_PREFIX = '/project/api/project';
 export function getOnesBaseUrl() {
     const u = process.env.ONES_BASE_URL?.trim().replace(/\/+$/, '');

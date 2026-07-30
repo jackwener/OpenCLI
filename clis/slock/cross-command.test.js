@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './channel-list.js';
 
 describe('[anti-drift] X-Server-Id does not leak across commands', () => {

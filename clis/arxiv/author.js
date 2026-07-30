@@ -3,8 +3,8 @@
 // arXiv's public API supports `au:` prefix queries. Author names on arXiv are
 // not stable IDs, so this is a best-effort fuzzy match — the same person can
 // appear under multiple spellings ("Y. Bengio" vs "Yoshua Bengio").
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, EmptyResultError } from '@woosau/opencli/errors';
 import { arxivFetch, normalizeArxivLimit, parseEntries } from './utils.js';
 
 cli({

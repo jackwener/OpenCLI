@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import './search.js';
 
 describe('google-scholar search command', () => {

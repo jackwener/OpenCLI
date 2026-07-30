@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import { ZLIBRARY_DOMAIN, extractBookTitle, extractFormats, normalizeZlibraryBookUrl } from './utils.js';
 
 cli({

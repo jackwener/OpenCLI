@@ -3,8 +3,8 @@
 // REST Countries' `name/<query>` endpoint matches as substring across both
 // common and official names; multiple matches are returned (e.g. "guinea"
 // matches Guinea, Guinea-Bissau, Equatorial Guinea, Papua New Guinea).
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import {
     COUNTRY_FIELDS,
     REST_COUNTRIES_BASE,

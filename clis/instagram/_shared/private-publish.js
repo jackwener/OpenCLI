@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import { instagramPrivateApiFetch } from './protocol-capture.js';
 import { buildReadInstagramRuntimeInfoJs, } from './runtime-info.js';
 export { buildReadInstagramRuntimeInfoJs, extractInstagramRuntimeInfo, resolveInstagramRuntimeInfo, } from './runtime-info.js';

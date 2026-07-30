@@ -16,7 +16,7 @@ import {
     CommandExecutionError,
     EmptyResultError,
     TimeoutError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 
 export const WEREAD_GATEWAY_URL = 'https://i.weread.qq.com/api/agent/gateway';
 export const WEREAD_DOMAIN = 'weread.qq.com';

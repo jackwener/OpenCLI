@@ -1,5 +1,5 @@
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { extractJsonLd, forceEnglishUrl, isChallengePage } from './utils.js';
 /**
  * Fetch the IMDb Most Popular Movies (MovieMeter) list from JSON-LD structured data.

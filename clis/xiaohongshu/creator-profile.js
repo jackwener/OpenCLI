@@ -7,7 +7,7 @@
  *
  * Requires: logged into creator.xiaohongshu.com in Chrome.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 cli({
     site: 'xiaohongshu',
     name: 'creator-profile',

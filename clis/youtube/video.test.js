@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 
 const { mockPrepare } = vi.hoisted(() => ({
   mockPrepare: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
   prepareYoutubeApiPage: mockPrepare,
 }));
 
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './video.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

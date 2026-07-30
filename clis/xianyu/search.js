@@ -1,5 +1,5 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, selectorError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, selectorError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 const ROWS_PER_PAGE = 30;
 const MAX_LIMIT = 60;
 function normalizeLimit(value) {

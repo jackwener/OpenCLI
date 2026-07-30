@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './timeline.js';
 const { parseMetric, buildPostId, mergeTimelinePosts } = await import('./timeline.js').then((m) => m.__test__);
 describe('linkedin timeline adapter', () => {

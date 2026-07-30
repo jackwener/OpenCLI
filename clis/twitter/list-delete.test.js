@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { buildListDeleteRow } from './list-delete.js';
 
 describe('twitter list-delete registration', () => {

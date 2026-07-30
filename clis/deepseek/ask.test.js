@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
+import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@woosau/opencli/errors';
 
 const {
   mockEnsureOnDeepSeek,

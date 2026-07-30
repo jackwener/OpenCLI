@@ -1,8 +1,8 @@
 /**
  * YouTube history — watch history via InnerTube browse API (FEhistory).
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 cli({
     site: 'youtube',

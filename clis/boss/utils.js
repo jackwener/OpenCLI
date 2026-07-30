@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 const BOSS_DOMAIN = 'www.zhipin.com';

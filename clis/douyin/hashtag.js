@@ -1,6 +1,6 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { browserFetch } from './_shared/browser-fetch.js';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 function isPlainObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);

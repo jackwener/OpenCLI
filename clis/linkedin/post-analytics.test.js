@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { EmptyResultError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { EmptyResultError } from '@woosau/opencli/errors';
 import './post-analytics.js';
 
 const { summarize } = await import('./post-analytics.js').then((m) => m.__test__);

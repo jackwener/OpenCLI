@@ -12,7 +12,7 @@
  *   `{"c_url":"leftTicket/queryG","c_name":"CLeftTicketUrl","status":false}`
  *   pointing to the current correct name; retry once with that name.
  */
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 const STATION_BUNDLE_URL = 'https://kyfw.12306.cn/otn/resources/js/framework/station_name.js';
 const INIT_URL = 'https://kyfw.12306.cn/otn/leftTicket/init';

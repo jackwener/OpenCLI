@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { GEMINI_DOMAIN, clickGeminiConversationByTitle, exportGeminiDeepResearchReport, getLatestGeminiAssistantResponse, getGeminiPageState, parseGeminiConversationUrl, parseGeminiTitleMatchMode, readGeminiSnapshot, resolveGeminiConversationForQuery, waitForGeminiTranscript, getGeminiConversationList, } from './utils.js';
 const DEEP_RESEARCH_WAITING_MESSAGE = 'Deep Research is still running. Please wait and retry later.';
 const DEEP_RESEARCH_NO_DOCS_MESSAGE = 'No Docs URL found. Please check Share & Export -> Export to Docs in Gemini UI.';

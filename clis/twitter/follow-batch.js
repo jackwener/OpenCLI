@@ -1,5 +1,5 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { unwrapBrowserResult } from './shared.js';
 
 const USERNAME_RE = /^[A-Za-z0-9_]{1,15}$/;

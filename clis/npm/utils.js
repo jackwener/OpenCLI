@@ -1,6 +1,6 @@
 // Shared helpers for the npm adapters that hit the public npm registry
 // (registry.npmjs.org) and download stats API (api.npmjs.org).
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const NPM_REGISTRY = 'https://registry.npmjs.org';
 export const NPM_API = 'https://api.npmjs.org';

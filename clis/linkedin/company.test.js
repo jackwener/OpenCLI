@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import './company.js';
 
 const { normalizeCompanyInfo, normalizeCompanyUrl } = await import('./company.js').then((m) => m.__test__);

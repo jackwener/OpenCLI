@@ -7,8 +7,8 @@
 // require --confirm before issuing the DELETE. Without it, the command
 // returns a planned-action row and never touches the network.
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';

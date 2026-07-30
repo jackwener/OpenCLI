@@ -5,7 +5,7 @@
  * - WEB_API (weread.qq.com/web/*): public, Node.js fetch
  * - API (i.weread.qq.com/*): private, Node.js fetch with cookies from browser
  */
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 export const WEREAD_DOMAIN = 'weread.qq.com';
 export const WEREAD_WEB_ORIGIN = `https://${WEREAD_DOMAIN}`;
 export const WEREAD_SHELF_URL = `${WEREAD_WEB_ORIGIN}/web/shelf`;

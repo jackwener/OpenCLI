@@ -5,7 +5,7 @@
  * On failure the HTTP status code is used to distinguish auth (401/403),
  * not-found (404), and other errors.
  */
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError } from '@woosau/opencli/errors';
 const PIXIV_DOMAIN = 'www.pixiv.net';
 
 function unwrapEvaluateResult(payload) {

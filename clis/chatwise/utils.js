@@ -1,4 +1,4 @@
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 
 export const MESSAGE_WRAPPER_SELECTOR = '[class*="group/message"]';
 export const MIN_COMPOSER_SCORE = 120;

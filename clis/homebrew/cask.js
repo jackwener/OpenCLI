@@ -3,7 +3,7 @@
 // Hits `https://formulae.brew.sh/api/cask/<token>.json`. Returns one row for
 // the macOS/.dmg-style package: canonical token, friendly name, version,
 // homepage, deprecated / disabled flags, download URL.
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { BREW_BASE, brewFetch, requireToken } from './utils.js';
 
 cli({

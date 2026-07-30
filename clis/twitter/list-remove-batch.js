@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { listRemoveUser } from './list-remove-core.js';
 import {
     parseBatchIntervalSeconds,

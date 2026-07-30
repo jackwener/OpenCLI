@@ -8,8 +8,8 @@
  * - Optional --expand-more to follow Reddit's "more comments" stubs via
  *   /api/morechildren.json (rdt-cli parity, PR B of #1481 follow-up)
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const REDDIT_EXPAND_ROUNDS_MIN = 1;
 const REDDIT_EXPAND_ROUNDS_MAX = 5;

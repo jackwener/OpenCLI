@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import { assertReadableUserSnapshot } from './user.js';
 import { buildXhsNoteUrl, extractXhsUserNotes, flattenXhsNoteGroups, normalizeXhsUserId, } from './user-helpers.js';
 describe('normalizeXhsUserId', () => {

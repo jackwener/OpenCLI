@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import './inbox.js';
 
 const { parseConversations, threadUrl } = await import('./inbox.js').then((m) => m.__test__);

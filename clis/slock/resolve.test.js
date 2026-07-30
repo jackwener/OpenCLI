@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { UUID_RE } from './resolve.js';
 import { classifyThreadTarget } from './resolve.js';
 import { classifyTarget } from './resolve.js';

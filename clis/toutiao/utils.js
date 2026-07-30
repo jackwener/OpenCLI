@@ -1,7 +1,7 @@
 /**
  * Shared helpers for the toutiao adapter.
  */
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 const ARTICLES_MIN_PAGE = 1;
 const ARTICLES_MAX_PAGE = 4;

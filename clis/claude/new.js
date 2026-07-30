@@ -1,4 +1,4 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { CLAUDE_DOMAIN, CLAUDE_URL, COMPOSER_SELECTOR, ensureClaudeComposer } from './utils.js';
 
 export const newCommand = cli({

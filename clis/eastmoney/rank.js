@@ -4,8 +4,8 @@
 //   opencli eastmoney rank
 //   opencli eastmoney rank --market cyb --sort turnover --limit 30
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 
 const MARKETS = {
   'hs-a':   'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048', // 沪深 A

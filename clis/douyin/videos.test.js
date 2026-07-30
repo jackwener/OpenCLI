@@ -5,7 +5,7 @@ const { browserFetchMock } = vi.hoisted(() => ({
 vi.mock('./_shared/browser-fetch.js', () => ({
     browserFetch: browserFetchMock,
 }));
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import { normalizeVideosLimit } from './videos.js';
 function getCommand() {
     const command = [...getRegistry().values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'videos');

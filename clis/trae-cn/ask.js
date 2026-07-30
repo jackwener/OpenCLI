@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { TimeoutError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { TimeoutError } from '@woosau/opencli/errors';
 import {
   activityScript,
   approveTraePrompts,

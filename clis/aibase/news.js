@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError, getErrorMessage } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError, getErrorMessage } from '@woosau/opencli/errors';
 
 const AIBASE_DAILY_URL = 'https://www.aibase.com/zh/daily';
 const DEFAULT_LIMIT = 20;

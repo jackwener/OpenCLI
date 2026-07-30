@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { parseBoolFlag, sendWithFile, selectModel, requireConversationId, requireNonEmptyPrompt, requirePositiveInt } from './utils.js';
 
 describe('claude parseBoolFlag', () => {

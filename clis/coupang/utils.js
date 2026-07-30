@@ -1,4 +1,4 @@
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 
 /**
  * Parse a positive integer arg (--limit / --page / --review-page).

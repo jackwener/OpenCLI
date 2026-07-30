@@ -10,8 +10,8 @@
  *   - each subsequent row is a comment, indented by depth (`L0`, `L1`, …)
  *   - `[+N more replies]` summary rows whenever depth/limit cuts in
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const HN_ITEM_BASE = 'https://hacker-news.firebaseio.com/v0/item';
 

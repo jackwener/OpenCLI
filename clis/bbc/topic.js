@@ -4,8 +4,8 @@
 // `https://feeds.bbci.co.uk/news/<topic>/rss.xml`. We expose the eight
 // canonical sections and reject anything else with a typed argument error
 // so the user knows the supported set.
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, EmptyResultError } from '@woosau/opencli/errors';
 import { bbcFetchRss, parseRssItems, pubDateToIso, requireBoundedInt } from './utils.js';
 
 const TOPICS = [

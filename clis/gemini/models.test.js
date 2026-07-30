@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 
 const mocks = vi.hoisted(() => ({
     ensureGeminiPage: vi.fn(),

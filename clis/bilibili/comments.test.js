@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 const { mockApiGet } = vi.hoisted(() => ({
     mockApiGet: vi.fn(),
 }));
@@ -7,7 +7,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
     ...(await importOriginal()),
     apiGet: mockApiGet,
 }));
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './comments.js';
 describe('bilibili comments', () => {
     const command = getRegistry().get('bilibili/comments');

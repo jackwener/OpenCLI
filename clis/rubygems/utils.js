@@ -4,7 +4,7 @@
 // auth required for read-only metadata; the API is friendly to anonymous CLI
 // traffic. Gem names follow the RubyGems convention: lowercase ASCII +
 // `-_.`, 1-100 chars, must start with a letter or digit.
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const GEMS_BASE = 'https://rubygems.org/api/v1';
 const UA = 'opencli-rubygems-adapter (+https://github.com/jackwener/opencli)';

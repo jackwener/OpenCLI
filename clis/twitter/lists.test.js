@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import { extractListEntry, isOwnedSubscribedEntry, parseListsManagement } from './lists.js';
 
 describe('twitter lists parser', () => {

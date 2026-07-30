@@ -1,5 +1,5 @@
-import { htmlToMarkdown } from '@jackwener/opencli/utils';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { htmlToMarkdown } from '@woosau/opencli/utils';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@woosau/opencli/errors';
 
 export const QIANWEN_DOMAIN = 'www.qianwen.com';
 export const QIANWEN_URL = 'https://www.qianwen.com/';

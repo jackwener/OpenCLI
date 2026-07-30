@@ -8,8 +8,8 @@
  * Endpoint discovery and field-mapping originally proposed by @traddo
  * in issue #1628.
  */
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 import { describeTwitterApiError } from './shared.js';
 

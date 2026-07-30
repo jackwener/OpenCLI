@@ -1,9 +1,9 @@
 /**
  * YouTube subscribe — subscribe to a channel via InnerTube subscription API.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import { prepareYoutubeApiPage, readYoutubeSapisid, SAPISID_HASH_FN, RESOLVE_CHANNEL_HANDLE_FN } from './utils.js';
-import { CommandExecutionError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, AuthRequiredError } from '@woosau/opencli/errors';
 
 cli({
     site: 'youtube',

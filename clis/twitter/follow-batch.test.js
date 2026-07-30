@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getRegistry } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
+import { ArgumentError, AuthRequiredError } from '@woosau/opencli/errors';
 import { followOne, parseBatchUsernames, parseDelayMs } from './follow-batch.js';
 import './follow-batch.js';
 

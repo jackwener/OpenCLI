@@ -4,11 +4,11 @@
  * Backed by the public hot-event/hot-board endpoint which serves the same JSON
  * the toutiao.com homepage hot panel renders. No authentication required.
  */
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@woosau/opencli/registry';
 import {
     CommandExecutionError,
     EmptyResultError,
-} from '@jackwener/opencli/errors';
+} from '@woosau/opencli/errors';
 import { HOT_BOARD_URL, mapHotRow, parseHotLimit } from './utils.js';
 
 cli({

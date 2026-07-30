@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildNotebooklmRpcBody, classifyNotebooklmPage, extractNotebooklmHistoryPreview, extractNotebooklmRpcResult, getNotebooklmPageState, isPlainObject, normalizeNotebooklmTitle, parseNotebooklmHistoryThreadIdsResult, parseNotebooklmIdFromUrl, parseNotebooklmListResult, parseNotebooklmNoteListRawRows, parseNotebooklmNotebookDetailResult, parseNotebooklmNotebookTarget, parseNotebooklmSourceFulltextResult, parseNotebooklmSourceGuideResult, parseNotebooklmSourceListResult, } from './utils.js';
-import { CliError } from '@jackwener/opencli/errors';
+import { CliError } from '@woosau/opencli/errors';
 describe('notebooklm utils', () => {
     it('isPlainObject distinguishes objects from arrays / null / primitives', () => {
         expect(isPlainObject({})).toBe(true);

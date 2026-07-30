@@ -1,5 +1,5 @@
-import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
-import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, EmptyResultError } from '@woosau/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
 /**
  * band bands — List all Bands you belong to.
  *

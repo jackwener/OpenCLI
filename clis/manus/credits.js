@@ -1,5 +1,5 @@
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import { MANUS_DOMAIN, ensureOnManus, MANUS_API_CALL_JS, requireObject } from './_utils.js';
 
 cli({

@@ -4,8 +4,8 @@
 // (returns the same per-story shape used by `lobsters tag` / `lobsters
 // hot`). Lets agents ask "what did Lobsters surface from github.com /
 // blog.cloudflare.com / arxiv.org lately?".
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 
 const { mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('./utils.js', async (importOriginal) => ({
   apiGet: mockApiGet,
 }));
 
-import { getRegistry } from '@jackwener/opencli/registry';
+import { getRegistry } from '@woosau/opencli/registry';
 import './video.js';
 
 describe('bilibili video', () => {

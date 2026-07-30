@@ -4,7 +4,7 @@
 // `flathub.org/api/v2`, no auth, no key. Two endpoints we surface:
 //   • POST /search      → keyword search, returns app metadata
 //   • GET  /appstream/<appId> → full appstream metadata for one app
-import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@woosau/opencli/errors';
 
 export const FLATHUB_API_BASE = 'https://flathub.org/api/v2';
 export const FLATHUB_APP_BASE = 'https://flathub.org/apps';

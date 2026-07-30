@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError } from '@woosau/opencli/errors';
 import {
     COLLECT_API_PATTERN,
     LIKE_API_PATTERN,

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
-import { getRegistry } from '@jackwener/opencli/registry';
+import { ArgumentError } from '@woosau/opencli/errors';
+import { getRegistry } from '@woosau/opencli/registry';
 import './bookmark-list.js';
 
 describe('slock bookmark-list', () => {

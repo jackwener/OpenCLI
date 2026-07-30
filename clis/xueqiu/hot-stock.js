@@ -1,5 +1,5 @@
-import { cli } from '@jackwener/opencli/registry';
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { cli } from '@woosau/opencli/registry';
+import { AuthRequiredError } from '@woosau/opencli/errors';
 import { fetchXueqiuJson } from './utils.js';
 cli({
     site: 'xueqiu',

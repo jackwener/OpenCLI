@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@woosau/opencli/errors';
 import { normalizeBooleanFlag, parseYuanbaoSessionId } from './shared.js';
 
 describe('yuanbao parseYuanbaoSessionId', () => {

@@ -6,8 +6,8 @@
  * surface returns the full detail page, so DOM scraping is the only path.
  */
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CliError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { CliError } from '@woosau/opencli/errors';
 import { JOBS_ORIGIN, requirePage, navigateTo } from './utils.js';
 
 cli({

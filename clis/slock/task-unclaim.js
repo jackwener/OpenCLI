@@ -4,8 +4,8 @@
 // task-claim. Note: per server contract, unclaim cannot be done on a terminal
 // (done / closed) task.
 
-import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { cli, Strategy } from '@woosau/opencli/registry';
+import { ArgumentError, CommandExecutionError } from '@woosau/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
