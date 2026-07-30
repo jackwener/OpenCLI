@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetDaemonHealth, mockConnect, mockClose, mockFindShadowedUserAdapters } = vi.hoisted(() => ({
+const {
+  mockGetDaemonHealth,
+  mockSendCommand,
+  mockSetDaemonCommandTimeoutSeconds,
+  mockFindShadowedUserAdapters,
+} = vi.hoisted(() => ({
   mockGetDaemonHealth: vi.fn(),
-  mockConnect: vi.fn(),
-  mockClose: vi.fn(),
+  mockSendCommand: vi.fn(),
+  mockSetDaemonCommandTimeoutSeconds: vi.fn(),
   mockFindShadowedUserAdapters: vi.fn(),
 }));
 
@@ -15,12 +20,14 @@ vi.mock('./browser/daemon-transport.js', async (importOriginal) => {
   };
 });
 
-vi.mock('./browser/index.js', () => ({
-  BrowserBridge: class {
-    connect = mockConnect;
-    close = mockClose;
-  },
-}));
+vi.mock('./browser/daemon-client.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./browser/daemon-client.js')>();
+  return {
+    ...actual,
+    sendCommand: mockSendCommand,
+    setDaemonCommandTimeoutSeconds: mockSetDaemonCommandTimeoutSeconds,
+  };
+});
 
 vi.mock('./adapter-shadow.js', async () => {
   const actual = await vi.importActual<typeof import('./adapter-shadow.js')>('./adapter-shadow.js');
@@ -38,12 +45,9 @@ describe('doctor report rendering', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindShadowedUserAdapters.mockReturnValue([]);
-    // Doctor always runs live connectivity. Tests that want connect to fail override.
-    mockConnect.mockResolvedValue({
-      evaluate: vi.fn().mockResolvedValue(2),
-      closeWindow: vi.fn().mockResolvedValue(undefined),
-    });
-    mockClose.mockResolvedValue(undefined);
+    // Doctor always runs a live daemon-to-extension command. Tests that want
+    // connectivity to fail override this result.
+    mockSendCommand.mockResolvedValue([]);
   });
 
   it('renders OK-style report when daemon and extension connected', () => {
@@ -168,7 +172,7 @@ describe('doctor report rendering', () => {
   });
 
   it('reports daemon not running when connectivity fails and daemon stays stopped', async () => {
-    mockConnect.mockRejectedValueOnce(new Error('Could not start daemon'));
+    mockSendCommand.mockRejectedValueOnce(new Error('Could not start daemon'));
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
 
     const report = await runBrowserDoctor();
@@ -265,24 +269,17 @@ describe('doctor report rendering', () => {
     ]));
   });
 
-  it('uses the fast default timeout for live connectivity checks', async () => {
-    let timeoutSeen: number | undefined;
-    const closeWindow = vi.fn().mockResolvedValue(undefined);
-    mockConnect.mockImplementationOnce(async (opts?: { timeout?: number; session?: string; surface?: string }) => {
-      timeoutSeen = opts?.timeout;
-      expect(opts?.session).toBe('__doctor__');
-      expect(opts?.surface).toBe('browser');
-      return {
-        evaluate: vi.fn().mockResolvedValue(2),
-        closeWindow,
-      };
-    });
+  it('uses a windowless extension command and the fast default timeout for live connectivity checks', async () => {
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'ready', status: { extensionConnected: true } });
 
     await runBrowserDoctor();
 
-    expect(timeoutSeen).toBe(8);
-    expect(closeWindow).toHaveBeenCalledTimes(1);
+    expect(mockSetDaemonCommandTimeoutSeconds.mock.calls).toEqual([[8], [null]]);
+    expect(mockSendCommand).toHaveBeenCalledWith('cookies', {
+      domain: 'opencli-probe.invalid',
+      session: '__doctor__',
+      surface: 'browser',
+    });
   });
 
   it('reports an issue when the extension is connected but does not report a version', async () => {
@@ -362,7 +359,7 @@ describe('doctor report rendering', () => {
     mockGetDaemonHealth.mockResolvedValue(status);
     // Real connectivity would fail in profile-required state; force it here so
     // the test exercises the profile-required issue path, not the flaky path.
-    mockConnect.mockRejectedValueOnce(new Error('profile required'));
+    mockSendCommand.mockRejectedValueOnce(new Error('profile required'));
 
     const report = await runBrowserDoctor();
 
