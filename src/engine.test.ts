@@ -112,6 +112,36 @@ cli({
       await fs.promises.rm(tempOpencliRoot, { recursive: true, force: true });
     }
   });
+
+  it('discovers CLI modules from symlinked site directories', async () => {
+    const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-symlinked-site-'));
+    const userClisDir = path.join(tempRoot, 'clis');
+    const targetSiteDir = path.join(tempRoot, 'external-site');
+    const linkSiteDir = path.join(userClisDir, 'symlink-site');
+
+    try {
+      await fs.promises.mkdir(targetSiteDir, { recursive: true });
+      await fs.promises.mkdir(userClisDir, { recursive: true });
+      await fs.promises.writeFile(path.join(targetSiteDir, 'hello.js'), `
+import { cli, Strategy } from '${pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href}';
+cli({
+  site: 'symlink-site',
+  name: 'hello',
+  description: 'hello command',
+  strategy: Strategy.PUBLIC,
+  browser: false,
+  func: async () => [{ ok: true }],
+});
+`);
+      await fs.promises.symlink(targetSiteDir, linkSiteDir, 'dir');
+
+      await discoverClis(userClisDir);
+
+      expect(getRegistry().get('symlink-site/hello')).toBeDefined();
+    } finally {
+      await fs.promises.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('ensureUserAdapters', () => {
