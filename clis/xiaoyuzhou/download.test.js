@@ -35,10 +35,6 @@ await import('./download.js');
 
 let cmd;
 
-function toPosixPath(value) {
-    return value.replaceAll(path.sep, '/');
-}
-
 beforeAll(() => {
     cmd = getRegistry().get('xiaoyuzhou/download');
     expect(cmd?.func).toBeTypeOf('function');
@@ -77,9 +73,10 @@ describe('xiaoyuzhou download', () => {
             query: { eid: 'ep123' },
             credentials: {},
         });
-        expect(toPosixPath(mockMkdirSync.mock.calls[0][0])).toBe('/tmp/xiaoyuzhou-test/ep123');
-        expect(mockMkdirSync.mock.calls[0][1]).toEqual({ recursive: true });
-        expect(mockHttpDownload).toHaveBeenCalledWith('https://media.xyzcdn.net/audio/hello-world.mp3?sign=abc', expect.stringContaining('/tmp/xiaoyuzhou-test/ep123/ep123_Hello_World.mp3'), {
+        const outputDir = path.join('/tmp/xiaoyuzhou-test', 'ep123');
+        const outputFile = path.join(outputDir, 'ep123_Hello_World.mp3');
+        expect(mockMkdirSync).toHaveBeenCalledWith(outputDir, { recursive: true });
+        expect(mockHttpDownload).toHaveBeenCalledWith('https://media.xyzcdn.net/audio/hello-world.mp3?sign=abc', outputFile, {
             timeout: 60000,
         });
         expect(result).toEqual([{
@@ -87,7 +84,7 @@ describe('xiaoyuzhou download', () => {
                 podcast: 'OpenCLI FM',
                 status: 'success',
                 size: '1234 B',
-                file: '/tmp/xiaoyuzhou-test/ep123/ep123_Hello_World.mp3',
+                file: outputFile,
             }]);
     });
 
@@ -112,7 +109,7 @@ describe('xiaoyuzhou download', () => {
         });
 
         expect(mockHttpDownload.mock.calls[0][1]).toContain('ep456_Lossless_Episode.m4a');
-        expect(result[0].file).toBe('/tmp/xiaoyuzhou-test/ep456/ep456_Lossless_Episode.m4a');
+        expect(result[0].file).toBe(path.join('/tmp/xiaoyuzhou-test', 'ep456', 'ep456_Lossless_Episode.m4a'));
     });
 
     it('throws when media.source.url is missing', async () => {
