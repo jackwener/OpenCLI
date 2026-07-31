@@ -8,6 +8,9 @@ const {
   normalizeName,
   canonicalizeLinkedInThreadUrl,
   hashText,
+  hasLineBreaks,
+  requireRawStringArg,
+  buildFillComposerMultilineScript,
   assessThreadSafety,
 } = await import('./safe-send.js').then((m) => m.__test__);
 
@@ -20,6 +23,11 @@ function makeFakePage(probe) {
       const text = String(script);
       if (text.includes('__OPENCLI_LINKEDIN_PROBE__')) return probe;
       if (text.includes('__OPENCLI_LINKEDIN_FOCUS_COMPOSER__')) return { ok: true, composerText: '' };
+      if (text.includes('__OPENCLI_LINKEDIN_FILL_COMPOSER_MULTILINE__')) {
+        const match = text.match(/const message = (.*?);\n/);
+        composerText = match ? JSON.parse(match[1]) : composerText;
+        return { ok: true, composerText, method: 'dom_multiline', renderedBreaks: 2 };
+      }
       if (text.includes('__OPENCLI_LINKEDIN_READ_COMPOSER__')) return { ok: true, composerText };
       if (text.includes('__OPENCLI_LINKEDIN_CLICK_SEND__')) return { ok: true, sent: true };
       return undefined;
@@ -36,6 +44,26 @@ describe('linkedin safe-send helpers', () => {
   it('normalizes whitespace and LinkedIn names for exact-ish comparisons', () => {
     expect(normalizeWhitespace('  Lokesh\n\tRamesh  ')).toBe('Lokesh Ramesh');
     expect(normalizeName('Lokesh Ramesh • 1st')).toBe('lokesh ramesh');
+  });
+
+  it('detects multiline messages without treating wrapped single-line text as multiline', () => {
+    expect(hasLineBreaks('hello\nworld')).toBe(true);
+    expect(hasLineBreaks('hello\r\nworld')).toBe(true);
+    expect(hasLineBreaks('hello world')).toBe(false);
+  });
+
+  it('validates required message arguments without stripping intentional formatting', () => {
+    expect(requireRawStringArg({ message: 'Hi\n\n- one' }, 'message', '--message')).toBe('Hi\n\n- one');
+    expect(() => requireRawStringArg({ message: ' \n\t ' }, 'message', '--message')).toThrow(ArgumentError);
+  });
+
+  it('builds a LinkedIn-specific multiline composer script with paste and DOM fallback markers', () => {
+    const script = buildFillComposerMultilineScript('Hi\n\n- one\n- two');
+
+    expect(script).toContain('__OPENCLI_LINKEDIN_FILL_COMPOSER_MULTILINE__');
+    expect(script).toContain('ClipboardEvent');
+    expect(script).toContain('dom_multiline');
+    expect(script).toContain('insertFromPaste');
   });
 
   it('canonicalizes thread URLs while dropping query and hash noise', () => {
@@ -200,5 +228,28 @@ describe('linkedin safe-send command', () => {
     expect(rows[0]).toMatchObject({ status: 'sent', recipient: 'Lokesh Ramesh', reason: 'verified' });
     expect(page.insertText).toHaveBeenCalledWith('both, but starting hands on');
     expect(page.pressKey).not.toHaveBeenCalled();
+  });
+
+  it('fills multiline messages through the LinkedIn composer helper before sending', async () => {
+    const command = getRegistry().get('linkedin/safe-send');
+    const page = makeFakePage({
+      url: 'https://www.linkedin.com/messaging/thread/lokesh/',
+      headerNames: ['Lokesh Ramesh'],
+      bodyText: 'Lokesh Ramesh\nprovider doc follow ups',
+      composerFound: true,
+      searchFailure: false,
+    });
+
+    const message = 'Hi Lokesh\n\n- first point\n- second point';
+    const rows = await command.func(page, {
+      'thread-url': 'https://www.linkedin.com/messaging/thread/lokesh/',
+      'expected-name': 'Lokesh Ramesh',
+      message,
+      send: true,
+    });
+
+    expect(rows[0]).toMatchObject({ status: 'sent', recipient: 'Lokesh Ramesh', reason: 'verified' });
+    expect(page.insertText).not.toHaveBeenCalled();
+    expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('__OPENCLI_LINKEDIN_FILL_COMPOSER_MULTILINE__'));
   });
 });
