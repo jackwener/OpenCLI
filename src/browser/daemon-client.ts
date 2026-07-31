@@ -340,6 +340,15 @@ async function sendCommandRaw(
   const contextId = routing.contextId;
   const preferredContextId = routing.preferredContextId;
   const windowMode = params.windowMode ?? envWindowMode;
+  // OPENCLI_IDLE_TIMEOUT_MS: keep automation window alive longer than the
+  // 30s adapter default so polling pipelines reuse the same window instead
+  // of forcing a new windows.create() — the real focus-steal trigger on
+  // macOS 15.x / 26.x. Caller-supplied params.idleTimeout (seconds) wins.
+  const rawIdleMs = process.env.OPENCLI_IDLE_TIMEOUT_MS;
+  const idleTimeoutFromEnv = rawIdleMs && /^\d+$/.test(rawIdleMs)
+    ? Math.max(0, Math.floor(parseInt(rawIdleMs, 10) / 1000))
+    : undefined;
+  const idleTimeout = params.idleTimeout ?? idleTimeoutFromEnv;
 
   let id = generateId();
   let ensureUsed = false;
@@ -379,6 +388,7 @@ async function sendCommandRaw(
       ...(contextId && { contextId }),
       ...(preferredContextId && { preferredContextId }),
       ...(windowMode && { windowMode }),
+      ...(idleTimeout !== undefined && { idleTimeout }),
       // Carry the run identity so the daemon can acquire/refresh the write
       // lease on the persistent site session. The same runId across every exec
       // of one command is the heartbeat that keeps a long-running holder alive.
