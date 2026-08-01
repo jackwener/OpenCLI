@@ -26342,7 +26342,7 @@
   {
     "site": "nowcoder",
     "name": "detail",
-    "description": "Post detail view (supports ID / UUID / URL)",
+    "description": "Content or moment detail (use the ID, UUID, or URL returned by list commands)",
     "access": "read",
     "domain": "www.nowcoder.com",
     "strategy": "cookie",
@@ -26357,8 +26357,15 @@
       }
     ],
     "columns": [
+      "post_type",
+      "id",
+      "uuid",
+      "entity_id",
+      "url",
       "title",
       "author",
+      "author_id",
+      "author_url",
       "school",
       "content",
       "likes",
@@ -26398,13 +26405,19 @@
     ],
     "columns": [
       "rank",
+      "post_type",
+      "id",
+      "uuid",
+      "entity_id",
+      "url",
       "title",
       "author",
+      "author_id",
+      "author_url",
       "school",
       "likes",
       "comments",
-      "views",
-      "id"
+      "views"
     ],
     "type": "js",
     "modulePath": "nowcoder/experience.js",
@@ -26730,11 +26743,17 @@
     ],
     "columns": [
       "rank",
+      "post_type",
+      "id",
+      "uuid",
+      "entity_id",
+      "url",
       "title",
       "author",
+      "author_id",
+      "author_url",
       "school",
-      "content",
-      "id"
+      "content"
     ],
     "type": "js",
     "modulePath": "nowcoder/search.js",
