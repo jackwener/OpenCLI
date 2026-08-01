@@ -171,6 +171,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 |----------|---------|-------------|
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW` | command default | Set to `foreground` or `background` to override Browser Bridge window placement. Browser-backed commands also accept `--window <foreground\|background>`. |
+| `OPENCLI_SITE_SESSION` | adapter default | Set to `ephemeral` or `persistent` to override adapter `siteSession` metadata for all adapter commands. `ephemeral` gives every invocation a one-shot session whose tab closes when the command finishes — useful for agent harnesses that must not leave automation windows on the user's screen. The per-command `--site-session` flag still wins over the environment value. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |

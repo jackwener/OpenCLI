@@ -573,14 +573,17 @@ export function prepareCommandArgs(
  */
 const RUNTIME_TIMEOUT_PADDING_SECONDS = 30;
 
-function normalizeSiteSession(raw: unknown): SiteSessionMode | null {
+function normalizeSiteSession(name: string, raw: unknown): SiteSessionMode | null {
   if (raw === undefined || raw === null || raw === '') return null;
   if (raw === 'ephemeral' || raw === 'persistent') return raw;
-  throw new ArgumentError(`--site-session must be one of: ephemeral, persistent. Received: "${String(raw)}"`);
+  throw new ArgumentError(`${name} must be one of: ephemeral, persistent. Received: "${String(raw)}"`);
 }
 
 function resolveSiteSession(cmd: CliCommand, rawOption?: unknown): SiteSessionMode {
-  return normalizeSiteSession(rawOption) ?? cmd.siteSession ?? 'ephemeral';
+  return normalizeSiteSession('--site-session', rawOption)
+    ?? normalizeSiteSession('OPENCLI_SITE_SESSION', process.env.OPENCLI_SITE_SESSION)
+    ?? cmd.siteSession
+    ?? 'ephemeral';
 }
 
 function resolveAdapterBrowserSession(cmd: CliCommand, siteSession: SiteSessionMode): string {
