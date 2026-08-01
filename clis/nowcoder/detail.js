@@ -1,4 +1,5 @@
 import { cli } from '@jackwener/opencli/registry';
+import { projectNowcoderDetail } from './output.js';
 
 cli({
     site: 'nowcoder',
@@ -9,16 +10,16 @@ cli({
     args: [
         { name: 'id', positional: true, required: true, help: 'Post ID, UUID, or URL' },
     ],
-    columns: ['title', 'author', 'school', 'content', 'likes', 'comments', 'views', 'time', 'location'],
+    columns: ['id', 'url', 'title', 'author', 'author_id', 'author_url', 'school', 'content', 'likes', 'comments', 'views', 'time', 'location'],
     pipeline: [
         { navigate: 'https://www.nowcoder.com' },
         { evaluate: `(async () => {
-  const raw = \${{ args.id | json }};
+  const raw = String(\${{ args.id | json }});
   const base = 'https://gw-c.nowcoder.com';
-  const strip = (html) => (html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+  const projectDetail = ${projectNowcoderDetail.toString()};
 
   let id = raw;
-  const urlMatch = raw.match(/discuss\\/(\\d+)/);
+  const urlMatch = raw.match(/discuss\\/([^/?#]+)/);
   if (urlMatch) id = urlMatch[1];
 
   let data = null;
@@ -43,19 +44,7 @@ cli({
 
   if (!data) throw new Error('Post not found: ' + id);
 
-  const user = data.userBrief || {};
-  const freq = data.frequencyData || {};
-  return [{
-    title: data.title || '(untitled)',
-    author: user.nickname || '',
-    school: user.educationInfo || '',
-    content: strip(data.content || '').substring(0, 500),
-    likes: freq.likeCnt || 0,
-    comments: freq.commentCnt || freq.totalCommentCnt || 0,
-    views: freq.viewCnt || 0,
-    time: data.createdAt ? new Date(data.createdAt).toISOString().slice(0, 19) : '',
-    location: data.ip4Location || '',
-  }];
+  return [projectDetail(data, id)];
 })()
 ` },
     ],

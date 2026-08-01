@@ -55,6 +55,17 @@ export function noteIdToDate(url) {
     // Offset by UTC+8 (China Standard Time) so the date matches what XHS users see
     return new Date((ts + 8 * 3600) * 1000).toISOString().slice(0, 10);
 }
+export function xhsProfileIdFromUrl(url) {
+    if (!url)
+        return '';
+    try {
+        const parsed = new URL(url, 'https://www.xiaohongshu.com');
+        return parsed.pathname.match(/^\/user\/profile\/([^/?#]+)/)?.[1] || '';
+    }
+    catch {
+        return '';
+    }
+}
 export function stripXhsAuthorDateSuffix(value) {
     const text = (value || '').replace(/\s+/g, ' ').trim();
     const stripped = text.replace(/\s*(?:\d{1,2}天前|\d+小时前|\d+分钟前|\d+秒前|刚刚|昨天|前天|\d+周前|\d+个月前|\d{1,2}-\d{1,2}|\d{4}-\d{1,2}-\d{1,2})$/u, '').trim();
@@ -279,7 +290,7 @@ export const command = cli({
         { name: 'query', required: true, positional: true, help: 'Search keyword' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
     ],
-    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
+    columns: ['rank', 'title', 'author', 'author_id', 'author_url', 'likes', 'published_at', 'published_at_source', 'url'],
     func: async (page, kwargs) => {
         const limit = parseLimit(kwargs.limit);
         const keyword = encodeURIComponent(kwargs.query);
@@ -318,11 +329,16 @@ export const command = cli({
         return data
             .filter((item) => item.title)
             .slice(0, limit)
-            .map((item, i) => ({
-            rank: i + 1,
-            ...item,
-            published_at: noteIdToDate(item.url),
-        }));
+            .map((item, i) => {
+            const publishedAt = noteIdToDate(item.url);
+            return {
+                rank: i + 1,
+                ...item,
+                author_id: xhsProfileIdFromUrl(item.author_url),
+                published_at: publishedAt,
+                published_at_source: publishedAt ? 'note_id' : '',
+            };
+        });
     },
 });
 export const __test__ = {

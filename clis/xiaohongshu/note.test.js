@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
+import { JSDOM } from 'jsdom';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
-import './note.js';
+import { buildNoteExtractJs } from './note.js';
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -74,21 +75,41 @@ describe('xiaohongshu note', () => {
             title: '尚界Z7实车体验',
             desc: '今天去看了实车，外观很帅',
             author: '小红薯用户',
+            id: '69c131c9000000002800be4c',
+            url: 'https://www.xiaohongshu.com/explore/69c131c9000000002800be4c',
+            author_id: 'author-123',
+            author_url: 'https://www.xiaohongshu.com/user/profile/author-123',
+            published_at: '2026-03-18T12:01:00.000Z',
+            published_at_source: 'initial_state',
             likes: '257',
             collects: '98',
             comments: '45',
             tags: ['#尚界Z7', '#鸿蒙智行'],
+            media: [
+                { type: 'image', url: 'https://sns-img-bd.xhscdn.com/cover.jpg' },
+                { type: 'image', url: 'https://sns-img-bd.xhscdn.com/second.jpg' },
+            ],
         });
         const signedUrl = 'https://www.xiaohongshu.com/search_result/69c131c9000000002800be4c?xsec_token=abc';
         const result = (await command.func(page, { 'note-id': signedUrl }));
         expect(page.goto.mock.calls[0][0]).toBe(signedUrl);
         expect(result).toEqual([
+            { field: 'id', value: '69c131c9000000002800be4c' },
+            { field: 'url', value: 'https://www.xiaohongshu.com/explore/69c131c9000000002800be4c' },
             { field: 'title', value: '尚界Z7实车体验' },
             { field: 'author', value: '小红薯用户' },
+            { field: 'author_id', value: 'author-123' },
+            { field: 'author_url', value: 'https://www.xiaohongshu.com/user/profile/author-123' },
+            { field: 'published_at', value: '2026-03-18T12:01:00.000Z' },
+            { field: 'published_at_source', value: 'initial_state' },
             { field: 'content', value: '今天去看了实车，外观很帅' },
             { field: 'likes', value: '257' },
             { field: 'collects', value: '98' },
             { field: 'comments', value: '45' },
+            { field: 'media', value: [
+                    { type: 'image', url: 'https://sns-img-bd.xhscdn.com/cover.jpg' },
+                    { type: 'image', url: 'https://sns-img-bd.xhscdn.com/second.jpg' },
+                ] },
             { field: 'tags', value: '#尚界Z7, #鸿蒙智行' },
         ]);
     });
@@ -244,6 +265,56 @@ describe('xiaohongshu note', () => {
             'note-id': 'https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok',
         }));
         expect(result.find((r) => r.field === 'tags')).toBeUndefined();
-        expect(result).toHaveLength(6);
+        expect(result).toHaveLength(13);
+    });
+});
+
+describe('buildNoteExtractJs metadata extraction', () => {
+    it('preserves stable identity, precise time, and structured media order', () => {
+        const noteId = '69c131c9000000002800be4c';
+        const dom = new JSDOM(`<!doctype html><html><body>
+          <div id="detail-title">结构化笔记</div>
+          <div id="detail-desc">完整正文</div>
+          <div class="author-wrapper"><a href="/user/profile/dom-author"><span class="name">DOM 作者</span></a></div>
+          <div class="interact-container">
+            <div class="like-wrapper"><span class="count">11</span></div>
+            <div class="collect-wrapper"><span class="count">12</span></div>
+            <div class="chat-wrapper"><span class="count">13</span></div>
+          </div>
+        </body></html>`, {
+            url: `https://www.xiaohongshu.com/search_result/${noteId}?xsec_token=abc`,
+            runScripts: 'outside-only',
+        });
+        dom.window.__INITIAL_STATE__ = {
+            note: {
+                noteDetailMap: {
+                    [noteId]: {
+                        note: {
+                            time: Date.parse('2026-03-18T20:01:00+08:00'),
+                            user: { userId: 'stable-author', nickname: '结构化作者' },
+                            imageList: [
+                                { urlDefault: 'https://sns-img-bd.xhscdn.com/cover.jpg' },
+                                { urlDefault: 'https://sns-img-bd.xhscdn.com/second.jpg' },
+                            ],
+                        },
+                    },
+                },
+            },
+        };
+
+        const result = dom.window.eval(buildNoteExtractJs(noteId));
+
+        expect(result).toMatchObject({
+            id: noteId,
+            url: `https://www.xiaohongshu.com/explore/${noteId}`,
+            author_id: 'stable-author',
+            author_url: 'https://www.xiaohongshu.com/user/profile/stable-author',
+            published_at: '2026-03-18T12:01:00.000Z',
+            published_at_source: 'initial_state',
+        });
+        expect(result.media).toEqual([
+            { type: 'image', url: 'https://sns-img-bd.xhscdn.com/cover.jpg' },
+            { type: 'image', url: 'https://sns-img-bd.xhscdn.com/second.jpg' },
+        ]);
     });
 });

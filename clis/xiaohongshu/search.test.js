@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { JSDOM } from 'jsdom';
-import { __test__, buildScrollUntilJs, noteIdToDate, unwrapEvaluateResult } from './search.js';
+import { __test__, buildScrollUntilJs, noteIdToDate, unwrapEvaluateResult, xhsProfileIdFromUrl } from './search.js';
 
 function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100 });
@@ -97,12 +97,19 @@ describe('xiaohongshu search', () => {
                 rank: 1,
                 title: '某鱼买FSD被坑了4万',
                 author: '随风',
+                author_id: '635a9c720000000018028b40',
+                author_url: authorUrl,
                 likes: '261',
                 published_at: '2025-10-10',
+                published_at_source: 'note_id',
                 url: detailUrl,
-                author_url: authorUrl,
             },
         ]);
+        expect(cmd.columns).toEqual(expect.arrayContaining([
+            'author_id',
+            'author_url',
+            'published_at_source',
+        ]));
     });
     it('fails typed instead of silently returning [] for malformed extraction payloads', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
@@ -216,6 +223,7 @@ describe('xiaohongshu search', () => {
         expect(result[0]).toMatchObject({
             title: '数字作者测试',
             author: '数字3天前端',
+            author_id: 'author123',
             likes: '8',
             author_url: 'https://www.xiaohongshu.com/user/profile/author123',
         });
@@ -295,6 +303,15 @@ describe('noteIdToDate (ObjectID timestamp parsing)', () => {
     it('returns empty string when timestamp is out of range', () => {
         // All zeros → ts = 0
         expect(noteIdToDate('https://www.xiaohongshu.com/search_result/000000000000000000000000')).toBe('');
+    });
+});
+describe('xhsProfileIdFromUrl', () => {
+    it('extracts a stable author id from absolute and relative profile URLs', () => {
+        expect(xhsProfileIdFromUrl('https://www.xiaohongshu.com/user/profile/author123?xsec_token=abc')).toBe('author123');
+        expect(xhsProfileIdFromUrl('/user/profile/635a9c720000000018028b40')).toBe('635a9c720000000018028b40');
+    });
+    it('returns empty for non-profile URLs', () => {
+        expect(xhsProfileIdFromUrl('https://www.xiaohongshu.com/explore/note123')).toBe('');
     });
 });
 describe('unwrapEvaluateResult (browser-bridge envelope normalization)', () => {
