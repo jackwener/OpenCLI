@@ -61,3 +61,15 @@ opencli nowcoder hot -v
 
 - **Public commands** (hot, trending, topics, recommend, creators, companies, jobs): No login required
 - **Cookie commands** (all others): Chrome running and **logged into** nowcoder.com, [Browser Bridge extension](/guide/browser-bridge) installed
+
+## Detail interaction metrics
+
+`nowcoder detail` exposes the five public interaction counts returned in Nowcoder's `frequencyData`:
+
+- `likes` comes from `likeCnt`.
+- `collects` comes from `followCnt`, which the detail UI labels as 收藏.
+- `comments` comes from `commentCnt`, falling back to `totalCommentCnt` when needed.
+- `shares` comes from `shareCnt`.
+- `views` comes from `viewCnt`.
+
+Each count has a matching `<metric>_status`. A present non-negative integer, including a real `0`, is returned with `available`. A missing or malformed field is returned as `null` with `unavailable`; OpenCLI does not replace unavailable data with a fabricated zero.

@@ -1,4 +1,5 @@
 import { cli } from '@jackwener/opencli/registry';
+import { projectNowcoderMetrics } from './metrics.js';
 
 cli({
     site: 'nowcoder',
@@ -9,13 +10,22 @@ cli({
     args: [
         { name: 'id', positional: true, required: true, help: 'Post ID, UUID, or URL' },
     ],
-    columns: ['title', 'author', 'school', 'content', 'likes', 'comments', 'views', 'time', 'location'],
+    columns: [
+        'title', 'author', 'school', 'content',
+        'likes', 'likes_status',
+        'collects', 'collects_status',
+        'comments', 'comments_status',
+        'shares', 'shares_status',
+        'views', 'views_status',
+        'time', 'location',
+    ],
     pipeline: [
         { navigate: 'https://www.nowcoder.com' },
         { evaluate: `(async () => {
   const raw = \${{ args.id | json }};
   const base = 'https://gw-c.nowcoder.com';
   const strip = (html) => (html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+  const projectMetrics = ${projectNowcoderMetrics.toString()};
 
   let id = raw;
   const urlMatch = raw.match(/discuss\\/(\\d+)/);
@@ -44,15 +54,13 @@ cli({
   if (!data) throw new Error('Post not found: ' + id);
 
   const user = data.userBrief || {};
-  const freq = data.frequencyData || {};
+  const metrics = projectMetrics(data.frequencyData);
   return [{
     title: data.title || '(untitled)',
     author: user.nickname || '',
     school: user.educationInfo || '',
     content: strip(data.content || '').substring(0, 500),
-    likes: freq.likeCnt || 0,
-    comments: freq.commentCnt || freq.totalCommentCnt || 0,
-    views: freq.viewCnt || 0,
+    ...metrics,
     time: data.createdAt ? new Date(data.createdAt).toISOString().slice(0, 19) : '',
     location: data.ip4Location || '',
   }];
