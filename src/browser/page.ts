@@ -122,9 +122,26 @@ export class Page extends BasePage {
         code: combinedCode,
         ...this._cmdOpts(),
       };
+      const recoverStalePageIdentity = async (err: unknown): Promise<boolean> => {
+        if (!isStalePageIdentityError(err) || this._page === undefined) return false;
+
+        this._page = undefined;
+        const rebound = await sendCommandFull('navigate', {
+          url,
+          ...this._cmdOpts(),
+        });
+        if (rebound.page) this._page = rebound.page;
+        this._lastUrl = url;
+        await sendCommand('exec', {
+          code: combinedCode,
+          ...this._cmdOpts(),
+        });
+        return true;
+      };
       try {
         await sendCommand('exec', combinedOpts);
       } catch (err) {
+        if (await recoverStalePageIdentity(err)) return;
         const advice = classifyBrowserError(err);
         // Only settle-retry on target navigation (SPA client-side redirects).
         // Extension/daemon errors are already retried by sendCommandRaw —
@@ -134,6 +151,7 @@ export class Page extends BasePage {
           await new Promise((r) => setTimeout(r, advice.delayMs));
           await sendCommand('exec', combinedOpts);
         } catch (retryErr) {
+          if (await recoverStalePageIdentity(retryErr)) return;
           if (classifyBrowserError(retryErr).kind !== 'target-navigation') throw retryErr;
         }
       }

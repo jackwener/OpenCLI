@@ -362,6 +362,29 @@ describe('Page active target tracking', () => {
     expect(retryCall[1]).not.toHaveProperty('page');
   });
 
+  it('rebinds when the settle retry exposes a stale page identity', async () => {
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/jobs' }, page: 'stale-page' })
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/jobs' }, page: 'fresh-page' });
+    sendCommandMock
+      .mockRejectedValueOnce(new Error('Inspected target navigated or closed'))
+      .mockRejectedValueOnce(new Error('Page not found: stale-page — stale page identity'))
+      .mockResolvedValueOnce(null);
+
+    const page = new Page('site:boss', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await expect(page.goto('https://example.com/jobs')).resolves.toBeUndefined();
+    expect(page.getActivePage()).toBe('fresh-page');
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
+    expect(sendCommandFullMock.mock.calls[1]).toEqual([
+      'navigate',
+      expect.not.objectContaining({ page: expect.anything() }),
+    ]);
+    expect(sendCommandMock).toHaveBeenLastCalledWith('exec', expect.objectContaining({
+      page: 'fresh-page',
+    }));
+  });
+
   it('retries on a bare "Page not found:" error without the stale-identity suffix', async () => {
     // Under concurrent adapter calls the extension can reject with just
     // "Page not found: <id>" (no "— stale page identity" suffix) when the cached
