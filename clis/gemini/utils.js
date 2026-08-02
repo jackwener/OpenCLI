@@ -1027,6 +1027,69 @@ function expandGeminiRecentScript() {
     })()
   `;
 }
+function scrollGeminiConversationListScript() {
+    return `
+    (async () => {
+      const selector = 'a[href*="/app"]';
+      const candidates = [
+        ...Array.from(document.querySelectorAll('bard-sidenav infinite-scroller, side-navigation-content infinite-scroller, infinite-scroller')),
+        ...Array.from(document.querySelectorAll('nav, aside, [role="navigation"], nav *, aside *, [role="navigation"] *')),
+      ];
+      const scrollables = candidates
+        .filter((node) => node instanceof HTMLElement && node.querySelector?.(selector))
+        .filter((node) => {
+          const style = window.getComputedStyle(node);
+          return /(auto|scroll)/i.test(style.overflowY || '') || node.scrollHeight > node.clientHeight + 10;
+        })
+        .sort((left, right) => (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight));
+      const root = scrollables[0];
+      if (!(root instanceof HTMLElement)) return { changed: false, reason: 'no-scroll-root' };
+      const before = root.scrollTop;
+      const max = Math.max(0, root.scrollHeight - root.clientHeight);
+      root.scrollTop = max;
+      root.dispatchEvent(new Event('scroll', { bubbles: true }));
+      const delta = Math.max(1200, root.clientHeight * 4);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      root.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: delta }));
+      window.scrollBy(0, delta);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      window.scrollBy(0, delta);
+      return {
+        changed: root.scrollTop > before + 2,
+        before,
+        after: root.scrollTop,
+        max,
+        scrollHeight: root.scrollHeight,
+        clientHeight: root.clientHeight,
+        windowY: window.scrollY || window.pageYOffset || 0,
+      };
+    })()
+  `;
+}
+function resetGeminiConversationListScrollScript() {
+    return `
+    (() => {
+      const selector = 'a[href*="/app"]';
+      const candidates = [
+        ...Array.from(document.querySelectorAll('bard-sidenav infinite-scroller, side-navigation-content infinite-scroller, infinite-scroller')),
+        ...Array.from(document.querySelectorAll('nav, aside, [role="navigation"], nav *, aside *, [role="navigation"] *')),
+      ];
+      const scrollables = candidates
+        .filter((node) => node instanceof HTMLElement && node.querySelector?.(selector))
+        .filter((node) => {
+          const style = window.getComputedStyle(node);
+          return /(auto|scroll)/i.test(style.overflowY || '') || node.scrollHeight > node.clientHeight + 10;
+        })
+        .sort((left, right) => (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight));
+      const root = scrollables[0];
+      if (!(root instanceof HTMLElement)) return { changed: false, reason: 'no-scroll-root' };
+      const before = root.scrollTop;
+      root.scrollTop = 0;
+      root.dispatchEvent(new Event('scroll', { bubbles: true }));
+      return { changed: before > 2, before, after: root.scrollTop };
+    })()
+  `;
+}
 function clickGeminiConversationByTitleScript(query) {
     const normalizedQuery = normalizeGeminiTitle(query);
     return `
@@ -1065,6 +1128,24 @@ function clickGeminiConversationByTitleScript(query) {
       }
       return false;
     })(${JSON.stringify(normalizedQuery)})
+  `;
+}
+function clickGeminiConversationByIdScript(id) {
+    return `
+    ((targetId) => {
+      const anchors = Array.from(document.querySelectorAll('a[href]'));
+      for (const anchor of anchors) {
+        if (!(anchor instanceof HTMLAnchorElement)) continue;
+        let url;
+        try { url = new URL(anchor.href); } catch { continue; }
+        if (url.hostname !== '${GEMINI_DOMAIN}' && !url.hostname.endsWith('.${GEMINI_DOMAIN}')) continue;
+        if (url.pathname !== '/app/' + targetId) continue;
+        anchor.scrollIntoView({ block: 'center' });
+        anchor.click();
+        return { clicked: true, title: (anchor.textContent || '').replace(/\\s+/g, ' ').trim(), url: anchor.href };
+      }
+      return { clicked: false };
+    })(${JSON.stringify(id)})
   `;
 }
 function currentUrlScript() {
@@ -1135,14 +1216,11 @@ export async function startNewGeminiChat(page) {
     await page.wait(1);
     return action;
 }
-export async function getGeminiConversationList(page) {
+export async function getGeminiConversationList(page, maxRows = 200) {
     await ensureGeminiPage(page);
-    let rows = [];
-    // Gemini collapses the sidebar "最近"/Recents section by default, hiding
-    // the conversation anchors. Retry extraction after expanding it.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
-        rows = raw.flatMap((item) => {
+    const byKey = new Map();
+    const appendRows = (raw) => {
+        const rows = raw.flatMap((item) => {
             if (!isObjectRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
                 throw new CommandExecutionError('Gemini conversation list returned a malformed row');
             }
@@ -1150,17 +1228,63 @@ export async function getGeminiConversationList(page) {
                 return [];
             return { Title: item.title, Url: item.url };
         });
-        if (rows.length > 0)
+        for (const row of rows) {
+            const key = `${row.Url}::${row.Title}`;
+            if (!byKey.has(key)) byKey.set(key, row);
+        }
+    };
+    await page.evaluate(expandGeminiRecentScript()).catch(() => false);
+    await page.wait(0.5);
+    await page.evaluate(resetGeminiConversationListScrollScript()).catch(() => null);
+    await page.wait(0.5);
+    // Gemini collapses the sidebar "最近"/Recents section by default, hiding
+    // the conversation anchors. Retry extraction after expanding it.
+    let idleRounds = 0;
+    let lastSize = -1;
+    let lastScrollHeight = -1;
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+        const raw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
+        appendRows(raw);
+        if (byKey.size >= maxRows)
             break;
-        const changedRaw = unwrapGeminiEvaluateResult(await page.evaluate(expandGeminiRecentScript()), 'Gemini sidebar expand');
-        const changed = changedRaw === true;
-        // Give the React sidebar a moment to render the expanded anchors,
-        // longer on the first expansion (sidebar slide-in is async).
-        await page.wait(attempt === 0 ? 1.2 : 0.6);
-        if (!changed && attempt > 0)
+        let scrollHeight = lastScrollHeight;
+        let changed = byKey.size > lastSize;
+        if (byKey.size === 0) {
+            const changedRaw = unwrapGeminiEvaluateResult(await page.evaluate(expandGeminiRecentScript()), 'Gemini sidebar expand');
+            changed = changedRaw === true;
+            // Give the React sidebar a moment to render the expanded anchors,
+            // longer on the first expansion (sidebar slide-in is async).
+            await page.wait(attempt === 0 ? 1.2 : 0.6);
+        }
+        else {
+            const scrollRaw = unwrapGeminiEvaluateResult(await page.evaluate(scrollGeminiConversationListScript()), 'Gemini sidebar scroll');
+            scrollHeight = Number(scrollRaw?.scrollHeight ?? scrollRaw?.max ?? lastScrollHeight);
+            changed = changed || !!scrollRaw?.changed || scrollHeight > lastScrollHeight;
+            await page.wait(changed ? 0.8 : 1.2);
+        }
+        if (changed) {
+            idleRounds = 0;
+        }
+        else {
+            idleRounds += 1;
+        }
+        lastSize = byKey.size;
+        lastScrollHeight = scrollHeight;
+        if (idleRounds >= 20) {
+            await page.evaluate(scrollGeminiConversationListScript()).catch(() => null);
+            await page.wait(3);
+            const finalRaw = requireGeminiArrayResult(await page.evaluate(getGeminiConversationListScript()), 'Gemini conversation list');
+            const beforeFinal = byKey.size;
+            appendRows(finalRaw);
+            if (byKey.size > beforeFinal) {
+                idleRounds = 0;
+                lastSize = byKey.size;
+                continue;
+            }
             break;
+        }
     }
-    return rows;
+    return Array.from(byKey.values()).slice(0, maxRows);
 }
 export async function clickGeminiConversationByTitle(page, query) {
     await ensureGeminiPage(page);
@@ -1171,6 +1295,27 @@ export async function clickGeminiConversationByTitle(page, query) {
     if (clicked)
         await page.wait(1);
     return !!clicked;
+}
+export async function clickGeminiConversationById(page, id) {
+    await ensureGeminiPage(page);
+    const targetId = String(id || '').trim();
+    if (!targetId)
+        return null;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+        const clicked = requireGeminiObjectResult(await page.evaluate(clickGeminiConversationByIdScript(targetId)), 'Gemini conversation click by id');
+        if (clicked.clicked) {
+            await page.wait(2.5);
+            return clicked;
+        }
+        if (attempt === 0) {
+            await page.evaluate(expandGeminiRecentScript()).catch(() => false);
+        }
+        else {
+            await page.evaluate(scrollGeminiConversationListScript()).catch(() => null);
+        }
+        await page.wait(0.5);
+    }
+    return null;
 }
 export async function getGeminiVisibleTurns(page) {
     const turns = await getGeminiStructuredTurns(page);

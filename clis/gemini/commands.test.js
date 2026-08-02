@@ -25,6 +25,7 @@ import { statusCommand } from './status.js';
 import { historyCommand, extractGeminiId } from './history.js';
 import { detailCommand } from './detail.js';
 import { readCommand } from './read.js';
+import { rawDetailCommand } from './raw-detail.js';
 
 function makePage() {
     return {
@@ -187,6 +188,40 @@ describe('gemini detail', () => {
         mocks.ensureGeminiPage.mockResolvedValue(undefined);
         mocks.getGeminiVisibleTurns.mockResolvedValue([]);
         await expect(detailCommand.func(makePage(), { id: 'abc' })).rejects.toBeInstanceOf(EmptyResultError);
+    });
+});
+
+describe('gemini raw-detail', () => {
+    it('returns raw DOM detail rows for a conversation id', async () => {
+        mocks.ensureGeminiPage.mockResolvedValue(undefined);
+        const page = makePage();
+        page.evaluate.mockResolvedValue({
+            url: 'https://gemini.google.com/app/b8368a89d4242e5f',
+            title: 'Gemini',
+            turns: [{ role: 'User', text: 'hello', images: [] }],
+            images: [],
+        });
+
+        const rows = await rawDetailCommand.func(page, { id: 'b8368a89d4242e5f' });
+
+        expect(page.goto).toHaveBeenCalledWith(
+            'https://gemini.google.com/app/b8368a89d4242e5f',
+            expect.objectContaining({ waitUntil: 'load' }),
+        );
+        expect(rows).toEqual([
+            {
+                Id: 'b8368a89d4242e5f',
+                Url: 'https://gemini.google.com/app/b8368a89d4242e5f',
+                Title: 'Gemini',
+                Turns: [{ role: 'User', text: 'hello', images: [] }],
+                Images: [],
+                Raw: expect.objectContaining({ title: 'Gemini' }),
+            },
+        ]);
+    });
+
+    it('throws ArgumentError when raw-detail id is missing', async () => {
+        await expect(rawDetailCommand.func(makePage(), { id: '' })).rejects.toBeInstanceOf(ArgumentError);
     });
 });
 

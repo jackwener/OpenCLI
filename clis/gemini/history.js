@@ -41,11 +41,11 @@ export const historyCommand = cli({
     columns: ['Index', 'Id', 'Title', 'Url'],
     func: async (page, kwargs) => {
         const rawLimit = Number(kwargs?.limit ?? 20);
-        if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 200) {
-            throw new ArgumentError('limit', 'must be a positive integer ≤ 200');
+        if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 2000) {
+            throw new ArgumentError('limit', 'must be a positive integer ≤ 2000');
         }
         await ensureGeminiPage(page);
-        const conversations = await getGeminiConversationList(page);
+        const conversations = await getGeminiConversationList(page, rawLimit);
         if (!conversations.length) {
             throw new EmptyResultError(
                 'gemini history',
