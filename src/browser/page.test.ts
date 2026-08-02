@@ -93,6 +93,45 @@ describe('Page.evaluate', () => {
     expect(sendCommandMock).toHaveBeenCalledTimes(2);
   });
 
+  it('rebinds before retrying when the active page identity goes stale', async () => {
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/jobs' }, page: 'stale-page' })
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/jobs' }, page: 'fresh-page' });
+    sendCommandMock
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('Page not found: stale-page — stale page identity'))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(42);
+
+    const page = new Page('site:example', undefined, undefined, undefined, 'adapter', 'persistent');
+    await page.goto('https://example.com/jobs');
+
+    await expect(page.evaluate('21 + 21')).resolves.toBe(42);
+    expect(page.getActivePage()).toBe('fresh-page');
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
+    expect(sendCommandFullMock.mock.calls[1]).toEqual([
+      'navigate',
+      expect.not.objectContaining({ page: expect.anything() }),
+    ]);
+    expect(sendCommandMock).toHaveBeenLastCalledWith('exec', expect.objectContaining({
+      code: '21 + 21',
+      page: 'fresh-page',
+    }));
+  });
+
+  it('does not guess a replacement for an explicitly selected stale page', async () => {
+    sendCommandMock.mockRejectedValueOnce(
+      new Error('Page not found: selected-page — stale page identity'),
+    );
+
+    const page = new Page('default');
+    page.setActivePage('selected-page');
+
+    await expect(page.evaluate('21 + 21')).rejects.toThrow('stale page identity');
+    expect(sendCommandFullMock).not.toHaveBeenCalled();
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+  });
+
   it('serializes function-form evaluate calls with JSON args', async () => {
     sendCommandMock.mockResolvedValueOnce('/opencli');
 

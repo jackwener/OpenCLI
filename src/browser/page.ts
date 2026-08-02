@@ -29,8 +29,8 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
 // The extension throws "Page not found: <id> — stale page identity" when our cached
 // `_page` targetId no longer maps to a live tab — e.g. the user closed the automation
 // window, or a long-running script left the cache pointing at an evicted target.
-// Detect that signature so goto() can drop the stale id and let resolveTab fall back
-// to the session lease (or create a fresh tab).
+// Detect that signature so page-scoped operations can drop the stale id and let
+// resolveTab fall back to the session lease (or create a fresh tab).
 function isStalePageIdentityError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return message.includes('stale page identity') || /^Page not found:\s*\S+\s*$/.test(message);
@@ -177,6 +177,15 @@ export class Page extends BasePage {
     try {
       return await sendCommand('exec', { code, ...this._cmdOpts() });
     } catch (err) {
+      // resolveTabId rejects a stale target before page code can run, so one retry is
+      // safe. Revisit the last known URL without the dead identity first; retrying the
+      // same exec immediately would only send the stale target again.
+      if (isStalePageIdentityError(err) && this._page !== undefined && this._lastUrl !== null) {
+        const lastUrl = this._lastUrl;
+        this._page = undefined;
+        await this.goto(lastUrl);
+        return sendCommand('exec', { code, ...this._cmdOpts() });
+      }
       const advice = classifyBrowserError(err);
       if (advice.kind !== 'target-navigation') throw err;
       await new Promise((resolve) => setTimeout(resolve, advice.delayMs));
