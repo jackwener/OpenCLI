@@ -3576,6 +3576,35 @@
   },
   {
     "site": "bilibili",
+    "name": "creator-stats",
+    "description": "读取本人稿件的创作诊断、转粉和留存原始指标（需登录创作中心）",
+    "access": "read",
+    "example": "opencli bilibili creator-stats <owned-bvid> -f json",
+    "domain": "member.bilibili.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "bvid",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "本人稿件 BV ID"
+      }
+    ],
+    "columns": [
+      "source",
+      "metric",
+      "value",
+      "unit"
+    ],
+    "type": "js",
+    "modulePath": "bilibili/creator-stats.js",
+    "sourceFile": "bilibili/creator-stats.js",
+    "navigateBefore": "https://member.bilibili.com/platform/home"
+  },
+  {
+    "site": "bilibili",
     "name": "download",
     "description": "下载B站视频（需要 yt-dlp）",
     "access": "read",
