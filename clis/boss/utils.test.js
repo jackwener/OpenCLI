@@ -1,6 +1,44 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { assertOk } from './utils.js';
+import { assertOk, bossFetch } from './utils.js';
+
+function detachedMidCommandError() {
+    return Object.assign(new Error('Detached while handling command.'), {
+        code: 'detached_mid_command',
+    });
+}
+
+describe('bossFetch', () => {
+    it('retries a detached GET once because replaying a read is safe', async () => {
+        const page = {
+            evaluate: vi.fn()
+                .mockRejectedValueOnce(detachedMidCommandError())
+                .mockResolvedValueOnce({ code: 0, zpData: { jobList: [] } }),
+        };
+
+        await expect(bossFetch(page, 'https://www.zhipin.com/wapi/zpgeek/search/joblist.json'))
+            .resolves.toEqual({ code: 0, zpData: { jobList: [] } });
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+    });
+
+    it('propagates a second detached GET without entering a retry loop', async () => {
+        const page = { evaluate: vi.fn().mockRejectedValue(detachedMidCommandError()) };
+
+        await expect(bossFetch(page, 'https://www.zhipin.com/wapi/zpgeek/search/joblist.json'))
+            .rejects.toThrow('Detached while handling command');
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry a detached POST because its outcome may be a completed write', async () => {
+        const page = { evaluate: vi.fn().mockRejectedValueOnce(detachedMidCommandError()) };
+
+        await expect(bossFetch(page, 'https://www.zhipin.com/wapi/write', {
+            method: 'POST',
+            body: 'value=1',
+        })).rejects.toThrow('Detached while handling command');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+});
 
 describe('assertOk', () => {
     it('returns silently on code 0', () => {
