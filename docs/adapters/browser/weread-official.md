@@ -131,7 +131,7 @@ opencli weread-official book 3300045871 -f json
   export WEREAD_API_KEY=wrk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   ```
 
-- Skill version is pinned to `1.0.3` and reported with every request. When the gateway returns `upgrade_info`, pull the latest `weread-skills.zip` and bump `SKILL_VERSION` in `clis/weread-official/utils.js`.
+- Skill version is pinned to `1.0.4` and reported with every request. When the gateway returns `upgrade_info`, pull the latest `weread-skills.zip` and bump `SKILL_VERSION` in `clis/weread-official/utils.js`.
 
 ## Related
 
