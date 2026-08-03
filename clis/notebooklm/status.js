@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { isNotebooklmHost, NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_SITE } from './shared.js';
-import { getNotebooklmPageState } from './utils.js';
+import { classifyNotebooklmPage, getNotebooklmPageState } from './utils.js';
 cli({
     site: NOTEBOOKLM_SITE,
     name: 'status',
@@ -13,15 +13,10 @@ cli({
     args: [],
     columns: ['status', 'login', 'page', 'url', 'title', 'notebooks'],
     func: async (page) => {
-        const currentUrl = await page.getCurrentUrl?.().catch(() => null);
-        let currentHostname = '';
-        try {
-            currentHostname = currentUrl ? new URL(currentUrl).hostname : '';
-        }
-        catch {
-            currentHostname = '';
-        }
-        if (!isNotebooklmHost(currentHostname)) {
+        const currentUrl = typeof page.getCurrentUrl === 'function'
+            ? await page.getCurrentUrl().catch(() => null)
+            : null;
+        if (classifyNotebooklmPage(currentUrl) === 'unknown') {
             await page.goto(NOTEBOOKLM_HOME_URL);
             await page.wait(2);
         }

@@ -132,7 +132,7 @@ async function uploadFileViaDriveResumable(page, projectId, sourceId, filename, 
     const metadataJson = `{"PROJECT_ID":${JSON.stringify(projectId)},"SOURCE_NAME":${JSON.stringify(filename)},"SOURCE_ID":${JSON.stringify(sourceId)}}`;
     const script = String.raw`(async () => {
     try {
-      const initRes = await fetch(${JSON.stringify('https://notebooklm.google.com/upload/_/?authuser=' + authuser)}, {
+      const initRes = await fetch(${JSON.stringify('/upload/_/?authuser=' + authuser)}, {
         method: 'POST',
         credentials: 'include',
         headers: {

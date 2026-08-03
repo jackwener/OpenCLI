@@ -1,6 +1,6 @@
 # NotebookLM
 
-**Mode**: 🔐 Browser Bridge · **Domain**: `notebooklm.google.com`
+**Mode**: 🔐 Browser Bridge · **Domain**: `notebook.google.com`
 
 ## Commands
 
@@ -48,7 +48,7 @@ Read commands expose NotebookLM metadata, sources, notes, summaries, and history
 ```bash
 opencli notebooklm status
 opencli notebooklm list -f json
-opencli notebooklm open nb-demo -f json
+opencli notebooklm open 17e2b882-6a01-4c6c-9262-0738dfa2abee -f json
 opencli notebooklm current -f json
 opencli notebooklm get -f json
 opencli notebooklm source-list -f json
@@ -79,8 +79,10 @@ opencli notebooklm generate-slides 17e2b882-6a01-4c6c-9262-0738dfa2abee --length
 ## Notes
 
 - Notebook-oriented commands run in OpenCLI's owned NotebookLM adapter session/window. Use `opencli notebooklm open <notebook>` first to choose the current notebook for follow-up commands.
-- `list`, `get`, `source-list`, `history`, `source-fulltext`, and `source-guide` prefer NotebookLM RPC paths and fall back only when the richer path is unavailable.
+- The adapter's semantic strategy is same-origin page fetch against NotebookLM's internal, unstable RPC contract. The manifest's `cookie` label describes the browser session carrier; it is not a stable cookie API.
+- `list` uses the active trusted NotebookLM page origin for RPC. It falls back only to valid, non-empty page rows; authentication and an RPC failure with empty fallbacks remain typed failures rather than empty success.
+- `get`, `source-list`, `history`, `source-fulltext`, and `source-guide` prefer NotebookLM RPC paths and fall back only when the richer path is unavailable.
 - `notes-get` currently reads note content only from the visible Studio note editor; if the note is listed but not open, open it in NotebookLM first and then retry.
 - All NotebookLM write commands require `--execute` and fail before opening a browser/RPC write path when it is absent.
-- Write commands accept a bare notebook UUID or a canonical `https://notebooklm.google.com/notebook/<uuid>` URL. Off-domain, non-HTTPS, credentialed, or custom-port notebook URLs are rejected.
+- Generated home and notebook URLs use `https://notebook.google.com/`. Notebook targets accept that host and the legacy redirecting `https://notebooklm.google.com/` host for compatibility; suffix/lookalike, non-HTTPS, credentialed, and custom-port URLs are rejected.
 - `add-source` accepts exactly one source input: `--url`, `--content`, or `--file`.
