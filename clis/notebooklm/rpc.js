@@ -175,7 +175,8 @@ export async function callNotebooklmRpc(page, rpcId, params, options = {}) {
     const auth = await getNotebooklmPageAuth(page);
     const requestBody = buildNotebooklmRpcBody(rpcId, params, auth.csrfToken);
     const authuser = auth.authuser || '';
-    const url = `https://${NOTEBOOKLM_DOMAIN}/_/LabsTailwindUi/data/batchexecute` +
+    // Use the current page origin so redirected NotebookLM pages stay same-origin.
+    const url = `/_/LabsTailwindUi/data/batchexecute` +
         `?rpcids=${rpcId}&source-path=${encodeURIComponent(auth.sourcePath)}` +
         (authuser ? `&authuser=${encodeURIComponent(authuser)}` : '') +
         `&hl=${encodeURIComponent(options.hl ?? 'en')}` +
