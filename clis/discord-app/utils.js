@@ -207,17 +207,43 @@ export function buildListServersScript() {
           }
         }
 
+        function guildItemOf(item) {
+          if (!item || !item.matches) return null;
+          if (item.matches('[data-list-item-id*="guildsnav___"]')) return item;
+          return item.closest('[data-list-item-id*="guildsnav___"]')
+            || item.querySelector('[data-list-item-id*="guildsnav___"]');
+        }
+
+        function parseGuildItemId(item) {
+          var guildItem = guildItemOf(item);
+          var listItemId = guildItem ? guildItem.getAttribute('data-list-item-id') || '' : '';
+          var match = listItemId.match(/^guildsnav___(\\d+)$/);
+          return match ? match[1] : '';
+        }
+
         var rows = [];
         var seen = new Set();
         var items = Array.from(document.querySelectorAll('a[href^="/channels/"], [data-list-item-id*="guildsnav___"], [class*="listItem_"]'));
         items.forEach(function(item) {
+          var guildItem = guildItemOf(item);
           var link = item.matches && item.matches('a[href^="/channels/"]') ? item : item.querySelector && item.querySelector('a[href^="/channels/"]');
           var href = link ? link.getAttribute('href') || '' : '';
-          var guildId = parseGuildId(href);
+          var guildId = parseGuildItemId(item) || parseGuildId(href);
           if (!guildId || seen.has(guildId)) return;
 
-          var named = item.querySelector && item.querySelector('[data-dnd-name]');
+          var named = (guildItem && guildItem.matches('[data-dnd-name]') ? guildItem : null)
+            || (guildItem && guildItem.querySelector('[data-dnd-name]'))
+            || (item.querySelector && item.querySelector('[data-dnd-name]'));
           var name = named ? named.getAttribute('data-dnd-name') : '';
+          if (!name && guildItem) name = guildItem.getAttribute('aria-label') || '';
+          if (!name && guildItem) {
+            var labelled = guildItem.querySelector('[role="treeitem"][aria-label]');
+            name = labelled ? labelled.getAttribute('aria-label') || '' : '';
+          }
+          if (!name && guildItem) {
+            var image = guildItem.querySelector('img[alt]');
+            name = image ? image.getAttribute('alt') || '' : '';
+          }
           if (!name) name = item.getAttribute && item.getAttribute('aria-label') || '';
           if (!name && link) name = link.getAttribute('aria-label') || link.getAttribute('title') || '';
           name = String(name || '').replace(/\\s+/g, ' ').trim();

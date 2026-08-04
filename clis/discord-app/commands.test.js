@@ -12,6 +12,7 @@ import './threads.js';
 import {
     buildDiscordChannelUrl,
     buildListChannelsScript,
+    buildListServersScript,
     buildListThreadsScript,
     listDiscordChannels,
     listDiscordServers,
@@ -109,6 +110,62 @@ describe('discord-app DOM extraction scripts', () => {
                 url: 'https://discord.com/channels/111/444',
             },
         ]);
+    });
+
+    it('lists servers from current guild navigation items without channel links', () => {
+        const rows = runDomScript(`
+          <nav>
+            <div class="listItem_home" data-list-item-id="guildsnav___home" aria-label="Direct Messages"></div>
+            <div class="listItem_server">
+              <svg>
+                <foreignObject>
+                  <div data-dnd-name="OpenCLI">
+                    <div data-list-item-id="guildsnav___111" role="treeitem">
+                      <span>OpenCLI</span>
+                    </div>
+                  </div>
+                </foreignObject>
+              </svg>
+            </div>
+            <div class="listItem_server">
+              <div data-list-item-id="guildsnav___222" role="treeitem" aria-label="Agent Lab"></div>
+            </div>
+            <div class="listItem_add" data-list-item-id="guildsnav___create-join-a-guild" aria-label="Add a Server"></div>
+            <div class="listItem_discover" data-list-item-id="guildsnav___guild-discovery" aria-label="Discover"></div>
+          </nav>
+        `, buildListServersScript());
+
+        expect(rows).toEqual([
+            {
+                Index: 1,
+                Server: 'OpenCLI',
+                guild_id: '111',
+                url: 'https://discord.com/channels/111',
+            },
+            {
+                Index: 2,
+                Server: 'Agent Lab',
+                guild_id: '222',
+                url: 'https://discord.com/channels/222',
+            },
+        ]);
+    });
+
+    it('keeps supporting legacy guild channel links', () => {
+        const rows = runDomScript(`
+          <nav>
+            <div class="listItem_server">
+              <a href="/channels/333" aria-label="Legacy Guild"></a>
+            </div>
+          </nav>
+        `, buildListServersScript());
+
+        expect(rows).toEqual([{
+            Index: 1,
+            Server: 'Legacy Guild',
+            guild_id: '333',
+            url: 'https://discord.com/channels/333',
+        }]);
     });
 
     it('lists visible forum/thread cards with thread ids', () => {
