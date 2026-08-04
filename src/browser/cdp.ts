@@ -489,11 +489,31 @@ function matchesCookieDomain(cookieDomain: string, targetDomain: string): boolea
 function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
   const preferredPattern = compilePreferredPattern(process.env.OPENCLI_CDP_TARGET);
 
-  const ranked = targets
+  const candidates = targets
     .map((target, index) => ({ target, index, score: scoreCDPTarget(target, preferredPattern) }))
-    .filter(({ score }) => Number.isFinite(score))
+    .filter(({ score }) => Number.isFinite(score));
+
+  // Electron apps route auxiliary windows onto the main document through a
+  // query: Codex ships its avatar overlay as
+  // `app://-/index.html?initialRoute=%2Favatar-overlay`, which answers `/json`
+  // first and scores exactly like the main window, so document order used to
+  // send every command to a surface with no app UI (#2242). Only break that
+  // tie; a routed window that outscores its plain sibling is still the better
+  // target, and on http(s) a query is ordinary page state.
+  const plainDocuments = new Set<string>();
+  for (const { target } of candidates) {
+    const url = parseLocalDocumentUrl(target.url);
+    if (url && !url.search) plainDocuments.add(toDocumentKey(url));
+  }
+
+  const ranked = candidates
+    .map((entry) => {
+      const url = parseLocalDocumentUrl(entry.target.url);
+      return { ...entry, routed: !!url && !!url.search && plainDocuments.has(toDocumentKey(url)) };
+    })
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
+      if (a.routed !== b.routed) return a.routed ? 1 : -1;
       return a.index - b.index;
     });
 
@@ -539,6 +559,32 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   }
 
   return score;
+}
+
+// Keep this explicit: these are the schemes Electron serves a shared local
+// document over, where a query is a window route (#2242). A "not http(s)"
+// check would also sweep in schemes we know nothing about.
+const LOCAL_DOCUMENT_SCHEMES = new Set(['app:', 'file:']);
+
+/**
+ * Parse a URL that names a local app document eligible for routed-window
+ * demotion (#2242).
+ *
+ * Only allowlisted schemes qualify: on http(s), and on any scheme we cannot
+ * vouch for, a query is ordinary page state, so returning null there keeps
+ * plain document-order selection.
+ */
+function parseLocalDocumentUrl(raw: string | undefined): URL | null {
+  try {
+    const url = new URL(raw ?? '');
+    return LOCAL_DOCUMENT_SCHEMES.has(url.protocol) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function toDocumentKey(url: URL): string {
+  return `${url.protocol}//${url.host}${url.pathname}`;
 }
 
 function compilePreferredPattern(raw: string | undefined): RegExp | undefined {
