@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { parseTweetUrl, unwrapBrowserResult } from './shared.js';
 import {
@@ -214,7 +214,7 @@ async function waitForReplySent(page, text) {
                 // Composer disappearance or text clearing alone can happen after
                 // modal rewrites or failed submits. Require a fresh success toast.
             }
-            return { ok: false, message: 'Reply submission did not complete before timeout.' };
+            return { ok: false, unconfirmed: true, message: 'Reply submission did not complete before timeout.' };
         })()`), 'Twitter reply completion');
         validateReplyStatusUrl(result);
         return result;
@@ -280,15 +280,21 @@ cli({
             // back to the target tweet's visible Reply action.
             const composer = await openReplyComposer(page, kwargs.url);
             if (!composer?.ok) {
-                return [{ status: 'failed', message: composer?.message ?? 'Could not open the reply composer.', text: kwargs.text }];
+                throw new CommandExecutionError(composer?.message ?? 'Could not open the reply composer.', 'Open the tweet in the browser and check whether the reply box is available.');
             }
             if (localImagePath) {
                 await page.wait({ selector: COMPOSER_FILE_INPUT_SELECTOR, timeout: 20 });
                 await attachComposerImage(page, localImagePath);
             }
             const result = await submitReply(page, kwargs.text);
+            if (result.unconfirmed) {
+                throw new TimeoutError('twitter reply', SUBMIT_TIMEOUT_MS / 1000, `${result.message} Check the tweet before retrying; the reply may already be live.`);
+            }
+            if (!result.ok) {
+                throw new CommandExecutionError(result.message, 'Nothing was posted. Open the tweet in the browser and retry.');
+            }
             return [{
-                    status: result.ok ? 'success' : 'failed',
+                    status: 'success',
                     message: result.message,
                     text: kwargs.text,
                     ...(result.url ? { url: result.url } : {}),

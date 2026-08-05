@@ -84,12 +84,12 @@ cli({
         await page.goto(target.url);
         await page.wait({ selector: '[data-testid="primaryColumn"]' }); // Wait for tweet to load completely
         const result = unwrapBrowserResult(await page.evaluate(buildDeleteScript(target.id)));
-        if (result.ok) {
-            // Wait for the deletion request to be processed
-            await page.wait(2);
+        if (!result.ok) {
+            throw new CommandExecutionError(result.message, 'Nothing changed. Open the tweet in the browser and retry.');
         }
+        await page.wait(2);
         return [{
-                status: result.ok ? 'success' : 'failed',
+                status: 'success',
                 message: result.message
             }];
     }
