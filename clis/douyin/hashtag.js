@@ -20,6 +20,10 @@ function requireListField(res, field, action) {
 
 function validateHashtagArgs(kwargs) {
     const action = kwargs.action;
+    const limit = Number(kwargs.limit ?? 10);
+    if (!Number.isInteger(limit) || limit < 1) {
+        throw new ArgumentError(`--limit must be a positive integer, got ${JSON.stringify(kwargs.limit)}`);
+    }
     if (action === 'search') {
         const keyword = String(kwargs.keyword ?? '').trim();
         if (!keyword) {
@@ -55,22 +59,24 @@ cli({
         const action = kwargs.action;
         if (action === 'search') {
             const keyword = String(kwargs.keyword ?? '').trim();
-            const url = `https://creator.douyin.com/aweme/v1/challenge/search/?keyword=${encodeURIComponent(keyword)}&count=${kwargs.limit}&aid=1128`;
+            // challenge/search answers 200 with an empty body; the creator
+            // studio composer reads suggestions from this endpoint instead,
+            // which ignores count and returns a fixed-size list (#2205).
+            const url = `https://creator.douyin.com/aweme/v1/search/challengesug/?keyword=${encodeURIComponent(keyword)}&source=challenge_create&aid=2906`;
             const res = await browserFetch(page, 'GET', url);
-            const list = requireListField(res, 'challenge_list', 'search');
+            const list = requireListField(res, 'sug_list', 'search');
             const rows = list.flatMap(c => {
-                const info = c?.challenge_info;
-                if (!isPlainObject(info)) return [];
+                if (!isPlainObject(c) || typeof c.cha_name !== 'string' || !c.cha_name) return [];
                 return [{
-                    name: info.cha_name,
-                    id: info.cid,
-                    view_count: info.view_count,
+                    name: c.cha_name,
+                    id: c.cid ?? '',
+                    view_count: c.view_count ?? 0,
                 }];
             });
             if (list.length > 0 && rows.length === 0) {
-                throw new CommandExecutionError('douyin hashtag search: API returned challenges but none had stable challenge_info shape');
+                throw new CommandExecutionError('douyin hashtag search: API returned suggestions but none had a stable shape');
             }
-            return rows;
+            return rows.slice(0, kwargs.limit);
         }
         if (action === 'suggest') {
             const cover = String(kwargs.cover ?? '').trim();
