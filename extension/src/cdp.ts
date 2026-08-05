@@ -6,6 +6,36 @@
  * tabs (resolveTabId in background.ts filters them).
  */
 
+/**
+ * Injected into every document before its own scripts run.
+ *
+ * A page that arms `beforeunload` opens a native "Leave site?" prompt on the
+ * next navigation. The CLI cannot answer it, so navigation never returns and
+ * every later evaluate reads an empty document. Blink dispatches listeners on a
+ * target in registration order, so this has to be registered first, which means
+ * Page.addScriptToEvaluateOnNewDocument rather than a post-load evaluate.
+ *
+ * Kept in step with generateBeforeUnloadGuardJs() in
+ * src/browser/beforeunload-guard.ts, which serves the direct-CDP path; only
+ * the test-facing return values differ. The extension cannot import from the
+ * CLI package.
+ */
+const BEFORE_UNLOAD_GUARD_JS = `
+  (() => {
+    const holder = EventTarget.prototype;
+    const key = '__lsnUnload';  // looks like an internal listener cache
+    if (Object.getOwnPropertyDescriptor(holder, key)) return;
+    try {
+      Object.defineProperty(holder, key, { value: true, enumerable: false, configurable: true });
+    } catch {}
+    window.addEventListener('beforeunload', (event) => {
+      event.stopImmediatePropagation();
+      event.returnValue = '';
+    }, true);
+    window.onbeforeunload = null;
+  })()
+`;
+
 const attached = new Set<number>();
 
 const tabFrameContexts = new Map<number, Map<string, number>>();
@@ -206,6 +236,18 @@ export async function ensureAttached(tabId: number, aggressiveRetry: boolean = f
     await sendDebuggerCommand({ tabId }, 'Runtime.enable');
   } catch {
     // Some pages may not need explicit enable
+  }
+
+  // Arm the beforeunload guard for every document this tab loads from now on,
+  // and dismiss a prompt that a document loaded before the attach can still
+  // raise. Both are best-effort: a tab that rejects Page is still usable.
+  try {
+    await sendDebuggerCommand({ tabId }, 'Page.enable');
+    await sendDebuggerCommand({ tabId }, 'Page.addScriptToEvaluateOnNewDocument', {
+      source: BEFORE_UNLOAD_GUARD_JS,
+    });
+  } catch {
+    // Page domain unavailable on this target
   }
 
   // Restore network capture that the re-attach (detach + onDetach) tore down.
@@ -830,6 +872,20 @@ export function registerListeners(): void {
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
     if (info.url && !isDebuggableUrl(info.url)) {
       await detach(tabId);
+    }
+  });
+  // A document that loaded before the attach never ran the guard, so its
+  // prompt can still open and block the tab. Accepting it lets the pending
+  // navigation finish; the CLI has no way to answer the dialog itself.
+  chrome.debugger.onEvent.addListener(async (source, method, params) => {
+    if (method !== 'Page.javascriptDialogOpening') return;
+    if ((params as { type?: string } | undefined)?.type !== 'beforeunload') return;
+    const tabId = source.tabId;
+    if (!tabId) return;
+    try {
+      await sendDebuggerCommand({ tabId }, 'Page.handleJavaScriptDialog', { accept: true });
+    } catch {
+      // The dialog may already be gone
     }
   });
   chrome.debugger.onEvent.addListener(async (source, method, params) => {

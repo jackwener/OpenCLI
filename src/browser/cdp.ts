@@ -14,6 +14,7 @@ import { request as httpsRequest } from 'node:https';
 import type { BrowserCookie, BrowserEvaluateFunction, IPage, ScreenshotOptions } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { buildEvaluateExpression } from './utils.js';
+import { generateBeforeUnloadGuardJs } from './beforeunload-guard.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
@@ -84,11 +85,19 @@ export class CDPBridge implements IBrowserFactory {
         try {
           await this.send('Page.enable');
           await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
+          await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateBeforeUnloadGuardJs() });
         } catch (err) {
           ws.close();
           reject(err instanceof Error ? err : new Error(String(err)));
           return;
         }
+        // A document already loaded at connect never ran the guard, so its
+        // prompt can still open and block the target. Accepting it lets the
+        // pending navigation finish; alert/confirm/prompt stay with the caller.
+        this.on('Page.javascriptDialogOpening', (params) => {
+          if (!isRecord(params) || params.type !== 'beforeunload') return;
+          this.send('Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
+        });
         resolve(new CDPPage(this));
       });
 
