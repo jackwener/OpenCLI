@@ -532,6 +532,27 @@ describe('uninstallPlugin', () => {
   it('throws for non-existent plugin', () => {
     expect(() => uninstallPlugin('__nonexistent__')).toThrow('not installed');
   });
+
+  it('removes a dangling symlink (monorepo target deleted) instead of refusing', () => {
+    const linkName = '__test-uninstall-dangling__';
+    const link = path.join(PLUGINS_DIR, linkName);
+    fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-dangling-'));
+    try { fs.rmSync(link, { force: true }); } catch {}
+    fs.symlinkSync(target, link, 'dir');
+    fs.rmSync(target, { recursive: true, force: true }); // now dangling
+
+    try {
+      // existsSync follows the link → false, but the dead link is still there.
+      expect(fs.existsSync(link)).toBe(false);
+      expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+
+      expect(() => uninstallPlugin(linkName)).not.toThrow();
+      expect(() => fs.lstatSync(link)).toThrow(); // dead link removed
+    } finally {
+      try { fs.rmSync(link, { force: true }); } catch {}
+    }
+  });
 });
 
 describe('updatePlugin', () => {
