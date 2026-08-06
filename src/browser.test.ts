@@ -170,6 +170,31 @@ describe('BrowserBridge state', () => {
     await expect(bridge.connect({ timeout: 0.1 })).rejects.toThrow('Browser Bridge extension not connected');
   });
 
+  it('threads preferredContextId into every readiness health read', async () => {
+    const { PKG_VERSION } = await import('./version.js');
+    const spy = vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
+      state: 'no-extension',
+      status: {
+        ok: true,
+        pid: 999999,
+        uptime: 0,
+        daemonVersion: PKG_VERSION,
+        extensionConnected: false,
+        pending: 0,
+        memoryMB: 0,
+        port: 0,
+      },
+    });
+
+    const bridge = new BrowserBridge();
+
+    await expect(bridge.connect({ timeout: 0.1, preferredContextId: 'zvypsyje' })).rejects.toThrow('Browser Bridge extension not connected');
+    expect(spy.mock.calls.length).toBeGreaterThan(1);
+    for (const call of spy.mock.calls) {
+      expect(call[0]).toMatchObject({ preferredContextId: 'zvypsyje' });
+    }
+  });
+
   it('attempts stale daemon replacement when daemonVersion is missing', async () => {
     vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
       state: 'no-extension',

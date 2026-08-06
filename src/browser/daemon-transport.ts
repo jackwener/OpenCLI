@@ -66,10 +66,13 @@ export async function requestDaemon(pathname: string, init?: RequestInit & { tim
   }
 }
 
-export async function fetchDaemonStatus(opts?: { timeout?: number; contextId?: string }): Promise<DaemonStatus | null> {
+export async function fetchDaemonStatus(opts?: { timeout?: number; contextId?: string; preferredContextId?: string }): Promise<DaemonStatus | null> {
   try {
-    const params = opts?.contextId ? `?contextId=${encodeURIComponent(opts.contextId)}` : '';
-    const res = await requestDaemon(`/status${params}`, { timeout: opts?.timeout ?? 2000 });
+    const query = new URLSearchParams({
+      ...(opts?.contextId ? { contextId: opts.contextId } : {}),
+      ...(opts?.preferredContextId ? { preferredContextId: opts.preferredContextId } : {}),
+    }).toString();
+    const res = await requestDaemon(`/status${query ? `?${query}` : ''}`, { timeout: opts?.timeout ?? 2000 });
     if (!res.ok) return null;
     return await res.json() as DaemonStatus;
   } catch (err) {
@@ -78,7 +81,7 @@ export async function fetchDaemonStatus(opts?: { timeout?: number; contextId?: s
   }
 }
 
-export async function getDaemonHealth(opts?: { timeout?: number; contextId?: string }): Promise<DaemonHealth> {
+export async function getDaemonHealth(opts?: { timeout?: number; contextId?: string; preferredContextId?: string }): Promise<DaemonHealth> {
   const status = await fetchDaemonStatus(opts);
   if (!status) return { state: 'stopped', status: null };
   if (status.profileRequired) return { state: 'profile-required', status };
