@@ -3483,6 +3483,129 @@
     "sourceFile": "bbc/topic.js"
   },
   {
+    "site": "bikewale",
+    "name": "brand",
+    "description": "List every model a BikeWale brand sells: price, rating, key specs (displacement / mileage / power) and on-sale vs upcoming status.",
+    "access": "read",
+    "example": "opencli bikewale brand royalenfield",
+    "domain": "bikewale",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "brand",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Brand name / slug, e.g. \"royalenfield\", \"honda\", \"bajaj\", \"tvs\"."
+      }
+    ],
+    "columns": [
+      "model",
+      "brand",
+      "status",
+      "priceInr",
+      "formattedPrice",
+      "rating",
+      "reviews",
+      "displacementCc",
+      "mileageKmpl",
+      "maxPowerBhp",
+      "fuel",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "bikewale/brand.js",
+    "sourceFile": "bikewale/brand.js"
+  },
+  {
+    "site": "bikewale",
+    "name": "brands",
+    "description": "List every bike/scooter brand on BikeWale (name, slug for `bikewale brand`, popularity), sorted by popularity.",
+    "access": "read",
+    "example": "opencli bikewale brands",
+    "domain": "bikewale",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "brand",
+      "slug",
+      "makeId",
+      "popularity",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "bikewale/brands.js",
+    "sourceFile": "bikewale/brands.js"
+  },
+  {
+    "site": "bikewale",
+    "name": "model",
+    "description": "List every variant of one bike: trim name, price, fuel and the specs that differ between variants (ABS, brakes, tyres, lights...).",
+    "access": "read",
+    "example": "opencli bikewale model royalenfield \"hunter 350\"",
+    "domain": "bikewale",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "make",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Brand name / slug, e.g. \"royalenfield\", \"honda\"."
+      },
+      {
+        "name": "model",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Model name / slug, e.g. \"hunter 350\", \"classic-350\"."
+      }
+    ],
+    "columns": [
+      "variant",
+      "priceInr",
+      "formattedPrice",
+      "fuel",
+      "differences"
+    ],
+    "type": "js",
+    "modulePath": "bikewale/model.js",
+    "sourceFile": "bikewale/model.js"
+  },
+  {
+    "site": "bikewale",
+    "name": "news",
+    "description": "Latest BikeWale bike news & road tests: headline, author, category, relative date and view count (~18 per page).",
+    "access": "read",
+    "example": "opencli bikewale news",
+    "domain": "bikewale",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "page",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Page number (default 1); each page is ~18 articles."
+      }
+    ],
+    "columns": [
+      "title",
+      "author",
+      "category",
+      "date",
+      "views",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "bikewale/news.js",
+    "sourceFile": "bikewale/news.js"
+  },
+  {
     "site": "bilibili",
     "name": "comment",
     "description": "在 B站视频下发表评论或回复（官方 API，需登录；消息里的 @用户 会被解析为真实提及）",
