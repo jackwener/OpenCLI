@@ -1441,6 +1441,7 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
     await focusOwnedWindowIfRequested(existingGroup.windowId, mode);
     const initialTabId2 = await findReusableOwnedContainerTab(existingGroup.windowId, existingGroup.id);
     await persistRuntimeState();
+    console.log(`[opencli] Reused owned ${role} window ${existingGroup.windowId} (initialTab=${initialTabId2 ?? "none"})`);
     return {
       windowId: existingGroup.windowId,
       initialTabId: initialTabId2

@@ -42,6 +42,7 @@ import {
   getSessionLeaseKey,
   isSessionLeaseCommand,
 } from './session-lease.js';
+import * as trace from './browser/trace.js';
 
 const PORT = DEFAULT_DAEMON_PORT;
 if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
@@ -68,6 +69,7 @@ type PendingEntry = {
   contextId: string;
   action: string;
   dispatched: boolean;
+  dispatchTs: number;
   /**
    * All HTTP requests waiting on this command id. The first settler is the
    * original request; transport retries with the same id attach here instead
@@ -199,6 +201,7 @@ function unregisterExtensionConnection(ws: WebSocket): void {
   for (const [contextId, connection] of extensionProfiles.entries()) {
     if (connection.ws !== ws) continue;
     extensionProfiles.delete(contextId);
+    trace.traceExtDisconnect(contextId);
     for (const [id, p] of pending) {
       if (p.contextId !== contextId) continue;
       const failure = buildExtensionDisconnectFailure({
@@ -210,6 +213,7 @@ function unregisterExtensionConnection(ws: WebSocket): void {
         commandResultUnknownCount++;
         log.warn(`[daemon] Command result unknown after extension disconnect (id=${id}, action=${p.action}, context=${contextId})`);
       }
+      trace.traceResult(id, false, Date.now() - p.dispatchTs, failure.errorCode);
       settlePending(id, p, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
     }
   }
@@ -444,12 +448,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             commandResultUnknownCount++;
             log.warn(`[daemon] Command timed out after dispatch (id=${body.id}, action=${entry.action}, timeout=${timeoutMs}ms)`);
           }
+          trace.traceTimeout(body.id, timeoutMs, entry.action);
           settlePending(body.id, entry, { error: new DaemonCommandFailure(failure.message, failure.errorCode, failure.errorHint, failure.status) });
         }, timeoutMs);
         const entry: PendingEntry = {
           contextId: route.connection!.contextId,
           action: typeof body.action === 'string' ? body.action : 'unknown',
           dispatched: false,
+          dispatchTs: Date.now(),
           settlers: [{ resolve, reject }],
           timer,
           ...(leaseKey && leaseRunId ? { leaseKey, runId: leaseRunId } : {}),
@@ -469,6 +475,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           // result is later lost; do not downgrade later disconnects to a
           // pre-dispatch failure just because no result/ack has arrived yet.
           entry.dispatched = true;
+          trace.traceDispatch(body);
         } catch (err) {
           failBeforeDispatch(err);
         }
@@ -542,6 +549,7 @@ wss.on('connection', (ws: WebSocket) => {
         connection.lastSeenAt = Date.now();
         if (connection.extensionVersion) recordExtensionVersion(connection.extensionVersion);
         log.info(`[daemon] Extension profile connected: ${connection.contextId}`);
+        trace.traceExtConnect(connection.contextId, connection.extensionVersion);
         return;
       }
 
@@ -551,6 +559,7 @@ wss.on('connection', (ws: WebSocket) => {
         else if (msg.level === 'warn') log.warn(`[ext] ${msg.msg}`);
         else log.info(`[ext] ${msg.msg}`);
         pushLog({ level: msg.level, msg: msg.msg, ts: msg.ts ?? Date.now() });
+        trace.traceExtLog(msg.level, msg.msg);
         return;
       }
 
@@ -561,6 +570,7 @@ wss.on('connection', (ws: WebSocket) => {
       // Handle command results
       const p = pending.get(msg.id);
       if (p) {
+        trace.traceResult(msg.id, !!msg.ok, Date.now() - p.dispatchTs, typeof msg.errorCode === 'string' ? msg.errorCode : undefined, typeof msg.page === 'string' ? msg.page : undefined);
         settlePending(msg.id, p, { data: msg });
       }
     } catch (err) {
