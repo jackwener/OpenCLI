@@ -400,6 +400,20 @@ describe('resolveEsbuildBin', () => {
     expect(fs.existsSync(binPath!)).toBe(true);
     expect(binPath).toMatch(/esbuild(\.cmd)?$/);
   });
+
+  it('declares esbuild as a production-installable dependency', () => {
+    // transpilePluginTs() needs esbuild at runtime to compile TypeScript
+    // plugins created by `opencli plugin create`. A production install only
+    // pulls `dependencies` + `optionalDependencies`, so esbuild must be
+    // declared in one of those — a transitive devDependency is not installed
+    // by `npm i -g @jackwener/opencli`.
+    const pkg = JSON.parse(
+      fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
+    );
+    const declared =
+      Boolean(pkg.dependencies?.esbuild) || Boolean(pkg.optionalDependencies?.esbuild);
+    expect(declared).toBe(true);
+  });
 });
 
 describe('resolveHostOpencliRoot', () => {
