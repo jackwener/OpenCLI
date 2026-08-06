@@ -225,8 +225,14 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
     return endpoint;
   }
 
-  // Step 2: Running without CDP? (process detection requires Unix tools)
-  if (process.platform !== 'darwin' && process.platform !== 'linux') {
+  // Step 2: Running without CDP? Auto-launch (process detect → kill →
+  // discover → relaunch) is only implemented for macOS — discoverAppPath
+  // resolves a path on darwin alone. On every other platform we must NOT
+  // enter the kill branch below: doing so would pkill the user's running
+  // app and then fail at discoverAppPath (which returns null), leaving the
+  // app dead with a misleading "not installed" error. Degrade gracefully
+  // with a manual-launch hint instead.
+  if (process.platform !== 'darwin') {
     throw new CommandExecutionError(
       `${label} is not reachable on CDP port ${port}.`,
       `Auto-launch is not yet supported on ${process.platform}.\n` +
