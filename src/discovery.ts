@@ -202,7 +202,20 @@ export async function discoverPlugins(): Promise<void> {
  * Unlike discoverClisFromFs, this does NOT expect nested site subdirectories.
  */
 async function discoverPluginDir(dir: string, site: string): Promise<void> {
-  const files = await fs.promises.readdir(dir);
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(dir);
+  } catch (err) {
+    // The directory can disappear between the parent scan and this read
+    // (e.g. a concurrent `opencli plugin remove`). Mirror the broken-symlink
+    // handling in isDiscoverablePluginDir: treat a vanished directory as
+    // "no plugin here" rather than letting startup crash.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+      log.warn(`Failed to scan plugin directory ${dir}: ${getErrorMessage(err)}`);
+    }
+    return;
+  }
   const fileSet = new Set(files);
   await Promise.all(files.map(async (file) => {
     const filePath = path.join(dir, file);
