@@ -60,7 +60,7 @@ describe('auth status collection', () => {
     const rows = await collectAuthStatus({ sites: 'alpha' });
 
     expect(rows).toEqual([
-      { site: 'alpha', status: 'logged_in', logged_in: true, identity: '', checked: 'quick', error: '' },
+      { site: 'alpha', status: 'logged_in', recovery: '', logged_in: true, identity: '', checked: 'quick', error: '' },
     ]);
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
     expect(executeCommandMock.mock.calls[0]?.[0]).toMatchObject({
@@ -81,6 +81,7 @@ describe('auth status collection', () => {
       {
         site: 'beta',
         status: 'unknown',
+        recovery: '',
         logged_in: '',
         identity: '',
         checked: 'skipped',
@@ -103,7 +104,7 @@ describe('auth status collection', () => {
     const rows = await collectAuthStatus({ sites: 'gamma', full: true });
 
     expect(rows).toEqual([
-      { site: 'gamma', status: 'logged_in', logged_in: true, identity: 'public-handle', checked: 'full', error: '' },
+      { site: 'gamma', status: 'logged_in', recovery: '', logged_in: true, identity: 'public-handle', checked: 'full', error: '' },
     ]);
   });
 
@@ -114,7 +115,7 @@ describe('auth status collection', () => {
     const rows = await collectAuthStatus({ sites: 'delta' });
 
     expect(rows).toEqual([
-      { site: 'delta', status: 'not_logged_in', logged_in: false, identity: '', checked: 'quick', error: '' },
+      { site: 'delta', status: 'not_logged_in', recovery: 'opencli delta login', logged_in: false, identity: '', checked: 'quick', error: '' },
     ]);
   });
 });
@@ -131,6 +132,7 @@ describe('auth refresh collection', () => {
       {
         site: 'alpha',
         status: 'touched',
+        recovery: '',
         last_touched_at: now.toISOString(),
         next_refresh_at: '2026-06-07T12:00:00.000Z',
         error: '',
@@ -191,6 +193,7 @@ describe('auth refresh collection', () => {
       {
         site: 'gamma',
         status: 'skipped',
+        recovery: '',
         last_touched_at: '2026-06-06T12:00:00.000Z',
         next_refresh_at: '2026-06-07T12:00:00.000Z',
         error: '',
@@ -224,7 +227,7 @@ describe('auth refresh collection', () => {
   it('does not throttle not_logged_in results', async () => {
     registerWhoami('epsilon', { quick: true, quickLoggedIn: true });
     const statePath = await tempStatePath();
-    executeCommandMock.mockRejectedValueOnce(new AuthRequiredError('epsilon.example.com'));
+    executeCommandMock.mockRejectedValueOnce(new AuthRequiredError('epsilon.example.com', 'session expired for account user@example.com'));
 
     const rows = await collectAuthRefresh({
       sites: 'epsilon',
@@ -233,8 +236,10 @@ describe('auth refresh collection', () => {
     });
 
     expect(rows).toEqual([
-      { site: 'epsilon', status: 'not_logged_in', last_touched_at: '', next_refresh_at: '', error: '' },
+      { site: 'epsilon', status: 'not_logged_in', recovery: 'opencli epsilon login', last_touched_at: '', next_refresh_at: '', error: '' },
     ]);
+    expect(rows[0]?.recovery).not.toContain('epsilon.example.com');
+    expect(rows[0]?.recovery).not.toContain('user@example.com');
     const state = JSON.parse(await readFile(statePath, 'utf8'));
     expect(state.sites.epsilon).toMatchObject({
       last_attempt_at: '2026-06-06T12:00:00.000Z',
@@ -263,7 +268,7 @@ describe('auth refresh collection', () => {
     });
 
     expect(rows).toEqual([
-      { site: 'zeta', status: 'error', last_touched_at: '', next_refresh_at: '', error: 'network down' },
+      { site: 'zeta', status: 'error', recovery: '', last_touched_at: '', next_refresh_at: '', error: 'network down' },
     ]);
     const state = JSON.parse(await readFile(statePath, 'utf8'));
     expect(state.sites.zeta).toMatchObject({
@@ -287,6 +292,7 @@ describe('auth refresh collection', () => {
       {
         site: 'eta',
         status: 'unsupported',
+        recovery: '',
         last_touched_at: '',
         next_refresh_at: '',
         error: 'refresh probe is not available for this site',

@@ -25,6 +25,7 @@ const AUTH_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export interface AuthStatusRow {
   site: string;
   status: AuthStatus;
+  recovery: string;
   logged_in: boolean | '';
   identity: string;
   checked: AuthStatusMode | 'skipped';
@@ -43,6 +44,7 @@ interface AuthStatusOptions {
 export interface AuthRefreshRow {
   site: string;
   status: AuthRefreshStatus;
+  recovery: string;
   last_touched_at: string;
   next_refresh_at: string;
   error: string;
@@ -125,6 +127,10 @@ function nextRefreshAt(entry: AuthRefreshSiteState | undefined): string {
   return touched === null ? '' : new Date(touched + AUTH_REFRESH_INTERVAL_MS).toISOString();
 }
 
+function authRecoveryCommand(site: string): string {
+  return `opencli ${site} login`;
+}
+
 function authWhoamiCommands(): CliCommand[] {
   const seen = new Set<CliCommand>();
   return [...getRegistry().values()]
@@ -198,13 +204,22 @@ function identitySummary(result: unknown): string {
 
 function rowForError(site: string, checked: AuthStatusMode, error: unknown): AuthStatusRow {
   if (error instanceof AuthRequiredError) {
-    return { site, status: 'not_logged_in', logged_in: false, identity: '', checked, error: '' };
+    return {
+      site,
+      status: 'not_logged_in',
+      recovery: authRecoveryCommand(site),
+      logged_in: false,
+      identity: '',
+      checked,
+      error: '',
+    };
   }
   const code = error instanceof CliError ? error.code : '';
   const message = getErrorMessage(error);
   return {
     site,
     status: 'error',
+    recovery: '',
     logged_in: '',
     identity: '',
     checked,
@@ -253,6 +268,7 @@ function refreshRowForError(site: string, entry: AuthRefreshSiteState | undefine
     return {
       site,
       status: 'not_logged_in',
+      recovery: authRecoveryCommand(site),
       last_touched_at: entry?.last_touched_at ?? '',
       next_refresh_at: nextRefreshAt(entry),
       error: '',
@@ -263,6 +279,7 @@ function refreshRowForError(site: string, entry: AuthRefreshSiteState | undefine
   return {
     site,
     status: 'error',
+    recovery: '',
     last_touched_at: entry?.last_touched_at ?? '',
     next_refresh_at: nextRefreshAt(entry),
     error: code ? `${code}: ${message}` : message,
@@ -276,6 +293,7 @@ async function runQuick(cmd: CliCommand, opts: { timeoutSeconds: number; profile
     return {
       site: cmd.site,
       status: 'unknown',
+      recovery: '',
       logged_in: '',
       identity: '',
       checked: 'skipped',
@@ -292,14 +310,23 @@ async function runQuick(cmd: CliCommand, opts: { timeoutSeconds: number; profile
     });
     const loggedIn = normalizeQuickResult(result);
     if (loggedIn === true) {
-      return { site: cmd.site, status: 'logged_in', logged_in: true, identity: '', checked: 'quick', error: '' };
+      return { site: cmd.site, status: 'logged_in', recovery: '', logged_in: true, identity: '', checked: 'quick', error: '' };
     }
     if (loggedIn === false) {
-      return { site: cmd.site, status: 'not_logged_in', logged_in: false, identity: '', checked: 'quick', error: '' };
+      return {
+        site: cmd.site,
+        status: 'not_logged_in',
+        recovery: authRecoveryCommand(cmd.site),
+        logged_in: false,
+        identity: '',
+        checked: 'quick',
+        error: '',
+      };
     }
     return {
       site: cmd.site,
       status: 'unknown',
+      recovery: '',
       logged_in: '',
       identity: '',
       checked: 'quick',
@@ -323,6 +350,7 @@ async function runFull(cmd: CliCommand, opts: { timeoutSeconds: number; profile?
     return {
       site: cmd.site,
       status: 'logged_in',
+      recovery: '',
       logged_in: true,
       identity: identitySummary(result),
       checked: 'full',
@@ -345,6 +373,7 @@ async function runRefresh(cmd: CliCommand, opts: {
     return {
       site: cmd.site,
       status: 'skipped',
+      recovery: '',
       last_touched_at: existing?.last_touched_at ?? '',
       next_refresh_at: nextRefreshAt(existing),
       error: '',
@@ -359,6 +388,7 @@ async function runRefresh(cmd: CliCommand, opts: {
     return {
       site: cmd.site,
       status: 'unsupported',
+      recovery: '',
       last_touched_at: existing?.last_touched_at ?? '',
       next_refresh_at: nextRefreshAt(existing),
       error: 'refresh probe is not available for this site',
@@ -382,6 +412,7 @@ async function runRefresh(cmd: CliCommand, opts: {
     return {
       site: cmd.site,
       status,
+      recovery: '',
       last_touched_at: attemptAt,
       next_refresh_at: new Date(opts.now.getTime() + AUTH_REFRESH_INTERVAL_MS).toISOString(),
       error: '',
@@ -481,7 +512,7 @@ export function registerAuthCommands(program: Command): Command {
       renderOutput(rows, {
         fmt,
         fmtExplicit: status.getOptionValueSource('format') === 'cli',
-        columns: ['site', 'status', 'identity', 'checked', 'error'],
+        columns: ['site', 'status', 'recovery', 'identity', 'checked', 'error'],
         title: 'opencli/auth status',
         source: opts.full ? 'full whoami probe' : 'quick auth check',
       });
@@ -508,7 +539,7 @@ export function registerAuthCommands(program: Command): Command {
       renderOutput(rows, {
         fmt,
         fmtExplicit: refresh.getOptionValueSource('format') === 'cli',
-        columns: ['site', 'status', 'last_touched_at', 'next_refresh_at', 'error'],
+        columns: ['site', 'status', 'recovery', 'last_touched_at', 'next_refresh_at', 'error'],
         title: 'opencli/auth refresh',
         source: opts.all ? 'forced persistent touch' : 'persistent touch with 24h throttle',
       });
