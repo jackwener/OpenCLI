@@ -1,8 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { isRecoverableFileInputError } from './utils.js';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { describeTwitterApiError, resolveTwitterOperationMetadata, unwrapBrowserResult } from './shared.js';
+import { isRecoverableFileInputError, TWITTER_BEARER_TOKEN } from './utils.js';
 
 const MAX_IMAGES = 4;
 const UPLOAD_POLL_MS = 500;
@@ -12,8 +13,53 @@ const COMPOSER_TIMEOUT_MS = 10_000;
 const SUBMIT_POLL_MS = 500;
 const SUBMIT_TIMEOUT_MS = 15_000;
 const COMPOSE_URL = 'https://x.com/compose/post';
+const API_CONTEXT_URL = 'https://x.com/home';
 const FILE_INPUT_SELECTOR = 'input[type="file"][data-testid="fileInput"]';
 const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+// Baked fallback for resolveTwitterOperationMetadata(); runtime lookup still wins
+// when twitter-openapi or the loaded X bundle has newer CreateTweet metadata.
+const CREATE_TWEET_OPERATION = {
+    queryId: '5CdvsV_zjv4L64XFifAglw',
+    features: {
+        premium_content_api_read_enabled: false,
+        communities_web_enable_tweet_community_results_fetch: true,
+        c9s_tweet_anatomy_moderator_badge_enabled: true,
+        responsive_web_grok_analyze_button_fetch_trends_enabled: false,
+        responsive_web_grok_analyze_post_followups_enabled: true,
+        rweb_cashtags_composer_attachment_enabled: true,
+        responsive_web_jetfuel_frame: true,
+        responsive_web_grok_share_attachment_enabled: true,
+        responsive_web_grok_annotations_enabled: true,
+        responsive_web_edit_tweet_api_enabled: true,
+        rweb_conversational_replies_downvote_enabled: false,
+        graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
+        view_counts_everywhere_api_enabled: true,
+        longform_notetweets_consumption_enabled: true,
+        responsive_web_twitter_article_tweet_consumption_enabled: true,
+        content_disclosure_indicator_enabled: true,
+        content_disclosure_ai_generated_indicator_enabled: true,
+        responsive_web_grok_show_grok_translated_post: true,
+        responsive_web_grok_analysis_button_from_backend: true,
+        post_ctas_fetch_enabled: true,
+        longform_notetweets_rich_text_read_enabled: true,
+        longform_notetweets_inline_media_enabled: false,
+        profile_label_improvements_pcf_label_in_post_enabled: true,
+        responsive_web_profile_redirect_enabled: false,
+        rweb_tipjar_consumption_enabled: false,
+        verified_phone_label_enabled: false,
+        articles_preview_enabled: true,
+        rweb_cashtags_enabled: true,
+        responsive_web_grok_community_note_auto_translation_is_enabled: true,
+        responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+        freedom_of_speech_not_reach_fetch_enabled: true,
+        standardized_nudges_misinfo: true,
+        tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
+        responsive_web_grok_image_annotation_enabled: true,
+        responsive_web_grok_imagine_annotation_enabled: true,
+        responsive_web_graphql_timeline_navigation_enabled: true,
+    },
+    fieldToggles: {},
+};
 
 function validateImagePaths(raw) {
     const paths = raw.split(',').map(s => s.trim()).filter(Boolean);
@@ -248,6 +294,94 @@ async function submitTweet(page, text) {
     })()`);
 }
 
+function formatGraphqlErrors(bodyJson) {
+    const errors = Array.isArray(bodyJson?.errors) ? bodyJson.errors : [];
+    if (errors.length === 0) return '';
+    return errors
+        .map((error) => error?.message || JSON.stringify(error))
+        .filter(Boolean)
+        .join('; ')
+        .slice(0, 300);
+}
+
+function extractCreatedTweet(bodyJson) {
+    const result = bodyJson?.data?.create_tweet?.tweet_results?.result;
+    const tweet = result?.tweet || result;
+    if (!tweet || typeof tweet !== 'object') return null;
+    const id = String(tweet.rest_id || tweet.legacy?.id_str || '').trim();
+    if (!/^\d+$/.test(id)) return null;
+    const user = tweet.core?.user_results?.result;
+    const screenName = String(user?.core?.screen_name || user?.legacy?.screen_name || '').trim();
+    return {
+        id,
+        url: screenName ? `https://x.com/${screenName}/status/${id}` : `https://x.com/i/status/${id}`,
+    };
+}
+
+async function postTextViaCreateTweet(page, text) {
+    await page.goto(API_CONTEXT_URL, { waitUntil: 'load', settleMs: 1000 });
+    const cookies = await page.getCookies({ url: 'https://x.com' });
+    const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
+    if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
+
+    const operation = await resolveTwitterOperationMetadata(page, 'CreateTweet', CREATE_TWEET_OPERATION);
+    const payload = {
+        variables: {
+            tweet_text: text,
+            dark_request: false,
+            media: { media_entities: [], possibly_sensitive: false },
+            semantic_annotation_ids: [],
+        },
+        features: operation.features,
+        queryId: operation.queryId,
+    };
+    if (operation.fieldToggles && Object.keys(operation.fieldToggles).length > 0) {
+        payload.fieldToggles = operation.fieldToggles;
+    }
+
+    const headers = JSON.stringify({
+        'Authorization': `Bearer ${decodeURIComponent(TWITTER_BEARER_TOKEN)}`,
+        'X-Csrf-Token': ct0,
+        'X-Twitter-Auth-Type': 'OAuth2Session',
+        'X-Twitter-Active-User': 'yes',
+        'Content-Type': 'application/json',
+    });
+    const apiUrl = `/i/api/graphql/${operation.queryId}/CreateTweet`;
+    const body = JSON.stringify(payload);
+    const result = unwrapBrowserResult(await page.evaluate(`async () => {
+        const r = await fetch(${JSON.stringify(apiUrl)}, {
+            method: 'POST',
+            headers: ${headers},
+            credentials: 'include',
+            body: ${JSON.stringify(body)},
+        });
+        const bodyText = await r.text();
+        let bodyJson = null;
+        try { bodyJson = JSON.parse(bodyText); } catch {}
+        return { ok: r.ok, httpStatus: r.status, bodyJson, bodyText };
+    }`));
+
+    if (result?.httpStatus === 401 || result?.httpStatus === 403) {
+        throw new AuthRequiredError('x.com', `Twitter CreateTweet returned HTTP ${result.httpStatus}`);
+    }
+    if (!result?.ok) {
+        const hint = formatGraphqlErrors(result?.bodyJson);
+        const message = describeTwitterApiError('CreateTweet', result?.httpStatus ?? 0, hint || undefined);
+        return { ok: false, message };
+    }
+
+    const created = extractCreatedTweet(result.bodyJson);
+    if (!created) {
+        const error = formatGraphqlErrors(result.bodyJson);
+        return {
+            ok: false,
+            message: error ? `CreateTweet failed: ${error}` : 'CreateTweet returned no created tweet id.',
+        };
+    }
+
+    return { ok: true, message: 'Tweet posted successfully.', ...created };
+}
+
 cli({
     site: 'twitter',
     name: 'post',
@@ -269,10 +403,25 @@ cli({
         const absPaths = kwargs.images ? validateImagePaths(String(kwargs.images)) : [];
         const text = String(kwargs.text ?? '');
 
-        // The current X standalone composer is /compose/post. It keeps a single,
-        // visible composer and is the same route used by the reply command.
-        await page.goto(COMPOSE_URL, { waitUntil: 'load', settleMs: 2500 });
-        await page.wait({ selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
+        try {
+            // The current X standalone composer is /compose/post. It keeps a single,
+            // visible composer and is the same route used by the reply command.
+            await page.goto(COMPOSE_URL, { waitUntil: 'load', settleMs: 2500 });
+            await page.wait({ selector: '[data-testid="tweetTextarea_0"]', timeout: 15 });
+        } catch (err) {
+            if (absPaths.length > 0) throw err;
+            // This runs before any text insertion or submit click, so the API
+            // fallback cannot duplicate a post. Media posts still need the UI
+            // composer because this path does not upload media entities.
+            const result = await postTextViaCreateTweet(page, text);
+            return [{
+                status: result?.ok ? 'success' : 'failed',
+                message: result?.message ?? 'Tweet failed to post.',
+                text,
+                ...(result?.id ? { id: result.id } : {}),
+                ...(result?.url ? { url: result.url } : {}),
+            }];
+        }
 
         // Attach media before inserting text. Uploading media after Draft.js has
         // text can re-render/reset the editor, causing image-only posts.
