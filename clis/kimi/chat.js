@@ -243,24 +243,24 @@ async function readKimiTurns(page) {
   })()`);
 }
 
-// Kimi pauses between thought chunks (and during web-search / tool calls),
-// so a plain text-stability check quits mid-thinking. The model only renders
-// the Copy/Refresh/Like action buttons on a fully emitted assistant message,
-// so the presence of those SVGs is the reliable "reply is done" signal.
-async function isLatestAssistantComplete(page) {
+// Kimi renders the reply in two phases: a thinking message, then the actual
+// answer (table, recommendations, etc.). Message-level action buttons
+// (Refresh/Like) appear once a single message is done — but the thinking
+// message is itself a complete message, so it gets those buttons too. That
+// makes "wait for action buttons on the last message" fire mid-round-trip.
+// The reliable signal is the *generation state* of the whole round-trip:
+// while the model is still emitting, Kimi shows a Stop button and disables
+// the composer; once it finishes both, the Stop button disappears and the
+// composer comes back. Check those instead.
+async function isKimiGenerating(page) {
     return page.evaluate(`(() => {
-    const box = document.querySelector('.chat-content-list') || document.querySelector('.message-list');
-    if (!box) return false;
-    const rows = Array.from(box.querySelectorAll('.chat-content-item, .segment'));
-    let last = null;
-    for (const row of rows) {
-      const cls = String(row.className || '').toLowerCase();
-      const isAssistant = /chat-content-item-assistant|segment-assistant|assistant|ai-|kimi-|response/i.test(cls)
-        || !!row.querySelector('svg[name="Refresh"], svg[name="Like"]');
-      if (isAssistant) last = row;
-    }
-    if (!last) return false;
-    return !!last.querySelector('svg[name="Refresh"], svg[name="Like"]');
+    // Stop button → still generating.
+    const stopBtn = document.querySelector('svg[name="Stop"]');
+    if (stopBtn) return true;
+    // Composer disabled / aria-disabled → still generating.
+    const editor = document.querySelector('[contenteditable="true"][role="textbox"]');
+    if (editor && (editor.disabled || editor.getAttribute('aria-disabled') === 'true')) return true;
+    return false;
   })()`).catch(() => false);
 }
 
@@ -475,13 +475,14 @@ cli({
                 latestText = next;
                 stable = 0;
             }
-            // Require both: text stable AND the action buttons (Copy/Refresh/Like)
-            // rendered on the last assistant message. Kimi shows those buttons
-            // only once the reply is fully emitted, so they prevent quitting
-            // mid-thinking when the model pauses between thought chunks or
-            // while waiting on a web search.
-            const isComplete = await isLatestAssistantComplete(page);
-            if (latestText && stable >= 2 && isComplete) break;
+            // Require both: text stable AND the model is no longer generating.
+            // Kimi renders the reply in two messages (thinking + answer), and
+            // each message-level action button appears as soon as that message
+            // is emitted, so we can't use them as a "done" signal. Instead,
+            // check the generation state: the Stop button and the disabled
+            // composer both disappear only once the entire round-trip is done.
+            const isGenerating = await isKimiGenerating(page);
+            if (latestText && stable >= 2 && !isGenerating) break;
         }
         const elapsed = Math.round((Date.now() - startedAt) / 1000);
         if (!latestText) {

@@ -189,12 +189,12 @@ describe('kimi write postconditions', () => {
         }
     });
 
-    it('ask waits for action buttons before returning even when text stabilizes earlier', async () => {
-        // The Kimi reply stops emitting text and "looks stable" for several
-        // iterations while the model is still thinking or running a tool call.
-        // A plain text-stability check would break here and return a partial
-        // reply. The Copy/Refresh/Like action buttons only appear once the
-        // message is fully emitted, so we require them before breaking.
+    it('ask waits for the model to stop generating before returning even when text stabilizes earlier', async () => {
+        // Kimi renders the reply in two messages (thinking + answer). The
+        // thinking message stabilizes early and gets its own action buttons,
+        // so a message-level "done" check would return the thinking phase
+        // and miss the actual answer. We instead wait for the generation
+        // state to flip: Stop button gone and composer enabled.
         const page = makePage([
             'https://www.kimi.com/',
             [],
@@ -203,14 +203,17 @@ describe('kimi write postconditions', () => {
             { ok: true },
             { ok: true },
             true,
-            [{ role: 'Assistant', text: '思考中' }],
-            false,
-            [{ role: 'Assistant', text: '思考中' }],
-            false,
-            [{ role: 'Assistant', text: '思考中' }],
-            false,
+            // First three polls: text stable but model is still generating.
+            // Function must NOT break here.
             [{ role: 'Assistant', text: '思考中' }],
             true,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            // Fourth poll: text stable and model is done generating.
+            [{ role: 'Assistant', text: '思考中' }],
+            false,
         ]);
         let now = 1_000;
         const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
