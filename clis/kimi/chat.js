@@ -256,11 +256,11 @@ async function isLatestAssistantComplete(page) {
     for (const row of rows) {
       const cls = String(row.className || '').toLowerCase();
       const isAssistant = /chat-content-item-assistant|segment-assistant|assistant|ai-|kimi-|response/i.test(cls)
-        || !!row.querySelector('svg[name="Copy"], svg[name="Refresh"], svg[name="Like"]');
+        || !!row.querySelector('svg[name="Refresh"], svg[name="Like"]');
       if (isAssistant) last = row;
     }
     if (!last) return false;
-    return !!last.querySelector('svg[name="Copy"], svg[name="Refresh"], svg[name="Like"]');
+    return !!last.querySelector('svg[name="Refresh"], svg[name="Like"]');
   })()`).catch(() => false);
 }
 
