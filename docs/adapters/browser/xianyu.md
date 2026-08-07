@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli xianyu search <query>` | Search Xianyu items by keyword and return item cards with `item_id` |
+| `opencli xianyu search <query>` | Search Xianyu items by keyword and return item cards with `item_id`; supports server-side price and region filters |
 | `opencli xianyu item <item_id>` | Fetch item details including title, price, condition, brand, seller, and image URLs |
 | `opencli xianyu inbox` | List recent Xianyu private-message conversations, including `unread` and `unread_count` |
 | `opencli xianyu messages <item_id> <user_id>` | Read recent visible messages from a specific Xianyu conversation |
@@ -19,6 +19,7 @@
 ```bash
 # Search items
 opencli xianyu search "macbook" --limit 5
+opencli xianyu search "小鹏G9" --min-price 100000 --max-price 200000 --city 深圳 --limit 10
 
 # Read a single item's details
 opencli xianyu item 1040754408976
@@ -57,6 +58,7 @@ opencli xianyu item 1040754408976 -f json
 ## Notes
 
 - `search` returns `item_id`, which can be passed directly into `opencli xianyu item`
+- `search --min-price/--max-price/--province/--city` sends filters through Xianyu's search API instead of filtering returned rows client-side
 - `inbox` returns `unread` and `unread_count`; use `--unread-only true` to list only unread conversations
 - `inbox --resolve-ids true` attempts to click visible rows and resolve `item_id` / `peer_user_id`, but Xianyu may keep some conversations in SPA state without exposing IDs in the URL
 - `messages --rank <n>` and `reply --rank <n>` operate on the visible row number returned by `inbox`, which is more reliable for Xianyu's current IM UI

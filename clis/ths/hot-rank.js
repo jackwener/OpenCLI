@@ -1,50 +1,62 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CliError } from '@jackwener/opencli/errors';
 
-const THS_HOT_URL = 'https://eq.10jqka.com.cn/webpage/ths-hot-list/index.html?showStatusBar=true';
+const THS_HOT_API_URL = 'https://dq.10jqka.com.cn/fuyao/hot_list_data/out/hot_list/v1/stock?stock_type=a&type=hour&list_type=normal';
+
+function tagsFromStock(stock) {
+  const tag = stock?.tag && typeof stock.tag === 'object' ? stock.tag : {};
+  return [
+    ...(Array.isArray(tag.concept_tag) ? tag.concept_tag : []),
+    ...(Array.isArray(tag.popularity_tag) ? tag.popularity_tag : []),
+  ].filter(Boolean).join(',');
+}
+
+function parseLimit(raw) {
+  const limit = Number(raw ?? 20);
+  if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+    throw new CliError('INVALID_ARGUMENT', '--limit must be a positive integer no greater than 100');
+  }
+  return limit;
+}
 
 cli({
   site: 'ths',
   name: 'hot-rank',
     access: 'read',
   description: '同花顺热股榜',
-  domain: 'eq.10jqka.com.cn',
-  strategy: Strategy.COOKIE,
-  navigateBefore: true,
+  domain: 'dq.10jqka.com.cn',
+  strategy: Strategy.PUBLIC,
+  browser: false,
   args: [
     { name: 'limit', type: 'int', default: 20, help: '返回数量' },
   ],
   columns: ['rank', 'name', 'changePercent', 'heat', 'tags'],
-  func: async (page, kwargs) => {
-    await page.goto(THS_HOT_URL);
-    await page.wait({ timeout: 15000 });
-    const data = await page.evaluate(`
-      (() => {
-        const cleanText = (el) => (el?.textContent || '').replace(/\\s+/g, ' ').trim();
-        const cards = document.querySelectorAll('div.pt-22.pb-24.bgc-white.border');
-        const results = [];
-        const seen = new Set();
-        cards.forEach((card, idx) => {
-          const row = card.querySelector('div.flex.bgc-white');
-          if (!row) return;
-          const nameEl = row.querySelector('span.ellipsis');
-          const name = cleanText(nameEl);
-          if (!name || seen.has(name)) return;
-          seen.add(name);
-          const tagEls = card.querySelectorAll('div.tag.PFSC-R');
-          const tags = Array.from(tagEls).map(t => cleanText(t)).filter(Boolean).join(',');
-          const rankEl = row.querySelector('div.THSMF-M.bold');
-          results.push({
-            rank: cleanText(rankEl) || String(idx + 1),
-            name,
-            changePercent: cleanText(row.querySelector('div.range')),
-            heat: cleanText(row.querySelector('div.col4 > span')),
-            tags,
-          });
-        });
-        return results;
-      })()
-    `);
-    if (!Array.isArray(data)) return [];
-    return data.slice(0, kwargs.limit);
+  func: async (args) => {
+    const limit = parseLimit(args.limit);
+    const resp = await fetch(THS_HOT_API_URL, {
+      headers: {
+        'Accept': 'application/json,text/plain,*/*',
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://eq.10jqka.com.cn/',
+      },
+    });
+    if (!resp.ok) throw new CliError('HTTP_ERROR', `ths hot-rank failed: HTTP ${resp.status}`);
+    const payload = await resp.json();
+    const stocks = Array.isArray(payload?.data?.stock_list) ? payload.data.stock_list : [];
+    if (stocks.length === 0) throw new CliError('NO_DATA', 'ths hot-rank API returned no stock data');
+
+    return stocks.slice(0, limit).map((stock, index) => ({
+      rank: stock.order ?? index + 1,
+      name: stock.name ?? '',
+      changePercent: stock.rise_and_fall ?? '',
+      heat: stock.rate ?? '',
+      tags: tagsFromStock(stock),
+    }));
   },
 });
+
+export const __test__ = {
+  THS_HOT_API_URL,
+  parseLimit,
+  tagsFromStock,
+};

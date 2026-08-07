@@ -5,19 +5,50 @@ import './search.js';
 import './hotel-suggest.js';
 import './hotel-search.js';
 import './flight.js';
+import './flight-round.js';
+import './train.js';
+import './hotel.js';
+import './bus.js';
+import './ferry.js';
+import './cruise.js';
+import './tour.js';
+import './package.js';
+import './attraction.js';
+import { __test__ as flightTest } from './flight.js';
 import { __test__ as hotelSearchTest } from './hotel-search.js';
 import {
+    buildAttractionExtractJs,
+    buildAttractionPlaceUrl,
+    buildBusExtractJs,
+    buildBusListUrl,
+    buildCruiseExtractJs,
+    buildCruisePortLookupJs,
+    buildCruiseSearchUrl,
+    buildFerryExtractJs,
+    buildFerryListUrl,
     buildFlightExtractJs,
+    buildHotelDetailExtractJs,
+    buildHotelDetailUrl,
+    buildPackageListUrl,
     buildScrollUntilJs,
+    buildTourListUrl,
+    buildTrainExtractJs,
+    buildTrainListUrl,
     buildUrl,
+    buildVacationsExtractJs,
+    buildWaitForAttractionsJs,
     mapHotelRow,
     mapSuggestRow,
     parseCityId,
+    parseHotelId,
     parseIataCode,
     parseIsoDate,
     parseLimit,
+    parseListLimit,
+    parsePlaceName,
     pickCoords,
     pickHotelMapCoords,
+    WAIT_FOR_HOTEL_DETAIL_JS,
 } from './utils.js';
 
 function createPageMock(evaluateResults) {
@@ -80,8 +111,11 @@ describe('ctrip parseLimit', () => {
         expect(parseLimit('25')).toBe(25);
     });
     it('rejects non-integer', () => {
-        expect(() => parseLimit('abc')).toThrow('--limit must be an integer');
-        expect(() => parseLimit(3.5)).toThrow('--limit must be an integer');
+        expect(() => parseLimit('abc')).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit(3.5)).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit('1e1')).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit(' 10 ')).toThrow('--limit must be a positive integer');
+        expect(() => parseLimit('01')).toThrow('--limit must be a positive integer');
     });
     it('rejects out-of-range without silent clamp', () => {
         expect(() => parseLimit(0)).toThrow('--limit must be between 1 and 50, got 0');
@@ -208,6 +242,16 @@ describe('ctrip search command (registry-level)', () => {
         });
     });
 
+    it('surfaces malformed response shape as typed COMMAND_EXEC, not empty data', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(ok({
+            Result: true, ErrorCode: 0, Response: {},
+        }))));
+        await expect(cmd.func({ query: '上海', limit: 3 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('searchResults'),
+        });
+    });
+
     it('surfaces empty results as EmptyResultError', async () => {
         vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(ok({
             Result: true, ErrorCode: 0, Response: { searchResults: [] },
@@ -276,6 +320,7 @@ describe('ctrip parseIsoDate', () => {
     it('rejects malformed strings', () => {
         expect(() => parseIsoDate('checkin', '2026/06/15')).toThrow(/must be YYYY-MM-DD/);
         expect(() => parseIsoDate('checkin', 'tomorrow')).toThrow(/must be YYYY-MM-DD/);
+        expect(() => parseIsoDate('checkin', ' 2026-06-15 ')).toThrow(/must be YYYY-MM-DD/);
     });
     it('rejects out-of-range month/day before Date math', () => {
         expect(() => parseIsoDate('checkin', '2026-13-01')).toThrow(/invalid month\/day/);
@@ -312,6 +357,9 @@ describe('ctrip parseCityId', () => {
         expect(() => parseCityId(-1)).toThrow(/positive integer/);
         expect(() => parseCityId(2.5)).toThrow(/positive integer/);
         expect(() => parseCityId('shanghai')).toThrow(/positive integer/);
+        expect(() => parseCityId('1e2')).toThrow(/positive integer/);
+        expect(() => parseCityId(' 2 ')).toThrow(/positive integer/);
+        expect(() => parseCityId('02')).toThrow(/positive integer/);
         expect(() => parseCityId('')).toThrow(/--city is required/);
     });
 });
@@ -615,9 +663,16 @@ describe('ctrip flight command (registry-level)', () => {
     });
 
     it('throws CommandExecutionError when every flight row misses core anchors', async () => {
-        const page = createPageMock(['content', 2, [{ ...FLIGHT_RAW, departureAirport: '' }, { ...FLIGHT_RAW, flightNo: null }]]);
+        const page = createPageMock(['content', 2, [{ ...FLIGHT_RAW, departureAirport: '' }, { ...FLIGHT_RAW, arrivalTime: '' }]]);
         await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('required airline/flight/time/airport anchors') });
+    });
+
+    it('keeps a row whose .flight-item card omits the flight number (flightNo null, not dropped)', async () => {
+        const page = createPageMock(['content', 1, [{ ...FLIGHT_RAW, flightNo: null }]]);
+        const rows = await cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].flightNo).toBeNull();
     });
 });
 
@@ -715,5 +770,1173 @@ describe('ctrip buildFlightExtractJs (JSDOM)', () => {
           </span></div>
         `;
         expect(runExtract(html)).toEqual([]);
+    });
+});
+
+const ROUND_ITEM = `
+  <div class="flight-item">
+    <span>新海航｜海南航空</span>
+    <span>19:00</span><span>虹桥国际机场</span><span>T2</span>
+    <span>21:15</span><span>首都国际机场</span><span>T2</span>
+    <span>¥</span><span>817</span><span>起</span>
+    <span>往返总价</span><span>选为去程</span>
+  </div>`;
+
+describe('ctrip buildFlightExtractJs (round-trip .flight-item, optional flightNo)', () => {
+    function runExtract(html, requireFlightNo) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://flights.ctrip.com/' });
+        return Function('document', `return (${buildFlightExtractJs('.flight-item', requireFlightNo)})`)(dom.window.document);
+    }
+
+    it('extracts a round-trip card that omits the flight number (flightNo null, not dropped)', () => {
+        expect(runExtract(ROUND_ITEM, false)).toEqual([{
+            airline: '新海航｜海南航空',
+            flightNo: null,
+            aircraft: null,
+            departureTime: '19:00',
+            departureAirport: '虹桥国际机场',
+            arrivalTime: '21:15',
+            arrivalAirport: '首都国际机场',
+            terminal: 'T2',
+            price: 817,
+            currency: '¥',
+            cabin: null,
+        }]);
+    });
+
+    it('still drops a flightNo-less card when requireFlightNo is true (one-way guard preserved)', () => {
+        expect(runExtract(ROUND_ITEM, true)).toEqual([]);
+    });
+});
+
+describe('ctrip flight-round command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/flight-round');
+
+    const ROUND_RAW = {
+        airline: '新海航｜海南航空',
+        flightNo: null,
+        aircraft: null,
+        departureTime: '19:00',
+        departureAirport: '虹桥国际机场',
+        arrivalTime: '21:15',
+        arrivalAirport: '首都国际机场',
+        terminal: 'T2',
+        price: 817,
+        currency: '¥',
+        cabin: null,
+    };
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('flights.ctrip.com');
+    });
+
+    it('rejects invalid IATA / date / from==to / return-before-depart / limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: 'PE', to: 'SHA', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('IATA') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'PEK', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', depart: '08/15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--depart') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', depart: '2026-08-22', return: '2026-08-15', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('on or after') });
+        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', depart: '2026-08-15', return: '2026-08-22', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired on captcha, EmptyResult on no flights, CommandExec on drift / timeout / malformed', async () => {
+        await expect(cmd.func(createPageMock(['captcha']), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 2, []]), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required flight anchors') });
+        await expect(cmd.func(createPageMock(['timeout']), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render flight cards') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('builds the round-<from>-<to> URL with the depart_return date pair', async () => {
+        const page = createPageMock(['content', 1, [ROUND_RAW]]);
+        await cmd.func(page, { from: 'sha', to: 'bjs', depart: '2026-08-15', return: '2026-08-22', limit: 1 });
+        const url = page.goto.mock.calls[0][0];
+        expect(url).toContain('round-sha-bjs');
+        expect(url).toContain('depdate=2026-08-15_2026-08-22');
+        expect(url).toContain('cabin=Y_S_C_F');
+    });
+
+    it('maps round-trip rows (flightNo may be null) and respects --limit', async () => {
+        const page = createPageMock(['content', 2, [ROUND_RAW, { ...ROUND_RAW, departureTime: '20:15', price: 846 }]]);
+        const rows = await cmd.func(page, { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, airline: '新海航｜海南航空', flightNo: null, departureTime: '19:00', price: 817 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+    });
+
+    it('throws CommandExecutionError when every round-trip row misses core anchors', async () => {
+        const page = createPageMock(['content', 2, [{ ...ROUND_RAW, airline: '' }, { ...ROUND_RAW, departureAirport: '' }]]);
+        await expect(cmd.func(page, { from: 'SHA', to: 'BJS', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('required airline/flight/time/airport anchors') });
+    });
+});
+
+describe('ctrip parsePlaceName', () => {
+    it('accepts Chinese station / city names', () => {
+        expect(parsePlaceName('from', '北京')).toBe('北京');
+        expect(parsePlaceName('to', ' 上海虹桥 ')).toBe('上海虹桥');
+    });
+
+    it('rejects empty / control-char / over-long names', () => {
+        expect(() => parsePlaceName('from', '')).toThrow('required');
+        expect(() => parsePlaceName('from', undefined)).toThrow('required');
+        expect(() => parsePlaceName('from', 'a'.repeat(21))).toThrow('not a valid place name');
+        expect(() => parsePlaceName('from', 'bad\x01name')).toThrow('not a valid place name');
+    });
+});
+
+describe('ctrip parseListLimit', () => {
+    it('falls back to default for empty / undefined / null', () => {
+        expect(parseListLimit(undefined)).toBe(20);
+        expect(parseListLimit('')).toBe(20);
+        expect(parseListLimit(undefined, 5)).toBe(5);
+    });
+
+    it('rejects out-of-range / non-integer values (no silent clamp)', () => {
+        expect(() => parseListLimit(0)).toThrow('--limit');
+        expect(() => parseListLimit(51)).toThrow('--limit');
+        expect(() => parseListLimit(1.5)).toThrow('--limit');
+        expect(() => parseListLimit('abc')).toThrow('--limit');
+        expect(() => parseListLimit('1e1')).toThrow('--limit');
+        expect(() => parseListLimit(' 10 ')).toThrow('--limit');
+        expect(() => parseListLimit('01')).toThrow('--limit');
+    });
+});
+
+describe('ctrip command-specific limit parsers', () => {
+    it('rejects coercive string numerics consistently', () => {
+        for (const bad of ['1e1', ' 10 ', '01']) {
+            expect(() => flightTest.parseFlightLimit(bad)).toThrow('--limit');
+            expect(() => hotelSearchTest.parseHotelLimit(bad)).toThrow('--limit');
+        }
+    });
+
+});
+
+describe('ctrip buildTrainListUrl', () => {
+    it('encodes station names and pins ticketType', () => {
+        const url = buildTrainListUrl('北京', '上海', '2026-08-01');
+        expect(url).toContain('https://trains.ctrip.com/webapp/train/list?');
+        const qs = new URL(url).searchParams;
+        expect(qs.get('dStationName')).toBe('北京');
+        expect(qs.get('aStationName')).toBe('上海');
+        expect(qs.get('dDate')).toBe('2026-08-01');
+        expect(qs.get('ticketType')).toBe('1');
+    });
+});
+
+describe('ctrip train command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/train');
+
+    const TRAIN_RAW = {
+        trainNo: 'G531',
+        departureTime: '06:08',
+        departureStation: '北京南',
+        arrivalTime: '12:04',
+        arrivalStation: '上海虹桥',
+        duration: '5时56分',
+        fromPrice: 626,
+        seats: ['二等座有票', '一等座(抢)', '商务座(抢)'],
+    };
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('trains.ctrip.com');
+    });
+
+    it('rejects invalid station / date / from==to / limit before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: '', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: '北京', to: '北京', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: '北京', to: '上海', date: '08/01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--date') });
+        await expect(cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on render timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render train cards') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('throws EmptyResultError when no cards rendered, CommandExec when cards rendered but no anchors', async () => {
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 3, []]), { from: '北京', to: '上海', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required train anchors') });
+    });
+
+    it('builds the encoded train-list URL from the raw station names', async () => {
+        const page = createPageMock(['content', 1, [TRAIN_RAW]]);
+        await cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 1 });
+        const url = page.goto.mock.calls[0][0];
+        expect(url).toContain('dStationName=%E5%8C%97%E4%BA%AC');
+        expect(url).toContain('dDate=2026-08-01');
+        expect(url).toContain('ticketType=1');
+    });
+
+    it('maps DOM-extracted rows, joins seats, and respects --limit', async () => {
+        const page = createPageMock([
+            'content',
+            2,
+            [TRAIN_RAW, { ...TRAIN_RAW, trainNo: 'G1', fromPrice: 661, seats: ['二等座有票'] }],
+        ]);
+        const rows = await cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            rank: 1,
+            trainNo: 'G531',
+            departureTime: '06:08',
+            departureStation: '北京南',
+            arrivalTime: '12:04',
+            arrivalStation: '上海虹桥',
+            duration: '5时56分',
+            fromPrice: 626,
+            seats: '二等座有票 / 一等座(抢) / 商务座(抢)',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+    });
+
+    it('keeps missing seat availability as null instead of an empty-string sentinel', async () => {
+        const page = createPageMock(['content', 1, [{ ...TRAIN_RAW, seats: [] }]]);
+        const rows = await cmd.func(page, { from: '北京', to: '上海', date: '2026-08-01', limit: 1 });
+        expect(rows[0].seats).toBeNull();
+    });
+});
+
+describe('ctrip buildTrainExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://trains.ctrip.com/' });
+        const js = buildTrainExtractJs();
+        return Function('document', `return (${js})`)(dom.window.document);
+    }
+
+    const CARD = `
+      <div class="card-white list-item">
+        <div class="list-bd">
+          <div class="from"><div class="time">06:08</div><div class="station">北京南</div></div>
+          <div class="mid"><div class="haoshi">5时56分</div><div class="checi">G531<i class="ifont-cert"></i></div></div>
+          <div class="to"><div class="time">12:04</div><div class="station">上海虹桥</div></div>
+          <div class="rbox"><div class="price">626</div></div>
+        </div>
+        <ul class="surplus-list"><li>二等座有票</li><li>一等座(抢)</li><li>商务座(抢)</li></ul>
+      </div>`;
+
+    it('extracts a train card by stable class-keyed fields', () => {
+        expect(runExtract(CARD)).toEqual([{
+            trainNo: 'G531',
+            departureTime: '06:08',
+            departureStation: '北京南',
+            arrivalTime: '12:04',
+            arrivalStation: '上海虹桥',
+            duration: '5时56分',
+            fromPrice: 626,
+            seats: ['二等座有票', '一等座(抢)', '商务座(抢)'],
+        }]);
+    });
+
+    it('keeps fromPrice null when the price node is missing or non-numeric', () => {
+        const noPrice = CARD.replace('<div class="price">626</div>', '<div class="price">--</div>');
+        expect(runExtract(noPrice)[0].fromPrice).toBeNull();
+    });
+
+    it('drops cards missing the train number or endpoints (no sentinel rows)', () => {
+        const noCheci = CARD.replace('G531<i class="ifont-cert"></i>', '');
+        expect(runExtract(noCheci)).toEqual([]);
+        expect(runExtract('<div class="card-white list-item"></div>')).toEqual([]);
+    });
+});
+
+const HOTEL_DETAIL_SSR = {
+    hotelBaseInfo: {
+        masterHotelId: 375539,
+        cityName: '上海',
+        nameInfo: { name: '上海和平饭店', nameEn: '' },
+        starInfo: { level: 5, type: 'star' },
+    },
+    hotelPositionInfo: { address: '上海黄浦区南京东路20号', lat: '31.244714', lng: '121.496056' },
+    hotelComment: {
+        comment: {
+            score: '4.8',
+            scoreDescription: '超棒',
+            totalComment: 5920,
+            scoreDetail: [
+                { showName: '卫生', showScore: '4.8', showType: 'Cleanliness' },
+                { showName: '设施', showScore: '4.8', showType: 'Amenities' },
+                { showName: '环境', showScore: '4.8', showType: 'Location' },
+                { showName: '服务', showScore: '4.8', showType: 'Service' },
+            ],
+        },
+    },
+    hotelFacilityBelt: {
+        facilityList: [
+            { code: 105, facilityDesc: '接机服务', icon: 'ic_pickup' },
+            { code: 1, facilityDesc: '无线WIFI免费', icon: 'ic_wifi' },
+        ],
+    },
+    hotelPolicyInfo: {
+        checkInAndOut: {
+            content: [
+                { description: '入住时间： 15:00后', tags: [] },
+                { description: '退房时间： 12:00前', tags: [] },
+            ],
+        },
+    },
+};
+
+// Shape as projected by buildHotelDetailExtractJs (what page.evaluate returns).
+const HOTEL_DETAIL_ROW = {
+    hotelId: '375539',
+    name: '上海和平饭店',
+    enName: null,
+    star: 5,
+    score: 4.8,
+    scoreLabel: '超棒',
+    reviewCount: 5920,
+    ratingBreakdown: '卫生 4.8 / 设施 4.8 / 环境 4.8 / 服务 4.8',
+    facilities: '接机服务 / 无线WIFI免费',
+    checkInOut: '入住时间： 15:00后 / 退房时间： 12:00前',
+    cityName: '上海',
+    address: '上海黄浦区南京东路20号',
+    lat: 31.244714,
+    lon: 121.496056,
+};
+
+describe('ctrip parseHotelId', () => {
+    it('accepts a positive integer id as string or number', () => {
+        expect(parseHotelId('375539')).toBe(375539);
+        expect(parseHotelId(375539)).toBe(375539);
+    });
+
+    it('rejects blank, non-numeric, zero, negative, and fractional ids', () => {
+        for (const bad of ['', '  ', 'abc', '375539a', '1e2', ' 375539 ', '0375539', 0, -5, 3.5]) {
+            expect(() => parseHotelId(bad)).toThrow(/hotel id/);
+        }
+    });
+});
+
+describe('ctrip buildHotelDetailUrl', () => {
+    it('builds the canonical lowercase-hotelid detail URL', () => {
+        expect(buildHotelDetailUrl(375539)).toBe('https://hotels.ctrip.com/hotels/detail/?hotelid=375539');
+    });
+});
+
+describe('ctrip hotel command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/hotel');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('hotels.ctrip.com');
+    });
+
+    it('rejects a non-numeric / zero id before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { id: 'shanghai' }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('hotel id') });
+        await expect(cmd.func(page, { id: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT' });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { id: 375539 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on SSR timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { id: 375539 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not expose SSR hotel data') });
+        await expect(cmd.func(createPageMock(['content', null]), { id: 375539 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed data') });
+    });
+
+    it('throws EmptyResultError when the SSR profile lacks id or name', async () => {
+        await expect(cmd.func(createPageMock(['content', { hotelId: null, name: null }]), { id: 375539 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
+    it('maps the SSR profile into a single row carrying every declared column', async () => {
+        const page = createPageMock(['content', HOTEL_DETAIL_ROW]);
+        const rows = await cmd.func(page, { id: 375539 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            hotelId: '375539',
+            name: '上海和平饭店',
+            star: 5,
+            score: 4.8,
+            ratingBreakdown: '卫生 4.8 / 设施 4.8 / 环境 4.8 / 服务 4.8',
+            facilities: '接机服务 / 无线WIFI免费',
+            url: 'https://hotels.ctrip.com/hotels/detail/?hotelid=375539',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('hotelid=375539');
+    });
+});
+
+describe('ctrip buildHotelDetailExtractJs (JSDOM)', () => {
+    function runExtract(nextData) {
+        const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+            url: 'https://hotels.ctrip.com/hotels/detail/?hotelid=375539',
+            runScripts: 'outside-only',
+        });
+        dom.window.__NEXT_DATA__ = nextData;
+        const js = buildHotelDetailExtractJs();
+        return dom.window.Function(`return (${js})`)();
+    }
+
+    it('projects the hotel profile, joining sub-scores / facilities / policy', () => {
+        const out = runExtract({ props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } });
+        expect(out).toEqual(HOTEL_DETAIL_ROW);
+    });
+
+    it('returns null when the SSR detail block is absent', () => {
+        expect(runExtract({ props: { pageProps: {} } })).toBeNull();
+    });
+
+    it('detects the rendered SSR block as content via WAIT_FOR_HOTEL_DETAIL_JS', async () => {
+        const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+            url: 'https://hotels.ctrip.com/hotels/detail/?hotelid=375539',
+            runScripts: 'outside-only',
+        });
+        dom.window.__NEXT_DATA__ = { props: { pageProps: { hotelDetailResponse: HOTEL_DETAIL_SSR } } };
+        await expect(dom.window.Function(`return (${WAIT_FOR_HOTEL_DETAIL_JS})`)())
+            .resolves.toBe('content');
+    });
+});
+
+const BUS_CARD = `
+  <div class="list-item-parent">
+    <div class="cor333 fw-bold font16 list-width150 flex-row-start"><div class="margin-left20"></div>07:05</div>
+    <div class="list-width200"><div class="list-item">
+      <div class="flex-row-start"><img class="icon"><div class="font10 cor333 margin-left5">四惠客运站</div></div>
+      <div class="flex-row-center margin-top8"><img class="icon"><div class="font10 cor333 margin-left5">马伸桥</div></div>
+    </div></div>
+    <div class="bus-desc"><div></div><div class="margin-top8">约2时30分</div></div>
+    <div class="flex-row-start"><div class="font10 cor333 margin-top5">￥</div><div class="font18 fw-bold corred">50</div></div>
+    <div class="flex-column-start"><div class="list-seat-parent bg-ccc">暂停网售</div></div>
+  </div>`;
+
+const BUS_RAW = {
+    departureTime: '07:05',
+    fromStation: '四惠客运站',
+    toStation: '马伸桥',
+    duration: '约2时30分',
+    price: 50,
+    status: '暂停网售',
+};
+
+describe('ctrip buildBusListUrl', () => {
+    it('builds the newbus deep-link with a json param payload', () => {
+        const url = buildBusListUrl('北京', '天津', '2026-08-01');
+        expect(url.startsWith('https://bus.ctrip.com/list?param=')).toBe(true);
+        const param = JSON.parse(decodeURIComponent(url.split('param=')[1]));
+        expect(param).toEqual({ fromCity: '北京', toCity: '天津', fromDate: '2026-08-01', fromStation: '', toStation: '' });
+    });
+});
+
+describe('ctrip bus command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/bus');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('bus.ctrip.com');
+    });
+
+    it('rejects invalid city / date / from==to / limit before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: '', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: '北京', to: '北京', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: '北京', to: '天津', date: '08/01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--date') });
+        await expect(cmd.func(page, { from: '北京', to: '天津', date: '2026-08-01', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on render timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render schedule rows') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('throws EmptyResultError when no rows rendered, CommandExec when rendered but no anchors', async () => {
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 3, []]), { from: '北京', to: '天津', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required schedule anchors') });
+    });
+
+    it('builds the deep-link URL and maps rows respecting --limit', async () => {
+        const page = createPageMock([
+            'content',
+            2,
+            [BUS_RAW, { ...BUS_RAW, toStation: '仓上屯', price: 45 }],
+        ]);
+        const rows = await cmd.func(page, { from: '北京', to: '天津', date: '2026-08-01', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            rank: 1,
+            departureTime: '07:05',
+            fromStation: '四惠客运站',
+            toStation: '马伸桥',
+            duration: '约2时30分',
+            price: 50,
+            status: '暂停网售',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('bus.ctrip.com/list?param=');
+    });
+});
+
+describe('ctrip buildBusExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://bus.ctrip.com/list' });
+        const js = buildBusExtractJs();
+        return Function('document', `return (${js})`)(dom.window.document);
+    }
+
+    it('extracts a coach row by stable utility-class fields', () => {
+        expect(runExtract(BUS_CARD)).toEqual([BUS_RAW]);
+    });
+
+    it('keeps price null when the price node is missing or non-numeric', () => {
+        const noPrice = BUS_CARD.replace('<div class="font18 fw-bold corred">50</div>', '<div class="font18 fw-bold corred">--</div>');
+        expect(runExtract(noPrice)[0].price).toBeNull();
+    });
+
+    it('drops rows missing the time or either station (no sentinel rows)', () => {
+        const noTime = BUS_CARD.replace('<div class="margin-left20"></div>07:05', '<div class="margin-left20"></div>');
+        expect(runExtract(noTime)).toEqual([]);
+        expect(runExtract('<div class="list-item-parent"></div>')).toEqual([]);
+    });
+});
+
+const FERRY_CARD = `
+  <div class="flex-row-center list-item-parent">
+    <span class="list-width100">渤海晶珠</span>
+    <div class="list-width400 flex-row-center center-column">
+      <div class="flex-column-end flex1">
+        <div class="cor333 font600 font16">09:00</div>
+        <div class="cor333 font12 margin-top7">辽渔大连湾航运中心</div>
+      </div>
+      <div class="flex-row-center margin-bottom7"><div class="list-item-circle"></div><div class="list-item-line"></div><div class="list-item-circle"></div></div>
+      <div class="flex1">
+        <div class="flex-row-center"><div class="cor333 font600 font16">15:30</div></div>
+        <div class="cor333 font12 margin-top7">烟台港客运站</div>
+      </div>
+    </div>
+    <div class="flex1"></div>
+    <span class="list-width100">6时30分</span>
+    <div class="list-width100"><span>￥</span><span class="corred font15">220</span><span>起</span></div>
+    <div class="list-width100 flex-column-end"><div class="list-seat-parent bg-ffb000">选择舱位</div></div>
+  </div>`;
+
+const FERRY_RAW = {
+    shipName: '渤海晶珠',
+    departureTime: '09:00',
+    fromPort: '辽渔大连湾航运中心',
+    arrivalTime: '15:30',
+    toPort: '烟台港客运站',
+    duration: '6时30分',
+    price: 220,
+    status: '选择舱位',
+};
+
+describe('ctrip buildFerryListUrl', () => {
+    it('builds the ship deep-link with a json param payload', () => {
+        const url = buildFerryListUrl('大连', '烟台', '2026-08-01');
+        expect(url.startsWith('https://ship.ctrip.com/ship/list?param=')).toBe(true);
+        const param = JSON.parse(decodeURIComponent(url.split('param=')[1]));
+        expect(param).toEqual({ fromCityName: '大连', toCityName: '烟台', date: '2026-08-01' });
+    });
+});
+
+describe('ctrip ferry command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/ferry');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('ship.ctrip.com');
+    });
+
+    it('rejects invalid city / date / from==to / limit before browser navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { from: '', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { from: '大连', to: '大连', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('must differ') });
+        await expect(cmd.func(page, { from: '大连', to: '烟台', date: '08/01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--date') });
+        await expect(cmd.func(page, { from: '大连', to: '烟台', date: '2026-08-01', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExecutionError on render timeout and on malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render sailing rows') });
+        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('throws EmptyResultError when no rows rendered, CommandExec when rendered but no anchors', async () => {
+        await expect(cmd.func(createPageMock(['content', 0, []]), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', 3, []]), { from: '大连', to: '烟台', date: '2026-08-01', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required sailing anchors') });
+    });
+
+    it('builds the deep-link URL and maps rows respecting --limit', async () => {
+        const page = createPageMock([
+            'content',
+            2,
+            [FERRY_RAW, { ...FERRY_RAW, shipName: '渤海玉珠', price: 200 }],
+        ]);
+        const rows = await cmd.func(page, { from: '大连', to: '烟台', date: '2026-08-01', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            rank: 1,
+            shipName: '渤海晶珠',
+            departureTime: '09:00',
+            fromPort: '辽渔大连湾航运中心',
+            arrivalTime: '15:30',
+            toPort: '烟台港客运站',
+            duration: '6时30分',
+            price: 220,
+            status: '选择舱位',
+        });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('ship.ctrip.com/ship/list?param=');
+    });
+});
+
+describe('ctrip buildFerryExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://ship.ctrip.com/ship/list' });
+        const js = buildFerryExtractJs();
+        return Function('document', `return (${js})`)(dom.window.document);
+    }
+
+    it('extracts a ferry sailing by stable class-keyed fields', () => {
+        expect(runExtract(FERRY_CARD)).toEqual([FERRY_RAW]);
+    });
+
+    it('keeps price null when the price node is missing or non-numeric', () => {
+        const noPrice = FERRY_CARD.replace('<span class="corred font15">220</span>', '<span class="corred font15">--</span>');
+        expect(runExtract(noPrice)[0].price).toBeNull();
+    });
+
+    it('drops rows missing the departure time or either port (no sentinel rows)', () => {
+        const noPort = FERRY_CARD.replace('<div class="cor333 font12 margin-top7">烟台港客运站</div>', '');
+        expect(runExtract(noPort)).toEqual([]);
+        expect(runExtract('<div class="list-item-parent"></div>')).toEqual([]);
+    });
+});
+
+const CRUISE_CARD = `
+  <div class="route_info">
+    <h2 class="route_title"><span class="route_info_star"><span>4</span><i class="icon_star"></i></span>MSC地中海邮轮·荣耀号·上海-那霸(冲绳)-上海·5天4晚</h2>
+    <p class="route_setout"><span class="route_info_label">上海登船/离船</span></p>
+    <p class="route_sailing"><span class="gray_font">推荐班期：</span><span class="txt_link_strong">2026 09-30</span> 周三</p>
+    <div class="route_label_list"><span class="route_info_txt">免签</span><span class="route_info_txt">码头接送巴士</span></div>
+    <div class="price_sale"><div class="route_price"><span class="price"><dfn>¥</dfn><span>3980</span>起/人</span></div></div>
+  </div>`;
+
+const CRUISE_RAW = {
+    title: 'MSC地中海邮轮·荣耀号·上海-那霸(冲绳)-上海·5天4晚',
+    star: 4,
+    boarding: '上海登船/离船',
+    sailingDate: '2026 09-30',
+    tags: '免签 / 码头接送巴士',
+    price: 3980,
+};
+
+const CRUISE_PORT_LINKS = `
+  <a href="/newpackage/search/s2.html">上海港出发邮轮预订</a>
+  <a href="/newpackage/search/s154.html">天津港出发邮轮预订</a>
+  <a href="/newpackage/search/s340.html">威尼斯港出发邮轮预订</a>`;
+
+describe('ctrip buildCruiseSearchUrl', () => {
+    it('builds the legacy per-port search URL', () => {
+        expect(buildCruiseSearchUrl('154')).toBe('https://cruise.ctrip.com/newpackage/search/s154.html');
+    });
+});
+
+describe('ctrip buildCruisePortLookupJs (JSDOM)', () => {
+    function runLookup(html, port) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://cruise.ctrip.com/newpackage/search/s2.html' });
+        return Function('document', `return (${buildCruisePortLookupJs(port)})`)(dom.window.document);
+    }
+
+    it('resolves a port name to its sN code from the page links', () => {
+        expect(runLookup(CRUISE_PORT_LINKS, '天津')).toBe('154');
+        expect(runLookup(CRUISE_PORT_LINKS, '上海')).toBe('2');
+        expect(runLookup(CRUISE_PORT_LINKS, '威尼斯')).toBe('340');
+    });
+
+    it('returns null when no listed port matches', () => {
+        expect(runLookup(CRUISE_PORT_LINKS, '厦门')).toBeNull();
+    });
+});
+
+describe('ctrip cruise command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/cruise');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('cruise.ctrip.com');
+    });
+
+    it('rejects a blank / over-long port and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { port: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { port: '上海', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected on the index page', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { port: '上海', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError when no listed port matches (before any port navigation)', async () => {
+        const page = createPageMock(['content', null]);
+        await expect(cmd.func(page, { port: '厦门', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        // Only the index page was loaded; the port page is never navigated.
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError when the resolved port has no current sailings', async () => {
+        const page = createPageMock(['content', '154', 'empty']);
+        await expect(cmd.func(page, { port: '天津', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        // Index + resolved port page both navigated before the empty state.
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps rows for a port that is its own index (single navigation)', async () => {
+        const page = createPageMock(['content', '2', [CRUISE_RAW]]);
+        const rows = await cmd.func(page, { port: '上海', limit: 5 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, title: CRUISE_RAW.title, star: 4, price: 3980 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('s2.html');
+    });
+
+    it('resolves a non-index port with a second navigation and maps rows', async () => {
+        const page = createPageMock(['content', '340', 'content', [CRUISE_RAW]]);
+        const rows = await cmd.func(page, { port: '威尼斯', limit: 5 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].url).toContain('s340.html');
+        expect(page.goto).toHaveBeenCalledTimes(2);
+        expect(page.goto.mock.calls[1][0]).toContain('s340.html');
+    });
+
+    it('throws CommandExecutionError when cards render but none parse (drift)', async () => {
+        await expect(cmd.func(createPageMock(['content', '2', []]), { port: '上海', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required itinerary anchors') });
+    });
+});
+
+describe('ctrip buildCruiseExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://cruise.ctrip.com/newpackage/search/s2.html' });
+        return Function('document', `return (${buildCruiseExtractJs()})`)(dom.window.document);
+    }
+
+    it('extracts a cruise card, stripping the leading star digit from the title', () => {
+        expect(runExtract(CRUISE_CARD)).toEqual([CRUISE_RAW]);
+    });
+
+    it('keeps price null when the price node is missing or non-numeric', () => {
+        const noPrice = CRUISE_CARD.replace('<span>3980</span>', '<span>敬请期待</span>');
+        expect(runExtract(noPrice)[0].price).toBeNull();
+    });
+
+    it('drops cards without a title (no sentinel rows)', () => {
+        expect(runExtract('<div class="route_info"></div>')).toEqual([]);
+    });
+});
+
+const TOUR_CARD = `
+  <div class="list_product_item flex flex-row">
+    <div class="list_product_right flex flex-col">
+      <p class="list_product_title" title="北京5日4晚跟团游"><span>北京5日4晚跟团游</span></p>
+      <p class="list_product_subtitle">封顶12人小团</p>
+      <div class="list_label_box"><span class="list_label_blue"><span>0购物</span></span><span class="list_label_blue"><span>成团保障</span></span></div>
+      <div class="list_tiny_comment_box">
+        <span class="list_product_score"><span>4.7</span>分</span>
+        <span class="list_product_travel">已售1968</span>
+        <span class="list_product_comment">567条点评</span>
+      </div>
+    </div>
+    <div class="list_pricetag_container"><span class="list_sr_price">¥3726</span></div>
+  </div>`;
+
+const TOUR_RAW = {
+    title: '北京5日4晚跟团游',
+    subtitle: '封顶12人小团',
+    tags: '0购物 / 成团保障',
+    score: 4.7,
+    sold: 1968,
+    reviews: 567,
+    price: 3726,
+};
+
+describe('ctrip buildTourListUrl', () => {
+    it('builds the vacations search URL with the sv destination param', () => {
+        const url = buildTourListUrl('北京');
+        expect(url.startsWith('https://vacations.ctrip.com/list/whole/sc.html?sv=')).toBe(true);
+        expect(url).toContain('sv=%E5%8C%97%E4%BA%AC');
+    });
+});
+
+describe('ctrip tour command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/tour');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('vacations.ctrip.com');
+    });
+
+    it('rejects a blank destination and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { destination: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { destination: '北京', limit: 99 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { destination: '北京', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError on an empty destination, CommandExec on rendered-but-unparsed', async () => {
+        await expect(cmd.func(createPageMock(['empty']), { destination: '无人区', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', []]), { destination: '北京', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required package anchors') });
+    });
+
+    it('throws CommandExecutionError on render timeout and malformed extraction', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { destination: '北京', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render package cards') });
+        await expect(cmd.func(createPageMock(['content', { rows: [] }]), { destination: '北京', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    });
+
+    it('maps rows and respects --limit', async () => {
+        const page = createPageMock(['content', [TOUR_RAW, { ...TOUR_RAW, title: '北京5日4晚拼小团', price: 4253 }]]);
+        const rows = await cmd.func(page, { destination: '北京', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, title: '北京5日4晚跟团游', score: 4.7, sold: 1968, reviews: 567, price: 3726 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('sv=');
+    });
+});
+
+describe('ctrip buildVacationsExtractJs (JSDOM)', () => {
+    function runExtract(html) {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://vacations.ctrip.com/list/whole/sc.html' });
+        return Function('document', `return (${buildVacationsExtractJs()})`)(dom.window.document);
+    }
+
+    it('extracts a vacations product card by stable class-keyed fields', () => {
+        expect(runExtract(TOUR_CARD)).toEqual([TOUR_RAW]);
+    });
+
+    it('multiplies 万 counts on sold / reviews', () => {
+        const wan = TOUR_CARD.replace('已售1968', '已售7.1万').replace('567条点评', '1.2万条点评');
+        const row = runExtract(wan)[0];
+        expect(row.sold).toBe(71000);
+        expect(row.reviews).toBe(12000);
+    });
+
+    it('keeps numeric fields null when their nodes are missing', () => {
+        const bare = `<div class="list_product_item"><p class="list_product_title" title="北京5日4晚跟团游"><span>北京5日4晚跟团游</span></p></div>`;
+        const row = runExtract(bare)[0];
+        expect(row).toMatchObject({ title: '北京5日4晚跟团游', score: null, sold: null, reviews: null, price: null, tags: null });
+    });
+
+    it('drops cards without a title (no sentinel rows)', () => {
+        expect(runExtract('<div class="list_product_item"></div>')).toEqual([]);
+    });
+});
+
+describe('ctrip buildPackageListUrl', () => {
+    it('builds the vacations freetravel search URL with the sv destination param', () => {
+        const url = buildPackageListUrl('三亚');
+        expect(url.startsWith('https://vacations.ctrip.com/list/freetravel/sc.html?sv=')).toBe(true);
+        expect(url).toContain('sv=%E4%B8%89%E4%BA%9A');
+    });
+});
+
+describe('ctrip package command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/package');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('vacations.ctrip.com');
+    });
+
+    it('rejects a blank destination and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { destination: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { destination: '三亚', limit: 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { destination: '三亚', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws EmptyResultError on an empty destination, CommandExec on rendered-but-unparsed', async () => {
+        await expect(cmd.func(createPageMock(['empty']), { destination: '无人区', limit: 5 }))
+            .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        await expect(cmd.func(createPageMock(['content', []]), { destination: '三亚', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required package anchors') });
+    });
+
+    it('navigates the freetravel search and maps rows respecting --limit', async () => {
+        const page = createPageMock(['content', [TOUR_RAW, { ...TOUR_RAW, title: '三亚5日自由行', price: 2124 }]]);
+        const rows = await cmd.func(page, { destination: '三亚', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, price: 3726 });
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toContain('list/freetravel/sc.html?sv=');
+    });
+});
+
+const ATTRACTION_LINKS = `
+  <div>
+    <a href="/sight/beijing1/229.html?poiType=3">故宫博物院4.8分19.7w条点评穿越明清两朝的皇家宫殿群</a>
+    <a href="/sight/beijing1/62722.html?poiType=3">中国国家博物馆1.3w条点评穿越千年看中华珍宝</a>
+    <a href="/sight/beijing1/230.html?poiType=3">八达岭长城4.7分6.1w条点评不到长城非好汉</a>
+  </div>`;
+
+const ATTRACTION_RAW = {
+    name: '故宫博物院',
+    rating: 4.8,
+    reviews: 197000,
+    url: 'https://you.ctrip.com/sight/beijing1/229.html?poiType=3',
+};
+
+describe('ctrip buildAttractionPlaceUrl', () => {
+    it('routes the place page by the numeric city id with a placeholder slug', () => {
+        expect(buildAttractionPlaceUrl(1)).toBe('https://you.ctrip.com/place/dest1.html');
+        expect(buildAttractionPlaceUrl(2)).toBe('https://you.ctrip.com/place/dest2.html');
+    });
+});
+
+describe('ctrip attraction command (registry-level)', () => {
+    const cmd = getRegistry().get('ctrip/attraction');
+
+    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+        expect(cmd.access).toBe('read');
+        expect(cmd.browser).toBe(true);
+        expect(String(cmd.strategy)).toContain('cookie');
+        expect(cmd.navigateBefore).toBe(false);
+        expect(cmd.domain).toBe('you.ctrip.com');
+    });
+
+    it('rejects a non-numeric city and invalid limit before navigation', async () => {
+        const page = createPageMock([]);
+        await expect(cmd.func(page, { city: '', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('required') });
+        await expect(cmd.func(page, { city: 'beijing', limit: 5 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('city ID') });
+        await expect(cmd.func(page, { city: '1', limit: 99 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws AuthRequired when captcha gate is detected', async () => {
+        const page = createPageMock(['captcha']);
+        await expect(cmd.func(page, { city: '1', limit: 5 }))
+            .rejects.toThrow('Ctrip is asking for a captcha');
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws CommandExec on render timeout, malformed extraction, and rendered-but-unparsed', async () => {
+        await expect(cmd.func(createPageMock(['timeout']), { city: '1', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render attraction links') });
+        await expect(cmd.func(createPageMock(['content', { rows: [] }]), { city: '1', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+        await expect(cmd.func(createPageMock(['content', []]), { city: '1', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not find required sight anchors') });
+    });
+
+    it('maps attraction rows against the sight detail URL and respects --limit', async () => {
+        const page = createPageMock(['content', [ATTRACTION_RAW, { ...ATTRACTION_RAW, name: '八达岭长城', rating: 4.7 }]]);
+        const rows = await cmd.func(page, { city: '1', limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ rank: 1, name: '故宫博物院', rating: 4.8, reviews: 197000 });
+        expect(rows[0].url).toBe('https://you.ctrip.com/sight/beijing1/229.html?poiType=3');
+        for (const row of rows) {
+            for (const col of cmd.columns) expect(row).toHaveProperty(col);
+        }
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.goto.mock.calls[0][0]).toBe('https://you.ctrip.com/place/dest1.html');
+    });
+});
+
+describe('ctrip buildAttractionExtractJs (JSDOM)', () => {
+    function runExtract(html, cityId = '1') {
+        const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`,
+            { url: 'https://you.ctrip.com/place/beijing1.html' });
+        return Function('document', `return (${buildAttractionExtractJs(cityId)})`)(dom.window.document);
+    }
+
+    it('reads name / rating / reviews from each sight link, expanding 万 / w counts', () => {
+        const rows = runExtract(ATTRACTION_LINKS);
+        expect(rows).toHaveLength(3);
+        expect(rows[0]).toEqual(ATTRACTION_RAW);
+        expect(rows[2]).toMatchObject({ name: '八达岭长城', rating: 4.7, reviews: 61000 });
+    });
+
+    it('keeps rating null when a sight lists only a review count', () => {
+        const rows = runExtract(ATTRACTION_LINKS);
+        expect(rows[1]).toMatchObject({ name: '中国国家博物馆', rating: null, reviews: 13000 });
+    });
+
+    it('scopes rows to the requested city, dropping other-city sight anchors', () => {
+        const crossCity = '<a href="/sight/shanghai2/75.html">上海外滩4.7分3.2w条点评</a>';
+        expect(runExtract(ATTRACTION_LINKS + crossCity, '1')).toHaveLength(3);
+        expect(runExtract(crossCity, '1')).toEqual([]);
+        expect(runExtract(crossCity, '2')).toHaveLength(1);
+    });
+
+    it('drops off-domain and non-https sight-like anchors', () => {
+        const bait = `
+          <a href="https://evil.example/sight/beijing1/229.html">假景点4.8分10条点评</a>
+          <a href="http://you.ctrip.com/sight/beijing1/230.html">明文景点4.7分20条点评</a>`;
+        expect(runExtract(bait)).toEqual([]);
+    });
+
+    it('dedupes repeated sight ids and drops links without a name or rating/review signature', () => {
+        expect(runExtract(ATTRACTION_LINKS + ATTRACTION_LINKS)).toHaveLength(3);
+        expect(runExtract('<a href="/sight/beijing1/229.html">4.8分</a>')).toEqual([]);
+        expect(runExtract('<a href="/sight/beijing1/229.html">故宫博物院</a>')).toEqual([]);
+    });
+});
+
+describe('ctrip buildWaitForAttractionsJs (JSDOM)', () => {
+    it('detects the rendered city-scoped sight links as content', async () => {
+        const dom = new JSDOM(`<!doctype html><html><body>${ATTRACTION_LINKS}</body></html>`, {
+            url: 'https://you.ctrip.com/place/beijing1.html',
+            runScripts: 'outside-only',
+        });
+        await expect(dom.window.Function(`return (${buildWaitForAttractionsJs('1')})`)())
+            .resolves.toBe('content');
     });
 });

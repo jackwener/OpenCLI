@@ -3,13 +3,18 @@ import { registerSiteAuthCommands } from '../_shared/site-auth.js';
 
 async function hasChatgptSessionCookie(page) {
   const cookies = await page.getCookies({ url: 'https://chatgpt.com' });
-  return cookies.some(c => c.name === '__Secure-next-auth.session-token' && c.value);
+  // Prefix match: NextAuth chunks large session tokens into
+  // `__Secure-next-auth.session-token.0`, `.1`, … so an exact-name check
+  // false-negatives on chunked sessions (the `auth status`/`refresh`/login
+  // fast paths that consume this). See issue #2087.
+  return cookies.some(c => c.name.startsWith('__Secure-next-auth.session-token') && c.value);
 }
 
 async function verifyChatgptIdentity(page) {
-  if (!await hasChatgptSessionCookie(page)) {
-    throw new AuthRequiredError('chatgpt.com', 'ChatGPT __Secure-next-auth.session-token cookie missing');
-  }
+  // The `/api/auth/session` probe below is authoritative — do NOT pre-gate on the
+  // legacy `__Secure-next-auth.session-token` cookie. Current ChatGPT web
+  // sessions authenticate without that cookie, so gating on it produced false
+  // AUTH_REQUIRED for logged-in users. See issue #2087.
   await page.goto('https://chatgpt.com/');
   await page.wait(2);
   const result = await page.evaluate(`(async () => {
@@ -43,6 +48,10 @@ registerSiteAuthCommands({
   columns: ['user_id', 'name'],
   quickCheck: hasChatgptSessionCookie,
   verify: verifyChatgptIdentity,
+  // Poll keeps the cheap, non-navigating cookie gate: during `login` the browser
+  // sits on the OAuth page, and verify (which navigates to chatgpt.com) must not
+  // run every ~2s or it would yank the user off the login form. #2087 is about
+  // `whoami` (the verify path above); login-completion detection is unchanged.
   poll: async (page) => {
     if (!await hasChatgptSessionCookie(page)) {
       throw new AuthRequiredError('chatgpt.com', 'Waiting for ChatGPT session cookie');

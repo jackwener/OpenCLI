@@ -5,7 +5,7 @@
  *   opencli daemon restart — graceful shutdown, then start a fresh daemon
  */
 
-import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-client.js';
+import { fetchDaemonStatus, requestDaemonShutdown } from '../browser/daemon-transport.js';
 import { restartDaemon } from '../browser/daemon-lifecycle.js';
 import { formatDuration } from '../download/progress.js';
 import { log } from '../logger.js';

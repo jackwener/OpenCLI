@@ -393,3 +393,264 @@ describe('cdp download waits', () => {
     });
   });
 });
+
+describe('cdp network capture survives forced re-attach', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function createReattachMock() {
+    const onDetachListeners: Array<(source: { tabId?: number }) => void> = [];
+    let failNextHealthCheck = false;
+    let networkEnableCount = 0;
+    const debuggerApi = {
+      attach: vi.fn(async () => {}),
+      detach: vi.fn(async ({ tabId }: { tabId?: number }) => {
+        // Chrome fires onDetach whenever the debugger detaches from a tab.
+        for (const fn of onDetachListeners) fn({ tabId });
+      }),
+      sendCommand: vi.fn(async (_target: unknown, method: string, params?: any) => {
+        if (method === 'Runtime.evaluate' && params?.expression === '1') {
+          if (failNextHealthCheck) {
+            failNextHealthCheck = false;
+            throw new Error('Inspected target navigated or closed');
+          }
+          return { result: { value: '1' } };
+        }
+        if (method === 'Network.enable') {
+          networkEnableCount += 1;
+          return {};
+        }
+        return {};
+      }),
+      onDetach: { addListener: vi.fn((fn: (s: { tabId?: number }) => void) => { onDetachListeners.push(fn); }) },
+      onEvent: { addListener: vi.fn() },
+    };
+    const tabs = {
+      get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://x.com/home' })),
+      onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn() },
+    };
+    return {
+      chrome: { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } },
+      debuggerApi,
+      failNextHealthCheck: () => { failNextHealthCheck = true; },
+      networkEnableCount: () => networkEnableCount,
+    };
+  }
+
+  it('preserves armed network capture and re-enables Network across a forced re-attach', async () => {
+    const mock = createReattachMock();
+    vi.stubGlobal('chrome', mock.chrome);
+
+    const mod = await import('./cdp');
+    // Wire the onDetach handler that wipes networkCaptures on detach.
+    mod.registerListeners();
+
+    await mod.startNetworkCapture(1);
+    expect(mod.hasActiveNetworkCapture(1)).toBe(true);
+    const enablesAfterStart = mock.networkEnableCount();
+
+    // The next ensureAttached health-check throws, forcing a detach + re-attach.
+    // The detach fires onDetach (which deletes the capture) and disables the
+    // Network domain — the capture must be restored, not silently dropped.
+    mock.failNextHealthCheck();
+    await mod.ensureAttached(1);
+
+    expect(mod.hasActiveNetworkCapture(1)).toBe(true);
+    expect(mock.networkEnableCount()).toBeGreaterThan(enablesAfterStart);
+  });
+});
+
+describe('cdp network capture correctness', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function createNetworkMock() {
+    const onEventListeners = [];
+    const debuggerApi = {
+      attach: vi.fn(async () => {}),
+      detach: vi.fn(async () => {}),
+      sendCommand: vi.fn(async (_target, method, params) => {
+        if (method === 'Runtime.evaluate' && params?.expression === '1') return { result: { value: '1' } };
+        if (method === 'Network.getRequestPostData') return {}; // no override; use inline postData
+        return {};
+      }),
+      onDetach: { addListener: vi.fn() },
+      onEvent: { addListener: vi.fn((fn) => { onEventListeners.push(fn); }) },
+    };
+    const tabs = {
+      get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://x.com/home' })),
+      onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn() },
+    };
+    const fire = async (method, params) => {
+      for (const fn of onEventListeners) await fn({ tabId: 1 }, method, params);
+    };
+    return {
+      chrome: { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } },
+      fire,
+    };
+  }
+
+  it('preserves the original POST body when a captured request follows a redirect', async () => {
+    const mock = createNetworkMock();
+    vi.stubGlobal('chrome', mock.chrome);
+    const mod = await import('./cdp');
+    mod.registerListeners();
+    await mod.startNetworkCapture(1, 'api.example');
+
+    // Initial POST with a body.
+    await mock.fire('Network.requestWillBeSent', {
+      requestId: 'r1',
+      request: { url: 'https://api.example/login', method: 'POST', postData: 'user=a&pass=b', hasPostData: true },
+    });
+    // The 302 target re-fires with the SAME requestId, carried via redirectResponse,
+    // as a GET with no postData — this must NOT wipe the captured body.
+    await mock.fire('Network.requestWillBeSent', {
+      requestId: 'r1',
+      redirectResponse: { status: 302, url: 'https://api.example/login' },
+      request: { url: 'https://api.example/home', method: 'GET' },
+    });
+
+    const entries = await mod.readNetworkCapture(1);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].requestBodyPreview).toBe('user=a&pass=b');
+    expect(entries[0].requestBodyKind).toBe('string');
+  });
+
+  it('does not create an orphan entry from a response after the request was drained', async () => {
+    const mock = createNetworkMock();
+    vi.stubGlobal('chrome', mock.chrome);
+    const mod = await import('./cdp');
+    mod.registerListeners();
+    await mod.startNetworkCapture(1, 'api.example');
+
+    await mock.fire('Network.requestWillBeSent', {
+      requestId: 'r2',
+      request: { url: 'https://api.example/x', method: 'GET' },
+    });
+    // Read drains entries + clears requestToIndex while the request is in flight.
+    const first = await mod.readNetworkCapture(1);
+    expect(first).toHaveLength(1);
+
+    // Late response for the drained request must not resurrect a half-entry.
+    await mock.fire('Network.responseReceived', {
+      requestId: 'r2',
+      response: { url: 'https://api.example/x', status: 200, mimeType: 'text/html' },
+    });
+    const second = await mod.readNetworkCapture(1);
+    expect(second).toEqual([]);
+  });
+});
+
+describe('cdp evaluateInFrame stale context fallback', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the frame target when the cached context id went stale', async () => {
+    const debuggerEventListeners = [];
+    const debuggerApi = {
+      attach: vi.fn(async () => {}),
+      detach: vi.fn(async () => {}),
+      sendCommand: vi.fn(async (target, method, params) => {
+        if (method === 'Runtime.enable') return {};
+        // The cached context id is stale after the frame navigated: CDP rejects.
+        if (method === 'Runtime.evaluate' && params?.contextId === 99) {
+          throw new Error('Cannot find context with specified id');
+        }
+        if (method === 'Target.setDiscoverTargets') return {};
+        if (method === 'Target.setAutoAttach') return {};
+        if (method === 'Target.getTargets') {
+          return { targetInfos: [{ targetId: 'stale-frame', type: 'iframe', url: 'https://frame.test' }] };
+        }
+        if (target?.targetId === 'stale-frame' && method === 'Runtime.evaluate') {
+          return { result: { value: 'frame-ok' } };
+        }
+        return {};
+      }),
+      onDetach: { addListener: vi.fn() },
+      onEvent: { addListener: vi.fn((fn) => { debuggerEventListeners.push(fn); }) },
+    };
+    const tabs = {
+      get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://x.com/home' })),
+      onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn() },
+    };
+    vi.stubGlobal('chrome', { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } });
+
+    const mod = await import('./cdp');
+    mod.registerFrameTracking();
+    // Cache a context id (99) for the frame, which then goes stale.
+    for (const fn of debuggerEventListeners) {
+      fn({ tabId: 1 }, 'Runtime.executionContextCreated', {
+        context: { id: 99, auxData: { frameId: 'stale-frame', isDefault: true } },
+      });
+    }
+
+    const result = await mod.evaluateInFrame(1, 'document.title', 'stale-frame');
+
+    expect(result).toBe('frame-ok');
+    expect(debuggerApi.attach).toHaveBeenCalledWith({ targetId: 'stale-frame' }, '1.3');
+  });
+});
+
+describe('cdp command deadline', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function createHangingChromeMock() {
+    const { chrome, debuggerApi } = createChromeMock();
+    // A page-blocking native dialog (alert/confirm) makes Runtime.evaluate
+    // never resolve; every other command still works.
+    debuggerApi.sendCommand = vi.fn((_target: unknown, method: string) => {
+      if (method === 'Runtime.evaluate') return new Promise<never>(() => {});
+      return Promise.resolve({});
+    }) as typeof debuggerApi.sendCommand;
+    return { chrome, debuggerApi };
+  }
+
+  it('evaluate rejects instead of hanging forever when Runtime.evaluate never resolves', async () => {
+    vi.useFakeTimers();
+    const { chrome } = createHangingChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const pending = mod.evaluate(1, 'alert("blocked")');
+    const assertion = expect(pending).rejects.toThrow(/timed out after 60s/);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await assertion;
+  });
+
+  it('evaluate honors a caller-supplied deadline from the command timeout', async () => {
+    vi.useFakeTimers();
+    const { chrome } = createHangingChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const pending = mod.evaluate(1, 'alert("blocked")', false, 10_000);
+    const assertion = expect(pending).rejects.toThrow(/timed out after 10s/);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await assertion;
+  });
+});

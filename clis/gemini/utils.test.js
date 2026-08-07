@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, sendGeminiMessage, } from './utils.js';
+import { __test__, collectGeminiTranscriptAdditions, getGeminiConversationList, getGeminiPageState, getGeminiVisibleTurns, pickGeminiDeepResearchExportUrl, readGeminiSnapshot, sanitizeGeminiResponseText, selectGeminiModel, selectGeminiThinking, sendGeminiMessage, } from './utils.js';
 function createPageMock() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -388,5 +388,231 @@ describe('pickGeminiDeepResearchExportUrl', () => {
             'performance::https://www.google-analytics.com/g/collect?v=2',
         ], 'https://gemini.google.com/app/abc');
         expect(picked).toEqual({ url: '', source: 'none' });
+    });
+});
+
+// ── Model-picker detection DOM fixture tests ─────────────────────────────
+// These tests verify that openModelPickerForThinkingScript,
+// selectGeminiModelScript, and getCurrentGeminiModelScript share the same
+// 4-method picker detection strategy as models.js (discoverModelsScript).
+
+function createPickerDom(htmlFixture) {
+    const dom = new JSDOM(`<!doctype html><body>${htmlFixture}</body>`, {
+        pretendToBeVisual: true,
+        runScripts: 'outside-only',
+    });
+    const { window } = dom;
+    Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+        configurable: true,
+        value() {
+            return { width: 100, height: 24, top: 0, left: 0, right: 100, bottom: 24 };
+        },
+    });
+    return { window, document: window.document };
+}
+
+function evalScript(window, scriptFn) {
+    const scriptText = scriptFn();
+    return window.eval(scriptText);
+}
+
+describe('openModelPickerForThinkingScript — picker detection', () => {
+    it('Method 1: detects picker by aria-label "mode-selector"', () => {
+        const { window } = createPickerDom(`
+            <button aria-label="mode selector">Choose</button>
+            <button>New chat</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 1: detects picker by aria-label "模式选择器"', () => {
+        const { window } = createPickerDom(`
+            <button aria-label="模式选择器">选择</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 1: detects picker by aria-label "model-picker"', () => {
+        const { window } = createPickerDom(`
+            <button aria-label="model picker">Pick</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 1: detects picker by aria-label "选择模型"', () => {
+        const { window } = createPickerDom(`
+            <button aria-label="选择模型">选择</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 2: detects picker by version-number text', () => {
+        const { window } = createPickerDom(`
+            <button>2.5 Flash</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 3: detects picker by variant-only text "Flash"', () => {
+        const { window } = createPickerDom(`
+            <button>Flash</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 3: detects picker by variant-only text "Pro"', () => {
+        const { window } = createPickerDom(`
+            <button>Pro</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 3: detects picker by variant-only text "Lite"', () => {
+        const { window } = createPickerDom(`
+            <button>Lite</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 3: detects picker by variant-only text "Flash-Lite"', () => {
+        const { window } = createPickerDom(`
+            <button>Flash-Lite</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('Method 4: detects picker by data-model-selector attribute', () => {
+        const { window } = createPickerDom(`
+            <button data-model-selector="true">Choose</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+
+    it('returns { ok: false } when no picker is found', () => {
+        const { window } = createPickerDom(`
+            <button>New chat</button>
+            <button>Sign in</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: false, reason: 'Model picker not found' });
+    });
+
+    it('Method 1 wins over Method 2 for ambiguous buttons', () => {
+        // A button with both a model-selector aria-label and a version-like
+        // text should still be found (Method 1 returns early).
+        const { window } = createPickerDom(`
+            <button aria-label="mode selector">3.0 Config</button>
+        `);
+        const result = evalScript(window, __test__.openModelPickerForThinkingScript);
+        expect(result).toEqual({ ok: true });
+    });
+});
+
+describe('selectGeminiModelScript — picker detection parity', () => {
+    it('Method 1: detects picker by aria-label "mode-selector" and selects model', () => {
+        const { window } = createPickerDom(`
+            <button aria-label="mode selector">Choose</button>
+            <div role="menu" style="display:none;">
+              <button role="menuitem">2.5 Flash</button>
+            </div>
+        `);
+        // Show the menu so the script can find menu items (just test picker detection).
+        // The script will fail to find the model in the menu (shown), but we check
+        // the picker was found by the aria-label.
+        const result = evalScript(window, () => __test__.selectGeminiModelScript('2.5-flash'));
+        // The menu is visible but doesn't contain the right items — we just care
+        // that the picker was found (not the old "Model picker button not found" error).
+        expect(result.ok).toBe(false);
+        expect(result.reason).toContain('not found in picker menu');
+    });
+
+    it('Method 3: detects picker by variant-only text "Flash" and attempts selection', () => {
+        const { window } = createPickerDom(`
+            <button>Flash</button>
+            <div role="menu" style="display:none;">
+              <button role="menuitem">2.5 Flash</button>
+            </div>
+        `);
+        const result = evalScript(window, () => __test__.selectGeminiModelScript('2.5-flash'));
+        expect(result.ok).toBe(false);
+        expect(result.reason).toContain('not found in picker menu');
+    });
+});
+
+describe('getCurrentGeminiModelScript — picker detection parity', () => {
+    it('Method 1: detects picker by aria-label "模式选择器"', () => {
+        const { window } = createPickerDom(`
+            <button aria-label="模式选择器">2.5 Flash</button>
+        `);
+        const result = window.eval(__test__.getCurrentGeminiModelScript());
+        expect(result).toBe('2.5-flash');
+    });
+
+    it('Method 3: detects picker by variant-only text "Flash"', () => {
+        const { window } = createPickerDom(`
+            <button>Flash</button>
+        `);
+        const result = window.eval(__test__.getCurrentGeminiModelScript());
+        expect(result).toBe('');
+    });
+
+    it('Method 2: detects picker by version-number text and extracts model id', () => {
+        const { window } = createPickerDom(`
+            <button>2.5 Pro</button>
+        `);
+        const result = window.eval(__test__.getCurrentGeminiModelScript());
+        expect(result).toBe('2.5-pro');
+    });
+});
+
+describe('Gemini model/thinking selection Browser Bridge envelopes', () => {
+    it('unwraps envelopes while selecting a thinking level', async () => {
+        const page = createPageMock();
+        vi.mocked(page.evaluate)
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({ session: 'site:gemini', data: { ok: true } })
+            .mockResolvedValueOnce({ session: 'site:gemini', data: true })
+            .mockResolvedValueOnce({ session: 'site:gemini', data: 'Extended' });
+
+        const result = await selectGeminiThinking(page, 'extended');
+
+        expect(result).toBe('Extended');
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+    });
+
+    it('unwraps envelopes while selecting a model', async () => {
+        const page = createPageMock();
+        vi.mocked(page.evaluate)
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({ session: 'site:gemini', data: { ok: true } })
+            .mockResolvedValueOnce({ session: 'site:gemini', data: { ok: true } })
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce('2.5-flash');
+
+        await expect(selectGeminiModel(page, '2.5-flash')).resolves.toBeUndefined();
+
+        expect(page.evaluate).toHaveBeenCalledTimes(5);
+    });
+
+    it('typed-fails when model selection read-back does not match the requested model', async () => {
+        const page = createPageMock();
+        vi.mocked(page.evaluate)
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce({ session: 'site:gemini', data: { ok: true } })
+            .mockResolvedValueOnce({ session: 'site:gemini', data: { ok: true } })
+            .mockResolvedValueOnce('https://gemini.google.com/app')
+            .mockResolvedValueOnce('2.5-pro');
+
+        await expect(selectGeminiModel(page, '2.5-flash')).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });

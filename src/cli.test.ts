@@ -1173,7 +1173,7 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'bind']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 45, session: 'test', surface: 'browser' });
     expect(mockBindTab).toHaveBeenCalledWith('test', {});
     const out = lastJsonLog();
     expect(out.session).toBe('test');
@@ -1197,7 +1197,7 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'foreground' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 45, session: 'test', surface: 'browser', windowMode: 'foreground' });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 
@@ -1206,7 +1206,7 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', '--window', 'background', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'background' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 45, session: 'test', surface: 'browser', windowMode: 'background' });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 
@@ -1306,7 +1306,7 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'unbind']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser' });
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 45, session: 'test', surface: 'browser' });
     expect(mockSendCommand).toHaveBeenCalledWith('close-window', { session: 'test', surface: 'browser' });
     const out = lastJsonLog();
     expect(out).toEqual({ unbound: true, session: 'test' });

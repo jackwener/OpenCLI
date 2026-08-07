@@ -35,6 +35,7 @@ function createMockPage(getCookies: IPage['getCookies']): IPage {
     scrollTo: vi.fn(),
     getFormState: vi.fn().mockResolvedValue({}),
     wait: vi.fn(),
+    sleep: vi.fn().mockResolvedValue(undefined),
     tabs: vi.fn().mockResolvedValue([]),
     selectTab: vi.fn(),
     networkRequests: vi.fn().mockResolvedValue([]),

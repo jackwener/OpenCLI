@@ -1,6 +1,6 @@
 # DeepSeek
 
-**Mode**: Browser · **Domain**: `chat.deepseek.com`
+**Mode**: Browser · **Domains**: `chat.deepseek.com`, `platform.deepseek.com`
 
 ## Commands
 
@@ -9,6 +9,7 @@
 | `opencli deepseek ask <prompt>` | Send a prompt and get the response |
 | `opencli deepseek new` | Start a new conversation |
 | `opencli deepseek status` | Check login state and page availability |
+| `opencli deepseek usage` | Read DeepSeek platform balance, spending, API request, and token usage |
 | `opencli deepseek read` | Read the current conversation |
 | `opencli deepseek history` | List conversation history from sidebar |
 | `opencli deepseek detail <id>` | Read a specific conversation by ID or URL |
@@ -49,6 +50,9 @@ opencli deepseek ask "hello" -f json
 
 # Check login status
 opencli deepseek status
+
+# Read platform usage and balance
+opencli deepseek usage
 
 # Start a fresh conversation
 opencli deepseek new
@@ -95,11 +99,13 @@ opencli deepseek send 749e6bbd-6a45-4440-beaa-ae5238bf06d8 "continue from the la
 
 - Chrome running with [Browser Bridge extension](/guide/browser-bridge) installed
 - Logged in to [chat.deepseek.com](https://chat.deepseek.com)
+- `usage` also requires access to [platform.deepseek.com](https://platform.deepseek.com)
 
 ## Caveats
 
 - This adapter drives the DeepSeek web UI in the browser, not an API
 - DeepSeek commands default to persistent site sessions, so consecutive `deepseek ask` / `deepseek read` / `deepseek detail` invocations continue in the same DeepSeek page. Pass `--site-session ephemeral` for a one-shot tab.
+- `usage` navigates to the DeepSeek platform usage page and reads the account summary API plus visible usage period cards; missing auth, blocked API responses, or malformed page/API shapes are typed failures.
 - Default mode is Instant with DeepThink and Search disabled; each flag (`--model`, `--think`, `--search`) is synced on every invocation so omitting a flag resets it
 - Vision mode does not support `--search`; use `--model instant` or `--model expert` for web search
 - `send` requires an explicit conversation ID; use `history` to find a conversation URL or ID first

@@ -8,8 +8,8 @@ vi.mock('./_shared/public-api.js', () => ({
     fetchDouyinComments: fetchDouyinCommentsMock,
 }));
 import { getRegistry } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { DEFAULT_COMMENT_LIMIT, MAX_USER_VIDEOS_LIMIT, normalizeCommentLimit, normalizeUserVideosLimit } from './user-videos.js';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { DEFAULT_COMMENT_LIMIT, MAX_USER_VIDEOS_LIMIT, normalizeCommentLimit, normalizeSecUid, normalizeUserVideosLimit } from './user-videos.js';
 describe('douyin user-videos', () => {
     beforeEach(() => {
         fetchDouyinUserVideosMock.mockReset();
@@ -20,6 +20,35 @@ describe('douyin user-videos', () => {
         const values = [...registry.values()];
         const command = values.find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
         expect(command).toBeDefined();
+    });
+    it('accepts a bare sec_uid and a pasted profile URL', () => {
+        expect(normalizeSecUid('MS4wLjABAAAA_example-01')).toBe('MS4wLjABAAAA_example-01');
+        expect(normalizeSecUid('  MS4wLjABAAAA_example-01  ')).toBe('MS4wLjABAAAA_example-01');
+        expect(normalizeSecUid('https://www.douyin.com/user/MS4wLjABAAAA_example-01?from=x')).toBe('MS4wLjABAAAA_example-01');
+    });
+    it('rejects a nickname instead of silently scraping another account', () => {
+        expect(() => normalizeSecUid('大圆镜科普')).toThrow(ArgumentError);
+        expect(() => normalizeSecUid('some user')).toThrow(ArgumentError);
+        expect(() => normalizeSecUid('creatorname')).toThrow(ArgumentError);
+        expect(() => normalizeSecUid('12345678901234567890')).toThrow(ArgumentError);
+        expect(() => normalizeSecUid('')).toThrow(ArgumentError);
+    });
+    it('does not navigate when the sec_uid is invalid', async () => {
+        const command = [...getRegistry().values()].find((cmd) => cmd.site === 'douyin' && cmd.name === 'user-videos');
+        if (!command?.func)
+            throw new Error('douyin user-videos command not registered');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+        };
+        await expect(command.func(page, {
+            sec_uid: '大圆镜科普',
+            limit: 3,
+            with_comments: false,
+            comment_limit: 5,
+        })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(fetchDouyinUserVideosMock).not.toHaveBeenCalled();
     });
     it('clamps limit to a safe maximum', () => {
         expect(normalizeUserVideosLimit(100)).toBe(MAX_USER_VIDEOS_LIMIT);
@@ -48,12 +77,12 @@ describe('douyin user-videos', () => {
             wait: vi.fn().mockResolvedValue(undefined),
         };
         const rows = await command.func(page, {
-            sec_uid: 'MS4w-test',
+            sec_uid: 'MS4wLjABAAAA_test-user',
             limit: 100,
             comment_limit: 99,
             with_comments: true,
         });
-        expect(fetchDouyinUserVideosMock).toHaveBeenCalledWith(page, 'MS4w-test', MAX_USER_VIDEOS_LIMIT);
+        expect(fetchDouyinUserVideosMock).toHaveBeenCalledWith(page, 'MS4wLjABAAAA_test-user', MAX_USER_VIDEOS_LIMIT);
         expect(fetchDouyinCommentsMock).toHaveBeenCalledWith(page, '1', DEFAULT_COMMENT_LIMIT);
         expect(rows).toEqual([
             {
@@ -88,7 +117,7 @@ describe('douyin user-videos', () => {
             wait: vi.fn().mockResolvedValue(undefined),
         };
         const rows = await command.func(page, {
-            sec_uid: 'MS4w-test',
+            sec_uid: 'MS4wLjABAAAA_test-user',
             limit: 3,
             with_comments: false,
             comment_limit: 5,
@@ -117,7 +146,7 @@ describe('douyin user-videos', () => {
             wait: vi.fn().mockResolvedValue(undefined),
         };
         await expect(command.func(page, {
-            sec_uid: 'MS4w-empty',
+            sec_uid: 'MS4wLjABAAAA_empty-user',
             limit: 3,
             with_comments: true,
             comment_limit: 5,
@@ -142,7 +171,7 @@ describe('douyin user-videos', () => {
             wait: vi.fn().mockResolvedValue(undefined),
         };
         await expect(command.func(page, {
-            sec_uid: 'MS4w-test',
+            sec_uid: 'MS4wLjABAAAA_test-user',
             limit: 3,
             with_comments: true,
             comment_limit: 5,

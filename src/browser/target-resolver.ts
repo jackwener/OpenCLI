@@ -301,20 +301,115 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
  * pointer/mouse chain that Radix/MUI/shadcn dropdowns rely on. Keep measurement
  * separate so the CDP-primary path does not call DOM `el.click()` first.
  */
-export function boundingRectResolvedJs(opts: { skipScroll?: boolean } = {}): string {
+export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: boolean } = {}): string {
   const shouldScroll = opts.skipScroll ? 'false' : 'true';
+  const forClick = opts.forClick ? 'true' : 'false';
   return `
     (() => {
       const el = window.__resolved;
       if (!el) throw new Error('No resolved element');
       if (${shouldScroll}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
-      const rect = el.getBoundingClientRect();
+
+      const FOR_CLICK = ${forClick};
+      // hover()/dblClick() want the plain element centre — the retarget + hit-test
+      // below are click-only so those actions keep their original behaviour.
+      if (!FOR_CLICK) {
+        const r0 = el.getBoundingClientRect();
+        return {
+          x: Math.round(r0.left + r0.width / 2),
+          y: Math.round(r0.top + r0.height / 2),
+          w: Math.round(r0.width),
+          h: Math.round(r0.height),
+          visible: Math.round(r0.width) > 0 && Math.round(r0.height) > 0,
+        };
+      }
+
+      // Does this node OWN a click handler? Deliberately excludes cursor:pointer,
+      // which is an *inherited* CSS property — an <svg> icon inside a clickable
+      // <div> inherits the pointer cursor but owns no handler, so cursor can't
+      // decide whether a node is the real click target. See issue #2071.
+      const ownsClickHandler = (node) => {
+        if (!node || node.nodeType !== 1) return false;
+        const tag = node.tagName.toLowerCase();
+        if (['a','button','input','select','textarea','label','summary'].includes(tag)) return true;
+        const role = node.getAttribute && node.getAttribute('role');
+        if (role && ['button','link','menuitem','menuitemcheckbox','menuitemradio','tab','option','checkbox','radio','switch'].includes(role)) return true;
+        if (typeof node.onclick === 'function') return true;
+        if (node.hasAttribute && (node.hasAttribute('onclick') || node.hasAttribute('jsaction'))) return true;
+        try {
+          for (const k in node) {
+            if (k.charCodeAt(0) === 95 && (k.indexOf('__reactProps$') === 0 || k.indexOf('__reactEventHandlers$') === 0)) {
+              const p = node[k];
+              if (p && (p.onClick || p.onMouseDown || p.onMouseUp)) return true;
+            }
+          }
+        } catch (e) {}
+        return false;
+      };
+      // A retarget destination just needs to look clickable; here cursor:pointer
+      // IS a useful signal (the ancestor is where it was set).
+      const isClickableAncestor = (node) => {
+        if (ownsClickHandler(node)) return true;
+        try { return window.getComputedStyle(node).cursor === 'pointer'; } catch (e) { return false; }
+      };
+
+      // #2071: if the resolved node owns no click handler but a nearby ancestor
+      // is clickable, aim at that ancestor so the handler fires.
+      let target = el;
+      let retargeted = false;
+      if (!ownsClickHandler(el)) {
+        let a = el.parentElement, hops = 0;
+        while (a && hops < 4) {
+          if (isClickableAncestor(a)) { target = a; retargeted = true; break; }
+          a = a.parentElement; hops++;
+        }
+      }
+
+      const rect = target.getBoundingClientRect();
       const w = Math.round(rect.width);
       const h = Math.round(rect.height);
-      const x = Math.round(rect.left + rect.width / 2);
-      const y = Math.round(rect.top + rect.height / 2);
+      let x = Math.round(rect.left + rect.width / 2);
+      let y = Math.round(rect.top + rect.height / 2);
       const visible = w > 0 && h > 0;
-      return { x, y, w, h, visible };
+
+      // #2076: verify the click point actually lands on the target. A trusted
+      // CDP click hit-tests at (x,y) and delivers the event to whatever is
+      // topmost there — an overlay/sibling can silently swallow it. Classify:
+      //   'target'   — the point is the target or a light-DOM descendant.
+      //   'ancestor' — the point is an ANCESTOR of the target. This is the
+      //                open-shadow-DOM case (elementFromPoint returns the shadow
+      //                *host*, not the shadow content) and the "point sits over
+      //                the target's own wrapper background" case. In both a CDP
+      //                click at (x,y) still reaches the target — CDP hit-testing
+      //                pierces shadow roots, and light-DOM clicks bubble up — so
+      //                it is trustworthy, unlike an unrelated overlay.
+      //   'other'    — an unrelated element covers the point (the real overlay
+      //                bug); the caller then dispatches a direct DOM click.
+      const hitClass = (px, py) => {
+        let at = null;
+        try { at = document.elementFromPoint(px, py); } catch (e) { return 'none'; }
+        if (!at) return 'none';
+        if (at === target || target.contains(at)) return 'target';
+        if (at.contains && at.contains(target)) return 'ancestor';
+        return 'other';
+      };
+      let hit = visible ? hitClass(x, y) : 'none';
+      if (visible && hit !== 'target' && hit !== 'ancestor') {
+        const cands = [
+          [rect.left + rect.width * 0.5, rect.top + rect.height * 0.25],
+          [rect.left + rect.width * 0.25, rect.top + rect.height * 0.5],
+          [rect.left + rect.width * 0.75, rect.top + rect.height * 0.5],
+          [rect.left + rect.width * 0.5, rect.top + rect.height * 0.75],
+          [rect.left + 3, rect.top + 3],
+          [rect.right - 3, rect.bottom - 3],
+        ];
+        for (const c of cands) {
+          const px = Math.round(c[0]), py = Math.round(c[1]);
+          const hc = hitClass(px, py);
+          if (hc === 'target' || hc === 'ancestor') { x = px; y = py; hit = hc; break; }
+        }
+      }
+      return { x, y, w, h, visible, hit, retargeted };
     })()
   `;
 }

@@ -5,6 +5,8 @@ const BOSS_DOMAIN = 'www.zhipin.com';
 const CHAT_URL = `https://${BOSS_DOMAIN}/web/chat/index`;
 const COOKIE_EXPIRED_CODES = new Set([7, 37]);
 const COOKIE_EXPIRED_MSG = 'Cookie 已过期！请在当前 Chrome 浏览器中重新登录 BOSS 直聘。';
+const AMBIGUOUS_AUTH_CODE = 37;
+const ENVIRONMENT_REJECTED_MARKERS = ['环境存在异常', '环境异常', 'abnormal environment'];
 const RECRUITER_ONLY_MSG = '该命令仅支持招聘端（BOSS 端）账号，请使用招聘者账号登录后重试。';
 const DEFAULT_TIMEOUT = 15_000;
 // ── Core helpers ────────────────────────────────────────────────────────────
@@ -56,6 +58,13 @@ export function checkAuth(data) {
         throw new AuthRequiredError(BOSS_DOMAIN, COOKIE_EXPIRED_MSG);
     }
 }
+function checkEnvironment(data) {
+    const message = String(data.message || '').toLowerCase();
+    if (data.code === AMBIGUOUS_AUTH_CODE &&
+        ENVIRONMENT_REJECTED_MARKERS.some((marker) => message.includes(marker.toLowerCase()))) {
+        throw new CommandExecutionError(`Boss rejected the current browser environment: ${data.message || 'Unknown error'} (code=${data.code})`, '重新登录通常无法解决此问题。请保留当前页面，稍后重试，并在问题持续时上报完整错误信息。');
+    }
+}
 /**
  * Map BOSS code=24 ("请切换身份后再试") to a typed AuthRequiredError.
  * Recruiter-only commands (recommend, joblist, stats, resume, mark,
@@ -80,6 +89,7 @@ export function assertOk(data, errorPrefix) {
     }
     if (data.code === 0)
         return;
+    checkEnvironment(data);
     checkAuth(data);
     checkRecruiterSide(data);
     const prefix = errorPrefix ? `${errorPrefix}: ` : '';

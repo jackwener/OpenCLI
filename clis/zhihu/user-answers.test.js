@@ -59,6 +59,42 @@ describe('zhihu user-answers', () => {
         await expect(cmd.func(page, { user: 'foo', limit: 2 })).rejects.toBeInstanceOf(CommandExecutionError);
     });
 
+    it('follows Zhihu http next URLs by upgrading them to https', async () => {
+        const cmd = getRegistry().get('zhihu/user-answers');
+        const evaluate = vi.fn()
+            .mockResolvedValueOnce({
+                data: [{ id: 'a1', question: { id: 'q1', title: 'Q1' } }],
+                paging: {
+                    is_end: false,
+                    next: 'http://www.zhihu.com/api/v4/members/foo/answers?offset=1',
+                },
+            })
+            .mockResolvedValueOnce({
+                data: [{ id: 'a2', question: { id: 'q2', title: 'Q2' } }],
+                paging: { is_end: true },
+            });
+        await expect(cmd.func({ goto: vi.fn().mockResolvedValue(undefined), evaluate }, { user: 'foo', limit: 2 })).resolves.toEqual([
+            { rank: 1, question: 'Q1', votes: 0, comments: 0, created: 0, url: 'https://www.zhihu.com/question/q1/answer/a1' },
+            { rank: 2, question: 'Q2', votes: 0, comments: 0, created: 0, url: 'https://www.zhihu.com/question/q2/answer/a2' },
+        ]);
+        expect(evaluate.mock.calls[1][0]).toContain('https://www.zhihu.com/api/v4/members/foo/answers?offset=1');
+    });
+
+    it('does not validate paging.next after the requested limit is reached', async () => {
+        const cmd = getRegistry().get('zhihu/user-answers');
+        const evaluate = vi.fn().mockResolvedValue({
+            data: [{ id: 'a1', question: { id: 'q1', title: 'Q1' } }],
+            paging: {
+                is_end: false,
+                next: 'http://evil.example/api/v4/members/foo/answers?offset=1',
+            },
+        });
+        await expect(cmd.func({ goto: vi.fn().mockResolvedValue(undefined), evaluate }, { user: 'foo', limit: 1 })).resolves.toEqual([
+            { rank: 1, question: 'Q1', votes: 0, comments: 0, created: 0, url: 'https://www.zhihu.com/question/q1/answer/a1' },
+        ]);
+        expect(evaluate).toHaveBeenCalledTimes(1);
+    });
+
     it('rejects invalid limits before navigation', async () => {
         const cmd = getRegistry().get('zhihu/user-answers');
         const page = { goto: vi.fn(), evaluate: vi.fn() };

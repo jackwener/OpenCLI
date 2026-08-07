@@ -1,12 +1,14 @@
 /**
  * Shared helpers for the toutiao adapter.
  */
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const ARTICLES_MIN_PAGE = 1;
 const ARTICLES_MAX_PAGE = 4;
 const HOT_MIN_LIMIT = 1;
 const HOT_MAX_LIMIT = 50;
+const RECOMMEND_MIN_LIMIT = 1;
+const RECOMMEND_MAX_LIMIT = 50;
 
 export function parseArticlesPage(raw, fallback = 1) {
     if (raw === undefined || raw === null || raw === '') return fallback;
@@ -18,6 +20,27 @@ export function parseArticlesPage(raw, fallback = 1) {
         throw new ArgumentError(`--page must be between ${ARTICLES_MIN_PAGE} and ${ARTICLES_MAX_PAGE}, got ${parsed}`);
     }
     return parsed;
+}
+
+export function parseRecommendLimit(raw, fallback = 20) {
+    if (raw === undefined || raw === null || raw === '') return fallback;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        throw new ArgumentError(`--limit must be an integer between ${RECOMMEND_MIN_LIMIT} and ${RECOMMEND_MAX_LIMIT}, got ${JSON.stringify(raw)}`);
+    }
+    if (parsed < RECOMMEND_MIN_LIMIT || parsed > RECOMMEND_MAX_LIMIT) {
+        throw new ArgumentError(`--limit must be between ${RECOMMEND_MIN_LIMIT} and ${RECOMMEND_MAX_LIMIT}, got ${parsed}`);
+    }
+    return parsed;
+}
+
+export function parseRecommendCategory(raw, fallback = '__all__') {
+    if (raw === undefined || raw === null || raw === '') return fallback;
+    const value = String(raw).trim();
+    if (!RECOMMEND_CATEGORIES.includes(value)) {
+        throw new ArgumentError(`--category must be one of ${RECOMMEND_CATEGORIES.join(', ')}, got ${JSON.stringify(raw)}`);
+    }
+    return value;
 }
 
 export function parseHotLimit(raw, fallback = 30) {
@@ -150,6 +173,107 @@ export function mapHotRow(item, index) {
 
 export const HOT_BOARD_URL = 'https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc';
 
+export const RECOMMEND_URL = 'https://www.toutiao.com/api/pc/feed/';
+
+/**
+ * Channels the public feed endpoint actually serves. `news_auto` is absent on
+ * purpose: it answers 200 with an empty payload and no `message`, so allowing
+ * it would look like a transient outage rather than an unsupported channel.
+ */
+export const RECOMMEND_CATEGORIES = [
+    '__all__',
+    'news_tech',
+    'news_finance',
+    'news_world',
+    'news_sports',
+    'news_entertainment',
+    'news_military',
+];
+
+function pickFeedImage(item) {
+    const raw = trimOrNull(item?.image_url) || trimOrNull(item?.middle_image?.url);
+    if (!raw) return null;
+    // The feed serves protocol-relative image URLs (`//p3.pstatp.com/...`);
+    // hot-board already returns absolute ones, so normalise for parity.
+    return raw.startsWith('//') ? `https:${raw}` : raw;
+}
+
+function firstPartyToutiaoUrl(sourceUrl) {
+    const raw = trimOrNull(sourceUrl);
+    if (!raw) return null;
+    try {
+        const url = raw.startsWith('/')
+            ? new URL(raw, 'https://www.toutiao.com')
+            : new URL(raw);
+        if (!/^https?:$/i.test(url.protocol) || !/(^|\.)toutiao\.com$/i.test(url.hostname)) {
+            throw new CommandExecutionError(`Malformed toutiao recommend row: off-domain source_url ${JSON.stringify(raw)}.`);
+        }
+        return url;
+    } catch (error) {
+        if (error instanceof CommandExecutionError) throw error;
+        throw new CommandExecutionError(`Malformed toutiao recommend row: invalid source_url ${JSON.stringify(raw)}.`);
+    }
+}
+
+function articleIdFromToutiaoPath(pathname) {
+    return String(pathname || '').match(/^\/(?:group|article)\/([A-Za-z0-9_-]+)\/?$/)?.[1] || '';
+}
+
+function buildGroupIdentity(sourceUrl, rawGroupId) {
+    const source = firstPartyToutiaoUrl(sourceUrl);
+    const sourceId = source ? articleIdFromToutiaoPath(source.pathname) : '';
+    const explicitId = trimOrNull(rawGroupId);
+    const groupId = explicitId || trimOrNull(sourceId);
+    if (!groupId) {
+        throw new CommandExecutionError('Malformed toutiao recommend row: missing group_id and article source_url.');
+    }
+    if (!/^[A-Za-z0-9_-]+$/.test(groupId)) {
+        throw new CommandExecutionError(`Malformed toutiao recommend row: invalid group_id ${JSON.stringify(rawGroupId)}.`);
+    }
+    if (sourceId && explicitId && explicitId !== sourceId) {
+        throw new CommandExecutionError(`Malformed toutiao recommend row: group_id/source_url mismatch for ${JSON.stringify(rawGroupId)}.`);
+    }
+    return {
+        groupId,
+        url: `https://www.toutiao.com/group/${groupId}/`,
+    };
+}
+
+function formatBehotTime(value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+    return `${new Date(seconds * 1000).toISOString().slice(0, 19)}Z`;
+}
+
+/**
+ * Project a row from the public toutiao channel feed into stable shape.
+ *
+ * Sponsored rows are dropped so an agent never reads an ad as editorial
+ * content; absent counts stay null rather than being coerced to 0.
+ */
+export function mapRecommendRow(item, index) {
+    if (!item || typeof item !== 'object') return null;
+    if (item.is_feed_ad) return null;
+    const title = trimOrNull(item.title);
+    if (!title) return null;
+    const identity = buildGroupIdentity(
+        item.source_url,
+        item.group_id != null ? String(item.group_id) : null,
+    );
+    return {
+        rank: index + 1,
+        group_id: identity.groupId,
+        title,
+        abstract: trimOrNull(item.abstract),
+        source: trimOrNull(item.source),
+        tag: trimOrNull(item.chinese_tag),
+        comments: parseHot(item.comments_count),
+        published_at: formatBehotTime(item.behot_time),
+        url: identity.url,
+        image_url: pickFeedImage(item),
+    };
+}
+
 export function looksToutiaoAuthWallText(value) {
     const text = String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (!text) return false;
@@ -158,4 +282,11 @@ export function looksToutiaoAuthWallText(value) {
         /mp\.toutiao\.com\/profile_v4\/login/.test(text);
 }
 
-export const __test__ = { ARTICLES_MIN_PAGE, ARTICLES_MAX_PAGE, HOT_MIN_LIMIT, HOT_MAX_LIMIT };
+export const __test__ = {
+    ARTICLES_MIN_PAGE,
+    ARTICLES_MAX_PAGE,
+    HOT_MIN_LIMIT,
+    HOT_MAX_LIMIT,
+    RECOMMEND_MIN_LIMIT,
+    RECOMMEND_MAX_LIMIT,
+};

@@ -75,8 +75,28 @@ export interface Command {
   idleTimeout?: number;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */
   frameIndex?: number;
-  /** Browser profile/context selected by the CLI. Used by the daemon for routing. */
+  /** Browser profile/context REQUIRED by the CLI (--profile / env). Used by the daemon for strict routing. */
   contextId?: string;
+  /**
+   * Browser profile/context PREFERRED by the CLI (persisted config default).
+   * Daemon-only routing hint: used when connected, otherwise the daemon falls
+   * back to the only connected profile. The extension ignores this field.
+   */
+  preferredContextId?: string;
+  /**
+   * Daemon-side command timeout in seconds, set by the CLI transport. The
+   * extension derives its CDP deadline from this so it fails just before the
+   * daemon timer and its (more specific) error wins.
+   * Kept alongside `deadlineAt` for older daemons; new code prefers deadlineAt.
+   */
+  timeout?: number;
+  /**
+   * Absolute command deadline (epoch ms), set by the CLI transport. All hops
+   * run on the same machine, so every layer derives its remaining budget as
+   * `deadlineAt - Date.now()` — queueing and service-worker wake latency are
+   * absorbed instead of silently shrinking the innermost budget.
+   */
+  deadlineAt?: number;
 }
 
 export interface Result {

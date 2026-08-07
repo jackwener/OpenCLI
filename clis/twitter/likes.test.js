@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
@@ -154,6 +155,140 @@ describe('twitter likes command', () => {
     });
 });
 
+describe('twitter likes archive safety', () => {
+    function pageFor(payload = likesPayload()) {
+        return {
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) return { session: 'site:twitter', data: '42' };
+                if (text.includes('/Likes')) return { session: 'site:twitter', data: payload };
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+    }
+
+    it('rejects --resume-file without --all before touching the browser', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const page = { getCookies: vi.fn(), evaluate: vi.fn() };
+        await expect(command.func(page, { username: 'viewer', 'resume-file': '/tmp/resume.json' }))
+            .rejects.toThrow(/--resume-file requires --all/);
+        expect(page.getCookies).not.toHaveBeenCalled();
+    });
+
+    it('refuses to overwrite an existing output file without matching resume state', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const outputFile = `/tmp/opencli-likes-existing-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = `${outputFile}.resume.json`;
+        fs.writeFileSync(outputFile, 'user-owned\n');
+        try {
+            await expect(command.func(pageFor(), {
+                username: 'viewer',
+                all: true,
+                'output-file': outputFile,
+                'resume-file': resumeFile,
+            })).rejects.toThrow(/Refusing to overwrite/);
+            expect(fs.readFileSync(outputFile, 'utf8')).toBe('user-owned\n');
+        }
+        finally {
+            fs.rmSync(outputFile, { force: true });
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('rejects cross-source and malformed resume state instead of silently restarting', () => {
+        const resumeFile = `/tmp/opencli-likes-mismatch-${process.pid}-${Date.now()}.json`;
+        try {
+            fs.writeFileSync(resumeFile, JSON.stringify({
+                cursor: 'NEXT',
+                count: 0,
+                tweets: [],
+                complete: false,
+                source: 'bookmarks',
+                username: 'viewer',
+                outputFile: null,
+            }));
+            expect(() => __test__.readResumeFile(resumeFile, {
+                source: 'likes',
+                username: 'viewer',
+                outputFile: null,
+            })).toThrow(/source mismatch/);
+            fs.writeFileSync(resumeFile, '{broken');
+            expect(() => __test__.readResumeFile(resumeFile)).toThrow(/Could not parse/);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('rejects output files whose JSONL record count differs from resume state', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const outputFile = `/tmp/opencli-likes-count-mismatch-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = `${outputFile}.resume.json`;
+        fs.writeFileSync(outputFile, '{"id":"1"}\n{"id":"2"}\n');
+        fs.writeFileSync(resumeFile, JSON.stringify({
+            cursor: 'NEXT',
+            count: 1,
+            complete: false,
+            source: 'likes',
+            username: 'viewer',
+            outputFile,
+        }));
+        try {
+            await expect(command.func(pageFor(), {
+                username: 'viewer',
+                all: true,
+                'output-file': outputFile,
+                'resume-file': resumeFile,
+            })).rejects.toThrow(/expected resume count 1/);
+        }
+        finally {
+            fs.rmSync(outputFile, { force: true });
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('throws for an incomplete in-memory --all run while retaining resume state', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const resumeFile = `/tmp/opencli-likes-memory-${process.pid}-${Date.now()}.json`;
+        const payload = likesPayload();
+        payload.data.user.result.timeline_v2.timeline.instructions[0].entries.push({
+            entryId: 'cursor-bottom-1',
+            content: {
+                entryType: 'TimelineTimelineCursor',
+                cursorType: 'Bottom',
+                value: 'NEXT_CURSOR',
+            },
+        });
+        try {
+            await expect(command.func(pageFor(payload), {
+                username: 'viewer',
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+            })).rejects.toThrow(/archive_incomplete/);
+            expect(__test__.readResumeFile(resumeFile)).toMatchObject({
+                cursor: 'NEXT_CURSOR',
+                count: 1,
+                source: 'likes',
+                username: 'viewer',
+                complete: false,
+            });
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('fails closed when a non-private Likes payload has no timeline instructions', async () => {
+        const command = getRegistry().get('twitter/likes');
+        await expect(command.func(pageFor({
+            data: { user: { result: { __typename: 'UserUnavailable' } } },
+        }), { username: 'viewer', all: true })).rejects.toThrow(/missing Likes timeline instructions/);
+    });
+});
+
 describe('twitter likes command', () => {
     it('rejects invalid explicit username before cookies or navigation', async () => {
         const command = getRegistry().get('twitter/likes');
@@ -216,5 +351,125 @@ describe('twitter likes command', () => {
         const likesCall = page.evaluate.mock.calls.find(([script]) => String(script).includes('/Likes')) || [];
         expect(decodeURIComponent(String(likesCall[0]))).toContain('"userId":"42"');
         expect(decodeURIComponent(String(likesCall[0]))).not.toContain('[object Object]');
+    });
+
+    it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const resumeFile = `/tmp/opencli-likes-resume-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-likes-out-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('AppTabBar_Profile_Link')) {
+                    return { session: 'site:twitter', data: '/viewer' };
+                }
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) {
+                    return { session: 'site:twitter', data: '42' };
+                }
+                if (text.includes('/Likes')) {
+                    const payload = likesPayload();
+                    payload.data.user.result.timeline_v2.timeline.instructions[0].entries.push({
+                        entryId: 'cursor-bottom-1',
+                        content: {
+                            entryType: 'TimelineTimelineCursor',
+                            cursorType: 'Bottom',
+                            value: 'NEXT_CURSOR',
+                        },
+                    });
+                    return { session: 'site:twitter', data: payload };
+                }
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'likes',
+                username: 'viewer',
+                complete: false,
+                pages: 1,
+                cursor: 'NEXT_CURSOR',
+                resumeFile,
+            });
+            expect(fs.existsSync(resumeFile)).toBe(true);
+            expect(fs.existsSync(outputFile)).toBe(true);
+            const resume = __test__.readResumeFile(resumeFile);
+            expect(resume).toMatchObject({
+                cursor: 'NEXT_CURSOR',
+                count: 1,
+                complete: false,
+                source: 'likes',
+                username: 'viewer',
+                outputFile,
+            });
+            expect(fs.readFileSync(outputFile, 'utf8').trim().split('\n')).toHaveLength(1);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
+    });
+
+    it('removes resume file only after the likes timeline is exhausted', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const resumeFile = `/tmp/opencli-likes-resume-done-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-likes-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('AppTabBar_Profile_Link')) {
+                    return { session: 'site:twitter', data: '/viewer' };
+                }
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) {
+                    return { session: 'site:twitter', data: '42' };
+                }
+                if (text.includes('/Likes')) {
+                    return { session: 'site:twitter', data: likesPayload() };
+                }
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'likes',
+                username: 'viewer',
+                complete: true,
+                pages: 1,
+            });
+            expect(result.cursor).toBeUndefined();
+            expect(fs.existsSync(resumeFile)).toBe(false);
+            expect(fs.existsSync(outputFile)).toBe(true);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
     });
 });

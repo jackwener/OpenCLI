@@ -178,3 +178,27 @@ describe('normalizeEvaluateSource', () => {
     expect(normalizeEvaluateSource('')).toBe('() => undefined');
   });
 });
+
+describe('sanitizeContext (via VM sandbox path)', () => {
+  it('coerces BigInt fields to string instead of silently dropping the branch', () => {
+    // Previously a BigInt anywhere in args would make JSON.stringify throw and
+    // sanitizeContext returned {}, so any reference to args.id in the JS
+    // sandbox would resolve to undefined. We now serialize BigInt as string
+    // so the value survives the sandbox copy.
+    const id = BigInt('9007199254740993'); // > Number.MAX_SAFE_INTEGER
+    const ctx = { args: { id } };
+    // Use an expression that forces evalJsExpr (not the resolvePath fast path)
+    // so it goes through sanitizeContext + VM sandbox.
+    expect(evalExpr('String(args.id)', ctx)).toBe('9007199254740993');
+  });
+
+  it('does not crash on circular references (returns {} after warning)', () => {
+    // Circular refs still can't be safely round-tripped; verify the
+    // fallback is the empty-object path, not a crash.
+    const args: Record<string, unknown> = { keep: 'me' };
+    args.self = args;
+    const ctx = { args };
+    // The expression must not throw even if the args object has a cycle.
+    expect(() => evalExpr('args.keep || "fallback"', ctx)).not.toThrow();
+  });
+});

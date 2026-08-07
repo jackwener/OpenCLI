@@ -4,9 +4,11 @@ import {
   COMMAND_RESULT_UNKNOWN_CODE,
   COMMAND_RESULT_UNKNOWN_HINT,
   buildCommandDispatchFailure,
+  buildCommandTimeoutFailure,
   buildExtensionDisconnectFailure,
   commandResultUnknownMessage,
   getResponseCorsHeaders,
+  resolveProfileRoute,
 } from './daemon-utils.js';
 
 describe('getResponseCorsHeaders', () => {
@@ -71,6 +73,58 @@ describe('daemon command dispatch', () => {
       errorCode: 'profile_disconnected',
       status: 503,
       countAsCommandResultUnknown: false,
+    });
+  });
+
+  it('routes a REQUESTED profile strictly — fails loud when offline, even with one live profile', () => {
+    expect(resolveProfileRoute({ requestedContextId: 'zvypsyje', connectedContextIds: ['pavmrekj'] })).toMatchObject({
+      ok: false,
+      errorCode: 'profile_disconnected',
+    });
+    expect(resolveProfileRoute({ requestedContextId: 'pavmrekj', connectedContextIds: ['pavmrekj'] })).toEqual({
+      ok: true,
+      contextId: 'pavmrekj',
+    });
+  });
+
+  it('uses a PREFERRED profile when connected', () => {
+    expect(resolveProfileRoute({ preferredContextId: 'zvypsyje', connectedContextIds: ['zvypsyje', 'other'] })).toEqual({
+      ok: true,
+      contextId: 'zvypsyje',
+    });
+  });
+
+  it('falls back to the only connected profile when the preferred one is stale', () => {
+    expect(resolveProfileRoute({ preferredContextId: 'zvypsyje', connectedContextIds: ['pavmrekj'] })).toEqual({
+      ok: true,
+      contextId: 'pavmrekj',
+      fallbackFrom: 'zvypsyje',
+    });
+  });
+
+  it('asks the user to choose when the preferred profile is stale and multiple are connected', () => {
+    const route = resolveProfileRoute({ preferredContextId: 'zvypsyje', connectedContextIds: ['a', 'b'] });
+    expect(route).toMatchObject({ ok: false, errorCode: 'profile_required' });
+    if (!route.ok) {
+      expect(route.error).toContain('zvypsyje');
+      expect(route.errorHint).toContain('opencli profile use');
+    }
+  });
+
+  it('keeps the legacy no-selection behavior: single auto-use, multiple ask, none error', () => {
+    expect(resolveProfileRoute({ connectedContextIds: ['only'] })).toEqual({ ok: true, contextId: 'only' });
+    expect(resolveProfileRoute({ connectedContextIds: ['a', 'b'] })).toMatchObject({ ok: false, errorCode: 'profile_required' });
+    expect(resolveProfileRoute({ connectedContextIds: [] })).toMatchObject({ ok: false, errorCode: 'extension_not_connected' });
+    expect(resolveProfileRoute({ preferredContextId: 'gone', connectedContextIds: [] })).toMatchObject({ ok: false, errorCode: 'extension_not_connected' });
+  });
+
+  it('classifies daemon-side command timeouts as command_result_unknown with a 408', () => {
+    expect(buildCommandTimeoutFailure('navigate', 120_000)).toEqual({
+      message: 'Browser navigate command timed out after 120s; it may still complete in the browser.',
+      errorCode: 'command_result_unknown',
+      errorHint: COMMAND_RESULT_UNKNOWN_HINT,
+      status: 408,
+      countAsCommandResultUnknown: true,
     });
   });
 });

@@ -127,7 +127,7 @@ async function startFakeBridge(): Promise<FakeBridge | null> {
         server.close((err) => err ? reject(err) : resolve());
       });
     },
-    waitForExtension: () => withTimeout(connected, 15_000, 'Timed out waiting for Browser Bridge extension to connect'),
+    waitForExtension: () => withTimeout(connected, 45_000, 'Timed out waiting for Browser Bridge extension to connect'),
     sendCommand: async (command) => {
       if (!ws || ws.readyState !== ws.OPEN) throw new Error('Extension WebSocket is not connected');
       const id = `ax-e2e-${++nextId}`;
@@ -206,6 +206,14 @@ function findChromeExecutable(): string | null {
 
 function launchChrome(chromePath: string, userDataDir: string, startUrl: string): ChildProcess {
   return spawn(chromePath, [
+    // Headed by default under a real/virtual display (CI Linux runs this under
+    // xvfb). New-headless is convenient locally — no display needed — but on
+    // hosted runners it does not reliably start the MV3 extension service
+    // worker, so CI forces headed via OPENCLI_E2E_HEADED=1. Set OPENCLI_E2E_
+    // HEADLESS=1 to opt into headless locally.
+    ...(process.env.OPENCLI_E2E_HEADLESS === '1' && process.env.OPENCLI_E2E_HEADED !== '1'
+      ? ['--headless=new']
+      : []),
     `--user-data-dir=${userDataDir}`,
     `--disable-extensions-except=${EXTENSION_DIR}`,
     `--load-extension=${EXTENSION_DIR}`,
@@ -269,6 +277,15 @@ function axText(axTree: unknown): string {
   return nodes.map((node: any) => String(node?.name?.value ?? '')).join('\n');
 }
 
+function shouldFailOnBridgeUnavailable(): boolean {
+  // In CI this smoke is scheduled only on Linux (headed under xvfb — the one
+  // hosted environment where a real Chrome reliably starts an MV3 extension),
+  // so any bridge failure there is a real product/packaging regression and
+  // must block. macOS/Windows gate on the browser-free transport contracts
+  // instead; see the e2e-headed workflow for the rationale.
+  return process.env.CI === 'true';
+}
+
 describe('Browser Bridge AX real Chrome smoke', () => {
   let bridge: FakeBridge | null = null;
   let site: TestSite | null = null;
@@ -304,10 +321,10 @@ describe('Browser Bridge AX real Chrome smoke', () => {
     } catch (err) {
       const tail = chromeStderr.split('\n').slice(-30).join('\n').trim();
       const message = `${err instanceof Error ? err.message : String(err)}${tail ? `\nChrome stderr:\n${tail}` : ''}`;
-      if (process.env.CI) throw new Error(message);
+      if (shouldFailOnBridgeUnavailable()) throw new Error(message);
       skipReason = message;
     }
-  }, 30_000);
+  }, 60_000);
 
   afterAll(async () => {
     await killProcess(chrome);
@@ -327,7 +344,7 @@ describe('Browser Bridge AX real Chrome smoke', () => {
 
   it('returns AX nodes for parent and same-origin iframe, and probes cross-origin frame support', async () => {
     if (skipReason) {
-      if (process.env.CI) throw new Error(skipReason);
+      if (shouldFailOnBridgeUnavailable()) throw new Error(skipReason);
       console.warn(`skipped — ${skipReason}`);
       return;
     }

@@ -4,7 +4,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { buildCommentsExtractJs } from '../xiaohongshu/comments.js';
+import { buildCommentsExtractJs, normalizeCommentRows } from '../xiaohongshu/comments.js';
 import { buildNoteUrl, parseNoteId } from '../xiaohongshu/note-helpers.js';
 
 const REDNOTE_SIGNED_URL_HINT = 'Pass a full rednote.com note URL with xsec_token from search results or user/profile context.';
@@ -31,9 +31,9 @@ cli({
     args: [
         { name: 'note-id', required: true, positional: true, help: 'Full rednote note URL with xsec_token' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of top-level comments (max 50)' },
-        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies (楼中楼)' },
+        { name: 'with-replies', type: 'boolean', default: false, help: 'Include nested replies; reply_to is the direct target shown by the page' },
     ],
-    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to'],
+    columns: ['rank', 'author', 'text', 'likes', 'time', 'is_reply', 'reply_to', 'images'],
     func: async (page, kwargs) => {
         const limit = parseCommentLimit(kwargs.limit);
         const withReplies = Boolean(kwargs['with-replies']);
@@ -45,7 +45,7 @@ cli({
             signedUrlHint: REDNOTE_SIGNED_URL_HINT,
         }));
         await page.wait({ time: 2 + Math.random() * 3 });
-        const data = await page.evaluate(buildCommentsExtractJs(withReplies));
+        const data = await page.evaluate(buildCommentsExtractJs(withReplies, limit));
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('rednote/comments', 'Unexpected evaluate response');
         }
@@ -58,7 +58,7 @@ cli({
             throw new AuthRequiredError('www.rednote.com', 'Note comments require login');
         }
         void noteId;
-        const all = data.results ?? [];
+        const all = normalizeCommentRows(data.results, 'rednote/comments');
         const toRow = (c, i) => ({
             rank: i + 1,
             author: c.author,
@@ -67,6 +67,7 @@ cli({
             time: c.time,
             is_reply: c.is_reply,
             reply_to: c.reply_to,
+            images: c.images ?? [],
         });
         if (withReplies) {
             const limited = [];

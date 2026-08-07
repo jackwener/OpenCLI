@@ -4,16 +4,22 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultErr
 
 import {
     HOT_BOARD_URL,
+    RECOMMEND_CATEGORIES,
+    RECOMMEND_URL,
     __test__,
     mapHotRow,
+    mapRecommendRow,
     looksToutiaoAuthWallText,
     parseArticlesPage,
     parseHotLimit,
+    parseRecommendCategory,
+    parseRecommendLimit,
     parseToutiaoArticlesText,
 } from './utils.js';
 
 import './articles.js';
 import './hot.js';
+import './recommend.js';
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -236,6 +242,21 @@ describe('toutiao registry shape', () => {
         expect(hot.browser).toBe(false);
         expect(hot.columns).toEqual(['rank', 'group_id', 'title', 'query', 'hot_value', 'label', 'url', 'image_url']);
     });
+
+    it('recommend is registered as public non-browser read adapter', () => {
+        const recommend = getRegistry().get('toutiao/recommend');
+        expect(recommend).toBeTruthy();
+        expect(recommend.access).toBe('read');
+        expect(recommend.browser).toBe(false);
+        expect(recommend.columns).toEqual(['rank', 'group_id', 'title', 'abstract', 'source', 'tag', 'comments', 'published_at', 'url', 'image_url']);
+    });
+
+    it('public non-browser commands take a single args object', () => {
+        // browser:false commands are invoked with one argument; declaring a
+        // leading page param silently swallows the caller's flags.
+        expect(hot.func.length).toBe(1);
+        expect(getRegistry().get('toutiao/recommend').func.length).toBe(1);
+    });
 });
 
 describe('toutiao articles adapter (registry func)', () => {
@@ -287,9 +308,9 @@ describe('toutiao hot adapter (registry func)', () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
 
-        await expect(cmd.func(null, { limit: 0 })).rejects.toThrow(ArgumentError);
-        await expect(cmd.func(null, { limit: 51 })).rejects.toThrow(ArgumentError);
-        await expect(cmd.func(null, { limit: 'abc' })).rejects.toThrow(ArgumentError);
+        await expect(cmd.func({ limit: 0 })).rejects.toThrow(ArgumentError);
+        await expect(cmd.func({ limit: 51 })).rejects.toThrow(ArgumentError);
+        await expect(cmd.func({ limit: 'abc' })).rejects.toThrow(ArgumentError);
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -304,7 +325,7 @@ describe('toutiao hot adapter (registry func)', () => {
         ));
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await cmd.func(null, {});
+        const rows = await cmd.func({});
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock.mock.calls[0][0]).toBe(HOT_BOARD_URL);
         expect(rows).toHaveLength(2);
@@ -317,7 +338,7 @@ describe('toutiao hot adapter (registry func)', () => {
             new Response('', { status: 503 }),
         )));
 
-        await expect(cmd.func(null, { limit: 5 })).rejects.toThrow(CommandExecutionError);
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
     });
 
     it('throws CommandExecutionError on malformed JSON', async () => {
@@ -325,7 +346,7 @@ describe('toutiao hot adapter (registry func)', () => {
             new Response('not-json{{{', { status: 200 }),
         )));
 
-        await expect(cmd.func(null, { limit: 5 })).rejects.toThrow(CommandExecutionError);
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
     });
 
     it('throws CommandExecutionError on in-band error envelope', async () => {
@@ -333,13 +354,13 @@ describe('toutiao hot adapter (registry func)', () => {
             new Response(JSON.stringify({ status: 'error', message: 'rate limited' }), { status: 200 }),
         )));
 
-        await expect(cmd.func(null, { limit: 5 })).rejects.toThrow(CommandExecutionError);
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
     });
 
     it('throws CommandExecutionError when fetch rejects (no silent catch)', async () => {
         vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('network down'))));
 
-        await expect(cmd.func(null, { limit: 5 })).rejects.toThrow(CommandExecutionError);
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
     });
 
     it('throws EmptyResultError when upstream payload is empty', async () => {
@@ -347,7 +368,7 @@ describe('toutiao hot adapter (registry func)', () => {
             new Response(JSON.stringify({ data: [] }), { status: 200 }),
         )));
 
-        await expect(cmd.func(null, { limit: 5 })).rejects.toThrow(EmptyResultError);
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(EmptyResultError);
     });
 
     it('caps result rows at limit and dense-ranks (1..N) after filtering', async () => {
@@ -362,7 +383,7 @@ describe('toutiao hot adapter (registry func)', () => {
             }), { status: 200 }),
         )));
 
-        const rows = await cmd.func(null, { limit: 2 });
+        const rows = await cmd.func({ limit: 2 });
         expect(rows.map(r => r.title)).toEqual(['kept', 'also kept']);
         expect(rows.map(r => r.rank)).toEqual([1, 2]); // dense rank after empty-title drop
     });
@@ -374,5 +395,185 @@ describe('toutiao __test__ contract', () => {
         expect(__test__.ARTICLES_MAX_PAGE).toBe(4);
         expect(__test__.HOT_MIN_LIMIT).toBe(1);
         expect(__test__.HOT_MAX_LIMIT).toBe(50);
+        expect(__test__.RECOMMEND_MIN_LIMIT).toBe(1);
+        expect(__test__.RECOMMEND_MAX_LIMIT).toBe(50);
+    });
+});
+
+describe('toutiao parseRecommendLimit', () => {
+    it('falls back when the value is absent', () => {
+        expect(parseRecommendLimit(undefined, 20)).toBe(20);
+        expect(parseRecommendLimit(null, 20)).toBe(20);
+        expect(parseRecommendLimit('', 20)).toBe(20);
+    });
+
+    it('rejects out-of-range and non-integer values instead of clamping', () => {
+        expect(() => parseRecommendLimit(0)).toThrow(ArgumentError);
+        expect(() => parseRecommendLimit(51)).toThrow(ArgumentError);
+        expect(() => parseRecommendLimit(1.5)).toThrow(ArgumentError);
+        expect(() => parseRecommendLimit('abc')).toThrow(ArgumentError);
+    });
+});
+
+describe('toutiao parseRecommendCategory', () => {
+    it('accepts every advertised channel', () => {
+        for (const category of RECOMMEND_CATEGORIES) {
+            expect(parseRecommendCategory(category)).toBe(category);
+        }
+    });
+
+    it('falls back to __all__ when absent', () => {
+        expect(parseRecommendCategory(undefined)).toBe('__all__');
+        expect(parseRecommendCategory('')).toBe('__all__');
+    });
+
+    it('rejects channels the endpoint does not serve', () => {
+        // news_auto answers 200 with an empty payload and no message field, so
+        // it stays off the allow-list rather than surfacing a fake outage.
+        expect(() => parseRecommendCategory('news_auto')).toThrow(ArgumentError);
+        expect(() => parseRecommendCategory('nonsense')).toThrow(ArgumentError);
+    });
+});
+
+describe('toutiao mapRecommendRow', () => {
+    it('projects a feed row into the stable shape', () => {
+        const row = mapRecommendRow({
+            group_id: 7663270543809937946n.toString(),
+            title: 'T',
+            abstract: 'A',
+            source: 'S',
+            chinese_tag: '视频',
+            comments_count: 7,
+            behot_time: 1784375050,
+            source_url: '/group/7663270543809937946/',
+            image_url: '//p3.pstatp.com/list/x.webp',
+        }, 0);
+
+        expect(row).toEqual({
+            rank: 1,
+            group_id: '7663270543809937946',
+            title: 'T',
+            abstract: 'A',
+            source: 'S',
+            tag: '视频',
+            comments: 7,
+            published_at: '2026-07-18T11:44:10Z',
+            url: 'https://www.toutiao.com/group/7663270543809937946/',
+            image_url: 'https://p3.pstatp.com/list/x.webp',
+        });
+    });
+
+    it('drops sponsored rows and rows without a title', () => {
+        expect(mapRecommendRow({ is_feed_ad: true, title: 'Ad', group_id: '1' }, 0)).toBeNull();
+        expect(mapRecommendRow({ title: '   ', group_id: '1' }, 0)).toBeNull();
+        expect(mapRecommendRow(null, 0)).toBeNull();
+    });
+
+    it('keeps missing counts and timestamps null instead of coercing to 0', () => {
+        const row = mapRecommendRow({ group_id: '1', title: 'T' }, 0);
+        expect(row.comments).toBeNull();
+        expect(row.published_at).toBeNull();
+        expect(row.abstract).toBeNull();
+        expect(row.tag).toBeNull();
+        expect(row.url).toBe('https://www.toutiao.com/group/1/');
+    });
+
+    it('derives group_id from first-party source_url when the explicit id is absent', () => {
+        const row = mapRecommendRow({ title: 'T', source_url: '/group/12345/' }, 0);
+
+        expect(row.group_id).toBe('12345');
+        expect(row.url).toBe('https://www.toutiao.com/group/12345/');
+    });
+
+    it('typed-fails malformed article identity instead of emitting partial rows', () => {
+        expect(() => mapRecommendRow({ title: 'T' }, 0)).toThrow(CommandExecutionError);
+        expect(() => mapRecommendRow({ title: 'T', group_id: '../bad' }, 0)).toThrow(CommandExecutionError);
+        expect(() => mapRecommendRow({ title: 'T', source_url: 'https://evil.example/group/1/' }, 0))
+            .toThrow(CommandExecutionError);
+        expect(() => mapRecommendRow({ group_id: '1', title: 'T', source_url: '/group/2/' }, 0))
+            .toThrow(CommandExecutionError);
+    });
+});
+
+describe('toutiao recommend adapter (registry func)', () => {
+    const cmd = getRegistry().get('toutiao/recommend');
+
+    function feedResponse(items, extra = {}) {
+        return new Response(JSON.stringify({ message: 'success', data: items, ...extra }), { status: 200 });
+    }
+
+    it('rejects invalid args before fetching (no silent clamp)', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(cmd.func({ limit: 0 })).rejects.toThrow(ArgumentError);
+        await expect(cmd.func({ limit: 51 })).rejects.toThrow(ArgumentError);
+        await expect(cmd.func({ category: 'news_auto' })).rejects.toThrow(ArgumentError);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('requests the selected channel and dense-ranks the rows', async () => {
+        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(feedResponse([
+            { group_id: '1', title: 'A' },
+            { group_id: '2', title: 'B', is_feed_ad: true },
+            { group_id: '3', title: 'C' },
+        ])));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const rows = await cmd.func({ category: 'news_tech' });
+        expect(fetchMock.mock.calls[0][0]).toBe(`${RECOMMEND_URL}?category=news_tech`);
+        // The sponsored row is dropped, so ranks stay dense.
+        expect(rows.map((r) => [r.rank, r.group_id])).toEqual([[1, '1'], [2, '3']]);
+    });
+
+    it('caps result rows at limit', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(feedResponse([
+            { group_id: '1', title: 'A' },
+            { group_id: '2', title: 'B' },
+            { group_id: '3', title: 'C' },
+        ]))));
+
+        const rows = await cmd.func({ limit: 2 });
+        expect(rows).toHaveLength(2);
+    });
+
+    it('throws CommandExecutionError on non-OK HTTP', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
+            new Response('', { status: 503 }),
+        )));
+
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError on malformed JSON', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
+            new Response('not-json{{{', { status: 200 }),
+        )));
+
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when upstream reports a non-success message', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
+            new Response(JSON.stringify({ message: 'error', data: [] }), { status: 200 }),
+        )));
+
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws CommandExecutionError when data is not an array', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
+            new Response(JSON.stringify({ message: 'success', data: {} }), { status: 200 }),
+        )));
+
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(CommandExecutionError);
+    });
+
+    it('throws EmptyResultError when every row was filtered out', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(feedResponse([
+            { group_id: '1', title: 'Ad', is_feed_ad: true },
+        ]))));
+
+        await expect(cmd.func({ limit: 5 })).rejects.toThrow(EmptyResultError);
     });
 });

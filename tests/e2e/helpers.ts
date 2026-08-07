@@ -36,7 +36,10 @@ export async function runCli(
   args: string[],
   opts: { timeout?: number; env?: Record<string, string>; maxBuffer?: number } = {},
 ): Promise<CliResult> {
-  const timeout = opts.timeout ?? 30_000;
+  // Keep the child timeout below the common 30s Vitest timeout so flaky
+  // network commands return a structured non-zero result instead of killing
+  // the whole test at the framework layer.
+  const timeout = opts.timeout ?? 25_000;
   const maxBuffer = opts.maxBuffer ?? DEFAULT_MAX_BUFFER_BYTES;
   try {
     const runtime = process.env.OPENCLI_TEST_RUNTIME || 'node';

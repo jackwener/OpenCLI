@@ -33,11 +33,11 @@ Before you start:
 - Normalize expected adapter failures to `CliError` subclasses instead of raw `Error` whenever possible. Prefer `AuthRequiredError`, `EmptyResultError`, `CommandExecutionError`, `TimeoutError`, and `ArgumentError` so the top-level CLI can render better messages and hints.
 - If you add a new adapter or make a command newly discoverable, update the matching doc page and the user-facing indexes that expose it.
 
-### TypeScript Adapter
+### Create the Adapter
 
-Create a file like `clis/<site>/<command>.ts`:
+Built-in adapters are authored in JavaScript. Create a file like `clis/<site>/<command>.js`:
 
-```typescript
+```javascript
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 
@@ -60,7 +60,7 @@ cli({
     // ... browser automation logic
     if (!Array.isArray(data)) throw new CommandExecutionError('MySite returned an unexpected response');
     if (!data.length) throw new EmptyResultError('mysite search', 'Try a different keyword');
-    return data.slice(0, Number(limit)).map((item: any) => ({
+    return data.slice(0, Number(limit)).map((item) => ({
       title: item.title,
       url: item.url,
       date: item.created_at,
@@ -68,6 +68,8 @@ cli({
   },
 });
 ```
+
+> TypeScript adapters are also supported — see [TypeScript Adapter](./ts-adapter).
 
 ### Validate Your Adapter
 
@@ -104,7 +106,7 @@ chore: bump vitest to v4
    ```bash
    npx tsc --noEmit           # Type check
    npm run build              # Ensure dist stays healthy
-   npx vitest run src/<target>.test.ts
+   npx vitest run clis/<site>/<command>.test.js   # Your adapter's tests
    npm test                   # Broader local gate when shared runtime changes justify it
    ```
 4. Commit using conventional commit format

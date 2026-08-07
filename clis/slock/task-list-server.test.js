@@ -28,10 +28,11 @@ describe('slock task-list-server', () => {
 
   it('passes ?status= through when --status is set', async () => {
     const page = makePage({ kind: 'ok', rows: [] });
-    await command.func(page, { status: 'todo' });
+    await command.func(page, { status: '  todo  ' });
     const snippet = page.evaluate.mock.calls[0][0];
     expect(snippet).toContain('?status=');
     expect(snippet).toContain('"todo"');
+    expect(snippet).not.toContain('"  todo  "');
   });
 
   it('rejects an invalid --status before navigation', async () => {

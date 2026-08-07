@@ -53,13 +53,45 @@ export function saveProfileConfig(config: ProfileConfig): void {
   fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf-8');
 }
 
-export function resolveProfileContextId(profile?: string): string | undefined {
+export type ProfileSelection = {
+  contextId: string;
+  /**
+   * 'explicit' — the user demanded this profile right now (--profile argument
+   * or OPENCLI_PROFILE env): route strictly and fail loud if it is offline.
+   * 'preferred' — the persisted default from browser-profiles.json. A default
+   * is a preference, not a requirement: its lifetime routinely exceeds the
+   * extension instance it names (reinstalling the extension regenerates the
+   * contextId), so the daemon may fall back to the only connected profile
+   * when the preferred one is offline.
+   */
+  source: 'explicit' | 'preferred';
+};
+
+export function resolveProfileSelection(profile?: string): ProfileSelection | undefined {
   const config = loadProfileConfig();
-  const requested = normalizeContextId(profile)
-    ?? normalizeContextId(process.env.OPENCLI_PROFILE)
-    ?? normalizeContextId(config.defaultContextId);
-  if (!requested) return undefined;
-  return config.aliases[requested] ?? requested;
+  const explicit = normalizeContextId(profile) ?? normalizeContextId(process.env.OPENCLI_PROFILE);
+  if (explicit) return { contextId: config.aliases[explicit] ?? explicit, source: 'explicit' };
+  const preferred = normalizeContextId(config.defaultContextId);
+  if (preferred) return { contextId: config.aliases[preferred] ?? preferred, source: 'preferred' };
+  return undefined;
+}
+
+/**
+ * Map a selection to wire/connect routing params. Exactly one of the two
+ * fields is set — `contextId` is a hard requirement, `preferredContextId`
+ * lets the daemon arbitrate against live connections.
+ */
+export function profileRouteParams(
+  selection: ProfileSelection | undefined,
+): { contextId?: string; preferredContextId?: string } {
+  if (!selection) return {};
+  return selection.source === 'explicit'
+    ? { contextId: selection.contextId }
+    : { preferredContextId: selection.contextId };
+}
+
+export function resolveProfileContextId(profile?: string): string | undefined {
+  return resolveProfileSelection(profile)?.contextId;
 }
 
 export function aliasForContextId(config: ProfileConfig, contextId: string): string | undefined {

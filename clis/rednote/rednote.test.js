@@ -90,9 +90,25 @@ describe('rednote note URL identity', () => {
         });
 
         expect(rows).toEqual([
-            { rank: 1, author: 'Alice', text: 'Nice', likes: 1, time: 'today', is_reply: false, reply_to: '' },
+            { rank: 1, author: 'Alice', text: 'Nice', likes: 1, time: 'today', is_reply: false, reply_to: '', images: [] },
         ]);
         expect(rows[0]).not.toHaveProperty('authorHrefRaw');
+    });
+
+    it('fails typed for malformed comment images instead of leaking success rows', async () => {
+        const page = createPageMock({
+            loginWall: false,
+            results: [
+                { author: 'Alice', authorHrefRaw: '/user/profile/alice1', text: 'Nice', likes: 1, time: 'today', is_reply: false, reply_to: '', images: ['blob:https://www.rednote.com/not-stable'] },
+            ],
+        });
+        await expect(comments.func(page, {
+            'note-id': 'https://www.rednote.com/search_result/69aadbcb000000002202f131?xsec_token=abc',
+            limit: 20,
+        })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('malformed comment row image URL'),
+        });
     });
 
     it('uses URL-scoped rednote cookies when downloading media', async () => {
