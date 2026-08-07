@@ -45,6 +45,7 @@ import type { BrowserWindowMode } from './runtime.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
+const BROWSER_WINDOW_OPTION_DESCRIPTION = 'Browser window mode: foreground or background';
 const FOLLOW_POLL_MS = 1_000;
 
 type BrowserNetworkItem = {
@@ -566,6 +567,47 @@ function addBrowserTabOption(command: Command): Command {
   return command.option('--tab <targetId>', BROWSER_TAB_OPTION_DESCRIPTION);
 }
 
+// Browser session commands that never open or attach a page: they manage the
+// session lease or scaffold/verify adapters and so do not route through
+// browserAction()/getBrowserWindowMode(). Registering `--window` on them would be
+// inert and misleading in `--help`. Only skipped at the browser root — `tab close`
+// is a real page leaf under the `tab` group and shares the name `close`.
+const BROWSER_SESSION_COMMANDS = new Set(['bind', 'unbind', 'init', 'verify', 'close']);
+
+/**
+ * Register `--window <mode>` on the browser's page-interaction leaf commands.
+ *
+ * `--window` is declared on the parent `browser` command, but enablePositionalOptions()
+ * means a parent option is only accepted *before* the leaf subcommand token. Agents
+ * naturally write the flag in the trailing position
+ * (`browser <session> open <url> --window background`), which previously failed with
+ * `error: unknown option '--window'` (#1850). Declaring the same option on each page
+ * leaf makes both placements work — getBrowserWindowMode()/getCommandOption() already
+ * walk the parent chain, so wherever the flag binds, the value is read. It also makes
+ * `--window` show up in those leaves' `--help`, matching the parent help text.
+ *
+ * Only true page leaves get the option: group nodes (`get`/`tab`/`dialog`) are recursed
+ * into but never carry `--window` themselves, and the session commands
+ * ({bind,unbind,init,verify,close}) are skipped at the root because they never route
+ * through browserAction()/getBrowserWindowMode() — declaring it there would be inert.
+ */
+function addBrowserWindowOptionRecursively(command: Command, isBrowserRoot: boolean): void {
+  for (const sub of command.commands) {
+    // Skip session commands, but only at the browser root: a leaf named `close`
+    // under the `tab` group (`browser tab close`) is a real page leaf.
+    if (isBrowserRoot && BROWSER_SESSION_COMMANDS.has(sub.name())) continue;
+    if (sub.commands.length > 0) {
+      // Group node (get/tab/dialog): recurse into its leaves but do not add
+      // --window to the group itself.
+      addBrowserWindowOptionRecursively(sub, false);
+      continue;
+    }
+    if (!sub.options.some((opt) => opt.long === '--window')) {
+      sub.option('--window <mode>', BROWSER_WINDOW_OPTION_DESCRIPTION);
+    }
+  }
+}
+
 function getBrowserTargetId(command?: Command): string | undefined {
   if (!command) return undefined;
   const opts = command.optsWithGlobals ? command.optsWithGlobals() : command.opts();
@@ -904,7 +946,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     // program.parseAsync callers (tests). User-facing surface is the <session>
     // positional; main.ts argv preprocessor rewrites positional -> --session.
     .addOption(new Option('--session <name>', 'Internal — set automatically from the <session> positional').hideHelp())
-    .option('--window <mode>', 'Browser window mode: foreground or background')
+    .option('--window <mode>', BROWSER_WINDOW_OPTION_DESCRIPTION)
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)')
     .usage('<session> <command> [options]')
     .addHelpText('after', `
@@ -2972,6 +3014,12 @@ cli({
       await page.closeWindow?.();
       console.log('Browser session tab lease released');
     }));
+
+  // All browser subcommands are registered above; mirror the parent `--window`
+  // option onto every page-interaction leaf so it is accepted in the trailing
+  // position too (#1850). Session commands (bind/unbind/init/verify/close) and the
+  // group nodes themselves are skipped — see addBrowserWindowOptionRecursively.
+  addBrowserWindowOptionRecursively(browser, true);
 
   // ── Built-in: doctor / completion ──────────────────────────────────────────
 

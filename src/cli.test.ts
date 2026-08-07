@@ -1210,6 +1210,41 @@ describe('browser tab targeting commands', () => {
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 
+  it('accepts browser --window in the trailing position after the leaf subcommand (#1850)', async () => {
+    const program = createProgram('', '');
+
+    // The natural agent-facing form: flag after the subcommand. Previously this
+    // failed with `error: unknown option '--window'` because --window was only
+    // declared on the parent `browser` command.
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state', '--window', 'background']);
+
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 30, session: 'test', surface: 'browser', windowMode: 'background' });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('registers --window on page leaves but not on session/scaffold leaves (#1850)', () => {
+    const program = createProgram('', '');
+    const browser = program.commands.find((c) => c.name() === 'browser');
+    const hasWindow = (c: ReturnType<typeof createProgram> | undefined) =>
+      !!c?.options.some((o) => o.long === '--window');
+
+    // Page-interaction leaves (route through browserAction → getBrowserWindowMode):
+    // representative across the different registration helpers.
+    expect(hasWindow(browser?.commands.find((c) => c.name() === 'click'))).toBe(true); // addSemanticLocatorOptions
+    expect(hasWindow(browser?.commands.find((c) => c.name() === 'open'))).toBe(true);  // addBrowserTabOption
+    expect(hasWindow(browser?.commands.find((c) => c.name() === 'eval'))).toBe(true);  // neither helper
+    const get = browser?.commands.find((c) => c.name() === 'get');                     // group → nested leaf
+    expect(hasWindow(get?.commands.find((c) => c.name() === 'url'))).toBe(true);
+
+    // Session/scaffold leaves never open a page, so --window would be inert and
+    // misleading in --help — it must NOT be registered there.
+    expect(hasWindow(browser?.commands.find((c) => c.name() === 'init'))).toBe(false);
+    expect(hasWindow(browser?.commands.find((c) => c.name() === 'verify'))).toBe(false);
+
+    // Group nodes themselves carry no --window (only their leaves do).
+    expect(hasWindow(get)).toBe(false);
+  });
+
   it('passes the opt-in AX source to browser state', async () => {
     const program = createProgram('', '');
 
