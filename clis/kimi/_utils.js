@@ -75,25 +75,40 @@ export function clickBySvgNameScript(svgName, opts = {}) {
     const { last = true } = opts;
     return `(() => {
     ${IS_VISIBLE_JS}
+    // 1. find SVG
     const svgs = Array.from(document.querySelectorAll('svg[name="' + ${JSON.stringify(svgName)} + '"], svg[role="img"][name="' + ${JSON.stringify(svgName)} + '"]')).filter(isVisible);
     if (!svgs.length) return { ok: false, reason: 'No visible svg[name="' + ${JSON.stringify(svgName)} + '"].' };
+
     const svg = ${last ? 'svgs[svgs.length - 1]' : 'svgs[0]'};
-    // Walk up to the nearest clickable ancestor.
-    let target = svg;
-    for (let i = 0; i < 6; i++) {
-      const parent = target.parentElement;
-      if (!parent) break;
-      target = parent;
-      if (target.tagName === 'BUTTON' || target.getAttribute('role') === 'button' || target.onclick || target.tagName === 'A') break;
+
+    // 2. use parent element
+    let target = svg.parentElement;
+    
+    // exist confirm
+    if (!target) {
+        return { ok: false, reason: 'SVG has no parent element.' };
     }
+
+    // 3. do click
     const r = target.getBoundingClientRect();
-    const opts = { bubbles: true, cancelable: true, clientX: r.x + r.width/2, clientY: r.y + r.height/2 };
+    const x = r.x + r.width / 2;
+    const y = r.y + r.height / 2;
+
+    const opts = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: x,
+        clientY: y
+    };
+
     target.dispatchEvent(new PointerEvent('pointerdown', opts));
     target.dispatchEvent(new MouseEvent('mousedown', opts));
     target.dispatchEvent(new PointerEvent('pointerup', opts));
     target.dispatchEvent(new MouseEvent('mouseup', opts));
     target.click();
-    return { ok: true };
+
+    return { ok: true, targetTag: target.tagName, targetClass: target.className };
   })()`;
 }
 
