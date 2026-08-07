@@ -108,7 +108,7 @@ Run `opencli list` for the live registry.
 | **[juejin](./browser/juejin.md)**                 | `recommend` `hot`                                                                                                                              | 🌐 Public    |
 | **[dictionary](./browser/dictionary.md)**         | `search` `synonyms` `examples`                                                                                                                 | 🌐 Public    |
 | **[apple-podcasts](./browser/apple-podcasts.md)** | `search` `episodes` `top`                                                                                                                      | 🌐 Public    |
-| **[xiaoyuzhou](./browser/xiaoyuzhou.md)**         | `podcast` `podcast-episodes` `episode` `download` `transcript` (local credentials required)                                                   | 🔑 Local API |
+| **[xiaoyuzhou](./browser/xiaoyuzhou.md)**         | `podcast` `podcast-episodes` `episode` `history` `download` `transcript` (local credentials required)                                         | 🔑 Local API |
 | **[yahoo-finance](./browser/yahoo-finance.md)**   | `quote`                                                                                                                                        | 🌐 Public    |
 | **[archive](./browser/archive.md)**               | `search` `item` `wayback` `snapshots`                                                                                                          | 🌐 Public    |
 | **[arxiv](./browser/arxiv.md)**                   | `search` `paper`                                                                                                                               | 🌐 Public    |
