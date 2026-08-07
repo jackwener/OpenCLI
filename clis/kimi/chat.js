@@ -234,13 +234,34 @@ async function readKimiTurns(page) {
       let role = 'Turn';
       if (/chat-content-item-user|segment-user|user|sent-by-user|me-/i.test(cls)) role = 'User';
       else if (/chat-content-item-assistant|segment-assistant|assistant|ai-|kimi-|response/i.test(cls)) role = 'Assistant';
-      else if (row.querySelector('svg[name="Copy"], svg[name="Refresh"], svg[name="Like"]')) role = 'Assistant';
+      else if (row.querySelector('svg[name="Refresh"], svg[name="Like"]')) role = 'Assistant';
       else role = 'User';
       seen.add(tx);
       turns.push({ role, text: tx });
     }
     return turns;
   })()`);
+}
+
+// Kimi pauses between thought chunks (and during web-search / tool calls),
+// so a plain text-stability check quits mid-thinking. The model only renders
+// the Copy/Refresh/Like action buttons on a fully emitted assistant message,
+// so the presence of those SVGs is the reliable "reply is done" signal.
+async function isLatestAssistantComplete(page) {
+    return page.evaluate(`(() => {
+    const box = document.querySelector('.chat-content-list') || document.querySelector('.message-list');
+    if (!box) return false;
+    const rows = Array.from(box.querySelectorAll('.chat-content-item, .segment'));
+    let last = null;
+    for (const row of rows) {
+      const cls = String(row.className || '').toLowerCase();
+      const isAssistant = /chat-content-item-assistant|segment-assistant|assistant|ai-|kimi-|response/i.test(cls)
+        || !!row.querySelector('svg[name="Copy"], svg[name="Refresh"], svg[name="Like"]');
+      if (isAssistant) last = row;
+    }
+    if (!last) return false;
+    return !!last.querySelector('svg[name="Copy"], svg[name="Refresh"], svg[name="Like"]');
+  })()`).catch(() => false);
 }
 
 async function sendKimiMessage(page, text) {
@@ -454,7 +475,13 @@ cli({
                 latestText = next;
                 stable = 0;
             }
-            if (latestText && stable >= 2) break;
+            // Require both: text stable AND the action buttons (Copy/Refresh/Like)
+            // rendered on the last assistant message. Kimi shows those buttons
+            // only once the reply is fully emitted, so they prevent quitting
+            // mid-thinking when the model pauses between thought chunks or
+            // while waiting on a web search.
+            const isComplete = await isLatestAssistantComplete(page);
+            if (latestText && stable >= 2 && isComplete) break;
         }
         const elapsed = Math.round((Date.now() - startedAt) / 1000);
         if (!latestText) {

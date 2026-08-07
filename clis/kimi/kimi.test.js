@@ -189,6 +189,43 @@ describe('kimi write postconditions', () => {
         }
     });
 
+    it('ask waits for action buttons before returning even when text stabilizes earlier', async () => {
+        // The Kimi reply stops emitting text and "looks stable" for several
+        // iterations while the model is still thinking or running a tool call.
+        // A plain text-stability check would break here and return a partial
+        // reply. The Copy/Refresh/Like action buttons only appear once the
+        // message is fully emitted, so we require them before breaking.
+        const page = makePage([
+            'https://www.kimi.com/',
+            [],
+            'https://www.kimi.com/',
+            0,
+            { ok: true },
+            { ok: true },
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            false,
+            [{ role: 'Assistant', text: '思考中' }],
+            false,
+            [{ role: 'Assistant', text: '思考中' }],
+            false,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+        ]);
+        let now = 1_000;
+        const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+            now += 200;
+            return now;
+        });
+        try {
+            const rows = await askCommand.func(page, { text: 'ping', timeout: 10 });
+            expect(rows[0].Status).toBe('reply-received');
+            expect(rows[0].ReplyPreview).toBe('思考中');
+        } finally {
+            nowSpy.mockRestore();
+        }
+    });
+
     it('model rejects ambiguous partial names before clicking an option', async () => {
         const page = makePage([
             'https://www.kimi.com/',
