@@ -249,18 +249,14 @@ async function readKimiTurns(page) {
 // message is itself a complete message, so it gets those buttons too. That
 // makes "wait for action buttons on the last message" fire mid-round-trip.
 // The reliable signal is the *generation state* of the whole round-trip:
-// while the model is still emitting, Kimi shows a Stop button and disables
-// the composer; once it finishes both, the Stop button disappears and the
-// composer comes back. Check those instead.
+// while the model is still emitting, the send button container carries a
+// `disabled` modifier class (the Send icon grays out). When the reply is
+// fully emitted, that class is removed. Check the class instead of any
+// message-level action icons.
 async function isKimiGenerating(page) {
     return page.evaluate(`(() => {
-    // Stop button → still generating.
-    const stopBtn = document.querySelector('svg[name="Stop"]');
-    if (stopBtn) return true;
-    // Composer disabled / aria-disabled → still generating.
-    const editor = document.querySelector('[contenteditable="true"][role="textbox"]');
-    if (editor && (editor.disabled || editor.getAttribute('aria-disabled') === 'true')) return true;
-    return false;
+    const sendBtn = document.querySelector('.send-button-container.disabled.stop');
+    return !!sendBtn;
   })()`).catch(() => false);
 }
 
