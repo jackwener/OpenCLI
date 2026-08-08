@@ -315,6 +315,7 @@ opencli plugin uninstall my-tool                            # 卸载
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | 多平台热榜聚合 |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金热门文章 |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) 动态、信息流和搜索 |
+| [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | 通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文 |
 
 详见 [插件指南](./docs/zh/guide/plugins.md) 了解如何创建自己的插件。
 

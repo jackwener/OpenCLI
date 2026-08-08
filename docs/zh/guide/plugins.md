@@ -177,6 +177,7 @@ cli({
 - `opencli-plugin-hot-digest`：多平台热点聚合（zhihu、weibo、bilibili、v2ex、stackoverflow、reddit、linux-do）
 - `opencli-plugin-juejin`：稀土掘金热榜、分类和文章流
 - `opencli-plugin-rubysec`：RubySec 漏洞归档与单篇漏洞文章读取
+- [`opencli-plugin-x-article-publisher`](https://github.com/genoooool/opencli-plugin-x-article-publisher)：通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文
 
 ## 排查问题
 
