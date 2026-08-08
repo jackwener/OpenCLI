@@ -177,6 +177,7 @@ cli({
 - `opencli-plugin-hot-digest`：多平台热点聚合（zhihu、weibo、bilibili、v2ex、stackoverflow、reddit、linux-do）
 - `opencli-plugin-juejin`：稀土掘金热榜、分类和文章流
 - `opencli-plugin-rubysec`：RubySec 漏洞归档与单篇漏洞文章读取
+- `opencli-plugin-texpage`：TeXPage 在线 LaTeX 编辑器：项目列表、文件读写、编译、PDF 下载
 
 ## 排查问题
 
