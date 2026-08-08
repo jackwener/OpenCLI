@@ -32,6 +32,45 @@ describe('twitter reply command', () => {
             },
         ]);
     });
+    it('typed-fails when the reply never leaves the composer', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        const page = createPageMock([
+            { ok: true },
+            { ok: true },
+            { ok: false, message: 'Reply button is disabled or not found.' },
+        ]);
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161',
+            text: 'never sent',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Reply button is disabled or not found.',
+            hint: expect.stringContaining('Nothing was posted'),
+        });
+    });
+
+    it('reports an unconfirmed reply as temporary, without claiming nothing was posted', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        const page = createPageMock([
+            { ok: true },
+            { ok: true },
+            { ok: false, unconfirmed: true, message: 'Reply submission did not complete before timeout.' },
+        ]);
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161',
+            text: 'unconfirmed',
+        })).rejects.toMatchObject({
+            name: 'TimeoutError',
+            code: 'TIMEOUT',
+            exitCode: 75,
+            hint: expect.stringContaining('may already be live'),
+        });
+    });
+
     it('uploads a local image through the dedicated reply composer when --image is provided', async () => {
         const cmd = getRegistry().get('twitter/reply');
         expect(cmd?.func).toBeTypeOf('function');
@@ -195,9 +234,12 @@ describe('twitter reply command', () => {
     };
 
     it('does not report reply success from a cleared composer without a fresh toast', async () => {
-        await expect(runReplyAgainstDom('', 'cleared reply')).resolves.toEqual([
-            { status: 'failed', message: 'Reply submission did not complete before timeout.', text: 'cleared reply' },
-        ]);
+        await expect(runReplyAgainstDom('', 'cleared reply')).rejects.toMatchObject({
+            name: 'TimeoutError',
+            code: 'TIMEOUT',
+            exitCode: 75,
+            hint: expect.stringContaining('Reply submission did not complete before timeout.'),
+        });
     });
 
     it('ignores a reply success toast that existed before clicking Reply', async () => {
@@ -205,9 +247,12 @@ describe('twitter reply command', () => {
             <div role="alert">Your post was sent. <a href="/me/status/3333333333333333333">View</a></div>
         `;
 
-        await expect(runReplyAgainstDom(oldToast, 'old reply toast')).resolves.toEqual([
-            { status: 'failed', message: 'Reply submission did not complete before timeout.', text: 'old reply toast' },
-        ]);
+        await expect(runReplyAgainstDom(oldToast, 'old reply toast')).rejects.toMatchObject({
+            name: 'TimeoutError',
+            code: 'TIMEOUT',
+            exitCode: 75,
+            hint: expect.stringContaining('Reply submission did not complete before timeout.'),
+        });
     });
 
     it('returns the permalink from a fresh reply success toast only', async () => {

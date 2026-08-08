@@ -37,7 +37,7 @@ describe('twitter hide-reply command', () => {
         ]);
     });
 
-    it('returns a failed row without re-waiting when the hide-reply script reports a UI mismatch', async () => {
+    it('typed-fails without re-waiting when the hide-reply script reports a UI mismatch', async () => {
         const cmd = getRegistry().get('twitter/hide-reply');
         const page = createPageMock([
             {
@@ -45,15 +45,14 @@ describe('twitter hide-reply command', () => {
                 message: 'Could not find "Hide reply" option. This may not be a reply on your tweet.',
             },
         ]);
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Could not find "Hide reply" option. This may not be a reply on your tweet.',
         });
-        expect(result).toEqual([
-            {
-                status: 'failed',
-                message: 'Could not find "Hide reply" option. This may not be a reply on your tweet.',
-            },
-        ]);
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
 

@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { parseTweetUrl, buildTwitterArticleScopeSource } from './shared.js';
 import {
@@ -8,6 +8,9 @@ import {
     downloadRemoteImage,
     resolveImagePath,
 } from './utils.js';
+
+const SUBMIT_POLL_MS = 500;
+const SUBMIT_TIMEOUT_MS = 15_000;
 
 function buildQuoteComposerUrl(url) {
     // Twitter/X quote-tweet compose URL: the `url` param attaches the source
@@ -18,6 +21,7 @@ function buildQuoteComposerUrl(url) {
 }
 
 async function submitQuote(page, text, tweetId) {
+    const iterations = Math.ceil(SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS);
     return page.evaluate(`(async () => {
         try {
             ${buildTwitterArticleScopeSource(tweetId)}
@@ -79,8 +83,8 @@ async function submitQuote(page, text, tweetId) {
 
             const normalize = s => String(s || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
             const expectedText = normalize(textToInsert);
-            for (let i = 0; i < 30; i++) {
-                await new Promise(r => setTimeout(r, 500));
+            for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
+                await new Promise(r => setTimeout(r, ${JSON.stringify(SUBMIT_POLL_MS)}));
                 const toasts = Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))
                     .filter((el) => visible(el));
                 const successToast = toasts.find((el) => /sent|posted|your post was sent|your tweet was sent/i.test(el.textContent || ''));
@@ -94,7 +98,7 @@ async function submitQuote(page, text, tweetId) {
                 );
                 if (!composerStillHasText) return { ok: true, message: 'Quote tweet posted successfully.' };
             }
-            return { ok: false, message: 'Quote tweet submission did not complete before timeout.' };
+            return { ok: false, unconfirmed: true, message: 'Quote tweet submission did not complete before timeout.' };
         } catch (e) {
             return { ok: false, message: e.toString() };
         }
@@ -152,8 +156,14 @@ cli({
                 // Wait for network submission to complete
                 await page.wait(3);
             }
+            if (result.unconfirmed) {
+                throw new TimeoutError('twitter quote', SUBMIT_TIMEOUT_MS / 1000, `${result.message} Check your profile before retrying; the quote may already be live.`);
+            }
+            if (!result.ok) {
+                throw new CommandExecutionError(result.message, 'Nothing was posted. Open the tweet in the browser and retry.');
+            }
             return [{
-                    status: result.ok ? 'success' : 'failed',
+                    status: 'success',
                     message: result.message,
                     text: kwargs.text,
                     ...(kwargs.image ? { image: kwargs.image } : {}),

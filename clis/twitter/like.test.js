@@ -33,7 +33,15 @@ describe('twitter like command', () => {
         ]);
     });
 
-    it('returns a failed row without re-waiting when the like script reports a UI mismatch', async () => {
+    it('keeps an already-liked tweet a success rather than a failure', async () => {
+        const cmd = getRegistry().get('twitter/like');
+        const page = createPageMock([{ ok: true, message: 'Tweet is already liked.' }]);
+
+        await expect(cmd.func(page, { url: 'https://x.com/alice/status/2040254679301718161' }))
+            .resolves.toEqual([{ status: 'success', message: 'Tweet is already liked.' }]);
+    });
+
+    it('typed-fails without re-waiting when the like script reports a UI mismatch', async () => {
         const cmd = getRegistry().get('twitter/like');
         const page = createPageMock([
             {
@@ -41,15 +49,14 @@ describe('twitter like command', () => {
                 message: 'Could not find the Like button on this tweet after waiting 10 seconds. Are you logged in?',
             },
         ]);
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Could not find the Like button on this tweet after waiting 10 seconds. Are you logged in?',
         });
-        expect(result).toEqual([
-            {
-                status: 'failed',
-                message: 'Could not find the Like button on this tweet after waiting 10 seconds. Are you logged in?',
-            },
-        ]);
         // Only the primaryColumn wait should run when ok is false.
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
