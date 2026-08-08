@@ -1699,6 +1699,8 @@ async function handleCommand(cmd) {
         return await handleScreenshot(cmd, leaseKey);
       case "close-window":
         return await handleCloseWindow(cmd, leaseKey);
+      case "close-container":
+        return await handleCloseContainer(cmd, leaseKey);
       case "cdp":
         return await handleCdp(cmd, leaseKey);
       case "set-file-input":
@@ -2248,6 +2250,136 @@ async function handleCloseWindow(cmd, leaseKey) {
   const sessionName = automationSessions.get(leaseKey)?.session ?? getSessionFromKey(leaseKey);
   await releaseLease(leaseKey, "explicit close");
   return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
+}
+function getOtherActiveCommandsForRole(role, currentLeaseKey) {
+  const active = [];
+  for (const [key, count] of activeCommandCounts.entries()) {
+    if (getOwnedWindowRole(key) !== role) continue;
+    const otherCount = count - (key === currentLeaseKey ? 1 : 0);
+    if (otherCount > 0) active.push(getSessionFromKey(key));
+  }
+  return active;
+}
+async function collectContainerGroupsForCleanup(role) {
+  const groups = /* @__PURE__ */ new Map();
+  const groupIds = /* @__PURE__ */ new Set();
+  if (ownedContainers[role].groupId !== null) groupIds.add(ownedContainers[role].groupId);
+  if (role === "interactive") {
+    for (const groupId of interactiveGroupLedger) groupIds.add(groupId);
+  }
+  for (const groupId of groupIds) {
+    try {
+      const group = await chrome.tabGroups.get(groupId);
+      groups.set(group.id, { id: group.id, windowId: group.windowId, title: group.title });
+    } catch {
+    }
+  }
+  try {
+    const named = await chrome.tabGroups.query({ title: CONTAINER_TAB_GROUP_TITLE[role] });
+    for (const group of named) {
+      groups.set(group.id, { id: group.id, windowId: group.windowId, title: group.title });
+    }
+  } catch {
+  }
+  return [...groups.values()];
+}
+async function handleCloseContainer(cmd, leaseKey) {
+  const role = getOwnedWindowRole(leaseKey);
+  const surface = getSurfaceFromKey(leaseKey);
+  return withLeaseMutation(async () => {
+    const activeSessions = getOtherActiveCommandsForRole(role, leaseKey);
+    if (activeSessions.length > 0) {
+      throw new CommandFailure(
+        "container_busy",
+        `Cannot close the ${surface} container while commands are active (${activeSessions.join(", ")}).`,
+        "Wait for the active commands to finish, then retry the container cleanup."
+      );
+    }
+    const ownedLeases = [...automationSessions.entries()].filter(
+      ([key, session]) => session.owned && getOwnedWindowRole(key) === role
+    );
+    const borrowedWindowIds = new Set(
+      [...automationSessions.entries()].filter(([key, session]) => !session.owned && getOwnedWindowRole(key) === role).map(([, session]) => session.windowId)
+    );
+    const ownedTabIds = /* @__PURE__ */ new Set();
+    const candidateWindowIds = /* @__PURE__ */ new Set();
+    if (ownedContainers[role].windowId !== null) candidateWindowIds.add(ownedContainers[role].windowId);
+    for (const [, session] of ownedLeases) {
+      candidateWindowIds.add(session.windowId);
+      if (session.preferredTabId !== null) ownedTabIds.add(session.preferredTabId);
+    }
+    const groups = await collectContainerGroupsForCleanup(role);
+    const groupedTabIds = /* @__PURE__ */ new Set();
+    for (const group of groups) {
+      candidateWindowIds.add(group.windowId);
+      try {
+        const tabs = await chrome.tabs.query({ groupId: group.id });
+        const tabIds = tabs.map((tab) => tab.id).filter((id) => id !== void 0);
+        for (const tabId of tabIds) groupedTabIds.add(tabId);
+        if (tabIds.length > 0) await chrome.tabs.ungroup(tabIds);
+      } catch {
+      }
+    }
+    for (const tabId of ownedTabIds) {
+      await safeDetach(tabId);
+      evictTab(tabId);
+    }
+    for (const [key, session] of ownedLeases) {
+      if (session.idleTimer) clearTimeout(session.idleTimer);
+      automationSessions.delete(key);
+      sessionOverrides.delete(key);
+      scheduleIdleAlarm(key, IDLE_TIMEOUT_NONE);
+    }
+    const closedWindowIds = [];
+    const preservedWindowIds = [];
+    const removedTabIds = [];
+    for (const windowId of candidateWindowIds) {
+      let tabs;
+      try {
+        tabs = await chrome.tabs.query({ windowId });
+      } catch {
+        continue;
+      }
+      const safeToCloseWindow = !borrowedWindowIds.has(windowId) && tabs.every(
+        (tab) => tab.id !== void 0 && ownedTabIds.has(tab.id) || tab.url === BLANK_PAGE
+      );
+      if (safeToCloseWindow) {
+        try {
+          await chrome.windows.remove(windowId);
+          closedWindowIds.push(windowId);
+          continue;
+        } catch {
+        }
+      }
+      preservedWindowIds.push(windowId);
+      for (const tab of tabs) {
+        if (tab.id === void 0) continue;
+        const isOwnedLease = ownedTabIds.has(tab.id);
+        const isBlankOwnedGroupTab = groupedTabIds.has(tab.id) && tab.url === BLANK_PAGE;
+        if (!isOwnedLease && !isBlankOwnedGroupTab) continue;
+        await chrome.tabs.remove(tab.id).catch(() => {
+        });
+        removedTabIds.push(tab.id);
+      }
+    }
+    ownedContainers[role].windowId = null;
+    ownedContainers[role].groupId = null;
+    if (role === "interactive") interactiveGroupLedger.clear();
+    await persistRuntimeState();
+    return {
+      id: cmd.id,
+      ok: true,
+      data: {
+        closed: closedWindowIds.length > 0,
+        surface,
+        releasedSessions: ownedLeases.length,
+        closedWindowIds,
+        preservedWindowIds,
+        removedTabIds,
+        ungroupedTabs: groupedTabIds.size
+      }
+    };
+  });
 }
 async function handleSetFileInput(cmd, leaseKey) {
   if (!cmd.files || !Array.isArray(cmd.files) || cmd.files.length === 0) {

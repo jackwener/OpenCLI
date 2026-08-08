@@ -1327,6 +1327,73 @@ describe('browser tab targeting commands', () => {
     expect(process.exitCode).toBeDefined();
   });
 
+  it('keeps browser close backward-compatible by releasing only the session lease', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'close']);
+
+    expect(mockSendCommand).toHaveBeenCalledWith('close-window', {
+      session: 'test',
+      surface: 'browser',
+    });
+    expect(mockSendCommand).not.toHaveBeenCalledWith('close-container', expect.anything());
+    expect(consoleLogSpy).toHaveBeenLastCalledWith('Browser session tab lease released');
+  });
+
+  it('can explicitly close both owned browser container surfaces', async () => {
+    mockSendCommand
+      .mockResolvedValueOnce({ closed: true, surface: 'adapter' })
+      .mockResolvedValueOnce({ closed: true, surface: 'browser' });
+    const program = createProgram('', '');
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'browser',
+      '--session',
+      'test',
+      'close',
+      '--container',
+      '--surface',
+      'all',
+    ]);
+
+    expect(mockSendCommand).toHaveBeenNthCalledWith(1, 'close-container', {
+      session: 'test',
+      surface: 'adapter',
+    });
+    expect(mockSendCommand).toHaveBeenNthCalledWith(2, 'close-container', {
+      session: 'test',
+      surface: 'browser',
+    });
+    expect(lastJsonLog()).toEqual({
+      containerCleanup: true,
+      session: 'test',
+      results: [
+        { surface: 'adapter', result: { closed: true, surface: 'adapter' } },
+        { surface: 'browser', result: { closed: true, surface: 'browser' } },
+      ],
+    });
+  });
+
+  it('rejects --surface without explicit container cleanup', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'browser',
+      '--session',
+      'test',
+      'close',
+      '--surface',
+      'adapter',
+    ]);
+
+    expect(mockSendCommand).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeDefined();
+  });
+
   it('accepts JavaScript dialogs through the browser dialog command', async () => {
     const program = createProgram('', '');
 
