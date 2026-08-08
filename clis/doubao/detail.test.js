@@ -24,19 +24,33 @@ describe('doubao detail', () => {
                 time: '2026-03-28 10:00',
             },
         });
-        const result = await detail.func({}, { id: '1234567890' });
+        const result = await detail.func({}, { id: '1234567890', 'max-pages': 500 });
+        expect(mockGetConversationDetail).toHaveBeenCalledWith({}, '1234567890', { maxPages: 500 });
         expect(result).toEqual([
-            { Role: 'Meeting', Text: 'Weekly Sync (2026-03-28 10:00)' },
+            {
+                Index: 0,
+                MessageId: '',
+                Role: 'Meeting',
+                Type: 'meeting',
+                Mode: '',
+                CreatedAt: null,
+                Text: 'Weekly Sync (2026-03-28 10:00)',
+                Metadata: '{}',
+            },
         ]);
     });
-    it('still returns an error row for a truly empty conversation', async () => {
+    it('returns an empty result when the API proves a conversation is complete but has no messages', async () => {
         mockGetConversationDetail.mockResolvedValue({
             messages: [],
             meeting: null,
+            captureComplete: true,
+            hasMore: false,
         });
-        const result = await detail.func({}, { id: '1234567890' });
-        expect(result).toEqual([
-            { Role: 'System', Text: 'No messages found. Verify the conversation ID.' },
-        ]);
+        await expect(detail.func({}, { id: '1234567890', 'max-pages': 500 })).resolves.toEqual([]);
+    });
+    it('rejects invalid max-pages without silently clamping it', async () => {
+        await expect(detail.func({}, { id: '1234567890', 'max-pages': 0 })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+        });
     });
 });
