@@ -27,7 +27,7 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9238"
 ### Agent Manipulation
 - `opencli codex new`: Simulates `Cmd+N` to start a completely fresh and isolated Git Worktree thread context.
 - `opencli codex send "message"`: Robustly finds the active Thread Composer and injects your text.
-  - *Pro-tip*: You can trigger internal shortcuts, e.g., `opencli codex send "/review"`.
+  - *Pro-tip*: You can trigger internal shortcuts and resolve the skills picker they open in one shot, e.g., `opencli codex send "/review" --pick "Review Agent"`.
 - `opencli codex ask "message"`: Send + wait + read in one shot.
 - `opencli codex read`: Extracts the entire current thread history and AI reasoning logs.
 - `opencli codex projects`: List visible sidebar projects and conversations.

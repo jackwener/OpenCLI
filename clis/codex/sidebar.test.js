@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { askCommand } from './ask.js';
+import { extractDiffCommand } from './extract-diff.js';
 import { historyCommand } from './history.js';
 import { projectsCommand } from './projects.js';
 import {
@@ -18,6 +19,7 @@ import {
     findUniqueModelOption,
     modelSelectionVerified,
 } from './model.js';
+import { findCodexComposerElement, findUniquePickerOption, sendCommand } from './send.js';
 
 class FakeElement {
     constructor(tagName = 'div', attrs = {}, children = [], text = '') {
@@ -376,6 +378,22 @@ describe('codex sidebar commands', () => {
         await expect(historyCommand.func(page, {})).rejects.toBeInstanceOf(EmptyResultError);
     });
 
+    it('extract-diff fails empty result instead of returning a sentinel row', async () => {
+        const page = {
+            evaluate: async () => [],
+        };
+
+        await expect(extractDiffCommand.func(page)).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('extract-diff unwraps Browser Bridge envelopes before checking empty results', async () => {
+        const page = {
+            evaluate: async () => ({ session: 'codex', data: [] }),
+        };
+
+        await expect(extractDiffCommand.func(page)).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
     it('ask rejects invalid timeout instead of falling back to the default', async () => {
         const page = {
             evaluate: async () => 0,
@@ -384,5 +402,270 @@ describe('codex sidebar commands', () => {
         await expect(askCommand.func(page, { text: 'hello', timeout: 'bogus' })).rejects.toBeInstanceOf(ArgumentError);
         await expect(askCommand.func(page, { text: 'hello', timeout: '0' })).rejects.toBeInstanceOf(ArgumentError);
         await expect(askCommand.func(page, { text: 'hello', timeout: '1.5' })).rejects.toBeInstanceOf(ArgumentError);
+    });
+});
+
+describe('codex send picker', () => {
+    it('matches picker options without allowing ambiguous substrings', () => {
+        const options = [
+            { title: 'Review Agent', text: 'Review AgentFind actionable bugs in code changes' },
+            { title: 'Explore Agent', text: 'Explore AgentAnswer questions about the codebase' },
+            { title: 'Agent Builder', text: 'Agent BuilderBuild a custom agent skill' },
+        ];
+
+        expect(findUniquePickerOption(options, 'review agent')).toMatchObject({ title: 'Review Agent', index: 0 });
+        expect(findUniquePickerOption(options, 'actionable bugs')).toMatchObject({ title: 'Review Agent', index: 0 });
+        expect(findUniquePickerOption(options, 'missing option')).toBeNull();
+        expect(() => findUniquePickerOption(options, 'agent')).toThrowError(CommandExecutionError);
+        expect(() => findUniquePickerOption(options, '')).toThrowError(ArgumentError);
+    });
+
+    it('send presses Enter again when the picker resolved the slash command to a chip', async () => {
+        const chipState = { text: '$review-agent', nonChipText: '', chips: [{ name: 'review-agent', display: 'Review Agent' }] };
+        const clearedState = { text: '', nonChipText: '', chips: [] };
+        let injectionDone = false;
+        let enters = 0;
+        const pressed = [];
+        const page = {
+            evaluate: async () => {
+                if (!injectionDone) {
+                    injectionDone = true;
+                    return true;
+                }
+                return enters >= 2 ? clearedState : chipState;
+            },
+            wait: async () => {},
+            pressKey: async (key) => {
+                pressed.push(key);
+                enters += 1;
+            },
+        };
+
+        const rows = await sendCommand.func(page, { text: '/review' });
+
+        expect(rows).toEqual([expect.objectContaining({ Status: 'Success', InjectedText: '/review' })]);
+        expect(pressed).toEqual(['Enter', 'Enter']);
+    });
+
+    it('send throws instead of submitting when the composer was rewritten to something else', async () => {
+        const mismatch = { text: '$deep-dive', nonChipText: '', chips: [{ name: 'deep-dive', display: 'Deep Dive' }] };
+        let injectionDone = false;
+        const pressed = [];
+        const page = {
+            evaluate: async () => {
+                if (!injectionDone) {
+                    injectionDone = true;
+                    return true;
+                }
+                return mismatch;
+            },
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        await expect(sendCommand.func(page, { text: '/review' })).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(pressed).toEqual(['Enter']);
+    });
+
+    it('send retries once when the keypress did not register and then fails typed', async () => {
+        const stuck = { text: '/review', nonChipText: '/review', chips: [] };
+        let injectionDone = false;
+        const pressed = [];
+        const page = {
+            evaluate: async () => {
+                if (!injectionDone) {
+                    injectionDone = true;
+                    return true;
+                }
+                return stuck;
+            },
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        await expect(sendCommand.func(page, { text: '/review' })).rejects.toBeInstanceOf(CommandExecutionError);
+        expect(pressed).toEqual(['Enter', 'Enter']);
+    });
+
+    it('send fails typed when the composer selector cannot be verified', async () => {
+        let injectionDone = false;
+        const page = {
+            evaluate: async () => {
+                if (!injectionDone) {
+                    injectionDone = true;
+                    return true;
+                }
+                return null;
+            },
+            wait: async () => {},
+            pressKey: async () => {},
+        };
+
+        await expect(sendCommand.func(page, { text: 'hello' })).rejects.toMatchObject({ code: 'SELECTOR' });
+    });
+
+    it('send unwraps Browser Bridge envelopes before trusting injection success', async () => {
+        const pressed = [];
+        const page = {
+            evaluate: async () => ({ session: 'codex', data: false }),
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        await expect(sendCommand.func(page, { text: 'hello' })).rejects.toMatchObject({ code: 'SELECTOR' });
+        expect(pressed).toEqual([]);
+    });
+
+    it('send submits plain text with a single Enter when no picker appears', async () => {
+        const cleared = { text: '', nonChipText: '', chips: [] };
+        const calls = [];
+        let injectionDone = false;
+        const pressed = [];
+        const page = {
+            evaluate: async () => {
+                calls.push('evaluate');
+                if (!injectionDone) {
+                    injectionDone = true;
+                    return true;
+                }
+                return cleared;
+            },
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        const rows = await sendCommand.func(page, { text: 'hello' });
+
+        expect(rows).toEqual([expect.objectContaining({ Status: 'Success', InjectedText: 'hello' })]);
+        expect(pressed).toEqual(['Enter']);
+        expect(calls).toHaveLength(2);
+    });
+
+    it('send anchors injection and post-submit verification to the same composer element', async () => {
+        const scripts = [];
+        let injectionDone = false;
+        const page = {
+            evaluate: async (script) => {
+                scripts.push(String(script));
+                if (!injectionDone) {
+                    injectionDone = true;
+                    return true;
+                }
+                return { text: '', nonChipText: '', chips: [] };
+            },
+            wait: async () => {},
+            pressKey: async () => {},
+        };
+
+        await sendCommand.func(page, { text: 'hello' });
+
+        expect(scripts).toHaveLength(2);
+        for (const script of scripts) {
+            expect(script).toContain(findCodexComposerElement.toString());
+        }
+    });
+
+    it('send clicks the matched picker item and verifies the chip before submitting', async () => {
+        const responses = [
+            true, // inject text
+            [{ title: 'Review Agent', text: 'Review AgentFind actionable bugs in code changes' }], // picker options
+            true, // click dispatched
+            { text: '$review-agent', nonChipText: '', chips: [{ name: 'review-agent', display: 'Review Agent' }] }, // chip landed
+            false, // picker closed
+            { text: '', nonChipText: '', chips: [] }, // composer cleared after Enter
+        ];
+        const pressed = [];
+        const page = {
+            evaluate: async () => responses.shift(),
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        const rows = await sendCommand.func(page, { text: '/review', pick: 'Review Agent' });
+
+        expect(rows).toEqual([expect.objectContaining({ Status: 'Success', InjectedText: '/review' })]);
+        expect(pressed).toEqual(['Enter']);
+        expect(responses).toHaveLength(0);
+    });
+
+    it('send retries Enter when the picked chip does not echo the slash token', async () => {
+        const chipState = { text: '$agent-builder', nonChipText: '', chips: [{ name: 'agent-builder', display: 'Agent Builder' }] };
+        const responses = [
+            true, // inject text
+            [{ title: 'Agent Builder', text: 'Agent BuilderBuild a custom agent skill' }], // picker options
+            true, // click dispatched
+            chipState, // chip landed
+            false, // picker closed
+            ...Array.from({ length: 6 }, () => chipState), // first Enter left the chip in place
+            { text: '', nonChipText: '', chips: [] }, // composer cleared after the retry Enter
+        ];
+        const pressed = [];
+        const page = {
+            evaluate: async () => responses.shift(),
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        const rows = await sendCommand.func(page, { text: '/skills', pick: 'Agent Builder' });
+
+        expect(rows).toEqual([expect.objectContaining({ Status: 'Success', InjectedText: '/skills' })]);
+        expect(pressed).toEqual(['Enter', 'Enter']);
+        expect(responses).toHaveLength(0);
+    });
+
+    it('send fails typed when the picker click did not insert the picked chip', async () => {
+        const stuck = { text: '/review', nonChipText: '/review', chips: [] };
+        const responses = [
+            true, // inject text
+            [{ title: 'Review Agent', text: 'Review AgentFind actionable bugs in code changes' }], // picker options
+            true, // click dispatched
+            ...Array.from({ length: 20 }, () => [stuck, false]).flat(), // chip never lands, picker closed
+        ];
+        const pressed = [];
+        const page = {
+            evaluate: async () => responses.shift(),
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        await expect(sendCommand.func(page, { text: '/review', pick: 'Review Agent' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: 'Codex picker selection did not reach the composer.',
+        });
+        expect(pressed).toEqual([]);
+        expect(responses).toHaveLength(0);
+    });
+
+    it('send surfaces picker candidates when --pick is ambiguous', async () => {
+        const responses = [
+            true, // inject text
+            [
+                { title: 'Review Agent', text: 'Review AgentFind actionable bugs in code changes' },
+                { title: 'Explore Agent', text: 'Explore AgentAnswer questions about the codebase' },
+            ], // picker options
+        ];
+        const pressed = [];
+        const page = {
+            evaluate: async () => responses.shift(),
+            wait: async () => {},
+            pressKey: async (key) => { pressed.push(key); },
+        };
+
+        await expect(sendCommand.func(page, { text: '/review', pick: 'agent' })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: 'Picker option "agent" is ambiguous.',
+        });
+        expect(pressed).toEqual([]);
+        expect(responses).toHaveLength(0);
+    });
+
+    it('send rejects a --pick label that trims to empty', async () => {
+        const page = {
+            evaluate: async () => true,
+            wait: async () => {},
+            pressKey: async () => {},
+        };
+
+        await expect(sendCommand.func(page, { text: '/review', pick: '   ' })).rejects.toBeInstanceOf(ArgumentError);
     });
 });

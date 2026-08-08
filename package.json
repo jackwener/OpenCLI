@@ -82,7 +82,7 @@
     "@mozilla/readability": "^0.6.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.3",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.1",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
     "undici": "^6.27.0",

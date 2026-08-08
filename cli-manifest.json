@@ -8088,6 +8088,12 @@
         "help": "Text, command (e.g. /review), or skill (e.g. $imagegen)"
       },
       {
+        "name": "pick",
+        "type": "str",
+        "required": false,
+        "help": "Picker option label to select when a slash command opens the picker (e.g. \"Review Agent\")"
+      },
+      {
         "name": "project",
         "type": "str",
         "required": false,
