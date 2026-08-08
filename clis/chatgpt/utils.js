@@ -2565,10 +2565,10 @@ export async function getChatGPTVisibleImageUrls(page) {
                 const heading = (turn?.querySelector('h4')?.innerText || '').toLowerCase();
                 if (/you said|你说/.test(heading)) return true;
                 if (/chatgpt|assistant|助手/.test(heading)) return false;
-                const openButtonLabel = (img.closest('button[aria-label^="Open image:"]')?.getAttribute('aria-label') || '').toLowerCase();
+                const openButtonLabel = (img.closest('button[aria-label^="Open image:"], button[aria-label^="打开图片："]')?.getAttribute('aria-label') || '').toLowerCase();
                 const previewText = [alt, openButtonLabel].join(' ');
                 return /\.(png|jpe?g|webp|gif|heic|heif)(?:\b|$)/i.test(previewText)
-                    || /ref-|reference|参考|upload|uploaded|attachment/.test(previewText);
+                    || /ref-|reference|参考|上传|upload|uploaded|attachment/.test(previewText);
             };
 
             const imgs = Array.from(document.querySelectorAll('img')).filter(img =>
