@@ -76,6 +76,7 @@ export interface BuildManifestArgs {
 function toManifestArgs(args: CliCommand['args']): ManifestEntry['args'] {
   return args.map(arg => ({
     name: arg.name,
+    short: (typeof arg.short === 'string' && arg.short.trim()) ? arg.short.trim() : undefined,
     type: arg.type ?? 'str',
     default: arg.default,
     required: !!arg.required,
