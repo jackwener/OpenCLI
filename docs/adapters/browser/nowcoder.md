@@ -38,8 +38,8 @@ opencli nowcoder suggest "java"
 # Browse interview experience posts
 opencli nowcoder experience --limit 10
 
-# View a specific post detail (using UUID from list commands)
-opencli nowcoder detail 2b6b64d4adb34ea3838e832ae4447ab1
+# View a specific post detail (use the ID or URL returned by list commands)
+opencli nowcoder detail 912885704667987968
 
 # Interview question bank for Java at Huawei
 opencli nowcoder papers --job 11002 --company 239
@@ -61,3 +61,12 @@ opencli nowcoder hot -v
 
 - **Public commands** (hot, trending, topics, recommend, creators, companies, jobs): No login required
 - **Cookie commands** (all others): Chrome running and **logged into** nowcoder.com, [Browser Bridge extension](/guide/browser-bridge) installed
+
+## Post entity types
+
+Nowcoder feeds can mix two different post entities, including within `nowcoder experience`:
+
+- `post_type: content` is long-form content. Its round-trippable `id` is numeric, its canonical URL is `/discuss/<id>`, and its timestamp comes from `createTime`.
+- `post_type: moment` is a feed discussion/moment. Its round-trippable `id` is the UUID, its canonical URL is `/feed/main/detail/<uuid>`, and its timestamp comes from `createdAt`.
+
+`search` and `experience` return `post_type`, `id`, `uuid`, `entity_id`, and `url`. Pass `id` or `url` directly to `nowcoder detail`; do not substitute a content UUID into `/discuss/<uuid>`.
