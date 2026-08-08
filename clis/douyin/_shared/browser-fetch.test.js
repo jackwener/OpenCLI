@@ -13,6 +13,15 @@ function makePage(result) {
         screenshot: vi.fn(),
     };
 }
+function makeScriptPage(body, { ok = true, status = 200, envelope = false } = {}) {
+    const page = makePage(null);
+    page.evaluate = vi.fn(async (script) => {
+        const stubFetch = async () => ({ ok, status, text: async () => body });
+        const value = await new Function('fetch', `return (${script});`)(stubFetch);
+        return envelope ? { session: 'site:douyin:test', data: value } : value;
+    });
+    return page;
+}
 describe('browserFetch', () => {
     it('returns parsed JSON on success', async () => {
         const page = makePage({ status_code: 0, data: { ak: 'KEY' } });
@@ -37,6 +46,41 @@ describe('browserFetch', () => {
         const page = makePage({ some_field: 'value' });
         const result = await browserFetch(page, 'GET', 'https://creator.douyin.com/api/test');
         expect(result).toEqual({ some_field: 'value' });
+    });
+    it('reports an empty body as an empty response, not a parse failure', async () => {
+        const page = makeScriptPage('');
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
+            .rejects.toThrow('Empty response from Douyin API');
+    });
+    it('treats a whitespace-only body the same way', async () => {
+        const page = makeScriptPage('  \n  ');
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
+            .rejects.toThrow('Empty response from Douyin API');
+    });
+    it('reports an empty body through a Browser Bridge {session,data} envelope', async () => {
+        const page = makeScriptPage('', { envelope: true });
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
+            .rejects.toThrow('Empty response from Douyin API');
+    });
+    it('still reports a non-JSON body as a parse failure', async () => {
+        const page = makeScriptPage('<html>gateway</html>');
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
+            .rejects.toThrow('JSON parse failed: <html>gateway</html>');
+    });
+    it('parses a JSON body from the generated script', async () => {
+        const page = makeScriptPage('{"status_code":0,"challenge_list":[]}');
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
+            .resolves.toEqual({ status_code: 0, challenge_list: [] });
+    });
+    it('keeps the auth classification when an empty body comes with 403', async () => {
+        const page = makeScriptPage('', { ok: false, status: 403 });
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
+            .rejects.toBeInstanceOf(AuthRequiredError);
+    });
+    it('keeps the status when an empty body comes with 404', async () => {
+        const page = makeScriptPage('', { ok: false, status: 404 });
+        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
+            .rejects.toThrow('Douyin API error 404');
     });
     it('throws on empty response body (null from evaluate)', async () => {
         const page = makePage(null);
