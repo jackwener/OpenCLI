@@ -29,8 +29,8 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
 // The extension throws "Page not found: <id> — stale page identity" when our cached
 // `_page` targetId no longer maps to a live tab — e.g. the user closed the automation
 // window, or a long-running script left the cache pointing at an evicted target.
-// Detect that signature so goto() can drop the stale id and let resolveTab fall back
-// to the session lease (or create a fresh tab).
+// Detect that signature so page-scoped operations can drop the stale id and let
+// resolveTab fall back to the session lease (or create a fresh tab).
 function isStalePageIdentityError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return message.includes('stale page identity') || /^Page not found:\s*\S+\s*$/.test(message);
@@ -122,9 +122,26 @@ export class Page extends BasePage {
         code: combinedCode,
         ...this._cmdOpts(),
       };
+      const recoverStalePageIdentity = async (err: unknown): Promise<boolean> => {
+        if (!isStalePageIdentityError(err) || this._page === undefined) return false;
+
+        this._page = undefined;
+        const rebound = await sendCommandFull('navigate', {
+          url,
+          ...this._cmdOpts(),
+        });
+        if (rebound.page) this._page = rebound.page;
+        this._lastUrl = url;
+        await sendCommand('exec', {
+          code: combinedCode,
+          ...this._cmdOpts(),
+        });
+        return true;
+      };
       try {
         await sendCommand('exec', combinedOpts);
       } catch (err) {
+        if (await recoverStalePageIdentity(err)) return;
         const advice = classifyBrowserError(err);
         // Only settle-retry on target navigation (SPA client-side redirects).
         // Extension/daemon errors are already retried by sendCommandRaw —
@@ -134,6 +151,7 @@ export class Page extends BasePage {
           await new Promise((r) => setTimeout(r, advice.delayMs));
           await sendCommand('exec', combinedOpts);
         } catch (retryErr) {
+          if (await recoverStalePageIdentity(retryErr)) return;
           if (classifyBrowserError(retryErr).kind !== 'target-navigation') throw retryErr;
         }
       }
@@ -177,6 +195,15 @@ export class Page extends BasePage {
     try {
       return await sendCommand('exec', { code, ...this._cmdOpts() });
     } catch (err) {
+      // resolveTabId rejects a stale target before page code can run, so one retry is
+      // safe. Revisit the last known URL without the dead identity first; retrying the
+      // same exec immediately would only send the stale target again.
+      if (isStalePageIdentityError(err) && this._page !== undefined && this._lastUrl !== null) {
+        const lastUrl = this._lastUrl;
+        this._page = undefined;
+        await this.goto(lastUrl);
+        return sendCommand('exec', { code, ...this._cmdOpts() });
+      }
       const advice = classifyBrowserError(err);
       if (advice.kind !== 'target-navigation') throw err;
       await new Promise((resolve) => setTimeout(resolve, advice.delayMs));
