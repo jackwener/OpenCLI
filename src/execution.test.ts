@@ -268,6 +268,105 @@ describe('executeCommand — non-browser timeout', () => {
     }
   });
 
+  it('lets OPENCLI_SITE_SESSION=ephemeral override adapter persistent metadata', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ session?: string; siteSession?: string }> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    const prevEnv = process.env.OPENCLI_SITE_SESSION;
+    process.env.OPENCLI_SITE_SESSION = 'ephemeral';
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'site-session-env-ephemeral', access: 'read',
+        description: 'test env site-session override',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        siteSession: 'persistent',
+        func: async () => [{ ok: true }],
+      });
+
+      await executeCommand(cmd, {});
+
+      expect(sessionOpts).toHaveLength(1);
+      expect(sessionOpts[0]?.session).toMatch(/^site:test-execution:/);
+      expect(sessionOpts[0]?.siteSession).toBe('ephemeral');
+      expect(closeWindow).toHaveBeenCalledTimes(1);
+    } finally {
+      if (prevEnv === undefined) delete process.env.OPENCLI_SITE_SESSION;
+      else process.env.OPENCLI_SITE_SESSION = prevEnv;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('lets --site-session win over OPENCLI_SITE_SESSION', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const sessionOpts: Array<{ session?: string; siteSession?: string }> = [];
+
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn, opts) => {
+      sessionOpts.push(opts ?? {});
+      return fn(mockPage);
+    });
+
+    const prevEnv = process.env.OPENCLI_SITE_SESSION;
+    process.env.OPENCLI_SITE_SESSION = 'ephemeral';
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'site-session-flag-beats-env', access: 'read',
+        description: 'test flag precedence over env site-session',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await executeCommand(cmd, {}, false, { siteSession: 'persistent' });
+
+      expect(sessionOpts).toHaveLength(1);
+      expect(sessionOpts[0]?.session).toBe('site:test-execution');
+      expect(sessionOpts[0]?.siteSession).toBe('persistent');
+      expect(closeWindow).not.toHaveBeenCalled();
+    } finally {
+      if (prevEnv === undefined) delete process.env.OPENCLI_SITE_SESSION;
+      else process.env.OPENCLI_SITE_SESSION = prevEnv;
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('rejects an invalid OPENCLI_SITE_SESSION value', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({ closeWindow: vi.fn() } as any));
+
+    const prevEnv = process.env.OPENCLI_SITE_SESSION;
+    process.env.OPENCLI_SITE_SESSION = 'sticky';
+    try {
+      const cmd = cli({
+        site: 'test-execution',
+        name: 'site-session-env-invalid', access: 'read',
+        description: 'test invalid env site-session value',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await expect(executeCommand(cmd, {})).rejects.toThrow(
+        'OPENCLI_SITE_SESSION must be one of: ephemeral, persistent',
+      );
+    } finally {
+      if (prevEnv === undefined) delete process.env.OPENCLI_SITE_SESSION;
+      else process.env.OPENCLI_SITE_SESSION = prevEnv;
+      vi.restoreAllMocks();
+    }
+  });
+
   it('skips repeated domain pre-navigation for persistent site sessions', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const goto = vi.fn().mockResolvedValue(undefined);
