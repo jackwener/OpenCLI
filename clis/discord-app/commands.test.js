@@ -151,6 +151,89 @@ describe('discord-app DOM extraction scripts', () => {
         ]);
     });
 
+    it('rejects non-numeric guild navigation sentinels and channel/thread-shaped ids', () => {
+        const rows = runDomScript(`
+          <nav>
+            <div data-list-item-id="guildsnav___home" aria-label="Direct Messages"></div>
+            <div data-list-item-id="guildsnav___create-join-a-guild" aria-label="Add a Server"></div>
+            <div data-list-item-id="guildsnav___guild-discovery" aria-label="Discover"></div>
+            <div data-list-item-id="guildsnav___folder-111" aria-label="Folder"></div>
+            <div data-list-item-id="guildsnav___333/444" aria-label="Channel Item"></div>
+            <div data-list-item-id="guildsnav___555/666/777" aria-label="Thread Item"></div>
+            <div data-list-item-id="guildsnav___222" aria-label="Valid Guild"></div>
+          </nav>
+        `, buildListServersScript());
+
+        expect(rows).toEqual([{
+            Index: 1,
+            Server: 'Valid Guild',
+            guild_id: '222',
+            url: 'https://discord.com/channels/222',
+        }]);
+    });
+
+    it('does not pair a guild id with a broad ancestor or neighboring guild name', () => {
+        const rows = runDomScript(`
+          <nav>
+            <div data-dnd-name="Shared Wrong Wrapper">
+              <div data-list-item-id="guildsnav___111" role="treeitem" aria-label="Alpha Guild"></div>
+              <div data-list-item-id="guildsnav___222" role="treeitem">
+                <img alt="Beta Guild">
+              </div>
+              <div data-list-item-id="guildsnav___333" role="treeitem"></div>
+            </div>
+          </nav>
+        `, buildListServersScript());
+
+        expect(rows).toEqual([
+            {
+                Index: 1,
+                Server: 'Alpha Guild',
+                guild_id: '111',
+                url: 'https://discord.com/channels/111',
+            },
+            {
+                Index: 2,
+                Server: 'Beta Guild',
+                guild_id: '222',
+                url: 'https://discord.com/channels/222',
+            },
+        ]);
+    });
+
+    it('uses a narrow owned wrapper name only when it owns exactly one guild item', () => {
+        const rows = runDomScript(`
+          <nav>
+            <div data-dnd-name="Owned Guild">
+              <svg>
+                <foreignObject>
+                  <div data-list-item-id="guildsnav___111" role="treeitem"></div>
+                </foreignObject>
+              </svg>
+            </div>
+            <div data-dnd-name="Crowded Wrapper">
+              <div data-list-item-id="guildsnav___222" role="treeitem"></div>
+              <div data-list-item-id="guildsnav___333" role="treeitem" aria-label="Explicit Neighbor"></div>
+            </div>
+          </nav>
+        `, buildListServersScript());
+
+        expect(rows).toEqual([
+            {
+                Index: 1,
+                Server: 'Owned Guild',
+                guild_id: '111',
+                url: 'https://discord.com/channels/111',
+            },
+            {
+                Index: 2,
+                Server: 'Explicit Neighbor',
+                guild_id: '333',
+                url: 'https://discord.com/channels/333',
+            },
+        ]);
+    });
+
     it('keeps supporting legacy guild channel links', () => {
         const rows = runDomScript(`
           <nav>
@@ -165,6 +248,25 @@ describe('discord-app DOM extraction scripts', () => {
             Server: 'Legacy Guild',
             guild_id: '333',
             url: 'https://discord.com/channels/333',
+        }]);
+    });
+
+    it('keeps legacy guild link fallback strict to Discord guild roots', () => {
+        const rows = runDomScript(`
+          <nav>
+            <a href="https://example.com/channels/111" aria-label="Off Domain"></a>
+            <a href="https://discord.com/channels/@me" aria-label="Direct Messages"></a>
+            <a href="https://discord.com/channels/222/333" aria-label="Channel Link"></a>
+            <a href="https://discord.com/channels/444/555/666" aria-label="Thread Link"></a>
+            <a href="https://canary.discord.com/channels/777" title="Canary Guild"></a>
+          </nav>
+        `, buildListServersScript());
+
+        expect(rows).toEqual([{
+            Index: 1,
+            Server: 'Canary Guild',
+            guild_id: '777',
+            url: 'https://discord.com/channels/777',
         }]);
     });
 
@@ -247,6 +349,37 @@ describe('discord-app search', () => {
 });
 
 describe('discord-app list row validation', () => {
+    it('unwraps Browser Bridge envelopes for server rows', async () => {
+        const page = {
+            evaluate: vi.fn().mockResolvedValue({
+                session: 'site:discord-app',
+                data: [{ Server: 'OpenCLI', guild_id: '111', url: 'https://discord.com/channels/111' }],
+            }),
+        };
+
+        await expect(listDiscordServers(page)).resolves.toEqual([
+            { Server: 'OpenCLI', guild_id: '111', url: 'https://discord.com/channels/111' },
+        ]);
+    });
+
+    it('returns a valid empty helper result but servers command maps it to EmptyResultError', async () => {
+        const page = {
+            evaluate: vi.fn().mockResolvedValue({ session: 'site:discord-app', data: [] }),
+        };
+        const cmd = getRegistry().get('discord-app/servers');
+
+        await expect(listDiscordServers(page)).resolves.toEqual([]);
+        await expect(cmd.func(page, {})).rejects.toBeInstanceOf(EmptyResultError);
+    });
+
+    it('typed-fails malformed server browser output', async () => {
+        const page = {
+            evaluate: vi.fn().mockResolvedValue({ session: 'site:discord-app', data: { rows: [] } }),
+        };
+
+        await expect(listDiscordServers(page)).rejects.toThrow(CommandExecutionError);
+    });
+
     it('typed-fails channel rows missing stable channel identity', async () => {
         const page = {
             evaluate: vi.fn().mockResolvedValue([{ Channel: 'general', guild_id: '111', url: 'https://discord.com/channels/111/222' }]),
