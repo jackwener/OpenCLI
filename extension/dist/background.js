@@ -1626,6 +1626,11 @@ chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
 initialize();
+if (chrome.idle?.onStateChanged?.addListener) {
+  chrome.idle.onStateChanged.addListener((newState) => {
+    if (newState === "active") void connect();
+  });
+}
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   await workerReady;
   if (alarm.name === "keepalive") void connect();

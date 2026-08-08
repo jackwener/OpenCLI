@@ -209,6 +209,9 @@ function createChromeMock() {
       clear: vi.fn(),
       onAlarm: { addListener: vi.fn() } as Listener<(alarm: { name: string }) => void>,
     },
+    idle: {
+      onStateChanged: { addListener: vi.fn() } as Listener<(newState: string) => void>,
+    },
     storage: {
       local: {
         get: vi.fn(async (key: string) => ({ [key]: storageState[key] })),
@@ -836,6 +839,27 @@ describe('background tab isolation', () => {
     await import('./background');
 
     expect(chrome.alarms.create).toHaveBeenCalledWith('keepalive', { periodInMinutes: 0.5 });
+  });
+
+  it('reconnects when chrome.idle reports the user active again', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+
+    await import('./background');
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
+    // Dead socket with no pending backoff timer: only the idle listener can
+    // start the next attempt.
+    MockWebSocket.instances[0].readyState = MockWebSocket.CLOSED;
+
+    const onStateChanged = chrome.idle.onStateChanged.addListener.mock.calls[0][0];
+    onStateChanged('active');
+
+    await vi.waitFor(() => {
+      expect(MockWebSocket.instances).toHaveLength(2);
+    });
   });
 
   it('reconnect delay backs off exponentially with a 15s cap and resets on success', async () => {
