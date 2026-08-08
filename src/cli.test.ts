@@ -1109,6 +1109,11 @@ describe('browser tab targeting commands', () => {
 
   beforeEach(() => {
     process.exitCode = undefined;
+    // Browser command tests must not inherit the developer's real default
+    // Browser Bridge profile. A persisted default changes both connect options
+    // and the profile-scoped browser-state path, making this suite depend on
+    // ~/.opencli/browser-profiles.json.
+    process.env.OPENCLI_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-profile-config-'));
     process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tab-state-'));
     consoleLogSpy.mockClear();
     stderrSpy.mockClear();

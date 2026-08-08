@@ -156,6 +156,25 @@ describe('daemon-client', () => {
     expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
   });
 
+  it('fetchDaemonStatus includes preferredContextId in the status query', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 1,
+        port: 19825,
+      }),
+    } as Response);
+
+    await fetchDaemonStatus({ preferredContextId: 'automation' });
+
+    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?preferredContextId=automation$/);
+  });
+
   it('rejects OPENCLI_DAEMON_PORT so CLI and extension cannot split bridge ports', async () => {
     vi.resetModules();
     vi.stubEnv('OPENCLI_DAEMON_PORT', '19999');

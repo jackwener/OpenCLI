@@ -118,6 +118,31 @@ describe('browser helpers', () => {
 });
 
 describe('BrowserBridge state', () => {
+  it('forwards a preferred profile into daemon readiness checks', async () => {
+    const healthSpy = vi.spyOn(daemonTransport, 'getDaemonHealth').mockResolvedValue({
+      state: 'ready',
+      status: {
+        ok: true,
+        pid: 123,
+        uptime: 0,
+        daemonVersion: '1.8.6',
+        extensionConnected: true,
+        contextId: 'work',
+        pending: 0,
+        memoryMB: 0,
+        port: 19825,
+      },
+    });
+    const bridge = new BrowserBridge();
+
+    await bridge.connect({ session: 'profile-routing-test', preferredContextId: 'work' });
+
+    expect(healthSpy).toHaveBeenCalledWith(expect.objectContaining({
+      contextId: undefined,
+      preferredContextId: 'work',
+    }));
+  });
+
   it('transitions to closed after close()', async () => {
     const bridge = new BrowserBridge();
 
