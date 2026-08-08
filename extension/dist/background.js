@@ -961,6 +961,7 @@ const IDLE_TIMEOUT_DEFAULT = 3e4;
 const IDLE_TIMEOUT_INTERACTIVE = 6e5;
 const IDLE_TIMEOUT_NONE = -1;
 const REGISTRY_KEY = "opencli_target_lease_registry_v2";
+const BROWSER_TAB_GROUPS_ENABLED_KEY = "opencli_browser_tab_groups_enabled";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
 const CONTAINER_TAB_GROUP_TITLE = {
   interactive: "OpenCLI Browser",
@@ -975,6 +976,17 @@ const ownedContainers = {
   automation: { windowId: null, groupId: null, promise: null, groupPromise: null }
 };
 const interactiveGroupLedger = /* @__PURE__ */ new Set();
+let browserTabGroupingEnabled = true;
+async function loadBrowserTabGroupingPreference() {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return;
+    const raw = await local.get(BROWSER_TAB_GROUPS_ENABLED_KEY);
+    browserTabGroupingEnabled = raw[BROWSER_TAB_GROUPS_ENABLED_KEY] !== false;
+  } catch {
+    browserTabGroupingEnabled = true;
+  }
+}
 class CommandFailure extends Error {
   constructor(code, message, hint) {
     super(message);
@@ -1356,7 +1368,7 @@ async function createOwnedGroup(role, windowId, ids) {
   return { id: group.id, windowId: group.windowId, title: group.title };
 }
 async function ensureOwnedContainerGroup(role, fallbackWindowId, tabIds) {
-  if (role === "automation") return null;
+  if (role === "automation" || !browserTabGroupingEnabled) return null;
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   const container = ownedContainers[role];
   const previousGroupPromise = container.groupPromise ?? Promise.resolve(null);
@@ -1366,6 +1378,26 @@ async function ensureOwnedContainerGroup(role, fallbackWindowId, tabIds) {
   });
   container.groupPromise = trackedGroupPromise;
   return trackedGroupPromise;
+}
+async function removeOwnedBrowserTabGroups() {
+  const container = ownedContainers.interactive;
+  const pendingGroup = container.groupPromise;
+  if (pendingGroup) await pendingGroup.catch(() => null);
+  const groups = await chrome.tabGroups.query({ title: CONTAINER_TAB_GROUP_TITLE.interactive }).catch(() => []);
+  for (const group of groups) {
+    const tabs = await chrome.tabs.query({ groupId: group.id }).catch(() => []);
+    const tabIds = tabs.map((tab) => tab.id).filter((id) => id !== void 0);
+    if (tabIds.length > 0) await chrome.tabs.ungroup(tabIds).catch(() => {
+    });
+  }
+  container.groupId = null;
+  interactiveGroupLedger.clear();
+  await persistRuntimeState();
+}
+async function setBrowserTabGroupingEnabled(enabled) {
+  await chrome.storage?.local?.set?.({ [BROWSER_TAB_GROUPS_ENABLED_KEY]: enabled });
+  browserTabGroupingEnabled = enabled;
+  if (!enabled) await withLeaseMutation(removeOwnedBrowserTabGroups);
 }
 async function ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids) {
   try {
@@ -1610,7 +1642,9 @@ function initialize() {
   workerRecovered = false;
   workerReady = (async () => {
     await getCurrentContextId();
+    await loadBrowserTabGroupingPreference();
     await reconcileTargetLeaseRegistry();
+    if (!browserTabGroupingEnabled) await removeOwnedBrowserTabGroups();
   })().catch((err) => {
     console.warn(`[opencli] Startup recovery failed: ${err instanceof Error ? err.message : String(err)}`);
   }).finally(() => {
@@ -1640,6 +1674,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "getStatus") {
     void (async () => {
+      await workerReady;
       const contextId = await getCurrentContextId();
       const connected = ws?.readyState === WebSocket.OPEN;
       const extensionVersion = chrome.runtime.getManifest().version;
@@ -1649,8 +1684,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         reconnecting: reconnectTimer !== null,
         contextId,
         extensionVersion,
-        daemonVersion
+        daemonVersion,
+        browserTabGroupingEnabled
       });
+    })();
+    return true;
+  }
+  if (msg?.type === "setBrowserTabGrouping" && typeof msg.enabled === "boolean") {
+    void (async () => {
+      await workerReady;
+      try {
+        await setBrowserTabGroupingEnabled(msg.enabled);
+        sendResponse({ ok: true, browserTabGroupingEnabled });
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          browserTabGroupingEnabled
+        });
+      }
     })();
     return true;
   }

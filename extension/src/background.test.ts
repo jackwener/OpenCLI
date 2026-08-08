@@ -750,7 +750,10 @@ describe('background tab isolation', () => {
 
   it('returns the persisted profile contextId from popup status', async () => {
     const { chrome } = createChromeMock();
-    await chrome.storage.local.set({ opencli_context_id_v1: 'abc123xy' });
+    await chrome.storage.local.set({
+      opencli_context_id_v1: 'abc123xy',
+      opencli_browser_tab_groups_enabled: false,
+    });
     vi.stubGlobal('chrome', chrome);
 
     await import('./background');
@@ -763,6 +766,7 @@ describe('background tab isolation', () => {
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
         contextId: 'abc123xy',
+        browserTabGroupingEnabled: false,
       }));
     });
   });
@@ -1244,6 +1248,57 @@ describe('background tab isolation', () => {
     expect(tabId).toBe(1);
     expect(tabs[0].groupId).toBe(-1);
     expect(groups).toEqual([]);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps browser tabs ungrouped when browser tab grouping is disabled', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    await chrome.storage.local.set({ opencli_browser_tab_groups_enabled: false });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('default'));
+
+    expect(tabId).toBe(1);
+    expect(tabs.find((tab) => tab.id === tabId)?.groupId).toBe(-1);
+    expect(groups).toEqual([]);
+    expect(chrome.tabs.group).not.toHaveBeenCalled();
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
+  });
+
+  it('ungroups live OpenCLI Browser tabs and prevents new groups when the setting is disabled', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const firstTabId = await mod.__test__.resolveTabId(undefined, browserKey('first'));
+    expect(tabs.find((tab) => tab.id === firstTabId)?.groupId).toBe(100);
+    expect(groups).toHaveLength(1);
+
+    const onMessageListener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    const response = await new Promise((resolve) => {
+      const keepAlive = onMessageListener(
+        { type: 'setBrowserTabGrouping', enabled: false },
+        {},
+        resolve,
+      );
+      expect(keepAlive).toBe(true);
+    });
+
+    expect(response).toEqual({ ok: true, browserTabGroupingEnabled: false });
+    expect(tabs.find((tab) => tab.id === firstTabId)?.groupId).toBe(-1);
+    expect(groups).toEqual([]);
+    expect(mod.__test__.getInteractiveContainer()).toEqual(expect.objectContaining({
+      groupId: null,
+      groupIds: [],
+    }));
+
+    chrome.tabs.group.mockClear();
+    chrome.tabGroups.update.mockClear();
+    const secondTabId = await mod.__test__.resolveTabId(undefined, browserKey('second'));
+
+    expect(tabs.find((tab) => tab.id === secondTabId)?.groupId).toBe(-1);
     expect(chrome.tabs.group).not.toHaveBeenCalled();
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
