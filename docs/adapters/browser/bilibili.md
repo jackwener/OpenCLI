@@ -25,6 +25,7 @@
 | `opencli bilibili unfollow` | Unfollow a user by UID, profile URL, or resolvable name; verifies the relation after modify |
 | `opencli bilibili user-videos` | |
 | `opencli bilibili download` | |
+| `opencli bilibili creator-stats <owned-bvid>` | Read creator-only manuscript diagnostics, conversion, and retention metrics on Bilibili's raw platform scale |
 
 ## Usage Examples
 
@@ -67,6 +68,9 @@ opencli bilibili subtitle BV1xx411c7mD --lang zh-CN
 opencli bilibili video BV1xx411c7mD
 opencli bilibili video https://www.bilibili.com/video/BV1xx411c7mD/
 
+# Read raw creator-only analytics for one of your own manuscripts
+opencli bilibili creator-stats "$OWNED_BVID" -f json
+
 # Fetch the official AI summary for a video
 opencli bilibili summary BV1xx411c7mD
 opencli bilibili summary https://www.bilibili.com/video/BV1xx411c7mD/
@@ -103,3 +107,5 @@ opencli bilibili hot -v
 - `comment --parent` expects the top-level/root `rpid`; nested reply-to-reply targeting is not inferred
 - `follow` and `unfollow` are write commands; they no-op when the current relation already matches the requested state and otherwise re-read `/x/relation` after modify before reporting success
 - `follow` and `unfollow` accept numeric UID, exact `space.bilibili.com/<uid>` profile URL, or a name that resolves through Bilibili search
+- `creator-stats` only accepts manuscripts owned by the logged-in creator account
+- `creator-stats` uses undocumented creator-center endpoints; metric paths and values are intentionally returned on Bilibili's raw platform scale
