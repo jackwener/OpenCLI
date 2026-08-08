@@ -1236,6 +1236,48 @@ Examples:
       console.log(JSON.stringify(frames, null, 2));
     }));
 
+  // ── Cookies ──
+  //
+  // Read cookies (including HttpOnly) for the active tab via CDP / chrome.cookies.
+  //
+  // Why this exists: agents often need to reuse a logged-in browser session in
+  // an external HTTP client (e.g. Python httpx posting to an internal RPC). The
+  // page itself can read non-HttpOnly cookies via `eval "document.cookie"`, but
+  // session/SSO cookies are almost always HttpOnly and require a privileged
+  // transport. CDP `Network.getCookies` and the chrome.cookies extension API
+  // both bypass HttpOnly restrictions, and we already wire both transports in
+  // `page.getCookies()`. This subcommand exposes that capability so adapters
+  // and one-off CLI flows can drop their dependency on `playwright-cli
+  // cookie-list` or hand-rolled CDP plumbing.
+  //
+  // Default scope is the active tab's current HTTP(S) URL. This keeps the
+  // extension transport's "no unscoped cookie dump" invariant while preserving
+  // the user-facing "current tab cookies" behavior.
+  //
+  // Envelope: `{ cookies: BrowserCookie[], count: number }`. CDP `expires` is
+  // normalized to `expirationDate` to match the chrome.cookies API shape, so
+  // consumers don't need to branch on transport.
+  addBrowserTabOption(browser.command('cookies')
+    .description('List cookies for the active tab (includes HttpOnly) — JSON envelope {cookies, count}')
+    .option('--domain <domain>', 'Filter to cookies whose domain equals or is a parent of <domain>')
+    .option('--url <url>', 'Restrict to cookies that would be sent on requests to <url> (CDP-side filter)'))
+    .action(browserAction(async (page, opts) => {
+      const filter: { domain?: string; url?: string } = {};
+      const domain = typeof opts.domain === 'string' ? opts.domain.trim() : '';
+      const url = typeof opts.url === 'string' ? opts.url.trim() : '';
+      if (domain.length > 0) filter.domain = domain;
+      if (url.length > 0) filter.url = url;
+      if (!filter.domain && !filter.url) {
+        const currentUrl = await page.getCurrentUrl?.();
+        if (!currentUrl || !/^https?:\/\//i.test(currentUrl)) {
+          throw new Error('browser cookies requires --url or --domain when the active tab URL is unavailable or not HTTP(S)');
+        }
+        filter.url = currentUrl;
+      }
+      const cookies = await page.getCookies(filter);
+      console.log(JSON.stringify({ cookies, count: cookies.length }, null, 2));
+    }));
+
   addBrowserTabOption(browser.command('screenshot').argument('[path]', 'Save to file (base64 if omitted)'))
     .option('--full-page', 'Capture the full scrollable page, not just the viewport', false)
     .option('--annotate', 'Overlay visible browser state ref labels on the screenshot', false)

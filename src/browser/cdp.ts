@@ -237,12 +237,23 @@ class CDPPage extends BasePage {
   }
 
   async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
-    const result = await this.bridge.send('Network.getCookies', opts.url ? { urls: [opts.url] } : {});
-    const cookies = isRecord(result) && Array.isArray(result.cookies) ? result.cookies : [];
+    const domainOnly = opts.domain && !opts.url;
+    const method = domainOnly ? 'Storage.getCookies' : 'Network.getCookies';
+    const result = await this.bridge.send(method, opts.url ? { urls: [opts.url] } : {});
+    if (!isRecord(result) || !Array.isArray(result.cookies)) {
+      throw new Error(`CDP ${method} returned malformed result: expected { cookies: [] }`);
+    }
+    const cookies = result.cookies;
+    const malformedIndex = cookies.findIndex((cookie) => !isCookie(cookie));
+    if (malformedIndex !== -1) {
+      throw new Error(`CDP ${method} returned malformed cookie at index ${malformedIndex}`);
+    }
+    const normalized = cookies
+      .map(normalizeCDPCookie);
     const domain = opts.domain;
     return domain
-      ? cookies.filter((cookie): cookie is BrowserCookie => isCookie(cookie) && matchesCookieDomain(cookie.domain, domain))
-      : cookies;
+      ? normalized.filter((cookie) => matchesCookieDomain(cookie.domain, domain))
+      : normalized;
   }
 
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
@@ -472,18 +483,48 @@ class CDPPage extends BasePage {
   }
 }
 
-function isCookie(value: unknown): value is BrowserCookie {
+function isCookie(value: unknown): value is Record<string, unknown> & { name: string; value: string; domain: string } {
   return isRecord(value)
     && typeof value.name === 'string'
     && typeof value.value === 'string'
     && typeof value.domain === 'string';
 }
 
+/**
+ * Normalize a CDP `Network.Cookie` record into the public `BrowserCookie` shape.
+ *
+ * Why: CDP returns `expires` (seconds since epoch, -1 for session cookies). The
+ * Chrome cookies API — and our Extension transport — calls the same field
+ * `expirationDate`. Consumers should not have to branch on transport, so we
+ * normalize everything to `expirationDate`. Other CDP-only fields are passed
+ * through verbatim so callers can opt into them when present.
+ */
+function normalizeCDPCookie(raw: Record<string, unknown> & { name: string; value: string; domain: string }): BrowserCookie {
+  const out: BrowserCookie = {
+    name: raw.name,
+    value: raw.value,
+    domain: raw.domain,
+  };
+  if (typeof raw.path === 'string') out.path = raw.path;
+  if (typeof raw.secure === 'boolean') out.secure = raw.secure;
+  if (typeof raw.httpOnly === 'boolean') out.httpOnly = raw.httpOnly;
+  if (typeof raw.expires === 'number' && raw.expires > 0) out.expirationDate = raw.expires;
+  if (typeof raw.session === 'boolean') out.session = raw.session;
+  if (typeof raw.sameSite === 'string') out.sameSite = raw.sameSite;
+  if (typeof raw.size === 'number') out.size = raw.size;
+  if (typeof raw.priority === 'string') out.priority = raw.priority;
+  if (typeof raw.sourceScheme === 'string') out.sourceScheme = raw.sourceScheme;
+  if (typeof raw.sourcePort === 'number') out.sourcePort = raw.sourcePort;
+  if (typeof raw.sameParty === 'boolean') out.sameParty = raw.sameParty;
+  if (typeof raw.partitionKey === 'string') out.partitionKey = raw.partitionKey;
+  return out;
+}
+
 function matchesCookieDomain(cookieDomain: string, targetDomain: string): boolean {
   const normalizedCookieDomain = cookieDomain.replace(/^\./, '').toLowerCase();
   const normalizedTargetDomain = targetDomain.replace(/^\./, '').toLowerCase();
-  return normalizedTargetDomain === normalizedCookieDomain
-    || normalizedTargetDomain.endsWith(`.${normalizedCookieDomain}`);
+  return normalizedCookieDomain === normalizedTargetDomain
+    || normalizedCookieDomain.endsWith(`.${normalizedTargetDomain}`);
 }
 
 function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
