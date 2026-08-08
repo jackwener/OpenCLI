@@ -20368,6 +20368,338 @@
     "sourceFile": "jira/search.js"
   },
   {
+    "site": "jiuyangongshe",
+    "name": "categories",
+    "description": "Research category sidebar on 韭研公社 (jiuyangongshe.com)",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (default 20, max 50)"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "count",
+      "description",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/categories.js",
+    "sourceFile": "jiuyangongshe/categories.js"
+  },
+  {
+    "site": "jiuyangongshe",
+    "name": "detail",
+    "description": "Fetch a single research note by article_id on 韭研公社",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Article ID (the trailing segment of the jiuyangongshe post URL)"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "author",
+      "publishedAt",
+      "updatedAt",
+      "views",
+      "comments",
+      "likes",
+      "forwards",
+      "tickers",
+      "url",
+      "summary"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/detail.js",
+    "sourceFile": "jiuyangongshe/detail.js"
+  },
+  {
+    "site": "jiuyangongshe",
+    "name": "hot",
+    "description": "Trending research notes on 韭研公社 (jiuyangongshe.com)",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "hot",
+        "required": false,
+        "help": "Sort mode: hot (热度), publish (最新发布), action (最新互动), 30 (30天热度)",
+        "choices": [
+          "30",
+          "hot",
+          "publish",
+          "action"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (default 20, max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "publishedAt",
+      "summary",
+      "views",
+      "comments",
+      "likes",
+      "forwards",
+      "tickers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/hot.js",
+    "sourceFile": "jiuyangongshe/hot.js"
+  },
+  {
+    "site": "jiuyangongshe",
+    "name": "latest",
+    "description": "Most recently published research notes on 韭研公社 (jiuyangongshe.com)",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (default 20, max 50)"
+      },
+      {
+        "name": "days",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Only include posts from the last N days (skips pinned items). 0 = no filter."
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "publishedAt",
+      "summary",
+      "views",
+      "comments",
+      "likes",
+      "forwards",
+      "tickers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/latest.js",
+    "sourceFile": "jiuyangongshe/latest.js"
+  },
+  {
+    "site": "jiuyangongshe",
+    "name": "rank",
+    "description": "Community leaderboards (hot keywords, hot articles, top users, categories) on 韭研公社",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "kind",
+        "type": "str",
+        "default": "search",
+        "required": false,
+        "help": "Which leaderboard to dump: search (关键词), article (帖子), user (用户), category (分类)",
+        "choices": [
+          "search",
+          "article",
+          "user",
+          "category"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Max rows to return (default 10, max 20)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "type",
+      "name",
+      "detail",
+      "score",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/rank.js",
+    "sourceFile": "jiuyangongshe/rank.js"
+  },
+  {
+    "site": "jiuyangongshe",
+    "name": "search",
+    "description": "Search research notes on 韭研公社 (jiuyangongshe.com)",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword (topic, stock name, ticker code, author, etc.)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (default 20, max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "publishedAt",
+      "summary",
+      "views",
+      "comments",
+      "likes",
+      "forwards",
+      "tickers",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/search.js",
+    "sourceFile": "jiuyangongshe/search.js"
+  },
+  {
+    "site": "jiuyangongshe",
+    "name": "ticker",
+    "description": "Research notes tagged with a given A-share ticker on 韭研公社",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "code",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Ticker code, e.g. 600519, sh600519, SZ002156, 01688"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Max rows to return (default 30, max 100)"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "hot",
+        "required": false,
+        "help": "Primary sort: hot (热度, default) or time (最新发布)",
+        "choices": [
+          "hot",
+          "time"
+        ]
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "author",
+      "publishedAt",
+      "summary",
+      "comments",
+      "likes",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/ticker.js",
+    "sourceFile": "jiuyangongshe/ticker.js"
+  },
+  {
+    "site": "jiuyangongshe",
+    "name": "user",
+    "description": "Articles posted by a single contributor on 韭研公社",
+    "access": "read",
+    "domain": "www.jiuyangongshe.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "userId",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "User ID, e.g. ecbd697906d542919f2c13628b06f807"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Max rows to return (default 20, max 50)"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Page number (default 1). NOTE: the SSR endpoint always returns page 1 regardless of this value."
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "publishedAt",
+      "comments",
+      "likes",
+      "collects",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "jiuyangongshe/user.js",
+    "sourceFile": "jiuyangongshe/user.js"
+  },
+  {
     "site": "juejin",
     "name": "hot",
     "description": "Juejin (掘金) hot article ranking, optionally scoped to a category",
