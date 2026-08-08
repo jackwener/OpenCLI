@@ -1,19 +1,19 @@
 # Testing Guide
 
-> 面向开发者和 AI Agent 的当前测试参考手册。
+> The current testing reference for developers and AI agents.
 
-## 测试结构
+## Test Structure
 
-OpenCLI 当前测试主要分成四类：
+OpenCLI's tests currently fall into four categories:
 
-| 类别 | 位置 | 当前规模 | 主要用途 |
+| Category | Location | Current size | Primary purpose |
 |---|---|---:|---|
-| 单元测试 | `src/**/*.test.ts` | 60 | 核心运行时、命令层、浏览器桥、输出、插件、诊断 |
-| E2E 测试 | `tests/e2e/*.test.ts` | 11 | 真实 CLI 入口、公开站点、浏览器命令、管理命令、输出格式 |
-| 烟雾测试 | `tests/smoke/*.test.ts` | 1 | 外部 API 与注册完整性健康检查 |
-| 步骤级测试 | `src/pipeline/steps/*.test.ts` | 已包含在单元测试内 | pipeline step 行为与边界情况 |
+| Unit tests | `src/**/*.test.ts` | 60 | Core runtime, command layer, browser bridge, output, plugins, and diagnostics |
+| E2E tests | `tests/e2e/*.test.ts` | 11 | Real CLI entrypoints, public sites, browser commands, management commands, and output formats |
+| Smoke tests | `tests/smoke/*.test.ts` | 1 | Health checks for external APIs and registration integrity |
+| Step-level tests | `src/pipeline/steps/*.test.ts` | Included in unit tests | Pipeline-step behavior and edge cases |
 
-当前仓库里没有独立的 `clis/**/*.test.{ts,js}` adapter 测试树。adapter 相关验证主要分布在：
+There is no standalone `clis/**/*.test.{ts,js}` adapter-test tree in this repository. Adapter-related verification is primarily covered by:
 
 - `tests/e2e/`
 - `src/commanderAdapter.test.ts`
@@ -21,56 +21,56 @@ OpenCLI 当前测试主要分成四类：
 - `src/execution.test.ts`
 - `src/validate.ts` / `opencli validate`
 
-## 本地默认策略
+## Default Local Strategy
 
-本地默认跑最小充分验证，不要先跑全量。
+Run the smallest sufficient set of checks locally before running the full suite.
 
-推荐顺序：
+Recommended order:
 
-1. 改动命令文案、输出格式、参数解析：
-   - 跑对应单元测试
-   - 跑一条真实 CLI 命令做 spot check
-2. 改动 adapter 发现、注册、验证逻辑：
-   - 跑 `src/registry.test.ts`
-   - 跑 `src/execution.test.ts`
-   - 跑 `opencli validate`
-3. 改动 browser / daemon / runtime：
-   - 跑对应 `src/*test.ts`
-   - 必要时补一条 `tests/e2e/*` 或手动 `opencli browser ...` 验证
-4. 改动共享底层、跨多个模块、或 merge 前需要更高信心：
-   - 再扩大到 `npm test`
+1. For command copy, output formats, or argument parsing changes:
+   - Run the relevant unit tests.
+   - Spot-check one real CLI command.
+2. For adapter discovery, registration, or validation changes:
+   - Run `src/registry.test.ts`.
+   - Run `src/execution.test.ts`.
+   - Run `opencli validate`.
+3. For browser, daemon, or runtime changes:
+   - Run the relevant `src/*test.ts` tests.
+   - Add a `tests/e2e/*` test or manually verify with `opencli browser ...` when needed.
+4. For shared low-level changes, changes spanning multiple modules, or higher confidence before merging:
+   - Expand to `npm test`.
 
-## 常用命令
+## Common Commands
 
 ```bash
-# 类型检查
+# Type checking
 npx tsc --noEmit
 
-# 编译产物
+# Build artifacts
 npm run build
 
-# 跑一个目标测试文件
+# Run one target test file
 npx vitest run src/<target>.test.ts
 
-# 全量 vitest projects
+# All Vitest projects
 npm run test:all
 
 # E2E
 npm run test:e2e
 
-# 适配器注册 / schema 校验
+# Adapter registration / schema validation
 node dist/src/main.js validate
 ```
 
-如果你明确要跑 adapter project，也可以执行：
+To run the adapter project specifically, use:
 
 ```bash
 npm run test:adapter
 ```
 
-## 当前 E2E 文件
+## Current E2E Files
 
-当前 `tests/e2e/` 包含：
+`tests/e2e/` currently contains:
 
 - `browser-auth.test.ts`
 - `browser-public.test.ts`
@@ -84,15 +84,15 @@ npm run test:adapter
 - `remote-chrome.test.ts`
 - `tab-targeting.test.ts`
 
-如果这个列表变化，以仓库文件为准：
+If this list changes, treat the repository files as the source of truth:
 
 ```bash
 find tests/e2e -name '*.test.ts' | sort
 ```
 
-## 当前值得优先覆盖的区域
+## Areas That Deserve Priority Coverage
 
-以下改动最容易引入回归：
+Changes in the following areas are most likely to introduce regressions:
 
 - `src/cli.ts`
 - `src/commanderAdapter.ts`
@@ -104,15 +104,15 @@ find tests/e2e -name '*.test.ts' | sort
 - `src/external.ts`
 - `src/pipeline/**`
 
-这类改动优先补：
+For these changes, prioritize:
 
-- 精准单元测试
-- 一条真实 CLI 验证路径
-- 必要时再扩大到 `npm test`
+- Focused unit tests
+- One real CLI verification path
+- Expanding to `npm test` when necessary
 
-## 手动验证建议
+## Manual Verification Guidance
 
-文档或命令面改动后，优先做 2 到 4 条真实命令 spot check，例如：
+After documentation or command-surface changes, start with two to four real command spot checks, for example:
 
 ```bash
 node dist/src/main.js --help
@@ -121,37 +121,37 @@ node dist/src/main.js plugin --help
 node dist/src/main.js doctor --help
 ```
 
-浏览器相关改动再补：
+For browser-related changes, also run:
 
 ```bash
 node dist/src/main.js browser --help
 node dist/src/main.js browser tab list
 ```
 
-## CI 角色
+## The Role of CI
 
-CI 负责更大范围的回归信心，本地负责最快闭环。
+CI provides broader regression confidence; local checks provide the fastest feedback loop.
 
-适合交给 CI 的内容：
+Use CI for:
 
-- 更大的命令面回归
-- 多环境差异
-- E2E 稳定性
-- smoke 检查
+- Broader command-surface regression coverage
+- Differences across environments
+- E2E stability
+- Smoke checks
 
-适合本地优先做的内容：
+Prioritize local checks for:
 
-- 参数解析
-- 输出格式
-- 注册与发现
-- 文档相关命令行为
-- 共享模块的小范围回归
+- Argument parsing
+- Output formats
+- Registration and discovery
+- Documentation-related command behavior
+- Small-scope regressions in shared modules
 
-## 更新这份文档的规则
+## When to Update This Document
 
-当以下任一项变化时，顺手更新此页：
+Update this page whenever any of the following changes:
 
-- `tests/e2e/` 文件列表
-- 默认本地测试命令
-- `package.json` 测试脚本
-- 共享运行时的高风险模块
+- The `tests/e2e/` file list
+- Default local test commands
+- Test scripts in `package.json`
+- High-risk modules in the shared runtime
