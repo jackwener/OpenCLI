@@ -4,6 +4,11 @@ export const DOUBAO_DOMAIN = 'www.doubao.com';
 export const DOUBAO_CHAT_URL = 'https://www.doubao.com/chat';
 export const DOUBAO_NEW_CHAT_URL = 'https://www.doubao.com/chat/new-thread/create-by-msg';
 const DOUBAO_COMPOSER_SELECTORS = [
+    // 2026-07 Doubao DOM refactor: composer is now a Semi Design textarea;
+    // data-testid attributes were removed. Placeholder is e.g.
+    // "发消息或按住空格说话...", class contains semi-input-textarea.
+    'textarea.semi-input-textarea',
+    'textarea[placeholder*="发消息"]',
     'textarea[data-testid="chat_input_input"]',
     '[data-testid="chat_input"] textarea',
     '.chat-input textarea',
@@ -23,10 +28,14 @@ function buildDoubaoComposerLocatorScript() {
     return `
     const isVisible = (el) => {
       if (!(el instanceof HTMLElement)) return false;
+      if (el.hidden) return false;
       const style = window.getComputedStyle(el);
       if (style.display === 'none' || style.visibility === 'hidden') return false;
       const rect = el.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
+      // Relax: in background tabs / 0x0 automation windows width can be 0
+      // while the composer is still usable, so only require height > 0
+      // (excludes fully hidden elements).
+      return rect.height > 0;
     };
 
     const composerSelectors = ${JSON.stringify(DOUBAO_COMPOSER_SELECTORS)};
@@ -47,11 +56,32 @@ function getTranscriptLinesScript() {
         .replace(/\\n{3,}/g, '\\n\\n')
         .trim();
 
-      const root = document.body.cloneNode(true);
+      // 2026-07 Doubao DOM refactor: sidebar data-testid removed, now uses
+      // left-side-/w-sidebar-width classes. The main chat area is the sidebar's
+      // sibling. Read only the main area to avoid sidebar history-title noise.
+      const sidebar = document.querySelector('[class*="left-side-"], [class*="w-sidebar-width"]');
+      const mainArea = sidebar && sidebar.parentElement
+        ? Array.from(sidebar.parentElement.children).find((c) => c !== sidebar)
+        : null;
+      const root = (mainArea || document.body).cloneNode(true);
       const removableSelectors = [
         '[data-testid="flow_chat_sidebar"]',
+        '[class*="left-side-"]',
+        '[class*="w-sidebar-width"]',
         '[data-testid="chat_input"]',
+        'textarea',
         '[data-testid="flow_chat_guidance_page"]',
+        // 2026-07 Doubao DOM refactor: header (conversation title + "AI 生成可能有误"
+        // disclaimer) and input area ("快速/更多" buttons) pollute the transcript;
+        // remove them precisely to keep only message content.
+        '[class*="h-header-height"]',
+        '[class*="input-content-container"]',
+        '[class*="input-guidance"]',
+        'button',
+        // Follow-up suggestion chips (new-chat suggestions and post-reply
+        // follow-ups share the same component:
+        // flex flex-none truncate rounded-[var(--dbx-radius-xl,...)]).
+        '[class*="flex-none"][class*="truncate"]',
       ];
 
       for (const selector of removableSelectors) {
@@ -136,10 +166,12 @@ function getTurnsScript() {
 
       const isVisible = (el) => {
         if (!(el instanceof HTMLElement)) return false;
+        if (el.hidden) return false;
         const style = window.getComputedStyle(el);
         if (style.display === 'none' || style.visibility === 'hidden') return false;
-        const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
+        // Relax: in 0x0 tabs message elements have zero size but their text is
+        // still readable, so don't require width/height > 0.
+        return true;
       };
 
       const getRole = (root) => {
@@ -249,7 +281,7 @@ function getTurnsScript() {
         '[class*="bg-g-receive-msg-bubble"]',
       ];
 
-      const messageLists = Array.from(document.querySelectorAll('[class*="message-list-"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"]'))
+      const messageLists = Array.from(document.querySelectorAll('[class*="message-list-"], .container-PvPoAn, .scroll-view-OEiNXD, [data-testid="message-list"], [class*="list_items"]'))
         .filter((el) => isVisible(el));
       if (messageLists.length === 0) return [];
 
@@ -308,7 +340,12 @@ function prepareDoubaoComposerScript() {
         && !(composer instanceof HTMLInputElement)
         && !(composer instanceof HTMLElement)
       ) {
-        return { ok: false, reason: 'Could not find Doubao input element' };
+        const tas = Array.from(document.querySelectorAll('textarea')).map((t) => ({
+          ph: t.getAttribute('placeholder'),
+          cls: (t.className || '').slice(0, 60),
+          vis: (() => { const s = window.getComputedStyle(t); const r = t.getBoundingClientRect(); return s.display + '/' + s.visibility + '/' + Math.round(r.width) + 'x' + Math.round(r.height); })(),
+        }));
+        return { ok: false, reason: 'Could not find Doubao input element. vp=' + window.innerWidth + 'x' + window.innerHeight + ' url=' + location.href + ' textareas=' + JSON.stringify(tas) };
       }
 
       try {
@@ -822,11 +859,13 @@ export function collectDoubaoTranscriptAdditions(beforeLines, currentLines, prom
 function getConversationListScript() {
     return `
     (() => {
-      const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"]');
+      // 2026-07 Doubao DOM refactor: sidebar data-testid removed, now uses
+      // left-side-/w-sidebar-width classes.
+      const sidebar = document.querySelector('[class*="left-side-"], [class*="w-sidebar-width"]');
       if (!sidebar) return [];
 
       const items = Array.from(
-        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"]')
+        sidebar.querySelectorAll('a[href*="/chat/"]')
       );
 
       return items
@@ -908,13 +947,16 @@ export async function navigateToConversation(page, conversationId) {
 }
 export async function getConversationDetail(page, conversationId) {
     await navigateToConversation(page, conversationId);
-    const raw = await page.evaluate(getConversationDetailScript());
-    const messages = (raw.messages || []).map((m) => ({
-        Role: m.role,
-        Text: m.text,
-        HasMeetingCard: m.hasMeetingCard,
+    // 2026-07 Doubao DOM refactor: getConversationDetailScript's data-testid
+    // selectors are all stale; reuse the fixed getDoubaoVisibleTurns (getTurnsScript,
+    // based on list_items/inner-item/md-box-root) instead.
+    const turns = await getDoubaoVisibleTurns(page);
+    const messages = turns.map((t) => ({
+        Role: t.Role,
+        Text: t.Text,
+        HasMeetingCard: false,
     }));
-    return { messages, meeting: raw.meeting };
+    return { messages, meeting: null };
 }
 // ---------------------------------------------------------------------------
 // Meeting minutes panel helpers
