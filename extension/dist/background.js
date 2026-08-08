@@ -3,6 +3,21 @@ const DAEMON_HOST = "localhost";
 const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
 const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
 
+const BEFORE_UNLOAD_GUARD_JS = `
+  (() => {
+    const holder = EventTarget.prototype;
+    const key = '__lsnUnload';  // looks like an internal listener cache
+    if (Object.getOwnPropertyDescriptor(holder, key)) return;
+    try {
+      Object.defineProperty(holder, key, { value: true, enumerable: false, configurable: true });
+    } catch {}
+    window.addEventListener('beforeunload', (event) => {
+      event.stopImmediatePropagation();
+      event.returnValue = '';
+    }, true);
+    window.onbeforeunload = null;
+  })()
+`;
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
 const frameTargets = /* @__PURE__ */ new Map();
@@ -104,6 +119,13 @@ async function ensureAttached(tabId, aggressiveRetry = false) {
   attached.add(tabId);
   try {
     await sendDebuggerCommand({ tabId }, "Runtime.enable");
+  } catch {
+  }
+  try {
+    await sendDebuggerCommand({ tabId }, "Page.enable");
+    await sendDebuggerCommand({ tabId }, "Page.addScriptToEvaluateOnNewDocument", {
+      source: BEFORE_UNLOAD_GUARD_JS
+    });
   } catch {
   }
   if (preservedNetworkCapture) {
@@ -565,6 +587,16 @@ function registerListeners() {
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
     if (info.url && !isDebuggableUrl$1(info.url)) {
       await detach(tabId);
+    }
+  });
+  chrome.debugger.onEvent.addListener(async (source, method, params) => {
+    if (method !== "Page.javascriptDialogOpening") return;
+    if (params?.type !== "beforeunload") return;
+    const tabId = source.tabId;
+    if (!tabId) return;
+    try {
+      await sendDebuggerCommand({ tabId }, "Page.handleJavaScriptDialog", { accept: true });
+    } catch {
     }
   });
   chrome.debugger.onEvent.addListener(async (source, method, params) => {

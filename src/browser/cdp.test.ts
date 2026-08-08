@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
     static OPEN = 1;
+    static instances: MockWebSocket[] = [];
     readyState = 1;
     private handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
     constructor(_url: string) {
+      MockWebSocket.instances.push(this);
       queueMicrotask(() => this.emit('open'));
     }
 
@@ -22,7 +24,7 @@ const { MockWebSocket } = vi.hoisted(() => {
       this.readyState = 3;
     }
 
-    private emit(event: string, ...args: unknown[]): void {
+    emit(event: string, ...args: unknown[]): void {
       for (const handler of this.handlers.get(event) ?? []) {
         handler(...args);
       }
@@ -95,5 +97,49 @@ describe('CDPBridge cookies', () => {
       ['Page.handleJavaScriptDialog', { accept: true, promptText: 'ok' }],
       ['Page.getLayoutMetrics', {}],
     ]);
+  });
+});
+
+describe('CDPBridge beforeunload dialogs', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('accepts a beforeunload prompt raised by a document that predates the connect', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    const send = vi.spyOn(bridge, 'send').mockResolvedValue({});
+    await bridge.connect();
+    send.mockClear();
+
+    const ws = MockWebSocket.instances.at(-1)!;
+    ws.emit('message', JSON.stringify({
+      method: 'Page.javascriptDialogOpening',
+      params: { type: 'beforeunload', message: 'Leave site?' },
+    }));
+
+    expect(send.mock.calls).toEqual([
+      ['Page.handleJavaScriptDialog', { accept: true }],
+    ]);
+  });
+
+  it('leaves alert, confirm, and prompt dialogs for the caller', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    const send = vi.spyOn(bridge, 'send').mockResolvedValue({});
+    await bridge.connect();
+    send.mockClear();
+
+    const ws = MockWebSocket.instances.at(-1)!;
+    for (const type of ['alert', 'confirm', 'prompt']) {
+      ws.emit('message', JSON.stringify({
+        method: 'Page.javascriptDialogOpening',
+        params: { type, message: 'hello' },
+      }));
+    }
+
+    expect(send).not.toHaveBeenCalled();
   });
 });

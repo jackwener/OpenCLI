@@ -466,7 +466,34 @@ describe('cdp network capture survives forced re-attach', () => {
   });
 });
 
-describe('cdp network capture correctness', () => {
+function createNetworkMock() {
+  const onEventListeners = [];
+  const debuggerApi = {
+    attach: vi.fn(async () => {}),
+    detach: vi.fn(async () => {}),
+    sendCommand: vi.fn(async (_target, method, params) => {
+      if (method === 'Runtime.evaluate' && params?.expression === '1') return { result: { value: '1' } };
+      if (method === 'Network.getRequestPostData') return {}; // no override; use inline postData
+      return {};
+    }),
+    onDetach: { addListener: vi.fn() },
+    onEvent: { addListener: vi.fn((fn) => { onEventListeners.push(fn); }) },
+  };
+  const tabs = {
+    get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://x.com/home' })),
+    onRemoved: { addListener: vi.fn() },
+    onUpdated: { addListener: vi.fn() },
+  };
+  const fire = async (method, params) => {
+    for (const fn of onEventListeners) await fn({ tabId: 1 }, method, params);
+  };
+  return {
+    chrome: { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } },
+    fire,
+  };
+}
+
+describe('cdp beforeunload guard', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -475,32 +502,54 @@ describe('cdp network capture correctness', () => {
     vi.unstubAllGlobals();
   });
 
-  function createNetworkMock() {
-    const onEventListeners = [];
-    const debuggerApi = {
-      attach: vi.fn(async () => {}),
-      detach: vi.fn(async () => {}),
-      sendCommand: vi.fn(async (_target, method, params) => {
-        if (method === 'Runtime.evaluate' && params?.expression === '1') return { result: { value: '1' } };
-        if (method === 'Network.getRequestPostData') return {}; // no override; use inline postData
-        return {};
-      }),
-      onDetach: { addListener: vi.fn() },
-      onEvent: { addListener: vi.fn((fn) => { onEventListeners.push(fn); }) },
-    };
-    const tabs = {
-      get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://x.com/home' })),
-      onRemoved: { addListener: vi.fn() },
-      onUpdated: { addListener: vi.fn() },
-    };
-    const fire = async (method, params) => {
-      for (const fn of onEventListeners) await fn({ tabId: 1 }, method, params);
-    };
-    return {
-      chrome: { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } },
-      fire,
-    };
-  }
+  it('arms the beforeunload guard for future documents when it attaches', async () => {
+    const mock = createNetworkMock();
+    vi.stubGlobal('chrome', mock.chrome);
+    const mod = await import('./cdp');
+
+    await mod.ensureAttached(1);
+
+    const injected = mock.chrome.debugger.sendCommand.mock.calls
+      .find(([, method]) => method === 'Page.addScriptToEvaluateOnNewDocument');
+    expect(injected?.[2]?.source).toContain('beforeunload');
+    expect(injected?.[2]?.source).toContain('stopImmediatePropagation');
+  });
+
+  it('accepts a beforeunload prompt raised by a document that predates the attach', async () => {
+    const mock = createNetworkMock();
+    vi.stubGlobal('chrome', mock.chrome);
+    const mod = await import('./cdp');
+    mod.registerListeners();
+
+    await mock.fire('Page.javascriptDialogOpening', { type: 'beforeunload', message: 'Leave site?' });
+
+    const handled = mock.chrome.debugger.sendCommand.mock.calls
+      .find(([, method]) => method === 'Page.handleJavaScriptDialog');
+    expect(handled?.[2]).toEqual({ accept: true });
+  });
+
+  it('leaves an alert dialog for the caller to handle', async () => {
+    const mock = createNetworkMock();
+    vi.stubGlobal('chrome', mock.chrome);
+    const mod = await import('./cdp');
+    mod.registerListeners();
+
+    await mock.fire('Page.javascriptDialogOpening', { type: 'alert', message: 'hello' });
+
+    const handled = mock.chrome.debugger.sendCommand.mock.calls
+      .find(([, method]) => method === 'Page.handleJavaScriptDialog');
+    expect(handled).toBeUndefined();
+  });
+});
+
+describe('cdp network capture correctness', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('preserves the original POST body when a captured request follows a redirect', async () => {
     const mock = createNetworkMock();
