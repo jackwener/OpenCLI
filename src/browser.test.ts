@@ -9,6 +9,7 @@ import * as daemonLifecycle from './browser/daemon-lifecycle.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe('browser helpers', () => {
@@ -114,6 +115,140 @@ describe('browser helpers', () => {
     ]);
 
     expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9226/codex');
+  });
+
+  it('prefers the main Electron window over a routed auxiliary window on the same document', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html?initialRoute=%2Favatar-overlay',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/overlay',
+      },
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/main',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/main');
+  });
+
+  it('still connects to a routed window when the app opens no other surface', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html?initialRoute=%2Favatar-overlay',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/overlay',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/overlay');
+  });
+
+  it('keeps a routed window that outscores its plain sibling', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html?initialRoute=%2Fc%2Fthread',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/thread',
+      },
+      {
+        type: 'page',
+        title: '',
+        url: 'app://-/index.html',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/blank',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/thread');
+  });
+
+  it('ignores uninspectable targets when deciding which window is routed', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html',
+      },
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html?initialRoute=%2Fc%2Fthread',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/main',
+      },
+      {
+        type: 'page',
+        title: 'Codex Helper',
+        url: 'about:blank',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/blank',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/main');
+  });
+
+  it('leaves http tabs in document order when one carries a query string', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Example',
+        url: 'https://example.com/app?q=1',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9222/query',
+      },
+      {
+        type: 'page',
+        title: 'Example',
+        url: 'https://example.com/app',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9222/plain',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9222/query');
+  });
+
+  it('leaves unknown-scheme documents in document order when one carries a query', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Example',
+        url: 'vscode-file://vscode-app/index.html?windowId=2',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9229/query',
+      },
+      {
+        type: 'page',
+        title: 'Example',
+        url: 'vscode-file://vscode-app/index.html',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9229/plain',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9229/query');
+  });
+
+  it('honors OPENCLI_CDP_TARGET even when it names a routed auxiliary window', () => {
+    vi.stubEnv('OPENCLI_CDP_TARGET', 'avatar-overlay');
+
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html?initialRoute=%2Favatar-overlay',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/overlay',
+      },
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/main',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/overlay');
   });
 });
 
