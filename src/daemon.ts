@@ -294,7 +294,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const mem = process.memoryUsage();
     const params = new URL(url, `http://localhost:${PORT}`).searchParams;
     const requestedContextId = params.get('contextId')?.trim() || undefined;
-    const route = resolveExtensionConnection(requestedContextId);
+    const preferredContextId = params.get('preferredContextId')?.trim() || undefined;
+    const route = resolveExtensionConnection(requestedContextId, preferredContextId);
     const profiles = activeProfiles().map((profile) => ({
       contextId: profile.contextId,
       extensionConnected: true,
