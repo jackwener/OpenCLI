@@ -137,7 +137,7 @@ describe('daemon-client', () => {
     await expect(getDaemonHealth()).resolves.toEqual({ state: 'profile-required', status });
   });
 
-  it('fetchDaemonStatus includes contextId in the status query', async () => {
+  it('fetchDaemonStatus includes profile routing in the status query', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({
@@ -151,9 +151,9 @@ describe('daemon-client', () => {
       }),
     } as Response);
 
-    await fetchDaemonStatus({ contextId: 'work' });
+    await fetchDaemonStatus({ contextId: 'work', preferredContextId: 'personal profile' });
 
-    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
+    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work&preferredContextId=personal\+profile$/);
   });
 
   it('rejects OPENCLI_DAEMON_PORT so CLI and extension cannot split bridge ports', async () => {
@@ -451,6 +451,49 @@ describe('daemon-client', () => {
     expect(ids).toHaveLength(2);
     // Transport retries keep the id stable so the executor's journal can dedupe.
     expect(ids[0]).toBe(ids[1]);
+  });
+
+  it('sendCommand forwards the soft preferred profile through bridge recovery', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-recovery-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: {}, defaultContextId: 'zvypsyje' }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
+    vi.stubEnv('OPENCLI_PROFILE', '');
+    const ensureSpy = mockEnsureReady('1.0.22');
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({
+          ok: false,
+          errorCode: 'extension_not_connected',
+          error: 'Extension not connected.',
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 7 }),
+      } as Response);
+
+    try {
+      await expect(sendCommand('exec', { code: '1 + 6' })).resolves.toBe(7);
+
+      expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({
+        contextId: undefined,
+        preferredContextId: 'zvypsyje',
+        verbose: false,
+      }));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
   });
 
   it('sendCommand runs full bridge ensure on a pre-connect TypeError (ECONNREFUSED) before resending', async () => {

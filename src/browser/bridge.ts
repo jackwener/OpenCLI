@@ -41,7 +41,7 @@ export class BrowserBridge implements IBrowserFactory {
       const routing = opts.contextId || opts.preferredContextId
         ? { contextId: opts.contextId, preferredContextId: opts.preferredContextId }
         : profileRouteParams(resolveProfileSelection());
-      await this._ensureDaemon(opts.timeout, routing.contextId);
+      await this._ensureDaemon(opts.timeout, routing.contextId, routing.preferredContextId);
       if (!opts.session?.trim()) throw new Error('Browser session is required');
       this._page = new Page(opts.session.trim(), opts.idleTimeout, routing.contextId, opts.windowMode, opts.surface, opts.siteSession, routing.preferredContextId);
       this._state = 'connected';
@@ -61,10 +61,11 @@ export class BrowserBridge implements IBrowserFactory {
     this._state = 'closed';
   }
 
-  private async _ensureDaemon(timeoutSeconds?: number, contextId?: string): Promise<void> {
+  private async _ensureDaemon(timeoutSeconds?: number, contextId?: string, preferredContextId?: string): Promise<void> {
     const result = await ensureBrowserBridgeReady({
       timeoutSeconds: timeoutSeconds ?? Math.ceil(DAEMON_SPAWN_TIMEOUT / 1000),
       contextId,
+      preferredContextId,
     });
     this._daemonProc = result.spawnedProcess;
   }

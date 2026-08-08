@@ -352,10 +352,10 @@ async function sendCommandRaw(
     const remainingSeconds = Math.ceil((deadlineAt - Date.now()) / 1000);
     const ready = await ensureBrowserBridgeReady({
       timeoutSeconds: Math.max(1, Math.min(DEFAULT_BROWSER_CONNECT_TIMEOUT, remainingSeconds)),
-      // Only an explicit requirement pins readiness to a specific profile —
-      // waiting for a stale preferred profile to come back would hang the
-      // ensure path even though the daemon can already serve the command.
       contextId,
+      // Keep the persisted default soft during recovery: the daemon prefers it
+      // when live, but can still fall back to an unambiguous connected profile.
+      preferredContextId,
       verbose: false,
     });
     executorJournaled = versionAtLeast(ready.health.status?.extensionVersion, MIN_JOURNAL_EXTENSION_VERSION);
