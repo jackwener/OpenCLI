@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError } from '@jackwener/opencli/errors';
-import { buildNotebooklmRpcBody, extractNotebooklmRpcResult, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, unwrapNotebooklmEvaluateResult, } from './rpc.js';
+import { buildNotebooklmRpcBody, callNotebooklmRpc, extractNotebooklmRpcResult, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 describe('notebooklm rpc transport', () => {
     it('unwraps Browser Bridge evaluate envelopes', () => {
         const data = { ok: true };
@@ -127,5 +127,22 @@ describe('notebooklm rpc transport', () => {
             expect(error.domain).toBe('notebooklm.google.com');
             expect(error.code).toBe('AUTH_REQUIRED');
         }
+    });
+    it('uses a relative batchexecute URL for redirected NotebookLM pages', async () => {
+        const page = {
+            evaluate: vi.fn(async (script) => {
+                if (script.includes('document.documentElement.innerHTML')) {
+                    return {
+                        html: '<html>"SNlM0e":"csrf-123","FdrFJe":"sess-456"</html>',
+                        sourcePath: '/',
+                    };
+                }
+                expect(script).toContain('url: "/_/LabsTailwindUi/data/batchexecute');
+                expect(script).not.toContain('https://notebooklm.google.com/_/LabsTailwindUi/data/batchexecute');
+                return { ok: true, status: 200, body: `)]}'\\n0\\n[]` };
+            }),
+        };
+        const result = await callNotebooklmRpc(page, 'wXbhsf', [null, 1, null, [2]]);
+        expect(result.url).toContain('/_/LabsTailwindUi/data/batchexecute');
     });
 });
