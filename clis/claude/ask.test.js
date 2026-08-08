@@ -148,10 +148,26 @@ describe('claude ask --model handling', () => {
             new: false,
             model: 'opus',
             think: false,
+            __opencliOptionSources: { model: 'cli' },
         })).rejects.toMatchObject(new ArgumentError(
             'opus model requires a paid Claude plan.',
             'Pick --model sonnet or --model haiku, or upgrade your account.',
         ));
+    });
+
+    it('does not switch model on /new when --model is not explicit', async () => {
+        page.evaluate.mockResolvedValue('https://claude.ai/new');
+
+        const rows = await askCommand.func(page, {
+            prompt: 'hi',
+            timeout: 120,
+            new: false,
+            model: 'sonnet',
+            think: false,
+        });
+
+        expect(rows).toEqual([{ response: 'reply' }]);
+        expect(mockSelectModel).not.toHaveBeenCalled();
     });
 
     it('skips model selection inside an existing conversation', async () => {

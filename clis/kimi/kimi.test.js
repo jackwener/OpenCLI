@@ -189,6 +189,46 @@ describe('kimi write postconditions', () => {
         }
     });
 
+    it('ask waits for the model to stop generating before returning even when text stabilizes earlier', async () => {
+        // Kimi renders the reply in two messages (thinking + answer). The
+        // thinking message stabilizes early and gets its own action buttons,
+        // so a message-level "done" check would return the thinking phase
+        // and miss the actual answer. We instead wait for the generation
+        // state to flip: Stop button gone and composer enabled.
+        const page = makePage([
+            'https://www.kimi.com/',
+            [],
+            'https://www.kimi.com/',
+            0,
+            { ok: true },
+            { ok: true },
+            true,
+            // First three polls: text stable but model is still generating.
+            // Function must NOT break here.
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            // Fourth poll: text stable and model is done generating.
+            [{ role: 'Assistant', text: '思考中' }],
+            false,
+        ]);
+        let now = 1_000;
+        const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+            now += 200;
+            return now;
+        });
+        try {
+            const rows = await askCommand.func(page, { text: 'ping', timeout: 10 });
+            expect(rows[0].Status).toBe('reply-received');
+            expect(rows[0].ReplyPreview).toBe('思考中');
+        } finally {
+            nowSpy.mockRestore();
+        }
+    });
+
     it('model rejects ambiguous partial names before clicking an option', async () => {
         const page = makePage([
             'https://www.kimi.com/',
