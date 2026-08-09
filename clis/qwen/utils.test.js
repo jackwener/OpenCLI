@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { parseQianwenSessionId, waitForAnswer } from './utils.js';
+import { parseQianwenSessionId, parseSessionMessageRecords, waitForAnswer } from './utils.js';
 
 describe('qwen waitForAnswer baseline anchoring', () => {
     // page.evaluate serves both getMessageBubbles (data-chat-question-wrap) and
@@ -82,6 +82,26 @@ describe('qwen waitForAnswer baseline anchoring', () => {
         );
         expect(result.status).toBe('partial');
         expect(result.assistant).toEqual(bubbles[1]);
+    });
+});
+
+describe('qwen history API record parsing', () => {
+    it('recovers the stored answer when the history DOM answer wrapper is empty', () => {
+        const records = [{
+            req_id: 'req-1',
+            request_messages: [{ content: 'compare models' }],
+            response_messages: [
+                { mime_type: 'signal/post', content: 'internal progress' },
+                { mime_type: 'bar/progress', content: '' },
+                { mime_type: 'multi_load/iframe', content: 'Default: Terra high. Escalation: Sol max.' },
+                { mime_type: 'text/plain', content: 'short footer' },
+            ],
+        }];
+
+        expect(parseSessionMessageRecords(records)).toEqual([
+            { id: 'req-1-question', role: 'User', text: 'compare models', html: '' },
+            { id: 'req-1-answer', role: 'Assistant', text: 'Default: Terra high. Escalation: Sol max.', html: '' },
+        ]);
     });
 });
 

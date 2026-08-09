@@ -85,6 +85,10 @@ export function clickBySvgNameScript(svgName, opts = {}) {
       if (!parent) break;
       target = parent;
       if (target.tagName === 'BUTTON' || target.getAttribute('role') === 'button' || target.onclick || target.tagName === 'A') break;
+      // 2026-07 Kimi (Lexical editor): the actual send button is .send-button-container,
+      // a DIV with no onclick/role/button-tag. Its parent .chat-editor-action is just
+      // the toolbar wrapper — clicking it does nothing. Match both for safety.
+      if (target.className && typeof target.className === 'string' && /send-button-container|chat-editor-action/i.test(target.className)) break;
     }
     const r = target.getBoundingClientRect();
     const opts = { bubbles: true, cancelable: true, clientX: r.x + r.width/2, clientY: r.y + r.height/2 };

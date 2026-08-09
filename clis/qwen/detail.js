@@ -5,6 +5,7 @@ import {
     bubbleHtmlToMarkdown,
     dismissLoginModal,
     getMessageBubbles,
+    getSessionMessagesFromApi,
     normalizeBooleanFlag,
     parseQianwenSessionId,
 } from './utils.js';
@@ -44,6 +45,14 @@ cli({
             bubbles = await getMessageBubbles(page);
             if (bubbles.length > 0) break;
             await page.wait(POLL_INTERVAL_S);
+        }
+
+        // The current Qianwen history UI can hydrate the question while leaving
+        // the answer wrapper empty even though the complete response is stored.
+        // Recover from the same read-only history API used by the web app.
+        if (!bubbles.some((bubble) => bubble.role === 'Assistant' && String(bubble.text || '').trim())) {
+            const apiBubbles = await getSessionMessagesFromApi(page, sessionId);
+            if (apiBubbles.length) bubbles = apiBubbles;
         }
 
         if (!bubbles.length) {
