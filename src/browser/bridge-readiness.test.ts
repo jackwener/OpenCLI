@@ -54,6 +54,18 @@ describe('waitForBridgeReady', () => {
     expect(fetchHealth).toHaveBeenCalledTimes(3);
   });
 
+  it('forwards a preferred profile on every health poll', async () => {
+    const fetchHealth: HealthFetcher = vi.fn(async () => readyHealth());
+
+    await waitForBridgeReady(fetchHealth, {
+      timeoutMs: 10_000,
+      preferredContextId: 'personal profile',
+      intervalMs: 1,
+    });
+
+    expect(fetchHealth).toHaveBeenCalledWith({ contextId: undefined, preferredContextId: 'personal profile' });
+  });
+
   it('returns the last observed non-ready health when the deadline expires', async () => {
     const fetchHealth: HealthFetcher = vi.fn(async () => notReadyHealth('profile-disconnected'));
 

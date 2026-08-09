@@ -203,6 +203,8 @@ describe('doctor report rendering', () => {
 
       const report = await runBrowserDoctor();
 
+      expect(mockGetDaemonHealth).toHaveBeenCalledWith({ preferredContextId: 'zvypsyje' });
+
       expect(report.issues).toEqual(expect.arrayContaining([
         expect.stringContaining('Default browser profile is stale: work (zvypsyje)'),
       ]));

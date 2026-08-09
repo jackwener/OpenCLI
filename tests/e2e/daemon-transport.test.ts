@@ -294,6 +294,23 @@ describe('daemon transport contracts (real daemon)', () => {
     }
   });
 
+  it('uses preferredContextId when reporting daemon status', async () => {
+    if (guard()) return;
+    const ext = new FakeExtension();
+    await ext.connect('ctx-status');
+    try {
+      const res = await fetch(`${BASE}/status?preferredContextId=ctx-status`, { headers: HEADERS });
+      const status = await res.json();
+
+      expect(res.ok).toBe(true);
+      expect(status.extensionConnected).toBe(true);
+      expect(status.contextId).toBe('ctx-status');
+      expect(status.profileRequired).toBe(false);
+    } finally {
+      ext.close();
+    }
+  });
+
   it('flushes a structured daemon_shutting_down 503 to in-flight dispatched commands on shutdown', async () => {
     if (guard()) return;
     const ext = new FakeExtension();
