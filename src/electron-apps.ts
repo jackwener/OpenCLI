@@ -13,9 +13,9 @@ import yaml from 'js-yaml';
 export interface ElectronAppEntry {
   /** CDP debug port (unique per app) */
   port: number;
-  /** macOS process name for detection via pgrep */
+  /** Process or executable name used for platform-specific detection */
   processName: string;
-  /** Candidate executable names inside Contents/MacOS/, tried in order */
+  /** Candidate executable names, tried in order */
   executableNames?: string[];
   /** macOS bundle ID for path discovery */
   bundleId?: string;
@@ -23,6 +23,10 @@ export interface ElectronAppEntry {
   displayName?: string;
   /** Additional launch args beyond --remote-debugging-port */
   extraArgs?: string[];
+  /** Windows installation roots. Supports %ENV_VAR% placeholders. */
+  windowsInstallDirs?: string[];
+  /** Expected page hosts exposed by the app's CDP target list. */
+  cdpHosts?: string[];
 }
 
 export const builtinApps: Record<string, ElectronAppEntry> = {
@@ -35,7 +39,14 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
     displayName: 'Codex',
   },
   chatwise:      { port: 9228, processName: 'ChatWise',     bundleId: 'com.chatwise.app',               displayName: 'ChatWise' },
-  'discord-app': { port: 9232, processName: 'Discord',      bundleId: 'com.discord.app',                 displayName: 'Discord' },
+  'discord-app': {
+    port: 9232,
+    processName: 'Discord',
+    bundleId: 'com.discord.app',
+    displayName: 'Discord',
+    windowsInstallDirs: ['%LOCALAPPDATA%\\Discord'],
+    cdpHosts: ['discord.com', 'canary.discord.com', 'ptb.discord.com'],
+  },
   'doubao-app':  { port: 9225, processName: 'Doubao',       bundleId: 'com.volcengine.doubao',          displayName: 'Doubao' },
   antigravity:   {
     port: 9234,

@@ -33,8 +33,8 @@ import { profileRouteParams, resolveProfileSelection } from './browser/profile.j
 import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
-import { isElectronApp } from './electron-apps.js';
-import { probeCDP, resolveElectronEndpoint } from './launcher.js';
+import { getElectronApp, isElectronApp } from './electron-apps.js';
+import { probeCDPEndpoint, resolveElectronEndpoint } from './launcher.js';
 import { ObservationSession, exportObservationSession, type ObservationExportResult, type ObservationExportStatus } from './observation/index.js';
 import { resolveAdapterSourcePath } from './adapter-source.js';
 
@@ -241,11 +241,20 @@ export async function executeCommand(
         // Electron apps: respect manual endpoint override, then try auto-detect
         const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
         if (manualEndpoint) {
-          const port = Number(new URL(manualEndpoint).port);
-          if (!await probeCDP(port)) {
+          const app = getElectronApp(cmd.site);
+          let protocol: string | undefined;
+          try {
+            protocol = new URL(manualEndpoint).protocol;
+          } catch {
+            // The endpoint probe below returns a controlled error for malformed URLs.
+          }
+          const directWebSocket = protocol === 'ws:' || protocol === 'wss:';
+          const identityRequired = Boolean(app?.cdpHosts?.length);
+          if ((!directWebSocket || identityRequired)
+            && !await probeCDPEndpoint(manualEndpoint, undefined, app?.cdpHosts)) {
             throw new CommandExecutionError(
               `CDP not reachable at ${manualEndpoint}`,
-              'Check that the app is running with --remote-debugging-port and the endpoint is correct.',
+              'Check that the expected app is running with --remote-debugging-port and the endpoint is correct.',
             );
           }
           cdpEndpoint = manualEndpoint;

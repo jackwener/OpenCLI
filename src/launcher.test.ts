@@ -1,18 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as fs from 'node:fs';
+import { createServer } from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { ElectronAppEntry } from './electron-apps.js';
+import { getElectronApp, type ElectronAppEntry } from './electron-apps.js';
 import {
   detectAppProcess,
   detectProcess,
   discoverAppPath,
+  discoverWindowsAppPath,
   electronLaunchArgs,
   findAppProcessPids,
   killAppProcess,
   launchDetachedApp,
   launchElectronApp,
   probeCDP,
+  probeCDPEndpoint,
+  resolveElectronEndpoint,
   resolveExecutableCandidates,
 } from './launcher.js';
 
@@ -44,13 +48,60 @@ vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),
   spawn: vi.fn(),
 }));
+vi.mock('./tui.js', () => ({
+  confirmPrompt: vi.fn(),
+}));
 
 const cp = vi.mocked(await import('node:child_process'));
+const tui = vi.mocked(await import('./tui.js'));
 
 describe('probeCDP', () => {
   it('returns false when CDP endpoint is unreachable', async () => {
     const result = await probeCDP(59999, 500);
     expect(result).toBe(false);
+  });
+
+  it('validates the expected Electron target host', async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify([{ type: 'page', url: 'https://discord.com/channels/@me' }]));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Test server did not expose a TCP port');
+
+    try {
+      await expect(probeCDP(address.port, 500, ['discord.com'])).resolves.toBe(true);
+      await expect(probeCDP(address.port, 500, ['example.com'])).resolves.toBe(false);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('probes the exact custom endpoint and preserves its path prefix', async () => {
+    const seenPaths: string[] = [];
+    const server = createServer((req, res) => {
+      seenPaths.push(req.url ?? '');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify([{ type: 'page', url: 'https://discord.com/channels/@me' }]));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Test server did not expose a TCP port');
+
+    try {
+      await expect(
+        probeCDPEndpoint(`http://127.0.0.1:${address.port}/custom-cdp`, 500, ['discord.com']),
+      ).resolves.toBe(true);
+      expect(seenPaths).toEqual(['/custom-cdp/json']);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('rejects malformed and non-HTTP custom endpoints', async () => {
+    await expect(probeCDPEndpoint('not a URL')).resolves.toBe(false);
+    await expect(probeCDPEndpoint('ws://127.0.0.1:9232')).resolves.toBe(false);
   });
 });
 
@@ -127,6 +178,30 @@ describe('discoverAppPath', () => {
   });
 });
 
+describe('discoverWindowsAppPath', () => {
+  it('chooses the newest Squirrel app directory from an explicit install root', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-windows-launcher-'));
+    const installRoot = path.join(tempDir, 'Discord');
+    const olderDir = path.join(installRoot, 'app-1.0.9');
+    const newerDir = path.join(installRoot, 'app-1.0.10');
+    fs.mkdirSync(olderDir, { recursive: true });
+    fs.mkdirSync(newerDir, { recursive: true });
+    fs.writeFileSync(path.join(olderDir, 'Discord.exe'), '');
+    fs.writeFileSync(path.join(newerDir, 'Discord.exe'), '');
+
+    try {
+      expect(discoverWindowsAppPath({
+        processName: 'Discord',
+        windowsInstallDirs: ['%OPENCLI_TEST_DISCORD_ROOT%'],
+      }, {
+        OPENCLI_TEST_DISCORD_ROOT: installRoot,
+      })).toBe(newerDir);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('launchDetachedApp', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -172,6 +247,135 @@ describe('resolveExecutableCandidates', () => {
       '/Applications/Antigravity.app/Contents/MacOS/Electron',
       '/Applications/Antigravity.app/Contents/MacOS/Antigravity',
     ]);
+  });
+
+  it.skipIf(process.platform !== 'win32')('resolves Windows executable names inside the discovered app directory', () => {
+    const app: ElectronAppEntry = {
+      port: 9232,
+      processName: 'Discord',
+    };
+
+    expect(resolveExecutableCandidates('C:\\Users\\demo\\AppData\\Local\\Discord\\app-1.0.10', app)).toEqual([
+      'C:\\Users\\demo\\AppData\\Local\\Discord\\app-1.0.10\\Discord.exe',
+    ]);
+  });
+});
+
+describe.skipIf(process.platform !== 'win32')('Windows app-scoped process management', () => {
+  const appPath = 'C:\\Users\\demo\\AppData\\Local\\Discord\\app-1.0.10';
+  const discordApp: ElectronAppEntry = {
+    port: 9232,
+    processName: 'Discord',
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    cp.execFileSync.mockReset();
+    cp.spawn.mockReset();
+    tui.confirmPrompt.mockReset();
+  });
+
+  it('matches only processes whose executable belongs to the discovered app directory', () => {
+    cp.execFileSync.mockImplementation((command) => {
+      if (command !== 'powershell.exe') throw new Error(`unexpected command ${String(command)}`);
+      return JSON.stringify([
+        { ProcessId: 101, ExecutablePath: `${appPath}\\Discord.exe`, CommandLine: `"${appPath}\\Discord.exe"` },
+        { ProcessId: 202, ExecutablePath: 'C:\\Other\\Discord.exe', CommandLine: '"C:\\Other\\Discord.exe"' },
+      ]);
+    });
+
+    expect(findAppProcessPids(appPath, discordApp)).toEqual([101]);
+  });
+
+  it('requires an executable boundary when falling back to the command line', () => {
+    cp.execFileSync.mockImplementation((command) => {
+      if (command !== 'powershell.exe') throw new Error(`unexpected command ${String(command)}`);
+      return JSON.stringify([
+        { ProcessId: 303, ExecutablePath: null, CommandLine: `"${appPath}\\Discord.exe" --type=renderer` },
+        { ProcessId: 404, ExecutablePath: null, CommandLine: `"${appPath}\\Discord.exe.backup" --type=renderer` },
+        { ProcessId: 405, ExecutablePath: null, CommandLine: `"${appPath}\\Discord.exe"unexpected` },
+      ]);
+    });
+
+    expect(findAppProcessPids(appPath, discordApp)).toEqual([303]);
+  });
+
+  it('requests a graceful taskkill before considering force', async () => {
+    let running = true;
+    cp.execFileSync.mockImplementation((command, args) => {
+      if (command === 'powershell.exe') {
+        return running
+          ? JSON.stringify([{ ProcessId: 101, ExecutablePath: `${appPath}\\Discord.exe`, CommandLine: null }])
+          : '[]';
+      }
+      if (command === 'taskkill.exe') {
+        expect(args).toEqual(['/PID', '101', '/T']);
+        running = false;
+        return '';
+      }
+      throw new Error(`unexpected command ${String(command)}`);
+    });
+
+    await killAppProcess(appPath, discordApp);
+
+    expect(cp.execFileSync).toHaveBeenCalledWith(
+      'taskkill.exe',
+      ['/PID', '101', '/T'],
+      { stdio: 'pipe', timeout: 5_000 },
+    );
+  });
+
+  it('defaults restart confirmation to no and leaves the running app untouched', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-discord-confirm-'));
+    const appDir = path.join(tempDir, 'app-1.0.10');
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.writeFileSync(path.join(appDir, 'Discord.exe'), '');
+
+    const portServer = createServer();
+    await new Promise<void>((resolve) => portServer.listen(0, '127.0.0.1', resolve));
+    const address = portServer.address();
+    if (!address || typeof address === 'string') throw new Error('Test server did not expose a TCP port');
+    await new Promise<void>((resolve, reject) => portServer.close((error) => error ? reject(error) : resolve()));
+
+    const app = getElectronApp('discord-app');
+    if (!app) throw new Error('Discord app is not registered');
+    const original = {
+      ...app,
+      windowsInstallDirs: app.windowsInstallDirs ? [...app.windowsInstallDirs] : undefined,
+      cdpHosts: app.cdpHosts ? [...app.cdpHosts] : undefined,
+    };
+
+    Object.assign(app, {
+      port: address.port,
+      processName: 'Discord',
+      displayName: 'Discord',
+      windowsInstallDirs: [tempDir],
+      cdpHosts: ['discord.com'],
+    });
+    cp.execFileSync.mockImplementation((command) => {
+      if (command === 'powershell.exe') {
+        return JSON.stringify([{
+          ProcessId: 101,
+          ExecutablePath: `${appDir}\\Discord.exe`,
+          CommandLine: `"${appDir}\\Discord.exe"`,
+        }]);
+      }
+      throw new Error(`unexpected command ${String(command)}`);
+    });
+    tui.confirmPrompt.mockResolvedValue(false);
+
+    try {
+      await expect(resolveElectronEndpoint('discord-app')).rejects.toThrow('needs to be restarted');
+      expect(tui.confirmPrompt).toHaveBeenCalledWith(
+        'Discord is running but CDP is not enabled. Restart with debug port?',
+        false,
+      );
+      expect(cp.spawn).not.toHaveBeenCalled();
+      expect(cp.execFileSync.mock.calls.some(([command]) => command === 'taskkill.exe')).toBe(false);
+    } finally {
+      Object.assign(app, original);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -16,6 +16,17 @@ describe('electron-apps registry', () => {
     expect(app!.executableNames).toEqual(['ChatGPT', 'Codex']);
   });
 
+  it('registers Discord Windows discovery and CDP identity metadata', () => {
+    const app = getElectronApp('discord-app');
+
+    expect(app).toMatchObject({
+      port: 9232,
+      processName: 'Discord',
+      windowsInstallDirs: ['%LOCALAPPDATA%\\Discord'],
+      cdpHosts: ['discord.com', 'canary.discord.com', 'ptb.discord.com'],
+    });
+  });
+
   it('keeps builtin Electron app CDP ports unique and off the browser-bridge port', () => {
     const ports = Object.values(builtinApps).map((app) => app.port);
 

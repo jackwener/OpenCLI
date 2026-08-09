@@ -552,24 +552,58 @@ describe('executeCommand', () => {
   });
 
   it('uses launcher for registered Electron apps (chatwise)', async () => {
-    // Mock the launcher to return a fake endpoint (avoids real HTTP/process calls)
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', '');
     const launcher = await import('./launcher.js');
-    const spy = vi.spyOn(launcher, 'resolveElectronEndpoint')
+    const { CDPBridge } = await import('./browser/cdp.js');
+    const launcherSpy = vi.spyOn(launcher, 'resolveElectronEndpoint')
       .mockResolvedValue('http://127.0.0.1:9228');
+    const connectSpy = vi.spyOn(CDPBridge.prototype, 'connect')
+      .mockRejectedValue(new Error('expected test CDP failure'));
 
-    const cmd = cli({
-      site: 'chatwise',
-      name: 'status', access: 'read',
-      description: 'chatwise status',
-      browser: true,
-      strategy: Strategy.PUBLIC,
-      func: async () => [{ ok: true }],
-    });
+    try {
+      const cmd = cli({
+        site: 'chatwise',
+        name: 'status', access: 'read',
+        description: 'chatwise status',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
 
-    // CDPBridge.connect() will fail (no actual CDP server), but the launcher
-    // should have been called with 'chatwise'.
-    await expect(executeCommand(cmd, {})).rejects.toThrow();
-    expect(spy).toHaveBeenCalledWith('chatwise');
-    spy.mockRestore();
+      await expect(executeCommand(cmd, {})).rejects.toThrow('expected test CDP failure');
+      expect(launcherSpy).toHaveBeenCalledWith('chatwise');
+      expect(connectSpy).toHaveBeenCalledWith(expect.objectContaining({
+        cdpEndpoint: 'http://127.0.0.1:9228',
+      }));
+    } finally {
+      connectSpy.mockRestore();
+      launcherSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('preserves direct WebSocket overrides for Electron apps without identity metadata', async () => {
+    const endpoint = 'ws://127.0.0.1:9228/devtools/page/test';
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', endpoint);
+    const { CDPBridge } = await import('./browser/cdp.js');
+    const connectSpy = vi.spyOn(CDPBridge.prototype, 'connect')
+      .mockRejectedValue(new Error('expected direct WebSocket failure'));
+
+    try {
+      const cmd = cli({
+        site: 'chatwise',
+        name: 'ws-status-test', access: 'read',
+        description: 'chatwise direct websocket status',
+        browser: true,
+        strategy: Strategy.PUBLIC,
+        func: async () => [{ ok: true }],
+      });
+
+      await expect(executeCommand(cmd, {})).rejects.toThrow('expected direct WebSocket failure');
+      expect(connectSpy).toHaveBeenCalledWith(expect.objectContaining({ cdpEndpoint: endpoint }));
+    } finally {
+      connectSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
   });
 });
