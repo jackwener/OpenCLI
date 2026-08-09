@@ -7312,9 +7312,8 @@
       {
         "name": "model",
         "type": "str",
-        "default": "sonnet",
         "required": false,
-        "help": "Model to use: sonnet, opus, or haiku",
+        "help": "Switch to sonnet, opus, or haiku before sending. Omit to keep the current selection.",
         "choices": [
           "sonnet",
           "opus",

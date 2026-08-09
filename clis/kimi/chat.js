@@ -227,20 +227,32 @@ async function readKimiTurns(page) {
     const turns = [];
     const seen = new Set();
     for (const row of rows) {
-      const tx = (row.innerText || row.textContent || '').trim().replace(/\\s+/g, ' ');
+      const clone = row.cloneNode(true);
+      clone.querySelectorAll('.toolcall-container').forEach((el) => el.remove());
+      const tx = (clone.innerText || clone.textContent || '').trim().replace(/\\s+/g, ' ');
       if (!tx || tx.length < 2) continue;
       if (seen.has(tx)) continue;
       const cls = (row.className || '').toString().toLowerCase();
       let role = 'Turn';
       if (/chat-content-item-user|segment-user|user|sent-by-user|me-/i.test(cls)) role = 'User';
       else if (/chat-content-item-assistant|segment-assistant|assistant|ai-|kimi-|response/i.test(cls)) role = 'Assistant';
-      else if (row.querySelector('svg[name="Copy"], svg[name="Refresh"], svg[name="Like"]')) role = 'Assistant';
+      else if (row.querySelector('svg[name="Refresh"], svg[name="Like"]')) role = 'Assistant';
       else role = 'User';
       seen.add(tx);
       turns.push({ role, text: tx });
     }
     return turns;
   })()`);
+}
+
+async function isKimiGenerating(page) {
+    return page.evaluate(`(() => {
+    ${IS_VISIBLE_JS}
+    const activeControl = document.querySelector('.send-button-container.disabled.stop, svg[name="Stop"]');
+    if (activeControl && isVisible(activeControl)) return true;
+    const editor = document.querySelector('[contenteditable="true"][role="textbox"]');
+    return !!editor && editor.getAttribute('aria-disabled') === 'true';
+  })()`).catch(() => false);
 }
 
 async function sendKimiMessage(page, text) {
@@ -454,7 +466,8 @@ cli({
                 latestText = next;
                 stable = 0;
             }
-            if (latestText && stable >= 2) break;
+            const generating = await isKimiGenerating(page);
+            if (latestText && stable >= 2 && !generating) break;
         }
         const elapsed = Math.round((Date.now() - startedAt) / 1000);
         if (!latestText) {
