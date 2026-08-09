@@ -52,7 +52,7 @@
     "preuninstall": "node -e \"fetch('http://127.0.0.1:19825/shutdown',{method:'POST',headers:{'X-OpenCLI':'1'},signal:AbortSignal.timeout(3000)}).catch(()=>{})\" || true",
     "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
-    "prepare": "[ -d src ] && npm run build || true",
+    "prepare": "node scripts/prepare.cjs",
     "prepublishOnly": "npm run build",
     "test": "vitest run --project unit --project extension --project adapter",
     "test:bun": "bun vitest run --project unit --project extension --project adapter",
