@@ -12,7 +12,12 @@ import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserProfileStatus } from './browser/daemon-transport.js';
-import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import {
+  aliasForContextId,
+  loadProfileConfig,
+  profileRouteParams,
+  resolveProfileSelection,
+} from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
@@ -112,7 +117,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const connectivity = await checkConnectivity();
 
   // Single status read *after* connectivity side-effects settle.
-  const health = await getDaemonHealth();
+  const health = await getDaemonHealth(profileRouteParams(resolveProfileSelection()));
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;

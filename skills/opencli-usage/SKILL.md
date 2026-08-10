@@ -30,6 +30,22 @@ npx tsx src/main.ts <command>               # same surface, no global install
 
 `opencli doctor` prints a structured `DoctorReport` — daemon status, extension connection, version checks, and a live browser connectivity probe. Scope is narrow: it diagnoses the **browser bridge** (daemon + extension + Chrome wiring). `PUBLIC` / `LOCAL` adapters, `opencli list`, `validate`, `verify`, plugin commands, and external-CLI passthrough don't need it to be green — only `COOKIE` / `INTERCEPT` / `UI` adapters and the `opencli browser *` subcommands do. Flag: `-v` (verbose).
 
+### Multiple Browser Bridge profiles
+
+When `opencli profile list` shows more than one connected profile, do not hard-code a context named `default`. That string can be an ordinary extension context ID, including a stale or duplicate unpacked extension; it does not mean “the working profile”.
+
+Use a read-only browser-backed command to probe each candidate once, then persist the working route:
+
+```bash
+opencli profile list
+OPENCLI_PROFILE=<candidate> opencli <site> <read-command> ...
+opencli profile rename <working-context-id> automation  # optional stable alias
+opencli profile use automation                          # persists in browser-profiles.json
+opencli doctor -v
+```
+
+After that, run normal commands without `OPENCLI_PROFILE`; the persisted default is the durable route. Treat `OPENCLI_PROFILE=<name>` as a one-command diagnostic override only. If one candidate succeeds while another consistently reports `Debugger is not attached`, suspect duplicate Browser Bridge extensions in the same Chrome profile. Keep using the proven profile; do not request login or authorization unless the working profile itself returns `AUTH_REQUIRED`.
+
 ## Prerequisites by command type
 
 | Strategy tag on `opencli list` | What it needs |

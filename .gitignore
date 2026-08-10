@@ -3,6 +3,7 @@ dist/
 !extension/dist/
 *.tsbuildinfo
 .opencli/
+.codegraph/
 .worktrees/
 .mcp.json
 *.log
