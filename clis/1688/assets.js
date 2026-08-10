@@ -1,5 +1,26 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { assertAuthenticatedState, buildDetailUrl, buildProvenance, cleanText, extractOfferId, gotoAndReadState, uniqueMediaSources, } from './shared.js';
+// 1688 商品详情区位于自定义元素 v-detail-e 的 shadow DOM 内（懒渲染），
+// 普通 CSS selector 无法穿透 shadowRoot，需沿 shadow host 链判断归属。
+export const DETAIL_CONTAINER_SELECTOR = '.de-description-detail, #detailContentContainer, .html-description, .desc-lazyload-container';
+export function inDetailContainer(el) {
+    let node = el;
+    while (node) {
+        const rootNode = node.getRootNode ? node.getRootNode() : null;
+        if (rootNode && rootNode.host) {
+            const host = rootNode.host;
+            if (host && host.matches && host.matches(DETAIL_CONTAINER_SELECTOR))
+                return true;
+            node = host;
+        }
+        else {
+            if (node.closest && node.closest(DETAIL_CONTAINER_SELECTOR))
+                return true;
+            node = null;
+        }
+    }
+    return false;
+}
 function scriptToReadAssets() {
     return `
     (() => {
@@ -11,8 +32,24 @@ function scriptToReadAssets() {
         { key: 'main', type: 'image', selectors: ['#dt-tab img', '.detail-gallery-turn img.detail-gallery-img', '.img-list-wrapper img.od-gallery-img', '.od-scroller-item span'] },
         { key: 'video', type: 'video', selectors: ['.lib-video video', 'video[src]', 'video source[src]'] },
         { key: 'sku', type: 'image', selectors: ['.pc-sku-wrapper .prop-item-inner-wrapper', '.sku-item-wrapper', '.specification-cell', '.sku-filter-button', '.expand-view-item', '.feature-item img'], srcProps: ['backgroundImage'] },
-        { key: 'detail', type: 'image', selectors: ['.de-description-detail img', '#detailContentContainer img', '.html-description img', '.html-description source', '.desc-lazyload-container img'] },
       ];
+      const detailContainerSelector = ${JSON.stringify(DETAIL_CONTAINER_SELECTOR)};
+      // 页面上下文内定义的局部版本（闭包携带常量），与模块级 inDetailContainer 逻辑一致
+      const inDetailContainer = (el) => {
+        let node = el;
+        while (node) {
+          const rootNode = node.getRootNode ? node.getRootNode() : null;
+          if (rootNode && rootNode.host) {
+            const host = rootNode.host;
+            if (host && host.matches && host.matches(detailContainerSelector)) return true;
+            node = host;
+          } else {
+            if (node.closest && node.closest(detailContainerSelector)) return true;
+            node = null;
+          }
+        }
+        return false;
+      };
       const assets = [];
       const seen = new Set();
 
@@ -108,6 +145,14 @@ function scriptToReadAssets() {
         }
       }
 
+      // 详情区素材：全量收集 img/source（穿透 shadowRoot）+ host 链归属判断
+      for (const element of [...queryAllDeep('img'), ...queryAllDeep('source')]) {
+        if (!inDetailContainer(element)) continue;
+        for (const value of valuesFromElement(element)) {
+          push('image', 'detail', value, 'shadow:html-description');
+        }
+      }
+
       const scriptTexts = Array.from(document.scripts).map((script) => script.textContent || '');
       const videoRegex = /https?:\\/\\/[^"'\\s]+\\.(?:mp4|m3u8)(?:\\?[^"'\\s]*)?/gi;
       for (const scriptText of scriptTexts) {
@@ -171,8 +216,16 @@ function normalizeAssets(payload) {
 async function readAssetsPayload(page, itemUrl) {
     const state = await gotoAndReadState(page, itemUrl, 2500, 'assets');
     assertAuthenticatedState(state, 'assets');
-    await page.autoScroll({ times: 3, delayMs: 400 });
-    await page.wait(1);
+    // 详情区懒渲染：多次滚动到底触发 shadow DOM 内容与懒加载图片。
+    // 首次滚动 6 次保证长页面到底，再滚 4 次等待加载完成后二次确认。
+    await page.autoScroll({ times: 6, delayMs: 500 });
+    await page.autoScroll({ times: 4, delayMs: 500 });
+    // 若详情容器存在，定位到它并等待 shadow 内容渲染（图片 src 填充）
+    await page.evaluate(`(() => {
+      const el = document.querySelector('.html-description, v-detail-e, .de-description-detail, #detailContentContainer');
+      if (el) el.scrollIntoView({ behavior: 'instant', block: 'start' });
+    })()`);
+    await page.wait(3);
     return await page.evaluate(scriptToReadAssets());
 }
 export async function extractAssetsForInput(page, input) {
@@ -202,4 +255,6 @@ cli({
 });
 export const __test__ = {
     normalizeAssets,
+    inDetailContainer,
+    DETAIL_CONTAINER_SELECTOR,
 };
