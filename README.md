@@ -174,6 +174,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
+| `OPENCLI_CDP_ORIGIN` | — | Optional WebSocket `Origin` header for CDP brokers that enforce an origin allowlist |
 | `OPENCLI_CDP_TARGET` | — | Filter CDP targets by URL substring (e.g. `detail.1688.com`) |
 | `OPENCLI_VERBOSE` | `false` | Enable verbose logging (`-v` flag also works) |
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |

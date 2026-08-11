@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
     static OPEN = 1;
+    static constructorCalls: Array<{ url: string; options: unknown }> = [];
     readyState = 1;
     private handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
-    constructor(_url: string) {
+    constructor(url: string, options?: unknown) {
+      MockWebSocket.constructorCalls.push({ url, options });
       queueMicrotask(() => this.emit('open'));
     }
 
@@ -41,6 +43,31 @@ import { CDPBridge } from './cdp.js';
 describe('CDPBridge cookies', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
+    MockWebSocket.constructorCalls = [];
+  });
+
+  it('uses an optional WebSocket Origin for private CDP brokers', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+    vi.stubEnv('OPENCLI_CDP_ORIGIN', 'opencli://trusted-broker');
+
+    const bridge = new CDPBridge();
+    vi.spyOn(bridge, 'send').mockResolvedValue({});
+    await bridge.connect();
+
+    expect(MockWebSocket.constructorCalls).toEqual([{
+      url: 'ws://127.0.0.1:9222/devtools/page/1',
+      options: { origin: 'opencli://trusted-broker' },
+    }]);
+  });
+
+  it('preserves the default WebSocket handshake without an Origin override', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    vi.spyOn(bridge, 'send').mockResolvedValue({});
+    await bridge.connect();
+
+    expect(MockWebSocket.constructorCalls[0]?.options).toBeUndefined();
   });
 
   it('filters cookies by actual domain match instead of substring match', async () => {
