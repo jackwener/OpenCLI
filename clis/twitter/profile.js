@@ -1,6 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { describeTwitterApiError, normalizeTwitterScreenName, resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
+import { describeTwitterApiError, normalizeTwitterScreenName, resolveTwitterQueryId, resolveTwitterOperationMetadata, unwrapBrowserResult } from './shared.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
 
@@ -93,7 +93,9 @@ cli({
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        const queryId = await resolveTwitterQueryId(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
+        const __op = await resolveTwitterOperationMetadata(page, 'UserByScreenName', USER_BY_SCREEN_NAME_QUERY_ID);
+        const queryId = __op.queryId;
+        const __featuresJson = JSON.stringify(__op.features || {});
         const rawResult = unwrapBrowserResult(await page.evaluate(`
       async () => {
         const screenName = ${JSON.stringify(username)};
@@ -111,20 +113,7 @@ cli({
           screen_name: screenName,
           withSafetyModeUserFields: true,
         });
-        const features = JSON.stringify({
-          hidden_profile_subscriptions_enabled: true,
-          rweb_tipjar_consumption_enabled: true,
-          responsive_web_graphql_exclude_directive_enabled: true,
-          verified_phone_label_enabled: false,
-          subscriptions_verification_info_is_identity_verified_enabled: true,
-          subscriptions_verification_info_verified_since_enabled: true,
-          highlights_tweets_tab_ui_enabled: true,
-          responsive_web_twitter_article_notes_tab_enabled: true,
-          subscriptions_feature_can_gift_premium: true,
-          creator_subscriptions_tweet_preview_api_enabled: true,
-          responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-          responsive_web_graphql_timeline_navigation_enabled: true,
-        });
+        const features = ${JSON.stringify(__featuresJson)};
 
         const url = '/i/api/graphql/' + ${JSON.stringify(queryId)} + '/UserByScreenName?variables='
           + encodeURIComponent(variables)
