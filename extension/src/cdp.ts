@@ -650,6 +650,61 @@ export async function getFrameTree(tabId: number): Promise<any> {
   return sendDebuggerCommand({ tabId }, 'Page.getFrameTree');
 }
 
+export type IframeTarget = {
+  targetId: string;
+  url: string;
+  title: string;
+};
+
+export async function getIframeTargets(tabId: number): Promise<IframeTarget[]> {
+  await ensureAttached(tabId);
+  type TargetInfo = {
+    targetId?: string;
+    id?: string;
+    type?: string;
+    url?: string;
+    title?: string;
+    parentId?: string;
+  };
+  const [current, result] = await Promise.all([
+    sendDebuggerCommand<{ targetInfo?: TargetInfo }>({ tabId }, 'Target.getTargetInfo'),
+    sendDebuggerCommand<{ targetInfos?: TargetInfo[] }>(
+    { tabId },
+    'Target.getTargets',
+    ),
+  ]);
+  const rootTargetId = current.targetInfo?.targetId || current.targetInfo?.id;
+  if (!rootTargetId) return [];
+  const targetInfos = result.targetInfos ?? [];
+  const targetsById = new Map(targetInfos.flatMap((target) => {
+    const targetId = target.targetId || target.id;
+    return targetId ? [[targetId, target] as const] : [];
+  }));
+
+  function belongsToCurrentTarget(target: TargetInfo): boolean {
+    const visited = new Set<string>();
+    let parentId = target.parentId;
+    while (parentId && !visited.has(parentId)) {
+      if (parentId === rootTargetId) return true;
+      visited.add(parentId);
+      parentId = targetsById.get(parentId)?.parentId;
+    }
+    return false;
+  }
+
+  return targetInfos.flatMap((target) => {
+    const targetId = target.targetId || target.id;
+    if (target.type !== 'iframe' || !targetId || !belongsToCurrentTarget(target)) return [];
+    // The resolver passes this targetId to evaluateInFrame. Pin that exact
+    // current-tab target so a later navigation cannot fall back by URL to a
+    // same-URL iframe in another tab.
+    const key = frameTargetKey(tabId, targetId);
+    frameTargets.set(key, targetId);
+    frameTargetKeys.set(targetId, key);
+    return [{ targetId, url: target.url || '', title: target.title || '' }];
+  });
+}
+
 export async function evaluateInFrame(
   tabId: number,
   expression: string,

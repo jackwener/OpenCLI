@@ -339,6 +339,303 @@ describe('background tab isolation', () => {
     ]);
   });
 
+  it('falls back to iframe targets when the DOM sees a cross-origin frame missing from the frame tree', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: { expression?: string }) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (params?.expression === '1') return { result: { value: 1 } };
+        return {
+          result: {
+            value: [{ url: 'https://frame.example/reviews', name: 'app-iframe' }],
+          },
+        };
+      }
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://main.example/' },
+            childFrames: [],
+          },
+        };
+      }
+      if (method === 'Target.getTargetInfo') {
+        return { targetInfo: { targetId: 'root-target', type: 'page' } };
+      }
+      if (method === 'Target.getTargets') {
+        return {
+          targetInfos: [
+            { targetId: 'oopif-target', parentId: 'root-target', type: 'iframe', url: 'https://frame.example/reviews', title: 'app-iframe' },
+          ],
+        };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames-fallback', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(result).toEqual({
+      id: 'frames-fallback',
+      ok: true,
+      data: [
+        { index: 0, frameId: 'oopif-target', url: 'https://frame.example/reviews', name: 'app-iframe' },
+      ],
+    });
+  });
+
+  it('does not require iframe targets when Page.getFrameTree already matches the DOM frame', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: { expression?: string }) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (params?.expression === '1') return { result: { value: 1 } };
+        return {
+          result: {
+            value: [{ url: 'https://frame.example/reviews', name: 'app-iframe' }],
+          },
+        };
+      }
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://main.example/' },
+            childFrames: [
+              { frame: { id: 'tree-frame', url: 'https://frame.example/reviews', name: 'app-iframe' } },
+            ],
+          },
+        };
+      }
+      if (method === 'Target.getTargets') throw new Error('fallback should not run');
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames-tree-only', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(result).toEqual({
+      id: 'frames-tree-only',
+      ok: true,
+      data: [
+        { index: 0, frameId: 'tree-frame', url: 'https://frame.example/reviews', name: 'app-iframe' },
+      ],
+    });
+  });
+
+  it('reports frame_enumeration_mismatch when the DOM frame has no frame tree or target match', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: { expression?: string }) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (params?.expression === '1') return { result: { value: 1 } };
+        return {
+          result: {
+            value: [{ url: 'https://missing.example/reviews', name: 'app-iframe' }],
+          },
+        };
+      }
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://main.example/' },
+            childFrames: [],
+          },
+        };
+      }
+      if (method === 'Target.getTargets') return { targetInfos: [] };
+      if (method === 'Target.getTargetInfo') {
+        return { targetInfo: { targetId: 'root-target', type: 'page' } };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames-mismatch', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'frames-mismatch',
+      ok: false,
+      errorCode: 'frame_enumeration_mismatch',
+    }));
+  });
+
+  it('does not match a stale DOM frame to a different target with the same name', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: { expression?: string }) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (params?.expression === '1') return { result: { value: 1 } };
+        return {
+          result: {
+            value: [{ url: 'https://old.example/reviews', name: 'app-iframe' }],
+          },
+        };
+      }
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://main.example/' },
+            childFrames: [],
+          },
+        };
+      }
+      if (method === 'Target.getTargets') {
+        return {
+          targetInfos: [
+            { targetId: 'new-target', type: 'iframe', url: 'https://new.example/reviews', title: 'app-iframe' },
+          ],
+        };
+      }
+      if (method === 'Target.getTargetInfo') {
+        return { targetInfo: { targetId: 'root-target', type: 'page' } };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames-stale', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'frames-stale',
+      ok: false,
+      errorCode: 'frame_enumeration_mismatch',
+    }));
+  });
+
+  it('reports frame_enumeration_mismatch when multiple iframe targets share the same URL', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: { expression?: string }) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (params?.expression === '1') return { result: { value: 1 } };
+        return { result: { value: [{ url: 'https://frame.example/reviews', name: '' }] } };
+      }
+      if (method === 'Page.getFrameTree') {
+        return { frameTree: { frame: { id: 'root', url: 'https://main.example/' }, childFrames: [] } };
+      }
+      if (method === 'Target.getTargetInfo') {
+        return { targetInfo: { targetId: 'root-target', type: 'page' } };
+      }
+      if (method === 'Target.getTargets') {
+        return {
+          targetInfos: [
+            { targetId: 'iframe-a', parentId: 'root-target', type: 'iframe', url: 'https://frame.example/reviews' },
+            { targetId: 'iframe-b', parentId: 'root-target', type: 'iframe', url: 'https://frame.example/reviews' },
+          ],
+        };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames-ambiguous', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'frames-ambiguous',
+      ok: false,
+      errorCode: 'frame_enumeration_mismatch',
+    }));
+  });
+
+  it('reports frame_enumeration_mismatch when snapshot iframe identity is stale', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string, params?: { expression?: string }) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (params?.expression === '1') return { result: { value: 1 } };
+        return { result: { value: { mismatch: true } } };
+      }
+      if (method === 'Page.getFrameTree') {
+        return { frameTree: { frame: { id: 'root', url: 'https://main.example/' }, childFrames: [] } };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames-stale-identity', action: 'frames', session: 'twitter', surface: 'adapter' });
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'frames-stale-identity',
+      ok: false,
+      errorCode: 'frame_enumeration_mismatch',
+    }));
+  });
+
+  it('uses the same fallback frame for eval --frame after Page.getFrameTree omits it', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.sendCommand = vi.fn(async (target: { tabId?: number; targetId?: string }, method: string, params?: { expression?: string }) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') {
+        if (params?.expression === '1') return { result: { value: 1 } };
+        if (target.targetId === 'oopif-target' && params?.expression === 'document.title') {
+          return { result: { value: 'Frame title' } };
+        }
+        return {
+          result: {
+            value: [{ url: 'https://frame.example/reviews', name: 'app-iframe' }],
+          },
+        };
+      }
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://main.example/' },
+            childFrames: [],
+          },
+        };
+      }
+      if (method === 'Target.getTargets') {
+        return {
+          targetInfos: [
+            { targetId: 'oopif-target', parentId: 'root-target', type: 'iframe', url: 'https://frame.example/reviews', title: 'app-iframe' },
+          ],
+        };
+      }
+      if (method === 'Target.getTargetInfo') {
+        return { targetInfo: { targetId: 'root-target', type: 'page' } };
+      }
+      if (method === 'Target.setDiscoverTargets' || method === 'Target.setAutoAttach') return {};
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(browserKey('judgeme'), 1);
+
+    const result = await mod.__test__.handleCommand({
+      id: 'frame-eval-fallback',
+      action: 'exec',
+      session: 'judgeme',
+      surface: 'browser',
+      frameIndex: 0,
+      code: 'document.title',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'frame-eval-fallback',
+      ok: true,
+      data: 'Frame title',
+    }));
+  });
+
   it('does not parse lease-key separators from command session fields', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
@@ -1173,7 +1470,7 @@ describe('background tab isolation', () => {
     // SW restart and can dodge idle expiry indefinitely.
     expect(scheduledWhen).toBeLessThan(now + 15_000);
     expect(scheduledWhen).toBeGreaterThan(now + 1_000);
-    expect(mod.__test__.getSession(adapterKey('twitter')).idleDeadlineAt).toBeLessThan(now + 15_000);
+    expect(mod.__test__.getSession(adapterKey('twitter'))!.idleDeadlineAt).toBeLessThan(now + 15_000);
   });
 
   it('releases owned leases from the idle alarm path', async () => {

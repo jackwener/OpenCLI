@@ -663,6 +663,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const compoundInfos = {};
   let iframeCount = 0;
   let crossOriginIndex = 0;
+  const crossOriginFrames = [];
 
   function walk(el, depth, parentPropagatingRect) {
     if (depth > MAX_DEPTH) return false;
@@ -861,6 +862,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       if (!doc || !doc.body) {
         const attrs = serializeAttrs(el);
         const frameLabel = '[F' + crossOriginIndex + ']';
+        crossOriginFrames.push({ element: el, url: el.src || el.getAttribute('src') || '', name: el.name || el.title || '' });
         lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (cross-origin, use: opencli browser frames + browser eval --frame <index>)');
         crossOriginIndex++;
         return false;
@@ -876,6 +878,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
     } catch {
       const attrs = serializeAttrs(el);
       const frameLabel = '[F' + crossOriginIndex + ']';
+      crossOriginFrames.push({ element: el, url: el.src || el.getAttribute('src') || '', name: el.name || el.title || '' });
       lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (blocked, use: opencli browser frames + browser eval --frame <index>)');
       crossOriginIndex++;
       return false;
@@ -929,6 +932,16 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   try { window.__opencli_prev_hashes = JSON.stringify(currentHashes); } catch {}
   // Store ref identity map for stale-ref detection by target resolver
   try { window.__opencli_ref_identity = refIdentity; } catch {}
+  // Keep the DOM snapshot's [F#] inputs so browser frames can recover OOPIFs
+  // omitted by Page.getFrameTree without assigning a different frame order.
+  try {
+    const allElements = crossOriginFrames.map(function (frame) { return frame.element; });
+    window.__opencli_cross_origin_frames = {
+      documentUrl: location.href,
+      allElements: allElements,
+      frames: crossOriginFrames,
+    };
+  } catch {}
 
   return lines.join('\\n');
 })()

@@ -122,6 +122,36 @@ describe('cdp attach recovery', () => {
     );
   });
 
+  it('returns only iframe targets whose parent chain reaches the current tab target', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    debuggerApi.sendCommand = vi.fn(async (_target: unknown, method: string): Promise<any> => {
+      if (method === 'Target.getTargetInfo') {
+        return { targetInfo: { targetId: 'current-page', type: 'page' } };
+      }
+      if (method === 'Target.getTargets') {
+        return {
+          targetInfos: [
+            { targetId: 'current-child', parentId: 'current-page', type: 'iframe', url: 'https://same.example/embed' },
+            { targetId: 'nested-child', parentId: 'current-child', type: 'iframe', url: 'https://nested.example/embed' },
+            { targetId: 'other-page', type: 'page', url: 'https://other.example/' },
+            { targetId: 'other-child', parentId: 'other-page', type: 'iframe', url: 'https://same.example/embed' },
+            { targetId: 'unowned-child', type: 'iframe', url: 'https://same.example/embed' },
+          ],
+        };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    const result = await mod.getIframeTargets(1);
+
+    expect(result).toEqual([
+      { targetId: 'current-child', url: 'https://same.example/embed', title: '' },
+      { targetId: 'nested-child', url: 'https://nested.example/embed', title: '' },
+    ]);
+  });
+
 });
 
 function chromeMockForScreenshot(content: { width: number; height: number } = { width: 1024, height: 2048 }) {
@@ -476,7 +506,7 @@ describe('cdp network capture correctness', () => {
   });
 
   function createNetworkMock() {
-    const onEventListeners = [];
+    const onEventListeners: Array<(source: { tabId?: number }, method: string, params: any) => void | Promise<void>> = [];
     const debuggerApi = {
       attach: vi.fn(async () => {}),
       detach: vi.fn(async () => {}),
@@ -493,7 +523,7 @@ describe('cdp network capture correctness', () => {
       onRemoved: { addListener: vi.fn() },
       onUpdated: { addListener: vi.fn() },
     };
-    const fire = async (method, params) => {
+    const fire = async (method: string, params: any) => {
       for (const fn of onEventListeners) await fn({ tabId: 1 }, method, params);
     };
     return {
@@ -563,7 +593,7 @@ describe('cdp evaluateInFrame stale context fallback', () => {
   });
 
   it('falls back to the frame target when the cached context id went stale', async () => {
-    const debuggerEventListeners = [];
+    const debuggerEventListeners: Array<(source: { tabId?: number }, method: string, params: any) => void> = [];
     const debuggerApi = {
       attach: vi.fn(async () => {}),
       detach: vi.fn(async () => {}),
