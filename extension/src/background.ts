@@ -1437,6 +1437,73 @@ function enumerateCrossOriginFrames(tree: any): Array<{ index: number; frameId: 
   return frames;
 }
 
+type CrossOriginFrame = { index: number; frameId: string; url: string; name: string };
+type DomCrossOriginFrame = { url: string; name: string };
+
+const READ_SNAPSHOT_FRAMES_JS = `(() => {
+  const frames = window.__opencli_cross_origin_frames;
+  return Array.isArray(frames) ? frames : [];
+})()`;
+
+function sameFrameReference(left: { url: string; name: string }, right: { url: string; name: string }): boolean {
+  if (left.url && right.url && left.url === right.url) return true;
+  return !!left.name && left.name === right.name;
+}
+
+async function resolveCrossOriginFrames(tabId: number): Promise<CrossOriginFrame[]> {
+  const tree = await executor.getFrameTree(tabId);
+  const treeFrames = enumerateCrossOriginFrames(tree);
+  const rawDomFrames = await executor.evaluateAsync(tabId, READ_SNAPSHOT_FRAMES_JS);
+  if (!Array.isArray(rawDomFrames) || rawDomFrames.length === 0) return treeFrames;
+
+  const domFrames = rawDomFrames.filter((frame): frame is DomCrossOriginFrame => (
+    !!frame && typeof frame === 'object'
+      && typeof (frame as DomCrossOriginFrame).url === 'string'
+      && typeof (frame as DomCrossOriginFrame).name === 'string'
+  ));
+  if (domFrames.length === 0) return treeFrames;
+
+  const targets = await executor.getIframeTargets(tabId);
+  const unusedTreeFrames = new Set(treeFrames);
+  const unusedTargets = new Set(targets);
+  const resolved: CrossOriginFrame[] = [];
+
+  for (const domFrame of domFrames) {
+    const treeFrame = [...unusedTreeFrames].find((frame) => sameFrameReference(domFrame, frame));
+    if (treeFrame) {
+      unusedTreeFrames.delete(treeFrame);
+      resolved.push({ ...treeFrame, index: resolved.length, name: domFrame.name || treeFrame.name });
+      continue;
+    }
+
+    const target = [...unusedTargets].find((candidate) => sameFrameReference(domFrame, {
+      url: candidate.url,
+      name: candidate.title,
+    }));
+    if (target) {
+      unusedTargets.delete(target);
+      resolved.push({
+        index: resolved.length,
+        frameId: target.targetId,
+        url: domFrame.url || target.url,
+        name: domFrame.name || target.title,
+      });
+      continue;
+    }
+
+    throw new CommandFailure(
+      'frame_enumeration_mismatch',
+      `DOM snapshot frame ${resolved.length} (${domFrame.url || domFrame.name || 'unknown'}) was missing from Page.getFrameTree and Target.getTargets.`,
+      'Refresh browser state and retry. If the mismatch persists, report the page URL and sanitized frame metadata.',
+    );
+  }
+
+  for (const frame of unusedTreeFrames) {
+    resolved.push({ ...frame, index: resolved.length });
+  }
+  return resolved;
+}
+
 function setLeaseSession(
   leaseKey: string,
   session: Omit<TargetLease, 'idleTimer' | 'idleDeadlineAt' | 'contextId' | 'ownership' | 'lifecycle' | 'windowRole'>,
@@ -1671,8 +1738,7 @@ async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
   try {
     const aggressive = getSurfaceFromKey(leaseKey) === 'browser';
     if (cmd.frameIndex != null) {
-      const tree = await executor.getFrameTree(tabId);
-      const frames = enumerateCrossOriginFrames(tree);
+      const frames = await resolveCrossOriginFrames(tabId);
       if (cmd.frameIndex < 0 || cmd.frameIndex >= frames.length) {
         return { id: cmd.id, ok: false, error: `Frame index ${cmd.frameIndex} out of range (${frames.length} cross-origin frames available)` };
       }
@@ -1690,8 +1756,7 @@ async function handleFrames(cmd: Command, leaseKey: string): Promise<Result> {
   const cmdTabId = await resolveCommandTabId(cmd);
   const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
-    const tree = await executor.getFrameTree(tabId);
-    return { id: cmd.id, ok: true, data: enumerateCrossOriginFrames(tree) };
+    return { id: cmd.id, ok: true, data: await resolveCrossOriginFrames(tabId) };
   } catch (err) {
     return errorResult(cmd.id, err);
   }

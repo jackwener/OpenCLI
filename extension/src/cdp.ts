@@ -650,6 +650,25 @@ export async function getFrameTree(tabId: number): Promise<any> {
   return sendDebuggerCommand({ tabId }, 'Page.getFrameTree');
 }
 
+export type IframeTarget = {
+  targetId: string;
+  url: string;
+  title: string;
+};
+
+export async function getIframeTargets(tabId: number): Promise<IframeTarget[]> {
+  await ensureAttached(tabId);
+  const result = await sendDebuggerCommand<{ targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string; title?: string }> }>(
+    { tabId },
+    'Target.getTargets',
+  );
+  return (result.targetInfos ?? []).flatMap((target) => {
+    const targetId = target.targetId || target.id;
+    if (target.type !== 'iframe' || !targetId) return [];
+    return [{ targetId, url: target.url || '', title: target.title || '' }];
+  });
+}
+
 export async function evaluateInFrame(
   tabId: number,
   expression: string,
