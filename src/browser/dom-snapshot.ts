@@ -664,6 +664,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   let iframeCount = 0;
   let crossOriginIndex = 0;
   const crossOriginFrames = [];
+  const iframeElements = [];
 
   function walk(el, depth, parentPropagatingRect) {
     if (depth > MAX_DEPTH) return false;
@@ -702,6 +703,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
 
     // iframe handling
     if (tag === 'iframe' && INCLUDE_IFRAMES && iframeCount < MAX_IFRAMES) {
+      iframeElements.push(el);
       return walkIframe(el, depth);
     }
 
@@ -935,7 +937,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   // Keep the DOM snapshot's [F#] inputs so browser frames can recover OOPIFs
   // omitted by Page.getFrameTree without assigning a different frame order.
   try {
-    const allElements = crossOriginFrames.map(function (frame) { return frame.element; });
+    const allElements = iframeElements;
     window.__opencli_cross_origin_frames = {
       documentUrl: location.href,
       allElements: allElements,

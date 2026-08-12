@@ -19,6 +19,14 @@ describe('generateSnapshotJs', () => {
     expect(js.length).toBeGreaterThan(100);
   });
 
+  it('stores iframe identity from the snapshot walker instead of a document-only selector', () => {
+    const js = generateSnapshotJs();
+
+    expect(js).toContain('iframeElements.push(el)');
+    expect(js).toContain('const allElements = iframeElements');
+    expect(js).not.toContain("const allElements = Array.from(document.querySelectorAll('iframe'))");
+  });
+
   it('generates syntactically valid JS (can be parsed)', () => {
     const js = generateSnapshotJs();
     expect(() => new Function(js)).not.toThrow();

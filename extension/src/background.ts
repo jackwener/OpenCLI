@@ -1443,24 +1443,16 @@ type DomCrossOriginFrame = { url: string; name: string };
 const READ_SNAPSHOT_FRAMES_JS = `(() => {
   const state = window.__opencli_cross_origin_frames;
   if (!state || !Array.isArray(state.frames) || !Array.isArray(state.allElements)) return [];
-  const currentElements = Array.from(document.querySelectorAll('iframe')).filter((element) => {
-    try {
-      const doc = element.contentDocument;
-      return !doc || !doc.body;
-    } catch {
-      return true;
-    }
-  });
+  const currentElements = state.allElements.filter((element) => element?.isConnected);
   const currentMatchesSnapshot = state.documentUrl === location.href
     && currentElements.length === state.allElements.length
     && currentElements.every((element, index) => element === state.allElements[index]);
-  const framesAreCurrent = state.frames.length === currentElements.length
-    && state.frames.every((frame, index) => frame.element?.isConnected
-      && frame.element === currentElements[index]);
+  const framesAreCurrent = state.frames.every((frame) => frame.element?.isConnected
+    && currentElements.includes(frame.element));
   if (!currentMatchesSnapshot || !framesAreCurrent) return { mismatch: true };
-  return currentElements.map((element) => ({
-    url: element.src || element.getAttribute('src') || '',
-    name: element.name || element.title || '',
+  return state.frames.map((frame) => ({
+    url: frame.element.src || frame.element.getAttribute('src') || '',
+    name: frame.element.name || frame.element.title || '',
   }));
 })()`;
 

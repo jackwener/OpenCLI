@@ -11,6 +11,7 @@ const attached = new Set<number>();
 const tabFrameContexts = new Map<number, Map<string, number>>();
 const frameTargets = new Map<string, string>();
 const frameTargetKeys = new Map<string, string>();
+const verifiedFrameTargets = new Map<string, string>();
 let frameTargetCleanupRegistered = false;
 
 // Large cap so agents stop hitting silent JSON.parse failures on real API bodies.
@@ -553,7 +554,8 @@ async function ensureFrameTarget(
     flatten: true,
     filter: [{ type: 'iframe', exclude: false }],
   }).catch(() => {});
-  const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
+  const targetId = verifiedFrameTargets.get(key)
+    || await resolveFrameTargetId(tabId, frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
   } catch (err) {
@@ -699,8 +701,7 @@ export async function getIframeTargets(tabId: number): Promise<IframeTarget[]> {
     // current-tab target so a later navigation cannot fall back by URL to a
     // same-URL iframe in another tab.
     const key = frameTargetKey(tabId, targetId);
-    frameTargets.set(key, targetId);
-    frameTargetKeys.set(targetId, key);
+    verifiedFrameTargets.set(key, targetId);
     return [{ targetId, url: target.url || '', title: target.title || '' }];
   });
 }
@@ -852,6 +853,9 @@ function clearFrameTargetsForTab(tabId: number): void {
     frameTargets.delete(key);
     frameTargetKeys.delete(targetId);
     chrome.debugger.detach({ targetId } as chrome.debugger.Debuggee).catch(() => {});
+  }
+  for (const key of [...verifiedFrameTargets.keys()]) {
+    if (key.startsWith(`${tabId}:`)) verifiedFrameTargets.delete(key);
   }
 }
 

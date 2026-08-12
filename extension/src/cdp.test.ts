@@ -152,6 +152,39 @@ describe('cdp attach recovery', () => {
     ]);
   });
 
+  it('attaches a verified iframe target before evaluating in it', async () => {
+    const { chrome, debuggerApi } = createChromeMock();
+    let frameAttached = false;
+    debuggerApi.attach = vi.fn(async (target?: { targetId?: string }) => {
+      if (target?.targetId === 'current-child') frameAttached = true;
+    });
+    debuggerApi.sendCommand = vi.fn(async (target: any, method: string): Promise<any> => {
+      if (method === 'Target.getTargetInfo') {
+        return { targetInfo: { targetId: 'current-page', type: 'page' } };
+      }
+      if (method === 'Target.getTargets') {
+        return {
+          targetInfos: [
+            { targetId: 'current-child', parentId: 'current-page', type: 'iframe', url: 'https://frame.test' },
+          ],
+        };
+      }
+      if (target?.targetId === 'current-child' && (method === 'Runtime.enable' || method === 'Runtime.evaluate')) {
+        if (!frameAttached) throw new Error('Debugger is not attached to the tab with id: current-child');
+        if (method === 'Runtime.evaluate') return { result: { value: 'verified-frame-ok' } };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    await mod.getIframeTargets(1);
+    const result = await mod.evaluateInFrame(1, 'document.title', 'current-child');
+
+    expect(result).toBe('verified-frame-ok');
+    expect(debuggerApi.attach).toHaveBeenCalledWith({ targetId: 'current-child' }, '1.3');
+  });
+
 });
 
 function chromeMockForScreenshot(content: { width: number; height: number } = { width: 1024, height: 2048 }) {
