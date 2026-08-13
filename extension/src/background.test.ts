@@ -877,6 +877,30 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getReconnectAttempts()).toBe(0);
   });
 
+  it('pings without credentials and logs a non-OK status instead of swallowing it', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 431 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    // The ping must not attach the localhost cookie jar — that is what pushes
+    // the request past Node's header limit and makes the daemon answer 431.
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: 'omit' });
+    // A non-OK ping must be logged, not silently swallowed.
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('HTTP 431'));
+    // The WebSocket must not be attempted after a failed ping.
+    expect(MockWebSocket.instances).toHaveLength(0);
+
+    warnSpy.mockRestore();
+  });
+
   it('ignores daemon commands delivered to a superseded WebSocket', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
