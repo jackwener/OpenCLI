@@ -526,6 +526,8 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   if (url.startsWith('http://127.0.0.1') || url.startsWith('https://127.0.0.1')) score += 50;
   if (url.startsWith('about:blank')) score -= 120;
   if (url === '' || url === 'about:blank') score -= 40;
+  // Auxiliary Codex avatar overlay shares the main app's CDP port/title but has no composer.
+  if (url.includes('initialroute=%2favatar-overlay')) score -= 200;
 
   if (title && title !== 'devtools') score += 25;
 

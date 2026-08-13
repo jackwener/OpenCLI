@@ -22,11 +22,21 @@ export const askCommand = cli({
             throw new ArgumentError('--timeout must be a positive integer (seconds)');
         }
         const selected = await openCodexConversation(page, kwargs);
-        // Snapshot the current content length before sending
-        const beforeLen = await page.evaluate(`
+        // Snapshot the latest assistant identity. Codex virtualizes older turns, so
+        // message/turn counts can stay constant even after a new response appears.
+        const beforeState = await page.evaluate(`
       (function() {
-        const turns = document.querySelectorAll('[data-content-search-turn-key]');
-        return turns.length;
+        const messages = Array.from(document.querySelectorAll('[data-markdown-text-style="assistant-message"]'));
+        const lastMessage = messages[messages.length - 1] || null;
+        const unit = lastMessage?.closest('[data-content-search-unit-key]');
+        const annotation = lastMessage?.closest('[data-response-annotation-target]');
+        return {
+          assistantKey: unit?.getAttribute('data-content-search-unit-key')
+            || annotation?.getAttribute('data-response-annotation-target')
+            || '',
+          assistantCount: messages.length,
+          turnCount: document.querySelectorAll('[data-content-search-turn-key]').length,
+        };
       })()
     `);
         // Inject and send
@@ -51,13 +61,34 @@ export const askCommand = cli({
         for (let i = 0; i < maxPolls; i++) {
             await page.wait(pollInterval);
             const result = await page.evaluate(`
-        (function(prevLen) {
-          const turns = document.querySelectorAll('[data-content-search-turn-key]');
-          if (turns.length <= prevLen) return null;
-          const lastTurn = turns[turns.length - 1];
-          const text = lastTurn.innerText || lastTurn.textContent;
-          return text ? text.trim() : null;
-        })(${beforeLen})
+        (function(prevState) {
+          const assistantMessages = Array.from(document.querySelectorAll('[data-markdown-text-style="assistant-message"]'));
+          const lastMessage = assistantMessages[assistantMessages.length - 1] || null;
+          if (lastMessage) {
+            const unit = lastMessage.closest('[data-content-search-unit-key]');
+            const annotation = lastMessage.closest('[data-response-annotation-target]');
+            const assistantKey = unit?.getAttribute('data-content-search-unit-key')
+              || annotation?.getAttribute('data-response-annotation-target')
+              || '';
+            if ((assistantKey && assistantKey !== prevState.assistantKey)
+              || (!assistantKey && assistantMessages.length > prevState.assistantCount)) {
+              const text = lastMessage.innerText || lastMessage.textContent;
+              return text ? text.trim() : null;
+            }
+          }
+
+          // Older Codex builds did not expose assistant-message markers.
+          if (prevState.assistantCount === 0 && assistantMessages.length === 0) {
+            const turns = document.querySelectorAll('[data-content-search-turn-key]');
+            if (turns.length > prevState.turnCount) {
+              const lastTurn = turns[turns.length - 1];
+              const text = lastTurn.innerText || lastTurn.textContent;
+              return text ? text.trim() : null;
+            }
+          }
+
+          return null;
+        })(${JSON.stringify(beforeState)})
       `);
             if (result) {
                 response = result;

@@ -115,6 +115,25 @@ describe('browser helpers', () => {
 
     expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9226/codex');
   });
+
+  it('prefers the Codex main renderer over the avatar overlay', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html?initialRoute=%2Favatar-overlay',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/overlay',
+      },
+      {
+        type: 'page',
+        title: 'Codex',
+        url: 'app://-/index.html',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/main',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/main');
+  });
 });
 
 describe('BrowserBridge state', () => {
