@@ -136,3 +136,109 @@ describe('CDPBridge cookies', () => {
     expect(String(entries[0].requestBodyPreview)).toHaveLength(CDP_REQUEST_BODY_CAPTURE_LIMIT);
   });
 });
+
+describe('CDPBridge dedicated targets (remote Chrome)', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  async function withDevtoolsServer(
+    handler: (req: { method: string; url: string }) => { status: number; body: string },
+    fn: (base: string, seen: Array<{ method: string; url: string }>) => Promise<void>,
+  ): Promise<void> {
+    const { createServer } = await import('node:http');
+    const seen: Array<{ method: string; url: string }> = [];
+    const server = createServer((req, res) => {
+      const entry = { method: req.method ?? '', url: req.url ?? '' };
+      seen.push(entry);
+      const { status, body } = handler(entry);
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(body);
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+    try {
+      await fn(`http://127.0.0.1:${port}`, seen);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }
+
+  it('opens a dedicated tab instead of attaching to an existing one, and closes it on close()', async () => {
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (method === 'PUT' && url.startsWith('/json/new')) {
+          return { status: 200, body: JSON.stringify({ id: 'T1', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T1' }) };
+        }
+        if (method === 'GET' && url === '/json/close/T1') {
+          return { status: 200, body: 'Target is closing' };
+        }
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+        vi.spyOn(bridge, 'send').mockResolvedValue({});
+
+        await bridge.connect({ cdpEndpoint: base, dedicatedTarget: true });
+        await bridge.close();
+
+        expect(seen.map((r) => `${r.method} ${r.url.split('?')[0]}`)).toEqual([
+          'PUT /json/new',
+          'GET /json/close/T1',
+        ]);
+      },
+    );
+  });
+
+  it('falls back to GET /json/new for Chrome versions that reject PUT', async () => {
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (url.startsWith('/json/new')) {
+          if (method === 'PUT') return { status: 405, body: 'Using unsafe HTTP verb' };
+          return { status: 200, body: JSON.stringify({ id: 'T2', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T2' }) };
+        }
+        if (url === '/json/close/T2') return { status: 200, body: 'Target is closing' };
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+        vi.spyOn(bridge, 'send').mockResolvedValue({});
+
+        await bridge.connect({ cdpEndpoint: base, dedicatedTarget: true });
+        await bridge.close();
+
+        expect(seen.map((r) => `${r.method} ${r.url.split('?')[0]}`)).toEqual([
+          'PUT /json/new',
+          'GET /json/new',
+          'GET /json/close/T2',
+        ]);
+      },
+    );
+  });
+
+  it('keeps the legacy attach behaviour when dedicatedTarget is not requested', async () => {
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (method === 'GET' && url === '/json') {
+          return {
+            status: 200,
+            body: JSON.stringify([
+              { id: 'P1', type: 'page', url: 'https://example.com', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/P1' },
+            ]),
+          };
+        }
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+        vi.spyOn(bridge, 'send').mockResolvedValue({});
+
+        await bridge.connect({ cdpEndpoint: base });
+        await bridge.close();
+
+        expect(seen.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /json']);
+      },
+    );
+  });
+});

@@ -37,6 +37,18 @@ Use `127.0.0.1` instead of `localhost` in the SSH command to avoid IPv6 resoluti
 export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9222"
 ```
 
+With the endpoint set, website CLIs (e.g. `opencli twitter timeline`) run over CDP
+directly — the Browser Bridge extension is not required in this mode. Each command
+opens a **dedicated tab** on the remote browser and closes it when done, so your
+existing tabs are never hijacked. Electron app CLIs honor the same variable as before.
+
+::: tip
+The endpoint may also be a `ws://` URL pointing at a specific target. In that case
+OpenCLI attaches to that exact target instead of opening a dedicated tab
+(`OPENCLI_CDP_TARGET` filters targets when using an `http://` endpoint without a
+dedicated tab, e.g. for Electron apps).
+:::
+
 ### 4. Verify
 
 ```bash
