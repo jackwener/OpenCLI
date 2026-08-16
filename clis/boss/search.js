@@ -2,8 +2,8 @@
  * BOSS直聘 job search — browser cookie API.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { requirePage, navigateTo, verbose } from './utils.js';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { assertOk, readPositiveInteger, requirePage, navigateTo, verbose } from './utils.js';
 /** City name → BOSS Zhipin city code mapping */
 const CITY_CODES = {
     '全国': '100010000', '北京': '101010100', '上海': '101020100',
@@ -62,7 +62,7 @@ function resolveCity(input) {
         if (name.includes(input))
             return code;
     }
-    return '101010100';
+    throw new ArgumentError(`Invalid BOSS city: ${input}`, 'Use a supported city name or a numeric BOSS city code');
 }
 function resolveMap(input, map) {
     if (!input)
@@ -93,6 +93,7 @@ function formatBossOnline(value) {
 }
 async function captureJobList(page, url) {
     if (typeof page.startNetworkCapture !== 'function' ||
+        typeof page.readNetworkCapture !== 'function' ||
         !await page.startNetworkCapture('joblist.json')) {
         throw new CommandExecutionError('BOSS search requires CDP network capture');
     }
@@ -108,10 +109,16 @@ async function captureJobList(page, url) {
                 typeof entry?.responsePreview !== 'string') {
                 continue;
             }
+            let payload;
             try {
-                const payload = JSON.parse(entry.responsePreview);
-                if (Array.isArray(payload?.zpData?.jobList)) return payload;
-            } catch { /* keep scanning captures */ }
+                payload = JSON.parse(entry.responsePreview);
+            } catch {
+                continue;
+            }
+            if (payload && typeof payload === 'object' && 'code' in payload && payload.code !== 0) {
+                assertOk(payload, 'BOSS search failed');
+            }
+            if (Array.isArray(payload?.zpData?.jobList)) return payload;
         }
     }
     throw new CommandExecutionError('BOSS search page did not expose its job-list response');
@@ -122,7 +129,7 @@ cli({
     access: 'read',
     description: 'BOSS直聘搜索职位（不带关键词时返回为你推荐职位）',
     domain: 'www.zhipin.com',
-    strategy: Strategy.COOKIE,
+    strategy: Strategy.INTERCEPT,
     navigateBefore: false,
     browser: true,
     defaultWindowMode: 'background',
@@ -149,8 +156,8 @@ cli({
         const salaryVal = resolveMap(kwargs.salary, SALARY_MAP);
         const industryVal = resolveMap(kwargs.industry, INDUSTRY_MAP);
         const jobTypeVal = resolveJobType(kwargs.jobType);
-        const limit = kwargs.limit || 15;
-        let currentPage = kwargs.page || 1;
+        const limit = readPositiveInteger(kwargs.limit, 'limit', 15, 100);
+        let currentPage = readPositiveInteger(kwargs.page, 'page', 1);
         let allJobs = [];
         const seenIds = new Set();
         while (allJobs.length < limit) {
@@ -209,11 +216,15 @@ cli({
                 break;
             currentPage++;
         }
+        if (allJobs.length === 0) {
+            throw new EmptyResultError('boss search', query ? `No BOSS jobs found for "${query}"` : 'BOSS returned no recommended jobs');
+        }
         return allJobs;
     },
 });
 export const __test__ = {
     EXP_MAP,
+    resolveCity,
     resolveMap,
     resolveJobType,
     formatBossOnline,

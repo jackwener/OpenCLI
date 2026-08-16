@@ -5469,7 +5469,7 @@
     "description": "BOSS直聘查看职位详情",
     "access": "read",
     "domain": "www.zhipin.com",
-    "strategy": "cookie",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -5485,19 +5485,13 @@
       "salary",
       "experience",
       "degree",
-      "city",
-      "district",
+      "location",
       "description",
       "skills",
       "welfare",
-      "boss_name",
-      "boss_title",
-      "active_time",
+      "recruiter",
       "company",
-      "industry",
-      "scale",
-      "stage",
-      "address",
+      "companyInfo",
       "url"
     ],
     "type": "js",
@@ -5796,7 +5790,7 @@
     "description": "BOSS直聘搜索职位（不带关键词时返回为你推荐职位）",
     "access": "read",
     "domain": "www.zhipin.com",
-    "strategy": "cookie",
+    "strategy": "intercept",
     "browser": true,
     "args": [
       {
