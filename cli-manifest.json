@@ -5477,7 +5477,7 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Security ID from search results (securityId field)"
+        "help": "Security ID from search results (security_id field)"
       }
     ],
     "columns": [
@@ -5503,7 +5503,9 @@
     "type": "js",
     "modulePath": "boss/detail.js",
     "sourceFile": "boss/detail.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
   },
   {
     "site": "boss",
@@ -5877,7 +5879,9 @@
     "type": "js",
     "modulePath": "boss/search.js",
     "sourceFile": "boss/search.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
   },
   {
     "site": "boss",

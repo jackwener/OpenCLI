@@ -8,7 +8,14 @@ function createPageMock(response) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue(response),
+        startNetworkCapture: vi.fn().mockResolvedValue(true),
+        readNetworkCapture: vi.fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([{
+                url: 'https://www.zhipin.com/wapi/zpgeek/search/joblist.json',
+                responseStatus: 200,
+                responsePreview: JSON.stringify(response),
+            }]),
     };
 }
 
@@ -31,7 +38,7 @@ describe('boss search', () => {
         expect(__test__.resolveJobType('1902')).toBe('1902');
     });
 
-    it('keeps empty query empty and sends jobType filter to the API', async () => {
+    it('captures the current jobs page response instead of calling the retired API directly', async () => {
         const page = createPageMock({
             code: 0,
             zpData: {
@@ -65,14 +72,13 @@ describe('boss search', () => {
             page: 1,
         });
 
-        expect(page.goto).toHaveBeenCalledWith('https://www.zhipin.com/web/geek/job?query=&city=101010100');
-        const fetchScript = page.evaluate.mock.calls.at(-1)[0];
-        expect(fetchScript).toContain('query=');
-        expect(fetchScript).not.toContain('query=undefined');
-        expect(fetchScript).toContain('jobType=1902');
+        expect(page.startNetworkCapture).toHaveBeenCalledWith('joblist.json');
+        expect(page.goto.mock.calls[0][0]).toContain('https://www.zhipin.com/web/geek/jobs?query=&city=101010100');
+        expect(page.goto.mock.calls[0][0]).toContain('jobType=1902');
         expect(rows[0]).toMatchObject({
             name: '前端开发实习生',
             bossOnline: 'N',
+            security_id: 'abc',
         });
     });
 });
