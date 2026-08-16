@@ -58,22 +58,14 @@ function configuredIssueFields() {
     if (raw === undefined) return null;
     if (raw.trim().toLowerCase() === 'auto') return 'auto';
 
-    let parsed;
-    try {
-        parsed = JSON.parse(raw);
-    } catch {
+    const fields = raw.split(',').map((field) => field.trim()).filter(Boolean);
+    if (fields.length === 0) {
         throw new ConfigError(
             'Invalid ATLASSIAN_JIRA_FIELDS',
-            'Set ATLASSIAN_JIRA_FIELDS to a JSON array of field names, for example ["summary","customfield_12345"].',
+            'Set ATLASSIAN_JIRA_FIELDS to comma-separated field names, for example summary,status,customfield_12345.',
         );
     }
-    if (!Array.isArray(parsed) || parsed.some((field) => typeof field !== 'string' || !field.trim())) {
-        throw new ConfigError(
-            'Invalid ATLASSIAN_JIRA_FIELDS',
-            'Set ATLASSIAN_JIRA_FIELDS to a JSON array of non-empty strings.',
-        );
-    }
-    return [...new Set(parsed.map((field) => field.trim()))];
+    return [...new Set(fields)];
 }
 
 function issueFields(extraFields = []) {

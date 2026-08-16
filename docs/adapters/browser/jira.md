@@ -23,11 +23,11 @@ export ATLASSIAN_EMAIL=you@example.com
 export ATLASSIAN_API_TOKEN=...
 ```
 
-To request a specific set of Jira fields, set a JSON array. When configured,
-the array replaces the default field list:
+To request a specific set of Jira fields, set a comma-separated list. When
+configured, the list replaces the default field list:
 
 ```bash
-export ATLASSIAN_JIRA_FIELDS='["summary","status","customfield_12345"]'
+export ATLASSIAN_JIRA_FIELDS='summary,status,customfield_12345'
 ```
 
 Requested `customfield_*` values are returned under `customFields`, using the

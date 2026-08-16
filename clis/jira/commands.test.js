@@ -102,7 +102,7 @@ describe('jira commands', () => {
 
     it('uses configured fields and resolves custom field names', async () => {
         setCloudEnv();
-        process.env.ATLASSIAN_JIRA_FIELDS = JSON.stringify([' summary ', 'status', 'customfield_12345', 'customfield_12345']);
+        process.env.ATLASSIAN_JIRA_FIELDS = ' summary , status, customfield_12345, customfield_12345 ';
         vi.stubGlobal('fetch', vi.fn(async (url) => {
             const parsed = new URL(String(url));
             expect(parsed.searchParams.get('fields')).toBe('summary,status,customfield_12345');
@@ -132,9 +132,9 @@ describe('jira commands', () => {
         expect(rows[0].linkedIssues).toEqual([]);
     });
 
-    it('rejects invalid configured Jira fields', async () => {
+    it('rejects empty configured Jira fields', async () => {
         setCloudEnv();
-        process.env.ATLASSIAN_JIRA_FIELDS = '{invalid';
+        process.env.ATLASSIAN_JIRA_FIELDS = ' , ';
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
         const cmd = getRegistry().get('jira/issue');
