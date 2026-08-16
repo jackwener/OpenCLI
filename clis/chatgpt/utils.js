@@ -2560,12 +2560,28 @@ export async function getChatGPTVisibleImageUrls(page) {
                 return /avatar|profile|logo|icon/.test(text);
             };
             const isUserUploadPreview = (img) => {
-                const alt = (img.getAttribute('alt') || '').toLowerCase();
                 const turn = img.closest('section[data-testid^="conversation-turn"]');
-                const heading = (turn?.querySelector('h4')?.innerText || '').toLowerCase();
+                // Authoritative signal first: ChatGPT stamps data-turn directly on the
+                // turn section as soon as the turn mounts, well before an attached
+                // image's alt text/aria-label finish populating. Racing multiple
+                // uploads against that async metadata (the old behaviour here) let
+                // still-generic upload-preview thumbnails pass as "new" images for a
+                // poll or two, which is long enough to satisfy the stability check in
+                // waitForChatGPTImages and return the wrong (uploaded, not generated)
+                // images when 2+ files were attached.
+                const turnRole = turn?.getAttribute('data-turn') || '';
+                if (turnRole === 'user') return true;
+                if (turnRole === 'assistant') return false;
+                // Fallback for markup without data-turn. innerText reads as empty
+                // on a visually-hidden heading in real Chrome (jsdom has no layout and
+                // never exposed this gap) - use textContent instead.
+                const heading = (turn?.querySelector('h4')?.textContent || '').toLowerCase();
                 if (/you said|你说/.test(heading)) return true;
                 if (/chatgpt|assistant|助手/.test(heading)) return false;
-                const openButtonLabel = (img.closest('button[aria-label^="Open image:"], button[aria-label^="打开图片："]')?.getAttribute('aria-label') || '').toLowerCase();
+                const alt = (img.getAttribute('alt') || '').toLowerCase();
+                // ChatGPT's multi-image "Open image" button label now reads
+                // "Open image N of M: name", not the older "Open image: name".
+                const openButtonLabel = (img.closest('button[aria-label*="Open image"], button[aria-label*="打开图片"]')?.getAttribute('aria-label') || '').toLowerCase();
                 const previewText = [alt, openButtonLabel].join(' ');
                 return /\.(png|jpe?g|webp|gif|heic|heif)(?:\b|$)/i.test(previewText)
                     || /ref-|reference|参考|上传|upload|uploaded|attachment/.test(previewText);
