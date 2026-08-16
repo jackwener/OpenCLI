@@ -16,6 +16,7 @@ const ENV_KEYS = [
     'ATLASSIAN_USERNAME',
     'ATLASSIAN_PASSWORD',
     'ATLASSIAN_PAT',
+    'ATLASSIAN_JIRA_FIELDS',
 ];
 
 function clearEnv() {
@@ -97,6 +98,78 @@ describe('jira commands', () => {
         expect(rows[0].comments[0].markdown).toBe('Needs RCA');
         expect(rows[0].attachments[0].filename).toBe('log.txt');
         expect(rows[0].linkedIssues[0]).toEqual({ key: 'PROJ-2', type: 'Blocks', direction: 'outward' });
+    });
+
+    it('uses configured fields and resolves custom field names', async () => {
+        setCloudEnv();
+        process.env.ATLASSIAN_JIRA_FIELDS = JSON.stringify([' summary ', 'status', 'customfield_12345', 'customfield_12345']);
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            const parsed = new URL(String(url));
+            expect(parsed.searchParams.get('fields')).toBe('summary,status,customfield_12345');
+            expect(parsed.searchParams.get('expand')).toBe('renderedFields,names');
+            return jsonResponse({
+                key: 'PROJ-1',
+                fields: {
+                    summary: 'Checkout fails',
+                    status: { name: 'In Progress' },
+                    customfield_12345: 8,
+                },
+                names: {
+                    customfield_12345: 'Story Estimate',
+                },
+            });
+        }));
+        const cmd = getRegistry().get('jira/issue');
+        const rows = await cmd.func({ key: 'PROJ-1' });
+        expect(rows[0]).toMatchObject({
+            key: 'PROJ-1',
+            summary: 'Checkout fails',
+            status: 'In Progress',
+            customFields: { 'Story Estimate': 8 },
+        });
+        expect(rows[0].comments).toEqual([]);
+        expect(rows[0].attachments).toEqual([]);
+        expect(rows[0].linkedIssues).toEqual([]);
+    });
+
+    it('rejects invalid configured Jira fields', async () => {
+        setCloudEnv();
+        process.env.ATLASSIAN_JIRA_FIELDS = '{invalid';
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        const cmd = getRegistry().get('jira/issue');
+        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toMatchObject({ code: 'CONFIG' });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('fetches all fields in auto mode and cleans nulls with named custom fields', async () => {
+        setCloudEnv();
+        process.env.ATLASSIAN_JIRA_FIELDS = 'auto';
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            const parsed = new URL(String(url));
+            expect(parsed.searchParams.has('fields')).toBe(false);
+            expect(parsed.searchParams.get('expand')).toBe('renderedFields,names');
+            return jsonResponse({
+                key: 'PROJ-1',
+                fields: {
+                    summary: 'Checkout fails',
+                    customfield_12345: 'Enterprise',
+                    customfield_12346: null,
+                    status: { name: 'In Progress' },
+                },
+                names: {
+                    customfield_12345: 'Customer Segment',
+                    customfield_12346: 'Unused Field',
+                },
+            });
+        }));
+        const cmd = getRegistry().get('jira/issue');
+        const rows = await cmd.func({ key: 'PROJ-1' });
+        expect(rows[0].fields).toEqual({
+            summary: 'Checkout fails',
+            'Customer Segment': 'Enterprise',
+            status: { name: 'In Progress' },
+        });
     });
 
     it('fails typed when Jira issue payload is missing stable issue identity', async () => {

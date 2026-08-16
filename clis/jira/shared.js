@@ -11,7 +11,7 @@ import {
     requirePayloadString,
     requireString,
 } from '../_atlassian/shared.js';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, ConfigError } from '@jackwener/opencli/errors';
 
 const DEFAULT_ISSUE_FIELDS = [
     'summary',
@@ -53,7 +53,33 @@ function configuredFieldNames() {
     };
 }
 
+function configuredIssueFields() {
+    const raw = process.env.ATLASSIAN_JIRA_FIELDS;
+    if (raw === undefined) return null;
+    if (raw.trim().toLowerCase() === 'auto') return 'auto';
+
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw new ConfigError(
+            'Invalid ATLASSIAN_JIRA_FIELDS',
+            'Set ATLASSIAN_JIRA_FIELDS to a JSON array of field names, for example ["summary","customfield_12345"].',
+        );
+    }
+    if (!Array.isArray(parsed) || parsed.some((field) => typeof field !== 'string' || !field.trim())) {
+        throw new ConfigError(
+            'Invalid ATLASSIAN_JIRA_FIELDS',
+            'Set ATLASSIAN_JIRA_FIELDS to a JSON array of non-empty strings.',
+        );
+    }
+    return [...new Set(parsed.map((field) => field.trim()))];
+}
+
 function issueFields(extraFields = []) {
+    const selected = configuredIssueFields();
+    if (selected === 'auto') return undefined;
+    if (selected !== null) return selected.join(',');
     const configured = Object.values(configuredFieldNames()).filter(Boolean);
     return [...new Set([...DEFAULT_ISSUE_FIELDS, ...configured, ...extraFields.filter(Boolean)])].join(',');
 }
@@ -136,6 +162,20 @@ function customValueToMarkdown(value) {
     return valueName(value);
 }
 
+function autoFields(fields, names) {
+    const result = {};
+    for (const [field, value] of Object.entries(fields)) {
+        if (value === null) continue;
+        const name = field.startsWith('customfield_')
+            && typeof names[field] === 'string'
+            && names[field].trim()
+            ? names[field].trim()
+            : field;
+        result[name] = value;
+    }
+    return result;
+}
+
 function inlineComments(fields, key, options) {
     if (options.comments !== undefined) return requirePayloadArray(options.comments, `jira issue ${key} comments`);
     if (options.requireNestedCollections === false) return [];
@@ -150,9 +190,10 @@ export function normalizeJiraIssue(issue, config, options = {}) {
     const rendered = row.renderedFields && typeof row.renderedFields === 'object' && !Array.isArray(row.renderedFields)
         ? row.renderedFields
         : {};
+    const selectedFields = configuredIssueFields();
     const custom = configuredFieldNames();
-    const comments = inlineComments(fields, key, options);
-    const requireNestedCollections = options.requireNestedCollections !== false;
+    const requireNestedCollections = selectedFields === null && options.requireNestedCollections !== false;
+    const comments = inlineComments(fields, key, { ...options, requireNestedCollections });
     const attachments = requireNestedCollections
         ? requirePayloadArray(fields.attachment, `jira issue ${key} attachment field`)
         : [];
@@ -196,6 +237,20 @@ export function normalizeJiraIssue(issue, config, options = {}) {
     if (custom.storyPoints && fields[custom.storyPoints] !== undefined) {
         normalized.storyPoints = Number(fields[custom.storyPoints]);
     }
+    if (selectedFields !== null) {
+        const names = row.names && typeof row.names === 'object' && !Array.isArray(row.names) ? row.names : {};
+        if (selectedFields === 'auto') {
+            normalized.fields = autoFields(fields, names);
+        } else {
+            const customFields = {};
+            for (const field of selectedFields) {
+                if (!field.startsWith('customfield_') || fields[field] === undefined) continue;
+                const name = typeof names[field] === 'string' && names[field].trim() ? names[field].trim() : field;
+                customFields[name] = fields[field];
+            }
+            if (Object.keys(customFields).length > 0) normalized.customFields = customFields;
+        }
+    }
     return normalized;
 }
 
@@ -214,11 +269,13 @@ export function issueSummaryRow(issue, config) {
 }
 
 export async function fetchIssue(config, key, extraFields = []) {
+    const fields = issueFields(extraFields);
+    const params = {
+        expand: 'renderedFields,names',
+    };
+    if (fields !== undefined) params.fields = fields;
     const issue = await jiraRequest(config, `/issue/${encodeURIComponent(key)}`, {
-        params: {
-            fields: issueFields(extraFields),
-            expand: 'renderedFields',
-        },
+        params,
         label: `jira issue ${key}`,
     });
     return requirePayloadObject(issue, `jira issue ${key}`);

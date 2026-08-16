@@ -23,6 +23,24 @@ export ATLASSIAN_EMAIL=you@example.com
 export ATLASSIAN_API_TOKEN=...
 ```
 
+To request a specific set of Jira fields, set a JSON array. When configured,
+the array replaces the default field list:
+
+```bash
+export ATLASSIAN_JIRA_FIELDS='["summary","status","customfield_12345"]'
+```
+
+Requested `customfield_*` values are returned under `customFields`, using the
+human-readable names returned by Jira when available.
+
+Set the value to `auto` to let Jira return all fields. The result adds a
+`fields` object with top-level `null` values removed and `customfield_*` keys
+replaced by their human-readable names from Jira:
+
+```bash
+export ATLASSIAN_JIRA_FIELDS=auto
+```
+
 For Data Center, use a personal access token when available:
 
 ```bash
