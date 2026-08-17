@@ -314,9 +314,11 @@ export function buildReadMessagesScript(count) {
         nodes.forEach(function(node) {
           var route = routeOfMessage(node);
           var contentEl = node.querySelector('[id^="message-content-"], [class*="messageContent"]');
-          if (!contentEl) return;
+          var embedEl = node.querySelector('[class*="embedWrapper"], article[class*="embed"], [class*="embedDescription"], [class*="embedTitle"]');
+          if (!contentEl && !embedEl) return;
+          var messageText = textOf(contentEl) || textOf(embedEl);
 
-          var key = route.message_id || textOf(contentEl);
+          var key = route.message_id || messageText;
           if (!key || seen.has(key)) return;
           seen.add(key);
 
@@ -325,7 +327,7 @@ export function buildReadMessagesScript(count) {
           results.push({
             Author: textOf(authorEl) || '—',
             Time: timeEl ? (timeEl.getAttribute('datetime') || textOf(timeEl)) : '',
-            Message: textOf(contentEl).slice(0, 300),
+            Message: messageText.slice(0, 300),
             ...(route.channel_id ? { channel_id: route.channel_id } : {}),
             ...(route.message_id ? { message_id: route.message_id } : {})
           });

@@ -18,6 +18,10 @@ describe('notebooklm utils', () => {
         const id = '17e2b882-aaaa-bbbb-cccc-abcdef012345';
         expect(parseNotebooklmNotebookTarget(`https://notebooklm.google.com/notebook/${id}?pli=1`)).toBe(id);
     });
+    it('parseNotebooklmNotebookTarget accepts NotebookLM redirect-host urls', () => {
+        const id = '17e2b882-aaaa-bbbb-cccc-abcdef012345';
+        expect(parseNotebooklmNotebookTarget(`https://notebook.google.com/notebook/${id}?pli=1`)).toBe(id);
+    });
     it('parseNotebooklmNotebookTarget rejects non-uuid bare ids', () => {
         expect(() => parseNotebooklmNotebookTarget('nb-demo')).toThrow(CliError);
     });
@@ -44,6 +48,8 @@ describe('notebooklm utils', () => {
     it('classifies notebook pages correctly', () => {
         expect(classifyNotebooklmPage('https://notebooklm.google.com/notebook/demo-id')).toBe('notebook');
         expect(classifyNotebooklmPage('https://notebooklm.google.com/')).toBe('home');
+        expect(classifyNotebooklmPage('https://notebook.google.com/notebook/demo-id')).toBe('notebook');
+        expect(classifyNotebooklmPage('https://notebook.google.com/')).toBe('home');
         expect(classifyNotebooklmPage('https://example.com/notebook/demo-id')).toBe('unknown');
     });
     it('normalizes notebook titles', () => {
@@ -444,6 +450,28 @@ describe('notebooklm utils', () => {
             notebookId: 'nb-demo',
             loginRequired: false,
             notebookCount: 0,
+        });
+    });
+    it('accepts page state from the NotebookLM redirect host', async () => {
+        const page = {
+            evaluate: async () => ({
+                url: 'https://notebook.google.com/notebook/nb-demo',
+                title: 'Demo Notebook - NotebookLM',
+                hostname: 'notebook.google.com',
+                kind: 'notebook',
+                notebookId: 'nb-demo',
+                loginRequired: false,
+                notebookCount: 2,
+            }),
+        };
+        await expect(getNotebooklmPageState(page)).resolves.toEqual({
+            url: 'https://notebook.google.com/notebook/nb-demo',
+            title: 'Demo Notebook - NotebookLM',
+            hostname: 'notebook.google.com',
+            kind: 'notebook',
+            notebookId: 'nb-demo',
+            loginRequired: false,
+            notebookCount: 2,
         });
     });
 });

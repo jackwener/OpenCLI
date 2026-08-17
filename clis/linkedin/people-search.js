@@ -103,6 +103,15 @@ function extractionScript() {
     }
     const main = document.querySelector('main') || document.body;
     const normalize = (s) => String(s || '').replace(/[\s\u00a0\u202f]+/g, ' ').trim();
+    const collapseRepeatedName = (name) => {
+      const parts = normalize(name).split(' ').filter(Boolean);
+      if (parts.length === 0 || parts.length % 2 !== 0) return normalize(name);
+      const half = parts.length / 2;
+      for (let i = 0; i < half; i++) {
+        if (parts[i] !== parts[i + half]) return normalize(name);
+      }
+      return parts.slice(0, half).join(' ');
+    };
     const skip = (l) => !l
       || /^Status is/.test(l)
       || /^(Message|Connect|Follow|View profile|Pending|Remove)$/i.test(l)
@@ -126,6 +135,7 @@ function extractionScript() {
       name = name.replace(/^Status is (online|offline)\.?\s*/i, '')
                  .replace(/'?s profile$/i, '')
                  .replace(/\s*[•·].*$/, '').trim();
+      name = collapseRepeatedName(name);
       if (!name) continue;
       seenHandles.add(profileHandle);
       personEntries.push({ profileHandle, displayName: name });

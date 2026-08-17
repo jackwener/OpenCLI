@@ -11,6 +11,7 @@ import './thread-read.js';
 import './threads.js';
 import {
     buildDiscordChannelUrl,
+    buildReadMessagesScript,
     buildListChannelsScript,
     buildListServersScript,
     buildListThreadsScript,
@@ -149,6 +150,30 @@ describe('discord-app DOM extraction scripts', () => {
                 url: 'https://discord.com/channels/222',
             },
         ]);
+    });
+
+    it('reads embed-only messages when the normal content node is empty', () => {
+        const rows = runDomScript(`
+          <ol>
+            <li id="chat-messages-222-333">
+              <h3><span>Ada</span></h3>
+              <time datetime="2026-08-17T10:00:00.000Z"></time>
+              <div id="message-content-333"></div>
+              <article class="embedWrapper_abc">
+                <div class="embedTitle_abc">Build finished</div>
+                <div class="embedDescription_abc">All checks passed</div>
+              </article>
+            </li>
+          </ol>
+        `, buildReadMessagesScript(5));
+
+        expect(rows).toEqual([{
+            Author: 'Ada',
+            Time: '2026-08-17T10:00:00.000Z',
+            Message: 'Build finished All checks passed',
+            channel_id: '222',
+            message_id: '333',
+        }]);
     });
 
     it('rejects non-numeric guild navigation sentinels and channel/thread-shaped ids', () => {

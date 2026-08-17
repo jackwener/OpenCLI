@@ -1,11 +1,14 @@
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
+import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_REDIRECT_DOMAIN, } from './shared.js';
 import { callNotebooklmRpc, getNotebooklmPageAuth, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';
 const NOTEBOOKLM_LIST_RPC_ID = 'wXbhsf';
 const NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID = 'rLM1Ne';
 const NOTEBOOKLM_HISTORY_THREADS_RPC_ID = 'hPTbtc';
 const NOTEBOOKLM_HISTORY_DETAIL_RPC_ID = 'khqZz';
+function isNotebooklmHost(hostname) {
+    return hostname === NOTEBOOKLM_DOMAIN || hostname === NOTEBOOKLM_REDIRECT_DOMAIN;
+}
 function unwrapNotebooklmSingletonResult(result) {
     let current = result;
     while (Array.isArray(current) && current.length === 1 && Array.isArray(current[0])) {
@@ -40,8 +43,8 @@ export function parseNotebooklmNotebookTarget(value) {
         catch {
             throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
         }
-        if (parsed.protocol !== 'https:' || parsed.hostname !== NOTEBOOKLM_DOMAIN || parsed.username || parsed.password || parsed.port) {
-            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL must be a canonical https://notebooklm.google.com URL', 'Pass a notebook id from `opencli notebooklm list` or a full NotebookLM notebook URL.');
+        if (parsed.protocol !== 'https:' || !isNotebooklmHost(parsed.hostname) || parsed.username || parsed.password || parsed.port) {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL must be a NotebookLM URL', 'Pass a notebook id from `opencli notebooklm list` or a full NotebookLM notebook URL.');
         }
         const notebookId = parseNotebooklmIdFromUrl(normalized);
         if (!notebookId) {
@@ -72,7 +75,7 @@ export function buildNotebooklmNotebookUrl(notebookId) {
 export function classifyNotebooklmPage(url) {
     try {
         const parsed = new URL(url);
-        if (parsed.hostname !== NOTEBOOKLM_DOMAIN)
+        if (!isNotebooklmHost(parsed.hostname))
             return 'unknown';
         if (/\/notebook\/[^/?#]+/.test(parsed.pathname))
             return 'notebook';
@@ -615,7 +618,7 @@ export async function getNotebooklmPageState(page) {
     const path = window.location.pathname || '/';
     const kind = notebookId
       ? 'notebook'
-      : (hostname === 'notebooklm.google.com' ? 'home' : 'unknown');
+      : (hostname === 'notebooklm.google.com' || hostname === 'notebook.google.com' ? 'home' : 'unknown');
 
     const textNodes = Array.from(document.querySelectorAll('a, button, [role="button"], h1, h2'))
       .map(node => (node.textContent || '').trim().toLowerCase())
@@ -646,7 +649,7 @@ export async function getNotebooklmPageState(page) {
     // Notebook pages can still contain "sign in" or login-related text fragments
     // even when the active Google session is valid. Prefer the real page tokens
     // as the stronger auth signal before declaring the session unauthenticated.
-    if (state.hostname === NOTEBOOKLM_DOMAIN && state.loginRequired) {
+    if (isNotebooklmHost(state.hostname) && state.loginRequired) {
         try {
             await getNotebooklmPageAuth(page);
             state.loginRequired = false;
@@ -804,7 +807,7 @@ export async function listNotebooklmSourcesFromPage(page) {
 }
 export async function requireNotebooklmSession(page) {
     const state = await getNotebooklmPageState(page);
-    if (state.hostname !== NOTEBOOKLM_DOMAIN) {
+    if (!isNotebooklmHost(state.hostname)) {
         throw new CliError('NOTEBOOKLM_UNAVAILABLE', 'NotebookLM page is not available in the current browser session', `Open Chrome and navigate to ${NOTEBOOKLM_HOME_URL}`);
     }
     if (state.loginRequired) {

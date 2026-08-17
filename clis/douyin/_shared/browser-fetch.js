@@ -27,6 +27,9 @@ export async function browserFetch(page, method, url, options = {}) {
           ${options.body ? `body: JSON.stringify(${JSON.stringify(options.body)}),` : ''}
         });
         const text = await res.text();
+        if (!text.trim()) {
+          return { status_code: res.ok ? -2 : res.status, status_msg: 'Empty response from Douyin API' };
+        }
         try {
           return JSON.parse(text);
         } catch (error) {
