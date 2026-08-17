@@ -52,13 +52,20 @@ export class BrowserBridge implements IBrowserFactory {
     }
   }
 
-  async close(): Promise<void> {
+  async close(opts: { releasePage?: boolean } = {}): Promise<void> {
     if (this._state === 'closed') return;
     this._state = 'closing';
     // We don't kill the daemon — it's persistent.
-    // Just clean up our reference.
-    this._page = null;
-    this._state = 'closed';
+    // Optionally release the session lease before dropping the Page reference.
+    const page = opts.releasePage ? this._page : null;
+    try {
+      await page?.closeWindow?.();
+    } catch {
+      // Best-effort cleanup: callers historically could close even if the daemon was gone.
+    } finally {
+      this._page = null;
+      this._state = 'closed';
+    }
   }
 
   private async _ensureDaemon(timeoutSeconds?: number, contextId?: string, preferredContextId?: string): Promise<void> {

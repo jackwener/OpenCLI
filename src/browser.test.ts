@@ -1,7 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { BrowserBridge, generateStealthJs } from './browser/index.js';
 import { extractTabEntries, diffTabIndexes, appendLimited } from './browser/tabs.js';
-import { withTimeoutMs } from './runtime.js';
+import { browserSession, withTimeoutMs } from './runtime.js';
 import { __test__ as cdpTest } from './browser/cdp.js';
 import { classifyBrowserError } from './browser/errors.js';
 import * as daemonTransport from './browser/daemon-transport.js';
@@ -52,6 +52,22 @@ describe('browser helpers', () => {
 
   it('times out slow promises', async () => {
     await expect(withTimeoutMs(new Promise(() => {}), 10, 'timeout')).rejects.toThrow('timeout');
+  });
+
+  it('passes releasePageOnClose through browserSession close()', async () => {
+    const close = vi.fn().mockResolvedValue(undefined);
+    class TestBrowser {
+      async connect() {
+        return {} as any;
+      }
+      async close(opts?: { releasePage?: boolean }) {
+        return close(opts);
+      }
+    }
+
+    await browserSession(TestBrowser, async () => 'ok', { releasePageOnClose: true });
+
+    expect(close).toHaveBeenCalledWith({ releasePage: true });
   });
 
   it('classifies browser errors with correct kind and retry advice', () => {
@@ -125,6 +141,30 @@ describe('BrowserBridge state', () => {
 
     await bridge.close();
 
+    expect(bridge.state).toBe('closed');
+  });
+
+  it('does not release the active browser page lease by default on close()', async () => {
+    const bridge = new BrowserBridge();
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    (bridge as unknown as { _state: string })._state = 'connected';
+    (bridge as unknown as { _page: { closeWindow: typeof closeWindow } })._page = { closeWindow };
+
+    await bridge.close();
+
+    expect(closeWindow).not.toHaveBeenCalled();
+    expect(bridge.state).toBe('closed');
+  });
+
+  it('releases the active browser page lease when requested on close()', async () => {
+    const bridge = new BrowserBridge();
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    (bridge as unknown as { _state: string })._state = 'connected';
+    (bridge as unknown as { _page: { closeWindow: typeof closeWindow } })._page = { closeWindow };
+
+    await bridge.close({ releasePage: true });
+
+    expect(closeWindow).toHaveBeenCalledTimes(1);
     expect(bridge.state).toBe('closed');
   });
 
