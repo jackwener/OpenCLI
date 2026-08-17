@@ -16,7 +16,6 @@ const ENV_KEYS = [
     'ATLASSIAN_USERNAME',
     'ATLASSIAN_PASSWORD',
     'ATLASSIAN_PAT',
-    'ATLASSIAN_JIRA_FIELDS',
 ];
 
 function clearEnv() {
@@ -100,9 +99,8 @@ describe('jira commands', () => {
         expect(rows[0].linkedIssues[0]).toEqual({ key: 'PROJ-2', type: 'Blocks', direction: 'outward' });
     });
 
-    it('uses configured fields and resolves custom field names', async () => {
+    it('uses --fields and resolves custom field names', async () => {
         setCloudEnv();
-        process.env.ATLASSIAN_JIRA_FIELDS = ' summary , status, customfield_12345, customfield_12345 ';
         vi.stubGlobal('fetch', vi.fn(async (url) => {
             const parsed = new URL(String(url));
             expect(parsed.searchParams.get('fields')).toBe('summary,status,customfield_12345');
@@ -120,7 +118,7 @@ describe('jira commands', () => {
             });
         }));
         const cmd = getRegistry().get('jira/issue');
-        const rows = await cmd.func({ key: 'PROJ-1' });
+        const rows = await cmd.func({ key: 'PROJ-1', fields: ' summary , status, customfield_12345, customfield_12345 ' });
         expect(rows[0]).toMatchObject({
             key: 'PROJ-1',
             summary: 'Checkout fails',
@@ -132,19 +130,17 @@ describe('jira commands', () => {
         expect(rows[0].linkedIssues).toEqual([]);
     });
 
-    it('rejects empty configured Jira fields', async () => {
+    it('rejects empty --fields values', async () => {
         setCloudEnv();
-        process.env.ATLASSIAN_JIRA_FIELDS = ' , ';
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
         const cmd = getRegistry().get('jira/issue');
-        await expect(cmd.func({ key: 'PROJ-1' })).rejects.toMatchObject({ code: 'CONFIG' });
+        await expect(cmd.func({ key: 'PROJ-1', fields: ' , ' })).rejects.toMatchObject({ code: 'CONFIG' });
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('fetches all fields in auto mode and cleans nulls with named custom fields', async () => {
         setCloudEnv();
-        process.env.ATLASSIAN_JIRA_FIELDS = 'auto';
         vi.stubGlobal('fetch', vi.fn(async (url) => {
             const parsed = new URL(String(url));
             expect(parsed.searchParams.has('fields')).toBe(false);
@@ -164,7 +160,7 @@ describe('jira commands', () => {
             });
         }));
         const cmd = getRegistry().get('jira/issue');
-        const rows = await cmd.func({ key: 'PROJ-1' });
+        const rows = await cmd.func({ key: 'PROJ-1', fields: 'auto' });
         expect(rows[0].fields).toEqual({
             summary: 'Checkout fails',
             'Customer Segment': 'Enterprise',

@@ -53,23 +53,22 @@ function configuredFieldNames() {
     };
 }
 
-function configuredIssueFields() {
-    const raw = process.env.ATLASSIAN_JIRA_FIELDS;
+function configuredIssueFields(raw) {
     if (raw === undefined) return null;
     if (raw.trim().toLowerCase() === 'auto') return 'auto';
 
     const fields = raw.split(',').map((field) => field.trim()).filter(Boolean);
     if (fields.length === 0) {
         throw new ConfigError(
-            'Invalid ATLASSIAN_JIRA_FIELDS',
-            'Set ATLASSIAN_JIRA_FIELDS to comma-separated field names, for example summary,status,customfield_12345.',
+            'Invalid Jira fields',
+            'Set --fields to comma-separated field names, for example summary,status,customfield_12345.',
         );
     }
     return [...new Set(fields)];
 }
 
-function issueFields(extraFields = []) {
-    const selected = configuredIssueFields();
+function issueFields(extraFields = [], fieldsOverride) {
+    const selected = configuredIssueFields(fieldsOverride);
     if (selected === 'auto') return undefined;
     if (selected !== null) return selected.join(',');
     const configured = Object.values(configuredFieldNames()).filter(Boolean);
@@ -182,7 +181,7 @@ export function normalizeJiraIssue(issue, config, options = {}) {
     const rendered = row.renderedFields && typeof row.renderedFields === 'object' && !Array.isArray(row.renderedFields)
         ? row.renderedFields
         : {};
-    const selectedFields = configuredIssueFields();
+    const selectedFields = configuredIssueFields(options.fields);
     const custom = configuredFieldNames();
     const requireNestedCollections = selectedFields === null && options.requireNestedCollections !== false;
     const comments = inlineComments(fields, key, { ...options, requireNestedCollections });
@@ -260,8 +259,8 @@ export function issueSummaryRow(issue, config) {
     };
 }
 
-export async function fetchIssue(config, key, extraFields = []) {
-    const fields = issueFields(extraFields);
+export async function fetchIssue(config, key, extraFields = [], fieldsOverride) {
+    const fields = issueFields(extraFields, fieldsOverride);
     const params = {
         expand: 'renderedFields,names',
     };

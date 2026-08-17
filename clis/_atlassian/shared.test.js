@@ -9,7 +9,6 @@ const ENV_KEYS = [
     'ATLASSIAN_API_TOKEN',
     'ATLASSIAN_PAT',
     'ATLASSIAN_JIRA_BASE_URL',
-    'ATLASSIAN_JIRA_FIELDS',
 ];
 
 function clearEnv() {
