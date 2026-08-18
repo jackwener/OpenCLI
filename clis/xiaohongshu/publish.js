@@ -989,10 +989,10 @@ async function currentComposerMediaCount(page) {
         .map((sel) => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find((el) => visibleBox(el));
-      const root = titleEl?.closest('form, [class*="publish"], [class*="editor"], [class*="note"]') || document.body;
+      const root = document.body;
       const seen = new Set();
       let count = 0;
-      for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
+      for (const el of Array.from(root.querySelectorAll('img, image, svg, video, canvas, [style*="background-image"]'))) {
         if (!visibleMedia(el)) continue;
         const rect = el.getBoundingClientRect();
         const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
