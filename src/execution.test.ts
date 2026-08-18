@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
-import { executeCommand, prepareCommandArgs } from './execution.js';
+import { coerceAndValidateArgs, executeCommand, prepareCommandArgs } from './execution.js';
 import { ArgumentError, TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
@@ -11,6 +11,22 @@ import * as runtime from './runtime.js';
 import * as capRouting from './capabilityRouting.js';
 import * as daemonClient from './browser/daemon-client.js';
 import { BrowserCommandError } from './browser/daemon-client.js';
+
+describe('coerceAndValidateArgs', () => {
+  it('rejects fractional values for integer arguments', () => {
+    const args = [{ name: 'limit', type: 'int' as const, help: 'Result limit' }];
+
+    expect(() => coerceAndValidateArgs(args, { limit: '1.5' })).toThrow(ArgumentError);
+  });
+
+  it('rejects non-finite values for numeric arguments', () => {
+    const integerArgs = [{ name: 'limit', type: 'int' as const, help: 'Result limit' }];
+    const numberArgs = [{ name: 'threshold', type: 'number' as const, help: 'Threshold' }];
+
+    expect(() => coerceAndValidateArgs(integerArgs, { limit: 'Infinity' })).toThrow(ArgumentError);
+    expect(() => coerceAndValidateArgs(numberArgs, { threshold: '-Infinity' })).toThrow(ArgumentError);
+  });
+});
 
 describe('executeCommand — non-browser timeout', () => {
   it('applies the user --timeout arg as the ceiling for non-browser commands', async () => {

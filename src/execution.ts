@@ -67,8 +67,11 @@ export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): Comm
     if (val !== undefined && val !== null) {
       if (argDef.type === 'int' || argDef.type === 'number') {
         const num = Number(val);
-        if (Number.isNaN(num)) {
+        if (!Number.isFinite(num)) {
           throw new ArgumentError(`Argument "${argDef.name}" must be a valid number. Received: "${val}"`);
+        }
+        if (argDef.type === 'int' && !Number.isInteger(num)) {
+          throw new ArgumentError(`Argument "${argDef.name}" must be a valid integer. Received: "${val}"`);
         }
         result[argDef.name] = num;
       } else if (argDef.type === 'boolean' || argDef.type === 'bool') {
