@@ -195,6 +195,17 @@ describe('satisfiesRange', () => {
     expect(satisfiesRange('1.1.0', '^1.2.0')).toBe(false);
   });
 
+  it('limits caret ranges below 1.0.0 to the next minor version', () => {
+    expect(satisfiesRange('0.2.0', '^0.2.0')).toBe(true);
+    expect(satisfiesRange('0.2.9', '^0.2.0')).toBe(true);
+    expect(satisfiesRange('0.3.0', '^0.2.0')).toBe(false);
+  });
+
+  it('limits caret ranges below 0.1.0 to the next patch version', () => {
+    expect(satisfiesRange('0.0.3', '^0.0.3')).toBe(true);
+    expect(satisfiesRange('0.0.4', '^0.0.3')).toBe(false);
+  });
+
   it('handles ~ (tilde) constraint', () => {
     expect(satisfiesRange('1.2.0', '~1.2.0')).toBe(true);
     expect(satisfiesRange('1.2.9', '~1.2.0')).toBe(true);
