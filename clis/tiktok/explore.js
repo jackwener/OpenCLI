@@ -60,32 +60,54 @@ function buildExploreScript(limit) {
     if (row && !dedup.has(row.id)) dedup.set(row.id, row);
   }
 
-  const msToken = getCookie('msToken');
-  let apiFailure = null;
-  if (dedup.size < limit) {
-    let cursor = 0;
+  async function collectEndpoint(path, label, extraParams, initialCursor) {
+    let cursor = initialCursor;
     for (let page = 0; page < maxPages && dedup.size < limit; page += 1) {
       const params = new URLSearchParams({
         aid,
         count: String(pageSize),
-        from_page: 'fyp',
-        cursor: String(cursor),
+        ...extraParams,
       });
+      if (cursor !== undefined) params.set('cursor', String(cursor));
       if (msToken) params.set('msToken', msToken);
-      try {
-        const data = await fetchJson('/api/recommend/item_list/?' + params.toString());
+      const data = await fetchJson(path + '?' + params.toString());
+      if (label === 'explore') {
+        assertTikTokApiSuccess(data, 'explore');
+      } else {
         assertTikTokApiSuccess(data, 'recommend');
-        const items = Array.isArray(data.itemList) ? data.itemList : [];
-        for (const item of items) {
-          const row = normalizeVideoItem(item, dedup.size + 1);
-          if (row && !dedup.has(row.id)) dedup.set(row.id, row);
-        }
-        if (data.hasMore !== true && items.length === 0) break;
-        cursor = asNumber(data.cursor) ?? cursor + items.length;
-      } catch (error) {
-        apiFailure = error instanceof Error ? error.message : String(error);
-        break;
       }
+      const items = Array.isArray(data.itemList)
+        ? data.itemList
+        : (Array.isArray(data.items) ? data.items : []);
+      for (const item of items) {
+        const row = normalizeVideoItem(item, dedup.size + 1);
+        if (row && !dedup.has(row.id)) dedup.set(row.id, row);
+      }
+      const nextCursor = asNumber(data.cursor);
+      const hasMore = data.hasMore === true || data.has_more === true;
+      if (!hasMore || items.length === 0 || (cursor !== undefined && nextCursor === cursor)) break;
+      cursor = nextCursor ?? ((cursor ?? 0) + items.length);
+    }
+  }
+
+  const msToken = getCookie('msToken');
+  const apiFailures = [];
+  if (dedup.size < limit) {
+    try {
+      // TikTok's current /explore page uses this endpoint. categoryType=120
+      // is the "All" tab shown by default.
+      await collectEndpoint('/api/explore/item_list/', 'explore', { categoryType: '120' });
+    } catch (error) {
+      apiFailures.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  if (dedup.size < limit) {
+    try {
+      // Keep the previous recommend feed as a compatibility fallback for
+      // regions where /explore still hydrates from the For You endpoint.
+      await collectEndpoint('/api/recommend/item_list/', 'recommend', { from_page: 'fyp' }, 0);
+    } catch (error) {
+      apiFailures.push(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -94,7 +116,7 @@ function buildExploreScript(limit) {
     .map((row, index) => ({ ...row, index: index + 1 }));
 
   if (rows.length === 0) {
-    const suffix = apiFailure ? ' (recommend API failed: ' + apiFailure + ')' : '';
+    const suffix = apiFailures.length ? ' (explore APIs failed: ' + apiFailures.join('; ') + ')' : '';
     throw new Error('No videos found on /explore' + suffix);
   }
   return rows;

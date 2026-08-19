@@ -8,8 +8,10 @@ Control the **OpenAI Codex Desktop App** headless or headfully via Chrome DevToo
 2. Launch it via the terminal and expose the remote debugging port:
    ```bash
    # macOS
-   /Applications/Codex.app/Contents/MacOS/Codex --remote-debugging-port=9238
+   /Applications/Codex.app/Contents/MacOS/ChatGPT --remote-debugging-port=9238 --remote-allow-origins=*
    ```
+
+   > Depending on your installation, the executable might be named differently, e.g., `Codex` instead of `ChatGPT`. OpenCLI's auto-launch path tries `ChatGPT` first, then `Codex`.
 
 ## Setup
 
@@ -27,7 +29,7 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9238"
 ### Agent Manipulation
 - `opencli codex new`: Simulates `Cmd+N` to start a completely fresh and isolated Git Worktree thread context.
 - `opencli codex send "message"`: Robustly finds the active Thread Composer and injects your text.
-  - *Pro-tip*: You can trigger internal shortcuts, e.g., `opencli codex send "/review"`.
+  - *Pro-tip*: You can trigger internal shortcuts and resolve the skills picker they open in one shot, e.g., `opencli codex send "/review" --pick "Review Agent"`.
 - `opencli codex ask "message"`: Send + wait + read in one shot.
 - `opencli codex read`: Extracts the entire current thread history and AI reasoning logs.
 - `opencli codex projects`: List visible sidebar projects and conversations.

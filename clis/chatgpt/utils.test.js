@@ -64,8 +64,80 @@ describe('chatgpt image wait contract', () => {
             generating: [true, true, true, true, true, true],
         });
 
-        await expect(waitForChatGPTImages(page, [], 18, convUrl)).resolves.toEqual([]);
+        await expect(waitForChatGPTImages(page, [], 18, convUrl)).rejects.toThrow(/chatgpt image timed out/);
         expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('does not return a frozen canvas snapshot as a generated image', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['data:image/png;base64,halfdrawnframe']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).rejects.toThrow(/chatgpt image timed out/);
+    });
+
+    it('rejects data URL completion candidates case-insensitively', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['DATA:image/png;base64,halfdrawnframe']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).rejects.toThrow(/chatgpt image timed out/);
+    });
+
+    it('keeps only backend-served URLs when a canvas frame renders alongside them', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['data:image/png;base64,halfdrawnframe', 'https://cdn.openai.com/generated/demo.png']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).resolves.toEqual([
+            'https://cdn.openai.com/generated/demo.png',
+        ]);
+    });
+
+    it('drops the canvas frame from a deadline capture that also has a backend URL', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['data:image/png;base64,halfdrawnframe', 'https://cdn.openai.com/generated/demo.png']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 3, convUrl)).resolves.toEqual([
+            'https://cdn.openai.com/generated/demo.png',
+        ]);
+    });
+
+    it('returns the captured URLs when generation resumes until the deadline', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false, true],
+            imageUrls: [['https://cdn.openai.com/generated/demo.png']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).resolves.toEqual([
+            'https://cdn.openai.com/generated/demo.png',
+        ]);
+    });
+
+    it('still resolves empty when the conversation finishes with no image', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [[]],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).resolves.toEqual([]);
     });
 
     it('jumps back to the captured conversation when the page drifts away', async () => {

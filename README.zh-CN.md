@@ -190,6 +190,7 @@ Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不�
 | **upwork** | `search` `feed` `detail` |
 | **slock** | `message-send` `message-read` `message-search` `channel-list` `channel-info` `channel-create` `channel-members` `channel-join` `task-list` `task-create` `task-claim` `task-status` `task-convert` `task-delete` `thread-list` `thread-follow` `attachment-upload` `attachment-download` `bookmark-add` `inbox` `dm-list` `server-list` `server-use` `whoami` |
 | **huodongxing** | `events` |
+| **midjourney** | `login` `whoami` `settings` `quota` `generate` `describe` `history` `status` `action` `download` |
 
 精选清单 — **[→ 查看全部 100+ 站点和命令](./docs/adapters/index.md)**（小红书 / B站 / 知乎 / Twitter / Reddit / 抖音 / 微博 / 微信读书 / 小宇宙 / 1688 / 夸克 / Spotify / 牛客 / arxiv / Chess.com / Bilibili / 等）。
 
@@ -315,6 +316,7 @@ opencli plugin uninstall my-tool                            # 卸载
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | 多平台热榜聚合 |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金热门文章 |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) 动态、信息流和搜索 |
+| [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | 通过 OpenCLI 与 xPoster 将带本地图片的 Markdown 发布为 X 长文 |
 
 详见 [插件指南](./docs/zh/guide/plugins.md) 了解如何创建自己的插件。
 

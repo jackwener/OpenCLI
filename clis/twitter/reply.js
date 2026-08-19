@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { parseTweetUrl } from './shared.js';
+import { parseTweetUrl, unwrapBrowserResult } from './shared.js';
 import {
     COMPOSER_FILE_INPUT_SELECTOR,
     attachComposerImage,
@@ -28,6 +28,35 @@ function isPromiseCollectedError(err) {
     return msg.includes('Promise was collected');
 }
 
+function requireReplyActionResult(value, context) {
+    const result = unwrapBrowserResult(value);
+    if (!result || typeof result !== 'object' || Array.isArray(result) || typeof result.ok !== 'boolean') {
+        throw new CommandExecutionError(`${context} returned a malformed result.`);
+    }
+    if (Object.prototype.hasOwnProperty.call(result, 'message') && result.message != null && typeof result.message !== 'string') {
+        throw new CommandExecutionError(`${context} returned a malformed message.`);
+    }
+    if (Object.prototype.hasOwnProperty.call(result, 'url') && result.url != null && typeof result.url !== 'string') {
+        throw new CommandExecutionError(`${context} returned a malformed status url.`);
+    }
+    return result;
+}
+
+function validateReplyStatusUrl(result) {
+    if (!result.url) return;
+    let url;
+    try {
+        url = new URL(result.url);
+    } catch {
+        throw new CommandExecutionError('Twitter reply completion returned a malformed status url.');
+    }
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    const match = url.pathname.match(/^\/([^/]+)\/status\/(\d+)\/?$/);
+    if (!['x.com', 'twitter.com', 'mobile.twitter.com'].includes(hostname) || !match) {
+        throw new CommandExecutionError('Twitter reply completion returned a malformed status url.');
+    }
+}
+
 async function openReplyComposer(page, rawUrl) {
     await page.goto(buildReplyComposerUrl(rawUrl), { waitUntil: 'load', settleMs: 2500 });
     try {
@@ -38,14 +67,14 @@ async function openReplyComposer(page, rawUrl) {
         // timeline behind a loading dialog. Fall back to the canonical tweet
         // page and click the visible Reply action there.
         await page.goto(rawUrl, { waitUntil: 'load', settleMs: 2500 });
-        const clicked = await page.evaluate(`(() => {
+        const clicked = requireReplyActionResult(await page.evaluate(`(() => {
             const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
             const buttons = Array.from(document.querySelectorAll('[data-testid="reply"]'));
             const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
             if (!btn) return { ok: false, message: 'Could not find the reply button on the target tweet.' };
             btn.click();
             return { ok: true };
-        })()`);
+        })()`), 'Twitter target reply click');
         if (!clicked?.ok) return clicked;
         await page.wait({ selector: COMPOSER_SELECTOR, timeout: 15 });
         return { ok: true };
@@ -53,7 +82,7 @@ async function openReplyComposer(page, rawUrl) {
 }
 
 async function insertReplyText(page, text) {
-    return page.evaluate(`(async () => {
+    return requireReplyActionResult(await page.evaluate(`(async () => {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
           const boxes = Array.from(document.querySelectorAll('[data-testid="tweetTextarea_0"]'));
@@ -86,12 +115,12 @@ async function insertReplyText(page, text) {
       } catch (e) {
           return { ok: false, message: e.toString() };
       }
-  })()`);
+  })()`), 'Twitter reply text insertion');
 }
 
 async function clickReplyButton(page) {
     const iterations = Math.ceil(SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS);
-    return page.evaluate(`(async () => {
+    return requireReplyActionResult(await page.evaluate(`(async () => {
       try {
           const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
           for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
@@ -100,6 +129,9 @@ async function clickReplyButton(page) {
               );
               const btn = buttons.find((el) => visible(el) && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
               if (btn) {
+                  for (const toast of Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))) {
+                      if (visible(toast)) toast.setAttribute('data-opencli-before-reply-toast', 'true');
+                  }
                   btn.click();
                   return { ok: true };
               }
@@ -109,55 +141,83 @@ async function clickReplyButton(page) {
       } catch (e) {
           return { ok: false, message: e.toString() };
       }
-  })()`);
+  })()`), 'Twitter reply click');
 }
 
 async function detectReplySent(page) {
-    return page.evaluate(`(() => {
+    const result = requireReplyActionResult(await page.evaluate(`(() => {
         const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+        const statusUrl = (root) => {
+            if (!root || typeof root.querySelectorAll !== 'function') return undefined;
+            const links = Array.from(root.querySelectorAll('a[href*="/status/"]'));
+            for (const link of links) {
+                const href = link.href || link.getAttribute('href') || '';
+                if (!href) continue;
+                try {
+                    const url = new URL(href, window.location.origin);
+                    const hostname = url.hostname.toLowerCase().replace(/^www\\./, '');
+                    if (!['x.com', 'twitter.com', 'mobile.twitter.com'].includes(hostname)) continue;
+                    if (/^\\/([^/]+)\\/status\\/(\\d+)\\/?$/.test(url.pathname)) return url.href;
+                } catch {}
+            }
+            return undefined;
+        };
         const toasts = Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))
-            .filter((el) => visible(el));
+            .filter((el) => visible(el) && !el.hasAttribute('data-opencli-before-reply-toast'));
         const successToast = toasts.find((el) => /sent|posted|your post was sent|your tweet was sent/i.test(el.textContent || ''));
         if (!successToast) return { ok: false };
-        const link = successToast.querySelector('a[href*="/status/"]');
         return {
             ok: true,
             message: 'Reply posted successfully.',
-            url: link?.href || link?.getAttribute('href') || undefined
+            url: statusUrl(successToast)
         };
-    })()`);
+    })()`), 'Twitter reply success recovery');
+    validateReplyStatusUrl(result);
+    return result;
 }
 
 async function waitForReplySent(page, text) {
     const iterations = Math.ceil(SUBMIT_TIMEOUT_MS / SUBMIT_POLL_MS);
     try {
-        return await page.evaluate(`(async () => {
-            const expected = ${JSON.stringify(text)};
-            const normalize = s => String(s || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
-            const expectedText = normalize(expected);
+        const result = requireReplyActionResult(await page.evaluate(`(async () => {
             const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
+            const statusUrl = (root) => {
+                if (!root || typeof root.querySelectorAll !== 'function') return undefined;
+                const links = Array.from(root.querySelectorAll('a[href*="/status/"]'));
+                for (const link of links) {
+                    const href = link.href || link.getAttribute('href') || '';
+                    if (!href) continue;
+                    try {
+                        const url = new URL(href, window.location.origin);
+                        const hostname = url.hostname.toLowerCase().replace(/^www\\./, '');
+                        if (!['x.com', 'twitter.com', 'mobile.twitter.com'].includes(hostname)) continue;
+                        if (/^\\/([^/]+)\\/status\\/(\\d+)\\/?$/.test(url.pathname)) return url.href;
+                    } catch {}
+                }
+                return undefined;
+            };
             for (let i = 0; i < ${JSON.stringify(iterations)}; i++) {
                 await new Promise(r => setTimeout(r, ${JSON.stringify(SUBMIT_POLL_MS)}));
                 const toasts = Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))
-                    .filter((el) => visible(el));
+                    .filter((el) => visible(el) && !el.hasAttribute('data-opencli-before-reply-toast'));
                 const successToast = toasts.find((el) => /sent|posted|your post was sent|your tweet was sent/i.test(el.textContent || ''));
                 if (successToast) {
-                    const link = successToast.querySelector('a[href*="/status/"]');
                     return {
                         ok: true,
                         message: 'Reply posted successfully.',
-                        url: link?.href || link?.getAttribute('href') || undefined
+                        url: statusUrl(successToast)
                     };
                 }
                 const alert = toasts.find((el) => /failed|error|try again|not sent|could not/i.test(el.textContent || ''));
                 if (alert) return { ok: false, message: (alert.textContent || 'Reply failed to post.').trim() };
 
-                const boxes = Array.from(document.querySelectorAll('[data-testid="tweetTextarea_0"]')).filter(visible);
-                const composerStillHasText = boxes.some((box) => normalize(box.innerText || box.textContent || '').includes(expectedText));
-                if (!composerStillHasText) return { ok: true, message: 'Reply posted successfully.' };
+                // Composer disappearance or text clearing alone can happen after
+                // modal rewrites or failed submits. Require a fresh success toast.
             }
             return { ok: false, message: 'Reply submission did not complete before timeout.' };
-        })()`);
+        })()`), 'Twitter reply completion');
+        validateReplyStatusUrl(result);
+        return result;
     } catch (err) {
         // X may route the SPA immediately after click, making CDP collect the
         // polling promise even though the reply was submitted. If the page now

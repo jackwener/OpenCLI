@@ -2,7 +2,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
-import { ArgumentError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { GEMINI_DOMAIN, exportGeminiImages, getGeminiVisibleImageUrls, sendGeminiMessage, startNewGeminiChat, waitForGeminiImages } from './utils.js';
 function extFromMime(mime) {
     if (mime.includes('png'))
@@ -22,6 +22,16 @@ function normalizeBooleanFlag(value) {
 function displayPath(filePath) {
     const home = os.homedir();
     return filePath.startsWith(home) ? `~${filePath.slice(home.length)}` : filePath;
+}
+export function resolveOutputDir(value) {
+    const raw = String(value || '').trim();
+    if (!raw)
+        return path.join(os.homedir(), 'tmp', 'gemini-images');
+    if (raw === '~')
+        return os.homedir();
+    if (raw.startsWith('~/'))
+        return path.join(os.homedir(), raw.slice(2));
+    return path.resolve(raw);
 }
 function buildImagePrompt(prompt, options) {
     const extras = [];
@@ -68,7 +78,7 @@ export const imageCommand = cli({
         const prompt = kwargs.prompt;
         const ratio = normalizeRatio(String(kwargs.rt ?? '1:1'));
         const style = String(kwargs.st ?? '').trim();
-        const outputDir = kwargs.op || path.join(os.homedir(), 'tmp', 'gemini-images');
+        const outputDir = resolveOutputDir(kwargs.op);
         const timeout = kwargs.timeout;
         if (!Number.isInteger(timeout) || timeout < 1) {
             throw new ArgumentError('--timeout must be a positive integer (seconds)');
@@ -87,14 +97,14 @@ export const imageCommand = cli({
         const urls = await waitForGeminiImages(page, beforeUrls, timeout);
         const link = await currentGeminiLink(page);
         if (!urls.length) {
-            return [{ status: '⚠️ no-images', file: '📁 -', link: `🔗 ${link}` }];
+            throw new EmptyResultError('gemini image', `No generated image was detected. Open ${link} and check whether Gemini produced one.`);
         }
         if (skipDownload) {
             return [{ status: '🎨 generated', file: '📁 -', link: `🔗 ${link}` }];
         }
         const assets = await exportGeminiImages(page, urls);
         if (!assets.length) {
-            return [{ status: '⚠️ export-failed', file: '📁 -', link: `🔗 ${link}` }];
+            throw new CommandExecutionError('Failed to export the generated Gemini image', `Open ${link} and verify the image is visible, then retry.`);
         }
         const stamp = Date.now();
         const results = [];

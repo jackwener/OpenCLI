@@ -21,7 +21,7 @@ export const askCommand = cli({
         { name: 'prompt', positional: true, required: true, help: 'Prompt to send' },
         { name: 'timeout', type: 'int', default: 120, help: 'Max seconds to wait for response' },
         { name: 'new', type: 'boolean', default: false, help: 'Start a new chat before sending' },
-        { name: 'model', default: 'sonnet', choices: ['sonnet', 'opus', 'haiku'], help: 'Model to use: sonnet, opus, or haiku' },
+        { name: 'model', choices: ['sonnet', 'opus', 'haiku'], help: 'Switch to sonnet, opus, or haiku before sending. Omit to keep the current selection.' },
         { name: 'think', type: 'boolean', default: false, help: 'Enable Adaptive thinking' },
         { name: 'file', help: 'Attach a file (image, PDF, text) with the prompt' },
     ],
@@ -68,20 +68,21 @@ export const askCommand = cli({
         await withRetry(() => ensureClaudeComposer(page, 'Claude ask requires a visible composer on the current page.'));
 
         // Model selector is only available on the new-chat page, not inside
-        // an existing conversation. Skip it when we resumed a prior thread.
+        // an existing conversation. Also avoid changing the user's current
+        // UI selection unless --model was explicitly passed.
         const currentUrl = await page.evaluate('window.location.href') || '';
         const inConversation = currentUrl.includes('/chat/');
         const modelExplicit = kwargs.__opencliOptionSources?.model === 'cli';
 
         const wantModel = kwargs.model || 'sonnet';
-        if (inConversation && modelExplicit) {
-            throw new ArgumentError(
-                `Cannot switch to ${wantModel} model inside an existing conversation.`,
-                'Re-run with --new to start a fresh chat before selecting a model.',
-            );
-        }
+        if (modelExplicit) {
+            if (inConversation) {
+                throw new ArgumentError(
+                    `Cannot switch to ${wantModel} model inside an existing conversation.`,
+                    'Re-run with --new to start a fresh chat before selecting a model.',
+                );
+            }
 
-        if (!inConversation) {
             const modelResult = await withRetry(() => selectModel(page, wantModel));
             if (!modelResult?.ok) {
                 if (modelResult?.upgrade) {

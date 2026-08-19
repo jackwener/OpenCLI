@@ -213,6 +213,32 @@ describe('doctor report rendering', () => {
     }
   });
 
+  it('threads the configured default profile into the health read', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-doctor-profile-'));
+    fs.writeFileSync(
+      path.join(configDir, 'browser-profiles.json'),
+      JSON.stringify({ version: 1, aliases: {}, defaultContextId: 'zvypsyje' }),
+    );
+    vi.stubEnv('OPENCLI_CONFIG_DIR', configDir);
+    vi.stubEnv('OPENCLI_PROFILE', '');
+    try {
+      mockGetDaemonHealth.mockResolvedValueOnce({
+        state: 'ready',
+        status: { extensionConnected: true },
+      });
+
+      await runBrowserDoctor();
+
+      expect(mockGetDaemonHealth).toHaveBeenCalledWith({ preferredContextId: 'zvypsyje' });
+    } finally {
+      vi.unstubAllEnvs();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  });
+
   it('reports flapping when live check succeeds but final status shows extension disconnected', async () => {
     mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
 

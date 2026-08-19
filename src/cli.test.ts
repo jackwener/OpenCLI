@@ -1110,6 +1110,8 @@ describe('browser tab targeting commands', () => {
   beforeEach(() => {
     process.exitCode = undefined;
     process.env.OPENCLI_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tab-state-'));
+    process.env.OPENCLI_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-profile-'));
+    delete process.env.OPENCLI_PROFILE;
     consoleLogSpy.mockClear();
     stderrSpy.mockClear();
     mockBrowserConnect.mockClear();

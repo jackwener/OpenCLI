@@ -156,6 +156,24 @@ describe('facebook feed', () => {
     }]);
   });
 
+  it('keeps scrolling when raw article markers reach the limit but valid rows do not (#2195)', async () => {
+    const page = {
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(4)
+        .mockResolvedValueOnce({ status: 'no_rows', rows: [] })
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce({
+          status: 'ok',
+          rows: [{ index: 1, author: 'A', content: 'Body', likes: '-', comments: '-', shares: '-' }],
+        }),
+    };
+
+    await __test__.loadFeedPosts(page, 1);
+
+    expect(page.evaluate).toHaveBeenCalledTimes(4);
+    expect(String(page.evaluate.mock.calls[1][0])).toContain('primaryContainers');
+  });
+
   it('maps auth, real empty, parser drift, and malformed payloads to typed errors', async () => {
     await expect(__test__.command.func(createPage({ status: 'auth', rows: [] }), { limit: 1 }))
       .rejects.toBeInstanceOf(AuthRequiredError);

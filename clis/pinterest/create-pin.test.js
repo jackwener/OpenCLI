@@ -51,15 +51,22 @@ describe('pinterest create-pin command', () => {
         const setFileInput = vi.fn().mockRejectedValue(new Error('Chrome Not allowed'));
         const page = makePage([
             { loggedIn: true, hasCreateSurface: true },
+            { ok: true, profile: 'janedoe' },
+            { loggedIn: true, hasCreateSurface: true },
+            { ok: true, action: 'pin' },
             { ok: true, selector: 'input[type="file"]' },
             { ok: true, count: 1 },
             { ok: true, count: 1 },
             { ok: true, field: 'title' },
+            { ok: true, kind: 'textarea' },
             { ok: true, field: 'description' },
-            { ok: true, board: 'Ideas' },
-            { ok: true, label: 'Publish' },
+            { ok: true, label: 'Publish', x: 100, y: 50 },
+            { ok: false },
             { ok: true, url: 'https://www.pinterest.com/pin/123456789/' },
-        ], { setFileInput });
+        ], {
+            setFileInput,
+            nativeClick: vi.fn().mockResolvedValue(undefined),
+        });
 
         const result = await command.func(page, {
             image: 'ant.jpg',

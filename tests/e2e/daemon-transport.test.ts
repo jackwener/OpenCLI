@@ -12,6 +12,7 @@
  * - the per-command deadline produces a structured 408, not a hang
  * - extension disconnect after dispatch yields command_result_unknown
  * - a stale preferred profile falls back to the only connected profile
+ * - /status resolves multi-profile ambiguity through preferredContextId
  * - graceful shutdown flushes structured 503s instead of dropping sockets
  *
  * Requires port 19825 (the fixed bridge port); lives in the e2e-fixed-port
@@ -96,9 +97,9 @@ class FakeExtension {
   }
 }
 
-async function getStatus(): Promise<any | null> {
+async function getStatus(query = ''): Promise<any | null> {
   try {
-    const res = await fetch(`${BASE}/status`, { headers: HEADERS, signal: AbortSignal.timeout(2_000) });
+    const res = await fetch(`${BASE}/status${query}`, { headers: HEADERS, signal: AbortSignal.timeout(2_000) });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -291,6 +292,29 @@ describe('daemon transport contracts (real daemon)', () => {
       expect(required.result.errorCode).toBe('profile_disconnected');
     } finally {
       ext.close();
+    }
+  });
+
+  it('resolves /status multi-profile ambiguity through preferredContextId', async () => {
+    if (guard()) return;
+    const first = new FakeExtension();
+    const second = new FakeExtension();
+    await first.connect('ctx-status-a');
+    await second.connect('ctx-status-b');
+    try {
+      // Two live profiles and no hint → ambiguous, the caller must pick.
+      const ambiguous = await getStatus();
+      expect(ambiguous?.profileRequired).toBe(true);
+      expect(ambiguous?.extensionConnected).toBe(false);
+
+      // The forwarded preference resolves the ambiguity (#2259).
+      const preferred = await getStatus('?preferredContextId=ctx-status-b');
+      expect(preferred?.profileRequired).toBe(false);
+      expect(preferred?.contextId).toBe('ctx-status-b');
+      expect(preferred?.extensionConnected).toBe(true);
+    } finally {
+      first.close();
+      second.close();
     }
   });
 

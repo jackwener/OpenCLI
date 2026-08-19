@@ -83,7 +83,8 @@ cli({
         const input = String(kwargs.input ?? '');
         const payload = await readProductPayload(page, input);
         if (!cleanText(payload.product_title)) {
-            throw new CommandExecutionError('amazon product page did not expose product content', 'The product page may have changed or hit a robot check. Open the product page in Chrome and retry.');
+            const landedUrl = cleanText(payload.href) || buildProductUrl(input);
+            throw new CommandExecutionError(`amazon product page did not expose product content (landed on ${landedUrl})`, 'The product page may have changed or hit a robot check. Open the product page in Chrome and retry.');
         }
         return [normalizeProductPayload(payload)];
     },

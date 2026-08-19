@@ -1,4 +1,5 @@
 import { cli } from '@jackwener/opencli/registry';
+import { buildResolveInstagramUserIdJs } from './_shared/user-id.js';
 cli({
     site: 'instagram',
     name: 'followers',
@@ -15,17 +16,11 @@ cli({
         { evaluate: `(async () => {
   const username = \${{ args.username | json }};
   const limit = \${{ args.limit }};
+  if (!Number.isInteger(limit) || limit < 1) throw new Error('limit must be a positive integer');
   const headers = { 'X-IG-App-ID': '936619743392459' };
   const opts = { credentials: 'include', headers };
 
-  const r1 = await fetch(
-    'https://www.instagram.com/api/v1/users/web_profile_info/?username=' + encodeURIComponent(username),
-    opts
-  );
-  if (!r1.ok) throw new Error('HTTP ' + r1.status + ' - make sure you are logged in to Instagram');
-  const d1 = await r1.json();
-  const userId = d1?.data?.user?.id;
-  if (!userId) throw new Error('User not found: ' + username);
+  ${buildResolveInstagramUserIdJs()}
 
   const r2 = await fetch(
     'https://www.instagram.com/api/v1/friendships/' + userId + '/followers/?count=' + limit,
@@ -33,13 +28,27 @@ cli({
   );
   if (!r2.ok) throw new Error('Failed to fetch followers: HTTP ' + r2.status);
   const d2 = await r2.json();
-  return (d2?.users || []).slice(0, limit).map((u, i) => ({
-    rank: i + 1,
-    username: u.username || '',
-    name: u.full_name || '',
-    verified: u.is_verified ? 'Yes' : 'No',
-    private: u.is_private ? 'Yes' : 'No',
-  }));
+  if (!d2 || typeof d2 !== 'object' || !Array.isArray(d2.users)) {
+    throw new Error('Instagram followers returned malformed users payload');
+  }
+  return d2.users.slice(0, limit).map((u, i) => {
+    if (!u || typeof u !== 'object') {
+      throw new Error('Instagram followers returned malformed user row');
+    }
+    const pkRaw = u.pk ?? u.pk_id ?? u.id;
+    const pk = typeof pkRaw === 'number' ? String(pkRaw) : (typeof pkRaw === 'string' ? pkRaw.trim() : '');
+    const usernameValue = typeof u.username === 'string' ? u.username.trim() : '';
+    if (!/^\\d+$/.test(pk) || !usernameValue) {
+      throw new Error('Instagram followers returned malformed user row');
+    }
+    return {
+      rank: i + 1,
+      username: usernameValue,
+      name: typeof u.full_name === 'string' ? u.full_name : '',
+      verified: u.is_verified ? 'Yes' : 'No',
+      private: u.is_private ? 'Yes' : 'No',
+    };
+  });
 })()
 ` },
     ],

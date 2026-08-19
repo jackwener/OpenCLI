@@ -7312,9 +7312,8 @@
       {
         "name": "model",
         "type": "str",
-        "default": "sonnet",
         "required": false,
-        "help": "Model to use: sonnet, opus, or haiku",
+        "help": "Switch to sonnet, opus, or haiku before sending. Omit to keep the current selection.",
         "choices": [
           "sonnet",
           "opus",
@@ -8057,6 +8056,12 @@
         "required": true,
         "positional": true,
         "help": "Text, command (e.g. /review), or skill (e.g. $imagegen)"
+      },
+      {
+        "name": "pick",
+        "type": "str",
+        "required": false,
+        "help": "Picker option label to select when a slash command opens the picker (e.g. \"Review Agent\")"
       },
       {
         "name": "project",
@@ -12802,7 +12807,7 @@
         "type": "string",
         "required": true,
         "positional": true,
-        "help": "用户 sec_uid（URL 末尾部分）"
+        "help": "用户 sec_uid（个人主页 URL 末尾部分，也可直接传整条主页 URL）"
       },
       {
         "name": "limit",
@@ -12854,14 +12859,7 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "每页数量"
-      },
-      {
-        "name": "page",
-        "type": "int",
-        "default": 1,
-        "required": false,
-        "help": "页码"
+        "help": "最多返回多少个作品（跨页自动收集）"
       },
       {
         "name": "status",
@@ -12883,6 +12881,10 @@
       "status",
       "play_count",
       "digg_count",
+      "comment_count",
+      "collect_count",
+      "share_count",
+      "duration",
       "create_time"
     ],
     "type": "js",
@@ -25011,6 +25013,600 @@
     "sourceFile": "mercury/reimbursement-plan.js"
   },
   {
+    "site": "midjourney",
+    "name": "action",
+    "description": "Run a typed Creation Action: vary, upscale, rerun, edit, animate, loop, extend, or cancel",
+    "access": "write",
+    "example": "opencli midjourney action <job> vary-subtle --index 1 --dry-run",
+    "domain": "www.midjourney.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "job",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Source job UUID or /jobs/<uuid> URL"
+      },
+      {
+        "name": "operation",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "rerun, rerun-hd, vary-subtle, vary-strong, upscale-subtle, upscale-creative, open-editor, animate-low, animate-high, loop-low, loop-high, extend-low, extend-high, cancel"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "default": 1,
+        "required": false,
+        "help": "Source candidate 1..4"
+      },
+      {
+        "name": "video-resolution",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "auto, sd, or hd"
+      },
+      {
+        "name": "batch-size",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "auto, 1, 2, or 4"
+      },
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": false,
+        "help": "Manual motion/extension prompt"
+      },
+      {
+        "name": "end-frame",
+        "type": "str",
+        "required": false,
+        "help": "One local path, HTTPS image URL, or Midjourney job URL"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Wait for a derived job to complete"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum submission/generation seconds (1..900)"
+      },
+      {
+        "name": "dry-run",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Validate and estimate without clicking the action"
+      },
+      {
+        "name": "max-minutes",
+        "type": "str",
+        "default": 2,
+        "required": false,
+        "help": "Maximum estimated Fast GPU minutes allowed"
+      },
+      {
+        "name": "reserve-minutes",
+        "type": "str",
+        "default": 0,
+        "required": false,
+        "help": "Minimum Fast GPU minutes to keep after this command"
+      }
+    ],
+    "columns": [
+      "job_id",
+      "parent_job_id",
+      "status",
+      "operation",
+      "requested_model",
+      "effective_model",
+      "routing_reason",
+      "estimated_minutes",
+      "observed_minutes",
+      "index",
+      "file",
+      "url"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "midjourney/action.js",
+    "sourceFile": "midjourney/action.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "midjourney",
+    "name": "describe",
+    "description": "Upload one image and return Midjourney's four Describe prompt suggestions without generating images",
+    "access": "write",
+    "example": "opencli midjourney describe /path/reference.png -f json",
+    "domain": "www.midjourney.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "image",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Local PNG, JPEG, WEBP, or GIF (10MB maximum)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 60,
+        "required": false,
+        "help": "Maximum seconds to wait for four suggestions"
+      }
+    ],
+    "columns": [
+      "rank",
+      "prompt",
+      "source",
+      "created_at"
+    ],
+    "type": "js",
+    "modulePath": "midjourney/describe.js",
+    "sourceFile": "midjourney/describe.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "midjourney",
+    "name": "download",
+    "description": "Download original images, raw video, social MP4, or GIF with MIME and atomic-write checks",
+    "access": "write",
+    "example": "opencli midjourney download <job> --kind auto --index all",
+    "domain": "www.midjourney.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "job",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Job UUID or Midjourney /jobs/<uuid> URL"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "Candidate 1..4 or all"
+      },
+      {
+        "name": "kind",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "auto, image, video-raw, video-social, or gif"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "~/Pictures/Midjourney",
+        "required": false,
+        "help": "Output directory"
+      },
+      {
+        "name": "force",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Overwrite existing non-empty files"
+      }
+    ],
+    "columns": [
+      "job_id",
+      "status",
+      "kind",
+      "index",
+      "file",
+      "bytes",
+      "mime",
+      "url"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "midjourney/download.js",
+    "sourceFile": "midjourney/download.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "midjourney",
+    "name": "generate",
+    "description": "Generate Midjourney images with references, model routing, cost guards, recovery, and optional download",
+    "access": "write",
+    "example": "opencli midjourney generate \"a blue ceramic teapot --ar 1:1\" --dry-run",
+    "domain": "www.midjourney.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Prompt with any native Midjourney --parameters"
+      },
+      {
+        "name": "model",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "auto, v8.2, v8.1, v7, v6.1, v6, niji7, or niji6"
+      },
+      {
+        "name": "resolution",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "auto, sd, or hd"
+      },
+      {
+        "name": "speed",
+        "type": "str",
+        "default": "auto",
+        "required": false,
+        "help": "auto, fast, relax, or turbo"
+      },
+      {
+        "name": "image-ref",
+        "type": "str",
+        "required": false,
+        "help": "Local path, HTTPS URL, job URL, or JSON array"
+      },
+      {
+        "name": "style-ref",
+        "type": "str",
+        "required": false,
+        "help": "Local path, HTTPS URL, job URL, style code, or JSON array"
+      },
+      {
+        "name": "omni-ref",
+        "type": "str",
+        "required": false,
+        "help": "Exactly one local path, HTTPS URL, or job URL; auto routes to V7"
+      },
+      {
+        "name": "image-weight",
+        "type": "str",
+        "required": false,
+        "help": "Image Prompt weight, 0..3"
+      },
+      {
+        "name": "style-weight",
+        "type": "str",
+        "required": false,
+        "help": "Style Reference weight, 0..1000"
+      },
+      {
+        "name": "omni-weight",
+        "type": "str",
+        "required": false,
+        "help": "Omni Reference weight, 0..1000"
+      },
+      {
+        "name": "profile",
+        "type": "str",
+        "required": false,
+        "help": "Personalization profile or Moodboard ID"
+      },
+      {
+        "name": "repeat",
+        "type": "int",
+        "required": false,
+        "help": "Repeat/permutation job count; defaults to 1 (plan limit applies)"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "default": true,
+        "required": false,
+        "help": "Wait for completion; false returns after unique job association"
+      },
+      {
+        "name": "index",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "Download candidate 1..4 or all"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "~/Pictures/Midjourney",
+        "required": false,
+        "help": "Output directory"
+      },
+      {
+        "name": "skip-download",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Do not write completed images"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum submission/generation seconds (1..900)"
+      },
+      {
+        "name": "dry-run",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Validate and estimate without uploading or submitting"
+      },
+      {
+        "name": "max-minutes",
+        "type": "str",
+        "default": 2,
+        "required": false,
+        "help": "Maximum estimated Fast GPU minutes allowed"
+      },
+      {
+        "name": "reserve-minutes",
+        "type": "str",
+        "default": 0,
+        "required": false,
+        "help": "Minimum Fast GPU minutes to keep after this command"
+      },
+      {
+        "name": "force",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Overwrite existing non-empty output files"
+      }
+    ],
+    "columns": [
+      "job_id",
+      "parent_job_id",
+      "status",
+      "operation",
+      "requested_model",
+      "effective_model",
+      "routing_reason",
+      "estimated_minutes",
+      "observed_minutes",
+      "index",
+      "file",
+      "url"
+    ],
+    "defaultFormat": "plain",
+    "type": "js",
+    "modulePath": "midjourney/generate.js",
+    "sourceFile": "midjourney/generate.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "midjourney",
+    "name": "history",
+    "description": "List recent Midjourney image, video, and derived jobs with real lifecycle status",
+    "access": "read",
+    "example": "opencli midjourney history --limit 10 --type all -f json",
+    "domain": "www.midjourney.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of matching jobs (1..100)"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "all, image, or video"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "all, queued, running, completed, failed, or cancelled"
+      },
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "help": "Case-insensitive prompt substring"
+      }
+    ],
+    "columns": [
+      "job_id",
+      "parent_job_id",
+      "status",
+      "type",
+      "operation",
+      "model",
+      "resolution",
+      "created_at",
+      "batch_size",
+      "command",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "midjourney/history.js",
+    "sourceFile": "midjourney/history.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "midjourney",
+    "name": "login",
+    "description": "Open Midjourney in a foreground Chrome window and wait for login to complete",
+    "access": "write",
+    "example": "opencli midjourney login --timeout 300",
+    "domain": "www.midjourney.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for interactive login (1..900)"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "plan",
+      "subscription_status"
+    ],
+    "type": "js",
+    "modulePath": "midjourney/login.js",
+    "sourceFile": "midjourney/login.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "midjourney",
+    "name": "quota",
+    "aliases": [
+      "account"
+    ],
+    "description": "Show Midjourney quota, conservative batch estimates, and account-consumption trend",
+    "access": "read",
+    "example": "opencli midjourney quota -f yaml",
+    "domain": "www.midjourney.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "plan",
+      "period_end",
+      "allocated_minutes",
+      "used_minutes",
+      "remaining_minutes",
+      "used_pct",
+      "days_remaining",
+      "avg_daily_minutes",
+      "projected_exhaustion_date",
+      "sd_batches_remaining",
+      "hd_batches_remaining",
+      "omni_batches_remaining"
+    ],
+    "type": "js",
+    "modulePath": "midjourney/quota.js",
+    "sourceFile": "midjourney/quota.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "midjourney",
+    "name": "settings",
+    "description": "Read the currently selected Midjourney image and video settings from the visible Create UI",
+    "access": "read",
+    "example": "opencli midjourney settings -f yaml",
+    "domain": "www.midjourney.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "model",
+      "image_resolution",
+      "personalization",
+      "raw",
+      "speed",
+      "video_resolution",
+      "video_batch_size"
+    ],
+    "type": "js",
+    "modulePath": "midjourney/settings.js",
+    "sourceFile": "midjourney/settings.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "midjourney",
+    "name": "status",
+    "description": "Show the current state and metadata of one Midjourney job",
+    "access": "read",
+    "example": "opencli midjourney status d5664250-5f1f-4cd0-9637-2ce0153dd30a -f yaml",
+    "domain": "www.midjourney.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "job",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Job UUID or Midjourney /jobs/<uuid> URL"
+      }
+    ],
+    "columns": [
+      "job_id",
+      "parent_job_id",
+      "status",
+      "progress_pct",
+      "operation",
+      "model",
+      "resolution",
+      "created_at",
+      "batch_size",
+      "error",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "midjourney/status.js",
+    "sourceFile": "midjourney/status.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent"
+  },
+  {
+    "site": "midjourney",
+    "name": "whoami",
+    "description": "Verify the current Midjourney login and show non-identifying subscription state",
+    "access": "read",
+    "example": "opencli midjourney whoami -f json",
+    "domain": "www.midjourney.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "plan",
+      "subscription_status"
+    ],
+    "type": "js",
+    "modulePath": "midjourney/whoami.js",
+    "sourceFile": "midjourney/whoami.js",
+    "navigateBefore": "https://www.midjourney.com/imagine",
+    "siteSession": "persistent"
+  },
+  {
     "site": "mubu",
     "name": "doc",
     "description": "读取幕布文档内容（默认输出 Markdown，可用 --output text 输出纯文本）",
@@ -27682,6 +28278,287 @@
   },
   {
     "site": "pinterest",
+    "name": "board-create",
+    "description": "Create a new board on your account",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Board name"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Board description"
+      },
+      {
+        "name": "privacy",
+        "type": "string",
+        "default": "public",
+        "required": false,
+        "help": "public or secret",
+        "choices": [
+          "public",
+          "secret"
+        ]
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "privacy",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-create.js",
+    "sourceFile": "pinterest/board-create.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-delete",
+    "description": "Delete one of your own boards",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete — without it the board is only previewed"
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "pinCount",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-delete.js",
+    "sourceFile": "pinterest/board-delete.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-pins",
+    "description": "List pins inside a Pinterest board",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of pins (max 100)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-pins.js",
+    "sourceFile": "pinterest/board-pins.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-section-create",
+    "description": "Create a section inside one of your boards",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "help": "Section title"
+      }
+    ],
+    "columns": [
+      "sectionId",
+      "title",
+      "slug",
+      "board",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-section-create.js",
+    "sourceFile": "pinterest/board-section-create.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-section-delete",
+    "description": "Delete a section from one of your boards",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "required": true,
+        "help": "Section id or slug (from `board-sections`)"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete — without it nothing is removed"
+      }
+    ],
+    "columns": [
+      "sectionId",
+      "board",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-section-delete.js",
+    "sourceFile": "pinterest/board-section-delete.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-sections",
+    "description": "List the sections inside a Pinterest board",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Number of sections (max 250)"
+      }
+    ],
+    "columns": [
+      "sectionId",
+      "title",
+      "slug",
+      "pinCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-sections.js",
+    "sourceFile": "pinterest/board-sections.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "board-update",
+    "description": "Update the name, description, or privacy of your board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "<username>/<slug>, a board URL, or a numeric board id, e.g. janedoe/my-board"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "New board name"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "help": "New board description (pass \"\" to clear)"
+      },
+      {
+        "name": "privacy",
+        "type": "string",
+        "required": false,
+        "help": "New privacy: public or secret",
+        "choices": [
+          "public",
+          "secret"
+        ]
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "privacy",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/board-update.js",
+    "sourceFile": "pinterest/board-update.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
     "name": "create-pin",
     "description": "Create and publish a Pinterest Pin from the logged-in browser session",
     "access": "write",
@@ -27744,6 +28621,506 @@
     "sourceFile": "pinterest/create-pin.js",
     "navigateBefore": false,
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "pinterest",
+    "name": "download",
+    "description": "Download a pin's original image to disk",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      },
+      {
+        "name": "output",
+        "type": "string",
+        "default": "./pinterest-downloads",
+        "required": false,
+        "help": "Output directory"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "status",
+      "size",
+      "path"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/download.js",
+    "sourceFile": "pinterest/download.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin",
+    "description": "Get details of a Pinterest pin",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "saveCount",
+      "commentCount",
+      "link",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin.js",
+    "sourceFile": "pinterest/pin.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin-create",
+    "description": "Create a pin from a remote image URL onto a board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "image",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Direct image URL Pinterest can fetch (not a page URL), e.g. https://example.com/image.jpg"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": true,
+        "help": "Target board: <username>/<slug>, board URL, or board id (a new pin always needs a board)"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional board section id or slug"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Pin title"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Pin description (Pinterest may override it for scraped images)"
+      },
+      {
+        "name": "link",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Destination link for the pin"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "board",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-create.js",
+    "sourceFile": "pinterest/pin-create.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin-delete",
+    "description": "Delete one of your own pins",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Actually delete — without it the pin is only previewed"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "board",
+      "deleted"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-delete.js",
+    "sourceFile": "pinterest/pin-delete.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "pin-update",
+    "description": "Update a pin's title, description, link, or board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL, e.g. 1234567890123456"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "New pin title"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false,
+        "help": "New pin description (pass \"\" to clear)"
+      },
+      {
+        "name": "link",
+        "type": "string",
+        "required": false,
+        "help": "New destination link (pass \"\" to clear)"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Move the pin to this board: <username>/<slug>, board URL, or board id"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Move the pin to this board section id or slug (requires --board)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "board",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/pin-update.js",
+    "sourceFile": "pinterest/pin-update.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "save",
+    "description": "Save a pin to your profile or a board",
+    "access": "write",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Pin id or pin URL to repin, e.g. 1234567890123456"
+      },
+      {
+        "name": "board",
+        "type": "string",
+        "required": false,
+        "help": "Target board: <username>/<slug>, board URL, or board id (omit to save to your profile)"
+      },
+      {
+        "name": "section",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional board section id or slug (requires --board)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "sourcePinId",
+      "board",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/save.js",
+    "sourceFile": "pinterest/save.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "search-boards",
+    "description": "Search for boards on Pinterest",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of boards (max 100)"
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "pinCount",
+      "owner",
+      "description",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/search-boards.js",
+    "sourceFile": "pinterest/search-boards.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "search-pins",
+    "description": "Search pins on Pinterest",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of pins (max 100)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/search-pins.js",
+    "sourceFile": "pinterest/search-pins.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "search-users",
+    "description": "Search for users on Pinterest",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of users (max 100)"
+      }
+    ],
+    "columns": [
+      "username",
+      "fullName",
+      "followerCount",
+      "pinCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/search-users.js",
+    "sourceFile": "pinterest/search-users.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "user",
+    "description": "Get a Pinterest user's public profile stats",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username or profile URL, e.g. janedoe"
+      }
+    ],
+    "columns": [
+      "username",
+      "fullName",
+      "followerCount",
+      "followingCount",
+      "interestFollowingCount",
+      "pinCount",
+      "boardCount",
+      "about",
+      "website",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/user.js",
+    "sourceFile": "pinterest/user.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "user-boards",
+    "description": "List a user's boards",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username or profile URL, e.g. janedoe"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of boards (max 250)"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "last_pinned_to",
+        "required": false,
+        "help": "Board sort order",
+        "choices": [
+          "last_pinned_to",
+          "alphabetical",
+          "custom"
+        ]
+      }
+    ],
+    "columns": [
+      "boardId",
+      "name",
+      "pinCount",
+      "sectionCount",
+      "privacy",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/user-boards.js",
+    "sourceFile": "pinterest/user-boards.js",
+    "navigateBefore": "https://www.pinterest.com"
+  },
+  {
+    "site": "pinterest",
+    "name": "user-pins",
+    "description": "List pins created by a Pinterest user",
+    "access": "read",
+    "domain": "www.pinterest.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Username or profile URL, e.g. janedoe"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of pins (max 100)"
+      }
+    ],
+    "columns": [
+      "pinId",
+      "title",
+      "description",
+      "pinner",
+      "board",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "pinterest/user-pins.js",
+    "sourceFile": "pinterest/user-pins.js",
+    "navigateBefore": "https://www.pinterest.com"
   },
   {
     "site": "pixiv",
@@ -30832,7 +32209,7 @@
         "type": "boolean",
         "default": false,
         "required": false,
-        "help": "Include nested replies (楼中楼)"
+        "help": "Include nested replies; reply_to is the direct target shown by the page"
       }
     ],
     "columns": [
@@ -38000,14 +39377,39 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Maximum number of bookmarks to return (default 20)."
+        "help": "Maximum number of bookmarks to return (default 20). Ignored when --all is set."
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Fetch all bookmark pages until exhausted. Prefer --output-file for large archives."
+      },
+      {
+        "name": "resume-file",
+        "type": "string",
+        "required": false,
+        "help": "Resume file for long-running all-pages bookmark syncs."
+      },
+      {
+        "name": "output-file",
+        "type": "string",
+        "required": false,
+        "help": "Write all-page results to JSONL. Requires --all and --resume-file."
+      },
+      {
+        "name": "max-pages",
+        "type": "int",
+        "required": false,
+        "help": "Optional pagination safety cap (default 100; raised automatically with --all)."
       },
       {
         "name": "top-by-engagement",
         "type": "int",
         "default": 0,
         "required": false,
-        "help": "When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API's native (saved-time) ordering."
+        "help": "When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API's native (saved-time) ordering. Incompatible with --output-file."
       }
     ],
     "columns": [
@@ -38026,6 +39428,52 @@
     "type": "js",
     "modulePath": "twitter/bookmarks.js",
     "sourceFile": "twitter/bookmarks.js",
+    "navigateBefore": "https://x.com"
+  },
+  {
+    "site": "twitter",
+    "name": "collection",
+    "description": "Fetch a user timeline with relationship facts and a bounded completion receipt.",
+    "access": "read",
+    "domain": "x.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "username",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Twitter screen name (with or without @)."
+      },
+      {
+        "name": "until",
+        "type": "string",
+        "required": true,
+        "help": "RFC3339 lower time boundary that must be reached or exhausted."
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10000,
+        "required": false,
+        "help": "Safety ceiling; reaching it is a typed failure."
+      },
+      {
+        "name": "page-delay",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "Seconds to wait between cursor pages."
+      }
+    ],
+    "columns": [
+      "posts",
+      "receipt"
+    ],
+    "type": "js",
+    "modulePath": "twitter/collection.js",
+    "sourceFile": "twitter/collection.js",
     "navigateBefore": "https://x.com"
   },
   {
@@ -38346,14 +39794,39 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Maximum number of liked tweets to return (default 20)."
+        "help": "Maximum number of liked tweets to return (default 20). Ignored when --all is set."
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Fetch all liked-tweet pages until exhausted. Prefer --output-file for large archives."
+      },
+      {
+        "name": "resume-file",
+        "type": "string",
+        "required": false,
+        "help": "Resume file for long-running all-pages likes syncs."
+      },
+      {
+        "name": "output-file",
+        "type": "string",
+        "required": false,
+        "help": "Write all-page results to JSONL. Requires --all and --resume-file."
+      },
+      {
+        "name": "max-pages",
+        "type": "int",
+        "required": false,
+        "help": "Optional pagination safety cap (default 100; raised automatically with --all)."
       },
       {
         "name": "top-by-engagement",
         "type": "int",
         "default": 0,
         "required": false,
-        "help": "When set to N>0, re-rank the liked tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API's native (recency) ordering."
+        "help": "When set to N>0, re-rank the liked tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API's native (recency) ordering. Incompatible with --output-file."
       }
     ],
     "columns": [
@@ -42803,7 +44276,7 @@
         "type": "boolean",
         "default": false,
         "required": false,
-        "help": "Include nested replies (楼中楼)"
+        "help": "Include nested replies; reply_to is the direct target shown by the page"
       }
     ],
     "columns": [

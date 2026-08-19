@@ -39,6 +39,7 @@ opencli rednote download "https://www.rednote.com/search_result/<id>?xsec_token=
 ```
 
 > Note: `note`, `comments`, and `download` require a full signed rednote.com note URL with `xsec_token`. Bare note IDs and xhslink.com short links are not accepted because they cannot prove the rednote host/cookie identity before navigation.
+> With `comments --with-replies`, `reply_to` is the direct reply target displayed by the page. Replies without an explicit `回复 <name>` marker target the enclosing top-level comment.
 
 ## Prerequisites
 

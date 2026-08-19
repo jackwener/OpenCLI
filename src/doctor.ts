@@ -12,7 +12,7 @@ import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserProfileStatus } from './browser/daemon-transport.js';
-import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import { aliasForContextId, loadProfileConfig, profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
@@ -111,8 +111,10 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
   const connectivity = await checkConnectivity();
 
-  // Single status read *after* connectivity side-effects settle.
-  const health = await getDaemonHealth();
+  // Single status read *after* connectivity side-effects settle. Threads the
+  // profile selection like command dispatch does, so a configured default is
+  // arbitrated instead of read as multi-profile ambiguity (#2259).
+  const health = await getDaemonHealth(profileRouteParams(resolveProfileSelection()));
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;

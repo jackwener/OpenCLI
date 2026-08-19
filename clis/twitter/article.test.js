@@ -164,4 +164,54 @@ describe('twitter article command', () => {
         await expect(command.func(page, { 'tweet-id': '1234567890' }))
             .rejects.toThrow(/article blocks were malformed/);
     });
+
+    it('renders atomic media using entity keys rather than entityMap array positions', async () => {
+        const command = getRegistry().get('twitter/article');
+        const page = createPageWithEvaluateResults([
+            null,
+            undefined,
+        ]);
+        page.evaluate.mockImplementationOnce(() => Promise.resolve(null));
+        page.evaluate.mockImplementationOnce(async (script) => evaluateArticleFetchScript(script, validArticlePayload({
+            tweet: {
+                article: {
+                    article_results: {
+                        result: {
+                            title: 'Article with image',
+                            content_state: {
+                                blocks: [
+                                    { type: 'unstyled', text: 'before' },
+                                    { type: 'atomic', text: ' ', entityRanges: [{ key: 0, offset: 0, length: 1 }] },
+                                    { type: 'unstyled', text: 'after' },
+                                ],
+                                entityMap: [
+                                    { key: '7', value: { type: 'LINK', data: { url: 'https://example.com' } } },
+                                    {
+                                        key: '0',
+                                        value: {
+                                            type: 'MEDIA',
+                                            data: {
+                                                caption: 'architecture diagram',
+                                                mediaItems: [{ mediaId: 'media-1' }],
+                                            },
+                                        },
+                                    },
+                                ],
+                            },
+                            media_entities: [{
+                                media_id: 'media-1',
+                                media_info: { original_img_url: 'https://pbs.twimg.com/media/example.jpg' },
+                            }],
+                        },
+                    },
+                },
+            },
+        })));
+
+        await expect(command.func(page, { 'tweet-id': '1234567890' })).resolves.toEqual([
+            expect.objectContaining({
+                content: 'before\n\n![architecture diagram](https://pbs.twimg.com/media/example.jpg)\n\nafter',
+            }),
+        ]);
+    });
 });

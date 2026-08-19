@@ -173,6 +173,32 @@ cli({
         if (!Array.isArray(blocks)) {
           return {error: 'Twitter API response article blocks were malformed'};
         }
+        // The current GraphQL response serializes Draft.js entityMap as an
+        // unordered [{key, value}] array, not an object keyed by entity id.
+        // Normalize both representations before resolving atomic blocks.
+        const rawEntityMap = contentState.entityMap || {};
+        const entityByKey = {};
+        if (Array.isArray(rawEntityMap)) {
+          for (const entry of rawEntityMap) {
+            if (entry && entry.key != null && entry.value) {
+              entityByKey[String(entry.key)] = entry.value;
+            }
+          }
+        } else {
+          for (const [key, entry] of Object.entries(rawEntityMap)) {
+            entityByKey[String(key)] = entry?.value || entry;
+          }
+        }
+
+        // Build media_id -> original_img_url lookup from media_entities.
+        const mediaEntities = articleResults.media_entities || [];
+        const mediaUrlById = {};
+        for (const me of Object.values(mediaEntities)) {
+          const url = me?.media_info?.original_img_url;
+          if (typeof url === 'string' && me?.media_id != null) {
+            mediaUrlById[String(me.media_id)] = url;
+          }
+        }
 
         // Convert draft.js blocks to Markdown
         const parts = [];
@@ -180,7 +206,17 @@ cli({
         for (const block of blocks) {
           if (!block || typeof block !== 'object' || Array.isArray(block)) continue;
           const blockType = block.type || 'unstyled';
-          if (blockType === 'atomic') continue;
+          if (blockType === 'atomic') {
+            const entityKey = block.entityRanges?.[0]?.key;
+            const entity = entityKey == null ? null : entityByKey[String(entityKey)];
+            if (entity?.type === 'MEDIA') {
+              const mediaId = entity.data?.mediaItems?.[0]?.mediaId;
+              const imgUrl = mediaId == null ? null : mediaUrlById[String(mediaId)];
+              const caption = String(entity.data?.caption || 'Image').replaceAll(']', '&#93;');
+              if (imgUrl) parts.push('![' + caption + '](' + imgUrl + ')');
+            }
+            continue;
+          }
           const text = block.text || '';
           if (!text) continue;
           if (blockType !== 'ordered-list-item') orderedCounter = 0;

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './post.js';
 
@@ -217,6 +218,176 @@ describe('twitter post command', () => {
         expect(submitScript).toContain('your post was sent');
     });
 
+    // The compose route is a modal over the home timeline. The helper stubs the
+    // pre-submit steps but runs click + submit polling against a real DOM.
+    const runPostAgainstDom = async (html, text, { afterClickHtml = '' } = {}) => {
+        const dom = new JSDOM(`<!doctype html><body><button data-testid="tweetButton">Post</button>${html}</body>`, {
+            url: 'https://x.com/compose/post',
+            runScripts: 'outside-only',
+        });
+        dom.window.setTimeout = (callback) => {
+            callback();
+            return 0;
+        };
+        dom.window.HTMLElement.prototype.getClientRects = () => [{ width: 10, height: 10 }];
+        const page = makePage([]);
+        let evaluateCount = 0;
+        page.evaluate.mockImplementation((script) => {
+            evaluateCount += 1;
+            if (evaluateCount <= 2) return Promise.resolve({ ok: true });
+            if (evaluateCount === 3) {
+                const result = dom.window.eval(script);
+                if (afterClickHtml) {
+                    dom.window.document.body.insertAdjacentHTML('beforeend', afterClickHtml);
+                }
+                return Promise.resolve(result);
+            }
+            return Promise.resolve(dom.window.eval(script));
+        });
+        return getCommand().func(page, { text });
+    };
+
+    it('does not report success from a cleared composer and a timeline permalink', async () => {
+        const timelineOnly = '<article><a href="/nasa/status/1111111111111111111">someone else</a></article>';
+
+        await expect(runPostAgainstDom(timelineOnly, 'cleared composer')).resolves.toEqual([
+            { status: 'failed', message: 'Tweet submission did not complete before timeout.', text: 'cleared composer' },
+        ]);
+    });
+
+    it('keeps the permalink that the success toast carries', async () => {
+        const timeline = '<article><a href="/nasa/status/1111111111111111111">someone else</a></article>';
+        const toast = `
+            <article><a href="/nasa/status/1111111111111111111">someone else</a></article>
+            <div role="alert">Your post was sent. <a href="/me/status/2222222222222222222">View</a></div>
+        `;
+
+        await expect(runPostAgainstDom(timeline, 'toast permalink', { afterClickHtml: toast })).resolves.toEqual([
+            {
+                status: 'success',
+                message: 'Tweet posted successfully.',
+                text: 'toast permalink',
+                id: '2222222222222222222',
+                url: 'https://x.com/me/status/2222222222222222222',
+            },
+        ]);
+    });
+
+    it('does not export a permalink from an untrusted toast link host', async () => {
+        const toast = `
+            <div role="alert">Your post was sent. <a href="https://example.com/me/status/2222222222222222222">View</a></div>
+        `;
+
+        await expect(runPostAgainstDom('', 'bad host', { afterClickHtml: toast })).resolves.toEqual([
+            { status: 'success', message: 'Tweet posted successfully.', text: 'bad host' },
+        ]);
+    });
+
+    it('ignores a success toast that existed before clicking post', async () => {
+        const oldToast = `
+            <div role="alert">Your post was sent. <a href="/me/status/3333333333333333333">View</a></div>
+        `;
+
+        await expect(runPostAgainstDom(oldToast, 'old toast')).resolves.toEqual([
+            { status: 'failed', message: 'Tweet submission did not complete before timeout.', text: 'old toast' },
+        ]);
+    });
+
+    it('unwraps Browser Bridge envelopes for action results', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { session: 'site:twitter', data: { ok: true } },
+            { session: 'site:twitter', data: { ok: true } },
+            { session: 'site:twitter', data: { ok: true } },
+            {
+                session: 'site:twitter',
+                data: {
+                    ok: true,
+                    message: 'Tweet posted successfully.',
+                    id: '4444444444444444444',
+                    url: 'https://x.com/me/status/4444444444444444444',
+                },
+            },
+        ]);
+
+        await expect(command.func(page, { text: 'wrapped' })).resolves.toEqual([
+            {
+                status: 'success',
+                message: 'Tweet posted successfully.',
+                text: 'wrapped',
+                id: '4444444444444444444',
+                url: 'https://x.com/me/status/4444444444444444444',
+            },
+        ]);
+    });
+
+    it('fails closed when submit completion returns only an id', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true },
+            { ok: true },
+            { ok: true },
+            { ok: true, message: 'Tweet posted successfully.', id: '5555555555555555555' },
+        ]);
+
+        await expect(command.func(page, { text: 'bad pair' })).rejects.toThrow('only one of id/url');
+    });
+
+    it('fails closed when submit completion returns a non-string id', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true },
+            { ok: true },
+            { ok: true },
+            { ok: true, message: 'Tweet posted successfully.', id: 5555555555555555, url: 'https://x.com/me/status/5555555555555555' },
+        ]);
+
+        await expect(command.func(page, { text: 'bad id type' })).rejects.toThrow('malformed status id');
+    });
+
+    it('fails closed when submit completion returns an untrusted status URL', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true },
+            { ok: true },
+            { ok: true },
+            {
+                ok: true,
+                message: 'Tweet posted successfully.',
+                id: '6666666666666666666',
+                url: 'https://example.com/me/status/6666666666666666666',
+            },
+        ]);
+
+        await expect(command.func(page, { text: 'bad url host' })).rejects.toThrow('malformed status url');
+    });
+
+    it('fails closed when submit completion returns a mismatched status id/url', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true },
+            { ok: true },
+            { ok: true },
+            {
+                ok: true,
+                message: 'Tweet posted successfully.',
+                id: '7777777777777777777',
+                url: 'https://x.com/me/status/8888888888888888888',
+            },
+        ]);
+
+        await expect(command.func(page, { text: 'mismatched pair' })).rejects.toThrow('malformed status url');
+    });
+
+    it('requires an explicit root for the permalink lookup', async () => {
+        const command = getCommand();
+        const page = makePage([{ ok: true }, { ok: true }, { ok: true }, { ok: true, message: 'Tweet posted successfully.' }]);
+
+        await command.func(page, { text: 'explicit root' });
+
+        expect(page.evaluate.mock.calls[3][0]).toContain('const statusUrl = (root) =>');
+    });
+
     it('does not let global timeline tweetPhoto nodes keep the submit poll pending', async () => {
         const command = getCommand();
         const page = makePage([
@@ -229,9 +400,9 @@ describe('twitter post command', () => {
         await command.func(page, { text: 'global media should not block' });
 
         const submitScript = page.evaluate.mock.calls[3][0];
-        expect(submitScript).toContain("document.querySelector('[data-testid=\"attachments\"]')");
         expect(submitScript).not.toContain("[data-testid=\"attachments\"], [data-testid=\"tweetPhoto\"]");
         expect(submitScript).not.toContain("document.querySelectorAll('[data-testid=\"tweetPhoto\"]");
+        expect(submitScript).toContain('data-opencli-before-submit-toast');
     });
 
     it('returns failed when image upload times out', async () => {

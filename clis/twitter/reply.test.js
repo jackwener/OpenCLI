@@ -158,6 +158,124 @@ describe('twitter reply command', () => {
             url: 'https://x.com/me/status/123',
         }]);
     });
+
+    // Run the click + completion polling scripts against a DOM so current
+    // submit evidence is tested instead of just trusting mocked evaluate rows.
+    const runReplyAgainstDom = async (html, text, { afterClickHtml = '' } = {}) => {
+        const cmd = getRegistry().get('twitter/reply');
+        const dom = new JSDOM(`<!doctype html><body><button data-testid="tweetButton">Reply</button>${html}</body>`, {
+            url: 'https://x.com/compose/post?in_reply_to=2040254679301718161',
+            runScripts: 'outside-only',
+        });
+        dom.window.setTimeout = (callback) => {
+            callback();
+            return 0;
+        };
+        dom.window.HTMLElement.prototype.getClientRects = () => [{ width: 10, height: 10 }];
+        let evaluateCount = 0;
+        const page = createPageMock([], {
+            evaluate: vi.fn((script) => {
+                evaluateCount += 1;
+                if (evaluateCount === 1) return Promise.resolve({ ok: true });
+                if (evaluateCount === 2) {
+                    const result = dom.window.eval(script);
+                    if (afterClickHtml) {
+                        dom.window.document.body.insertAdjacentHTML('beforeend', afterClickHtml);
+                    }
+                    return Promise.resolve(result);
+                }
+                return Promise.resolve(dom.window.eval(script));
+            }),
+        });
+
+        return cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161?s=20',
+            text,
+        });
+    };
+
+    it('does not report reply success from a cleared composer without a fresh toast', async () => {
+        await expect(runReplyAgainstDom('', 'cleared reply')).resolves.toEqual([
+            { status: 'failed', message: 'Reply submission did not complete before timeout.', text: 'cleared reply' },
+        ]);
+    });
+
+    it('ignores a reply success toast that existed before clicking Reply', async () => {
+        const oldToast = `
+            <div role="alert">Your post was sent. <a href="/me/status/3333333333333333333">View</a></div>
+        `;
+
+        await expect(runReplyAgainstDom(oldToast, 'old reply toast')).resolves.toEqual([
+            { status: 'failed', message: 'Reply submission did not complete before timeout.', text: 'old reply toast' },
+        ]);
+    });
+
+    it('returns the permalink from a fresh reply success toast only', async () => {
+        const timeline = '<article><a href="/nasa/status/1111111111111111111">someone else</a></article>';
+        const toast = `
+            <div role="alert">Your post was sent. <a href="/me/status/4444444444444444444">View</a></div>
+        `;
+
+        await expect(runReplyAgainstDom(timeline, 'fresh reply toast', { afterClickHtml: toast })).resolves.toEqual([
+            {
+                status: 'success',
+                message: 'Reply posted successfully.',
+                text: 'fresh reply toast',
+                url: 'https://x.com/me/status/4444444444444444444',
+            },
+        ]);
+    });
+
+    it('does not export a reply permalink from an untrusted toast link host', async () => {
+        const toast = `
+            <div role="alert">Your post was sent. <a href="https://example.com/me/status/5555555555555555555">View</a></div>
+        `;
+
+        await expect(runReplyAgainstDom('', 'reply bad host', { afterClickHtml: toast })).resolves.toEqual([
+            { status: 'success', message: 'Reply posted successfully.', text: 'reply bad host' },
+        ]);
+    });
+
+    it('unwraps Browser Bridge envelopes for reply action results', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        const page = createPageMock([
+            { session: 'site:twitter', data: { ok: true } },
+            { session: 'site:twitter', data: { ok: true } },
+            {
+                session: 'site:twitter',
+                data: {
+                    ok: true,
+                    message: 'Reply posted successfully.',
+                    url: 'https://x.com/me/status/6666666666666666666',
+                },
+            },
+        ]);
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161?s=20',
+            text: 'wrapped reply',
+        })).resolves.toEqual([{
+            status: 'success',
+            message: 'Reply posted successfully.',
+            text: 'wrapped reply',
+            url: 'https://x.com/me/status/6666666666666666666',
+        }]);
+    });
+
+    it('fails closed when reply completion returns a malformed status URL', async () => {
+        const cmd = getRegistry().get('twitter/reply');
+        const page = createPageMock([
+            { ok: true },
+            { ok: true },
+            { ok: true, message: 'Reply posted successfully.', url: 'https://example.com/me/status/7777777777777777777' },
+        ]);
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/_kop6/status/2040254679301718161?s=20',
+            text: 'bad reply url',
+        })).rejects.toThrow('malformed status url');
+    });
+
     it('rejects using --image and --image-url together', async () => {
         const cmd = getRegistry().get('twitter/reply');
         expect(cmd?.func).toBeTypeOf('function');

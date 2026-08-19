@@ -41,6 +41,68 @@ describe('amazon discussion normalization', () => {
     ]);
   });
 
+  it('keeps the review marketplace in every emitted url', () => {
+    const result = __test__.normalizeDiscussionPayload({
+      href: 'https://www.amazon.co.uk/product-reviews/B0FGCPFY9L',
+      average_rating_text: '4.4 out of 5',
+      total_review_count_text: '40 global ratings',
+      qa_links: [],
+      review_samples: [],
+    });
+
+    expect(result.asin).toBe('B0FGCPFY9L');
+    expect(result.discussion_url).toBe('https://www.amazon.co.uk/product-reviews/B0FGCPFY9L');
+    expect(result.product_url).toBe('https://www.amazon.co.uk/dp/B0FGCPFY9L');
+  });
+
+  it('requests the review page on the marketplace the input names', async () => {
+    const command = getRegistry().get('amazon/discussion');
+    const page = createPageMock([
+      {
+        href: 'https://www.amazon.co.uk/product-reviews/B0FGCPFY9L',
+        title: 'Amazon.co.uk: Example product',
+        body_text: 'Customer reviews',
+      },
+      {
+        href: 'https://www.amazon.co.uk/product-reviews/B0FGCPFY9L',
+        average_rating_text: '4.4 out of 5',
+        total_review_count_text: '40 global ratings',
+        review_samples: [],
+      },
+    ]);
+
+    await command.func(page, { input: 'https://www.amazon.co.uk/product-reviews/B0FGCPFY9L', limit: 1 });
+
+    expect(page.goto.mock.calls[0][0]).toBe('https://www.amazon.co.uk/product-reviews/B0FGCPFY9L');
+  });
+
+  it('names the loaded url when neither page exposes a review summary', async () => {
+    const command = getRegistry().get('amazon/discussion');
+    const emptyPayload = { href: 'https://www.amazon.co.uk/dp/B0FGCPFY9L', average_rating_text: '', total_review_count_text: '', review_samples: [] };
+    const page = createPageMock([
+      { href: 'https://www.amazon.co.uk/product-reviews/B0FGCPFY9L', title: 'Amazon.co.uk', body_text: 'Customer reviews' },
+      emptyPayload,
+      { href: 'https://www.amazon.co.uk/dp/B0FGCPFY9L', title: 'Amazon.co.uk', body_text: 'Product' },
+      emptyPayload,
+    ]);
+
+    await expect(command.func(page, { input: 'https://www.amazon.co.uk/dp/B0FGCPFY9L', limit: 1 }))
+      .rejects.toThrow('landed on https://www.amazon.co.uk/dp/B0FGCPFY9L');
+  });
+
+  it('points a gated non-US review page at that marketplace, not the US store', async () => {
+    const command = getRegistry().get('amazon/discussion');
+    const signIn = { href: 'https://www.amazon.co.uk/ap/signin', title: 'Amazon Sign-In', body_text: 'Sign in Create account' };
+    const page = createPageMock([
+      signIn,
+      { href: signIn.href, average_rating_text: '', total_review_count_text: '', review_samples: [] },
+      signIn,
+    ]);
+
+    await expect(command.func(page, { input: 'https://www.amazon.co.uk/dp/B0FGCPFY9L', limit: 1 }))
+      .rejects.toMatchObject({ domain: 'www.amazon.co.uk' });
+  });
+
   it('falls back to the product page when the review page redirects to sign-in', async () => {
     const command = getRegistry().get('amazon/discussion');
     const page = createPageMock([

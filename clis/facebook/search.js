@@ -54,11 +54,34 @@ function buildSearchExtractScript(limit) {
       try { u = new URL(href, 'https://www.facebook.com'); } catch (e) { return false; }
       // drop hidden-domain .com spam — real results stay on facebook.com
       if (!/(^|\\.)facebook\\.com$/i.test(u.hostname)) return false;
+      // l.facebook.com / lm.facebook.com only wrap outbound links (/l.php?u=…);
+      // they are redirect shims, never search entities.
+      if (/^lm?\\.facebook\\.com$/i.test(u.hostname)) return false;
       const p = u.pathname;
       if (/^\\/search(\\/|$)/i.test(p)) return false;                  // decoy links back to search (incl. bare /search)
       // chrome / non-result destinations that the catch-all below would keep
       if (/^\\/(login|checkpoint|help|policies|privacy|settings|bookmarks|messages|notifications|marketplace|gaming|friends|requests|saved|me)\\b/i.test(p)) return false;
-      return /^\\/(profile\\.php|groups\\/|events\\/|watch\\/|reel\\/|pages\\/|permalink\\.php|story\\.php|[^/]+\\/posts\\/|[^/]+\\/videos\\/|[A-Za-z0-9.\\-]{2,}\\/?$)/i.test(p);
+      return /^\\/(profile\\.php|photo\\.php|groups\\/|events\\/|watch\\/|reel\\/|pages\\/|permalink\\.php|story\\.php|[^/]+\\/posts\\/|[^/]+\\/videos\\/|[A-Za-z0-9.\\-]{2,}\\/?$)/i.test(p);
+    }
+
+    // Query-identity destinations (permalink.php?story_fbid=…, story.php,
+    // photo.php?fbid=…, watch/?v=…) collapse into a single row when the query is
+    // dropped — different posts/videos share the same pathname. Keep the identity
+    // params, but only those: FB appends per-render tracking nonces (__cft__,
+    // __tn__, ref) that would otherwise defeat dedup by making the same post look
+    // unique on every render.
+    function entityKey(u) {
+      const p = u.pathname.toLowerCase();
+      let identityParams = [];
+      if (p === '/profile.php') identityParams = ['id'];
+      else if (p === '/permalink.php' || p === '/story.php') {
+        identityParams = ['story_fbid', 'story_id', 'fbid', 'id'];
+      } else if (p === '/photo.php') identityParams = ['fbid', 'id'];
+      else if (p === '/watch' || p === '/watch/') identityParams = ['v'];
+      const ids = identityParams
+        .filter((k) => u.searchParams.has(k))
+        .map((k) => k + '=' + u.searchParams.get(k));
+      return ids.length ? (u.origin + u.pathname + '?' + ids.join('&')) : (u.origin + u.pathname);
     }
 
     function isAuthPage() {
@@ -81,8 +104,8 @@ function buildSearchExtractScript(limit) {
       const rawHref = a.href || a.getAttribute('href') || '';
       if (!isEntityHref(rawHref)) continue;
       let key;
-      try { const u = new URL(rawHref, 'https://www.facebook.com'); key = u.origin + u.pathname; }
-      catch (e) { key = rawHref.split('?')[0].split('#')[0]; }
+      try { const u = new URL(rawHref, 'https://www.facebook.com'); key = entityKey(u); }
+      catch (e) { key = rawHref.split('#')[0]; }
       if (seen.has(key)) continue;
 
       const title = clean(a.textContent).substring(0, 80);

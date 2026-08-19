@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
+import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './bookmarks.js';
 
 const { parseBookmarks, extractBookmarkTweet } = __test__;
@@ -202,5 +204,278 @@ describe('twitter bookmarks parser', () => {
 
     it('returns empty tweets + null cursor for unknown envelope', () => {
         expect(parseBookmarks({}, new Set())).toEqual({ tweets: [], nextCursor: null });
+    });
+});
+
+function bookmarksPayload(withBottomCursor = false) {
+    const entries = [{
+        entryId: 'tweet-1',
+        content: {
+            itemContent: {
+                tweet_results: {
+                    result: {
+                        rest_id: '1',
+                        legacy: {
+                            full_text: 'bookmarked post',
+                            favorite_count: 3,
+                            retweet_count: 1,
+                            bookmark_count: 4,
+                            created_at: 'now',
+                        },
+                        core: {
+                            user_results: {
+                                result: {
+                                    legacy: { screen_name: 'alice', name: 'Alice' },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }];
+    if (withBottomCursor) {
+        entries.push({
+            entryId: 'cursor-bottom-1',
+            content: {
+                entryType: 'TimelineTimelineCursor',
+                cursorType: 'Bottom',
+                value: 'NEXT_CURSOR',
+            },
+        });
+    }
+    return {
+        data: {
+            bookmark_timeline_v2: {
+                timeline: {
+                    instructions: [{ entries }],
+                },
+            },
+        },
+    };
+}
+
+describe('twitter bookmarks command', () => {
+    it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const resumeFile = `/tmp/opencli-bookmarks-resume-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-bookmarks-out-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('Bookmarks') && text.includes('queryId')) return null;
+                if (text.includes('/Bookmarks')) return bookmarksPayload(true);
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'bookmarks',
+                complete: false,
+                pages: 1,
+                cursor: 'NEXT_CURSOR',
+                resumeFile,
+            });
+            expect(fs.existsSync(resumeFile)).toBe(true);
+            const resume = __test__.readResumeFile(resumeFile);
+            expect(resume).toMatchObject({
+                cursor: 'NEXT_CURSOR',
+                count: 1,
+                complete: false,
+                source: 'bookmarks',
+                outputFile,
+            });
+            expect(fs.readFileSync(outputFile, 'utf8').trim().split('\n')).toHaveLength(1);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
+    });
+
+    it('removes resume file only after the bookmarks timeline is exhausted', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const resumeFile = `/tmp/opencli-bookmarks-resume-done-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-bookmarks-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const page = {
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('Bookmarks') && text.includes('queryId')) return null;
+                if (text.includes('/Bookmarks')) return bookmarksPayload(false);
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'bookmarks',
+                complete: true,
+                pages: 1,
+            });
+            expect(result.cursor).toBeUndefined();
+            expect(fs.existsSync(resumeFile)).toBe(false);
+            expect(fs.existsSync(outputFile)).toBe(true);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
+    });
+});
+
+describe('twitter bookmarks archive safety', () => {
+    function pageFor(payload = bookmarksPayload(false), { wrapped = false } = {}) {
+        return {
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = String(script);
+                if (text.includes('operationName')) {
+                    return wrapped ? { session: 'site:twitter', data: null } : null;
+                }
+                if (text.includes('/Bookmarks')) {
+                    return wrapped ? { session: 'site:twitter', data: payload } : payload;
+                }
+                throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+            }),
+        };
+    }
+
+    it('rejects --resume-file without --all before touching the browser', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const page = { getCookies: vi.fn(), evaluate: vi.fn() };
+        await expect(command.func(page, { 'resume-file': '/tmp/resume.json' }))
+            .rejects.toThrow(/--resume-file requires --all/);
+        expect(page.getCookies).not.toHaveBeenCalled();
+    });
+
+    it('unwraps Browser Bridge envelopes for query resolution and bookmark payloads', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const rows = await command.func(pageFor(bookmarksPayload(false), { wrapped: true }), { limit: 1 });
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ id: '1', author: 'alice', text: 'bookmarked post' });
+    });
+
+    it('refuses to overwrite an existing output file without matching resume state', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const outputFile = `/tmp/opencli-bookmarks-existing-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = `${outputFile}.resume.json`;
+        fs.writeFileSync(outputFile, 'user-owned\n');
+        try {
+            await expect(command.func(pageFor(), {
+                all: true,
+                'output-file': outputFile,
+                'resume-file': resumeFile,
+            })).rejects.toThrow(/Refusing to overwrite/);
+            expect(fs.readFileSync(outputFile, 'utf8')).toBe('user-owned\n');
+        }
+        finally {
+            fs.rmSync(outputFile, { force: true });
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('rejects cross-source and cross-output resume state', () => {
+        const resumeFile = `/tmp/opencli-bookmarks-mismatch-${process.pid}-${Date.now()}.json`;
+        try {
+            fs.writeFileSync(resumeFile, JSON.stringify({
+                cursor: 'NEXT',
+                count: 0,
+                tweets: [],
+                complete: false,
+                source: 'likes',
+                outputFile: null,
+            }));
+            expect(() => __test__.readResumeFile(resumeFile, {
+                source: 'bookmarks',
+                outputFile: null,
+            })).toThrow(/source mismatch/);
+            fs.writeFileSync(resumeFile, JSON.stringify({
+                cursor: 'NEXT',
+                count: 0,
+                complete: false,
+                source: 'bookmarks',
+                outputFile: '/tmp/other.jsonl',
+            }));
+            expect(() => __test__.readResumeFile(resumeFile, {
+                source: 'bookmarks',
+                outputFile: '/tmp/wanted.jsonl',
+            })).toThrow(/output mismatch/);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('rejects output files whose JSONL record count differs from resume state', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const outputFile = `/tmp/opencli-bookmarks-count-mismatch-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = `${outputFile}.resume.json`;
+        fs.writeFileSync(outputFile, '{"id":"1"}\n{"id":"2"}\n');
+        fs.writeFileSync(resumeFile, JSON.stringify({
+            cursor: 'NEXT',
+            count: 1,
+            complete: false,
+            source: 'bookmarks',
+            outputFile,
+        }));
+        try {
+            await expect(command.func(pageFor(), {
+                all: true,
+                'output-file': outputFile,
+                'resume-file': resumeFile,
+            })).rejects.toThrow(/expected resume count 1/);
+        }
+        finally {
+            fs.rmSync(outputFile, { force: true });
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('throws for an incomplete in-memory --all run while retaining resume state', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        const resumeFile = `/tmp/opencli-bookmarks-memory-${process.pid}-${Date.now()}.json`;
+        try {
+            await expect(command.func(pageFor(bookmarksPayload(true)), {
+                all: true,
+                'max-pages': 1,
+                'resume-file': resumeFile,
+            })).rejects.toThrow(/archive_incomplete/);
+            expect(__test__.readResumeFile(resumeFile)).toMatchObject({
+                cursor: 'NEXT_CURSOR',
+                count: 1,
+                source: 'bookmarks',
+                complete: false,
+            });
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+        }
+    });
+
+    it('fails closed when the Bookmarks payload has no timeline instructions', async () => {
+        const command = getRegistry().get('twitter/bookmarks');
+        await expect(command.func(pageFor({ data: {} }), { all: true }))
+            .rejects.toThrow(/missing Bookmarks timeline instructions/);
     });
 });

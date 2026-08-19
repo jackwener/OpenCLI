@@ -309,12 +309,35 @@ async function loadFeedPosts(page, limit) {
         + Array.from(document.querySelectorAll('[aria-label]')).filter((el) => /^(Actions for this post|此帖子的操作|针对此帖子的操作|贴文的操作)$/i.test((el.getAttribute('aria-label') || '').trim())).length
       : 0;
   })()`;
-  let prev = -1;
+  const extractStep = buildFeedExtractScript(limit);
+  let prevMarkerCount = -1;
+  let prevRowCount = -1;
+  let stalledPasses = 0;
   for (let i = 0; i < 8; i += 1) {
-    let count = 0;
-    try { count = Number(unwrapBrowserResult(await page.evaluate(scrollStep))) || 0; } catch { break; }
-    if (count >= limit || count === prev) break;
-    prev = count;
+    let markerCount = 0;
+    try { markerCount = Number(unwrapBrowserResult(await page.evaluate(scrollStep))) || 0; } catch { break; }
+
+    // Raw article/menu counts include comments, suggestions, and other chrome.
+    // Do not stop merely because those markers reached --limit (#2195); stop
+    // when the actual feed extractor has enough valid rows.
+    let rowCount = 0;
+    try {
+      const payload = unwrapBrowserResult(await page.evaluate(extractStep));
+      rowCount = Array.isArray(payload && payload.rows) ? payload.rows.length : 0;
+    } catch {
+      // The final extraction below owns error classification. A transient
+      // observation failure here should only make the bounded scroll continue.
+    }
+    if (rowCount >= limit) break;
+
+    if (markerCount === prevMarkerCount && rowCount === prevRowCount) {
+      stalledPasses += 1;
+      if (stalledPasses >= 2) break;
+    } else {
+      stalledPasses = 0;
+    }
+    prevMarkerCount = markerCount;
+    prevRowCount = rowCount;
   }
 }
 
@@ -390,5 +413,6 @@ export const __test__ = {
   buildFeedExtractScript,
   command,
   getFacebookFeed,
+  loadFeedPosts,
   requireLimit,
 };

@@ -78,22 +78,36 @@ export function clickBySvgNameScript(svgName, opts = {}) {
     const svgs = Array.from(document.querySelectorAll('svg[name="' + ${JSON.stringify(svgName)} + '"], svg[role="img"][name="' + ${JSON.stringify(svgName)} + '"]')).filter(isVisible);
     if (!svgs.length) return { ok: false, reason: 'No visible svg[name="' + ${JSON.stringify(svgName)} + '"].' };
     const svg = ${last ? 'svgs[svgs.length - 1]' : 'svgs[0]'};
-    // Walk up to the nearest clickable ancestor.
-    let target = svg;
-    for (let i = 0; i < 6; i++) {
-      const parent = target.parentElement;
-      if (!parent) break;
-      target = parent;
-      if (target.tagName === 'BUTTON' || target.getAttribute('role') === 'button' || target.onclick || target.tagName === 'A') break;
+    // React handlers are delegated, so inline onclick is often empty even on
+    // clickable Kimi controls. Keep the nearest parent as the fallback, and
+    // only replace it when a scanned ancestor is explicitly recognizable.
+    const isClickTarget = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      const role = el.getAttribute('role');
+      const cls = String(el.className || '');
+      if (tag === 'BUTTON' || tag === 'A' || role === 'button') return true;
+      if (/send-button-container|operation|action|button|btn/i.test(cls)) return true;
+      return getComputedStyle(el).cursor === 'pointer';
+    };
+    const fallback = svg.parentElement || svg;
+    let target = fallback;
+    let candidate = fallback;
+    for (let i = 0; candidate && i < 6; i++) {
+      if (isClickTarget(candidate)) {
+        target = candidate;
+        break;
+      }
+      candidate = candidate.parentElement;
     }
     const r = target.getBoundingClientRect();
-    const opts = { bubbles: true, cancelable: true, clientX: r.x + r.width/2, clientY: r.y + r.height/2 };
+    const opts = { bubbles: true, cancelable: true, view: window, clientX: r.x + r.width/2, clientY: r.y + r.height/2 };
     target.dispatchEvent(new PointerEvent('pointerdown', opts));
     target.dispatchEvent(new MouseEvent('mousedown', opts));
     target.dispatchEvent(new PointerEvent('pointerup', opts));
     target.dispatchEvent(new MouseEvent('mouseup', opts));
     target.click();
-    return { ok: true };
+    return { ok: true, targetTag: target.tagName, targetClass: String(target.className || '') };
   })()`;
 }
 

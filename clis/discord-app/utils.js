@@ -196,33 +196,76 @@ export function buildListChannelsScript() {
 export function buildListServersScript() {
     return `
       (function __opencliDiscordListServers() {
+        var DISCORD_HOSTS = new Set(['discord.com', 'canary.discord.com', 'ptb.discord.com']);
+        var GUILD_NAV_RE = /^guildsnav___(\\d+)$/;
+
         function parseGuildId(raw) {
           try {
             var url = new URL(raw, 'https://discord.com');
+            if (!DISCORD_HOSTS.has(url.hostname)) return '';
             var parts = url.pathname.split('/').filter(Boolean);
-            if (parts[0] !== 'channels' || parts.length !== 2 || !parts[1] || parts[1] === '@me') return '';
+            if (parts[0] !== 'channels' || parts.length !== 2 || !/^\\d+$/.test(parts[1] || '')) return '';
             return parts[1];
           } catch (_) {
             return '';
           }
         }
 
-        var rows = [];
-        var seen = new Set();
-        var items = Array.from(document.querySelectorAll('a[href^="/channels/"], [data-list-item-id*="guildsnav___"], [class*="listItem_"]'));
-        items.forEach(function(item) {
-          var link = item.matches && item.matches('a[href^="/channels/"]') ? item : item.querySelector && item.querySelector('a[href^="/channels/"]');
-          var href = link ? link.getAttribute('href') || '' : '';
-          var guildId = parseGuildId(href);
-          if (!guildId || seen.has(guildId)) return;
+        function guildIdFromNavItem(item) {
+          if (!item || !item.getAttribute) return '';
+          var match = String(item.getAttribute('data-list-item-id') || '').match(GUILD_NAV_RE);
+          return match ? match[1] : '';
+        }
 
-          var named = item.querySelector && item.querySelector('[data-dnd-name]');
-          var name = named ? named.getAttribute('data-dnd-name') : '';
-          if (!name) name = item.getAttribute && item.getAttribute('aria-label') || '';
-          if (!name && link) name = link.getAttribute('aria-label') || link.getAttribute('title') || '';
-          name = String(name || '').replace(/\\s+/g, ' ').trim();
-          if (!name || /^direct messages$/i.test(name)) return;
+        function narrowOwnedWrapper(item) {
+          if (!item || !item.closest) return null;
+          var wrapper = item.closest('[data-dnd-name]');
+          if (!wrapper || !wrapper.contains(item)) return null;
+          var ownedGuildItems = Array.from(wrapper.querySelectorAll('[data-list-item-id^="guildsnav___"]'))
+            .filter(function(el) { return GUILD_NAV_RE.test(String(el.getAttribute('data-list-item-id') || '')); });
+          return ownedGuildItems.length === 1 && ownedGuildItems[0] === item ? wrapper : null;
+        }
 
+        function firstAttr(nodes, attr) {
+          for (var i = 0; i < nodes.length; i++) {
+            if (!nodes[i] || !nodes[i].getAttribute) continue;
+            var value = String(nodes[i].getAttribute(attr) || '').replace(/\\s+/g, ' ').trim();
+            if (value) return value;
+          }
+          return '';
+        }
+
+        function guildNameFromNavItem(item) {
+          var wrapper = narrowOwnedWrapper(item);
+
+          var name = firstAttr([item], 'data-dnd-name') || firstAttr([item], 'aria-label') || firstAttr([item], 'title');
+          if (name) return name;
+
+          var labelled = item.matches('[role="treeitem"][aria-label]') ? item : item.querySelector('[role="treeitem"][aria-label]');
+          name = firstAttr([labelled], 'aria-label');
+          if (name) return name;
+
+          var image = item.querySelector('img[alt]');
+          name = firstAttr([image], 'alt');
+          if (name) return name;
+
+          if (wrapper) {
+            name = firstAttr([wrapper], 'data-dnd-name') || firstAttr([wrapper], 'aria-label') || firstAttr([wrapper], 'title');
+            if (name) return name;
+          }
+
+          var text = String(item.textContent || '').replace(/\\s+/g, ' ').trim();
+          return text;
+        }
+
+        function normalizeName(name) {
+          return String(name || '').replace(/\\s+/g, ' ').trim();
+        }
+
+        function pushRow(rows, seen, guildId, name) {
+          guildId = String(guildId || '').trim();
+          name = normalizeName(name);
+          if (!/^\\d+$/.test(guildId) || seen.has(guildId) || !name || /^direct messages$/i.test(name)) return;
           rows.push({
             Index: rows.length + 1,
             Server: name.slice(0, 80),
@@ -230,6 +273,22 @@ export function buildListServersScript() {
             url: 'https://discord.com/channels/' + guildId
           });
           seen.add(guildId);
+        }
+
+        var rows = [];
+        var seen = new Set();
+        var navItems = Array.from(document.querySelectorAll('[data-list-item-id^="guildsnav___"]'))
+          .filter(function(item) { return guildIdFromNavItem(item); });
+        navItems.forEach(function(item) {
+          pushRow(rows, seen, guildIdFromNavItem(item), guildNameFromNavItem(item));
+        });
+
+        var legacyLinks = Array.from(document.querySelectorAll('a[href*="/channels/"]'));
+        legacyLinks.forEach(function(link) {
+          var guildId = parseGuildId(link.getAttribute('href') || '');
+          if (!guildId || seen.has(guildId)) return;
+          var name = link.getAttribute('aria-label') || link.getAttribute('title') || link.textContent || '';
+          pushRow(rows, seen, guildId, name);
         });
 
         return rows;

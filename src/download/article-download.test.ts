@@ -70,6 +70,28 @@ describe('downloadArticle', () => {
       expect(md).toMatch(/\|\s*1\s*\|\s*2\s*\|/);
     });
 
+    // A caption is the only child that survives inside a row-less table: the parser
+    // foster-parents any other content out of the table before turndown sees it.
+    it('keeps the text of a table that carries no rows instead of failing the download', async () => {
+      const md = await runAndRead(
+        '<p>before</p>' +
+        '<table><caption>orphan cell</caption></table>' +
+        '<p>after</p>',
+      );
+      expect(md).toContain('orphan cell');
+      expect(md).toContain('before');
+      expect(md).toContain('after');
+    });
+
+    it('drops an empty table and still converts a real one beside it', async () => {
+      const md = await runAndRead(
+        '<table></table>' +
+        '<table><thead><tr><th>a</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>',
+      );
+      expect(md).toMatch(/\|\s*a\s*\|/);
+      expect(md).toMatch(/\|\s*1\s*\|/);
+    });
+
     it('converts strikethrough and task lists', async () => {
       const md = await runAndRead(
         '<p><del>gone</del></p>' +

@@ -88,6 +88,68 @@ describe('facebook search', () => {
     expect(payload.rows[0].url).toBe('https://www.facebook.com/carol.page');
   });
 
+  it('keeps distinct permalink.php posts apart by their identity query', () => {
+    // permalink.php / story.php / watch encode identity in the query string;
+    // deduping on pathname alone collapses different posts into one row.
+    const payload = runExtract(`
+      <div role="feed">
+        <div><a role="link" href="https://www.facebook.com/permalink.php?story_fbid=1001&id=50">First distinct post about AI research</a></div>
+        <div><a role="link" href="https://www.facebook.com/permalink.php?story_fbid=2002&id=50">Second distinct post about AI safety</a></div>
+        <div><a role="link" href="https://www.facebook.com/watch/?v=111">Video one about AI agents here</a></div>
+        <div><a role="link" href="https://www.facebook.com/watch/?v=222">Video two about AI agents here</a></div>
+      </div>
+    `);
+    expect(payload.rows.map((r) => r.url)).toEqual([
+      'https://www.facebook.com/permalink.php?story_fbid=1001&id=50',
+      'https://www.facebook.com/permalink.php?story_fbid=2002&id=50',
+      'https://www.facebook.com/watch/?v=111',
+      'https://www.facebook.com/watch/?v=222',
+    ]);
+  });
+
+  it('keeps profile and photo identities without treating arbitrary query params as identity', () => {
+    const payload = runExtract(`
+      <div role="feed">
+        <div><a role="link" href="https://www.facebook.com/profile.php?id=1001&ref=search">First profile result with details</a></div>
+        <div><a role="link" href="https://www.facebook.com/profile.php?id=2002&ref=search">Second profile result with details</a></div>
+        <div><a role="link" href="https://www.facebook.com/photo.php?fbid=3003&id=1001&__tn__=R">Photo result with useful details</a></div>
+        <div><a role="link" href="https://www.facebook.com/realpage?id=tracking-a">Same vanity page first render</a></div>
+        <div><a role="link" href="https://www.facebook.com/realpage?id=tracking-b">Same vanity page second render</a></div>
+      </div>
+    `);
+    expect(payload.rows.map((r) => r.url)).toEqual([
+      'https://www.facebook.com/profile.php?id=1001',
+      'https://www.facebook.com/profile.php?id=2002',
+      'https://www.facebook.com/photo.php?fbid=3003&id=1001',
+      'https://www.facebook.com/realpage',
+    ]);
+  });
+
+  it('dedupes one post rendered with different per-render tracking nonces', () => {
+    // FB appends __cft__ / __tn__ nonces that differ on every render; keeping
+    // them in the key would make the same post appear as multiple rows.
+    const payload = runExtract(`
+      <div role="feed">
+        <div><a role="link" href="https://www.facebook.com/permalink.php?story_fbid=1001&id=50&__cft__[0]=nonceA&__tn__=R">Same post rendered once here now</a></div>
+        <div><a role="link" href="https://www.facebook.com/permalink.php?story_fbid=1001&id=50&__cft__[0]=nonceB&__tn__=H">Same post rendered twice here now</a></div>
+      </div>
+    `);
+    expect(payload.rows.map((r) => r.url)).toEqual(['https://www.facebook.com/permalink.php?story_fbid=1001&id=50']);
+  });
+
+  it('drops l.facebook.com / lm.facebook.com outbound-redirect shims', () => {
+    // /l.php?u=… wrappers are external-link redirects, not search entities; their
+    // pathname would otherwise slip through the vanity catch-all.
+    const payload = runExtract(`
+      <div role="feed">
+        <div><a role="link" href="https://www.facebook.com/realpage">Real Page result here</a></div>
+        <a role="link" href="https://l.facebook.com/l.php?u=https%3A%2F%2Fexample.com&h=AbC">External article link in a post</a>
+        <a role="link" href="https://lm.facebook.com/l.php?u=https%3A%2F%2Fexample.org">Another external redirect link here</a>
+      </div>
+    `);
+    expect(payload.rows.map((r) => r.url)).toEqual(['https://www.facebook.com/realpage']);
+  });
+
   it('reports auth pages as an auth status', () => {
     const payload = runExtract('<div role="main">Log in to Facebook</div>', 10, 'https://www.facebook.com/login/');
     expect(payload.status).toBe('auth');
