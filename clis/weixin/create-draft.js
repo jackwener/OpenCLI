@@ -231,7 +231,7 @@ async function hasSelectedCover(page) {
     })()`);
 }
 
-async function selectCoverFromContent(page, imagePath) {
+async function setCoverFromImageUpload(page, imagePath) {
     const contentImageState = await page.evaluate(`(() => {
         var editor = document.querySelector('#ueditor_0 .ProseMirror');
         var imageSelector = 'img[src*="mmbiz"], img[src*="qpic.cn"], img[data-src*="mmbiz"], img[data-src*="qpic.cn"]';
@@ -289,135 +289,10 @@ async function selectCoverFromContent(page, imagePath) {
                         .some(function(el) { return visible(el) && (el.innerText || '').includes('编辑封面'); });
                 })()`);
                 if (cropDialogClosed || await hasSelectedCover(page)) return true;
-                const diagnostics = await page.evaluate(`(() => {
-                    function visible(el) {
-                        return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-                    }
-                    function text(el) {
-                        return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim();
-                    }
-                    return Array.from(document.querySelectorAll('button, a, div[role="button"], span'))
-                        .filter(function(el) {
-                            var value = text(el);
-                            return visible(el) && (value === '确认' || value === '完成');
-                        }).map(function(el) {
-                            var rect = el.getBoundingClientRect();
-                            return {
-                                tag: el.tagName,
-                                className: el.className || '',
-                                text: text(el),
-                                disabled: !!el.disabled,
-                                rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
-                                parent: el.parentElement ? (el.parentElement.className || el.parentElement.tagName) : '',
-                                outer: el.outerHTML.slice(0, 500),
-                            };
-                        });
-                })()`);
-                throw new CommandExecutionError(`WeChat cover crop confirmation did not close the dialog: ${JSON.stringify(diagnostics)}`);
             }
         }
     }
-
-    await page.evaluate('document.querySelector("#js_cover_description_area")?.scrollIntoView()');
-    await page.wait(1);
-
-    await page.evaluate('document.querySelector(".js_cover_btn_area")?.click()');
-    await page.wait(1);
-
-    const opened = await page.evaluate(`(() => {
-        var editor = document.querySelector('#ueditor_0 .ProseMirror');
-        if (editor) {
-            Array.from(editor.querySelectorAll('img[src*="mmbiz"], img[src*="qpic.cn"]')).forEach(function(img) {
-                var src = img.getAttribute('src') || '';
-                img.setAttribute('data-src', src);
-                img.setAttribute('data-w', String(img.naturalWidth || img.width || 0));
-                var width = img.naturalWidth || img.width || 0;
-                var height = img.naturalHeight || img.height || 0;
-                if (width && height) img.setAttribute('data-ratio', String(height / width));
-            });
-        }
-        var links = document.querySelectorAll('a.pop-opr__button');
-        for (var i = 0; i < links.length; i++) {
-            if ((links[i].textContent || '').replace(/\\s+/g, '').includes('从正文选择')) {
-                links[i].click();
-                return true;
-            }
-        }
-        return false;
-    })()`);
-    if (!opened) return false;
-
-    let picked = false;
-    for (let attempt = 0; attempt < 20; attempt++) {
-        await page.wait(1);
-        picked = await page.evaluate(`(() => {
-            function visible(el) {
-                return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-            }
-            var dialogs = Array.from(document.querySelectorAll('.weui-desktop-dialog_img-picker, .weui-desktop-dialog__wrp, [role="dialog"]'))
-                .filter(visible);
-            for (var i = dialogs.length - 1; i >= 0; i--) {
-                var images = Array.from(dialogs[i].querySelectorAll('.appmsg_content_img, img[src*="mmbiz"], img[src*="qpic.cn"]'))
-                    .filter(visible);
-                if (images[0]) {
-                    (images[0].closest('label, li, .weui-desktop-img-picker__item') || images[0]).click();
-                    return true;
-                }
-            }
-            return false;
-        })()`);
-        if (picked) break;
-    }
-    if (!picked) {
-        await page.evaluate(`(() => {
-            var close = document.querySelector('.weui-desktop-dialog_img-picker .weui-desktop-dialog__close-btn, .weui-desktop-dialog_img-picker button[aria-label="关闭"], .weui-desktop-dialog__wrp .weui-desktop-dialog__close-btn');
-            if (close) close.click();
-        })()`);
-        return false;
-    }
-    let advanced = false;
-    for (let attempt = 0; attempt < 20; attempt++) {
-        await page.wait(1);
-        const nextReady = await page.evaluate(`(() => {
-            function visible(el) {
-                return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-            }
-            return Array.from(document.querySelectorAll('button, a, div[role="button"]')).some(function(btn) {
-                return visible(btn)
-                    && (btn.innerText || btn.textContent || '').trim() === '下一步'
-                    && !btn.disabled
-                    && btn.getAttribute('aria-disabled') !== 'true';
-            });
-        })()`);
-        if (nextReady) {
-            await clickTopmostVisibleButton(page, '下一步');
-            advanced = true;
-            break;
-        }
-    }
-    if (!advanced) return false;
-
-    // Crop dialog image rendering can be slow
-    let finishLabel = '';
-    for (let attempt = 0; attempt < 8; attempt++) {
-        await page.wait(2);
-        finishLabel = await page.evaluate(`(() => {
-            function visible(el) {
-                return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-            }
-            var btns = document.querySelectorAll('button, a, div[role="button"], span');
-            for (var i = 0; i < btns.length; i++) {
-                var text = (btns[i].innerText || btns[i].textContent || '').trim();
-                if (visible(btns[i]) && (text === '确认' || text === '完成') && !btns[i].disabled) return text;
-            }
-            return '';
-        })()`);
-        if (finishLabel) break;
-    }
-    if (!finishLabel) return false;
-    await clickVisibleDialogButton(page, '编辑封面', finishLabel);
-    await page.wait(2);
-    return hasSelectedCover(page);
+    return false;
 }
 
 async function scrollToPublishSettings(page) {
@@ -496,45 +371,6 @@ async function clickVisibleDialogButton(page, dialogText, buttonText) {
             if (el) el.removeAttribute('data-opencli-target');
         })()`).catch(() => undefined);
     }
-}
-
-async function clickTopmostVisibleButton(page, buttonText) {
-    const target = await page.evaluate(`(() => {
-        var buttonText = ${JSON.stringify(buttonText)};
-        function visible(el) {
-            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-        }
-        var buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'))
-            .filter(function(el) {
-                return visible(el)
-                    && !el.disabled
-                    && el.getAttribute('aria-disabled') !== 'true'
-                    && (el.innerText || el.textContent || '').trim() === buttonText;
-            });
-        var button = buttons.reverse().find(function(el) {
-            var rect = el.getBoundingClientRect();
-            var top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-            return !!top && (el === top || el.contains(top) || top.contains(el));
-        });
-        if (!button) return { ok: false, reason: 'visible button not found: ' + buttonText };
-        var rect = button.getBoundingClientRect();
-        return { ok: true, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    })()`);
-    assertSettingResult(target, buttonText);
-    if (typeof page.nativeClick === 'function') {
-        await page.nativeClick(Math.round(target.x), Math.round(target.y));
-        return;
-    }
-    await page.evaluate(`(() => {
-        var buttonText = ${JSON.stringify(buttonText)};
-        var buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'))
-            .filter(function(el) {
-                return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
-                    && !el.disabled
-                    && (el.innerText || el.textContent || '').trim() === buttonText;
-            });
-        if (buttons.length) buttons[buttons.length - 1].click();
-    })()`);
 }
 
 async function clickVisibleDialogText(page, dialogText, targetText) {
@@ -829,7 +665,7 @@ export const createDraftCommand = cli({
         let usedCoverRequestFallback = false;
         if (kwargs['cover-image']) {
             await uploadContentImage(page, kwargs['cover-image']);
-            const coverSet = await selectCoverFromContent(page, kwargs['cover-image']);
+            const coverSet = await setCoverFromImageUpload(page, kwargs['cover-image']);
             if (!coverSet) {
                 await installCoverRequestFallback(page);
                 usedCoverRequestFallback = true;
