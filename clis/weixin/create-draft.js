@@ -55,8 +55,7 @@ async function fillField(page, selector, value) {
 
 async function fillContent(page, text) {
     return page.evaluate(`(() => {
-        var editors = document.querySelectorAll('div[contenteditable="true"]');
-        var editor = editors[editors.length - 1];
+        var editor = document.querySelector('#ueditor_0 .ProseMirror');
         if (!editor) return { ok: false, reason: 'content editor not found' };
         editor.focus();
         if (editor.querySelector('[contenteditable="false"]')) editor.innerHTML = '';
@@ -75,14 +74,29 @@ async function uploadContentImage(page, imagePath) {
         throw new CommandExecutionError(`Image not found: ${absPath}`);
     }
 
+    const editorReady = await page.evaluate(`(() => {
+        var editor = document.querySelector('#ueditor_0 .ProseMirror');
+        if (!editor) {
+            var editors = document.querySelectorAll('div[contenteditable="true"]');
+            editor = editors[editors.length - 1];
+        }
+        if (!editor) return false;
+        editor.focus();
+        var range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return true;
+    })()`);
+    if (!editorReady) {
+        throw new CommandExecutionError('Content editor not found before image upload');
+    }
+
     await page.evaluate(`(() => {
         var li = document.querySelector('#js_editor_insertimage');
         if (li) li.click();
-    })()`);
-    await page.wait(1);
-    await page.evaluate(`(() => {
-        var items = document.querySelectorAll('.js_img_dropdown_menu .tpl_dropdown_menu_item');
-        if (items[0]) items[0].click();
     })()`);
     await page.wait(1);
 
@@ -150,19 +164,43 @@ async function uploadContentImage(page, imagePath) {
     if (!uploadState?.ok) {
         throw new CommandExecutionError('Image did not upload to WeChat CDN');
     }
+    await page.evaluate(`(() => {
+        var editor = document.querySelector('#ueditor_0 .ProseMirror');
+        if (!editor) return { ok: false };
+        var images = Array.from(editor.querySelectorAll('img[src*="mmbiz"], img[src*="qpic.cn"]'));
+        images.forEach(function(img) {
+            var src = img.getAttribute('src') || '';
+            if (src && !img.getAttribute('data-src')) img.setAttribute('data-src', src);
+            if (!img.getAttribute('data-w') && img.naturalWidth) img.setAttribute('data-w', String(img.naturalWidth));
+            if (!img.getAttribute('data-ratio') && img.naturalWidth && img.naturalHeight) {
+                img.setAttribute('data-ratio', String(img.naturalHeight / img.naturalWidth));
+            }
+        });
+        return { ok: images.length > 0, count: images.length };
+    })()`);
+    await page.wait(2);
+    return uploadState;
 }
 
 async function waitForContentImageUpload(page) {
     for (let attempt = 0; attempt < 30; attempt++) {
         await page.wait(2);
         const state = await page.evaluate(`(() => {
-            var editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
-            var editor = editors[editors.length - 1];
+            var editor = document.querySelector('#ueditor_0 .ProseMirror');
             var imageSelector = 'img[src*="mmbiz"], img[src*="qpic.cn"], img[data-src*="mmbiz"], img[data-src*="qpic.cn"]';
-            var cdnCount = editor
-                ? editor.querySelectorAll(imageSelector).length
-                : 0;
-            if (cdnCount > 0) return { ok: true, cdnCount: cdnCount };
+            var images = editor
+                ? Array.from(editor.querySelectorAll(imageSelector)).map(function(img) {
+                    return {
+                        src: img.getAttribute('src') || '',
+                        dataSrc: img.getAttribute('data-src') || '',
+                        width: img.naturalWidth || img.width || 0,
+                        height: img.naturalHeight || img.height || 0,
+                        parentClass: img.parentElement ? img.parentElement.className || '' : '',
+                    };
+                })
+                : [];
+            var cdnCount = images.length;
+            if (cdnCount > 0) return { ok: true, cdnCount: cdnCount, images: images };
 
             var uploading = Array.from(document.querySelectorAll('.upload_file, .progress_bar, .progress_bar_thumb')).some(function(el) {
                 return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
@@ -178,15 +216,106 @@ async function waitForContentImageUpload(page) {
     return { ok: false, timeout: true };
 }
 
-async function selectCoverFromContent(page) {
+async function hasSelectedCover(page) {
+    return page.evaluate(`(() => {
+        var area = document.querySelector('#js_cover_area');
+        if (!area) return false;
+        var preview = area.querySelector('.js_cover_preview_new');
+        if (preview) {
+            var style = window.getComputedStyle(preview);
+            var bg = style.backgroundImage || '';
+            if (style.display !== 'none' && bg !== 'none' && !/url\\(["']?["']?\\)/.test(bg)) return true;
+        }
+        var selectedLabel = area.querySelector('.js_share_type_image');
+        return !!(selectedLabel && window.getComputedStyle(selectedLabel).display !== 'none');
+    })()`);
+}
+
+async function selectCoverFromContent(page, imagePath) {
     const contentImageState = await page.evaluate(`(() => {
-        var editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
-        var editor = editors[editors.length - 1];
+        var editor = document.querySelector('#ueditor_0 .ProseMirror');
         var imageSelector = 'img[src*="mmbiz"], img[src*="qpic.cn"], img[data-src*="mmbiz"], img[data-src*="qpic.cn"]';
         return { count: editor ? editor.querySelectorAll(imageSelector).length : 0 };
     })()`);
     if (!contentImageState || contentImageState.count < 1) {
         return false;
+    }
+
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const absPath = path.default.resolve(imagePath);
+    const file = {
+        name: path.default.basename(absPath),
+        mime: imageMimeType(path.default, absPath),
+        base64: fs.default.readFileSync(absPath).toString('base64'),
+    };
+    const dropped = await page.evaluate(`(() => {
+        var target = document.querySelector('#js_cover_area .cover_drop_inner_wrp, #js_cover_area');
+        if (!target) return false;
+        var file = ${JSON.stringify(file)};
+        var binary = atob(file.base64);
+        var bytes = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        var dt = new DataTransfer();
+        dt.items.add(new File([new Blob([bytes], { type: file.mime })], file.name, { type: file.mime }));
+        ['dragenter', 'dragover', 'drop'].forEach(function(type) {
+            target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+        });
+        return true;
+    })()`);
+    if (dropped) {
+        for (let attempt = 0; attempt < 15; attempt++) {
+            await page.wait(1);
+            if (await hasSelectedCover(page)) return true;
+            const finishLabel = await page.evaluate(`(() => {
+                function visible(el) {
+                    return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+                }
+                var buttons = Array.from(document.querySelectorAll('button, a, div[role="button"], span'));
+                var button = buttons.reverse().find(function(el) {
+                    var text = (el.innerText || el.textContent || '').trim();
+                    return visible(el) && !el.disabled && (text === '完成' || text === '确认');
+                });
+                return button ? (button.innerText || button.textContent || '').trim() : '';
+            })()`);
+            if (finishLabel) {
+                await clickVisibleDialogButton(page, '编辑封面', finishLabel);
+                await page.wait(3);
+                const cropDialogClosed = await page.evaluate(`(() => {
+                    function visible(el) {
+                        return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+                    }
+                    return !Array.from(document.querySelectorAll('.weui-desktop-dialog__wrp, .weui-desktop-dialog, [role="dialog"]'))
+                        .some(function(el) { return visible(el) && (el.innerText || '').includes('编辑封面'); });
+                })()`);
+                if (cropDialogClosed || await hasSelectedCover(page)) return true;
+                const diagnostics = await page.evaluate(`(() => {
+                    function visible(el) {
+                        return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+                    }
+                    function text(el) {
+                        return (el && (el.innerText || el.textContent) || '').replace(/\\s+/g, ' ').trim();
+                    }
+                    return Array.from(document.querySelectorAll('button, a, div[role="button"], span'))
+                        .filter(function(el) {
+                            var value = text(el);
+                            return visible(el) && (value === '确认' || value === '完成');
+                        }).map(function(el) {
+                            var rect = el.getBoundingClientRect();
+                            return {
+                                tag: el.tagName,
+                                className: el.className || '',
+                                text: text(el),
+                                disabled: !!el.disabled,
+                                rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+                                parent: el.parentElement ? (el.parentElement.className || el.parentElement.tagName) : '',
+                                outer: el.outerHTML.slice(0, 500),
+                            };
+                        });
+                })()`);
+                throw new CommandExecutionError(`WeChat cover crop confirmation did not close the dialog: ${JSON.stringify(diagnostics)}`);
+            }
+        }
     }
 
     await page.evaluate('document.querySelector("#js_cover_description_area")?.scrollIntoView()');
@@ -195,19 +324,50 @@ async function selectCoverFromContent(page) {
     await page.evaluate('document.querySelector(".js_cover_btn_area")?.click()');
     await page.wait(1);
 
-    await page.evaluate(`(() => {
+    const opened = await page.evaluate(`(() => {
+        var editor = document.querySelector('#ueditor_0 .ProseMirror');
+        if (editor) {
+            Array.from(editor.querySelectorAll('img[src*="mmbiz"], img[src*="qpic.cn"]')).forEach(function(img) {
+                var src = img.getAttribute('src') || '';
+                img.setAttribute('data-src', src);
+                img.setAttribute('data-w', String(img.naturalWidth || img.width || 0));
+                var width = img.naturalWidth || img.width || 0;
+                var height = img.naturalHeight || img.height || 0;
+                if (width && height) img.setAttribute('data-ratio', String(height / width));
+            });
+        }
         var links = document.querySelectorAll('a.pop-opr__button');
         for (var i = 0; i < links.length; i++) {
-            if (links[i].textContent.trim() === '从正文选择') { links[i].click(); return; }
+            if ((links[i].textContent || '').replace(/\\s+/g, '').includes('从正文选择')) {
+                links[i].click();
+                return true;
+            }
         }
-    })()`);
-    await page.wait(2);
-
-    const picked = await page.evaluate(`(() => {
-        var img = document.querySelector('.weui-desktop-dialog_img-picker .appmsg_content_img');
-        if (img) { img.click(); return true; }
         return false;
     })()`);
+    if (!opened) return false;
+
+    let picked = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+        await page.wait(1);
+        picked = await page.evaluate(`(() => {
+            function visible(el) {
+                return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+            }
+            var dialogs = Array.from(document.querySelectorAll('.weui-desktop-dialog_img-picker, .weui-desktop-dialog__wrp, [role="dialog"]'))
+                .filter(visible);
+            for (var i = dialogs.length - 1; i >= 0; i--) {
+                var images = Array.from(dialogs[i].querySelectorAll('.appmsg_content_img, img[src*="mmbiz"], img[src*="qpic.cn"]'))
+                    .filter(visible);
+                if (images[0]) {
+                    (images[0].closest('label, li, .weui-desktop-img-picker__item') || images[0]).click();
+                    return true;
+                }
+            }
+            return false;
+        })()`);
+        if (picked) break;
+    }
     if (!picked) {
         await page.evaluate(`(() => {
             var close = document.querySelector('.weui-desktop-dialog_img-picker .weui-desktop-dialog__close-btn, .weui-desktop-dialog_img-picker button[aria-label="关闭"], .weui-desktop-dialog__wrp .weui-desktop-dialog__close-btn');
@@ -215,46 +375,49 @@ async function selectCoverFromContent(page) {
         })()`);
         return false;
     }
-    await page.wait(1);
-
-    await page.evaluate(`(() => {
-        var btns = document.querySelectorAll('.weui-desktop-dialog_img-picker button');
-        for (var i = 0; i < btns.length; i++) {
-            if (btns[i].textContent.trim() === '下一步' && !btns[i].disabled) { btns[i].click(); return; }
+    let advanced = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+        await page.wait(1);
+        const nextReady = await page.evaluate(`(() => {
+            function visible(el) {
+                return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+            }
+            return Array.from(document.querySelectorAll('button, a, div[role="button"]')).some(function(btn) {
+                return visible(btn)
+                    && (btn.innerText || btn.textContent || '').trim() === '下一步'
+                    && !btn.disabled
+                    && btn.getAttribute('aria-disabled') !== 'true';
+            });
+        })()`);
+        if (nextReady) {
+            await clickTopmostVisibleButton(page, '下一步');
+            advanced = true;
+            break;
         }
-    })()`);
+    }
+    if (!advanced) return false;
 
     // Crop dialog image rendering can be slow
+    let finishLabel = '';
     for (let attempt = 0; attempt < 8; attempt++) {
         await page.wait(2);
-        const ready = await page.evaluate(`(() => {
-            var btns = document.querySelectorAll('button');
-            for (var i = 0; i < btns.length; i++) {
-                if (btns[i].textContent.trim() === '确认' && btns[i].offsetHeight > 0 && !btns[i].disabled) return true;
+        finishLabel = await page.evaluate(`(() => {
+            function visible(el) {
+                return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
             }
-            return false;
+            var btns = document.querySelectorAll('button, a, div[role="button"], span');
+            for (var i = 0; i < btns.length; i++) {
+                var text = (btns[i].innerText || btns[i].textContent || '').trim();
+                if (visible(btns[i]) && (text === '确认' || text === '完成') && !btns[i].disabled) return text;
+            }
+            return '';
         })()`);
-        if (ready) break;
+        if (finishLabel) break;
     }
-
-    await page.evaluate(`(() => {
-        var btns = document.querySelectorAll('button');
-        for (var i = 0; i < btns.length; i++) {
-            if (btns[i].textContent.trim() === '确认' && btns[i].offsetHeight > 0 && !btns[i].disabled) { btns[i].click(); return; }
-        }
-    })()`);
+    if (!finishLabel) return false;
+    await clickVisibleDialogButton(page, '编辑封面', finishLabel);
     await page.wait(2);
-    const hasCover = await page.evaluate(`(() => {
-        var area = document.querySelector('#js_cover_area');
-        if (!area) return false;
-        var found = false;
-        area.querySelectorAll('*').forEach(function(el) {
-            var bg = window.getComputedStyle(el).backgroundImage;
-            if (bg && bg.includes('mmbiz')) found = true;
-        });
-        return found;
-    })()`);
-    return hasCover;
+    return hasSelectedCover(page);
 }
 
 async function scrollToPublishSettings(page) {
@@ -308,18 +471,70 @@ async function clickVisibleDialogButton(page, dialogText, buttonText) {
             .filter(function(el) { return visible(el) && !el.disabled; })
             .find(function(el) { return text(el) === buttonText; });
         if (!button) return { ok: false, reason: 'button not found: ' + buttonText, dialog: text(dialog).slice(0, 300) };
+        button = button.closest('button, a, div[role="button"]') || button;
         button.setAttribute('data-opencli-target', marker);
+        button.scrollIntoView({ block: 'center', inline: 'center' });
         return { ok: true, marker: marker };
     })()`);
     assertSettingResult(marked, `${dialogText} dialog`);
     try {
-        await page.click(`[data-opencli-target="${marker}"]`);
+        await page.wait(1);
+        const point = await page.evaluate(`(() => {
+            var el = document.querySelector('[data-opencli-target="${marker}"]');
+            if (!el) return null;
+            var rect = el.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        })()`);
+        if (typeof page.nativeClick === 'function' && point && Number.isFinite(point.x) && Number.isFinite(point.y)) {
+            await page.nativeClick(Math.round(point.x), Math.round(point.y));
+        } else {
+            await page.click(`[data-opencli-target="${marker}"]`);
+        }
     } finally {
         await page.evaluate(`(() => {
             var el = document.querySelector('[data-opencli-target="${marker}"]');
             if (el) el.removeAttribute('data-opencli-target');
         })()`).catch(() => undefined);
     }
+}
+
+async function clickTopmostVisibleButton(page, buttonText) {
+    const target = await page.evaluate(`(() => {
+        var buttonText = ${JSON.stringify(buttonText)};
+        function visible(el) {
+            return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+        }
+        var buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'))
+            .filter(function(el) {
+                return visible(el)
+                    && !el.disabled
+                    && el.getAttribute('aria-disabled') !== 'true'
+                    && (el.innerText || el.textContent || '').trim() === buttonText;
+            });
+        var button = buttons.reverse().find(function(el) {
+            var rect = el.getBoundingClientRect();
+            var top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            return !!top && (el === top || el.contains(top) || top.contains(el));
+        });
+        if (!button) return { ok: false, reason: 'visible button not found: ' + buttonText };
+        var rect = button.getBoundingClientRect();
+        return { ok: true, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()`);
+    assertSettingResult(target, buttonText);
+    if (typeof page.nativeClick === 'function') {
+        await page.nativeClick(Math.round(target.x), Math.round(target.y));
+        return;
+    }
+    await page.evaluate(`(() => {
+        var buttonText = ${JSON.stringify(buttonText)};
+        var buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'))
+            .filter(function(el) {
+                return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+                    && !el.disabled
+                    && (el.innerText || el.textContent || '').trim() === buttonText;
+            });
+        if (buttons.length) buttons[buttons.length - 1].click();
+    })()`);
 }
 
 async function clickVisibleDialogText(page, dialogText, targetText) {
@@ -534,6 +749,47 @@ async function clickSaveDraft(page) {
     return false;
 }
 
+async function installCoverRequestFallback(page) {
+    const result = await page.evaluate(`(() => {
+        var image = document.querySelector('#ueditor_0 .ProseMirror img[data-imgfileid][src*="qpic.cn"]');
+        if (!image) return { ok: false, reason: 'uploaded article image not found' };
+        var fileId = image.getAttribute('data-imgfileid') || '';
+        var cdnUrl = image.getAttribute('data-src') || image.getAttribute('src') || '';
+        if (!fileId || !cdnUrl) return { ok: false, reason: 'uploaded article image metadata is incomplete' };
+
+        if (!window.__opencliWeixinCoverPatch) {
+            var originalOpen = XMLHttpRequest.prototype.open;
+            var originalSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this.__opencliRequestUrl = String(url || '');
+                return originalOpen.apply(this, arguments);
+            };
+            XMLHttpRequest.prototype.send = function(body) {
+                var patch = window.__opencliWeixinCoverPatch;
+                if (patch && this.__opencliRequestUrl.includes('operate_appmsg') && this.__opencliRequestUrl.includes('sub=create') && typeof body === 'string') {
+                    var params = new URLSearchParams(body);
+                    params.set('fileid0', patch.fileId);
+                    params.set('cdn_url0', patch.cdnUrl);
+                    params.set('cdn_url_back0', patch.cdnUrl);
+                    params.set('cdn_235_1_url0', patch.cdnUrl);
+                    params.set('cdn_16_9_url0', patch.cdnUrl);
+                    params.set('cdn_3_4_url0', patch.cdnUrl);
+                    params.set('cdn_1_1_url0', patch.cdnUrl);
+                    params.set('last_choose_cover_from0', '1');
+                    patch.applied = true;
+                    body = params.toString();
+                }
+                return originalSend.call(this, body);
+            };
+        }
+        window.__opencliWeixinCoverPatch = { fileId: fileId, cdnUrl: cdnUrl, applied: false };
+        return { ok: true, fileId: fileId, cdnUrl: cdnUrl };
+    })()`);
+    if (!result?.ok) {
+        throw new CommandExecutionError(`Could not prepare the cover upload fallback: ${result?.reason || 'unknown error'}`);
+    }
+}
+
 export const createDraftCommand = cli({
     site: 'weixin',
     name: 'create-draft',
@@ -570,11 +826,13 @@ export const createDraftCommand = cli({
         const contentResult = await fillContent(page, kwargs.content);
         if (!contentResult?.ok) throw new CommandExecutionError('Failed to fill content');
 
+        let usedCoverRequestFallback = false;
         if (kwargs['cover-image']) {
             await uploadContentImage(page, kwargs['cover-image']);
-            const coverSet = await selectCoverFromContent(page);
+            const coverSet = await selectCoverFromContent(page, kwargs['cover-image']);
             if (!coverSet) {
-                // Non-fatal: draft can be saved without cover
+                await installCoverRequestFallback(page);
+                usedCoverRequestFallback = true;
             }
         }
 
@@ -593,6 +851,12 @@ export const createDraftCommand = cli({
         }
         await page.wait(1);
         const success = await clickSaveDraft(page);
+        if (usedCoverRequestFallback) {
+            const patchApplied = await page.evaluate('!!window.__opencliWeixinCoverPatch?.applied');
+            if (!patchApplied) {
+                throw new CommandExecutionError('The draft save request did not include the uploaded cover image');
+            }
+        }
 
         return [{
             status: success ? 'draft saved' : 'save attempted, check browser to confirm',
