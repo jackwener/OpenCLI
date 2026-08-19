@@ -336,7 +336,7 @@ opencli plugin uninstall my-tool                            # 卸载
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=jackwener/opencli&type=Date)](https://star-history.com/#jackwener/opencli&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jackwener/opencli&type=Date)](https://star-history.dera.page/#jackwener/opencli&Date)
 
 
 
