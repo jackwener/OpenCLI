@@ -8,6 +8,7 @@ import {
     extractAnswer,
     extractColumnArticle,
     extractQuestionId,
+    normalizeContentImages,
     normalizeUnixSeconds,
     parseDownloadTarget,
 } from './download-helpers.js';
@@ -51,4 +52,4 @@ cli({
     },
 });
 
-export const __test__ = { parseDownloadTarget, extractQuestionId, normalizeUnixSeconds };
+export const __test__ = { parseDownloadTarget, extractQuestionId, normalizeContentImages, normalizeUnixSeconds };

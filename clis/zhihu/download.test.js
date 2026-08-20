@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { downloadArticle } from '@jackwener/opencli/download/article-download';
@@ -51,7 +52,7 @@ describe('zhihu download', () => {
         })).resolves.toMatchObject([{ status: 'success' }]);
 
         expect(page.goto).toHaveBeenCalledWith('https://www.zhihu.com/answer/2043281635827766181');
-        expect(page.evaluate.mock.calls[0][0]).toContain('document.createElement');
+        expect(page.evaluate.mock.calls[0][0]).toContain('function normalizeContentImages');
         expect(downloadArticle).toHaveBeenCalledWith({
             title: 'Question title',
             author: 'alice',
@@ -144,5 +145,29 @@ describe('zhihu download target parsing', () => {
         expect(helpers.parseDownloadTarget('https://www.zhihu.com.evil.example/question/10/answer/20')).toBeNull();
         expect(helpers.parseDownloadTarget('https://www.zhihu.com/question/10')).toBeNull();
         expect(helpers.parseDownloadTarget('')).toBeNull();
+    });
+
+    it('normalizes lazy and protocol-relative image sources in detached answer HTML', () => {
+        const sourceDom = new JSDOM();
+        const normalized = helpers.normalizeContentImages(`
+            <p>body</p>
+            <img src="https://pic.example/fallback.png" data-original="https://pic.example/original.png">
+            <img src="https://pic.example/original.png">
+            <img data-actualsrc="//pic.example/protocol-relative.svg">
+            <img src="data:image/png;base64,AAAA">
+        `, sourceDom.window.document);
+        const resultDom = new JSDOM(normalized.contentHtml);
+        const images = [...resultDom.window.document.querySelectorAll('img')];
+
+        expect(normalized.imageUrls).toEqual([
+            'https://pic.example/original.png',
+            'https://pic.example/protocol-relative.svg',
+        ]);
+        expect(images.map((img) => img.getAttribute('src'))).toEqual([
+            'https://pic.example/original.png',
+            'https://pic.example/original.png',
+            'https://pic.example/protocol-relative.svg',
+            'data:image/png;base64,AAAA',
+        ]);
     });
 });

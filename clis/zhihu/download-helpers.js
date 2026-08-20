@@ -50,6 +50,24 @@ export function normalizeUnixSeconds(value) {
         : '';
 }
 
+export function normalizeContentImages(contentHtml, documentRef = document) {
+    const root = documentRef.createElement('div');
+    root.innerHTML = contentHtml || '';
+    const imageUrls = [];
+    const seen = new Set();
+    root.querySelectorAll('img').forEach((img) => {
+        const src = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.getAttribute('src') || '';
+        if (!src || src.startsWith('data:')) return;
+        const normalized = src.startsWith('//') ? `https:${src}` : src;
+        img.setAttribute('src', normalized);
+        if (!seen.has(normalized)) {
+            seen.add(normalized);
+            imageUrls.push(normalized);
+        }
+    });
+    return { contentHtml: root.innerHTML, imageUrls };
+}
+
 export async function extractColumnArticle(page, target) {
     await page.goto(target.url);
     await page.wait(3);
@@ -100,6 +118,7 @@ export async function extractAnswer(page, target) {
     }
     const currentUrl = page.getCurrentUrl ? await page.getCurrentUrl().catch(() => '') : '';
     const apiUrl = `https://www.zhihu.com/api/v4/answers/${target.answerId}?include=content,author,created_time,question`;
+    const normalizeContentImagesSource = `(${normalizeContentImages.toString()})`;
     const data = await page.evaluate(`
       (async () => {
         const response = await fetch(${JSON.stringify(apiUrl)}, { credentials: 'include' });
@@ -116,26 +135,13 @@ export async function extractAnswer(page, target) {
         if (errorCode || errorMessage) return { __errorCode: errorCode, __errorMessage: errorMessage };
         if (!Object.prototype.hasOwnProperty.call(payload, 'content')) return { __missingContent: true };
 
-        const root = document.createElement('div');
-        root.innerHTML = payload.content || '';
-        const imageUrls = [];
-        const seen = new Set();
-        root.querySelectorAll('img').forEach(img => {
-          const src = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.getAttribute('src') || '';
-          if (!src || src.startsWith('data:')) return;
-          const normalized = src.startsWith('//') ? 'https:' + src : src;
-          img.setAttribute('src', normalized);
-          if (!seen.has(normalized)) {
-            seen.add(normalized);
-            imageUrls.push(normalized);
-          }
-        });
+        const normalizedContent = ${normalizeContentImagesSource}(payload.content || '');
         return {
           title: payload.question?.title || 'untitled',
           author: payload.author?.name || '',
           createdTime: payload.created_time,
-          contentHtml: root.innerHTML,
-          imageUrls,
+          contentHtml: normalizedContent.contentHtml,
+          imageUrls: normalizedContent.imageUrls,
         };
       })()
     `).catch((err) => {
