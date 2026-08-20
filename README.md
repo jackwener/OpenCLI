@@ -228,7 +228,7 @@ OpenCLI supports downloading images, videos, and articles from supported platfor
 | **pixiv** | Images | Original-quality illustrations, multi-page |
 | **1688** | Images, Videos | Downloads page-visible product media from item pages |
 | **xiaoyuzhou** | Audio, Transcript | Downloads episode audio and transcript JSON/text with local credentials |
-| **zhihu** | Articles (Markdown) | Exports with optional image download |
+| **zhihu** | Column articles, answers (Markdown) | Exports with optional image download |
 | **weixin** | Articles (Markdown) | WeChat Official Account articles |
 
 For video downloads, install `yt-dlp` first: `brew install yt-dlp`

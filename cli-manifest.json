@@ -47256,9 +47256,9 @@
   {
     "site": "zhihu",
     "name": "download",
-    "description": "导出知乎文章为 Markdown 格式",
+    "description": "导出知乎专栏文章或回答为 Markdown 格式",
     "access": "read",
-    "domain": "zhuanlan.zhihu.com",
+    "domain": "www.zhihu.com",
     "strategy": "cookie",
     "browser": true,
     "args": [
@@ -47266,7 +47266,7 @@
         "name": "url",
         "type": "str",
         "required": true,
-        "help": "Article URL (zhuanlan.zhihu.com/p/xxx)"
+        "help": "Column article URL, answer ID, typed target, or answer URL"
       },
       {
         "name": "output",
@@ -47293,7 +47293,7 @@
     "type": "js",
     "modulePath": "zhihu/download.js",
     "sourceFile": "zhihu/download.js",
-    "navigateBefore": "https://zhuanlan.zhihu.com"
+    "navigateBefore": "https://www.zhihu.com"
   },
   {
     "site": "zhihu",

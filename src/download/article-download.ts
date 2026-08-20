@@ -14,6 +14,16 @@ import { httpDownload, sanitizeFilename } from './index.js';
 import { formatBytes } from './progress.js';
 
 const IMAGE_CONCURRENCY = 5;
+const IMAGE_EXT_BY_CONTENT_TYPE: Record<string, string> = {
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/gif': 'gif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/svg+xml': 'svg',
+  'image/webp': 'webp',
+  'image/x-icon': 'ico',
+};
 
 // ============================================================
 // Types
@@ -253,6 +263,11 @@ function defaultDetectImageExt(url: string): string {
   return extMatch ? extMatch[1] : 'jpg';
 }
 
+function normalizeImageExt(value: string): string {
+  const ext = value.replace(/^\./, '').toLowerCase();
+  return /^[a-z0-9]{2,5}$/.test(ext) ? ext : 'jpg';
+}
+
 async function downloadImages(
   imgUrls: string[],
   imgDir: string,
@@ -280,19 +295,26 @@ async function downloadImages(
         let imgUrl = rawUrl;
         if (imgUrl.startsWith('//')) imgUrl = `https:${imgUrl}`;
 
-        const ext = detect(imgUrl);
-        const filename = `img_${String(index).padStart(3, '0')}.${ext}`;
-        const filepath = path.join(imgDir, filename);
+        const baseName = `img_${String(index).padStart(3, '0')}`;
+        const guessedExt = normalizeImageExt(detect(imgUrl));
+        const guessedFilename = `${baseName}.${guessedExt}`;
+        const guessedPath = path.join(imgDir, guessedFilename);
 
         try {
-          const result = await httpDownload(imgUrl, filepath, {
+          const result = await httpDownload(imgUrl, guessedPath, {
             headers,
             timeout: 15000,
           });
           if (result.success) {
+            const actualExt = IMAGE_EXT_BY_CONTENT_TYPE[result.contentType || ''] || guessedExt;
+            const filename = `${baseName}.${actualExt}`;
+            if (actualExt !== guessedExt) {
+              await fs.promises.rename(guessedPath, path.join(imgDir, filename));
+            }
             return { remoteUrl: rawUrl, localPath: `images/${filename}` };
           }
         } catch {
+          await fs.promises.rm(guessedPath, { force: true }).catch(() => undefined);
           // Skip failed downloads
         }
         return null;

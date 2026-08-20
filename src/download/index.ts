@@ -26,6 +26,13 @@ export interface DownloadOptions {
   maxRedirects?: number;
 }
 
+export interface HttpDownloadResult {
+  success: boolean;
+  size: number;
+  error?: string;
+  contentType?: string;
+}
+
 export interface YtdlpOptions {
   cookies?: string;
   cookiesFile?: string;
@@ -103,7 +110,7 @@ export async function httpDownload(
   destPath: string,
   options: DownloadOptions = {},
   redirectCount = 0,
-): Promise<{ success: boolean; size: number; error?: string }> {
+): Promise<HttpDownloadResult> {
   const { cookies, headers = {}, timeout = 30000, onProgress, maxRedirects = 10 } = options;
 
   const requestHeaders: Record<string, string> = {
@@ -183,7 +190,8 @@ export async function httpDownload(
         fs.createWriteStream(tempPath),
       );
       await fs.promises.rename(tempPath, destPath);
-      return { success: true, size: received };
+      const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+      return { success: true, size: received, ...(contentType && { contentType }) };
     } catch (err) {
       await cleanupTempFile();
       return { success: false, size: 0, error: getErrorMessage(err) };

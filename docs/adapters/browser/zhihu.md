@@ -14,7 +14,7 @@
 | `opencli zhihu answer-comments <id>` | Read answer comments with reply hierarchy |
 | `opencli zhihu collections` | List your Zhihu favorite collections |
 | `opencli zhihu collection <collection_id>` | List content from a Zhihu favorite collection |
-| `opencli zhihu download` | Export a Zhihu article to Markdown |
+| `opencli zhihu download` | Export a Zhihu column article or answer to Markdown |
 | `opencli zhihu follow <target> --execute` | Follow a user or question |
 | `opencli zhihu like <target> --execute` | Like an answer or article |
 | `opencli zhihu favorite <target> (--collection <name> \| --collection-id <id>) --execute` | Favorite an answer or article into a specific collection |
@@ -55,7 +55,8 @@ opencli zhihu answer-comments answer:123456:789012 --limit 20 --replies-limit 3
 opencli zhihu answer-comments answer:123456:789012 --order latest --limit 20 --replies-limit 100
 opencli zhihu collections --limit 20
 opencli zhihu collection 83283292 --limit 20
-opencli zhihu download "https://zhuanlan.zhihu.com/p/998877" --download-images
+opencli zhihu download --url "https://zhuanlan.zhihu.com/p/998877" --download-images
+opencli zhihu download --url "https://www.zhihu.com/question/123456/answer/789012" --download-images
 
 # Write flows
 opencli zhihu follow question:123456 --execute

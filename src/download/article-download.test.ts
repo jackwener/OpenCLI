@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -57,6 +58,37 @@ describe('downloadArticle', () => {
     expect(path.extname(result[0].saved)).toBe('.md');
     expect(fs.existsSync(result[0].saved)).toBe(true);
     expect(fs.readFileSync(result[0].saved, 'utf8')).toContain('Hello world');
+  });
+
+  it('uses the response MIME type for extensionless images', async () => {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-article-'));
+    tempDirs.push(tempDir);
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8' });
+      res.end('<svg xmlns="http://www.w3.org/2000/svg"><circle r="2"/></svg>');
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('test server did not expose a TCP port');
+      const imageUrl = `http://127.0.0.1:${address.port}/equation`;
+      const result = await downloadArticle({
+        title: 'SVG Article',
+        contentHtml: `<p><img alt="formula" src="${imageUrl}"></p>`,
+        imageUrls: [imageUrl],
+      }, {
+        output: tempDir,
+        downloadImages: true,
+      });
+
+      const markdown = fs.readFileSync(result[0].saved, 'utf8');
+      expect(markdown).toContain('![formula](images/img_001.svg)');
+      expect(fs.readFileSync(path.join(path.dirname(result[0].saved), 'images', 'img_001.svg'), 'utf8'))
+        .toContain('<svg');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
   });
 
   describe('markdown pipeline', () => {
