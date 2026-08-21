@@ -1,4 +1,4 @@
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractMedia, extractCard, extractQuotedTweet, normalizeTwitterGraphqlPayload, resolveTwitterOperationMetadata, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
@@ -273,6 +273,7 @@ cli({
         { name: 'has', type: 'string', choices: HAS_CHOICES, help: 'Restrict to tweets that have media|images|videos|links|replies. Maps to X\'s `filter:<has>` operator.' },
         { name: 'exclude', type: 'string', choices: EXCLUDE_CHOICES, help: 'Exclude tweets matching <type>: replies|retweets|media|links. Maps to X\'s `-filter:<x>` operator (retweets → -filter:nativeretweets).' },
         { name: 'limit', type: 'int', default: 15, help: 'Maximum number of tweets to return (default 15). Result count after server-side filtering.' },
+        { name: 'timeout', type: 'int', default: 30, help: 'Seconds to wait for each SearchTimeline request (1-120).' },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the results by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps X\'s native ordering.' },
     ],
     columns: ['id', 'author', 'bio', 'text', 'created_at', 'likes', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet'],
@@ -283,6 +284,10 @@ cli({
         }
         if (!Number.isInteger(Number(kwargs.limit)) || Number(kwargs.limit) <= 0) {
             throw new ArgumentError('twitter search --limit must be a positive integer', 'Example: opencli twitter search opencli --limit 15');
+        }
+        const requestTimeout = Number(kwargs.timeout ?? 30);
+        if (!Number.isInteger(requestTimeout) || requestTimeout <= 0 || requestTimeout > 120) {
+            throw new ArgumentError('twitter search --timeout must be an integer from 1 to 120', 'Example: opencli twitter search opencli --timeout 30');
         }
         const cookies = await page.getCookies({ url: 'https://x.com' });
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
@@ -306,18 +311,38 @@ cli({
             const [requestUrl, requestPayload] = buildSearchTimelineRequest(operation, finalQuery, product, fetchCount, cursor);
             const requestBody = JSON.stringify(requestPayload);
             const data = normalizeTwitterGraphqlPayload(await page.evaluate(`async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), ${requestTimeout * 1000});
         const options = {
           method: 'POST',
           headers: ${headers},
           credentials: 'include',
+          signal: controller.signal,
         };
         options['body'] = ${JSON.stringify(requestBody)};
-        const r = await fetch(${JSON.stringify(requestUrl)}, {
-          ...options,
-        });
-        return r.ok ? await r.json() : { error: r.status };
+        try {
+          const r = await fetch(${JSON.stringify(requestUrl)}, options);
+          return r.ok ? await r.json() : { error: r.status };
+        } catch (error) {
+          return { error: error?.name === 'AbortError' ? 'timeout' : 'network' };
+        } finally {
+          clearTimeout(timer);
+        }
       }`));
             if (data?.error) {
+                if (data.error === 'timeout') {
+                    throw new TimeoutError(
+                        'twitter search request',
+                        requestTimeout,
+                        'Retry, increase --timeout, or use the API-backed xquik search command.',
+                    );
+                }
+                if (data.error === 'network') {
+                    throw new CommandExecutionError(
+                        'Twitter/X SearchTimeline request failed before receiving a response',
+                        'Check browser connectivity, then retry.',
+                    );
+                }
                 if (results.length === 0) throw new CommandExecutionError(describeTwitterApiError('SearchTimeline', data.error));
                 break;
             }

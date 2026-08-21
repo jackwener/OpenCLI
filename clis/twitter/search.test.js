@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './search.js';
 
@@ -99,6 +100,9 @@ describe('twitter search command', () => {
         const searchFetch = page.evaluate.mock.calls[1][0];
         expect(searchFetch).toContain('/SearchTimeline');
         expect(searchFetch).toContain("method: 'POST'");
+        expect(searchFetch).toContain('const controller = new AbortController()');
+        expect(searchFetch).toContain('setTimeout(() => controller.abort(), 30000)');
+        expect(searchFetch).toContain('signal: controller.signal');
         expect(searchFetch).toContain('\\"rawQuery\\":\\"from:alice\\"');
         // Regression guard: the dynamic queryId from resolveTwitterOperationMetadata
         // must propagate to the actual GraphQL URL. Previously a bug in the bundle
@@ -380,6 +384,49 @@ describe('twitter search end-to-end with new filters', () => {
             .rejects
             .toThrow(/--limit/);
         expect(page.goto).not.toHaveBeenCalled();
+    });
+    it('throws ArgumentError for invalid --timeout before navigation', async () => {
+        const command = getRegistry().get('twitter/search');
+        const page = {
+            goto: vi.fn(),
+            evaluate: vi.fn(),
+        };
+        await expect(command.func(page, { query: 'hi', limit: 5, timeout: 0 }))
+            .rejects
+            .toThrow(/--timeout/);
+        await expect(command.func(page, { query: 'hi', limit: 5, timeout: 121 }))
+            .rejects
+            .toThrow(/--timeout/);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+    it('surfaces a bounded SearchTimeline timeout instead of hanging silently', async () => {
+        const command = getRegistry().get('twitter/search');
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ error: 'timeout' }),
+        };
+
+        await expect(command.func(page, { query: 'opencli', limit: 5, timeout: 7 }))
+            .rejects
+            .toMatchObject({
+                name: TimeoutError.name,
+                exitCode: 75,
+                hint: expect.stringContaining('xquik search'),
+            });
+        expect(page.evaluate.mock.calls[1][0]).toContain('setTimeout(() => controller.abort(), 7000)');
+    });
+    it('surfaces browser-network failure separately from empty results', async () => {
+        const command = getRegistry().get('twitter/search');
+        const page = {
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
+            goto: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ error: 'network' }),
+        };
+
+        await expect(command.func(page, { query: 'opencli', limit: 5 }))
+            .rejects
+            .toBeInstanceOf(CommandExecutionError);
     });
     it('runs with only filters set (empty <query>)', async () => {
         const command = getRegistry().get('twitter/search');

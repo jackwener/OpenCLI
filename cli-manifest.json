@@ -40361,6 +40361,13 @@
         "help": "Maximum number of tweets to return (default 15). Result count after server-side filtering."
       },
       {
+        "name": "timeout",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Seconds to wait for each SearchTimeline request (1-120)."
+      },
+      {
         "name": "top-by-engagement",
         "type": "int",
         "default": 0,
@@ -45031,6 +45038,69 @@
     "type": "js",
     "modulePath": "xiaoyuzhou/transcript.js",
     "sourceFile": "xiaoyuzhou/transcript.js"
+  },
+  {
+    "site": "xquik",
+    "name": "search",
+    "description": "Search X posts through the Xquik API without a browser session",
+    "access": "read",
+    "domain": "xquik.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "X search query, Tweet ID, or X status URL"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "Latest",
+        "required": false,
+        "help": "Sort results by Latest or Top",
+        "choices": [
+          "Latest",
+          "Top"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum posts to return (1-100)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Request timeout in seconds (1-120)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "author",
+      "name",
+      "bio",
+      "text",
+      "created_at",
+      "likes",
+      "retweets",
+      "replies",
+      "quotes",
+      "bookmarks",
+      "views",
+      "url",
+      "media_urls"
+    ],
+    "type": "js",
+    "modulePath": "xquik/search.js",
+    "sourceFile": "xquik/search.js"
   },
   {
     "site": "xueqiu",
