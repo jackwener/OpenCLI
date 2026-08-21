@@ -100,6 +100,9 @@
     "vitepress": "^1.6.4",
     "vitest": "^4.1.0"
   },
+  "optionalDependencies": {
+    "esbuild": "^0.28.0"
+  },
   "overrides": {
     "postcss": "^8.5.10",
     "vitepress": {
