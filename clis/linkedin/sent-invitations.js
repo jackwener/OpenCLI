@@ -38,6 +38,9 @@ function buildSentInvitationsScript() {
       const name = linkName
         || cleanName(lines.find((line) => !/^(pending|sent|withdraw|message|view profile|invitation|invited|ago|manage|received)\b/i.test(line)) || '');
       if (!name) continue;
+      // Skip page-header rows that bleed through the overly-broad cards selector
+      // (e.g. 'People (81)' counter on the invitation manager page).
+      if (/^people\s*\(\d+\)$/i.test(name) || /^\d+\s+invitations?$/i.test(name)) continue;
       const hrefAttr = link ? (link.getAttribute('href') || '') : '';
       const profile_url = hrefAttr ? new URL(hrefAttr, location.origin).toString().replace(/[?#].*$/, '') : '';
       const invited_date_text = clean((raw.match(/(?:Sent|Invited)\s+(?:\d+\s+\w+\s+ago|yesterday|today)/i) || [''])[0]);
