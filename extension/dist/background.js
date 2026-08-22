@@ -861,8 +861,12 @@ function connect() {
 async function connectAttempt() {
   if (isDaemonSocketActive()) return;
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1e3) });
+    const res = await fetch(DAEMON_PING_URL, {
+      signal: AbortSignal.timeout(1e3),
+      credentials: "omit"
+    });
     if (!res.ok) {
+      console.warn(`[opencli] daemon ping failed: HTTP ${res.status}`);
       scheduleReconnect();
       return;
     }
