@@ -2,8 +2,10 @@
  * BOSS直聘 job detail — extract the fully rendered job page. Read-only.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { readRequiredString, requirePage, navigateTo, verbose } from './utils.js';
+
+const BOSS_DOMAIN = 'www.zhipin.com';
 
 function cleanText(value) {
     return String(value || '')
@@ -23,25 +25,18 @@ function domSnapshotToRow(raw, jobId) {
         salary: cleanText(raw.salaryText),
         experience: cleanText(raw.experienceText),
         degree: cleanText(raw.degreeText),
-        location: {
-            city: nullable(raw.cityText),
-            district: nullable(raw.districtText),
-            address: nullable(raw.addressText),
-        },
+        city: nullable(raw.cityText),
+        address: nullable(raw.addressText),
         description: cleanText(raw.descriptionText),
         skills: unique(Array.isArray(raw.skillTexts) ? raw.skillTexts : []).join(', '),
         welfare: unique(Array.isArray(raw.welfareTexts) ? raw.welfareTexts : []).join(', '),
-        recruiter: {
-            name: nullable(raw.recruiterName),
-            title: nullable(raw.recruiterTitle),
-            activeTime: nullable(raw.recruiterActiveTime),
-        },
+        boss_name: nullable(raw.recruiterName),
+        boss_title: nullable(raw.recruiterTitle),
+        active_time: nullable(raw.recruiterActiveTime),
         company: cleanText(raw.companyName),
-        companyInfo: {
-            industry: nullable(raw.industryText),
-            scale: nullable(raw.scaleText),
-            stage: nullable(raw.stageText),
-        },
+        industry: nullable(raw.industryText),
+        scale: nullable(raw.scaleText),
+        stage: nullable(raw.stageText),
         url: `https://www.zhipin.com/job_detail/${jobId}.html`,
     };
 }
@@ -93,10 +88,12 @@ export function extractRenderedJob() {
     return {
         jobName: title,
         salaryText: first(['.job-primary .salary', '.job-banner .salary', '.job-primary .name + span']),
-        cityText: limits[0] || '',
-        experienceText: limits[1] || '',
-        degreeText: limits[2] || '',
-        districtText: '',
+        // Prefer BOSS's semantic classes; fall back to positional order only if
+        // they are absent. Positional indexing alone shifts every field when the
+        // header gains or loses a node.
+        cityText: text('.job-primary .text-city') || limits[0] || '',
+        experienceText: text('.job-primary .text-experiece') || limits[1] || '',
+        degreeText: text('.job-primary .text-degree') || limits[2] || '',
         descriptionText: first(['.job-detail .job-detail-section .job-sec-text:not(.fold-text)', '.job-detail .job-sec-text:not(.fold-text)', '.job-sec-text:not(.fold-text)']),
         skillTexts: texts('.job-detail .job-keyword-list li, .job-keyword-list li'),
         welfareTexts: texts('.job-banner .job-tags span, .job-primary .job-tags span'),
@@ -106,7 +103,9 @@ export function extractRenderedJob() {
         companyName: company,
         industryText: sideFacts.find(value => !/人|融资|上市|轮/.test(value)) || '',
         scaleText: sideFacts.find(value => /\d+.*人/.test(value)) || '',
-        stageText: sideFacts.find(value => /融资|上市|不需要融资/.test(value)) || '',
+        // `D轮及以上` / `天使轮` are the common shapes; the industry filter above
+        // already excludes 轮, so omitting it here left stage permanently empty.
+        stageText: sideFacts.find(value => /轮|融资|上市/.test(value)) || '',
         addressText: address,
     };
 }
@@ -129,7 +128,28 @@ async function captureJobDetail(page, jobId) {
             if (attempt < 4) await page.wait(1);
         }
     }
+    // The retry loop above swallows every read error, so without this check a
+    // session that got bounced to the login wall reports "incomplete posting".
+    // The API path this command replaced classified that as AuthRequiredError
+    // via assertOk; keep that signal rather than losing it to the UI rewrite.
+    if (await isLoginWall(page)) {
+        throw new AuthRequiredError(BOSS_DOMAIN, 'BOSS redirected the job detail page to the login flow');
+    }
     throw new CommandExecutionError('BOSS detail page did not expose a complete job posting');
+}
+
+async function isLoginWall(page) {
+    try {
+        return await page.evaluate(`
+            (() => {
+                const href = window.location.href || '';
+                if (/\\/login|\\/user\\/login|passport/.test(href)) return true;
+                return !!document.querySelector('.sign-form, .login-card, [class*="login-register"]');
+            })()
+        `) === true;
+    } catch {
+        return false;
+    }
 }
 cli({
     site: 'boss',
@@ -146,9 +166,11 @@ cli({
         { name: 'security-id', positional: true, required: true, help: 'Security ID from search results (security_id field)' },
     ],
     columns: [
-        'name', 'salary', 'experience', 'degree', 'location',
-        'description', 'skills', 'welfare', 'recruiter',
-        'company', 'companyInfo', 'url',
+        'name', 'salary', 'experience', 'degree',
+        'city', 'address',
+        'description', 'skills', 'welfare',
+        'boss_name', 'boss_title', 'active_time',
+        'company', 'industry', 'scale', 'stage', 'url',
     ],
     func: async (page, kwargs) => {
         requirePage(page);

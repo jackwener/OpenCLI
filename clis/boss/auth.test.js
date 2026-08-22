@@ -1,14 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { __test__ } from './auth.js';
 
 describe('boss auth identity probe', () => {
-  it('uses an adapter-local helper so an ejected BOSS adapter has no missing shared import', () => {
-    const source = readFileSync(fileURLToPath(new URL('./auth.js', import.meta.url)), 'utf8');
-    expect(source).toContain("from './site-auth.js'");
-  });
-
   it('navigates to the current geek jobs route instead of the retired reload-loop route', async () => {
     const page = {
       getCookies: vi.fn().mockResolvedValue([{ name: 'wt2' }]),

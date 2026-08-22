@@ -29,12 +29,19 @@ describe('boss detail', () => {
       descriptionText: '负责数据分析', skillTexts: ['SQL', 'SQL'], welfareTexts: ['餐补', '餐补'],
       recruiterName: '张三', recruiterTitle: '技术负责人', recruiterActiveTime: '刚刚活跃', companyName: 'OpenCLI',
     }, 'job-id');
-    expect(Object.keys(row)).toHaveLength(12);
+    // Flat scalar columns only: the table/plain/csv/markdown renderers coerce
+    // each cell with String(v) (src/output.ts), so a nested object column would
+    // print as [object Object] in the default output.
+    expect(Object.keys(row)).toHaveLength(17);
     expect(row).toMatchObject({
-      name: '数据分析实习生', location: { city: '上海' }, experience: '在校/应届', degree: '本科',
-      skills: 'SQL', welfare: '餐补', recruiter: { name: '张三', activeTime: '刚刚活跃' },
+      name: '数据分析实习生', city: '上海', experience: '在校/应届', degree: '本科',
+      skills: 'SQL', welfare: '餐补',
+      boss_name: '张三', boss_title: '技术负责人', active_time: '刚刚活跃',
       company: 'OpenCLI', url: 'https://www.zhipin.com/job_detail/job-id.html',
     });
+    for (const value of Object.values(row)) {
+      expect(typeof value === 'object' && value !== null).toBe(false);
+    }
   });
 
   it('extracts current BOSS detail selectors from a sanitized live-page fixture', () => {
