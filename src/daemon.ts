@@ -217,7 +217,7 @@ function unregisterExtensionConnection(ws: WebSocket): void {
 
 // ─── HTTP Server ─────────────────────────────────────────────────────
 
-const MAX_BODY = 32 * 1024 * 1024; // 32 MB — allows base64 image payloads (chatgpt image upload fallback); prevents OOM
+const MAX_BODY = 1024 * 1024; // 1 MB — commands are tiny; this prevents OOM
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {

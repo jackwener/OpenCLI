@@ -1476,6 +1476,29 @@ describe('chatgpt generated image detection', () => {
         ]);
     });
 
+    it('ignores user-uploaded previews labeled by the Chinese UI', async () => {
+        const page = createDomPage(`
+            <!doctype html>
+            <button aria-label="打开图片：用户上传的图片">
+              <img alt="" src="https://chatgpt.com/backend-api/files/reference">
+            </button>
+            <section data-testid="conversation-turn-2">
+              <h4>ChatGPT said:</h4>
+              <img alt="generated image" src="https://chatgpt.com/backend-api/generated/foo.webp">
+            </section>
+        `, (window) => {
+            for (const img of window.document.querySelectorAll('img')) {
+                Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 512 });
+                Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 512 });
+                img.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            }
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'https://chatgpt.com/backend-api/generated/foo.webp',
+        ]);
+    });
+
     it('keeps assistant generated images even when they are inside an open-image button', async () => {
         const page = createDomPage(`
             <!doctype html>
