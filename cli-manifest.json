@@ -3483,6 +3483,45 @@
     "sourceFile": "bbc/topic.js"
   },
   {
+    "site": "behance",
+    "name": "search",
+    "description": "搜索 Behance 公开项目案例，返回标题、作者、可见统计、封面与项目链接",
+    "access": "read",
+    "example": "opencli behance search \"industrial brand identity\" --limit 12 -f json",
+    "domain": "www.behance.net",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "设计检索关键词，例如 \"industrial brand identity\""
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回项目数量（1-50）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "projectId",
+      "title",
+      "author",
+      "appreciations",
+      "views",
+      "thumbnailUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "behance/search.js",
+    "sourceFile": "behance/search.js"
+  },
+  {
     "site": "bilibili",
     "name": "comment",
     "description": "在 B站视频下发表评论或回复（官方 API，需登录；消息里的 @用户 会被解析为真实提及）",
@@ -44762,6 +44801,7 @@
       "author",
       "likes",
       "published_at",
+      "thumbnailUrl",
       "url"
     ],
     "type": "js",

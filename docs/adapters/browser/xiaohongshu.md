@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, URL) |
+| `opencli xiaohongshu search` | Search notes by keyword (returns title, author, likes, thumbnail, URL) |
 | `opencli xiaohongshu ask` | Ask 点点 and return its answer with citation sources (`sources[]` in JSON) |
 | `opencli xiaohongshu note` | Read full note content (title, author, description, likes, collects, comments, tags) |
 | `opencli xiaohongshu comments` | Read comments from a note (`--with-replies` for nested 楼中楼 replies) |

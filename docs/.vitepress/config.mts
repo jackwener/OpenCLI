@@ -106,6 +106,7 @@ export default defineConfig({
                 { text: 'Upwork', link: '/adapters/browser/upwork' },
                 { text: 'Instagram', link: '/adapters/browser/instagram' },
                 { text: 'Pinterest', link: '/adapters/browser/pinterest' },
+                { text: 'Behance', link: '/adapters/browser/behance' },
                 { text: 'JD.com', link: '/adapters/browser/jd' },
                 { text: 'Medium', link: '/adapters/browser/medium' },
                 { text: 'Mercury', link: '/adapters/browser/mercury' },
