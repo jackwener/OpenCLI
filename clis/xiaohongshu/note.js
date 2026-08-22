@@ -32,11 +32,16 @@ export const NOTE_EXTRACT_JS = `
         // .title and reported an unrelated recommendation card's title as this
         // note's title. Same class of bug as the .interact-container scoping
         // below.
-        const scope = document.querySelector('#noteContainer') || document
-
-        const title = clean(scope.querySelector('#detail-title, .title'))
-        const desc = clean(scope.querySelector('#detail-desc, .desc, .note-text'))
-        const author = clean(scope.querySelector('.username, .author-wrapper .name'))
+        const scope = document.querySelector('#noteContainer')
+        const title = scope
+          ? clean(scope.querySelector('#detail-title, .title'))
+          : clean(document.querySelector('#detail-title'))
+        const desc = scope
+          ? clean(scope.querySelector('#detail-desc, .desc, .note-text'))
+          : clean(document.querySelector('#detail-desc, .note-text'))
+        const author = scope
+          ? clean(scope.querySelector('.username, .author-wrapper .name'))
+          : clean(document.querySelector('.username, .author-wrapper .name'))
         // Scope to .interact-container — the post's main interaction bar.
         // Without scoping, .like-wrapper / .chat-wrapper also match each
         // comment's like/reply buttons in the comment section, and

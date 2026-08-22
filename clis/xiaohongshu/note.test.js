@@ -307,4 +307,19 @@ describe('NOTE_EXTRACT_JS', () => {
         expect(d.title).toBe('老版布局');
         expect(d.author).toBe('作者');
     });
+
+    it('does not use document-level recommendation title or desc when #noteContainer is absent', () => {
+        const d = runExtract(`<!doctype html><html><body>
+          <div class="feeds-container">
+            <section class="note-item">
+              <a class="title"><span>推荐卡片标题</span></a>
+              <div class="desc">推荐卡片正文</div>
+            </section>
+          </div>
+          <div class="author-wrapper"><span class="username">作者</span></div>
+        </body></html>`);
+        expect(d.title).toBe('');
+        expect(d.desc).toBe('');
+        expect(d.author).toBe('作者');
+    });
 });
