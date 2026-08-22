@@ -3270,6 +3270,53 @@ cli({
       console.log('Browser session tab lease released');
     }));
 
+  // ── Session-independent: sessions / cleanup ──
+
+  browser.command('sessions').description('List all active browser session leases')
+    .option('-f, --format <fmt>', 'Output format: table (default) or json', 'table')
+    .action(async function sessionsAction(this: Command) {
+      try {
+        const { sendCommand } = await import('./browser/daemon-client.js');
+        const data = await sendCommand('sessions', { op: 'list' } as never);
+        const entries = Array.isArray(data) ? data : [];
+        const fmt = this.opts().format;
+        if (fmt === 'json') {
+          console.log(JSON.stringify(entries, null, 2));
+        } else {
+          if (entries.length === 0) {
+            console.log('No active browser sessions.');
+          } else {
+            console.log(`${entries.length} active session(s):\n`);
+            for (const e of entries) {
+              const url = e.url && e.url !== 'about:blank' ? e.url : '(blank)';
+              console.log(`  ${(e.session as string).padEnd(40)} ${(e.surface as string).padEnd(10)} ${(e.kind as string).padEnd(8)} ${url}`);
+            }
+          }
+        }
+      } catch {
+        console.error('The extension does not support the sessions action yet. Reload the extension in chrome://extensions to pick up the update.');
+        process.exit(1);
+      }
+    });
+
+  browser.command('cleanup').description('Release all browser session leases and close their tabs')
+    .action(async () => {
+      try {
+        const { sendCommand } = await import('./browser/daemon-client.js');
+        const data = await sendCommand('sessions', { op: 'cleanup' } as never) as { released?: number };
+        console.log(`Released ${data?.released ?? 0} session(s).`);
+      } catch {
+        const { requestDaemonShutdown } = await import('./browser/daemon-client.js');
+        console.log('Extension does not support cleanup yet; restarting daemon to release all leases...');
+        try { await requestDaemonShutdown(); } catch { /* ok */ }
+        const { spawn } = await import('node:child_process');
+        await new Promise<void>((resolve) => {
+          const child = spawn(process.execPath, [process.argv[1], 'daemon', 'restart'], { stdio: 'inherit' });
+          child.on('close', () => resolve());
+        });
+      }
+    });
+
   // ── Built-in: doctor / completion ──────────────────────────────────────────
 
   program

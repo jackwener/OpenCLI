@@ -1332,6 +1332,9 @@ async function fetchDaemonVersion(): Promise<string | null> {
 // ─── Command dispatcher ─────────────────────────────────────────────
 
 async function handleCommand(cmd: Command): Promise<Result> {
+  // Session-independent actions — handle before session resolution.
+  if (cmd.action === 'sessions') return handleSessions(cmd);
+
   const session = getSessionName(cmd.session);
   const surface = getCommandSurface(cmd);
   const leaseKey = getLeaseKey(session, surface);
@@ -2035,6 +2038,43 @@ function stripOpenCliFrameRoutingParams(params: Record<string, unknown>, stripFr
   const { sessionId, frameId, targetUrl, ...rest } = params;
   if (!stripFrameId && frameId !== undefined) return { ...rest, frameId };
   return rest;
+}
+
+async function handleSessions(cmd: Command): Promise<Result> {
+  if (cmd.op === 'cleanup') {
+    const keys = [...automationSessions.keys()];
+    for (const key of keys) await releaseLease(key, 'cleanup');
+    return { id: cmd.id, ok: true, data: { released: keys.length } };
+  }
+  // Default: list
+  const entries: Array<{
+    session: string;
+    surface: string;
+    kind: string;
+    tabId: number | null;
+    url?: string;
+    title?: string;
+  }> = [];
+  for (const [, lease] of automationSessions) {
+    let url: string | undefined;
+    let title: string | undefined;
+    if (lease.preferredTabId !== null) {
+      try {
+        const tab = await chrome.tabs.get(lease.preferredTabId);
+        url = tab.url;
+        title = tab.title;
+      } catch { /* tab may be gone */ }
+    }
+    entries.push({
+      session: lease.session,
+      surface: lease.surface,
+      kind: lease.kind,
+      tabId: lease.preferredTabId,
+      url,
+      title,
+    });
+  }
+  return { id: cmd.id, ok: true, data: entries };
 }
 
 async function handleCloseWindow(cmd: Command, leaseKey: string): Promise<Result> {

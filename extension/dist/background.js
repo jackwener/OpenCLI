@@ -1172,6 +1172,7 @@ async function removeLeaseSession(leaseKey) {
   sessionOverrides.delete(leaseKey);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
+  void refreshInteractiveGroupTitle();
 }
 function resetWindowIdleTimer(leaseKey, remainingMs) {
   const session = automationSessions.get(leaseKey);
@@ -1198,6 +1199,26 @@ function resetWindowIdleTimer(leaseKey, remainingMs) {
 }
 function getOwnedContainerGroupTitles(role) {
   return role === "automation" ? [] : [CONTAINER_TAB_GROUP_TITLE.interactive];
+}
+function computeInteractiveGroupTitle() {
+  const sessions = /* @__PURE__ */ new Set();
+  for (const [key, lease] of automationSessions.entries()) {
+    if (getOwnedWindowRole(key) === "interactive" && lease.session) {
+      sessions.add(lease.session);
+    }
+  }
+  if (sessions.size === 0) return CONTAINER_TAB_GROUP_TITLE.interactive;
+  const names = [...sessions].slice(0, 5).join(", ");
+  return sessions.size > 5 ? `OpenCLI: ${names}, …` : `OpenCLI: ${names}`;
+}
+async function refreshInteractiveGroupTitle() {
+  const container = ownedContainers.interactive;
+  if (container.groupId === null) return;
+  try {
+    const title = computeInteractiveGroupTitle();
+    await chrome.tabGroups.update(container.groupId, { title });
+  } catch {
+  }
 }
 async function focusOwnedWindowIfRequested(windowId, mode) {
   if (mode !== "foreground") return;
@@ -1314,10 +1335,10 @@ async function ensureTabsInWindow(tabIds, windowId) {
   return movedIds;
 }
 async function ensureCanonicalGroupTitle(role, group) {
-  const canonicalTitle = CONTAINER_TAB_GROUP_TITLE[role];
-  if (group.title === canonicalTitle) return group;
+  const title = role === "interactive" ? computeInteractiveGroupTitle() : CONTAINER_TAB_GROUP_TITLE[role];
+  if (group.title === title) return group;
   const updated = await chrome.tabGroups.update(group.id, {
-    title: canonicalTitle,
+    title,
     color: OWNED_TAB_GROUP_COLOR
   });
   return { id: updated.id, windowId: updated.windowId, title: updated.title };
@@ -1675,6 +1696,7 @@ async function fetchDaemonVersion() {
   }
 }
 async function handleCommand(cmd) {
+  if (cmd.action === "sessions") return handleSessions(cmd);
   const session = getSessionName(cmd.session);
   const surface = getCommandSurface(cmd);
   const leaseKey = getLeaseKey(session, surface);
@@ -1797,6 +1819,7 @@ function setLeaseSession(leaseKey, session) {
     idleDeadlineAt: timeout <= 0 ? 0 : Date.now() + timeout
   });
   void persistRuntimeState();
+  void refreshInteractiveGroupTitle();
 }
 async function resolveCommandTabId(cmd) {
   if (cmd.page) return resolveTabId$1(cmd.page);
@@ -2247,6 +2270,35 @@ function stripOpenCliFrameRoutingParams(params, stripFrameId) {
   const { sessionId, frameId, targetUrl, ...rest } = params;
   if (!stripFrameId && frameId !== void 0) return { ...rest, frameId };
   return rest;
+}
+async function handleSessions(cmd) {
+  if (cmd.op === "cleanup") {
+    const keys = [...automationSessions.keys()];
+    for (const key of keys) await releaseLease(key, "cleanup");
+    return { id: cmd.id, ok: true, data: { released: keys.length } };
+  }
+  const entries = [];
+  for (const [, lease] of automationSessions) {
+    let url;
+    let title;
+    if (lease.preferredTabId !== null) {
+      try {
+        const tab = await chrome.tabs.get(lease.preferredTabId);
+        url = tab.url;
+        title = tab.title;
+      } catch {
+      }
+    }
+    entries.push({
+      session: lease.session,
+      surface: lease.surface,
+      kind: lease.kind,
+      tabId: lease.preferredTabId,
+      url,
+      title
+    });
+  }
+  return { id: cmd.id, ok: true, data: entries };
 }
 async function handleCloseWindow(cmd, leaseKey) {
   const sessionName = automationSessions.get(leaseKey)?.session ?? getSessionFromKey(leaseKey);
