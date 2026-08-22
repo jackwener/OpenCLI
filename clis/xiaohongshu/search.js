@@ -186,6 +186,7 @@ export function buildSearchExtractJs(webHost) {
         const normalizeUrl = (href) => {
           if (!href) return '';
           if (href.startsWith('http://') || href.startsWith('https://')) return href;
+          if (href.startsWith('//')) return 'https:' + href;
           if (href.startsWith('/')) return 'https://${webHost}' + href;
           return '';
         };
@@ -240,6 +241,15 @@ export function buildSearchExtractJs(webHost) {
 
           const url = normalizeUrl(detailLinkEl?.getAttribute('href') || '');
           if (!url) continue;
+          const coverImageEl =
+            detailLinkEl?.querySelector('img[data-xhs-img]') ||
+            detailLinkEl?.querySelector('img');
+          const thumbnailUrl = normalizeUrl(
+            coverImageEl?.currentSrc ||
+            coverImageEl?.getAttribute('src') ||
+            coverImageEl?.getAttribute('data-src') ||
+            ''
+          );
 
           const key = url;
           if (seen.has(key)) continue;
@@ -258,6 +268,7 @@ export function buildSearchExtractJs(webHost) {
             title,
             author,
             likes: cleanText(likesEl?.textContent || '0'),
+            thumbnailUrl: thumbnailUrl || null,
             url,
             author_url: normalizeUrl(authorLinkEl?.getAttribute('href') || ''),
           });
@@ -279,23 +290,36 @@ export const command = cli({
         { name: 'query', required: true, positional: true, help: 'Search keyword' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
     ],
-    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'url'],
+    columns: ['rank', 'title', 'author', 'likes', 'published_at', 'thumbnailUrl', 'url'],
     func: async (page, kwargs) => {
         const limit = parseLimit(kwargs.limit);
         const keyword = encodeURIComponent(kwargs.query);
-        await page.goto(`https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
-        // Wait for search results to render (or login wall to appear).
-        // Uses MutationObserver to resolve as soon as content appears,
-        // instead of a fixed delay + blind retry.
-        const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
-        if (waitResult === 'login_wall') {
-            throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
-        }
+        const searchUrl = `https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`;
+        const navigateAndWait = async (url) => {
+            await page.goto(url);
+            // Wait for search results to render (or login wall to appear).
+            // Uses MutationObserver to resolve as soon as content appears,
+            // instead of a fixed delay + blind retry.
+            const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
+            if (waitResult === 'login_wall') {
+                throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+            }
+            return waitResult;
+        };
+        const initialWaitResult = await navigateAndWait(searchUrl);
         // Extract before scrolling. Xiaohongshu uses a virtualized masonry
         // layout, so scrolling to the bottom can evict the initially visible
         // note cards from the DOM and make extraction return [] even though the
         // browser rendered results correctly.
-        const initialPayload = requireSearchRows(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')), 'initial extraction');
+        let initialPayload = requireSearchRows(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')), 'initial extraction');
+        if (initialWaitResult === 'timeout' && initialPayload.length === 0) {
+            // Reusing the same browser tab can occasionally leave Xiaohongshu
+            // on an empty intermediate render even though the same query works
+            // immediately afterward. Force one real navigation before treating
+            // the response as a legitimate empty result.
+            await navigateAndWait(`${searchUrl}&opencli_retry=${Date.now()}`);
+            initialPayload = requireSearchRows(await page.evaluate(buildSearchExtractJs('www.xiaohongshu.com')), 'retry extraction');
+        }
         const payload = [...initialPayload];
         if (payload.length < limit) {
             // Scroll until enough rows are rendered or the lazy-load plateaus.
