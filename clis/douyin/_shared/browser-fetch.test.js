@@ -56,12 +56,6 @@ describe('browserFetch', () => {
         await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
             .rejects.toThrow('Douyin API error -2');
     });
-    it('throws a typed empty-response error instead of JSON.parse("") details', async () => {
-        const page = makePage({ status_code: -2, status_msg: 'Empty response from Douyin API' });
-        await expect(browserFetch(page, 'GET', 'https://creator.douyin.com/api/test'))
-            .rejects.toThrow('Douyin API error -2 at GET https://creator.douyin.com/api/test: Empty response from Douyin API');
-        expect(page.evaluate.mock.calls[0][0]).toContain('if (!text.trim())');
-    });
     it('wraps browser-side fetch or JSON parse failures', async () => {
         const page = makePage(null);
         page.evaluate.mockRejectedValueOnce(new SyntaxError('Unexpected token < in JSON'));

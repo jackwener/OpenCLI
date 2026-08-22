@@ -254,9 +254,9 @@ describe('twitter profile command', () => {
 
         expect(profileScript).toContain('"queryId":"DYNAMIC_USER"');
         expect(profileScript).toContain('"current_user_feature":true');
-        expect(profileScript).toContain('"withCurrentUserLabels":true');
+        expect(profileScript).not.toContain('"withCurrentUserLabels":true');
         expect(profileScript).toContain("operation.queryId + '/UserByScreenName");
-        expect(profileScript).toContain('&fieldToggles=');
+        expect(profileScript).not.toContain('&fieldToggles=');
     });
 
     it('maps GraphQL auth and not-found envelopes to typed failures', async () => {

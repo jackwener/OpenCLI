@@ -17,14 +17,9 @@ const USER_BY_SCREEN_NAME_FEATURES = {
     responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
     responsive_web_graphql_timeline_navigation_enabled: true,
 };
-const USER_BY_SCREEN_NAME_FIELD_TOGGLES = {
-    withPayments: true,
-    withAuxiliaryUserLabels: true,
-};
 const USER_BY_SCREEN_NAME_OPERATION = {
     queryId: USER_BY_SCREEN_NAME_QUERY_ID,
     features: USER_BY_SCREEN_NAME_FEATURES,
-    fieldToggles: USER_BY_SCREEN_NAME_FIELD_TOGGLES,
 };
 
 function isPlainObject(value) {
@@ -116,7 +111,8 @@ cli({
         const ct0 = cookies.find((c) => c.name === 'ct0')?.value || null;
         if (!ct0)
             throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
-        const operation = await resolveTwitterOperationMetadata(page, 'UserByScreenName', USER_BY_SCREEN_NAME_OPERATION);
+        const resolvedOperation = await resolveTwitterOperationMetadata(page, 'UserByScreenName', USER_BY_SCREEN_NAME_OPERATION);
+        const operation = { queryId: resolvedOperation.queryId, features: resolvedOperation.features };
         const rawResult = unwrapBrowserResult(await page.evaluate(`
       async () => {
         const screenName = ${JSON.stringify(username)};
@@ -136,14 +132,10 @@ cli({
           withSafetyModeUserFields: true,
         });
         const features = JSON.stringify(operation.features || {});
-        const fieldToggles = JSON.stringify(operation.fieldToggles || {});
 
-        let url = '/i/api/graphql/' + operation.queryId + '/UserByScreenName?variables='
+        const url = '/i/api/graphql/' + operation.queryId + '/UserByScreenName?variables='
           + encodeURIComponent(variables)
           + '&features=' + encodeURIComponent(features);
-        if (Object.keys(operation.fieldToggles || {}).length > 0) {
-          url += '&fieldToggles=' + encodeURIComponent(fieldToggles);
-        }
 
         let resp;
         try {

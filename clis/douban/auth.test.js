@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './auth.js';
@@ -47,6 +48,39 @@ describe('douban auth commands', () => {
             user_id: '654321',
             name: '',
         });
+    });
+
+    it('does not mistake an unrelated /people/<uid> link for the signed-in user', async () => {
+        const dom = new JSDOM('<a href="/people/999999/">Recommended profile</a>', {
+            url: 'https://www.douban.com/',
+            runScripts: 'outside-only',
+        });
+        const page = makePage({
+            cookies: [{ name: 'dbcl2', value: '"654321:session"' }, { name: 'ck', value: 'token' }],
+            probe: null,
+        });
+        page.evaluate.mockImplementation((script) => dom.window.eval(script));
+
+        await expect(doubanWhoami().func(page, {})).resolves.toEqual({
+            logged_in: true,
+            site: 'douban',
+            user_id: '654321',
+            name: '',
+        });
+    });
+
+    it('rejects a stale dbcl2 cookie when /mine redirects to the login flow', async () => {
+        const dom = new JSDOM('<h1>Sign in</h1>', {
+            url: 'https://accounts.douban.com/passport/login',
+            runScripts: 'outside-only',
+        });
+        const page = makePage({
+            cookies: [{ name: 'dbcl2', value: '"654321:stale"' }],
+            probe: null,
+        });
+        page.evaluate.mockImplementation((script) => dom.window.eval(script));
+
+        await expect(doubanWhoami().func(page, {})).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
     it('throws auth-required when Douban session cookies are missing', async () => {

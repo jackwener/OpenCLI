@@ -26,11 +26,13 @@ async function verifyDoubanIdentity(page) {
   const probe = await page.evaluate(`
     (() => {
       const parseUid = (value) => String(value || '').match(/(?:^|\\/)people\\/(\\d+)\\/?/)?.[1] || '';
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.hostname === 'accounts.douban.com' || currentUrl.pathname.startsWith('/passport/')) {
+        return { kind: 'auth', detail: 'Douban /mine redirected to the login flow' };
+      }
       const navUser = document.querySelector('.nav-user-account .bn-more, .top-nav-info a.bn-more');
       const navHref = navUser?.getAttribute('href') || navUser?.href || '';
-      const profileLink = document.querySelector('a[href*="/people/"]');
-      const profileHref = profileLink?.getAttribute('href') || profileLink?.href || '';
-      const user_id = parseUid(window.location.href) || parseUid(navHref) || parseUid(profileHref);
+      const user_id = parseUid(window.location.href) || parseUid(navHref);
       const name = (navUser?.textContent || document.querySelector('.info h1, h1')?.textContent || '').trim();
       return user_id
         ? { ok: true, user_id, name }
