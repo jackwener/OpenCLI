@@ -3,19 +3,21 @@ import { assertAuthenticatedState, buildDetailUrl, buildProvenance, cleanText, e
 // 1688 商品详情区位于自定义元素 v-detail-e 的 shadow DOM 内（懒渲染），
 // 普通 CSS selector 无法穿透 shadowRoot，需沿 shadow host 链判断归属。
 export const DETAIL_CONTAINER_SELECTOR = '.de-description-detail, #detailContentContainer, .html-description, .desc-lazyload-container';
-export function inDetailContainer(el) {
+export function inDetailContainer(el, selector = DETAIL_CONTAINER_SELECTOR) {
     let node = el;
     while (node) {
+        // Check ancestors within the current root first: a detail container can
+        // be a plain element inside a shadow root, not only the host itself.
+        if (node.closest && node.closest(selector))
+            return true;
         const rootNode = node.getRootNode ? node.getRootNode() : null;
         if (rootNode && rootNode.host) {
             const host = rootNode.host;
-            if (host && host.matches && host.matches(DETAIL_CONTAINER_SELECTOR))
+            if (host && host.matches && host.matches(selector))
                 return true;
             node = host;
         }
         else {
-            if (node.closest && node.closest(DETAIL_CONTAINER_SELECTOR))
-                return true;
             node = null;
         }
     }
@@ -34,22 +36,10 @@ function scriptToReadAssets() {
         { key: 'sku', type: 'image', selectors: ['.pc-sku-wrapper .prop-item-inner-wrapper', '.sku-item-wrapper', '.specification-cell', '.sku-filter-button', '.expand-view-item', '.feature-item img'], srcProps: ['backgroundImage'] },
       ];
       const detailContainerSelector = ${JSON.stringify(DETAIL_CONTAINER_SELECTOR)};
-      // 页面上下文内定义的局部版本（闭包携带常量），与模块级 inDetailContainer 逻辑一致
-      const inDetailContainer = (el) => {
-        let node = el;
-        while (node) {
-          const rootNode = node.getRootNode ? node.getRootNode() : null;
-          if (rootNode && rootNode.host) {
-            const host = rootNode.host;
-            if (host && host.matches && host.matches(detailContainerSelector)) return true;
-            node = host;
-          } else {
-            if (node.closest && node.closest(detailContainerSelector)) return true;
-            node = null;
-          }
-        }
-        return false;
-      };
+      // Inject the module-level implementation rather than hand-copying it, so
+      // the unit tests exercise the same code that runs in the page.
+      const inDetailContainerImpl = ${inDetailContainer.toString()};
+      const inDetailContainer = (el) => inDetailContainerImpl(el, detailContainerSelector);
       const assets = [];
       const seen = new Set();
 
@@ -216,17 +206,54 @@ function normalizeAssets(payload) {
 async function readAssetsPayload(page, itemUrl) {
     const state = await gotoAndReadState(page, itemUrl, 2500, 'assets');
     assertAuthenticatedState(state, 'assets');
-    // 详情区懒渲染：多次滚动到底触发 shadow DOM 内容与懒加载图片。
-    // 首次滚动 6 次保证长页面到底，再滚 4 次等待加载完成后二次确认。
+    // The detail section renders lazily inside a shadow root. Scroll once to the
+    // bottom to trigger it, bring the container into view, then poll until the
+    // deep detail-image count stops growing. autoScroll keeps no state across
+    // calls, so calling it twice was identical to one longer call, and a fixed
+    // page.wait(3) paid the full cost on every invocation even when the content
+    // was already there.
     await page.autoScroll({ times: 6, delayMs: 500 });
-    await page.autoScroll({ times: 4, delayMs: 500 });
-    // 若详情容器存在，定位到它并等待 shadow 内容渲染（图片 src 填充）
     await page.evaluate(`(() => {
       const el = document.querySelector('.html-description, v-detail-e, .de-description-detail, #detailContentContainer');
       if (el) el.scrollIntoView({ behavior: 'instant', block: 'start' });
     })()`);
-    await page.wait(3);
+    await waitForDetailImages(page);
     return await page.evaluate(scriptToReadAssets());
+}
+/**
+ * Poll until the detail-image count is stable across two reads (or the cap is
+ * reached). Returns as soon as the content settles instead of always sleeping.
+ */
+async function waitForDetailImages(page, { attempts = 10, intervalSeconds = 0.5 } = {}) {
+    const countJs = `(() => {
+      const sel = ${JSON.stringify(DETAIL_CONTAINER_SELECTOR)};
+      let total = 0;
+      const walk = (root) => {
+        for (const node of root.querySelectorAll('*')) {
+          if (node.shadowRoot) walk(node.shadowRoot);
+        }
+        for (const host of root.querySelectorAll(sel)) {
+          total += host.querySelectorAll('img, source').length;
+          if (host.shadowRoot) total += host.shadowRoot.querySelectorAll('img, source').length;
+        }
+      };
+      walk(document);
+      return total;
+    })()`;
+    let previous = -1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        let current = 0;
+        try {
+            current = Number(await page.evaluate(countJs)) || 0;
+        }
+        catch {
+            return; // Reading the count is best-effort; fall through to extraction.
+        }
+        if (current > 0 && current === previous)
+            return;
+        previous = current;
+        await page.wait(intervalSeconds);
+    }
 }
 export async function extractAssetsForInput(page, input) {
     const itemUrl = buildDetailUrl(String(input ?? ''));
