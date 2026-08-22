@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_SITE } from './shared.js';
+import { isNotebooklmHost, NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_SITE } from './shared.js';
 import { getNotebooklmPageState } from './utils.js';
 cli({
     site: NOTEBOOKLM_SITE,
@@ -14,13 +14,20 @@ cli({
     columns: ['status', 'login', 'page', 'url', 'title', 'notebooks'],
     func: async (page) => {
         const currentUrl = await page.getCurrentUrl?.().catch(() => null);
-        if (!currentUrl || !currentUrl.includes(NOTEBOOKLM_DOMAIN)) {
+        let currentHostname = '';
+        try {
+            currentHostname = currentUrl ? new URL(currentUrl).hostname : '';
+        }
+        catch {
+            currentHostname = '';
+        }
+        if (!isNotebooklmHost(currentHostname)) {
             await page.goto(NOTEBOOKLM_HOME_URL);
             await page.wait(2);
         }
         const state = await getNotebooklmPageState(page);
         return [{
-                status: state.hostname === NOTEBOOKLM_DOMAIN ? 'Connected' : 'Unavailable',
+                status: isNotebooklmHost(state.hostname) ? 'Connected' : 'Unavailable',
                 login: state.loginRequired ? 'Required' : 'OK',
                 page: state.kind,
                 url: state.url,

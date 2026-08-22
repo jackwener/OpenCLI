@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { buildNotebooklmRpcBody, classifyNotebooklmPage, extractNotebooklmHistoryPreview, extractNotebooklmRpcResult, getNotebooklmPageState, isPlainObject, normalizeNotebooklmTitle, parseNotebooklmHistoryThreadIdsResult, parseNotebooklmIdFromUrl, parseNotebooklmListResult, parseNotebooklmNoteListRawRows, parseNotebooklmNotebookDetailResult, parseNotebooklmNotebookTarget, parseNotebooklmSourceFulltextResult, parseNotebooklmSourceGuideResult, parseNotebooklmSourceListResult, } from './utils.js';
 import { CliError } from '@jackwener/opencli/errors';
+import { isNotebooklmHost } from './shared.js';
 describe('notebooklm utils', () => {
+    it('matches only the two exact NotebookLM hosts', () => {
+        expect(isNotebooklmHost('notebooklm.google.com')).toBe(true);
+        expect(isNotebooklmHost('notebook.google.com')).toBe(true);
+        expect(isNotebooklmHost('evil.notebooklm.google.com')).toBe(false);
+        expect(isNotebooklmHost('notebooklm.google.com.evil.test')).toBe(false);
+        expect(isNotebooklmHost('google.com')).toBe(false);
+    });
     it('isPlainObject distinguishes objects from arrays / null / primitives', () => {
         expect(isPlainObject({})).toBe(true);
         expect(isPlainObject({ a: 1 })).toBe(true);

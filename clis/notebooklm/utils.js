@@ -1,14 +1,11 @@
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, NOTEBOOKLM_REDIRECT_DOMAIN, } from './shared.js';
+import { isNotebooklmHost, NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
 import { callNotebooklmRpc, getNotebooklmPageAuth, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';
 const NOTEBOOKLM_LIST_RPC_ID = 'wXbhsf';
 const NOTEBOOKLM_NOTEBOOK_DETAIL_RPC_ID = 'rLM1Ne';
 const NOTEBOOKLM_HISTORY_THREADS_RPC_ID = 'hPTbtc';
 const NOTEBOOKLM_HISTORY_DETAIL_RPC_ID = 'khqZz';
-function isNotebooklmHost(hostname) {
-    return hostname === NOTEBOOKLM_DOMAIN || hostname === NOTEBOOKLM_REDIRECT_DOMAIN;
-}
 function unwrapNotebooklmSingletonResult(result) {
     let current = result;
     while (Array.isArray(current) && current.length === 1 && Array.isArray(current[0])) {
