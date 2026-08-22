@@ -993,8 +993,6 @@ async function currentComposerMediaCount(page) {
       const imageInput = Array.from(document.querySelectorAll(imageInputSelector))
         .find((el) => visibleBox(el) || el.type === 'file');
       const rootSelectors = [
-        'main',
-        '[role="main"]',
         '[class*="publish"]',
         '[class*="editor"]',
         'form',
@@ -1012,14 +1010,14 @@ async function currentComposerMediaCount(page) {
         }
       };
       // The generated-card media and title can live in sibling subtrees, so
-      // prefer broad publish/editor ancestors over the old nearest .note match.
+      // anchor from both the image input and title, but keep the scan inside
+      // publish/editor/form roots rather than all of main.
       addAnchoredRoot(imageInput);
       addAnchoredRoot(titleEl);
-      addRoot(document.querySelector('main'));
       const seen = new Set();
       let count = 0;
       for (const root of roots) {
-        for (const el of Array.from(root.querySelectorAll('img, image, svg, video, canvas, [style*="background-image"]'))) {
+        for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
           if (!visibleMedia(el)) continue;
           const rect = el.getBoundingClientRect();
           const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';

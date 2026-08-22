@@ -1159,10 +1159,10 @@ describe('xiaohongshu publish 文字配图 flow', () => {
             if (code.includes('__opencli_xhs_card_text')) return { ok: true, text: 'x' };
             if (code.includes('__opencli_xhs_composer_media_count')) {
                 const dom = new JSDOM(`<!doctype html><html><body>
-                  <header>
-                    <img id="site-logo" src="https://static.example/logo.png">
-                  </header>
-                  <main class="publish-page">
+                  <main class="creator-shell">
+                    <aside>
+                      <img id="site-logo" src="https://static.example/logo.png">
+                    </aside>
                     <section class="editor-pane">
                       <input type="file" accept="image/png">
                       <input placeholder="标题" maxlength="20">
