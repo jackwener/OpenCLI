@@ -989,17 +989,45 @@ async function currentComposerMediaCount(page) {
         .map((sel) => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find((el) => visibleBox(el));
-      const root = document.body;
+      const imageInputSelector = ${JSON.stringify(IMAGE_INPUT_SELECTOR)};
+      const imageInput = Array.from(document.querySelectorAll(imageInputSelector))
+        .find((el) => visibleBox(el) || el.type === 'file');
+      const rootSelectors = [
+        'main',
+        '[role="main"]',
+        '[class*="publish"]',
+        '[class*="editor"]',
+        'form',
+        '[class*="note"]',
+      ];
+      const roots = [];
+      const addRoot = (root) => {
+        if (root && !roots.includes(root)) roots.push(root);
+      };
+      const addAnchoredRoot = (anchor) => {
+        if (!anchor) return;
+        for (const sel of rootSelectors) {
+          const root = anchor.closest(sel);
+          if (root) { addRoot(root); return; }
+        }
+      };
+      // The generated-card media and title can live in sibling subtrees, so
+      // prefer broad publish/editor ancestors over the old nearest .note match.
+      addAnchoredRoot(imageInput);
+      addAnchoredRoot(titleEl);
+      addRoot(document.querySelector('main'));
       const seen = new Set();
       let count = 0;
-      for (const el of Array.from(root.querySelectorAll('img, image, svg, video, canvas, [style*="background-image"]'))) {
-        if (!visibleMedia(el)) continue;
-        const rect = el.getBoundingClientRect();
-        const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
-        const key = src || String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
-        if (seen.has(key)) continue;
-        seen.add(key);
-        count += 1;
+      for (const root of roots) {
+        for (const el of Array.from(root.querySelectorAll('img, image, svg, video, canvas, [style*="background-image"]'))) {
+          if (!visibleMedia(el)) continue;
+          const rect = el.getBoundingClientRect();
+          const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
+          const key = src || String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
+          if (seen.has(key)) continue;
+          seen.add(key);
+          count += 1;
+        }
       }
       return { ok: true, count };
     })()
