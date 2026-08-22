@@ -11,7 +11,7 @@ OpenCLI turns any website, Electron desktop app, or external CLI into a uniform 
 ## The three pillars
 
 - **Adapter commands** — `opencli <site> <command> [...]`. Built-in adapters live in `clis/`, user adapters in `~/.opencli/clis/`. Each is backed by a strategy (`PUBLIC | COOKIE | INTERCEPT | UI | LOCAL`) that tells you whether a Chrome session is needed.
-- **Browser driving** — `opencli browser *` subcommands (`open`, `state`, `click`, `type`, `select`, `find`, `extract`, `network`, …) for ad-hoc interaction and scraping when no adapter covers the task. See `opencli-browser`.
+- **Browser driving** — `opencli browser <session> <command>` for ad-hoc interaction when no adapter covers the task. Full subcommand list: `analyze`, `back`, `batch`, `bind`, `check`, `click`, `close`, `console`, `dblclick`, `dialog`, `drag`, `eval`, `extract`, `fill`, `find`, `focus`, `frames`, `get`, `hover`, `init`, `keys`, `network`, `open`, `screenshot`, `scroll`, `select`, `state`, `tab`, `type`, `unbind`, `uncheck`, `upload`, `verify`, `wait`. See `opencli-browser`.
 - **Current-tab binding** — `opencli browser <session> bind` attaches the Chrome tab the user already opened/logged into to that browser session. Follow-up commands use `opencli browser <session> ...`. See `opencli-browser` before using it; bound sessions still block tab mutation.
 - **External CLI passthrough** — `opencli gh`, `opencli docker`, `opencli vercel`, etc. Managed via `opencli external install <name>` (auto-install from `external-clis.yaml`) or `opencli external register <name>` (bring your own).
 
@@ -40,7 +40,7 @@ npx tsx src/main.ts <command>               # same surface, no global install
 | `UI` | Same as COOKIE, full DOM interaction. |
 | `LOCAL` | No browser; talks to a local/dev endpoint. |
 
-Electron desktop apps (cursor, codex, chatwise, discord-app, doubao-app, antigravity, chatgpt-app) route through CDP against the running app — same cookie-less flow as a logged-in browser. Make sure the app is running before invoking.
+Electron desktop apps (antigravity, chatgpt-app, chatwise, codex, cursor, discord-app, doubao-app, qoder, trae-cn, trae-solo) route through CDP against the running app — same cookie-less flow as a logged-in browser. Make sure the app is running before invoking.
 
 ## Discover what's installed — don't read this file, run a command
 
@@ -52,7 +52,7 @@ opencli <site> --help           # see that site's commands + flags
 opencli <site> <command> --help # see positional args and command-specific flags
 ```
 
-Do not hard-code adapter lists — there are 100+ sites and the count moves every week. `opencli list -f json` is the source of truth; it emits one entry per command with `{site, name, aliases, description, strategy, browser, args, columns, ...}`. For an agent, that is always better than grepping a doc.
+Do not hard-code adapter lists — there are 160+ sites (plus 10 app adapters and 13 external CLIs) and the count moves every week. `opencli list -f json` is the source of truth; it emits one entry per command with `{site, name, aliases, description, strategy, browser, args, columns, ...}`. For an agent, that is always better than grepping a doc.
 
 Before falling back to raw `opencli browser` commands on high-change authenticated sites, check whether a site adapter already exposes the workflow. For example, ChatGPT web has higher-level commands for conversation reads and Deep Research result extraction; discover the current surface with `opencli chatgpt --help` or `opencli list -f json`.
 
@@ -61,7 +61,18 @@ Before falling back to raw `opencli browser` commands on high-change authenticat
 | flag | effect |
 |------|--------|
 | `-f, --format <fmt>` | `table` (default in TTY) · `yaml` (default in non-TTY) · `json` · `plain` · `md` · `csv`. Pass explicitly when you want a specific shape; agents almost always want `-f json`. |
+| `--trace <mode>` | `off` (default) · `on` · `retain-on-failure`. Captures browser state for debugging; `retain-on-failure` keeps the trace only when the command errors (used by `opencli-autofix`). |
 | `-v, --verbose` | Debug logs + stack traces on failure; also sets `OPENCLI_VERBOSE=1` for the process. |
+
+### Browser common flags (adapter commands with `browser: true`)
+
+These appear on any adapter that talks to Chrome, plus all `opencli browser` subcommands:
+
+| flag | effect |
+|------|--------|
+| `--window <mode>` | `foreground` or `background`. **Use `background` for agent work** — it runs the real logged-in Chrome without raising the window or stealing focus. Not headless: `navigator.webdriver` is `false`, plugins are present, `visibilityState` is `visible`. Override globally with `OPENCLI_WINDOW=background`. |
+| `--site-session <mode>` | `ephemeral` (default) or `persistent`. Persistent keeps the browser session tab alive after the command finishes; ephemeral releases it. |
+| `--keep-tab <bool>` | `true` or `false`. Keep the browser tab lease after the command finishes. |
 
 Command-specific flags (`--limit`, `--tab`, `--filter`, …) are not universal — consult `<site> <command> --help`.
 
@@ -75,6 +86,27 @@ Command-specific flags (`--limit`, `--tab`, `--filter`, …) are not universal �
 
 A few commands override the default via `cmd.defaultFormat` (e.g. chat commands default to `plain`), so don't assume without reading `--help`.
 
+## Avoiding focus stealing
+
+By default, adapter commands and `opencli browser open` may raise the Chrome window and switch to the target tab, stealing your desktop focus. **Set `background` mode to prevent this:**
+
+```bash
+# Per-command
+opencli browser work --window background open "https://..."
+opencli google search "test" --window background
+
+# Or globally (recommended for agent work)
+export OPENCLI_WINDOW=background
+```
+
+Background mode is **not** headless — it uses the real logged-in Chrome with all cookies, plugins, and a `visible` visibility state. Sites cannot distinguish it from foreground use. There is no reason to use foreground mode for automated work; request foreground only when the user explicitly wants to watch.
+
+The `--window` flag sits **between the session name and the subcommand** for `opencli browser`:
+```bash
+opencli browser <session> --window background <command>   # correct
+opencli browser <session> <command> --window background   # also works
+```
+
 ## Environment variables
 
 | variable | default | purpose |
@@ -85,6 +117,59 @@ A few commands override the default via `cmd.defaultFormat` (e.g. chat commands 
 | `OPENCLI_CACHE_DIR` | `~/.opencli/cache` | Network capture + browser-state cache. |
 | `OPENCLI_WINDOW` | command-specific | `foreground` or `background` browser window mode. |
 | `OPENCLI_VERBOSE` | `false` | Verbose logging (also triggered by `-v`). |
+
+## Browser batch — multiple operations in one call
+
+`opencli browser <session> batch` sends an array of browser subcommands and returns a JSON results array, avoiding one round-trip per step:
+
+```bash
+opencli browser work batch --commands '[
+  {"cmd": "open", "args": ["https://example.com"]},
+  {"cmd": "wait", "args": ["selector", ".loaded"]},
+  {"cmd": "click", "args": ["3"]},
+  {"cmd": "state", "args": []}
+]'
+```
+
+| flag | effect |
+|------|--------|
+| `--commands <json>` | JSON array of `{cmd, args}` objects. Each `cmd` is a browser subcommand name; `args` is an array of positional arguments. |
+| `--stop-on-error` | Stop on first error instead of continuing (default: `false`). |
+| `--tab <targetId>` | Target a specific tab returned by `open`, `tab new`, or `tab list`. |
+
+## Management commands
+
+Top-level commands for managing the OpenCLI installation itself:
+
+```bash
+# Adapter overrides — eject an official adapter for local editing
+opencli adapter status                    # show which sites have local overrides
+opencli adapter eject <site>              # copy official adapter to ~/.opencli/clis/
+opencli adapter reset [site]              # remove local override, restore official
+
+# Chrome profile management (Browser Bridge)
+opencli profile list                      # list connected Chrome profiles
+opencli profile rename <contextId> <alias>  # assign a local alias
+opencli profile use <profile>             # set default profile for future commands
+
+# Daemon management
+opencli daemon status                     # show daemon status
+opencli daemon stop                       # stop the daemon
+opencli daemon restart                    # restart the daemon
+
+# Auth status — check and refresh site login sessions
+opencli auth status                       # show login status for sites with auth adapters
+opencli auth refresh                      # touch logged-in sessions to keep auth fresh
+
+# Bundled skills
+opencli skills list                       # list bundled opencli-* skills
+opencli skills read <skill> [path]        # print a skill's SKILL.md or reference
+
+# Convention audit
+opencli convention-audit [target]         # scan adapters for agent-native convention violations
+opencli convention-audit --site <site>    # limit to one site
+opencli convention-audit --strict         # exit non-zero on violations
+```
 
 ## Self-repair
 
@@ -135,7 +220,7 @@ opencli gh pr list --limit 5   # passthrough; stdio is inherited, exit code prop
 opencli docker ps
 ```
 
-Built-in entries live in `src/external-clis.yaml`; user overrides and additions in `~/.opencli/external-clis.yaml`. Commonly shipped: `gh`, `docker`, `vercel`, `lark-cli`, `longbridge`, `dws`, `wecom-cli`, `obsidian`, `ntn`, `tg(tg-cli)`, `discord(discord-cli)`, `wx(wx-cli)`.
+Built-in entries live in `src/external-clis.yaml`; user overrides and additions in `~/.opencli/external-clis.yaml`. Commonly shipped: `gh`, `docker`, `vercel`, `wrangler`, `lark-cli`, `longbridge`, `dws`, `wecom-cli(企业微信)`, `obsidian`, `ntn(notion)`, `tg(tg-cli)`, `discord(discord-cli)`, `wx(wx-cli)`.
 
 Some official CLIs use shell-script installers instead of a shell-free package-manager command. Entries without an `install` config, such as `ntn`, must be installed manually from their homepage before passthrough use.
 
