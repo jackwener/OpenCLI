@@ -7,11 +7,16 @@ if (!fs.existsSync(path.join(process.cwd(), 'src'))) {
 }
 
 const npmExecPath = process.env.npm_execpath;
-const command = npmExecPath ? process.execPath : (process.platform === 'win32' ? 'npm.cmd' : 'npm');
-const args = npmExecPath ? [npmExecPath, 'run', 'build'] : ['run', 'build'];
+// npm, pnpm, and Yarn expose a JavaScript CLI entry here, which Node can run
+// directly. Bun exposes its native executable instead; passing that binary to
+// Node would make `bun install` fail during prepare, so use npm for non-JS
+// runners (the build scripts themselves already invoke npm).
+const hasJsExecPath = npmExecPath && /\.(?:c|m)?js$/i.test(npmExecPath);
+const command = hasJsExecPath ? process.execPath : (process.platform === 'win32' ? 'npm.cmd' : 'npm');
+const args = hasJsExecPath ? [npmExecPath, 'run', 'build'] : ['run', 'build'];
 const result = spawnSync(command, args, {
   stdio: 'inherit',
-  shell: !npmExecPath && process.platform === 'win32',
+  shell: !hasJsExecPath && process.platform === 'win32',
 });
 
 if (result.error) {
