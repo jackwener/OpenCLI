@@ -602,6 +602,7 @@ async function removeLeaseSession(leaseKey: string): Promise<void> {
   sessionOverrides.delete(leaseKey);
   scheduleIdleAlarm(leaseKey, IDLE_TIMEOUT_NONE);
   await persistRuntimeState();
+  void refreshInteractiveGroupTitle();
 }
 
 // `remainingMs` lets the caller honor an already-elapsed deadline (e.g. after a
@@ -638,6 +639,29 @@ function resetWindowIdleTimer(leaseKey: string, remainingMs?: number): void {
 
 function getOwnedContainerGroupTitles(role: OwnedWindowRole): string[] {
   return role === 'automation' ? [] : [CONTAINER_TAB_GROUP_TITLE.interactive];
+}
+
+function computeInteractiveGroupTitle(): string {
+  const sessions = new Set<string>();
+  for (const [key, lease] of automationSessions.entries()) {
+    if (getOwnedWindowRole(key) === 'interactive' && lease.session) {
+      sessions.add(lease.session);
+    }
+  }
+  if (sessions.size === 0) return CONTAINER_TAB_GROUP_TITLE.interactive;
+  const names = [...sessions].slice(0, 5).join(', ');
+  return sessions.size > 5 ? `OpenCLI: ${names}, …` : `OpenCLI: ${names}`;
+}
+
+async function refreshInteractiveGroupTitle(): Promise<void> {
+  const container = ownedContainers.interactive;
+  if (container.groupId === null) return;
+  try {
+    const title = computeInteractiveGroupTitle();
+    await chrome.tabGroups.update(container.groupId, { title });
+  } catch {
+    // Group may have been closed.
+  }
 }
 
 type OwnedContainerGroup = {
@@ -797,10 +821,10 @@ async function ensureTabsInWindow(tabIds: number[], windowId: number): Promise<n
 }
 
 async function ensureCanonicalGroupTitle(role: OwnedWindowRole, group: OwnedContainerGroup): Promise<OwnedContainerGroup> {
-  const canonicalTitle = CONTAINER_TAB_GROUP_TITLE[role];
-  if (group.title === canonicalTitle) return group;
+  const title = role === 'interactive' ? computeInteractiveGroupTitle() : CONTAINER_TAB_GROUP_TITLE[role];
+  if (group.title === title) return group;
   const updated = await chrome.tabGroups.update(group.id, {
-    title: canonicalTitle,
+    title,
     color: OWNED_TAB_GROUP_COLOR,
   });
   return { id: updated.id, windowId: updated.windowId, title: updated.title };
@@ -1460,6 +1484,7 @@ function setLeaseSession(
     idleDeadlineAt: timeout <= 0 ? 0 : Date.now() + timeout,
   });
   void persistRuntimeState();
+  void refreshInteractiveGroupTitle();
 }
 
 /**

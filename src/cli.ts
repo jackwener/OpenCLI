@@ -3039,6 +3039,229 @@ cli({
       }
     });
 
+  // ── Batch ──
+  //
+  // Execute multiple browser operations in a single CLI invocation, reusing one
+  // Page connection. This is the token-efficient path for AI agents that would
+  // otherwise pay the connect-resolve-teardown cost for every atomic step.
+
+  addBrowserTabOption(browser.command('batch')
+    .option('--commands <json>', 'JSON array of {cmd, args} objects')
+    .option('--stop-on-error', 'Stop executing on the first error instead of continuing', false)
+    .description('Run multiple browser operations in one call — JSON results array'))
+    .action(browserAction(async (page, opts) => {
+      let commands: Array<{ cmd: string; args?: Record<string, unknown> }>;
+
+      const rawJson = opts.commands;
+      if (typeof rawJson === 'string' && rawJson.trim()) {
+        try {
+          commands = JSON.parse(rawJson);
+        } catch (e) {
+          console.log(JSON.stringify({ error: { code: 'invalid_json', message: `Failed to parse --commands: ${e instanceof Error ? e.message : String(e)}` } }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+      } else {
+        // Read from stdin
+        const chunks: Buffer[] = [];
+        for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+        const stdinText = Buffer.concat(chunks).toString('utf8').trim();
+        if (!stdinText) {
+          console.log(JSON.stringify({ error: { code: 'no_commands', message: 'Provide commands via --commands <json> or pipe JSON to stdin' } }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+        try {
+          commands = JSON.parse(stdinText);
+        } catch (e) {
+          console.log(JSON.stringify({ error: { code: 'invalid_json', message: `Failed to parse stdin JSON: ${e instanceof Error ? e.message : String(e)}` } }, null, 2));
+          process.exitCode = EXIT_CODES.USAGE_ERROR;
+          return;
+        }
+      }
+
+      if (!Array.isArray(commands) || commands.length === 0) {
+        console.log(JSON.stringify({ error: { code: 'invalid_commands', message: 'Commands must be a non-empty JSON array' } }, null, 2));
+        process.exitCode = EXIT_CODES.USAGE_ERROR;
+        return;
+      }
+
+      const stopOnError = opts.stopOnError === true;
+      const results: Array<{ cmd: string; index: number; ok: boolean; result?: unknown; error?: string }> = [];
+
+      for (let i = 0; i < commands.length; i++) {
+        const entry = commands[i];
+        if (!entry || typeof entry.cmd !== 'string') {
+          const err = { cmd: String(entry?.cmd ?? ''), index: i, ok: false, error: 'Each command must have a "cmd" string field' };
+          results.push(err);
+          if (stopOnError) break;
+          continue;
+        }
+        const { cmd, args } = entry;
+        const a = (args ?? {}) as Record<string, unknown>;
+        try {
+          let result: unknown;
+          switch (cmd) {
+            case 'open': {
+              const url = String(a.url ?? '');
+              if (!url) throw new Error('open requires args.url');
+              await page.goto(url);
+              await page.wait(2);
+              const currentUrl = await page.getCurrentUrl?.() ?? url;
+              result = { url: currentUrl };
+              break;
+            }
+            case 'state': {
+              const source = String(a.source ?? 'ax').toLowerCase();
+              if (source !== 'dom' && source !== 'ax') throw new Error(`--source must be "dom" or "ax", got "${source}"`);
+              const snapshot = await page.snapshot({ viewportExpand: 2000, source: source as 'dom' | 'ax' });
+              const url = await page.getCurrentUrl?.() ?? '';
+              result = { url, snapshot: typeof snapshot === 'string' ? snapshot : snapshot };
+              break;
+            }
+            case 'click': {
+              const target = String(a.target ?? '');
+              if (!target) throw new Error('click requires args.target');
+              const clickResult = await page.click(target);
+              result = { clicked: true, target, ...clickResult };
+              break;
+            }
+            case 'type': {
+              const target = String(a.target ?? '');
+              const text = String(a.text ?? '');
+              if (!target) throw new Error('type requires args.target');
+              if (!text && a.text === undefined) throw new Error('type requires args.text');
+              await page.click(target);
+              await page.wait(0.3);
+              const typeResult = await page.typeText(target, text);
+              result = { typed: true, target, text, ...typeResult };
+              break;
+            }
+            case 'fill': {
+              const target = String(a.target ?? '');
+              const text = String(a.text ?? '');
+              if (!target) throw new Error('fill requires args.target');
+              if (!text && a.text === undefined) throw new Error('fill requires args.text');
+              const fillResult = await page.fillText(target, text);
+              result = { filled: fillResult.filled, verified: fillResult.verified, target, text, actual: fillResult.actual };
+              break;
+            }
+            case 'eval': {
+              const js = String(a.js ?? '');
+              if (!js) throw new Error('eval requires args.js');
+              result = await page.evaluate(js);
+              break;
+            }
+            case 'wait': {
+              if (a.selector) {
+                const timeout = typeof a.timeout === 'number' ? a.timeout / 1000 : 10;
+                await page.wait({ selector: String(a.selector), timeout });
+                result = { waited: 'selector', selector: a.selector };
+              } else if (a.text) {
+                const timeout = typeof a.timeout === 'number' ? a.timeout / 1000 : 10;
+                await page.wait({ text: String(a.text), timeout });
+                result = { waited: 'text', text: a.text };
+              } else {
+                const seconds = typeof a.seconds === 'number' ? a.seconds : parseFloat(String(a.seconds ?? '2'));
+                await page.wait(seconds);
+                result = { waited: 'time', seconds };
+              }
+              break;
+            }
+            case 'extract': {
+              const selector = typeof a.selector === 'string' && a.selector.length > 0 ? a.selector : null;
+              const chunkSize = typeof a.chunkSize === 'number' ? a.chunkSize : 20000;
+              const start = typeof a.start === 'number' ? a.start : 0;
+              const js = buildExtractHtmlJs(selector);
+              const res = await page.evaluate(js) as
+                | { ok: true; url: string; title: string; html: string }
+                | { invalidSelector: true; reason: string }
+                | { notFound: true }
+                | null;
+              if (!res) throw new Error('Page returned no root element');
+              if ('invalidSelector' in res) throw new Error(`Invalid selector "${selector}": ${res.reason}`);
+              if ('notFound' in res) throw new Error(selector ? `Selector "${selector}" matched 0 elements` : 'Page has no body/main/article element');
+              result = runExtractFromHtml({ html: res.html, url: res.url, title: res.title, selector, start, chunkSize });
+              break;
+            }
+            case 'screenshot': {
+              const shotOpts: ScreenshotOptions = {
+                fullPage: a.fullPage === true,
+                ...(typeof a.path === 'string' && { path: a.path }),
+              };
+              if (typeof a.path === 'string') {
+                await page.screenshot({ ...shotOpts, path: a.path as string });
+                result = { saved: a.path };
+              } else {
+                const base64 = await page.screenshot({ ...shotOpts, format: 'png' });
+                result = { base64 };
+              }
+              break;
+            }
+            case 'scroll': {
+              const direction = String(a.direction ?? 'down');
+              if (direction !== 'up' && direction !== 'down') throw new Error(`scroll direction must be "up" or "down", got "${direction}"`);
+              const amount = typeof a.amount === 'number' ? a.amount : 500;
+              await page.scroll(direction, amount);
+              result = { scrolled: direction, amount };
+              break;
+            }
+            case 'find': {
+              if (!a.css || typeof a.css !== 'string') throw new Error('find requires args.css');
+              const findLimit = typeof a.limit === 'number' ? a.limit : 50;
+              const textMax = typeof a.textMax === 'number' ? a.textMax : 120;
+              const findResult = await page.evaluate(buildFindJs(a.css, { limit: findLimit, textMax })) as FindResult | FindError;
+              result = findResult;
+              break;
+            }
+            case 'keys': {
+              const key = String(a.key ?? '');
+              if (!key) throw new Error('keys requires args.key');
+              await page.pressKey(key);
+              result = { pressed: key };
+              break;
+            }
+            case 'hover': {
+              const target = String(a.target ?? '');
+              if (!target) throw new Error('hover requires args.target');
+              if (typeof page.hover !== 'function') throw new Error('hover is not supported by this browser backend');
+              const hoverResult = await page.hover(target);
+              result = { hovered: true, target, ...hoverResult };
+              break;
+            }
+            case 'select': {
+              const target = String(a.target ?? '');
+              const option = String(a.option ?? '');
+              if (!target) throw new Error('select requires args.target');
+              if (!option) throw new Error('select requires args.option');
+              // Resolve target first, then run select JS
+              await page.click(target);
+              const selectResult = await page.evaluate(selectResolvedJs(option)) as
+                | { error?: string; selected?: string; available?: string[] }
+                | null;
+              if (selectResult?.error) throw new Error(selectResult.error);
+              result = { selected: selectResult?.selected ?? option, target };
+              break;
+            }
+            case 'back': {
+              await page.evaluate('history.back()');
+              await page.wait(2);
+              result = { navigated: 'back' };
+              break;
+            }
+            default:
+              throw new Error(`Unknown batch command: "${cmd}". Supported: open, state, click, type, fill, eval, wait, extract, screenshot, scroll, find, keys, hover, select, back`);
+          }
+          results.push({ cmd, index: i, ok: true, result });
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          results.push({ cmd, index: i, ok: false, error: errorMsg });
+          if (stopOnError) break;
+        }
+      }
+      console.log(JSON.stringify(results, null, 2));
+    }));
+
   // ── Session ──
 
   browser.command('close').description('Release the current browser session tab lease')
