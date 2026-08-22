@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { createServer } from 'http';
 import { homedir } from 'os';
 import { join } from 'path';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { assertSpotifyCredentialsConfigured, getFirstSpotifyTrack, mapSpotifyTrackResults, parseDotEnv, resolveSpotifyCredentials, } from './utils.js';
 // ── Credentials ───────────────────────────────────────────────────────────────
 // Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET as environment variables,
@@ -99,8 +99,13 @@ async function findTrackUri(query) {
     return track;
 }
 function openBrowser(url) {
-    const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
-    exec(cmd);
+    if (process.platform === 'win32') {
+        execFile('cmd', ['/c', 'start', '', url]);
+    } else if (process.platform === 'darwin') {
+        execFile('open', [url]);
+    } else {
+        execFile('xdg-open', [url]);
+    }
 }
 // ── Commands ──────────────────────────────────────────────────────────────────
 cli({
