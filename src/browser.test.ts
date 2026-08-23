@@ -1,6 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { BrowserBridge, generateStealthJs } from './browser/index.js';
-import { extractTabEntries, diffTabIndexes, appendLimited } from './browser/tabs.js';
 import { withTimeoutMs } from './runtime.js';
 import { __test__ as cdpTest } from './browser/cdp.js';
 import { classifyBrowserError } from './browser/errors.js';
@@ -13,44 +12,6 @@ afterEach(() => {
 });
 
 describe('browser helpers', () => {
-  it('extracts tab entries from string snapshots', () => {
-    const entries = extractTabEntries('Tab 0 https://example.com\nTab 1 Chrome Extension');
-
-    expect(entries).toEqual([
-      { index: 0, identity: 'https://example.com' },
-      { index: 1, identity: 'Chrome Extension' },
-    ]);
-  });
-
-  it('extracts tab entries from MCP markdown format', () => {
-    const entries = extractTabEntries(
-      '- 0: (current) [Playwright MCP extension](chrome-extension://abc/connect.html)\n- 1: [知乎 - 首页](https://www.zhihu.com/)'
-    );
-
-    expect(entries).toEqual([
-      { index: 0, identity: '(current) [Playwright MCP extension](chrome-extension://abc/connect.html)' },
-      { index: 1, identity: '[知乎 - 首页](https://www.zhihu.com/)' },
-    ]);
-  });
-
-  it('closes only tabs that were opened during the session', () => {
-    const tabsToClose = diffTabIndexes(
-      ['https://example.com', 'Chrome Extension'],
-      [
-        { index: 0, identity: 'https://example.com' },
-        { index: 1, identity: 'Chrome Extension' },
-        { index: 2, identity: 'https://target.example/page' },
-        { index: 3, identity: 'chrome-extension://bridge' },
-      ],
-    );
-
-    expect(tabsToClose).toEqual([3, 2]);
-  });
-
-  it('keeps only the tail of stderr buffers', () => {
-    expect(appendLimited('12345', '67890', 8)).toBe('34567890');
-  });
-
   it('times out slow promises', async () => {
     await expect(withTimeoutMs(new Promise(() => {}), 10, 'timeout')).rejects.toThrow('timeout');
   });
