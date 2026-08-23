@@ -47030,7 +47030,7 @@
   {
     "site": "zhihu",
     "name": "answer-comments",
-    "description": "知乎回答评论列表",
+    "description": "知乎回答评论列表（保留回复层级）",
     "access": "read",
     "domain": "www.zhihu.com",
     "strategy": "cookie",
@@ -47056,6 +47056,17 @@
         "default": 3,
         "required": false,
         "help": "Number of replies to include per top-level comment (max 100)"
+      },
+      {
+        "name": "order",
+        "type": "str",
+        "default": "score",
+        "required": false,
+        "help": "Root comment order",
+        "choices": [
+          "score",
+          "latest"
+        ]
       }
     ],
     "columns": [
