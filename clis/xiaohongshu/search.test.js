@@ -1,7 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { JSDOM } from 'jsdom';
-import { __test__, buildScrollUntilJs, noteIdToDate, unwrapEvaluateResult } from './search.js';
+import {
+    __test__,
+    buildScrollHarvestJs,
+    buildSearchExtractJs,
+    buildScrollUntilJs,
+    mergeHarvestedRow,
+    noteIdToDate,
+    noteKeyFromUrl,
+    shouldStopScrolling,
+    unwrapEvaluateResult,
+    usableRowCount,
+} from './search.js';
 
 function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100 });
@@ -86,8 +97,8 @@ describe('xiaohongshu search', () => {
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: initial DOM extraction (already enough results) through Browser Bridge envelope.
-            { session: 'site:xiaohongshu', data: rows },
+            // Second evaluate: scroll + harvest through Browser Bridge envelope.
+            { session: 'site:xiaohongshu', data: { rows, collected: 1, diag: {} } },
         ]);
         const result = await cmd.func(page, { query: '特斯拉', limit: 1 });
         // Should only do one goto (the search page itself), no per-note detail navigation
@@ -108,7 +119,7 @@ describe('xiaohongshu search', () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([
             'content',
-            { session: 'site:xiaohongshu', data: { rows: [] } },
+            { session: 'site:xiaohongshu', data: { rows: 'nope' } },
         ]);
 
         await expect(cmd.func(page, { query: '测试', limit: 1 })).rejects.toMatchObject({
@@ -122,30 +133,34 @@ describe('xiaohongshu search', () => {
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: initial DOM extraction (already enough valid rows)
-            [
-                {
-                    title: 'Result A',
-                    author: 'UserA',
-                    likes: '10',
-                    url: 'https://www.xiaohongshu.com/search_result/aaa',
-                    author_url: '',
-                },
-                {
-                    title: '',
-                    author: 'UserB',
-                    likes: '5',
-                    url: 'https://www.xiaohongshu.com/search_result/bbb',
-                    author_url: '',
-                },
-                {
-                    title: 'Result C',
-                    author: 'UserC',
-                    likes: '3',
-                    url: 'https://www.xiaohongshu.com/search_result/ccc',
-                    author_url: '',
-                },
-            ],
+            // Second evaluate: scroll + harvest result.
+            {
+                rows: [
+                    {
+                        title: 'Result A',
+                        author: 'UserA',
+                        likes: '10',
+                        url: 'https://www.xiaohongshu.com/search_result/aaa',
+                        author_url: '',
+                    },
+                    {
+                        title: '',
+                        author: 'UserB',
+                        likes: '5',
+                        url: 'https://www.xiaohongshu.com/search_result/bbb',
+                        author_url: '',
+                    },
+                    {
+                        title: 'Result C',
+                        author: 'UserC',
+                        likes: '3',
+                        url: 'https://www.xiaohongshu.com/search_result/ccc',
+                        author_url: '',
+                    },
+                ],
+                collected: 3,
+                diag: {},
+            },
         ]);
         const result = (await cmd.func(page, { query: '测试', limit: 1 }));
         // limit=1 should return only the first valid-titled result
@@ -158,44 +173,40 @@ describe('xiaohongshu search', () => {
         const page = createPageMock([
             // First evaluate: MutationObserver wait (content appeared)
             'content',
-            // Second evaluate: initial extraction (no rows rendered)
-            [],
-            // Third evaluate: scroll-until row count
-            0,
-            // Fourth evaluate: post-scroll extraction (still no rows)
-            [],
+            // Second evaluate: scroll + harvest completes with no rows.
+            { rows: [], collected: 0, diag: {} },
         ]);
         const result = (await cmd.func(page, { query: '测试等待', limit: 5 }));
         expect(result).toHaveLength(0);
         // Only one navigation, no retry
         expect(page.goto).toHaveBeenCalledTimes(1);
-        // Four evaluate calls: wait, initial extraction, scroll-until, post-scroll extraction.
-        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        // Two evaluate calls: wait, then the single scroll + harvest IIFE.
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
     });
-    it('scrolls only when the initial extraction has fewer rows than requested', async () => {
+    it('harvests rows while scrolling in a single evaluate call', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
             'content',
-            [
-                { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
-            ],
-            3,
-            [
-                { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
-                { title: 'Result B', author: 'UserB', likes: '5', url: 'https://www.xiaohongshu.com/search_result/bbb', author_url: '' },
-            ],
+            {
+                rows: [
+                    { title: 'Result A', author: 'UserA', likes: '10', url: 'https://www.xiaohongshu.com/search_result/aaa', author_url: '' },
+                    { title: 'Result B', author: 'UserB', likes: '5', url: 'https://www.xiaohongshu.com/search_result/bbb', author_url: '' },
+                ],
+                collected: 2,
+                diag: {},
+            },
         ]);
 
         const result = (await cmd.func(page, { query: '测试等待', limit: 2 }));
 
         expect(result).toHaveLength(2);
         expect(result.map((item) => item.title)).toEqual(['Result A', 'Result B']);
-        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.evaluate).toHaveBeenCalledTimes(2);
     });
-    it('separates fallback author text from appended relative date', async () => {
-        const cmd = getRegistry().get('xiaohongshu/search');
-        expect(cmd?.func).toBeTypeOf('function');
+});
+describe('buildSearchExtractJs', () => {
+    it('separates fallback author text from appended relative date', () => {
         const dom = new JSDOM(`
           <section class="note-item">
             <a class="cover mask" href="/search_result/68e90be80000000004022e66?xsec_token=test-token"></a>
@@ -207,11 +218,8 @@ describe('xiaohongshu search', () => {
           </section>
         `, { url: 'https://www.xiaohongshu.com/search_result?keyword=test' });
         markVisible(dom.window.document.querySelector('section.note-item'));
-        const page = createPageMock([]);
-        page.evaluate.mockImplementationOnce(async () => 'content');
-        page.evaluate.mockImplementationOnce(async (script) => Function('document', 'getComputedStyle', `return (${script})`)(dom.window.document, dom.window.getComputedStyle.bind(dom.window)));
-
-        const result = await cmd.func(page, { query: '测试', limit: 1 });
+        const script = buildSearchExtractJs('www.xiaohongshu.com');
+        const result = Function('document', 'getComputedStyle', `return (${script})`)(dom.window.document, dom.window.getComputedStyle.bind(dom.window));
 
         expect(result[0]).toMatchObject({
             title: '数字作者测试',
@@ -219,6 +227,129 @@ describe('xiaohongshu search', () => {
             likes: '8',
             author_url: 'https://www.xiaohongshu.com/user/profile/author123',
         });
+    });
+});
+describe('noteKeyFromUrl', () => {
+    it('extracts a 24-character note id from supported paths', () => {
+        expect(noteKeyFromUrl('https://www.xiaohongshu.com/search_result/68e90be80000000004022e66?xsec_token=a')).toBe('68e90be80000000004022e66');
+        expect(noteKeyFromUrl('https://www.xiaohongshu.com/explore/68E90BE80000000004022E66')).toBe('68e90be80000000004022e66');
+        expect(noteKeyFromUrl('https://www.xiaohongshu.com/note/68e90be80000000004022e66/')).toBe('68e90be80000000004022e66');
+    });
+    it('returns an empty key when no supported note id is present', () => {
+        expect(noteKeyFromUrl('https://www.xiaohongshu.com/user/profile/635a9c720000000018028b40')).toBe('');
+        expect(noteKeyFromUrl('')).toBe('');
+    });
+});
+describe('mergeHarvestedRow', () => {
+    const noteId = '68e90be80000000004022e66';
+    const unsignedUrl = `https://www.xiaohongshu.com/explore/${noteId}`;
+    const signedUrl = `https://www.xiaohongshu.com/search_result/${noteId}?xsec_token=signed`;
+
+    it('backfills an empty title from a later render', () => {
+        const acc = new Map();
+        mergeHarvestedRow(acc, { title: '', author: '', likes: '0', url: unsignedUrl, author_url: '' });
+        mergeHarvestedRow(acc, { title: '后渲染标题', author: '作者', likes: '7', url: signedUrl, author_url: '/user/profile/a' });
+        expect(acc.get(noteId)).toMatchObject({
+            title: '后渲染标题',
+            author: '作者',
+            author_url: '/user/profile/a',
+        });
+    });
+    it('does not overwrite a non-empty title', () => {
+        const acc = new Map();
+        mergeHarvestedRow(acc, { title: '原始标题', author: '', likes: '1', url: unsignedUrl, author_url: '' });
+        mergeHarvestedRow(acc, { title: '后续标题', author: '', likes: '2', url: signedUrl, author_url: '' });
+        expect(acc.get(noteId).title).toBe('原始标题');
+    });
+    it("backfills likes when the placeholder value is '0'", () => {
+        const acc = new Map();
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '0', url: unsignedUrl, author_url: '' });
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '42', url: signedUrl, author_url: '' });
+        expect(acc.get(noteId).likes).toBe('42');
+    });
+    it('upgrades an unsigned URL to a signed xsec_token URL', () => {
+        const acc = new Map();
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '1', url: unsignedUrl, author_url: '' });
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '1', url: signedUrl, author_url: '' });
+        expect(acc.get(noteId).url).toBe(signedUrl);
+    });
+    it('does not downgrade a signed URL to an unsigned URL', () => {
+        const acc = new Map();
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '1', url: signedUrl, author_url: '' });
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '1', url: unsignedUrl, author_url: '' });
+        expect(acc.get(noteId).url).toBe(signedUrl);
+    });
+    it('deduplicates different token URLs for the same note id', () => {
+        const acc = new Map();
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '1', url: `${signedUrl}-a`, author_url: '' });
+        mergeHarvestedRow(acc, { title: '标题', author: '', likes: '1', url: `${signedUrl}-b`, author_url: '' });
+        expect(acc.size).toBe(1);
+    });
+});
+describe('usableRowCount', () => {
+    it('counts only rows that survive the post-harvest title filter', () => {
+        // Regression lock: a --limit 100 run stopped at collected=100 but emitted
+        // 84 rows, because 16 cards had not rendered their title yet when the
+        // target check fired.
+        const acc = new Map();
+        acc.set('a', { title: '有标题', url: 'https://www.xiaohongshu.com/explore/a' });
+        acc.set('b', { title: '', url: 'https://www.xiaohongshu.com/explore/b' });
+        acc.set('c', { url: 'https://www.xiaohongshu.com/explore/c' });
+        expect(usableRowCount(acc)).toBe(1);
+    });
+    it('returns zero for an empty accumulator', () => {
+        expect(usableRowCount(new Map())).toBe(0);
+    });
+});
+describe('shouldStopScrolling', () => {
+    const baseState = {
+        collected: 5,
+        target: 100,
+        round: 3,
+        maxRounds: 30,
+        elapsedMs: 5_000,
+        budgetMs: 60_000,
+        atBottom: false,
+        stalledRounds: 0,
+        moved: true,
+    };
+
+    it('does not stop for a mid-page plateau while scrolling can still move', () => {
+        // Regression lock: the old plateau rule exited at scrollTop=4500 / scrollHeight=6960.
+        expect(shouldStopScrolling({ ...baseState, stalledRounds: 6 })).toEqual({ stop: false, reason: '' });
+    });
+    it('stops when the target count is collected', () => {
+        expect(shouldStopScrolling({ ...baseState, collected: 100 })).toEqual({ stop: true, reason: 'target' });
+    });
+    it('stops when the time budget is exhausted', () => {
+        expect(shouldStopScrolling({ ...baseState, elapsedMs: 60_000 })).toEqual({ stop: true, reason: 'budget' });
+    });
+    it('stops when the maximum round count is reached', () => {
+        expect(shouldStopScrolling({ ...baseState, round: 30 })).toEqual({ stop: true, reason: 'max-rounds' });
+    });
+    it('stops after repeated stalls at the real bottom', () => {
+        expect(shouldStopScrolling({ ...baseState, atBottom: true, stalledRounds: 3 })).toEqual({ stop: true, reason: 'exhausted' });
+    });
+    it('stops after repeated stalls when scrolling is wedged', () => {
+        expect(shouldStopScrolling({ ...baseState, stalledRounds: 3, moved: false })).toEqual({ stop: true, reason: 'wedged' });
+    });
+});
+describe('buildScrollHarvestJs', () => {
+    it('builds a bounded async harvest loop without jumping to the document bottom', () => {
+        const js = buildScrollHarvestJs('www.xiaohongshu.com', 37, { maxRounds: 20, budgetMs: 30_000, step: 900 });
+        expect(js).toContain('(async () =>');
+        expect(js).toContain('const targetCount = 37');
+        expect(js).not.toContain('scrollTo(0, document.body.scrollHeight)');
+        expect(js).toContain('Array.from(acc.values())');
+    });
+    it('gates the target check on usable rows rather than raw discoveries', () => {
+        const js = buildScrollHarvestJs('www.xiaohongshu.com', 37, { maxRounds: 20, budgetMs: 30_000, step: 900 });
+        expect(js).toContain('const usable = usableRowCount(acc)');
+        expect(js).toContain('collected: usable');
+    });
+    it('rejects invalid targetCount and maxRounds arguments', () => {
+        expect(() => buildScrollHarvestJs('www.xiaohongshu.com', 0)).toThrow(/targetCount/);
+        expect(() => buildScrollHarvestJs('www.xiaohongshu.com', 10, { maxRounds: 0 })).toThrow(/maxRounds/);
     });
 });
 describe('buildScrollUntilJs', () => {
