@@ -29342,7 +29342,7 @@
     "description": "Best products in a Product Hunt category",
     "access": "read",
     "domain": "www.producthunt.com",
-    "strategy": "intercept",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -29378,7 +29378,7 @@
     "description": "Today's top Product Hunt launches with vote counts",
     "access": "read",
     "domain": "www.producthunt.com",
-    "strategy": "intercept",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -29403,7 +29403,7 @@
   {
     "site": "producthunt",
     "name": "posts",
-    "description": "Latest Product Hunt launches (optional category filter)",
+    "description": "Latest Product Hunt launches by launch date, no votes/rank (optional category filter)",
     "access": "read",
     "domain": "www.producthunt.com",
     "strategy": "public",
@@ -29439,11 +29439,11 @@
   {
     "site": "producthunt",
     "name": "today",
-    "description": "Today's Product Hunt launches (most recent day in feed)",
+    "description": "Product Hunt daily leaderboard (rank + votes) for a given day",
     "access": "read",
     "domain": "www.producthunt.com",
-    "strategy": "public",
-    "browser": false,
+    "strategy": "ui",
+    "browser": true,
     "args": [
       {
         "name": "limit",
@@ -29451,18 +29451,26 @@
         "default": 20,
         "required": false,
         "help": "Max results"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Launch day as YYYY-MM-DD (default: today in US/Pacific)"
       }
     ],
     "columns": [
       "rank",
       "name",
       "tagline",
-      "author",
+      "votes",
       "url"
     ],
     "type": "js",
     "modulePath": "producthunt/today.js",
-    "sourceFile": "producthunt/today.js"
+    "sourceFile": "producthunt/today.js",
+    "navigateBefore": true
   },
   {
     "site": "pubmed",

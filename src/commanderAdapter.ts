@@ -62,7 +62,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
     .option('-v, --verbose', 'Debug output', false);
   if (cmd.browser) {
     subCmd
-      .option('--window <mode>', 'Browser window mode: foreground or background')
+      .option('--window <mode>', 'Window mode: background (default, reuses your current window, never steals focus), foreground (raise + select), isolated (background in its own window)')
       .option('--site-session <mode>', 'Adapter site session lifecycle: ephemeral or persistent')
       .option('--keep-tab <bool>', 'Keep the browser tab lease after the command finishes');
   }

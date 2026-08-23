@@ -59,7 +59,7 @@ export class Page extends CDPBasePage {
     private readonly session: string,
     idleTimeout?: number,
     public readonly contextId?: string,
-    private readonly windowMode?: 'foreground' | 'background',
+    private readonly windowMode?: 'foreground' | 'background' | 'isolated',
     private readonly surface: 'browser' | 'adapter' = 'browser',
     private readonly siteSession?: 'ephemeral' | 'persistent',
     /** Soft profile preference (config default) — daemon arbitrates; see profileRouteParams. */
@@ -75,7 +75,7 @@ export class Page extends CDPBasePage {
   private _networkCaptureWarned = false;
 
   /** Helper: spread session into command params */
-  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; preferredContextId?: string; windowMode?: 'foreground' | 'background'; siteSession?: 'ephemeral' | 'persistent' } {
+  private _sessionOpts(): { session: string; surface: 'browser' | 'adapter'; idleTimeout?: number; contextId?: string; preferredContextId?: string; windowMode?: 'foreground' | 'background' | 'isolated'; siteSession?: 'ephemeral' | 'persistent' } {
     return {
       session: this.session,
       surface: this.surface,

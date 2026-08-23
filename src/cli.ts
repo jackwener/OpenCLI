@@ -607,7 +607,7 @@ async function getBrowserPage(
     surface: 'browser',
     ...profileRouteParams(profileSelection),
     ...(idleTimeout && idleTimeout > 0 && { idleTimeout }),
-    windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'foreground'),
+    windowMode: opts.windowMode ?? getBrowserWindowMode(undefined, 'background'),
   });
   const targetScope = getBrowserScope(session, profileSelection?.contextId);
   const resolvedTargetPage = targetPage
@@ -623,15 +623,16 @@ async function getBrowserPage(
 }
 
 function getBrowserWindowMode(command: Command | undefined, defaultMode: BrowserWindowMode): BrowserWindowMode {
+  const modes: BrowserWindowMode[] = ['foreground', 'background', 'isolated'];
   const optionRaw = getCommandOption(command, 'window');
   if (optionRaw !== undefined && optionRaw !== '') {
-    if (optionRaw === 'foreground' || optionRaw === 'background') return optionRaw;
-    throw new Error(`--window must be one of: foreground, background. Received: "${String(optionRaw)}"`);
+    if (modes.includes(optionRaw as BrowserWindowMode)) return optionRaw as BrowserWindowMode;
+    throw new Error(`--window must be one of: ${modes.join(', ')}. Received: "${String(optionRaw)}"`);
   }
   const envRaw = process.env.OPENCLI_WINDOW;
   if (envRaw !== undefined && envRaw !== '') {
-    if (envRaw === 'foreground' || envRaw === 'background') return envRaw;
-    throw new Error(`OPENCLI_WINDOW must be one of: foreground, background. Received: "${envRaw}"`);
+    if (modes.includes(envRaw as BrowserWindowMode)) return envRaw as BrowserWindowMode;
+    throw new Error(`OPENCLI_WINDOW must be one of: ${modes.join(', ')}. Received: "${envRaw}"`);
   }
   return defaultMode;
 }
@@ -978,7 +979,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     // program.parseAsync callers (tests). User-facing surface is the <session>
     // positional; main.ts argv preprocessor rewrites positional -> --session.
     .addOption(new Option('--session <name>', 'Internal — set automatically from the <session> positional').hideHelp())
-    .option('--window <mode>', 'Browser window mode: foreground or background')
+    .option('--window <mode>', 'Window mode: background (default, reuses your current window, never steals focus), foreground (raise + select), isolated (background in its own window)')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)')
     .usage('<session> <command> [options]')
     .addHelpText('after', `
@@ -1087,7 +1088,7 @@ Examples:
         const targetPage = getBrowserTargetId(command);
         const session = getBrowserSession(command);
         const profileSelection = getBrowserProfileSelection(command);
-        const windowMode = getBrowserWindowMode(command, 'foreground');
+        const windowMode = getBrowserWindowMode(command, 'background');
         page = await getBrowserPage(session, targetPage, profileSelection, { windowMode });
         await fn(page, ...args);
       } catch (err) {
@@ -3289,7 +3290,10 @@ cli({
             console.log(`${entries.length} active session(s):\n`);
             for (const e of entries) {
               const url = e.url && e.url !== 'about:blank' ? e.url : '(blank)';
-              console.log(`  ${(e.session as string).padEnd(40)} ${(e.surface as string).padEnd(10)} ${(e.kind as string).padEnd(8)} ${url}`);
+              // win is the answer to "who owns which tab" — two sessions sharing a
+              // window id are sharing a window, and that is usually the whole story.
+              const win = e.windowId === null || e.windowId === undefined ? '-' : `win${e.windowId}`;
+              console.log(`  ${(e.session as string).padEnd(34)} ${(e.surface as string).padEnd(9)} ${(e.kind as string).padEnd(7)} ${win.padEnd(10)} ${url}`);
             }
           }
         }

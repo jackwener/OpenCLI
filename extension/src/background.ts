@@ -285,7 +285,20 @@ type LeaseOwnership = 'owned' | 'borrowed';
 type LeaseLifecycle = 'ephemeral' | 'persistent' | 'pinned';
 type WindowRole = 'interactive' | 'automation' | 'borrowed-user';
 type OwnedWindowRole = Exclude<WindowRole, 'borrowed-user'>;
-type WindowMode = 'foreground' | 'background';
+// foreground — raise the window and select the tab (opt-in, interrupts the person)
+// background — do not raise, do not select; reuse the window they are already in
+// isolated   — background, but keep automation in its own separate window
+//
+// The list and the type are one declaration on purpose. They used to be two, and the
+// runtime check fell behind the union: `isolated` type-checked everywhere, parsed on
+// the CLI, reached the extension, and was then dropped by a hardcoded two-value guard.
+// Nothing errored — the flag just did nothing, which is the hardest kind of broken.
+const WINDOW_MODES = ['foreground', 'background', 'isolated'] as const;
+type WindowMode = typeof WINDOW_MODES[number];
+
+function isWindowMode(value: unknown): value is WindowMode {
+  return typeof value === 'string' && (WINDOW_MODES as readonly string[]).includes(value);
+}
 type BrowserSurface = 'browser' | 'adapter';
 type LeaseKind = 'owned' | 'bound';
 
@@ -321,11 +334,16 @@ let leaseMutationQueue: Promise<void> = Promise.resolve();
 const ownedContainers: Record<OwnedWindowRole, {
   windowId: number | null;
   groupId: number | null;
+  // True when `windowId` is a window the person opened and we are borrowing a tab
+  // in, rather than a window we created. Borrowed windows must never be treated as
+  // ours: we do not leave placeholder tabs in them, and `--window isolated` refuses
+  // to reuse them.
+  borrowed: boolean;
   promise: Promise<{ windowId: number; initialTabId?: number }> | null;
   groupPromise: Promise<OwnedContainerGroup | null> | null;
 }> = {
-  interactive: { windowId: null, groupId: null, promise: null, groupPromise: null },
-  automation: { windowId: null, groupId: null, promise: null, groupPromise: null },
+  interactive: { windowId: null, groupId: null, borrowed: false, promise: null, groupPromise: null },
+  automation: { windowId: null, groupId: null, borrowed: false, promise: null, groupPromise: null },
 };
 
 // Ledger of every interactive group id we have created or adopted in the
@@ -358,7 +376,7 @@ type StoredRegistry = {
   version: 2;
   contextId: BrowserContextId;
   ownedContainers: {
-    interactive: { windowId: number | null; groupIds: number[] };
+    interactive: { windowId: number | null; borrowed?: boolean; groupIds: number[] };
     automation: { windowId: number | null };
   };
   leases: Record<string, StoredLease>;
@@ -449,9 +467,15 @@ function getWindowRole(key: string, ownership: LeaseOwnership): WindowRole {
   return ownership === 'borrowed' ? 'borrowed-user' : getOwnedWindowRole(key);
 }
 
+// Both surfaces default to background. Raising a window or switching the active
+// tab is a visible interruption of whatever the person is doing, and nothing about
+// automation needs it: background windows are not throttled, `visibilityState` stays
+// `visible`, and every headless tell reads negative. Foreground is opt-in via
+// `--window foreground` / `OPENCLI_WINDOW=foreground`, for the rare flow that
+// genuinely needs the window up front (OS-level dialogs, clipboard, a human
+// finishing a CAPTCHA).
 function getWindowMode(key: string): WindowMode {
-  return sessionOverrides.get(key)?.windowMode
-    ?? (getOwnedWindowRole(key) === 'interactive' ? 'foreground' : 'background');
+  return sessionOverrides.get(key)?.windowMode ?? 'background';
 }
 
 function makeAlarmName(leaseKey: string): string {
@@ -494,6 +518,7 @@ function emptyRegistry(): StoredRegistry {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
+        borrowed: ownedContainers.interactive.borrowed,
         groupIds: [...interactiveGroupLedger],
       },
       automation: { windowId: ownedContainers.automation.windowId },
@@ -518,6 +543,7 @@ async function readRegistry(): Promise<StoredRegistry> {
       ownedContainers: {
         interactive: {
           windowId: typeof storedContainers.interactive?.windowId === 'number' ? storedContainers.interactive.windowId : null,
+          borrowed: storedContainers.interactive?.borrowed === true,
           groupIds: Array.isArray(storedContainers.interactive?.groupIds)
             ? storedContainers.interactive.groupIds.filter((id): id is number => typeof id === 'number')
             : [],
@@ -565,6 +591,7 @@ async function persistRuntimeState(): Promise<void> {
     ownedContainers: {
       interactive: {
         windowId: ownedContainers.interactive.windowId,
+        borrowed: ownedContainers.interactive.borrowed,
         groupIds: [...interactiveGroupLedger],
       },
       automation: { windowId: ownedContainers.automation.windowId },
@@ -893,6 +920,12 @@ async function ensureOwnedContainerGroup(
   role: OwnedWindowRole,
   fallbackWindowId: number | null,
   tabIds: Array<number | undefined>,
+  // When set, the group must live in THIS window. Group convergence otherwise
+  // adopts the canonical group wherever it happens to be and moves the tabs to
+  // it — which silently undid `--window isolated`: the dedicated window was
+  // created correctly and its tab was then dragged back into the group sitting
+  // in the person's window.
+  pinWindowId?: number,
 ): Promise<OwnedContainerGroup | null> {
   // Adapter automation runs in an owned background window but no longer creates
   // a visible "OpenCLI Adapter" tab group. Its ownership anchors are the
@@ -905,7 +938,7 @@ async function ensureOwnedContainerGroup(
   const previousGroupPromise = container.groupPromise ?? Promise.resolve(null);
   const nextGroupPromise = previousGroupPromise
     .catch(() => null)
-    .then(() => ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids));
+    .then(() => ensureOwnedContainerGroupUnlocked(role, fallbackWindowId, ids, pinWindowId));
   const trackedGroupPromise = nextGroupPromise.finally(() => {
     if (container.groupPromise === trackedGroupPromise) container.groupPromise = null;
   });
@@ -917,9 +950,13 @@ async function ensureOwnedContainerGroupUnlocked(
   role: OwnedWindowRole,
   fallbackWindowId: number | null,
   ids: number[],
+  pinWindowId?: number,
 ): Promise<OwnedContainerGroup | null> {
   try {
-    const candidates = await collectOwnedGroupCandidates(role);
+    const allCandidates = await collectOwnedGroupCandidates(role);
+    const candidates = pinWindowId === undefined
+      ? allCandidates
+      : allCandidates.filter(candidate => candidate.windowId === pinWindowId);
     const selected = selectOwnedContainerGroupCandidate(candidates);
     let canonical: OwnedContainerGroup | null = selected
       ? { id: selected.id, windowId: selected.windowId, title: selected.title }
@@ -934,6 +971,11 @@ async function ensureOwnedContainerGroupUnlocked(
     }
 
     if (canonical) {
+      // Adopting a group tells us where it lives but not who owns that window.
+      // Anything other than a window we created is borrowed until proven otherwise.
+      if (ownedContainers[role].windowId !== canonical.windowId) {
+        ownedContainers[role].borrowed = role === 'interactive';
+      }
       ownedContainers[role].windowId = canonical.windowId;
       ownedContainers[role].groupId = canonical.id;
       // Adopt into the session ledger — covers canonicals found via the
@@ -977,12 +1019,64 @@ async function ensureOwnedContainerWindow(
   return container.promise;
 }
 
+/**
+ * Is the container window one we created, or one we are borrowing?
+ *
+ * The `borrowed` flag alone is not enough to answer this: a container adopted
+ * through a stray tab group, or restored from a registry written by an older
+ * build, carries no flag at all and would read as dedicated. So confirm against
+ * the window itself — a window of ours holds nothing but our own tabs. Any tab
+ * outside the owned group means the window belongs to the person.
+ */
+async function containerWindowIsDedicated(role: OwnedWindowRole): Promise<boolean> {
+  const container = ownedContainers[role];
+  if (container.windowId === null) return false;
+  if (container.borrowed) return false;
+  // Ownership has to be PROVEN, and the only proof is: we know our group id, and
+  // every tab in the window belongs to it. Anything short of that — no group id
+  // recorded, a tab outside the group, a query that throws — is answered "borrowed".
+  // Guessing from tab URLs was tried and misfires: a window holding nothing but
+  // chrome://newtab is a perfectly ordinary window someone just opened, and reading
+  // it as ours is how `--window isolated` silently kept landing in it.
+  // Being wrong in this direction costs one extra window, which is what the caller
+  // asked for anyway; being wrong the other way ignores the flag entirely.
+  const groupId = container.groupId;
+  if (groupId === null || groupId === undefined) return false;
+  try {
+    const tabs = await chrome.tabs.query({ windowId: container.windowId });
+    if (tabs.length === 0) return true;
+    return tabs.every(tab => tab.groupId === groupId);
+  } catch {
+    return false;
+  }
+}
+
 async function ensureOwnedContainerWindowUnlocked(
   role: OwnedWindowRole,
   initialUrl?: string,
   mode: WindowMode = 'background',
 ): Promise<{ windowId: number; initialTabId?: number }> {
   const container = ownedContainers[role];
+  // `isolated` asks for a window of our own. A container currently borrowing the
+  // person's window does not satisfy that, so drop it and fall through to create one.
+  const wantsDedicated = mode === 'isolated';
+  if (wantsDedicated && !(await containerWindowIsDedicated(role))) {
+    container.windowId = null;
+    container.groupId = null;
+    container.borrowed = false;
+  }
+  // Borrowing is not owning. A window we borrowed once is not ours to keep coming
+  // back to — the person moves on, and piling every later session into the window
+  // they were in an hour ago is the same complaint as opening a new one, just
+  // quieter. So whenever the container is borrowed, re-ask where they are now.
+  if (!wantsDedicated && role === 'interactive' && container.borrowed && container.windowId !== null) {
+    const current = await findHostWindowForContainer(container.windowId);
+    if (current !== undefined && current !== container.windowId) {
+      container.windowId = null;
+      container.groupId = null;
+      container.borrowed = false;
+    }
+  }
   if (container.windowId !== null) {
     try {
       await chrome.windows.get(container.windowId);
@@ -1014,7 +1108,9 @@ async function ensureOwnedContainerWindowUnlocked(
     }
   }
 
-  const existingGroup = await ensureOwnedContainerGroup(role, null, []);
+  // Adopting a stray group would land us right back in whatever window it lives in,
+  // which is the thing `isolated` exists to avoid.
+  const existingGroup = wantsDedicated ? null : await ensureOwnedContainerGroup(role, null, []);
   if (existingGroup) {
     await focusOwnedWindowIfRequested(existingGroup.windowId, mode);
     const initialTabId = await findReusableOwnedContainerTab(existingGroup.windowId, existingGroup.id);
@@ -1027,26 +1123,51 @@ async function ensureOwnedContainerWindowUnlocked(
 
   const startUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
 
-  // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
-  // state value for windows.create(). The window defaults to 'normal' state anyway.
-  const win = await chrome.windows.create({
-    url: startUrl,
-    focused: mode === 'foreground',
-    width: 1280,
-    height: 900,
-    type: 'normal',
-  });
-  container.windowId = win.id!;
-  // Persist windowId before any further awaits so a worker crash between
-  // `windows.create` returning and the subsequent `tabs.group` call still
-  // lets the next ensure cycle reuse this window instead of spawning a
-  // second owned window in `chrome.windows.create`.
-  await persistRuntimeState();
-  console.log(`[opencli] Created owned ${role} window ${container.windowId} (start=${startUrl})`);
+  // Prefer opening a tab in the window the person is already using. `isolated`
+  // opts back into a dedicated window, and the adapter role always gets one.
+  const hostWindowId = (role === 'interactive' && mode !== 'isolated')
+    ? await findHostWindowForContainer()
+    : undefined;
 
-  // Wait for the initial tab to finish loading instead of a fixed 200ms sleep.
-  const tabs = await chrome.tabs.query({ windowId: win.id! });
-  const initialTabId = tabs[0]?.id;
+  let initialTabId: number | undefined;
+
+  if (hostWindowId !== undefined) {
+    const hostTab = await chrome.tabs.create({
+      windowId: hostWindowId,
+      url: startUrl,
+      active: mode === 'foreground',
+    });
+    container.windowId = hostWindowId;
+    container.borrowed = true;
+    initialTabId = hostTab.id;
+    await persistRuntimeState();
+    console.log(`[opencli] Using existing window ${hostWindowId} for ${role} container (start=${startUrl})`);
+    await focusOwnedWindowIfRequested(hostWindowId, mode);
+  } else {
+    // Note: Do NOT set `state` parameter here. Chrome 146+ rejects 'normal' as an invalid
+    // state value for windows.create(). The window defaults to 'normal' state anyway.
+    const win = await chrome.windows.create({
+      url: startUrl,
+      focused: mode === 'foreground',
+      width: 1280,
+      height: 900,
+      type: 'normal',
+    });
+    container.windowId = win.id!;
+    container.borrowed = false;
+    // Persist windowId before any further awaits so a worker crash between
+    // `windows.create` returning and the subsequent `tabs.group` call still
+    // lets the next ensure cycle reuse this window instead of spawning a
+    // second owned window in `chrome.windows.create`.
+    await persistRuntimeState();
+    console.log(`[opencli] Created owned ${role} window ${container.windowId} (start=${startUrl})`);
+
+    // Wait for the initial tab to finish loading instead of a fixed 200ms sleep.
+    const winTabs = await chrome.tabs.query({ windowId: win.id! });
+    initialTabId = winTabs[0]?.id;
+  }
+
+  const tabs = initialTabId !== undefined ? [await chrome.tabs.get(initialTabId).catch(() => undefined)].filter(Boolean) as chrome.tabs.Tab[] : [];
   if (initialTabId) {
     await new Promise<void>((resolve) => {
       const timeout = setTimeout(resolve, 500); // fallback cap
@@ -1058,7 +1179,7 @@ async function ensureOwnedContainerWindowUnlocked(
         }
       };
       // Check if already complete before listening
-      if (tabs[0].status === 'complete') {
+      if (tabs[0]?.status === 'complete') {
         clearTimeout(timeout);
         resolve();
       } else {
@@ -1066,9 +1187,63 @@ async function ensureOwnedContainerWindowUnlocked(
       }
     });
   }
-  const group = await ensureOwnedContainerGroup(role, container.windowId, [initialTabId]);
+  // Pin the group to this window when a dedicated one was requested, otherwise
+  // convergence adopts the group in the person's window and moves the tab there.
+  const group = await ensureOwnedContainerGroup(
+    role,
+    container.windowId,
+    [initialTabId],
+    wantsDedicated ? container.windowId ?? undefined : undefined,
+  );
   await persistRuntimeState();
   return { windowId: group?.windowId ?? container.windowId, initialTabId };
+}
+
+/**
+ * Pick the window the person is already working in, so interactive automation
+ * opens a tab there instead of spawning a second Chrome window.
+ *
+ * A separate window is the correct default for the `adapter` role — adapter runs
+ * are background chores nobody watches. For `browser` commands it is not: the
+ * person asked for this, they are looking at Chrome right now, and a brand-new
+ * 1280x900 window landing on top of their layout is a worse interruption than the
+ * tab itself. Automation tabs are grouped and labelled, so they stay identifiable
+ * inside the shared window.
+ *
+ * Excludes our own container windows (never converge two roles) and incognito
+ * windows (different context; the session cookies would not be the user's).
+ * Returns undefined when there is no usable window, in which case the caller
+ * falls back to creating one.
+ */
+async function findHostWindowForContainer(excludeWindowId?: number): Promise<number | undefined> {
+  const usable = (win: chrome.windows.Window | undefined): win is chrome.windows.Window =>
+    win !== undefined && win.id !== undefined && win.type === 'normal' && !win.incognito;
+  const owned = new Set(
+    Object.values(ownedContainers)
+      .map(container => container.windowId)
+      .filter((id): id is number => id !== null && id !== excludeWindowId),
+  );
+  const eligible = (win: chrome.windows.Window) => usable(win) && !owned.has(win.id!);
+
+  // `getLastFocused` is the right question: "which window was the person last in".
+  // `getAll().find(w => w.focused)` is NOT — `focused` is false for every window
+  // whenever Chrome itself is not the frontmost app, which is the normal state while
+  // an agent drives it from a terminal. That fallback then picked an arbitrary window
+  // (last in the list), which is how automation kept landing somewhere the person
+  // was not looking.
+  try {
+    const lastFocused = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    if (eligible(lastFocused)) return lastFocused.id;
+  } catch { /* fall through to the full scan */ }
+
+  try {
+    const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+    const candidates = windows.filter(eligible);
+    if (candidates.length === 0) return undefined;
+    return (candidates.find(win => win.focused) ?? candidates[candidates.length - 1])!.id;
+  } catch {
+    return undefined;
+  }
 }
 
 async function findReusableOwnedContainerTab(windowId: number, ownedGroupId?: number | null): Promise<number | undefined> {
@@ -1110,7 +1285,8 @@ async function createOwnedTabLease(leaseKey: string, initialUrl?: string): Promi
 async function createOwnedTabLeaseUnlocked(leaseKey: string, initialUrl?: string): Promise<ResolvedTab> {
   const targetUrl = (initialUrl && isSafeNavigationUrl(initialUrl)) ? initialUrl : BLANK_PAGE;
   const role = getOwnedWindowRole(leaseKey);
-  const { windowId, initialTabId } = await ensureOwnedContainerWindow(role, targetUrl, getWindowMode(leaseKey));
+  const mode = getWindowMode(leaseKey);
+  const { windowId, initialTabId } = await ensureOwnedContainerWindow(role, targetUrl, mode);
   let tab: chrome.tabs.Tab;
 
   if (initialTabIsAvailable(initialTabId)) {
@@ -1121,11 +1297,21 @@ async function createOwnedTabLeaseUnlocked(leaseKey: string, initialUrl?: string
       tab = await chrome.tabs.get(initialTabId);
     }
   } else {
-    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: true });
+    // `active` selects the tab inside its window. When the container shares the
+    // user's window that yanks the view away from whatever they were reading, so
+    // only do it when foreground was explicitly asked for.
+    tab = await chrome.tabs.create({ windowId, url: targetUrl, active: mode === 'foreground' });
   }
   const tabId = tab.id;
   if (!tabId) throw new Error('Failed to create tab lease in automation container');
-  const group = await ensureOwnedContainerGroup(role, windowId, [tabId]);
+  // Same pinning as the container: an `isolated` lease must not be converged back
+  // into a group living in the person's window.
+  const group = await ensureOwnedContainerGroup(
+    role,
+    windowId,
+    [tabId],
+    mode === 'isolated' ? windowId : undefined,
+  );
   const sessionWindowId = group?.windowId ?? tab.windowId;
   if (tab.windowId !== sessionWindowId) tab = await chrome.tabs.get(tabId);
 
@@ -1338,7 +1524,7 @@ async function handleCommand(cmd: Command): Promise<Result> {
   const session = getSessionName(cmd.session);
   const surface = getCommandSurface(cmd);
   const leaseKey = getLeaseKey(session, surface);
-  if (cmd.windowMode === 'foreground' || cmd.windowMode === 'background') {
+  if (isWindowMode(cmd.windowMode)) {
     setSessionOverride(leaseKey, { windowMode: cmd.windowMode });
   }
   if (surface === 'adapter' && (cmd.siteSession === 'persistent' || cmd.siteSession === 'ephemeral')) {
@@ -1643,8 +1829,13 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
     }
   }
 
-  // Fallback: create a new tab
-  const newTab = await chrome.tabs.create({ windowId: scopedWindowId, url: BLANK_PAGE, active: true });
+  // Fallback: create a new tab. Not active unless foreground was asked for —
+  // see createOwnedTabLeaseUnlocked.
+  const newTab = await chrome.tabs.create({
+    windowId: scopedWindowId,
+    url: BLANK_PAGE,
+    active: getWindowMode(leaseKey) === 'foreground',
+  });
   if (!newTab.id) throw new Error('Failed to create tab in automation container');
   await ensureOwnedContainerGroup(role, scopedWindowId, [newTab.id]);
   return { tabId: newTab.id, tab: await chrome.tabs.get(newTab.id) };
@@ -1895,7 +2086,11 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
         return pageScopedResult(cmd.id, created.tabId, { url: created.tab?.url });
       }
       const windowId = await getAutomationWindow(leaseKey);
-      let tab = await chrome.tabs.create({ windowId, url: cmd.url ?? BLANK_PAGE, active: true });
+      let tab = await chrome.tabs.create({
+        windowId,
+        url: cmd.url ?? BLANK_PAGE,
+        active: getWindowMode(leaseKey) === 'foreground',
+      });
       const tabId = tab.id;
       if (!tabId) return { id: cmd.id, ok: false, error: 'Failed to create tab' };
       const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), windowId, [tabId]);
@@ -2077,22 +2272,31 @@ async function handleSessions(cmd: Command): Promise<Result> {
     return { id: cmd.id, ok: true, data: { released: keys.length } };
   }
   // Default: list
+  // windowId is here because "which window is this session actually in?" is the
+  // question every tab-ownership problem reduces to, and until now it could only be
+  // answered by squinting at the browser. Reading it back through the extension also
+  // beats asking the OS: AppleScript and the extension can disagree about what Chrome
+  // contains (more than one Chrome instance, a profile the script is not attached to),
+  // and when they do, the extension's view is the one the automation actually acts on.
   const entries: Array<{
     session: string;
     surface: string;
     kind: string;
     tabId: number | null;
+    windowId: number | null;
     url?: string;
     title?: string;
   }> = [];
   for (const [, lease] of automationSessions) {
     let url: string | undefined;
     let title: string | undefined;
+    let windowId: number | null = lease.windowId ?? null;
     if (lease.preferredTabId !== null) {
       try {
         const tab = await chrome.tabs.get(lease.preferredTabId);
         url = tab.url;
         title = tab.title;
+        windowId = tab.windowId ?? windowId;
       } catch { /* tab may be gone */ }
     }
     entries.push({
@@ -2100,6 +2304,7 @@ async function handleSessions(cmd: Command): Promise<Result> {
       surface: lease.surface,
       kind: lease.kind,
       tabId: lease.preferredTabId,
+      windowId,
       url,
       title,
     });
@@ -2209,9 +2414,18 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
       if (hasOtherOwnedLease) {
         await chrome.tabs.remove(tabId).catch(() => {});
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
+      } else if (ownedContainers[getOwnedWindowRole(leaseKey)].borrowed) {
+        // In a window we merely borrowed, a leftover blank placeholder is litter in
+        // the person's own tab strip. Close it instead — the placeholder only pays
+        // for itself inside a container window nobody else looks at.
+        await chrome.tabs.remove(tabId).catch(() => {});
+        console.log(`[opencli] Closed borrowed tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
-          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
+          // Releasing a lease must never pull the view anywhere: this fires on idle
+          // timeout and on cleanup, so `active: true` here reads to the person as the
+          // browser randomly jumping to a blank page long after they stopped watching.
+          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE });
           const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
           if (group) session.windowId = group.windowId;
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
@@ -2245,6 +2459,9 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
   // title, and lease layers during the convergence below.
   for (const role of Object.keys(ownedContainers) as OwnedWindowRole[]) {
     ownedContainers[role].windowId = registry.ownedContainers[role]?.windowId ?? null;
+    ownedContainers[role].borrowed = role === 'interactive'
+      ? registry.ownedContainers.interactive.borrowed === true
+      : false;
     const windowId = ownedContainers[role].windowId;
     if (windowId !== null) {
       try {
@@ -2361,6 +2578,7 @@ async function handleBind(cmd: Command, leaseKey: string): Promise<Result> {
 
 export const __test__ = {
   handleExec,
+  releaseLease,
   handleNavigate,
   isTargetUrl,
   handleTabs,

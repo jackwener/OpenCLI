@@ -1254,7 +1254,9 @@ describe('browser tab targeting commands', () => {
 
     await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'state']);
 
-    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 45, session: 'test', surface: 'browser', windowMode: 'foreground' });
+    // Background is the default now: automation must not raise a window or switch the
+    // active tab unless someone asked for foreground explicitly.
+    expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 45, session: 'test', surface: 'browser', windowMode: 'background' });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
   });
 

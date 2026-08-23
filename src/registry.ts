@@ -70,7 +70,7 @@ interface BaseCliCommand {
   /** Site session lifecycle for adapter commands. */
   siteSession?: SiteSessionMode;
   /** Default browser window mode for commands whose UX requires visibility. */
-  defaultWindowMode?: 'foreground' | 'background';
+  defaultWindowMode?: 'foreground' | 'background' | 'isolated';
   /** Override the default CLI output format when the user does not pass -f/--format. */
   defaultFormat?: 'table' | 'plain' | 'json' | 'yaml' | 'yml' | 'md' | 'markdown' | 'csv';
   /** Optional auth-status metadata attached by shared auth adapters. */

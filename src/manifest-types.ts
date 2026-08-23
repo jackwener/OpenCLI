@@ -40,5 +40,5 @@ export interface ManifestEntry {
   /** Site session lifecycle defaults — see CliCommand.siteSession */
   siteSession?: 'ephemeral' | 'persistent';
   /** Default browser window visibility — see CliCommand.defaultWindowMode */
-  defaultWindowMode?: 'foreground' | 'background';
+  defaultWindowMode?: 'foreground' | 'background' | 'isolated';
 }

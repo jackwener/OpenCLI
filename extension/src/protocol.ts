@@ -70,7 +70,7 @@ export interface Command {
   /** CDP method params for 'cdp' action */
   cdpParams?: Record<string, unknown>;
   /** Window foreground/background policy for owned Browser Bridge containers. */
-  windowMode?: 'foreground' | 'background';
+  windowMode?: 'foreground' | 'background' | 'isolated';
   /** Custom idle timeout in seconds for this session. Overrides the default. */
   idleTimeout?: number;
   /** Frame index for cross-frame operations (0-based, from 'frames' action) */

@@ -199,6 +199,10 @@ function createChromeMock() {
       onEvent: { addListener: vi.fn() } as Listener<(source: any, method: string, params: any) => void>,
     },
     windows: {
+      // Default: no reusable user window, so the container falls back to creating one.
+      // Tests that exercise host-window reuse override this.
+      getAll: vi.fn(async () => [] as any[]),
+      getLastFocused: vi.fn(async () => undefined as any),
       get: vi.fn(async (windowId: number) => ({ id: windowId, focused: windowId === lastFocusedWindowId })),
       create: vi.fn(async ({ url, focused, width, height, type }: any) => ({ id: 1, url, focused, width, height, type })),
       remove: vi.fn(async (_windowId: number) => {}),
@@ -635,7 +639,9 @@ describe('background tab isolation', () => {
     const result = await mod.__test__.handleTabs({ id: '2', action: 'tabs', op: 'new', url: 'https://new.example', session: adapterKey('twitter') }, adapterKey('twitter'));
 
     expect(result.ok).toBe(true);
-    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: true });
+    // Background is the default, so a new automation tab must not become the active
+    // tab — that would yank the view away from whatever the person is reading.
+    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'https://new.example', active: false });
   });
 
   it('reuses the initial container tab for first tab-new lease instead of leaving a blank tab', async () => {
@@ -1023,7 +1029,7 @@ describe('background tab isolation', () => {
     }));
     expect(maxInFlight).toBe(2);
     expect(chrome.windows.create).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'about:blank', active: true });
+    expect(create).toHaveBeenCalledWith({ windowId: 1, url: 'about:blank', active: false });
   });
 
   it('releases owned sessions without closing the shared container', async () => {
@@ -1038,7 +1044,7 @@ describe('background tab isolation', () => {
     const closeSecond = await mod.__test__.handleCommand({ id: 'close-second', action: 'close-window', session: 'second', surface: 'adapter' });
     expect(closeSecond).toEqual(expect.objectContaining({ ok: true }));
     expect(chrome.tabs.remove).toHaveBeenCalledWith(10);
-    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank', active: true });
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank' });
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession(adapterKey('first'))).not.toBeNull();
     expect(mod.__test__.getSession(adapterKey('second'))).toBeNull();
@@ -1065,7 +1071,9 @@ describe('background tab isolation', () => {
       ok: true,
       data: { closed: 'target-1' },
     }));
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    // Releasing a lease resets the tab but must never select it: this fires on idle
+    // timeout and cleanup, long after the person stopped watching.
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank' });
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
@@ -1277,6 +1285,191 @@ describe('background tab isolation', () => {
     expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
+  it('opens interactive automation in the window the person is already using', async () => {
+    const { chrome, tabs } = createChromeMock();
+    // The person has one ordinary Chrome window open, with their own tabs in it.
+    chrome.windows.getAll = vi.fn(async () => [{ id: 7, focused: true, incognito: false, type: 'normal' }]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('recon'), 'https://example.com');
+
+    // A second Chrome window landing on top of their layout is a worse interruption
+    // than the tab itself, so the container borrows the window they already have.
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).toBe(7);
+    // And borrowing their window makes activation dangerous, so the tab stays inactive.
+    expect(chrome.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ windowId: 7, active: false }));
+  });
+
+  it('gives adapter automation its own window even when a user window exists', async () => {
+    const { chrome, tabs } = createChromeMock();
+    chrome.windows.getAll = vi.fn(async () => [{ id: 7, focused: true, incognito: false, type: 'normal' }]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    // Adapter runs are background chores nobody watches; they stay out of the way.
+    expect(chrome.windows.create).toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).not.toBe(7);
+  });
+
+  it('escapes to its own window even when the borrowed flag was never recorded', async () => {
+    const { chrome, tabs } = createChromeMock();
+    chrome.windows.getAll = vi.fn(async () => [{ id: 7, focused: true, incognito: false, type: 'normal' }]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    // Simulate a container adopted by an older build: it points at the person's
+    // window but carries no `borrowed` flag, so the flag alone would call it ours.
+    // Window 2 holds one of the person's own pages in the mock fixture.
+    mod.__test__.setAutomationWindowId(browserKey('recon'), 2);
+    mod.__test__.sessionOverrides.set(browserKey('recon'), { windowMode: 'isolated' });
+
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('recon'), 'https://example.com');
+
+    // A window holding the person's pages cannot be the dedicated container
+    // `isolated` asked for, flag or no flag.
+    expect(chrome.windows.create).toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).not.toBe(2);
+  });
+
+  it('treats a window full of new tabs as the person\'s, not as our container', async () => {
+    const { chrome, tabs } = createChromeMock();
+    // A window someone just opened: two blank new tabs, no group of ours.
+    tabs.length = 0;
+    tabs.push({ id: 30, windowId: 3, url: 'chrome://newtab/', title: 'New Tab', active: true, status: 'complete', groupId: -1 });
+    tabs.push({ id: 31, windowId: 3, url: 'chrome://newtab/', title: 'New Tab', active: false, status: 'complete', groupId: -1 });
+    chrome.windows.getAll = vi.fn(async () => [{ id: 3, focused: true, incognito: false, type: 'normal' }]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(browserKey('recon'), 3);
+    mod.__test__.sessionOverrides.set(browserKey('recon'), { windowMode: 'isolated' });
+
+    await mod.__test__.resolveTabId(undefined, browserKey('recon'), 'https://example.com');
+
+    // Guessing ownership from tab URLs said "only non-http tabs, must be ours" and
+    // quietly swallowed every `isolated` request into the person's window.
+    expect(chrome.windows.create).toHaveBeenCalled();
+  });
+
+  it('does not let group convergence drag an isolated tab back to the shared window', async () => {
+    const { chrome, tabs, groups } = createChromeMock();
+    // The person's window already holds an OpenCLI group from earlier work.
+    tabs.length = 0;
+    tabs.push({ id: 40, windowId: 4, url: 'https://user.example', title: 'user', active: true, status: 'complete', groupId: -1 });
+    tabs.push({ id: 41, windowId: 4, url: 'https://example.com', title: 'prev', active: false, status: 'complete', groupId: 900 });
+    groups.push({ id: 900, windowId: 4, title: 'OpenCLI: earlier', color: 'orange', collapsed: false });
+    chrome.windows.getAll = vi.fn(async () => [{ id: 4, focused: true, incognito: false, type: 'normal' }]);
+    let nextWindowId = 60;
+    let nextTabId = 600;
+    chrome.windows.create = vi.fn(async ({ url, focused, width, height, type }: any) => {
+      const windowId = nextWindowId++;
+      tabs.push({ id: nextTabId++, windowId, url, title: url ?? 'blank', active: false, status: 'complete', groupId: -1 });
+      return { id: windowId, url, focused, width, height, type };
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.sessionOverrides.set(browserKey('iso'), { windowMode: 'isolated' });
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('iso'), 'https://example.org');
+
+    // The dedicated window was created correctly before; what undid `isolated` was
+    // convergence adopting the group in window 4 and moving the tab into it.
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).not.toBe(4);
+  });
+
+  it('follows the person when they move to a different window', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs.length = 0;
+    tabs.push({ id: 80, windowId: 8, url: 'https://old.example', title: 'old', active: false, status: 'complete', groupId: -1 });
+    tabs.push({ id: 90, windowId: 9, url: 'https://now.example', title: 'now', active: true, status: 'complete', groupId: -1 });
+    // Chrome is not the frontmost app, so `focused` is false on every window —
+    // the state an agent driving from a terminal always sees.
+    chrome.windows.getAll = vi.fn(async () => [
+      { id: 8, focused: false, incognito: false, type: 'normal' },
+      { id: 9, focused: false, incognito: false, type: 'normal' },
+    ]);
+    chrome.windows.getLastFocused = vi.fn(async () => ({ id: 9, focused: false, incognito: false, type: 'normal' }));
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    // An earlier session borrowed window 8. The person has since moved to window 9.
+    mod.__test__.setAutomationWindowId(browserKey('earlier'), 8);
+
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('later'), 'https://example.com');
+
+    // Piling into the window they left an hour ago is the same complaint as opening
+    // a new one, just quieter.
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).toBe(9);
+  });
+
+  it('carries every window mode through to the session override', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const mod = await import('./background');
+
+    // A mode the command handler forgets is dropped silently — the flag parses, the
+    // command succeeds, and the behaviour is just the default. Assert every mode
+    // survives the trip so the guard cannot fall behind the union again.
+    for (const mode of ['foreground', 'background', 'isolated'] as const) {
+      const leaseKey = browserKey(`mode-${mode}`);
+      await mod.__test__.handleCommand({
+        id: `m-${mode}`,
+        action: 'tabs',
+        op: 'list',
+        session: `mode-${mode}`,
+        windowMode: mode,
+      } as never);
+      expect(mod.__test__.sessionOverrides.get(leaseKey)?.windowMode).toBe(mode);
+    }
+  });
+
+  it('lets --window isolated opt back into a separate window', async () => {
+    const { chrome, tabs } = createChromeMock();
+    chrome.windows.getAll = vi.fn(async () => [{ id: 7, focused: true, incognito: false, type: 'normal' }]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.sessionOverrides.set(browserKey('recon'), { windowMode: 'isolated' });
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('recon'), 'https://example.com');
+
+    expect(chrome.windows.create).toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).not.toBe(7);
+  });
+
+  it('never borrows an incognito window for the container', async () => {
+    const { chrome, tabs } = createChromeMock();
+    // Incognito is a different context — its cookies are not the person's session.
+    chrome.windows.getAll = vi.fn(async () => [{ id: 9, focused: true, incognito: true, type: 'normal' }]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('recon'), 'https://example.com');
+
+    expect(chrome.windows.create).toHaveBeenCalled();
+    expect(tabs.find((tab) => tab.id === tabId)?.windowId).not.toBe(9);
+  });
+
+  it('does not leave a blank placeholder tab behind in a borrowed window', async () => {
+    const { chrome, tabs } = createChromeMock();
+    chrome.windows.getAll = vi.fn(async () => [{ id: 7, focused: true, incognito: false, type: 'normal' }]);
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    const tabId = await mod.__test__.resolveTabId(undefined, browserKey('recon'), 'https://example.com');
+    const before = tabs.length;
+    await mod.__test__.releaseLease(browserKey('recon'), 'test');
+
+    // Inside a container window the blank placeholder is free to keep; inside the
+    // person's own tab strip it is litter, so the tab goes away instead.
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(tabId);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(tabId, { url: 'about:blank' });
+    expect(tabs.length).toBeLessThan(before + 1);
+  });
+
   it('keeps browser groups while adapter sessions stay ungrouped in separate owned windows', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     let nextWindowId = 20;
@@ -1311,7 +1504,9 @@ describe('background tab isolation', () => {
 
     expect(tabs.find((tab) => tab.id === browserTabId)?.windowId).toBe(20);
     expect(tabs.find((tab) => tab.id === adapterTabId)?.windowId).toBe(21);
-    expect(chrome.windows.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ focused: true }));
+    // Neither role focuses its window any more — background is the default for both,
+    // and foreground is opt-in via `--window foreground`.
+    expect(chrome.windows.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ focused: false }));
     expect(chrome.windows.create).toHaveBeenNthCalledWith(2, expect.objectContaining({ focused: false }));
     expect(groups).toEqual([
       // Group titles are session-derived now (dynamic tab group titles), so the
@@ -2025,7 +2220,9 @@ describe('background tab isolation', () => {
     expect(finalRegistry.ownedContainers.interactive.groupId).toBeUndefined();
     expect(mod.__test__.getInteractiveContainer().groupId).toBe(200);
     // The lease was released down the proper owned-placeholder path, not wiped.
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    // Releasing a lease resets the tab but must never select it: this fires on idle
+    // timeout and cleanup, long after the person stopped watching.
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank' });
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
