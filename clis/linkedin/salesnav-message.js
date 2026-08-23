@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SALES_HOME = 'https://www.linkedin.com/sales/';
@@ -15,11 +16,6 @@ function requireStringArg(args, key, label = key) {
   const value = normalizeWhitespace(args[key]);
   if (!value) throw new ArgumentError(`${label} is required`);
   return value;
-}
-
-function unwrapEvaluateResult(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-  return payload;
 }
 
 function isLinkedInHost(hostname) {

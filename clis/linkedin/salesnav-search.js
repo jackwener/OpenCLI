@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SALES_HOME = 'https://www.linkedin.com/sales/';
@@ -27,11 +28,6 @@ function parseLimit(value) {
     throw new ArgumentError('--limit must be an integer between 1 and 500');
   }
   return limit;
-}
-
-function unwrapEvaluateResult(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-  return payload;
 }
 
 // Sales Navigator keeps the structural ( ) , : of the query literal and only
