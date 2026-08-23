@@ -23,15 +23,23 @@ cli({
         try {
             let attempts = 0;
             let unblockBtn = null;
+            const getPrimary = () => document.querySelector('[data-testid="primaryColumn"]');
+            if (!getPrimary()) {
+                return { ok: false, message: 'Could not find profile surface. Are you logged in?' };
+            }
 
             while (attempts < 20) {
+                const primary = getPrimary();
+                if (!primary) {
+                    return { ok: false, message: 'Could not find profile surface. Are you logged in?' };
+                }
                 // Check if not blocked (follow button visible means not blocked)
-                const followBtn = document.querySelector('[data-testid$="-follow"]');
+                const followBtn = primary.querySelector('[data-testid$="-follow"]');
                 if (followBtn) {
                     return { ok: true, message: 'Not blocking @${username} (already unblocked).' };
                 }
 
-                unblockBtn = document.querySelector('[data-testid$="-unblock"]');
+                unblockBtn = primary.querySelector('[data-testid$="-unblock"]');
                 if (unblockBtn) break;
 
                 await new Promise(r => setTimeout(r, 500));
@@ -56,7 +64,7 @@ cli({
             await new Promise(r => setTimeout(r, 1000));
 
             // Verify
-            const verify = document.querySelector('[data-testid$="-follow"]');
+            const verify = getPrimary()?.querySelector('[data-testid$="-follow"]');
             if (verify) {
                 return { ok: true, message: 'Successfully unblocked @${username}.' };
             } else {

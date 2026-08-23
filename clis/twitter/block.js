@@ -22,22 +22,38 @@ cli({
         let writeStarted = false;
         try {
             let attempts = 0;
+            const getPrimary = () => document.querySelector('[data-testid="primaryColumn"]');
+            const isBlockMenuItem = (item) => {
+                const text = String(item.textContent || '');
+                const lower = text.toLowerCase();
+                const isUnblockText = lower.includes('unblock') || text.includes('取消屏蔽') || text.includes('解除屏蔽');
+                const isBlockText = (lower.includes('block') || text.includes('屏蔽')) && !isUnblockText;
+                return item.getAttribute('data-testid') === 'block' || isBlockText;
+            };
+            if (!getPrimary()) {
+                return { ok: false, message: 'Could not find profile surface. Are you logged in?' };
+            }
 
             // Check if already blocked (profile shows "Blocked" / unblock button)
             while (attempts < 20) {
-                const blockedIndicator = document.querySelector('[data-testid$="-unblock"]');
+                const primary = getPrimary();
+                if (!primary) {
+                    return { ok: false, message: 'Could not find profile surface. Are you logged in?' };
+                }
+                const blockedIndicator = primary.querySelector('[data-testid$="-unblock"]');
                 if (blockedIndicator) {
                     return { ok: true, message: 'Already blocking @${username}.' };
                 }
 
-                const moreBtn = document.querySelector('[data-testid="userActions"]');
+                const moreBtn = primary.querySelector('[data-testid="userActions"]');
                 if (moreBtn) break;
 
                 await new Promise(r => setTimeout(r, 500));
                 attempts++;
             }
 
-            const moreBtn = document.querySelector('[data-testid="userActions"]');
+            const primary = getPrimary();
+            const moreBtn = primary?.querySelector('[data-testid="userActions"]');
             if (!moreBtn) {
                 return { ok: false, message: 'Could not find user actions menu. Are you logged in?' };
             }
@@ -50,7 +66,7 @@ cli({
             const menuItems = document.querySelectorAll('[role="menuitem"]');
             let blockItem = null;
             for (const item of menuItems) {
-                if (item.textContent && item.textContent.includes('Block')) {
+                if (isBlockMenuItem(item)) {
                     blockItem = item;
                     break;
                 }
@@ -73,7 +89,7 @@ cli({
             await new Promise(r => setTimeout(r, 1500));
 
             // Verify
-            const verify = document.querySelector('[data-testid$="-unblock"]');
+            const verify = getPrimary()?.querySelector('[data-testid$="-unblock"]');
             if (verify) {
                 return { ok: true, message: 'Successfully blocked @${username}.' };
             } else {
