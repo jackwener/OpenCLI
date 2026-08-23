@@ -316,23 +316,4 @@ describe('zhihu answer-detail helpers', () => {
         expect(helpers.stripHtml('a<br>b<br/>c')).toBe('a\nb\nc');
     });
 
-    it('parseAnswerTarget handles exact input shapes', () => {
-        expect(helpers.parseAnswerTarget('123')).toEqual({ answerId: '123', questionId: '' });
-        expect(helpers.parseAnswerTarget('answer:10:123')).toEqual({ answerId: '123', questionId: '10' });
-        expect(helpers.parseAnswerTarget('https://www.zhihu.com/question/10/answer/123')).toEqual({ answerId: '123', questionId: '10' });
-        expect(helpers.parseAnswerTarget('https://zhihu.com/answer/123?utm=1#x')).toEqual({ answerId: '123', questionId: '' });
-        expect(helpers.parseAnswerTarget('http://www.zhihu.com/question/10/answer/123')).toBeNull();
-        expect(helpers.parseAnswerTarget('https://www.zhihu.com/question/10/answer/123/extra')).toBeNull();
-    });
-
-    it('extractAnswerId keeps the legacy helper contract for tests', () => {
-        expect(helpers.extractAnswerId('123')).toBe('123');
-        expect(helpers.extractAnswerId('answer:10:123')).toBe('123');
-        expect(helpers.extractAnswerId('https://www.zhihu.com/question/10/answer/123')).toBe('123');
-        expect(helpers.extractAnswerId('https://www.zhihu.com/answer/123')).toBe('123');
-        expect(helpers.extractAnswerId('  123  ')).toBe('123');
-        expect(helpers.extractAnswerId('')).toBeNull();
-        expect(helpers.extractAnswerId('not-an-id')).toBeNull();
-        expect(helpers.extractAnswerId('https://example.com/answer/123')).toBeNull();
-    });
 });

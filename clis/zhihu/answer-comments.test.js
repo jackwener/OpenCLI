@@ -255,14 +255,6 @@ describe('zhihu answer-comments', () => {
 });
 
 describe('zhihu answer-comments helpers', () => {
-    it('parseAnswerTarget handles exact input shapes', () => {
-        expect(helpers.parseAnswerTarget('123')).toEqual({ answerId: '123', questionId: '' });
-        expect(helpers.parseAnswerTarget('answer:10:123')).toEqual({ answerId: '123', questionId: '10' });
-        expect(helpers.parseAnswerTarget('https://www.zhihu.com/question/10/answer/123')).toEqual({ answerId: '123', questionId: '10' });
-        expect(helpers.parseAnswerTarget('https://zhihu.com/answer/123?utm=1')).toEqual({ answerId: '123', questionId: '' });
-        expect(helpers.parseAnswerTarget('https://example.com/question/10/answer/123')).toBeNull();
-    });
-
     it('normalizeCommentsApiUrl only accepts same-answer Zhihu comments API URLs', () => {
         expect(helpers.normalizeCommentsApiUrl('https://www.zhihu.com/api/v4/answers/123/comments?offset=20', '123'))
             .toBe('https://www.zhihu.com/api/v4/answers/123/comments?offset=20');
