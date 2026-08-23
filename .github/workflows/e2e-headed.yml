@@ -10,7 +10,9 @@ on:
     paths:
       - 'extension/**'
       - 'src/browser/**'
-      - 'src/daemon.ts'
+      - 'src/host.ts'
+      - 'src/host-protocol.ts'
+      - 'src/host-bin.ts'
       - 'src/execution.ts'
       - 'src/interceptor.ts'
       - 'tests/e2e/**'
@@ -39,8 +41,8 @@ jobs:
         #   an MV3 extension, which only Linux+xvfb provides on hosted runners
         #   (headed macOS crashes on Mach port rendezvous outside an Aqua
         #   session; headless does not connect the extension SW there);
-        # - the daemon transport contracts need no browser and run blocking on
-        #   every OS, so macOS/Windows get a real gate, not a skipped one.
+        # - the native-host transport contracts need no browser and run blocking
+        #   on every OS, so macOS/Windows get a real gate, not a skipped one.
         # macOS pinned to 15 while the macOS 26 image stabilizes.
         os: [ubuntu-latest, macos-15, windows-latest]
     timeout-minutes: 20
@@ -84,13 +86,10 @@ jobs:
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             npx vitest run --project e2e tests/e2e/browser-ax-chrome.test.ts --reporter=verbose
 
-      # Transport contract E2E: real daemon process + scripted fake extension.
-      # Pins the cross-layer contracts (waiter attach, deadline 408, dispatched
-      # disconnect, profile fallback, graceful shutdown) end to end with the
-      # actual daemon binary — no browser required, so this is the blocking
-      # gate on EVERY OS, including macOS and Windows.
-      - name: Run daemon transport contract E2E
-        run: npx vitest run --project e2e-fixed-port tests/e2e/daemon-transport.test.ts --reporter=verbose
+      # Transport contract E2E: fake native host unix socket + the built CLI.
+      # No browser required, so this is the blocking gate on EVERY OS.
+      - name: Run native-host CLI transport E2E
+        run: npx vitest run --project e2e-fixed-port tests/e2e/browser-tabs.test.ts --reporter=verbose
 
       - name: Run E2E tests (Linux, via xvfb)
         if: runner.os == 'Linux'

@@ -3,7 +3,7 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
   const card = document.getElementById('card');
   const dot = document.getElementById('dot');
   const status = document.getElementById('status');
-  const daemonVersion = document.getElementById('daemonVersion');
+  const hostVersion = document.getElementById('hostVersion');
   const profileRow = document.getElementById('profileRow');
   const contextId = document.getElementById('contextId');
   const copyBtn = document.getElementById('copyBtn');
@@ -17,7 +17,7 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
   if (chrome.runtime.lastError || !resp) {
     setState(card, dot, 'disconnected');
     status.textContent = 'Native host not connected';
-    daemonVersion.textContent = '';
+    hostVersion.textContent = '';
     profileRow.style.display = 'none';
     hint.style.display = 'block';
     return;
@@ -35,18 +35,18 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
     setState(card, dot, 'connected');
     status.textContent = 'Connected to native host';
     if (typeof resp.hostVersion === 'string') {
-      daemonVersion.textContent = `host v${resp.hostVersion}`;
+      hostVersion.textContent = `host v${resp.hostVersion}`;
     }
     hint.style.display = 'none';
   } else if (resp.reconnecting) {
     setState(card, dot, 'connecting');
     status.textContent = 'Reconnecting...';
-    daemonVersion.textContent = '';
+    hostVersion.textContent = '';
     hint.style.display = 'none';
   } else {
     setState(card, dot, 'disconnected');
     status.textContent = 'Native host not connected';
-    daemonVersion.textContent = '';
+    hostVersion.textContent = '';
     hint.style.display = 'block';
   }
 });

@@ -118,3 +118,98 @@ export interface Result {
 
 /** Native Messaging host Chrome spawns; CLI never listen()s. */
 export const NATIVE_HOST_NAME = 'com.opencli.host';
+
+/** Chrome kills a native host that writes a frame larger than 1 MiB. */
+export const NATIVE_MAX_FRAME_BYTES = 1024 * 1024;
+/** JSON-text slice size for native chunks. Well under 1MiB after envelope wrap. */
+export const NATIVE_CHUNK_TEXT_BYTES = 512 * 1024;
+export const CHUNK_TYPE = '__chunk__';
+export const PAYLOAD_TOO_LARGE_CODE = 'payload_too_large';
+
+export type ChunkEnvelope = {
+  type: typeof CHUNK_TYPE;
+  id: string;
+  i: number;
+  n: number;
+  data: string;
+};
+
+const utf8 = new TextEncoder();
+const utf8Decoder = new TextDecoder();
+
+function utf8Len(s: string): number {
+  return utf8.encode(s).length;
+}
+
+function splitUtf8ByBytes(s: string, maxBytes: number): string[] {
+  const bytes = utf8.encode(s);
+  if (bytes.length <= maxBytes) return [s];
+  const parts: string[] = [];
+  let offset = 0;
+  while (offset < bytes.length) {
+    let end = Math.min(offset + maxBytes, bytes.length);
+    while (end > offset && (bytes[end] & 0xc0) === 0x80) end--;
+    if (end === offset) {
+      throw Object.assign(new Error(`Native payload exceeds Chrome's 1MiB message cap (${bytes.length} bytes).`), {
+        code: PAYLOAD_TOO_LARGE_CODE,
+      });
+    }
+    parts.push(utf8Decoder.decode(bytes.subarray(offset, end)));
+    offset = end;
+  }
+  return parts;
+}
+
+export function isChunkEnvelope(value: unknown): value is ChunkEnvelope {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as ChunkEnvelope;
+  return v.type === CHUNK_TYPE
+    && typeof v.id === 'string'
+    && Number.isInteger(v.i)
+    && Number.isInteger(v.n)
+    && typeof v.data === 'string';
+}
+
+export function splitNativePayloads(value: unknown): unknown[] {
+  const json = JSON.stringify(value);
+  const direct = utf8Len(json);
+  if (direct <= NATIVE_MAX_FRAME_BYTES - 64) return [value];
+  const slices = splitUtf8ByBytes(json, NATIVE_CHUNK_TEXT_BYTES);
+  const id = `chk_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  return slices.map((data, i) => {
+    const envelope: ChunkEnvelope = { type: CHUNK_TYPE, id, i, n: slices.length, data };
+    if (utf8Len(JSON.stringify(envelope)) > NATIVE_MAX_FRAME_BYTES) {
+      throw Object.assign(new Error(`Native payload exceeds Chrome's 1MiB message cap (${direct} bytes).`), {
+        code: PAYLOAD_TOO_LARGE_CODE,
+      });
+    }
+    return envelope;
+  });
+}
+
+export class ChunkAssembler {
+  private chunks = new Map<string, { n: number; parts: Array<string | null> }>();
+
+  push(parsed: unknown): unknown | undefined {
+    if (!isChunkEnvelope(parsed)) return parsed;
+    if (parsed.n <= 0 || parsed.n > 64) return undefined;
+    let entry = this.chunks.get(parsed.id);
+    if (!entry) {
+      if (this.chunks.size >= 8) {
+        const oldest = this.chunks.keys().next().value;
+        if (oldest !== undefined) this.chunks.delete(oldest);
+      }
+      entry = { n: parsed.n, parts: Array.from({ length: parsed.n }, () => null) };
+      this.chunks.set(parsed.id, entry);
+    }
+    if (parsed.i < 0 || parsed.i >= entry.n) return undefined;
+    entry.parts[parsed.i] = parsed.data;
+    if (entry.parts.some((p) => p === null)) return undefined;
+    this.chunks.delete(parsed.id);
+    return JSON.parse(entry.parts.join(''));
+  }
+
+  reset(): void {
+    this.chunks.clear();
+  }
+}

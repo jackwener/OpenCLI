@@ -82,3 +82,16 @@ describe('sendCommand over the native host unix socket', () => {
     clearDaemonRunContext(`run_${process.pid}_1_a`);
   });
 });
+
+describe('write-safety helpers', () => {
+  it('isUnknownOutcomeError recognizes codes on the error and its cause chain', async () => {
+    const { isUnknownOutcomeError, BrowserCommandError } = await import('./daemon-client.js');
+    expect(isUnknownOutcomeError(new BrowserCommandError('x', 'command_result_unknown'))).toBe(true);
+    expect(isUnknownOutcomeError(new BrowserCommandError('x', 'command_lost'))).toBe(true);
+    expect(isUnknownOutcomeError(new BrowserCommandError('x', 'result_evicted'))).toBe(true);
+    expect(isUnknownOutcomeError(new BrowserCommandError('x', 'attach_failed'))).toBe(false);
+    const wrapped = new Error('wrap');
+    (wrapped as Error & { cause: Error }).cause = new BrowserCommandError('x', 'command_lost');
+    expect(isUnknownOutcomeError(wrapped)).toBe(true);
+  });
+});

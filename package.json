@@ -50,7 +50,7 @@
     "copy-yaml": "node scripts/copy-yaml.cjs",
     "start": "node dist/src/main.js",
     "start:bun": "bun dist/src/main.js",
-    "preuninstall": "node -e \"console.log('Reload the OpenCLI Chrome extension after uninstall so Chrome drops the native host.')\" || true",
+    "preuninstall": "node scripts/preuninstall.cjs || true",
     "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
     "prepare": "node scripts/prepare.cjs",

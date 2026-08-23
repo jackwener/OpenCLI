@@ -80,16 +80,12 @@ The `OpenCLI Browser` and `OpenCLI Adapter` tab groups are extension-managed aut
 
 Chrome spawns `opencli-host` via `chrome.runtime.connectNative()`. The CLI only `connect()`s the host's unix socket. The extension still drives pages with `chrome.debugger`. There is no `:19825` and the CLI never `listen()`s.
 
-## Daemon Lifecycle
+## Host lifecycle
 
-The daemon auto-starts on first browser command and stays alive persistently.
+Chrome parents `opencli-host`. Closing Chrome stops the host. Reload the OpenCLI extension to spawn it again. There is no `opencli daemon stop`.
 
-```bash
-opencli daemon stop      # Graceful shutdown
-```
-
-The daemon is persistent — it stays alive until you explicitly stop it (`opencli daemon stop`) or uninstall the package.
+After `npm install -g @jackwener/opencli@latest`, the next browser command asks a version-skewed host to exit via `host-exit`; Chrome's `onDisconnect` respawns the new binary. Reload the extension if that does not happen.
 
 ## Running OpenCLI from a remote machine
 
-If you need to run `opencli` on a remote server (CI runner, agent host) but keep the browser session on your local machine, see [Remote Orchestration](/guide/remote-orchestration). It walks through the SSH reverse-tunnel pattern so the daemon never leaves localhost.
+Remote orchestration over a forwarded TCP port is gone with the daemon. The native host is local to the Chrome profile that spawned it.

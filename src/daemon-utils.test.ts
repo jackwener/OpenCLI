@@ -27,7 +27,6 @@ describe('host command dispatch contracts', () => {
       message: 'Browser connection dropped after the navigate command was dispatched; it may have completed.',
       errorCode: 'command_result_unknown',
       errorHint: COMMAND_RESULT_UNKNOWN_HINT,
-      status: 503,
       countAsCommandResultUnknown: true,
     });
   });
@@ -40,16 +39,14 @@ describe('host command dispatch contracts', () => {
     })).toMatchObject({
       message: 'Browser profile "work" disconnected before command dispatch',
       errorCode: 'profile_disconnected',
-      status: 503,
       countAsCommandResultUnknown: false,
     });
   });
 
-  it('classifies ws.send dispatch failures as profile_disconnected', () => {
+  it('classifies native-port dispatch failures as profile_disconnected', () => {
     expect(buildCommandDispatchFailure('work')).toMatchObject({
       message: 'Browser profile "work" disconnected before command dispatch',
       errorCode: 'profile_disconnected',
-      status: 503,
       countAsCommandResultUnknown: false,
     });
   });
@@ -96,12 +93,11 @@ describe('host command dispatch contracts', () => {
     expect(resolveProfileRoute({ preferredContextId: 'gone', connectedContextIds: [] })).toMatchObject({ ok: false, errorCode: 'extension_not_connected' });
   });
 
-  it('classifies daemon-side command timeouts as command_result_unknown with a 408', () => {
+  it('classifies host-side command timeouts as command_result_unknown', () => {
     expect(buildCommandTimeoutFailure('navigate', 120_000)).toEqual({
       message: 'Browser navigate command timed out after 120s; it may still complete in the browser.',
       errorCode: 'command_result_unknown',
       errorHint: COMMAND_RESULT_UNKNOWN_HINT,
-      status: 408,
       countAsCommandResultUnknown: true,
     });
   });

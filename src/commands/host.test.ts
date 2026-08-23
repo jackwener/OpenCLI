@@ -41,7 +41,6 @@ describe('hostStatus', () => {
       pid: 12345,
       uptime: 3661,
       hostVersion: PKG_VERSION,
-      daemonVersion: PKG_VERSION,
       extensionConnected: true,
       extensionVersion: '1.6.8',
       pending: 0,

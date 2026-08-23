@@ -1,7 +1,76 @@
-const DAEMON_PORT = 19825;
-const DAEMON_HOST = "localhost";
-const DAEMON_WS_URL = `ws://${DAEMON_HOST}:${DAEMON_PORT}/ext`;
-const DAEMON_PING_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}/ping`;
+const NATIVE_HOST_NAME = "com.opencli.host";
+const NATIVE_MAX_FRAME_BYTES = 1024 * 1024;
+const NATIVE_CHUNK_TEXT_BYTES = 512 * 1024;
+const CHUNK_TYPE = "__chunk__";
+const PAYLOAD_TOO_LARGE_CODE = "payload_too_large";
+const utf8 = new TextEncoder();
+const utf8Decoder = new TextDecoder();
+function utf8Len(s) {
+  return utf8.encode(s).length;
+}
+function splitUtf8ByBytes(s, maxBytes) {
+  const bytes = utf8.encode(s);
+  if (bytes.length <= maxBytes) return [s];
+  const parts = [];
+  let offset = 0;
+  while (offset < bytes.length) {
+    let end = Math.min(offset + maxBytes, bytes.length);
+    while (end > offset && (bytes[end] & 192) === 128) end--;
+    if (end === offset) {
+      throw Object.assign(new Error(`Native payload exceeds Chrome's 1MiB message cap (${bytes.length} bytes).`), {
+        code: PAYLOAD_TOO_LARGE_CODE
+      });
+    }
+    parts.push(utf8Decoder.decode(bytes.subarray(offset, end)));
+    offset = end;
+  }
+  return parts;
+}
+function isChunkEnvelope(value) {
+  if (!value || typeof value !== "object") return false;
+  const v = value;
+  return v.type === CHUNK_TYPE && typeof v.id === "string" && Number.isInteger(v.i) && Number.isInteger(v.n) && typeof v.data === "string";
+}
+function splitNativePayloads(value) {
+  const json = JSON.stringify(value);
+  const direct = utf8Len(json);
+  if (direct <= NATIVE_MAX_FRAME_BYTES - 64) return [value];
+  const slices = splitUtf8ByBytes(json, NATIVE_CHUNK_TEXT_BYTES);
+  const id = `chk_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  return slices.map((data, i) => {
+    const envelope = { type: CHUNK_TYPE, id, i, n: slices.length, data };
+    if (utf8Len(JSON.stringify(envelope)) > NATIVE_MAX_FRAME_BYTES) {
+      throw Object.assign(new Error(`Native payload exceeds Chrome's 1MiB message cap (${direct} bytes).`), {
+        code: PAYLOAD_TOO_LARGE_CODE
+      });
+    }
+    return envelope;
+  });
+}
+class ChunkAssembler {
+  chunks = /* @__PURE__ */ new Map();
+  push(parsed) {
+    if (!isChunkEnvelope(parsed)) return parsed;
+    if (parsed.n <= 0 || parsed.n > 64) return void 0;
+    let entry = this.chunks.get(parsed.id);
+    if (!entry) {
+      if (this.chunks.size >= 8) {
+        const oldest = this.chunks.keys().next().value;
+        if (oldest !== void 0) this.chunks.delete(oldest);
+      }
+      entry = { n: parsed.n, parts: Array.from({ length: parsed.n }, () => null) };
+      this.chunks.set(parsed.id, entry);
+    }
+    if (parsed.i < 0 || parsed.i >= entry.n) return void 0;
+    entry.parts[parsed.i] = parsed.data;
+    if (entry.parts.some((p) => p === null)) return void 0;
+    this.chunks.delete(parsed.id);
+    return JSON.parse(entry.parts.join(""));
+  }
+  reset() {
+    this.chunks.clear();
+  }
+}
 
 const attached = /* @__PURE__ */ new Set();
 const tabFrameContexts = /* @__PURE__ */ new Map();
@@ -765,9 +834,13 @@ async function executeWithJournal(cmd, execute) {
   }
 }
 
-let ws = null;
+let nativePort = null;
+let hostVersion = null;
+let nativeReady = false;
+let lastReadyAt = 0;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+const assembler = new ChunkAssembler();
 const CONTEXT_ID_KEY = "opencli_context_id_v1";
 let currentContextId = "default";
 let contextIdPromise = null;
@@ -821,18 +894,23 @@ const _origError = console.error.bind(console);
 function forwardLog(level, args) {
   try {
     const msg = args.map((a) => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
-    safeSend(ws, { type: "log", level, msg, ts: Date.now() });
+    safePost({ type: "log", level, msg, ts: Date.now() });
   } catch {
   }
 }
-function safeSend(socket, payload) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+function postToPort(port, payload) {
   try {
-    socket.send(JSON.stringify(payload));
+    for (const part of splitNativePayloads(payload)) {
+      port.postMessage(part);
+    }
     return true;
   } catch {
     return false;
   }
+}
+function safePost(payload) {
+  if (!nativePort) return false;
+  return postToPort(nativePort, payload);
 }
 console.log = (...args) => {
   _origLog(...args);
@@ -846,11 +924,8 @@ console.error = (...args) => {
   _origError(...args);
   forwardLog("error", args);
 };
-function isDaemonSocketActive(socket = ws) {
-  return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
-}
 function connect() {
-  if (isDaemonSocketActive()) return Promise.resolve();
+  if (nativePort) return Promise.resolve();
   if (connectInFlight) return connectInFlight;
   const attempt = workerRecovered ? connectAttempt() : workerReady.then(() => connectAttempt());
   connectInFlight = attempt.finally(() => {
@@ -859,100 +934,91 @@ function connect() {
   return connectInFlight;
 }
 async function connectAttempt() {
-  if (isDaemonSocketActive()) return;
-  try {
-    const res = await fetch(DAEMON_PING_URL, {
-      signal: AbortSignal.timeout(1e3),
-      credentials: "omit"
-    });
-    if (!res.ok) {
-      console.warn(`[opencli] daemon ping failed: HTTP ${res.status}`);
-      scheduleReconnect();
-      return;
-    }
-    reconnectAttempts = 0;
-  } catch {
-    scheduleReconnect();
-    return;
-  }
-  if (isDaemonSocketActive()) return;
-  let thisWs;
+  if (nativePort) return;
+  let port;
   try {
     const contextId = await getCurrentContextId();
-    if (isDaemonSocketActive()) return;
-    thisWs = new WebSocket(DAEMON_WS_URL);
-    ws = thisWs;
+    if (nativePort) return;
+    port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
+    nativePort = port;
     currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
   }
-  thisWs.onopen = () => {
-    if (ws !== thisWs) return;
-    console.log("[opencli] Connected to daemon");
+  port.onMessage.addListener((msg) => {
+    if (nativePort !== port) return;
+    const assembled = assembler.push(msg);
+    if (assembled === void 0) return;
+    void handleNativeMessage(port, assembled);
+  });
+  port.onDisconnect.addListener(() => {
+    if (nativePort !== port) return;
+    const hadReady = nativeReady;
+    const livedMs = lastReadyAt ? Date.now() - lastReadyAt : 0;
+    nativePort = null;
+    nativeReady = false;
+    hostVersion = null;
+    connectInFlight = null;
+    assembler.reset();
+    console.log("[opencli] Native host disconnected");
+    if (hadReady && livedMs >= HEALTHY_HOST_MIN_MS) {
+      void connectAttempt();
+    } else {
+      scheduleReconnect();
+    }
+  });
+  try {
+    port.postMessage({
+      type: "hello",
+      contextId: currentContextId,
+      version: chrome.runtime.getManifest().version,
+      compatRange: ">=2.0.0"
+    });
+    console.log("[opencli] Native port opened, waiting for hello-ok");
+  } catch {
+    nativePort = null;
+    scheduleReconnect();
+  }
+}
+async function handleNativeMessage(port, msg) {
+  if (!msg || typeof msg !== "object") return;
+  const rec = msg;
+  if (rec.type === "hello-ok") {
+    hostVersion = typeof rec.hostVersion === "string" ? rec.hostVersion : null;
+    nativeReady = true;
+    lastReadyAt = Date.now();
     reconnectAttempts = 0;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    safeSend(thisWs, {
-      type: "hello",
-      contextId: currentContextId,
-      version: chrome.runtime.getManifest().version,
-      compatRange: ">=1.7.0"
-    });
-    startWsKeepalive(thisWs);
-  };
-  thisWs.onmessage = async (event) => {
-    if (ws !== thisWs) return;
-    try {
-      const command = JSON.parse(event.data);
-      const result = await executeWithJournal(command, handleCommand);
-      const target = ws && ws.readyState === WebSocket.OPEN ? ws : thisWs;
-      safeSend(target, result);
-    } catch (err) {
-      console.error("[opencli] Message handling error:", err);
+    console.log("[opencli] Connected to native host");
+    return;
+  }
+  if (rec.type === "ping" || rec.type === "log") return;
+  try {
+    const command = rec;
+    if (typeof command.action !== "string" || typeof command.id !== "string") return;
+    const result = await executeWithJournal(command, handleCommand);
+    if (nativePort === port) {
+      postToPort(port, result);
+    } else if (nativePort) {
+      postToPort(nativePort, result);
     }
-  };
-  thisWs.onclose = () => {
-    stopWsKeepalive(thisWs);
-    if (ws !== thisWs) return;
-    console.log("[opencli] Disconnected from daemon");
-    ws = null;
-    scheduleReconnect();
-  };
-  thisWs.onerror = () => {
-    thisWs.close();
-  };
-}
-const WS_KEEPALIVE_INTERVAL_MS = 2e4;
-let wsKeepaliveTimer = null;
-let wsKeepaliveSocket = null;
-function startWsKeepalive(socket) {
-  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
-  wsKeepaliveSocket = socket;
-  wsKeepaliveTimer = setInterval(() => {
-    if (socket !== ws || socket.readyState !== WebSocket.OPEN) {
-      stopWsKeepalive(socket);
-      return;
-    }
-    safeSend(socket, { type: "ping", ts: Date.now() });
-  }, WS_KEEPALIVE_INTERVAL_MS);
-}
-function stopWsKeepalive(socket) {
-  if (wsKeepaliveSocket !== socket) return;
-  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
-  wsKeepaliveTimer = null;
-  wsKeepaliveSocket = null;
+  } catch (err) {
+    console.error("[opencli] Message handling error:", err);
+  }
 }
 const RECONNECT_BASE_DELAY_MS = 1e3;
 const RECONNECT_MAX_DELAY_MS = 15e3;
+const HEALTHY_HOST_MIN_MS = 2e3;
 function nextReconnectDelayMs() {
   const exp = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * 2 ** Math.min(reconnectAttempts, 6));
   return exp + Math.floor(Math.random() * 500);
 }
 function scheduleReconnect() {
-  if (reconnectTimer) return;
+  if (nativePort || reconnectTimer) return;
   const delay = nextReconnectDelayMs();
   reconnectAttempts++;
   reconnectTimer = setTimeout(() => {
@@ -1632,7 +1698,7 @@ chrome.runtime.onStartup.addListener(() => {
 initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   await workerReady;
-  if (alarm.name === "keepalive") void connect();
+  if (alarm.name === "keepalive" && !nativePort) void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
   if (!leaseKey) return;
   if ((activeCommandCounts.get(leaseKey) ?? 0) > 0) {
@@ -1645,35 +1711,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "getStatus") {
     void (async () => {
       const contextId = await getCurrentContextId();
-      const connected = ws?.readyState === WebSocket.OPEN;
+      const connected = nativePort != null;
       const extensionVersion = chrome.runtime.getManifest().version;
-      const daemonVersion = connected ? await fetchDaemonVersion() : null;
       sendResponse({
         connected,
         reconnecting: reconnectTimer !== null,
         contextId,
         extensionVersion,
-        daemonVersion
+        hostVersion
       });
     })();
     return true;
   }
   return false;
 });
-async function fetchDaemonVersion() {
-  try {
-    const res = await fetch(`http://${DAEMON_HOST}:${DAEMON_PORT}/status`, {
-      method: "GET",
-      headers: { "X-OpenCLI": "1" },
-      signal: AbortSignal.timeout(1500)
-    });
-    if (!res.ok) return null;
-    const body = await res.json();
-    return typeof body.daemonVersion === "string" ? body.daemonVersion : null;
-  } catch {
-    return null;
-  }
-}
 async function handleCommand(cmd) {
   const session = getSessionName(cmd.session);
   const surface = getCommandSurface(cmd);

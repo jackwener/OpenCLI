@@ -59,7 +59,7 @@ describe('doctor report rendering', () => {
     const text = strip(renderBrowserDoctorReport({
       cliVersion: '1.7.9',
       daemonRunning: true,
-      daemonVersion: '1.7.9',
+      hostVersion: '1.7.9',
       extensionConnected: true,
       extensionVersion: '1.6.8',
       issues: [],
@@ -76,7 +76,7 @@ describe('doctor report rendering', () => {
     const text = strip(renderBrowserDoctorReport({
       cliVersion: '1.7.9',
       daemonRunning: true,
-      daemonVersion: '1.7.6',
+      hostVersion: '1.7.6',
       daemonStale: true,
       extensionConnected: true,
       extensionVersion: '1.0.3',
@@ -103,7 +103,7 @@ describe('doctor report rendering', () => {
   it('renders extension not connected when daemon is running', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
-      daemonVersion: '1.7.9',
+      hostVersion: '1.7.9',
       extensionConnected: false,
       issues: ['Daemon is running but the Chrome extension is not connected.'],
     }));
@@ -309,7 +309,7 @@ describe('doctor report rendering', () => {
     const status = {
       state: 'ready' as const,
       status: {
-        daemonVersion: '1.7.6',
+        hostVersion: '1.7.6',
         extensionConnected: true,
         extensionVersion: '1.0.3',
       },
@@ -319,6 +319,7 @@ describe('doctor report rendering', () => {
     const report = await runBrowserDoctor({ cliVersion: '1.7.9' });
 
     expect(report.daemonStale).toBe(true);
+    expect(report.hostVersion).toBe('1.7.6');
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Stale host detected: host v1.7.6 != CLI v1.7.9'),
     ]));
@@ -328,7 +329,7 @@ describe('doctor report rendering', () => {
     const status = {
       state: 'ready' as const,
       status: {
-        daemonVersion: '1.7.9',
+        hostVersion: '1.7.9',
         extensionConnected: true,
         extensionVersion: '1.0.3',
       },

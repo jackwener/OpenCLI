@@ -26,11 +26,14 @@ import {
 } from './daemon-utils.js';
 import {
   FrameReader,
+  PAYLOAD_TOO_LARGE_CODE,
   encodeFrame,
   encodeNativeFrames,
-  hostSocketPath,
   hostStatePath,
+  instanceSocketPath,
+  readHostStateFile,
   runtimeDir,
+  sanitizeContextId,
   type HostState,
 } from './host-protocol.js';
 
@@ -43,6 +46,8 @@ export type HostOptions = {
   io?: HostIo;
   runtimeDir?: string;
   now?: () => number;
+  /** Injected so host-exit does not kill the test runner. */
+  exit?: (code: number) => void;
 };
 
 type PendingSettler = {
@@ -94,11 +99,13 @@ export class OpenCliHost {
   private readonly now: () => number;
   private readonly dir: string;
   private readonly stdout: NodeJS.WritableStream;
+  private readonly exitProcess: (code: number) => void;
 
   constructor(private readonly opts: HostOptions = {}) {
     this.now = opts.now ?? Date.now;
     this.dir = opts.runtimeDir ?? runtimeDir();
     this.stdout = opts.io?.stdout ?? process.stdout;
+    this.exitProcess = opts.exit ?? ((code) => process.exit(code));
   }
 
   async run(io: HostIo = this.opts.io ?? { stdin: process.stdin, stdout: process.stdout }): Promise<void> {
@@ -166,11 +173,9 @@ export class OpenCliHost {
   private async bindSocket(contextId: string): Promise<void> {
     if (this.server) return;
     fs.mkdirSync(this.dir, { recursive: true });
-    this.sockPath = this.opts.runtimeDir
-      ? path.join(this.dir, `host-${contextId}.sock`)
-      : hostSocketPath(contextId);
+    this.sockPath = instanceSocketPath(contextId, process.pid, this.dir);
     this.statePath = this.opts.runtimeDir
-      ? path.join(this.dir, `host-${contextId}.json`)
+      ? path.join(this.dir, `host-${sanitizeContextId(contextId)}.json`)
       : hostStatePath(contextId);
 
     if (!this.sockPath.startsWith('\\\\.\\pipe\\')) {
@@ -234,6 +239,14 @@ export class OpenCliHost {
     if (body.action === 'lease-release') {
       if (typeof body.runId === 'string') this.sessionLeases.releaseByRunId(body.runId);
       this.writeSocket(socket, { id: body.id, ok: true });
+      return;
+    }
+    if (body.action === 'host-exit') {
+      this.writeSocket(socket, { id: body.id, ok: true });
+      setImmediate(() => {
+        this.shutdown('host-exit');
+        this.exitProcess(EXIT_CODES.SUCCESS);
+      });
       return;
     }
     try {
@@ -329,7 +342,14 @@ export class OpenCliHost {
         this.writeNative(body);
         entry.dispatched = true;
       } catch (err) {
-        const failure = buildCommandDispatchFailure(this.contextId ?? 'default');
+        const code = err && typeof err === 'object' ? (err as { code?: unknown }).code : undefined;
+        const failure = code === PAYLOAD_TOO_LARGE_CODE
+          ? {
+            message: err instanceof Error ? err.message : 'Native payload exceeds Chrome 1MiB cap',
+            errorCode: PAYLOAD_TOO_LARGE_CODE,
+            errorHint: 'Reduce the command payload (screenshot size, captured body, or eval result).',
+          }
+          : buildCommandDispatchFailure(this.contextId ?? 'default');
         this.settlePending(body.id as string, entry, {
           error: new HostCommandFailure(failure.message, failure.errorCode, failure.errorHint),
         });
@@ -389,12 +409,18 @@ export class OpenCliHost {
       this.server.close();
       this.server = null;
     }
-    if (this.sockPath && !this.sockPath.startsWith('\\\\.\\pipe\\')) {
-      try { fs.unlinkSync(this.sockPath); } catch { /* already gone */ }
-    }
-    if (this.statePath) {
-      try { fs.unlinkSync(this.statePath); } catch { /* already gone */ }
-    }
+    this.unlinkStateIfOwned();
+  }
+
+  /**
+   * A replacement host may already have overwritten host-*.json. Only unlink
+   * if pid + startedAt still match this process.
+   */
+  private unlinkStateIfOwned(): void {
+    if (!this.statePath) return;
+    const state = readHostStateFile(this.statePath);
+    if (!state || state.pid !== process.pid || state.startedAt !== this.startedAt) return;
+    try { fs.unlinkSync(this.statePath); } catch { /* already gone */ }
   }
 
   private writeNative(value: unknown): void {

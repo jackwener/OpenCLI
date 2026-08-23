@@ -192,7 +192,6 @@ export interface SessionBusyFailure {
   message: string;
   errorCode: string;
   errorHint: string;
-  status: number;
 }
 
 /** Build the fast-fail response naming the holder, its pid, and hold time. */
@@ -210,6 +209,5 @@ export function buildSessionBusyFailure(
     message: `Session "${session}" is busy: ${who} has been driving it for ${heldSeconds}s.`,
     errorCode: SESSION_BUSY_CODE,
     errorHint: `${stop} Read-only commands are not blocked.`,
-    status: 409,
   };
 }

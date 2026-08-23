@@ -14,7 +14,7 @@ import {
   NATIVE_HOST_NAME,
   nativeHostManifestPaths,
   opencliHome,
-  windowsNativeHostRegistryKey,
+  windowsNativeHostRegistryKeys,
 } from './host-protocol.js';
 
 export type NativeHostManifest = {
@@ -42,16 +42,41 @@ export function hostWrapperPath(): string {
 export function writeHostWrapper(wrapperPath = hostWrapperPath()): string {
   const entry = locateHostEntry();
   fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
+  const fallbackNode = process.execPath;
   if (process.platform === 'win32') {
-    const node = process.execPath.replace(/"/g, '""');
+    const node = fallbackNode.replace(/"/g, '""');
     const file = entry.file.replace(/"/g, '""');
-    const args = entry.kind === 'ts' ? `"${node}" --import tsx/esm "${file}"` : `"${node}" "${file}"`;
-    fs.writeFileSync(wrapperPath, `@echo off\r\n${args} %*\r\n`, 'utf8');
+    const importTsx = entry.kind === 'ts' ? ' --import tsx/esm' : '';
+    fs.writeFileSync(
+      wrapperPath,
+      [
+        '@echo off',
+        'set "NODE=%OPENCLI_HOST_NODE%"',
+        'if not defined NODE (',
+        '  for /f "delims=" %%i in (\'where node 2^>nul\') do (',
+        '    set "NODE=%%i"',
+        '    goto :run',
+        '  )',
+        ')',
+        `if not defined NODE set "NODE=${node}"`,
+        ':run',
+        `\"%NODE%\"${importTsx} "${file}" %*`,
+        '',
+      ].join('\r\n'),
+      'utf8',
+    );
   } else {
-    const args = entry.kind === 'ts'
-      ? `"${process.execPath}" --import tsx/esm "${entry.file}"`
-      : `"${process.execPath}" "${entry.file}"`;
-    fs.writeFileSync(wrapperPath, `#!/bin/sh\nexec ${args} "$@"\n`, { encoding: 'utf8', mode: 0o755 });
+    const importTsx = entry.kind === 'ts' ? ' --import tsx/esm' : '';
+    fs.writeFileSync(wrapperPath, `#!/bin/sh
+NODE="$OPENCLI_HOST_NODE"
+if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
+  NODE="$(command -v node 2>/dev/null || true)"
+fi
+if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
+  NODE="${fallbackNode.replace(/"/g, '\\"')}"
+fi
+exec "$NODE"${importTsx} "${entry.file.replace(/"/g, '\\"')}" "$@"
+`, { encoding: 'utf8', mode: 0o755 });
     fs.chmodSync(wrapperPath, 0o755);
   }
   return wrapperPath;
@@ -108,15 +133,41 @@ function installWindowsRegistry(manifestPathWritten: string, files: string[]): v
       JSON.stringify(buildNativeHostManifest(manifestPathWritten), null, 2) + '\n',
     );
   }
-  spawnSync('reg', ['add', windowsNativeHostRegistryKey(), '/ve', '/t', 'REG_SZ', '/d', manifestFile, '/f'], {
-    stdio: 'ignore',
-  });
+  for (const key of windowsNativeHostRegistryKeys()) {
+    spawnSync('reg', ['add', key, '/ve', '/t', 'REG_SZ', '/d', manifestFile, '/f'], {
+      stdio: 'ignore',
+    });
+  }
 }
 
 export function nativeHostManifestInstalled(): boolean {
   if (process.platform === 'win32') {
-    const probe = spawnSync('reg', ['query', windowsNativeHostRegistryKey()], { encoding: 'utf8' });
-    return probe.status === 0;
+    return windowsNativeHostRegistryKeys().some((key) => {
+      const probe = spawnSync('reg', ['query', key], { encoding: 'utf8' });
+      return probe.status === 0;
+    });
   }
   return nativeHostManifestPaths().some((dir) => fs.existsSync(path.join(dir, `${NATIVE_HOST_NAME}.json`)));
+}
+
+export function uninstallNativeHostManifest(opts: { directories?: string[] } = {}): string[] {
+  const removed: string[] = [];
+  const dirs = opts.directories ?? nativeHostManifestPaths();
+  for (const dir of dirs) {
+    const file = path.join(dir, `${NATIVE_HOST_NAME}.json`);
+    try {
+      fs.unlinkSync(file);
+      removed.push(file);
+    } catch { /* missing */ }
+  }
+  const wrapper = hostWrapperPath();
+  try { fs.unlinkSync(wrapper); } catch { /* missing */ }
+  const homeManifest = path.join(opencliHome(), 'bin', `${NATIVE_HOST_NAME}.json`);
+  try { fs.unlinkSync(homeManifest); } catch { /* missing */ }
+  if (process.platform === 'win32' && !opts.directories) {
+    for (const key of windowsNativeHostRegistryKeys()) {
+      spawnSync('reg', ['delete', key, '/f'], { stdio: 'ignore' });
+    }
+  }
+  return removed;
 }

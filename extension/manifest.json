@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenCLI",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Browser automation bridge for the OpenCLI CLI tool. Chrome parents the native host; the CLI never listens.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA59DOktF4G0LGgcZ+oAdq7i35hozma8Gl0iU99vzWYLxxK7qDnJZGeMTo24pZ9v8AMXqfT6Rysvl8y3nzSr+2j/hKnnnCe9nnlchEwDnaNve5s0Yhs5BSxRws/oZksCDEziv6v8OaITd+ipvK+VYqf1UH1AkV1owj8EmwDLDAzGmTC84B54BdOlVrs4cWHGppEtFyhVEqEaMZfGog8vqImx9CUHsXA3/5JcB4OGB6tdu6wrkURWEmf5/C0XSwbfqA6kZRIcPc9nBQOHe7xk5rsTPblmG8ZjZGDwVP9P+UUK5jsD6Jl4VpZLR7rop9IAfAL7DmYFoDAlhUqrkP3ifV2QIDAQAB",
   "permissions": [

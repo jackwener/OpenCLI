@@ -63,7 +63,7 @@ export type DoctorReport = {
   daemonRunning: boolean;
   daemonFlaky?: boolean;
   daemonStale?: boolean;
-  daemonVersion?: string;
+  hostVersion?: string;
   extensionConnected: boolean;
   extensionFlaky?: boolean;
   extensionVersion?: string;
@@ -224,7 +224,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     daemonRunning,
     daemonFlaky,
     daemonStale,
-    daemonVersion: health.status?.daemonVersion,
+    hostVersion: health.status?.hostVersion,
     extensionConnected,
     extensionFlaky,
     extensionVersion,

@@ -236,7 +236,6 @@ describe('buildSessionBusyFailure', () => {
       { runId: 'run_111_1_a', command: 'chatgpt ask', pid: 111, startedAt: T0, lastSeenAt: T0 + 40_000 },
       T0 + 42_000,
     );
-    expect(failure.status).toBe(409);
     expect(failure.errorCode).toBe('session_busy');
     expect(failure.message).toContain('chatgpt ask');
     expect(failure.message).toContain('pid 111');

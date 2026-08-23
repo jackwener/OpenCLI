@@ -10,7 +10,6 @@ export type DaemonFailureContract = {
   message: string;
   errorCode: string;
   errorHint: string;
-  status: number;
   countAsCommandResultUnknown: boolean;
 };
 
@@ -28,7 +27,6 @@ export function buildExtensionDisconnectFailure(input: {
       message: commandResultUnknownMessage(input.action),
       errorCode: COMMAND_RESULT_UNKNOWN_CODE,
       errorHint: COMMAND_RESULT_UNKNOWN_HINT,
-      status: 503,
       countAsCommandResultUnknown: true,
     };
   }
@@ -102,7 +100,6 @@ export function buildCommandTimeoutFailure(action: string, timeoutMs: number): D
     message: `Browser ${action} command timed out after ${Math.round(timeoutMs / 1000)}s; it may still complete in the browser.`,
     errorCode: COMMAND_RESULT_UNKNOWN_CODE,
     errorHint: COMMAND_RESULT_UNKNOWN_HINT,
-    status: 408,
     countAsCommandResultUnknown: true,
   };
 }
@@ -112,7 +109,6 @@ export function buildCommandDispatchFailure(contextId: string): DaemonFailureCon
     message: `Browser profile "${contextId}" disconnected before command dispatch`,
     errorCode: 'profile_disconnected',
     errorHint: PROFILE_DISCONNECTED_HINT,
-    status: 503,
     countAsCommandResultUnknown: false,
   };
 }

@@ -4,11 +4,20 @@
 
 import { spawn } from 'node:child_process';
 import { BrowserConnectError } from '../errors.js';
+import { PKG_VERSION } from '../version.js';
 import { waitForBridgeReady } from './bridge-readiness.js';
 import { getDaemonHealth, type DaemonHealth } from './daemon-transport.js';
+import { requestHost } from './host-rpc.js';
 import { installNativeHostManifest } from '../native-manifest.js';
 
+export function shouldLaunchChrome(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.CI || env.CONTINUOUS_INTEGRATION) return false;
+  if (env.OPENCLI_NO_LAUNCH_CHROME === '1') return false;
+  return Boolean(process.stdin.isTTY || process.stderr.isTTY);
+}
+
 function launchChrome(): void {
+  if (!shouldLaunchChrome()) return;
   try {
     if (process.platform === 'darwin') {
       spawn('open', ['-a', 'Google Chrome'], { detached: true, stdio: 'ignore' }).unref();
@@ -21,6 +30,18 @@ function launchChrome(): void {
     spawn('google-chrome', [], { detached: true, stdio: 'ignore' }).unref();
   } catch {
     // Best-effort: doctor explains how to open Chrome.
+  }
+}
+
+async function recycleStaleHost(health: DaemonHealth): Promise<boolean> {
+  const version = health.status?.hostVersion;
+  const sock = health.status?.sock;
+  if (!version || version === PKG_VERSION || !sock) return false;
+  try {
+    await requestHost(sock, { id: `host-exit_${Date.now()}`, action: 'host-exit' }, { timeout: 2000 });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -40,8 +61,15 @@ export async function ensureBrowserBridgeReady(
   }
 
   const health = await getDaemonHealth({ contextId, preferredContextId });
-  if (health.state === 'ready') return health;
   if (health.state === 'profile-required') throw browserConnectErrorFromHealth(health, contextId);
+  if (health.state === 'ready') {
+    const recycled = await recycleStaleHost(health);
+    if (!recycled) return health;
+    // Chrome still holds the native port; do not steal focus with launchChrome.
+    const refreshed = await waitForBridgeReady(getDaemonHealth, { timeoutMs, contextId, preferredContextId });
+    if (refreshed.state === 'ready') return refreshed;
+    throw browserConnectErrorFromHealth(refreshed, contextId);
+  }
 
   if (verbose && (process.env.OPENCLI_VERBOSE || process.stderr.isTTY)) {
     process.stderr.write('⏳ Waiting for Chrome to spawn the OpenCLI host...\n');

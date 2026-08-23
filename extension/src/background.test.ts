@@ -785,6 +785,44 @@ describe('background tab isolation', () => {
     expect(chrome.alarms.create).toHaveBeenCalledWith('keepalive', { periodInMinutes: 0.5 });
   });
 
+  it('shipped dist/background.js is the native-messaging build', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const js = readFileSync(fileURLToPath(new URL('../dist/background.js', import.meta.url)), 'utf8');
+    expect(js).toContain('connectNative');
+    expect(js).toContain('com.opencli.host');
+    expect(js).not.toMatch(/\b19825\b/);
+    expect(js).not.toMatch(/new WebSocket/);
+  });
+
+  it('backs off when the native port dies before hello-ok', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const mod = await import('./background');
+    await vi.waitFor(() => {
+      expect(MockNativePort.instances.length).toBeGreaterThanOrEqual(1);
+    });
+    const before = chrome.runtime.connectNative.mock.calls.length;
+    MockNativePort.instances[0]._onDisconnect?.();
+    expect(chrome.runtime.connectNative.mock.calls.length).toBe(before);
+    expect(mod.__test__.getReconnectAttempts()).toBeGreaterThan(0);
+  });
+
+  it('reconnects immediately only after a healthy hello-ok that lived', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const mod = await import('./background');
+    await vi.waitFor(() => {
+      expect(MockNativePort.instances[0]?._onMessage).toEqual(expect.any(Function));
+    });
+    mod.__test__.markHealthyNativeForTest();
+    const before = chrome.runtime.connectNative.mock.calls.length;
+    MockNativePort.instances[0]._onDisconnect?.();
+    await vi.waitFor(() => {
+      expect(chrome.runtime.connectNative.mock.calls.length).toBeGreaterThan(before);
+    });
+  });
+
   it('reconnect delay backs off exponentially with a 15s cap and resets on success', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);

@@ -5,12 +5,19 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer, type WebSocket } from 'ws';
+import {
+  EXTENSION_ORIGINS,
+  NATIVE_HOST_NAME,
+  listLiveHostStates,
+  type HostState,
+} from '../../src/host-protocol.js';
+import { buildNativeHostManifest } from '../../src/native-manifest.js';
+import { requestHost } from '../../src/browser/host-rpc.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
 const EXTENSION_DIR = path.join(ROOT, 'extension');
-const DAEMON_PORT = 19825;
+const HOST_BIN = path.join(ROOT, 'dist/src/host-bin.js');
 
 type Command = {
   id: string;
@@ -31,7 +38,7 @@ type Result = {
   error?: string;
 };
 
-type FakeBridge = {
+type NativeBridge = {
   close: () => Promise<void>;
   waitForExtension: () => Promise<void>;
   sendCommand: (command: Omit<Command, 'id'>) => Promise<Result>;
@@ -42,100 +49,72 @@ type TestSite = {
   close: () => Promise<void>;
 };
 
-function json(res: ServerResponse, status: number, payload: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(payload));
+function writeTestHostWrapper(configDir: string): string {
+  const wrapper = path.join(configDir, 'bin', process.platform === 'win32' ? 'opencli-host.cmd' : 'opencli-host');
+  fs.mkdirSync(path.dirname(wrapper), { recursive: true });
+  if (process.platform === 'win32') {
+    fs.writeFileSync(
+      wrapper,
+      `@echo off\r\nset "OPENCLI_CONFIG_DIR=${configDir.replace(/"/g, '""')}"\r\n"${process.execPath}" "${HOST_BIN}" %*\r\n`,
+    );
+  } else {
+    fs.writeFileSync(
+      wrapper,
+      `#!/bin/sh\nexport OPENCLI_CONFIG_DIR=${JSON.stringify(configDir)}\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(HOST_BIN)} "$@"\n`,
+      { encoding: 'utf8', mode: 0o755 },
+    );
+    fs.chmodSync(wrapper, 0o755);
+  }
+  return wrapper;
 }
 
-async function startFakeBridge(): Promise<FakeBridge | null> {
-  let ws: WebSocket | null = null;
+function installTestNativeManifest(userDataDir: string, wrapperPath: string): string {
+  const dir = path.join(userDataDir, 'NativeMessagingHosts');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${NATIVE_HOST_NAME}.json`);
+  fs.writeFileSync(file, JSON.stringify(buildNativeHostManifest(wrapperPath, EXTENSION_ORIGINS), null, 2) + '\n');
+  return file;
+}
+
+async function startNativeBridge(configDir: string, userDataDir: string): Promise<NativeBridge> {
+  if (!fs.existsSync(HOST_BIN)) {
+    throw new Error(`Missing ${HOST_BIN}; run npm run build before this smoke.`);
+  }
+  const wrapper = writeTestHostWrapper(configDir);
+  installTestNativeManifest(userDataDir, wrapper);
+  process.env.OPENCLI_CONFIG_DIR = configDir;
+
+  let host: HostState | null = null;
   let nextId = 0;
-  const pending = new Map<string, (result: Result) => void>();
-  let resolveConnected: (() => void) | null = null;
-  const connected = new Promise<void>((resolve) => {
-    resolveConnected = resolve;
-  });
 
-  const server = createServer((req, res) => {
-    const pathname = req.url?.split('?')[0] ?? '/';
-    if (req.method === 'GET' && pathname === '/ping') {
-      json(res, 200, { ok: true });
-      return;
-    }
-    if (req.method === 'GET' && pathname === '/status') {
-      json(res, 200, {
-        ok: true,
-        pid: process.pid,
-        uptime: 1,
-        daemonVersion: 'e2e',
-        extensionConnected: ws?.readyState === ws?.OPEN,
-        extensionVersion: 'e2e',
-        pending: pending.size,
-        memoryMB: 1,
-        port: DAEMON_PORT,
-      });
-      return;
-    }
-    json(res, 404, { ok: false, error: 'Not found' });
-  });
-
-  const wss = new WebSocketServer({ noServer: true });
-  server.on('upgrade', (req, socket, head) => {
-    if (req.url !== '/ext') {
-      socket.destroy();
-      return;
-    }
-    wss.handleUpgrade(req, socket, head, (client) => {
-      ws = client;
-      client.on('message', (raw) => {
-        const msg = JSON.parse(raw.toString()) as Result | { type?: string };
-        if ('type' in msg && msg.type === 'hello') {
-          resolveConnected?.();
-          return;
-        }
-        if ('id' in msg) {
-          const resolver = pending.get(msg.id);
-          if (resolver) {
-            pending.delete(msg.id);
-            resolver(msg);
+  const waitForExtension = async () => {
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      const live = listLiveHostStates();
+      if (live.length > 0) {
+        try {
+          const status = await requestHost(live[0].sock, { id: 'status', action: 'host-status' }, { timeout: 2000 });
+          if (status.extensionConnected === true) {
+            host = live[0];
+            return;
           }
-        }
-      });
-    });
-  });
-
-  const listening = await new Promise<boolean>((resolve, reject) => {
-    server.once('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        resolve(false);
-        return;
+        } catch { /* host still saying hello */ }
       }
-      reject(err);
-    });
-    // The extension connects to "localhost", which can resolve to IPv6 first
-    // on macOS. Bind all loopback-capable interfaces so the smoke does not
-    // depend on local resolver ordering.
-    server.listen(DAEMON_PORT, () => resolve(true));
-  });
-  if (!listening) return null;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    throw new Error('Timed out waiting for Chrome to spawn the OpenCLI native host');
+  };
 
   return {
     close: async () => {
-      ws?.close();
-      wss.close();
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => err ? reject(err) : resolve());
-      });
+      host = null;
     },
-    waitForExtension: () => withTimeout(connected, 45_000, 'Timed out waiting for Browser Bridge extension to connect'),
+    waitForExtension,
     sendCommand: async (command) => {
-      if (!ws || ws.readyState !== ws.OPEN) throw new Error('Extension WebSocket is not connected');
+      if (!host) throw new Error('Native host is not connected');
       const id = `ax-e2e-${++nextId}`;
-      const result = new Promise<Result>((resolve) => {
-        pending.set(id, resolve);
-      });
-      ws.send(JSON.stringify({ id, ...command }));
-      return withTimeout(result, 30_000, `Timed out waiting for ${command.action}/${command.cdpMethod ?? ''}`);
+      const raw = await requestHost(host.sock, { id, ...command }, { timeout: 30_000 });
+      return raw as unknown as Result;
     },
   };
 }
@@ -204,13 +183,8 @@ function findChromeExecutable(): string | null {
   return null;
 }
 
-function launchChrome(chromePath: string, userDataDir: string, startUrl: string): ChildProcess {
+function launchChrome(chromePath: string, userDataDir: string, startUrl: string, configDir: string): ChildProcess {
   return spawn(chromePath, [
-    // Headed by default under a real/virtual display (CI Linux runs this under
-    // xvfb). New-headless is convenient locally — no display needed — but on
-    // hosted runners it does not reliably start the MV3 extension service
-    // worker, so CI forces headed via OPENCLI_E2E_HEADED=1. Set OPENCLI_E2E_
-    // HEADLESS=1 to opt into headless locally.
     ...(process.env.OPENCLI_E2E_HEADLESS === '1' && process.env.OPENCLI_E2E_HEADED !== '1'
       ? ['--headless=new']
       : []),
@@ -232,6 +206,10 @@ function launchChrome(chromePath: string, userDataDir: string, startUrl: string)
     startUrl,
   ], {
     stdio: ['ignore', 'ignore', 'pipe'],
+    env: {
+      ...process.env,
+      OPENCLI_CONFIG_DIR: configDir,
+    },
   });
 }
 
@@ -243,20 +221,6 @@ async function killProcess(child: ChildProcess | null): Promise<void> {
     new Promise<void>((resolve) => setTimeout(resolve, 3000)),
   ]);
   if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 function flattenFrameTree(frameTree: unknown): Array<{ id: string; url: string }> {
@@ -278,40 +242,34 @@ function axText(axTree: unknown): string {
 }
 
 function shouldFailOnBridgeUnavailable(): boolean {
-  // In CI this smoke is scheduled only on Linux (headed under xvfb — the one
-  // hosted environment where a real Chrome reliably starts an MV3 extension),
-  // so any bridge failure there is a real product/packaging regression and
-  // must block. macOS/Windows gate on the browser-free transport contracts
-  // instead; see the e2e-headed workflow for the rationale.
   return process.env.CI === 'true';
 }
 
 describe('Browser Bridge AX real Chrome smoke', () => {
-  let bridge: FakeBridge | null = null;
+  let bridge: NativeBridge | null = null;
   let site: TestSite | null = null;
   let chrome: ChildProcess | null = null;
   let chromeStderr = '';
   let userDataDir = '';
+  let configDir = '';
   let skipReason = '';
 
   beforeAll(async () => {
-    bridge = await startFakeBridge();
-    if (!bridge) {
-      skipReason = process.env.CI
-        ? 'Port 19825 is already in use in CI'
-        : 'Port 19825 is already in use; stop opencli daemon before running this e2e smoke locally';
-      return;
-    }
-
     const chromePath = findChromeExecutable();
     if (!chromePath) {
       skipReason = 'Chrome executable not found';
       return;
     }
+    if (!fs.existsSync(HOST_BIN)) {
+      skipReason = `Missing ${HOST_BIN}; run npm run build before this smoke.`;
+      return;
+    }
 
-    site = await startTestSite();
+    configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-ax-config-'));
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-ax-chrome-'));
-    chrome = launchChrome(chromePath, userDataDir, 'about:blank');
+    bridge = await startNativeBridge(configDir, userDataDir);
+    site = await startTestSite();
+    chrome = launchChrome(chromePath, userDataDir, 'about:blank', configDir);
     chrome.stderr?.on('data', (chunk) => {
       chromeStderr += chunk.toString();
       if (chromeStderr.length > 20_000) chromeStderr = chromeStderr.slice(-20_000);
@@ -330,10 +288,11 @@ describe('Browser Bridge AX real Chrome smoke', () => {
     await killProcess(chrome);
     await site?.close();
     await bridge?.close();
-    if (userDataDir) {
+    for (const dir of [userDataDir, configDir]) {
+      if (!dir) continue;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          fs.rmSync(userDataDir, { recursive: true, force: true });
+          fs.rmSync(dir, { recursive: true, force: true });
           break;
         } catch {
           await new Promise((resolve) => setTimeout(resolve, 250));

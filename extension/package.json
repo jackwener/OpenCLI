@@ -1,9 +1,9 @@
 {
   "name": "opencli-extension",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "private": true,
   "opencli": {
-    "compatRange": ">=1.7.0"
+    "compatRange": ">=2.0.0"
   },
   "type": "module",
   "scripts": {

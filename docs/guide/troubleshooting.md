@@ -36,8 +36,8 @@ opencli doctor            # full diagnostics
 ```
 
 > Chrome owns the host process. Closing Chrome stops the host. Reload the OpenCLI extension to spawn it again. There is no `opencli daemon`.
-
-> When the CLI detects a stale daemon (version mismatch after `npm install -g @jackwener/opencli@latest`), it first asks the daemon to shut down via `/shutdown`, then falls back to `SIGKILL` if the daemon does not release the port within 3 seconds. Manual `opencli daemon stop` is only needed if SIGKILL itself is rejected (cross-user owner / cross-machine PID file).
+>
+> After an npm upgrade, the next command sends `host-exit` to a version-skewed host so Chrome respawns the new binary. If that fails, reload the extension.
 
 ### Desktop adapter connection issues
 

@@ -15,7 +15,6 @@ import { isPreDispatchError } from './bridge-readiness.js';
 import {
   fetchDaemonStatus,
   getDaemonHealth,
-  requestDaemonShutdown,
   type BrowserProfileStatus,
   type DaemonHealth,
   type DaemonStatus,
@@ -78,13 +77,15 @@ export async function releaseSiteSessionLease(params: {
   try {
     const live = listLiveHostStates();
     if (live.length === 0) return;
-    await requestHost(live[0].sock, {
+    // Session leases live on whichever host accepted the write. Broadcast so
+    // a multi-profile machine does not leave the holder on a non-default host.
+    await Promise.all(live.map((host) => requestHost(host.sock, {
       id: generateId(),
       action: 'lease-release',
       runId: params.runId,
       session: params.session,
       surface: params.surface,
-    }, { timeout: 2000 });
+    }, { timeout: 2000 }).catch(() => undefined)));
   } catch {
     // Best-effort: TTL expiry reclaims the lease if the daemon is unreachable.
   }
@@ -281,7 +282,6 @@ export class BrowserCommandError extends Error {
 export {
   fetchDaemonStatus,
   getDaemonHealth,
-  requestDaemonShutdown,
   type BrowserProfileStatus,
   type DaemonHealth,
   type DaemonStatus,

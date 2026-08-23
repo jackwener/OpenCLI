@@ -1,18 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
 import * as fs from 'node:fs';
+import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseJsonOutput, runCli } from './helpers.js';
+import { FrameReader, encodeFrame, instanceSocketPath } from '../../src/host-protocol.js';
 
-// Match the running CLI's package version so BrowserBridge does not classify
-// this fake daemon as stale (PR #1399 auto-restarts daemons whose
-// daemonVersion does not match PKG_VERSION; the fake daemon does not implement
-// /shutdown, so a mismatch makes every test exit with code 1).
 const PKG_VERSION: string = (() => {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  // tests/e2e -> repo root: ../..
   const pkgPath = path.resolve(here, '..', '..', 'package.json');
   try {
     return JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).version;
@@ -28,65 +24,22 @@ type FakeTab = {
   active: boolean;
 };
 
-type FakeDaemon = {
+type FakeHost = {
   close: () => Promise<void>;
+  configDir: string;
   maxInFlightExec: () => number;
 };
 
-const DAEMON_PORT = 19825;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function isPipe(sockPath: string): boolean {
+  return sockPath.startsWith('\\\\.\\pipe\\');
 }
 
-async function shutdownExistingDaemon(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (!settled) {
-        settled = true;
-        resolve();
-      }
-    };
-
-    const req = request({
-      host: '127.0.0.1',
-      port: DAEMON_PORT,
-      path: '/shutdown',
-      method: 'POST',
-      headers: { 'X-OpenCLI': '1' },
-      timeout: 500,
-    }, (res) => {
-      res.resume();
-      res.on('end', finish);
-      res.on('close', finish);
-    });
-
-    req.on('timeout', () => req.destroy());
-    req.on('error', finish);
-    req.on('close', finish);
-    req.end();
-  });
-
-  await sleep(100);
-}
-
-async function readBody(req: IncomingMessage): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-    req.on('error', reject);
-  });
-}
-
-function json(res: ServerResponse, status: number, payload: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(payload));
-}
-
-async function startFakeDaemon(): Promise<FakeDaemon> {
-  await shutdownExistingDaemon();
+async function startFakeHost(): Promise<FakeHost> {
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-e2e-host-'));
+  const runDir = path.join(configDir, 'run');
+  fs.mkdirSync(runDir, { recursive: true });
+  const sockPath = instanceSocketPath('default', process.pid, runDir);
+  const statePath = path.join(runDir, 'host-default.json');
 
   const tabs = new Map<string, FakeTab>([
     ['tab-1', { page: 'tab-1', url: 'https://one.example/', title: 'tab-one', active: true }],
@@ -96,92 +49,82 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
   let inFlightExec = 0;
   let maxInFlightExec = 0;
 
-  const server = createServer(async (req, res) => {
-    const pathname = req.url?.split('?')[0] ?? '/';
+  const listTabs = () => [...tabs.values()].map((tab, index) => ({ index, ...tab }));
+  const tabByIndex = (index?: number) => index === undefined ? undefined : listTabs()[index];
 
-    if (req.method === 'GET' && pathname === '/status') {
-      json(res, 200, {
+  const reply = (socket: net.Socket, value: unknown) => {
+    socket.write(encodeFrame(value));
+  };
+
+  const handle = async (body: Record<string, unknown>, socket: net.Socket): Promise<void> => {
+    const id = body.id;
+    if (body.action === 'host-status') {
+      reply(socket, {
+        id,
         ok: true,
         pid: process.pid,
         uptime: 1,
-        daemonVersion: PKG_VERSION,
+        hostVersion: PKG_VERSION,
         extensionConnected: true,
-        extensionVersion: 'test',
+        extensionVersion: '1.0.24',
+        contextId: 'default',
+        profiles: [{ contextId: 'default', extensionConnected: true, extensionVersion: '1.0.24', pending: 0 }],
         pending: 0,
         memoryMB: 1,
-        port: DAEMON_PORT,
+        sock: sockPath,
       });
       return;
     }
-
-    if (req.method !== 'POST' || pathname !== '/command') {
-      json(res, 404, { ok: false, error: 'Not found' });
+    if (body.action === 'lease-release' || body.action === 'host-exit') {
+      reply(socket, { id, ok: true });
       return;
     }
-
-    const body = JSON.parse(await readBody(req)) as {
-      id: string;
-      action: string;
-      op?: string;
-      page?: string;
-      index?: number;
-      url?: string;
-      code?: string;
-    };
-
-    const listTabs = () => [...tabs.values()].map((tab, index) => ({ index, ...tab }));
-    const tabByIndex = (index?: number) => index === undefined ? undefined : listTabs()[index];
 
     switch (body.action) {
       case 'tabs': {
         switch (body.op) {
           case 'list':
-            json(res, 200, { id: body.id, ok: true, data: listTabs() });
+            reply(socket, { id, ok: true, data: listTabs() });
             return;
           case 'new': {
             const page = `tab-${nextId++}`;
-            const url = body.url ?? 'about:blank';
-            tabs.set(page, {
-              page,
-              url,
-              title: page,
-              active: true,
-            });
-            json(res, 200, { id: body.id, ok: true, page, data: { url } });
+            const url = typeof body.url === 'string' ? body.url : 'about:blank';
+            tabs.set(page, { page, url, title: page, active: true });
+            reply(socket, { id, ok: true, page, data: { url } });
             return;
           }
           case 'close': {
-            const targetPage = typeof body.page === 'string' ? body.page : tabByIndex(body.index)?.page;
+            const targetPage = typeof body.page === 'string' ? body.page : tabByIndex(typeof body.index === 'number' ? body.index : undefined)?.page;
             if (!targetPage || !tabs.has(targetPage)) {
-              json(res, 200, { id: body.id, ok: false, error: 'Tab not found' });
+              reply(socket, { id, ok: false, error: 'Tab not found' });
               return;
             }
             tabs.delete(targetPage);
-            json(res, 200, { id: body.id, ok: true, data: { closed: targetPage } });
+            reply(socket, { id, ok: true, data: { closed: targetPage } });
             return;
           }
           case 'select': {
-            const targetPage = typeof body.page === 'string' ? body.page : tabByIndex(body.index)?.page;
+            const targetPage = typeof body.page === 'string' ? body.page : tabByIndex(typeof body.index === 'number' ? body.index : undefined)?.page;
             if (!targetPage || !tabs.has(targetPage)) {
-              json(res, 200, { id: body.id, ok: false, error: 'Tab not found' });
+              reply(socket, { id, ok: false, error: 'Tab not found' });
               return;
             }
-            json(res, 200, { id: body.id, ok: true, page: targetPage, data: { selected: true } });
+            reply(socket, { id, ok: true, page: targetPage, data: { selected: true } });
             return;
           }
           default:
-            json(res, 200, { id: body.id, ok: false, error: `Unknown tabs op: ${body.op}` });
+            reply(socket, { id, ok: false, error: `Unknown tabs op: ${body.op}` });
             return;
         }
       }
       case 'navigate': {
         const targetPage = typeof body.page === 'string' && tabs.has(body.page) ? body.page : 'tab-1';
         const target = tabs.get(targetPage)!;
-        const url = body.url ?? target.url;
+        const url = typeof body.url === 'string' ? body.url : target.url;
         target.url = url;
         target.title = url;
-        json(res, 200, {
-          id: body.id,
+        reply(socket, {
+          id,
           ok: true,
           page: targetPage,
           data: { title: target.title, url: target.url, timedOut: false },
@@ -192,25 +135,20 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
         const targetPage = typeof body.page === 'string' ? body.page : 'tab-1';
         const target = tabs.get(targetPage);
         if (!target) {
-          json(res, 200, { id: body.id, ok: false, error: `Unknown page: ${targetPage}` });
+          reply(socket, { id, ok: false, error: `Unknown page: ${targetPage}` });
           return;
         }
-
         inFlightExec++;
         maxInFlightExec = Math.max(maxInFlightExec, inFlightExec);
         try {
-          if ((body.code ?? '').includes('__delay')) {
-            await new Promise(resolve => setTimeout(resolve, 200));
+          if (String(body.code ?? '').includes('__delay')) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
           }
-          json(res, 200, {
-            id: body.id,
+          reply(socket, {
+            id,
             ok: true,
             page: targetPage,
-            data: {
-              page: targetPage,
-              title: target.title,
-              url: target.url,
-            },
+            data: { page: targetPage, title: target.title, url: target.url },
           });
         } finally {
           inFlightExec--;
@@ -218,59 +156,73 @@ async function startFakeDaemon(): Promise<FakeDaemon> {
         return;
       }
       default:
-        json(res, 200, { id: body.id, ok: false, error: `Unknown action: ${body.action}` });
+        reply(socket, { id, ok: false, error: `Unknown action: ${body.action}` });
     }
+  };
+
+  if (!isPipe(sockPath)) {
+    try { fs.unlinkSync(sockPath); } catch { /* first bind */ }
+  }
+
+  const server = net.createServer((socket) => {
+    const reader = new FrameReader();
+    socket.on('data', (chunk) => {
+      try {
+        for (const msg of reader.push(Buffer.from(chunk))) {
+          void handle(msg as Record<string, unknown>, socket);
+        }
+      } catch (err) {
+        reply(socket, { ok: false, error: err instanceof Error ? err.message : 'Invalid frame' });
+      }
+    });
+    socket.on('error', () => socket.destroy());
   });
 
-  let lastBindError: unknown;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(DAEMON_PORT, '127.0.0.1', () => {
-          server.off('error', reject);
-          resolve();
-        });
-      });
-      lastBindError = undefined;
-      break;
-    } catch (err: any) {
-      lastBindError = err;
-      if (err?.code !== 'EADDRINUSE') {
-        break;
-      }
-      await shutdownExistingDaemon();
-      await sleep(100);
-    }
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(sockPath, () => resolve());
+  });
+  if (!isPipe(sockPath)) {
+    try { fs.chmodSync(sockPath, 0o700); } catch { /* windows */ }
   }
 
-  if (lastBindError) {
-    throw lastBindError;
-  }
-
-  const address = server.address();
-  if (!address || typeof address !== 'object') {
-    throw new Error(`Failed to bind fake daemon port ${DAEMON_PORT}`);
-  }
+  fs.writeFileSync(statePath, JSON.stringify({
+    pid: process.pid,
+    sock: sockPath,
+    contextId: 'default',
+    hostVersion: PKG_VERSION,
+    extensionVersion: '1.0.24',
+    extensionCompatRange: '>=2.0.0',
+    startedAt: Date.now(),
+  }, null, 2) + '\n');
 
   return {
-    close: async () => {
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => err ? reject(err) : resolve());
-      });
-    },
+    configDir,
     maxInFlightExec: () => maxInFlightExec,
+    close: async () => {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      fs.rmSync(configDir, { recursive: true, force: true });
+    },
   };
 }
 
 describe('browser tab CLI e2e', () => {
-  const daemons: FakeDaemon[] = [];
+  const hosts: FakeHost[] = [];
   const cacheDirs: string[] = [];
   const browserArgs = (session: string, ...args: string[]) => ['browser', session, ...args];
 
+  function cliEnv(host: FakeHost, extra: Record<string, string> = {}) {
+    return {
+      OPENCLI_CONFIG_DIR: host.configDir,
+      OPENCLI_NO_LAUNCH_CHROME: '1',
+      CI: '1',
+      ...extra,
+    };
+  }
+
   afterEach(async () => {
-    while (daemons.length > 0) {
-      await daemons.pop()!.close();
+    while (hosts.length > 0) {
+      await hosts.pop()!.close();
     }
     while (cacheDirs.length > 0) {
       fs.rmSync(cacheDirs.pop()!, { recursive: true, force: true });
@@ -278,11 +230,12 @@ describe('browser tab CLI e2e', () => {
   });
 
   it('lists, creates, and closes tabs through the built CLI', async () => {
-    const daemon = await startFakeDaemon();
-    daemons.push(daemon);
+    const host = await startFakeHost();
+    hosts.push(host);
+    const env = cliEnv(host);
     const session = 'tabs-basic';
 
-    const listed = await runCli(browserArgs(session, 'tab', 'list'));
+    const listed = await runCli(browserArgs(session, 'tab', 'list'), { env });
     expect(listed.code).toBe(0);
     const listData = parseJsonOutput(listed.stdout);
     expect(listData).toEqual(expect.arrayContaining([
@@ -290,7 +243,7 @@ describe('browser tab CLI e2e', () => {
       expect.objectContaining({ page: 'tab-2', title: 'tab-two' }),
     ]));
 
-    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'));
+    const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'), { env });
     expect(created.code).toBe(0);
     const createdData = parseJsonOutput(created.stdout);
     expect(createdData).toEqual(expect.objectContaining({
@@ -298,12 +251,12 @@ describe('browser tab CLI e2e', () => {
       url: 'https://three.example/',
     }));
 
-    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-3'));
+    const closed = await runCli(browserArgs(session, 'tab', 'close', 'tab-3'), { env });
     expect(closed.code).toBe(0);
     const closedData = parseJsonOutput(closed.stdout);
     expect(closedData).toEqual({ closed: 'tab-3' });
 
-    const relisted = await runCli(browserArgs(session, 'tab', 'list'));
+    const relisted = await runCli(browserArgs(session, 'tab', 'list'), { env });
     expect(relisted.code).toBe(0);
     const relistedData = parseJsonOutput(relisted.stdout);
     expect(relistedData).toHaveLength(2);
@@ -311,13 +264,14 @@ describe('browser tab CLI e2e', () => {
   }, 30_000);
 
   it('routes concurrent browser commands to their requested tabs', async () => {
-    const daemon = await startFakeDaemon();
-    daemons.push(daemon);
+    const host = await startFakeHost();
+    hosts.push(host);
+    const env = cliEnv(host);
     const session = 'tabs-concurrent';
 
     const [left, right] = await Promise.all([
-      runCli(browserArgs(session, 'eval', '--tab', 'tab-1', 'window.__delay = "left"'), { timeout: 30_000 }),
-      runCli(browserArgs(session, 'eval', '--tab', 'tab-2', 'window.__delay = "right"'), { timeout: 30_000 }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-1', 'window.__delay = "left"'), { timeout: 30_000, env }),
+      runCli(browserArgs(session, 'eval', '--tab', 'tab-2', 'window.__delay = "right"'), { timeout: 30_000, env }),
     ]);
 
     expect(left.code).toBe(0);
@@ -328,17 +282,15 @@ describe('browser tab CLI e2e', () => {
 
     expect(leftData).toEqual(expect.objectContaining({ page: 'tab-1', title: 'tab-one' }));
     expect(rightData).toEqual(expect.objectContaining({ page: 'tab-2', title: 'tab-two' }));
-    expect(daemon.maxInFlightExec()).toBe(2);
+    expect(host.maxInFlightExec()).toBe(2);
   }, 30_000);
 
   it('keeps untargeted browser commands on the default tab after creating a new tab', async () => {
-    const daemon = await startFakeDaemon();
-    daemons.push(daemon);
+    const host = await startFakeHost();
+    hosts.push(host);
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
-    const env = {
-      OPENCLI_CACHE_DIR: cacheDir,
-    };
+    const env = cliEnv(host, { OPENCLI_CACHE_DIR: cacheDir });
     const session = 'tabs-default-new';
 
     const created = await runCli(browserArgs(session, 'tab', 'new', 'https://three.example/'), { env });
@@ -351,13 +303,11 @@ describe('browser tab CLI e2e', () => {
   }, 30_000);
 
   it('uses an explicitly selected tab as the default target for later untargeted commands', async () => {
-    const daemon = await startFakeDaemon();
-    daemons.push(daemon);
+    const host = await startFakeHost();
+    hosts.push(host);
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-browser-tabs-'));
     cacheDirs.push(cacheDir);
-    const env = {
-      OPENCLI_CACHE_DIR: cacheDir,
-    };
+    const env = cliEnv(host, { OPENCLI_CACHE_DIR: cacheDir });
     const session = 'tabs-selected-default';
 
     const selected = await runCli(browserArgs(session, 'tab', 'select', 'tab-2'), { env });

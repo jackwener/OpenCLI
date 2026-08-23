@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { EXTENSION_ORIGINS, NATIVE_HOST_NAME } from './host-protocol.js';
-import { buildNativeHostManifest, installNativeHostManifest, writeHostWrapper } from './native-manifest.js';
+import { buildNativeHostManifest, installNativeHostManifest, uninstallNativeHostManifest, writeHostWrapper } from './native-manifest.js';
 
 describe('native host manifest install', () => {
   const dirs: string[] = [];
@@ -29,6 +29,22 @@ describe('native host manifest install', () => {
     expect(json.allowed_origins).toEqual(EXTENSION_ORIGINS);
   });
 
+  it('uninstallNativeHostManifest removes the files it wrote', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-nmh-un-'));
+    dirs.push(dir);
+    const hostDir = path.join(dir, 'NativeMessagingHosts');
+    const binary = path.join(dir, 'opencli-host');
+    fs.writeFileSync(binary, '#!/bin/sh\n', { mode: 0o755 });
+    const result = installNativeHostManifest({
+      binaryPath: binary,
+      directories: [hostDir],
+    });
+    expect(fs.existsSync(result.files[0])).toBe(true);
+    const removed = uninstallNativeHostManifest({ directories: [hostDir] });
+    expect(removed).toContain(result.files[0]);
+    expect(fs.existsSync(result.files[0])).toBe(false);
+  });
+
   it('writes an executable wrapper that points at the shipped host-bin', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-wrap-'));
     dirs.push(dir);
@@ -37,6 +53,8 @@ describe('native host manifest install', () => {
     const body = fs.readFileSync(wrapper, 'utf8');
     expect(body).toContain(process.execPath);
     expect(body).toMatch(/host-bin\.(js|ts)/);
+    expect(body).toContain('command -v node');
+    expect(body).toContain('OPENCLI_HOST_NODE');
     expect(fs.statSync(wrapper).mode & 0o111).toBeTruthy();
   });
 });

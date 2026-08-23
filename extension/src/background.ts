@@ -8,15 +8,18 @@
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
-import { NATIVE_HOST_NAME } from './protocol';
+import { ChunkAssembler, NATIVE_HOST_NAME, splitNativePayloads } from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
 import { executeWithJournal } from './journal';
 
 let nativePort: chrome.runtime.Port | null = null;
 let hostVersion: string | null = null;
+let nativeReady = false;
+let lastReadyAt = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+const assembler = new ChunkAssembler();
 const CONTEXT_ID_KEY = 'opencli_context_id_v1';
 let currentContextId = 'default';
 let contextIdPromise: Promise<string> | null = null;
@@ -92,14 +95,20 @@ function forwardLog(level: 'info' | 'warn' | 'error', args: unknown[]): void {
   } catch { /* don't recurse */ }
 }
 
-function safePost(payload: unknown): boolean {
-  if (!nativePort) return false;
+function postToPort(port: chrome.runtime.Port, payload: unknown): boolean {
   try {
-    nativePort.postMessage(payload);
+    for (const part of splitNativePayloads(payload)) {
+      port.postMessage(part);
+    }
     return true;
   } catch {
     return false;
   }
+}
+
+function safePost(payload: unknown): boolean {
+  if (!nativePort) return false;
+  return postToPort(nativePort, payload);
 }
 
 console.log = (...args: unknown[]) => { _origLog(...args); forwardLog('info', args); };
@@ -136,18 +145,28 @@ async function connectAttempt(): Promise<void> {
 
   port.onMessage.addListener((msg: unknown) => {
     if (nativePort !== port) return;
-    void handleNativeMessage(port, msg);
+    const assembled = assembler.push(msg);
+    if (assembled === undefined) return;
+    void handleNativeMessage(port, assembled);
   });
   port.onDisconnect.addListener(() => {
     if (nativePort !== port) return;
+    const hadReady = nativeReady;
+    const livedMs = lastReadyAt ? Date.now() - lastReadyAt : 0;
     nativePort = null;
+    nativeReady = false;
     hostVersion = null;
     connectInFlight = null;
+    assembler.reset();
     console.log('[opencli] Native host disconnected');
-    // Official MV3 contract: reconnect immediately so the SW stays alive.
-    // Call connectAttempt directly so we don't coalesce with the just-finished
-    // in-flight connect() that created this dead port.
-    void connectAttempt();
+    // Immediate reconnect only after a host that actually completed hello-ok
+    // and lived for a bit. connectNative "succeeding" then dying (missing
+    // wrapper, CLI uninstalled) used to spawn at event-loop speed.
+    if (hadReady && livedMs >= HEALTHY_HOST_MIN_MS) {
+      void connectAttempt();
+    } else {
+      scheduleReconnect();
+    }
   });
 
   try {
@@ -157,12 +176,7 @@ async function connectAttempt(): Promise<void> {
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
     });
-    reconnectAttempts = 0;
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    console.log('[opencli] Connected to native host');
+    console.log('[opencli] Native port opened, waiting for hello-ok');
   } catch {
     nativePort = null;
     scheduleReconnect();
@@ -174,6 +188,14 @@ async function handleNativeMessage(port: chrome.runtime.Port, msg: unknown): Pro
   const rec = msg as Record<string, unknown>;
   if (rec.type === 'hello-ok') {
     hostVersion = typeof rec.hostVersion === 'string' ? rec.hostVersion : null;
+    nativeReady = true;
+    lastReadyAt = Date.now();
+    reconnectAttempts = 0;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    console.log('[opencli] Connected to native host');
     return;
   }
   if (rec.type === 'ping' || rec.type === 'log') return;
@@ -182,9 +204,9 @@ async function handleNativeMessage(port: chrome.runtime.Port, msg: unknown): Pro
     if (typeof command.action !== 'string' || typeof command.id !== 'string') return;
     const result = await executeWithJournal(command, handleCommand);
     if (nativePort === port) {
-      try { port.postMessage(result); } catch { /* port died mid-command */ }
+      postToPort(port, result);
     } else if (nativePort) {
-      try { nativePort.postMessage(result); } catch { /* replaced port */ }
+      postToPort(nativePort, result);
     }
   } catch (err) {
     console.error('[opencli] Message handling error:', err);
@@ -192,11 +214,13 @@ async function handleNativeMessage(port: chrome.runtime.Port, msg: unknown): Pro
 }
 
 /**
- * Backoff only when connectNative itself throws (host not installed). A live
- * port's onDisconnect already reconnects immediately.
+ * Immediate reconnect is reserved for a host that completed hello-ok and
+ * stayed up. Everything else (connectNative throw, death before hello-ok,
+ * crash loops) uses exponential backoff.
  */
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 15000;
+const HEALTHY_HOST_MIN_MS = 2000;
 
 function nextReconnectDelayMs(): number {
   const exp = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * 2 ** Math.min(reconnectAttempts, 6));
@@ -2198,13 +2222,21 @@ export const __test__ = {
   setReconnectAttempts: (value: number) => { reconnectAttempts = value; },
   nextReconnectDelayMs,
   getNativePort: () => nativePort,
+  getNativeReady: () => nativeReady,
+  markHealthyNativeForTest: () => {
+    nativeReady = true;
+    lastReadyAt = Date.now() - 3000;
+  },
   resetReconnectState: () => {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = null;
     reconnectAttempts = 0;
     connectInFlight = null;
     nativePort = null;
+    nativeReady = false;
+    lastReadyAt = 0;
     hostVersion = null;
+    assembler.reset();
   },
   getSession: (leaseKey: string = 'default') => automationSessions.get(leaseKey) ?? null,
   getAutomationWindowId: (leaseKey: string = 'default') => automationSessions.get(leaseKey)?.windowId ?? null,

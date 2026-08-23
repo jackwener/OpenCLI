@@ -31,7 +31,7 @@ export async function hostStatus(): Promise<void> {
     extensionLabel = 'disconnected';
   }
 
-  const version = status.hostVersion ?? status.daemonVersion;
+  const version = status.hostVersion;
   const stale = Boolean(version && version !== PKG_VERSION);
   console.log(`Host: ${stale ? 'stale' : 'running'} (PID ${status.pid})`);
   console.log(`Version: ${version ? `v${version}` : 'unknown'}${stale ? ` (CLI v${PKG_VERSION}; reload the OpenCLI extension)` : ''}`);

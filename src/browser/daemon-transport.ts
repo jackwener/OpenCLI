@@ -2,9 +2,10 @@
  * CLI view of native hosts: live host.json files + optional unix RPC.
  */
 
+import * as fs from 'node:fs';
 import { resolveProfileRoute } from '../daemon-utils.js';
-import { listLiveHostStates, type HostState } from '../host-protocol.js';
-import { requestHost } from './host-rpc.js';
+import { hostStatePath, isPidAlive, listLiveHostStates, type HostState } from '../host-protocol.js';
+import { isPreConnectSocketError, requestHost } from './host-rpc.js';
 
 export interface BrowserProfileStatus {
   contextId: string;
@@ -20,8 +21,6 @@ export interface DaemonStatus {
   pid: number;
   uptime: number;
   hostVersion?: string;
-  /** @deprecated same as hostVersion; kept for status JSON readers */
-  daemonVersion?: string;
   extensionConnected: boolean;
   extensionVersion?: string;
   extensionCompatRange?: string;
@@ -49,7 +48,6 @@ function statusFromStates(live: HostState[], routeContextId?: string): DaemonSta
     pid: chosen?.pid ?? 0,
     uptime: chosen ? Math.max(0, (Date.now() - chosen.startedAt) / 1000) : 0,
     hostVersion: chosen?.hostVersion,
-    daemonVersion: chosen?.hostVersion,
     extensionConnected: Boolean(chosen),
     extensionVersion: chosen?.extensionVersion ?? undefined,
     extensionCompatRange: chosen?.extensionCompatRange ?? undefined,
@@ -98,7 +96,6 @@ export async function fetchDaemonStatus(opts?: {
       pid: typeof raw.pid === 'number' ? raw.pid : chosen.pid,
       uptime: typeof raw.uptime === 'number' ? raw.uptime : base.uptime,
       hostVersion: typeof raw.hostVersion === 'string' ? raw.hostVersion : chosen.hostVersion,
-      daemonVersion: typeof raw.hostVersion === 'string' ? raw.hostVersion : chosen.hostVersion,
       extensionConnected: raw.extensionConnected === true,
       extensionVersion: typeof raw.extensionVersion === 'string' ? raw.extensionVersion : chosen.extensionVersion ?? undefined,
       extensionCompatRange: typeof raw.extensionCompatRange === 'string' ? raw.extensionCompatRange : undefined,
@@ -109,8 +106,17 @@ export async function fetchDaemonStatus(opts?: {
       memoryMB: typeof raw.memoryMB === 'number' ? raw.memoryMB : 0,
       sock: chosen.sock,
     };
-  } catch {
-    return base;
+  } catch (err) {
+    // A leftover host-*.json with a recycled pid and a dead socket used to
+    // fall through as extensionConnected=true (the file-derived `base`).
+    if (isPreConnectSocketError(err) && !isPidAlive(chosen.pid)) {
+      try { fs.unlinkSync(hostStatePath(chosen.contextId)); } catch { /* stale */ }
+    }
+    return {
+      ...base,
+      ok: false,
+      extensionConnected: false,
+    };
   }
 }
 
@@ -127,10 +133,4 @@ export async function getDaemonHealth(opts?: {
   if (status.profileDisconnected) return { state: 'profile-disconnected', status };
   if (!status.extensionConnected) return { state: 'no-extension', status };
   return { state: 'ready', status };
-}
-
-export async function requestDaemonShutdown(_opts?: { timeout?: number }): Promise<boolean> {
-  // Chrome owns the host process. CLI cannot shut it down without killing
-  // Chrome's native port. Reload the extension instead.
-  return false;
 }
