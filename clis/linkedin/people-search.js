@@ -5,15 +5,11 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './shared.js';
+import { looksLinkedInAuthWall, normalizeWhitespace, unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SEARCH_URL_BASE = 'https://www.linkedin.com/search/results/people/';
 const MAX_LIMIT = 10;
-
-function normalizeWhitespace(value) {
-    return String(value ?? '').replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
-}
 
 function requireStringArg(args, key, label = key) {
     const value = normalizeWhitespace(args[key]);
@@ -32,14 +28,6 @@ function parseLimit(value) {
 
 function buildSearchUrl(keywords) {
     return SEARCH_URL_BASE + '?keywords=' + encodeURIComponent(keywords);
-}
-
-function looksLinkedInAuthWall(value) {
-    const text = normalizeWhitespace(value).toLowerCase();
-    if (!text) return false;
-    return /linkedin\.com\/(?:login|checkpoint|authwall|uas)/i.test(text)
-        || /\b(sign in|log in|join linkedin|captcha|verification required)\b/i.test(text)
-        || /(请登录|登录领英|安全验证)/.test(text);
 }
 
 function normalizeProfileUrl(value) {
@@ -257,10 +245,8 @@ cli({
 });
 
 export const __test__ = {
-    normalizeWhitespace,
     parseLimit,
     buildSearchUrl,
-    looksLinkedInAuthWall,
     normalizeProfileUrl,
     normalizePeopleRows,
     parseNonNegativeCount,

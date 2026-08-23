@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canonicalizeLinkedInThreadUrl,
   decodeLinkedInSafetyUrl,
+  looksLinkedInAuthWall,
   normalizeWhitespace,
   unwrapEvaluateResult,
 } from './shared.js';
@@ -58,5 +59,14 @@ describe('linkedin shared helpers', () => {
     expect(canonicalizeLinkedInThreadUrl('http://www.linkedin.com/messaging/thread/abc/')).toBe('');
     expect(canonicalizeLinkedInThreadUrl('https://user:pass@www.linkedin.com/messaging/thread/abc/')).toBe('');
     expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com:444/messaging/thread/abc/')).toBe('');
+  });
+
+  it('detects LinkedIn auth-wall URLs and text branches', () => {
+    expect(looksLinkedInAuthWall('https://www.linkedin.com/authwall Sign in to continue')).toBe(true);
+    expect(looksLinkedInAuthWall('https://www.linkedin.com/checkpoint/challenge security verification required')).toBe(true);
+    expect(looksLinkedInAuthWall('https://www.linkedin.com/feed/')).toBe(false);
+    expect(looksLinkedInAuthWall('https://www.linkedin.com/login')).toBe(true);
+    expect(looksLinkedInAuthWall('Please sign in to continue')).toBe(true);
+    expect(looksLinkedInAuthWall('请登录后继续')).toBe(true);
   });
 });

@@ -7,7 +7,6 @@ import './people-search.js';
 const {
     parseLimit,
     buildSearchUrl,
-    looksLinkedInAuthWall,
     normalizeProfileUrl,
     normalizePeopleRows,
     parseNonNegativeCount,
@@ -86,12 +85,6 @@ describe('linkedin people-search command', () => {
         expect(normalizeProfileUrl('https://evil-linkedin.com/in/bob-builder')).toBe('');
         expect(normalizeProfileUrl('http://www.linkedin.com/in/bob-builder')).toBe('');
         expect(normalizeProfileUrl('https://www.linkedin.com/company/opencli')).toBe('');
-    });
-
-    it('detects LinkedIn auth-wall URLs separately from CUL redirects', () => {
-        expect(looksLinkedInAuthWall('https://www.linkedin.com/authwall Sign in to continue')).toBe(true);
-        expect(looksLinkedInAuthWall('https://www.linkedin.com/checkpoint/challenge security verification required')).toBe(true);
-        expect(looksLinkedInAuthWall('https://www.linkedin.com/feed/')).toBe(false);
     });
 
     it('rejects malformed extraction rows instead of fabricating success rows', () => {
