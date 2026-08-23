@@ -7,6 +7,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 /**
  * Wait for search results or login wall using MutationObserver (max 5s).
  * Returns 'content' if note items appeared, 'login_wall' if login gate
@@ -241,19 +242,6 @@ function extractSearchRows(webHost) {
     return results;
 }
 
-/**
- * `page.evaluate` may return either the raw IIFE value or a
- * `{ session, data }` envelope depending on the browser-bridge version.
- * Adapter code that called `Array.isArray(payload)` directly on the
- * envelope silently received [] for every search. This helper normalizes
- * both shapes so callers can keep their Array.isArray checks unchanged.
- */
-export function unwrapEvaluateResult(payload) {
-    if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
-        return payload.data;
-    }
-    return payload;
-}
 function isTrustedAuthorUrl(url, webHost) {
     if (url === '')
         return true;

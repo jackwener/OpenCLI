@@ -7,7 +7,8 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { buildScrollUntilJs, buildSearchExtractJs, noteIdToDate, unwrapEvaluateResult } from '../xiaohongshu/search.js';
+import { buildScrollUntilJs, buildSearchExtractJs, noteIdToDate } from '../xiaohongshu/search.js';
+import { unwrapEvaluateResult } from '../xiaohongshu/shared.js';
 
 function parseLimit(raw) {
     const parsed = Number(raw);

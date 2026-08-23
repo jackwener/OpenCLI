@@ -14,6 +14,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 function parseLimit(raw) {
     const parsed = Number(raw ?? 20);
@@ -67,13 +68,6 @@ const FEEDS_READ_JS = `
 
 function toCleanString(value) {
     return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
-}
-
-function unwrapEvaluateResult(payload) {
-    if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
-        return payload.data;
-    }
-    return payload;
 }
 
 /**

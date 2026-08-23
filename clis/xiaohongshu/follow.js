@@ -18,6 +18,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { normalizeXhsUserId } from './user-helpers.js';
+import { unwrapEvaluateResult } from './shared.js';
 
 const PROFILE_SETTLE_MS = 2500;
 const STATE_FLIP_TIMEOUT_MS = 5000;
@@ -26,13 +27,6 @@ const USER_ID_RE = /^[a-zA-Z0-9]{8,32}$/;
 function isXiaohongshuHost(hostname) {
     const host = String(hostname || '').toLowerCase();
     return host === 'xiaohongshu.com' || host.endsWith('.xiaohongshu.com');
-}
-
-function unwrapEvaluateResult(payload) {
-    if (payload && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
-        return payload.data;
-    }
-    return payload;
 }
 
 function requireActionResult(payload, context) {

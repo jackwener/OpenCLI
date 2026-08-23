@@ -11,7 +11,6 @@ import {
     noteKeyFromUrl,
     noteUrlInfo,
     shouldStopScrolling,
-    unwrapEvaluateResult,
     usableRowCount,
 } from './search.js';
 
@@ -615,31 +614,5 @@ describe('noteIdToDate (ObjectID timestamp parsing)', () => {
     it('returns empty string when timestamp is out of range', () => {
         // All zeros → ts = 0
         expect(noteIdToDate('https://www.xiaohongshu.com/search_result/000000000000000000000000')).toBe('');
-    });
-});
-describe('unwrapEvaluateResult (browser-bridge envelope normalization)', () => {
-    it('returns the raw array unchanged when payload is already an array', () => {
-        const arr = [{ title: 'a' }, { title: 'b' }];
-        expect(unwrapEvaluateResult(arr)).toBe(arr);
-    });
-    it('unwraps { session, data: [...] } envelope to the inner array', () => {
-        const arr = [{ title: 'a' }];
-        const env = { session: 'site:xiaohongshu:abc', data: arr };
-        expect(unwrapEvaluateResult(env)).toBe(arr);
-    });
-    it('unwraps primitive data from Browser Bridge envelopes', () => {
-        expect(unwrapEvaluateResult({ session: 'site:xiaohongshu:abc', data: 'login_wall' })).toBe('login_wall');
-    });
-    it('passes non-envelope objects through unchanged', () => {
-        const obj = { results: [], loginWall: true };
-        expect(unwrapEvaluateResult(obj)).toBe(obj);
-    });
-    it('handles null and undefined safely', () => {
-        expect(unwrapEvaluateResult(null)).toBe(null);
-        expect(unwrapEvaluateResult(undefined)).toBe(undefined);
-    });
-    it('unwraps non-array envelope data so callers can validate the payload shape', () => {
-        const env = { session: 'x', data: { not: 'an array' } };
-        expect(unwrapEvaluateResult(env)).toEqual({ not: 'an array' });
     });
 });
