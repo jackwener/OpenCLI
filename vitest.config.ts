@@ -31,7 +31,7 @@ export default defineConfig({
       {
         test: {
           name: 'e2e-fixed-port',
-          include: ['tests/e2e/browser-tabs.test.ts', 'tests/e2e/daemon-transport.test.ts'],
+          include: ['tests/e2e/browser-tabs.test.ts'],
           fileParallelism: false,
           sequence: { groupOrder: 2 },
         },

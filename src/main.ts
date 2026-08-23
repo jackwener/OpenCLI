@@ -22,7 +22,7 @@ import { findPackageRoot, getCliManifestPath } from './package-paths.js';
 import { PKG_VERSION } from './version.js';
 import { EXIT_CODES } from './errors.js';
 import { isSupportedNodeVersion, MIN_SUPPORTED_NODE_MAJOR } from './runtime-detect.js';
-import { isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 // Adapters are JS-first and live at <package-root>/clis/.
@@ -46,9 +46,10 @@ if (typeof (globalThis as { Bun?: unknown }).Bun === 'undefined' && !isSupported
   process.exit(EXIT_CODES.CONFIG_ERROR);
 }
 
-if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
-  process.stderr.write(`error: ${unsupportedDaemonPortEnvMessage(process.env.OPENCLI_DAEMON_PORT)}\n`);
-  process.exit(EXIT_CODES.CONFIG_ERROR);
+if (argv[0] === 'host' && argv[1] === '--native') {
+  const { runNativeHost } = await import('./host.js');
+  await runNativeHost();
+  process.exit(EXIT_CODES.SUCCESS);
 }
 
 // Fast path: --version (only when it's the top-level intent, not passed to a subcommand)

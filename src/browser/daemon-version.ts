@@ -1,15 +1,21 @@
 import type { DaemonStatus } from './daemon-transport.js';
 
-export function isDaemonStale(status: Pick<DaemonStatus, 'daemonVersion'> | null | undefined, cliVersion?: string): boolean {
+function versionOf(status: Pick<DaemonStatus, 'daemonVersion' | 'hostVersion'> | null | undefined): string | undefined {
+  return status?.hostVersion ?? status?.daemonVersion;
+}
+
+export function isDaemonStale(status: Pick<DaemonStatus, 'daemonVersion' | 'hostVersion'> | null | undefined, cliVersion?: string): boolean {
   if (!status || !cliVersion) return false;
-  return !status.daemonVersion || status.daemonVersion !== cliVersion;
+  const version = versionOf(status);
+  return !version || version !== cliVersion;
 }
 
-export function formatDaemonVersion(status: Pick<DaemonStatus, 'daemonVersion'> | null | undefined): string {
-  return status?.daemonVersion ? `v${status.daemonVersion}` : 'version unknown';
+export function formatDaemonVersion(status: Pick<DaemonStatus, 'daemonVersion' | 'hostVersion'> | null | undefined): string {
+  const version = versionOf(status);
+  return version ? `v${version}` : 'version unknown';
 }
 
-export function staleDaemonIssue(status: Pick<DaemonStatus, 'daemonVersion'> | null | undefined, cliVersion: string): string {
-  return `Stale daemon detected: daemon ${formatDaemonVersion(status)} != CLI v${cliVersion}.\n` +
-    '  Run: opencli daemon restart';
+export function staleDaemonIssue(status: Pick<DaemonStatus, 'daemonVersion' | 'hostVersion'> | null | undefined, cliVersion: string): string {
+  return `Stale host detected: host ${formatDaemonVersion(status)} != CLI v${cliVersion}.\n` +
+    '  Reload the OpenCLI extension in chrome://extensions.';
 }

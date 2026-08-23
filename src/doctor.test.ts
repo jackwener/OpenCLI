@@ -29,6 +29,11 @@ vi.mock('./browser/daemon-client.js', async (importOriginal) => {
   };
 });
 
+vi.mock('./native-manifest.js', () => ({
+  nativeHostManifestInstalled: () => true,
+  installNativeHostManifest: () => ({ files: [], binaryPath: '/tmp/opencli-host' }),
+}));
+
 vi.mock('./adapter-shadow.js', async () => {
   const actual = await vi.importActual<typeof import('./adapter-shadow.js')>('./adapter-shadow.js');
   return {
@@ -60,7 +65,7 @@ describe('doctor report rendering', () => {
       issues: [],
     }));
 
-    expect(text).toContain('[OK] Daemon: running on port 19825');
+    expect(text).toContain('[OK] Host: running (v1.7.9)');
     expect(text).toContain('(v1.7.9)');
     expect(text).toContain('[OK] Extension: connected (v1.6.8)');
     expect(text).toContain('Everything looks good!');
@@ -75,11 +80,11 @@ describe('doctor report rendering', () => {
       daemonStale: true,
       extensionConnected: true,
       extensionVersion: '1.0.3',
-      issues: ['Stale daemon detected: daemon v1.7.6 != CLI v1.7.9.\n  Run: opencli daemon restart'],
+      issues: ['Stale host detected: host v1.7.6 != CLI v1.7.9.\n  Reload the OpenCLI extension in chrome://extensions.'],
     }));
 
-    expect(text).toContain('[WARN] Daemon: running on port 19825 (v1.7.6, stale; CLI v1.7.9)');
-    expect(text).toContain('Run: opencli daemon restart');
+    expect(text).toContain('[WARN] Host: running (v1.7.6, stale; CLI v1.7.9)');
+    expect(text).toContain('Reload the OpenCLI extension');
     expect(text).not.toContain('Everything looks good!');
   });
 
@@ -90,19 +95,20 @@ describe('doctor report rendering', () => {
       issues: ['Daemon is not running.'],
     }));
 
-    expect(text).toContain('[MISSING] Daemon: not running');
+    expect(text).toContain('[MISSING] Host: not running');
     expect(text).toContain('[MISSING] Extension: not connected');
-    expect(text).toContain('Daemon is not running.');
+    expect(text).toContain('Daemon is not running.'); // issues array is caller-supplied
   });
 
   it('renders extension not connected when daemon is running', () => {
     const text = strip(renderBrowserDoctorReport({
       daemonRunning: true,
+      daemonVersion: '1.7.9',
       extensionConnected: false,
       issues: ['Daemon is running but the Chrome extension is not connected.'],
     }));
 
-    expect(text).toContain('[OK] Daemon: running on port 19825');
+    expect(text).toContain('[OK] Host: running (v1.7.9)');
     expect(text).toContain('[MISSING] Extension: not connected');
   });
 
@@ -167,7 +173,7 @@ describe('doctor report rendering', () => {
       issues: ['Daemon connectivity is unstable.'],
     }));
 
-    expect(text).toContain('[WARN] Daemon: unstable');
+    expect(text).toContain('[WARN] Host: unstable');
     expect(text).toContain('Daemon connectivity is unstable.');
   });
 
@@ -181,7 +187,7 @@ describe('doctor report rendering', () => {
     expect(report.extensionConnected).toBe(false);
     expect(report.connectivity?.ok).toBe(false);
     expect(report.issues).toEqual(expect.arrayContaining([
-      expect.stringContaining('Daemon is not running'),
+      expect.stringContaining('Native host is not running'),
     ]));
   });
 
@@ -265,7 +271,7 @@ describe('doctor report rendering', () => {
     expect(report.daemonFlaky).toBe(true);
     expect(report.extensionConnected).toBe(false);
     expect(report.issues).toEqual(expect.arrayContaining([
-      expect.stringContaining('Daemon connectivity is unstable'),
+      expect.stringContaining('Host connectivity is unstable'),
     ]));
   });
 
@@ -314,7 +320,7 @@ describe('doctor report rendering', () => {
 
     expect(report.daemonStale).toBe(true);
     expect(report.issues).toEqual(expect.arrayContaining([
-      expect.stringContaining('Stale daemon detected: daemon v1.7.6 != CLI v1.7.9'),
+      expect.stringContaining('Stale host detected: host v1.7.6 != CLI v1.7.9'),
     ]));
   });
 

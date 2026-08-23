@@ -2,7 +2,7 @@
 
 > **⚠️ Important**: Browser commands reuse your Chrome login session. You must be logged into the target website in Chrome before running commands.
 
-OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome Extension + micro-daemon (zero config, auto-start).
+OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome extension. Chrome parents a native host via Native Messaging; the CLI never listens on a TCP port.
 
 ## Extension Installation
 
@@ -19,10 +19,11 @@ OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome
 
 ## Verification
 
-That's it! The daemon auto-starts when you run any browser command. No tokens, no manual configuration.
+That's it! With Chrome open and the extension enabled, Chrome spawns the native host. No tokens, no TCP daemon.
 
 ```bash
-opencli doctor            # Check extension + daemon connectivity
+opencli host install      # Write the Native Messaging manifest
+opencli doctor            # Check extension + native host connectivity
 ```
 
 ## Tab Targeting
@@ -64,20 +65,20 @@ Owned browser sessions use an interactive tab lease with a 10-minute idle timeou
 opencli browser my-session close
 ```
 
-Use `opencli browser <session> bind` when you want to attach OpenCLI to a Chrome tab you already opened manually. Bound sessions do not have the owned-session idle close timer; they stay attached until `unbind`, tab close, window close, or daemon restart. For owned sessions, use `--window foreground` to watch OpenCLI work in a visible automation window, or `--window background` to keep that automation window out of the way.
+Use `opencli browser <session> bind` when you want to attach OpenCLI to a Chrome tab you already opened manually. Bound sessions do not have the owned-session idle close timer; they stay attached until `unbind`, tab close, window close, or Chrome exit. For owned sessions, use `--window foreground` to watch OpenCLI work in a visible automation window, or `--window background` to keep that automation window out of the way.
 
 The `OpenCLI Browser` and `OpenCLI Adapter` tab groups are extension-managed automation containers; avoid putting your own long-lived tabs in them or renaming them.
 
 ## How It Works
 
 ```
-┌─────────────┐     WebSocket      ┌──────────────┐     Chrome API     ┌─────────┐
-│  opencli    │ ◄──────────────► │  micro-daemon │ ◄──────────────► │  Chrome  │
-│  (Node.js)  │    localhost:19825  │  (auto-start) │    Extension       │ Browser  │
-└─────────────┘                    └──────────────┘                    └─────────┘
+┌─────────────┐   unix socket    ┌──────────────┐  Native Messaging  ┌─────────┐
+│  opencli    │ ──────────────► │  opencli-host │ ◄──────────────── │  Chrome  │
+│  (CLI)      │  ~/.opencli/run  │  (Chrome-owned)│   connectNative    │ Extension│
+└─────────────┘                  └──────────────┘                    └─────────┘
 ```
 
-The daemon manages the WebSocket connection between your CLI commands and the Chrome extension. The extension executes JavaScript in the context of web pages, with access to the logged-in session.
+Chrome spawns `opencli-host` via `chrome.runtime.connectNative()`. The CLI only `connect()`s the host's unix socket. The extension still drives pages with `chrome.debugger`. There is no `:19825` and the CLI never `listen()`s.
 
 ## Daemon Lifecycle
 

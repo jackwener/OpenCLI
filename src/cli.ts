@@ -33,7 +33,7 @@ import { buildHtmlTreeJs, type HtmlTreeResult } from './browser/html-tree.js';
 import { buildExtractHtmlJs, runExtractFromHtml } from './browser/extract.js';
 import { analyzeSite, type PageSignals } from './browser/analyze.js';
 import { registerAuthCommands } from './commands/auth.js';
-import { daemonRestart, daemonStatus, daemonStop } from './commands/daemon.js';
+import { hostInstall, hostStatus } from './commands/host.js';
 import { log } from './logger.js';
 import { bindTab, BrowserCommandError, sendCommand } from './browser/daemon-client.js';
 import { fetchDaemonStatus } from './browser/daemon-transport.js';
@@ -3397,12 +3397,12 @@ cli({
       const config = loadProfileConfig();
       const profiles = status?.profiles ?? [];
       if (!status) {
-        console.log('Daemon is not running. Run opencli doctor after opening Chrome.');
+        console.log('Host is not running. Open Chrome with the OpenCLI extension enabled, then run opencli doctor.');
         return;
       }
       if (isDaemonStale(status, PKG_VERSION) || !Array.isArray(status.profiles)) {
-        console.log(`Daemon ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`);
-        console.log('Run: opencli daemon restart');
+        console.log(`Host ${formatDaemonVersion(status)} is stale for CLI v${PKG_VERSION}.`);
+        console.log('Reload the OpenCLI extension in chrome://extensions.');
         return;
       }
       if (profiles.length === 0) {
@@ -3467,22 +3467,17 @@ cli({
       }
     });
 
-  // ── Built-in: daemon ──────────────────────────────────────────────────────
-  const daemonCmd = program.command('daemon').description('Manage the opencli daemon');
-  // Snapshot before applyRootSubcommandSummaries() rewrites .description() to a child-name listing.
-  const originalDaemonDescription = daemonCmd.description();
-  daemonCmd
+  // ── Built-in: host ────────────────────────────────────────────────────────
+  const hostCmd = program.command('host').description('Manage the OpenCLI native host');
+  const originalHostDescription = hostCmd.description();
+  hostCmd
     .command('status')
-    .description('Show daemon status')
-    .action(async () => { await daemonStatus(); });
-  daemonCmd
-    .command('stop')
-    .description('Stop the daemon')
-    .action(async () => { await daemonStop(); });
-  daemonCmd
-    .command('restart')
-    .description('Restart the daemon')
-    .action(async () => { await daemonRestart(); });
+    .description('Show native host status')
+    .action(async () => { await hostStatus(); });
+  hostCmd
+    .command('install')
+    .description('Install the Chrome Native Messaging host manifest')
+    .action(async () => { await hostInstall(); });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
 
@@ -3610,7 +3605,7 @@ cli({
   const adapterNameSet = new Set<string>([...externalNames, ...siteNames]);
   installCommanderNamespaceStructuredHelp(browser, { globalCommand: program, description: originalBrowserDescription });
   installCommanderNamespaceStructuredHelp(authCmd, { globalCommand: program, description: 'Inspect website login status' });
-  installCommanderNamespaceStructuredHelp(daemonCmd, { globalCommand: program, description: originalDaemonDescription });
+  installCommanderNamespaceStructuredHelp(hostCmd, { globalCommand: program, description: originalHostDescription });
   installCommanderNamespaceStructuredHelp(pluginCmd, { globalCommand: program, description: originalPluginDescription });
   installCommanderNamespaceStructuredHelp(adapterCmd, { globalCommand: program, description: originalAdapterDescription });
   installCommanderNamespaceStructuredHelp(profileCmd, { globalCommand: program, description: originalProfileDescription });

@@ -16,7 +16,7 @@ function status(extensionConnected: boolean): DaemonStatus {
     extensionConnected,
     pending: 0,
     memoryMB: 0,
-    port: 19825,
+    sock: '/tmp/opencli-host.sock',
   };
 }
 

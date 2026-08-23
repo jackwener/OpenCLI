@@ -27,20 +27,15 @@ OPENCLI_CDP_TARGET=detail.1688.com opencli 1688 item 841141931191 -f json
 
 - Make sure you are using **Node.js >= 20**. Run `node --version` to verify.
 
-### Daemon issues
+### Native host issues
 
 ```bash
-# View extension logs
-curl localhost:19825/logs
-
-# Stop the daemon
-opencli daemon stop
-
-# Full diagnostics
-opencli doctor
+opencli host install      # write the Chrome Native Messaging manifest
+opencli host status       # pid, socket, connected profiles
+opencli doctor            # full diagnostics
 ```
 
-> The daemon is persistent and stays alive until explicitly stopped (`opencli daemon stop`) or the package is uninstalled.
+> Chrome owns the host process. Closing Chrome stops the host. Reload the OpenCLI extension to spawn it again. There is no `opencli daemon`.
 
 > When the CLI detects a stale daemon (version mismatch after `npm install -g @jackwener/opencli@latest`), it first asks the daemon to shut down via `/shutdown`, then falls back to `SIGKILL` if the daemon does not release the port within 3 seconds. Manual `opencli daemon stop` is only needed if SIGKILL itself is rejected (cross-user owner / cross-machine PID file).
 

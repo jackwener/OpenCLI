@@ -163,7 +163,7 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 | `OPENCLI_VERBOSE` | `false` | 启用详细日志（`-v` 也可以） |
 | `DEBUG_SNAPSHOT` | — | 设为 `1` 输出 DOM 快照调试信息 |
 
-Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不再支持通过 `OPENCLI_DAEMON_PORT` 配置自定义端口。
+Browser Bridge 通过 Chrome Native Messaging 工作：Chrome 拉起 `opencli-host`，CLI 只连接 `~/.opencli/run/` 下的 unix socket。不再使用 `localhost:19825`。
 
 `opencli browser *` 必须紧跟一个 `<session>` 位置参数，默认使用前台窗口，并保留该 session 的 tab lease，直到你手动执行 `opencli browser <session> close` 或等空闲超时。浏览器型 adapter 默认使用后台 adapter 窗口并在命令结束后释放一次性 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
 
@@ -329,9 +329,10 @@ opencli plugin uninstall my-tool                            # 卸载
   - Chrome/Chromium 里的登录态可能已经过期。请打开当前页面，在新标签页重新手工登录或刷新该页面。
 - **Node API 错误 / 缺少 `fetch` / 旧 Node 启动即崩**
   - OpenCLI 要求 **Node.js >= 20**。先执行 `node --version`，如果版本过低先升级，再重试命令。
-- **Daemon 问题**
-  - 检查 daemon 状态：`curl localhost:19825/status`
-  - 查看扩展日志：`curl localhost:19825/logs`
+- **Host 问题**
+  - `opencli host status`
+  - `opencli host install`
+  - `opencli doctor`
 
 
 ## Star History

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+* **browser bridge** — drop the TCP daemon on `:19825`. Chrome parents `opencli-host` via Native Messaging; the CLI only connects to a unix socket under `~/.opencli/run/`. `opencli daemon` is replaced by `opencli host status` and `opencli host install`. There is no HTTP, WebSocket, CORS, or `OPENCLI_DAEMON_PORT`. Reload the OpenCLI extension after upgrade so Chrome spawns the host.
+
 ## [1.8.4](https://github.com/jackwener/opencli/compare/v1.8.3...v1.8.4) (2026-06-15)
 
 Patch release surfacing the bundled skills directory, expanding the auth subsystem across 50+ adapters, refactoring the extension's tab-group model, and adding ten or so new adapter capabilities.

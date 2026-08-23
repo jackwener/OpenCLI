@@ -117,11 +117,4 @@ export function buildCommandDispatchFailure(contextId: string): DaemonFailureCon
   };
 }
 
-export function getResponseCorsHeaders(pathname: string, origin?: string): Record<string, string> | undefined {
-  if (pathname !== '/ping') return undefined;
-  if (!origin || !origin.startsWith('chrome-extension://')) return undefined;
-  return {
-    'Access-Control-Allow-Origin': origin,
-    Vary: 'Origin',
-  };
-}
+

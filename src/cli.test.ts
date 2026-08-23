@@ -10,6 +10,7 @@ import type { IPage } from './types.js';
 import { TargetError } from './browser/target-errors.js';
 import { PKG_VERSION } from './version.js';
 import { classifyAdapter } from './help.js';
+import * as daemonTransport from './browser/daemon-transport.js';
 
 const {
   mockBrowserConnect,
@@ -72,7 +73,7 @@ describe('createProgram root help descriptions', () => {
     expect(descriptionFor(program, 'plugin')).toBe('create, install, list, uninstall, update');
     expect(descriptionFor(program, 'adapter')).toBe('eject, reset, status');
     expect(descriptionFor(program, 'profile')).toBe('list, rename, use');
-    expect(descriptionFor(program, 'daemon')).toBe('restart, status, stop');
+    expect(descriptionFor(program, 'host')).toBe('install, status');
     expect(descriptionFor(program, 'external')).toBe('install, list, register');
   });
 
@@ -652,26 +653,26 @@ describe('createProgram root help descriptions', () => {
     }
   });
 
-  it('renders daemon namespace structured help with leaves and global options', () => {
+  it('renders host namespace structured help with leaves and global options', () => {
     const argv = process.argv;
     try {
       const program = createProgram('', '');
-      const daemon = program.commands.find(cmd => cmd.name() === 'daemon')!;
-      expect(daemon).toBeTruthy();
+      const host = program.commands.find(cmd => cmd.name() === 'host')!;
+      expect(host).toBeTruthy();
 
-      process.argv = ['node', 'opencli', 'daemon', '--help', '-f', 'yaml'];
-      const data = yaml.load(daemon.helpInformation()) as any;
+      process.argv = ['node', 'opencli', 'host', '--help', '-f', 'yaml'];
+      const data = yaml.load(host.helpInformation()) as any;
 
       expect(data).toMatchObject({
-        namespace: 'daemon',
-        command: 'opencli daemon',
-        usage: 'opencli daemon <command> [args] [options]',
-        description: 'Manage the opencli daemon',
-        command_count: 3,
+        namespace: 'host',
+        command: 'opencli host',
+        usage: 'opencli host <command> [args] [options]',
+        description: 'Manage the OpenCLI native host',
+        command_count: 2,
         namespace_options: [],
-        structured_help: { usage: 'opencli daemon --help -f yaml' },
+        structured_help: { usage: 'opencli host --help -f yaml' },
       });
-      expect(data.commands.map((cmd: any) => cmd.name)).toEqual(['restart', 'status', 'stop']);
+      expect(data.commands.map((cmd: any) => cmd.name).sort()).toEqual(['install', 'status']);
       expect(data.global_options.map((option: any) => option.name)).toEqual(expect.arrayContaining(['version', 'profile']));
     } finally {
       process.argv = argv;
@@ -1103,56 +1104,49 @@ describe('profile list', () => {
   beforeEach(() => {
     process.exitCode = undefined;
     stdoutSpy.mockClear();
-    vi.stubGlobal('fetch', vi.fn());
   });
 
-  it('reports stale daemon instead of no profiles when status lacks profile support', async () => {
-    vi.mocked(fetch).mockResolvedValue({
+  it('reports stale host instead of no profiles when status lacks profile support', async () => {
+    vi.spyOn(daemonTransport, 'fetchDaemonStatus').mockResolvedValue({
       ok: true,
-      json: async () => ({
-        ok: true,
-        pid: 123,
-        uptime: 1,
-        daemonVersion: '1.7.6',
-        extensionConnected: true,
-        extensionVersion: '1.0.3',
-        pending: 0,
-        memoryMB: 20,
-        port: 19825,
-      }),
-    } as Response);
+      pid: 123,
+      uptime: 1,
+      daemonVersion: '1.7.6',
+      hostVersion: '1.7.6',
+      extensionConnected: true,
+      extensionVersion: '1.0.3',
+      pending: 0,
+      memoryMB: 20,
+    });
     const program = createProgram('', '');
 
     await program.parseAsync(['node', 'opencli', 'profile', 'list']);
 
     const output = stdoutSpy.mock.calls.flat().join('\n');
     expect(output).toContain('stale');
-    expect(output).toContain('opencli daemon restart');
+    expect(output).toContain('Reload the OpenCLI extension');
     expect(output).not.toContain('No Browser Bridge profiles connected');
   });
 
-  it('keeps the empty profile message for current daemon status with no profiles', async () => {
-    vi.mocked(fetch).mockResolvedValue({
+  it('keeps the empty profile message for current host status with no profiles', async () => {
+    vi.spyOn(daemonTransport, 'fetchDaemonStatus').mockResolvedValue({
       ok: true,
-      json: async () => ({
-        ok: true,
-        pid: 123,
-        uptime: 1,
-        daemonVersion: PKG_VERSION,
-        extensionConnected: false,
-        profiles: [],
-        pending: 0,
-        memoryMB: 20,
-        port: 19825,
-      }),
-    } as Response);
+      pid: 123,
+      uptime: 1,
+      daemonVersion: PKG_VERSION,
+      hostVersion: PKG_VERSION,
+      extensionConnected: false,
+      profiles: [],
+      pending: 0,
+      memoryMB: 20,
+    });
     const program = createProgram('', '');
 
     await program.parseAsync(['node', 'opencli', 'profile', 'list']);
 
     const output = stdoutSpy.mock.calls.flat().join('\n');
     expect(output).toContain('No Browser Bridge profiles connected');
-    expect(output).not.toContain('opencli daemon restart');
+    expect(output).not.toContain('Reload the OpenCLI extension');
   });
 });
 

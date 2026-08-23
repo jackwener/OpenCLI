@@ -28,27 +28,25 @@ const leaseKey = (surface: 'browser' | 'adapter', session: string): string =>
 const browserKey = (session: string): string => leaseKey('browser', session);
 const adapterKey = (session: string): string => leaseKey('adapter', session);
 
-class MockWebSocket {
-  static OPEN = 1;
-  static CONNECTING = 0;
-  static CLOSED = 3;
-  static instances: MockWebSocket[] = [];
-  readyState = MockWebSocket.CONNECTING;
-  sent: string[] = [];
-  onopen: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-
-  constructor(_url: string) {
-    MockWebSocket.instances.push(this);
+class MockNativePort {
+  static instances: MockNativePort[] = [];
+  sent: unknown[] = [];
+  _onMessage: ((msg: unknown) => void) | null = null;
+  _onDisconnect: (() => void) | null = null;
+  onMessage = {
+    addListener: (fn: (msg: unknown) => void) => { this._onMessage = fn; },
+  };
+  onDisconnect = {
+    addListener: (fn: () => void) => { this._onDisconnect = fn; },
+  };
+  constructor() {
+    MockNativePort.instances.push(this);
   }
-  send(data: string): void {
-    this.sent.push(data);
+  postMessage(msg: unknown): void {
+    this.sent.push(msg);
   }
-  close(): void {
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.();
+  disconnect(): void {
+    this._onDisconnect?.();
   }
 }
 
@@ -231,6 +229,7 @@ function createChromeMock() {
       onStartup: { addListener: vi.fn() } as Listener<() => void>,
       onMessage: { addListener: vi.fn() } as Listener<(msg: unknown, sender: unknown, sendResponse: (value: unknown) => void) => void>,
       getManifest: vi.fn(() => ({ version: 'test-version' })),
+      connectNative: vi.fn(() => new MockNativePort()),
     },
     cookies: {
       getAll: vi.fn(async () => []),
@@ -252,19 +251,14 @@ describe('background tab isolation', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useRealTimers();
-    MockWebSocket.instances = [];
-    vi.stubGlobal('WebSocket', MockWebSocket);
-    // Most tests exercise tab/session behavior, not daemon reconnect cadence.
-    // Keep the startup ping pending unless a test explicitly controls it.
-    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    MockNativePort.instances = [];
   });
 
   afterEach(async () => {
     vi.useRealTimers();
     // Let each module's fire-and-forget startup recovery + connect() settle
-    // under THIS test's fetch stub. Otherwise a slow recovery can spill its
-    // connect into the next test and open a stray socket against that test's
-    // stub, corrupting the shared MockWebSocket.instances count.
+    // under THIS test's chrome mock. Otherwise a slow recovery can spill its
+    // connectNative into the next test.
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
     vi.clearAllTimers();
@@ -767,71 +761,24 @@ describe('background tab isolation', () => {
     });
   });
 
-  it('keeps the active daemon connection when a superseded WebSocket closes later', async () => {
+  it('connectNative is the only transport and keepalive does not spawn a second host while connected', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
 
     await import('./background');
     await vi.waitFor(() => {
-      expect(MockWebSocket.instances).toHaveLength(1);
+      expect(chrome.runtime.connectNative).toHaveBeenCalledWith('com.opencli.host');
+      expect(MockNativePort.instances.length).toBeGreaterThanOrEqual(1);
     });
-    const firstWs = MockWebSocket.instances[0];
-    firstWs.readyState = 3;
-
+    const before = chrome.runtime.connectNative.mock.calls.length;
     const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
     await onAlarmListener({ name: 'keepalive' });
-    await vi.waitFor(() => {
-      expect(MockWebSocket.instances).toHaveLength(2);
-    });
-    const secondWs = MockWebSocket.instances[1];
-    secondWs.readyState = MockWebSocket.OPEN;
-
-    firstWs.onclose?.();
-    secondWs.onmessage?.({
-      data: JSON.stringify({
-        id: 'sessions-after-stale-close',
-        action: 'tabs',
-        op: 'list',
-        session: 'work',
-        surface: 'browser',
-      }),
-    });
-
-    await vi.waitFor(() => {
-      expect(secondWs.sent.some((entry) => entry.includes('sessions-after-stale-close'))).toBe(true);
-    });
-  });
-
-  it('coalesces concurrent daemon connection attempts while the probe is in flight', async () => {
-    const { chrome } = createChromeMock();
-    vi.stubGlobal('chrome', chrome);
-    const ping = deferred<{ ok: boolean }>();
-    const fetchMock = vi.fn(() => ping.promise);
-    vi.stubGlobal('fetch', fetchMock);
-
-    await import('./background');
-    await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
-    await onAlarmListener({ name: 'keepalive' });
-    await onAlarmListener({ name: 'keepalive' });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(MockWebSocket.instances).toHaveLength(0);
-
-    ping.resolve({ ok: true });
-    await vi.waitFor(() => {
-      expect(MockWebSocket.instances).toHaveLength(1);
-    });
+    expect(chrome.runtime.connectNative.mock.calls.length).toBe(before);
   });
 
   it('uses the production-safe 30s keepalive alarm period', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
 
     await import('./background');
 
@@ -841,7 +788,6 @@ describe('background tab isolation', () => {
   it('reconnect delay backs off exponentially with a 15s cap and resets on success', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
 
     const mod = await import('./background');
     mod.__test__.resetReconnectState();
@@ -862,76 +808,24 @@ describe('background tab isolation', () => {
     expect(capped).toBeLessThan(15_500);
   });
 
-  it('a successful daemon ping resets the backoff before the WebSocket attempt', async () => {
+  it('does not deliver results on a port after disconnect', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
-
-    const mod = await import('./background');
-    mod.__test__.resetReconnectState();
-    mod.__test__.setReconnectAttempts(5);
-
-    await mod.__test__.connectForTest();
-
-    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(1);
-    expect(mod.__test__.getReconnectAttempts()).toBe(0);
-  });
-
-  it('pings without credentials and logs a non-OK status instead of swallowing it', async () => {
-    const { chrome } = createChromeMock();
-    vi.stubGlobal('chrome', chrome);
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const fetchMock = vi.fn(async () => ({ ok: false, status: 431 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await import('./background');
-
-    await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled();
-    });
-
-    // The ping must not attach the localhost cookie jar — that is what pushes
-    // the request past Node's header limit and makes the daemon answer 431.
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: 'omit' });
-    // A non-OK ping must be logged, not silently swallowed.
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('HTTP 431'));
-    // The WebSocket must not be attempted after a failed ping.
-    expect(MockWebSocket.instances).toHaveLength(0);
-
-    warnSpy.mockRestore();
-  });
-
-  it('ignores daemon commands delivered to a superseded WebSocket', async () => {
-    const { chrome } = createChromeMock();
-    vi.stubGlobal('chrome', chrome);
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
 
     await import('./background');
     await vi.waitFor(() => {
-      expect(MockWebSocket.instances).toHaveLength(1);
+      expect(MockNativePort.instances[0]?._onMessage).toEqual(expect.any(Function));
     });
-    const firstWs = MockWebSocket.instances[0];
-    firstWs.readyState = MockWebSocket.OPEN;
-
-    const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
-    firstWs.readyState = MockWebSocket.CLOSED;
-    await onAlarmListener({ name: 'keepalive' });
-    await vi.waitFor(() => {
-      expect(MockWebSocket.instances).toHaveLength(2);
+    const first = MockNativePort.instances[0];
+    first._onDisconnect?.();
+    first._onMessage?.({
+      id: 'stale-command',
+      action: 'tabs',
+      op: 'list',
+      session: 'work',
+      surface: 'browser',
     });
-    firstWs.readyState = MockWebSocket.OPEN;
-
-    await firstWs.onmessage?.({
-      data: JSON.stringify({
-        id: 'stale-command',
-        action: 'tabs',
-        op: 'list',
-        session: 'work',
-        surface: 'browser',
-      }),
-    });
-
-    expect(firstWs.sent.some((entry) => entry.includes('stale-command'))).toBe(false);
+    expect(first.sent.some((msg) => (msg as { id?: string }).id === 'stale-command')).toBe(false);
   });
 
   it('can execute concurrently on two pages in the same session', async () => {

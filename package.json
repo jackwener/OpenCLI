@@ -11,7 +11,8 @@
   "type": "module",
   "main": "dist/src/main.js",
   "bin": {
-    "opencli": "dist/src/main.js"
+    "opencli": "dist/src/main.js",
+    "opencli-host": "dist/src/host-bin.js"
   },
   "exports": {
     ".": "./dist/src/main.js",
@@ -43,13 +44,13 @@
     "dev": "tsx src/main.ts",
     "dev:bun": "bun src/main.ts",
     "build": "npm run clean-dist && npm run copy-yaml && npm run build-manifest",
-    "prebuild-manifest": "tsc --build && node -e \"require('fs').chmodSync('dist/src/main.js', 0o755)\"",
+    "prebuild-manifest": "tsc --build && node -e \"const fs=require('fs'); fs.chmodSync('dist/src/main.js', 0o755); try { fs.chmodSync('dist/src/host-bin.js', 0o755); } catch {}\"",
     "build-manifest": "tsx src/build-manifest.ts",
     "clean-dist": "node scripts/clean-dist.cjs",
     "copy-yaml": "node scripts/copy-yaml.cjs",
     "start": "node dist/src/main.js",
     "start:bun": "bun dist/src/main.js",
-    "preuninstall": "node -e \"fetch('http://127.0.0.1:19825/shutdown',{method:'POST',headers:{'X-OpenCLI':'1'},signal:AbortSignal.timeout(3000)}).catch(()=>{})\" || true",
+    "preuninstall": "node -e \"console.log('Reload the OpenCLI Chrome extension after uninstall so Chrome drops the native host.')\" || true",
     "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
     "prepare": "node scripts/prepare.cjs",

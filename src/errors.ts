@@ -79,7 +79,7 @@ export function getTraceReceipt(err: unknown): ObservationTraceReceipt | undefin
 
 // ── Typed subclasses ─────────────────────────────────────────────────────────
 
-export type BrowserConnectKind = 'daemon-not-running' | 'extension-not-connected' | 'profile-required' | 'profile-disconnected' | 'command-failed' | 'unknown';
+export type BrowserConnectKind = 'daemon-not-running' | 'host-not-running' | 'extension-not-connected' | 'profile-required' | 'profile-disconnected' | 'command-failed' | 'unknown';
 
 export class BrowserConnectError extends CliError {
   readonly kind: BrowserConnectKind;

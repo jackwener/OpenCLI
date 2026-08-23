@@ -4,7 +4,7 @@ OpenCLI is a command surface that sits on top of four major subsystems:
 
 1. command discovery and registry
 2. execution and formatting
-3. browser / daemon / CDP connectivity
+3. browser / native host / CDP connectivity
 4. adapter, plugin, and external CLI integration
 
 ## Runtime Shape
@@ -15,7 +15,7 @@ opencli CLI
   ├─ execution / output
   ├─ browser runtime
   │   ├─ Browser Bridge extension
-  │   ├─ local daemon
+  │   ├─ native host (Chrome-owned)
   │   └─ direct CDP path
   ├─ adapter loading
   │   ├─ built-in site adapters
@@ -46,7 +46,7 @@ opencli CLI
 ### Browser and Runtime
 
 - `src/runtime.ts` — shared command runtime and target resolution
-- `src/daemon.ts` — lifecycle and bridge behavior for the local daemon
+- `src/host.ts` — Native Messaging mux (unix socket ↔ extension stdio)
 - `src/doctor.ts` — browser bridge diagnostics
 - `src/observation/` — trace artifacts, redaction, and structured runtime evidence
 - `src/interceptor.ts` — interception helpers for browser-backed strategies
@@ -93,7 +93,8 @@ Primary path for browser-backed commands:
 
 ```text
 opencli process
-  ↔ local daemon
+  ↔ unix socket (~/.opencli/run/host-<profile>.sock)
+  ↔ native host (Chrome-owned)
   ↔ Browser Bridge extension
   ↔ logged-in Chrome / Chromium
 ```
@@ -139,7 +140,7 @@ Changes in these files usually affect broad command behavior:
 - `src/discovery.ts`
 - `src/execution.ts`
 - `src/runtime.ts`
-- `src/daemon.ts`
+- `src/host.ts`
 - `src/plugin.ts`
 - `src/external.ts`
 - `src/pipeline/**`

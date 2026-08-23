@@ -44,7 +44,7 @@ Binding never owns the user window and never closes the user tab. It fails close
 
 Navigation is allowed on bound sessions because the session now represents explicit agent ownership of that tab. Tab mutation (`tab new`, `tab select`, `tab close`) is still blocked for bound sessions. Use an owned session when you want OpenCLI to manage tab lifecycle.
 
-Bound sessions have no OpenCLI idle-close timer; the binding lasts until `unbind`, tab close, window close, or daemon restart.
+Bound sessions have no OpenCLI idle-close timer; the binding lasts until `unbind`, tab close, window close, or Chrome exit.
 
 ---
 

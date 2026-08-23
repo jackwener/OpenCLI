@@ -1,10 +1,10 @@
 # Privacy Policy — OpenCLI Browser Extension
 
-**Last updated**: 2026-03-25
+**Last updated**: 2026-08-24
 
 ## What the extension does
 
-The OpenCLI Browser Extension is a bridge between the [OpenCLI](https://github.com/jackwener/opencli) command-line tool and your Chrome browser. It receives commands from a **locally running daemon** process via WebSocket (`localhost` only) and executes them in **isolated Chrome windows** that are separate from your normal browsing session.
+The OpenCLI Browser Extension is a bridge between the [OpenCLI](https://github.com/jackwener/opencli) command-line tool and your Chrome browser. Chrome parents a **local native host** via Native Messaging. The host muxes CLI commands from a unix socket onto that port. The extension executes them with `chrome.debugger`.
 
 ## Data collection
 
@@ -12,46 +12,29 @@ The extension does **NOT** collect, store, transmit, or sell any personal data. 
 
 - **No analytics or telemetry** — no data is sent to any remote server.
 - **No user tracking** — no cookies, identifiers, or fingerprints are created.
-- **No external network requests** — all communication is strictly `localhost` (WebSocket to `ws://localhost:19825`).
+- **No external network requests for control** — the control plane is Native Messaging stdio plus a per-user unix socket under `~/.opencli/run/`.
 
 ## Permissions explained
 
 | Permission | Why it's needed |
 |------------|----------------|
-| `debugger` | Required to use Chrome DevTools Protocol (CDP) for browser automation — executing JavaScript, capturing page content, and taking screenshots in isolated windows. |
-| `tabs` | Required to create and manage isolated automation windows and tabs, separate from the user's browsing session. |
+| `debugger` | Required to use Chrome DevTools Protocol (CDP) for browser automation — executing JavaScript, capturing page content, and taking screenshots. |
+| `tabs` | Required to create and manage automation windows and tabs. |
 | `cookies` | Required to read site-specific cookies (scoped by domain) so CLI commands can authenticate with websites the user is already logged into. Cookies are **never written, modified, or transmitted externally**. |
 | `activeTab` | Required to identify the currently active tab for context-aware commands. |
-| `alarms` | Required to maintain the WebSocket connection to the local daemon via periodic keepalive checks. |
+| `alarms` | Required to reconnect Native Messaging if Chrome closes the port, and for session idle timers. |
+| `nativeMessaging` | Required so Chrome can spawn and keep the OpenCLI native host. The CLI never listens on a TCP port. |
 
 ## Data flow
 
 ```
 User's terminal (opencli CLI)
-    ↓ (spawns)
-Local daemon process (localhost:19825)
-    ↓ (WebSocket, localhost only)
+    ↓ unix socket  ~/.opencli/run/host-<profile>.sock
+Local native host (spawned by Chrome)
+    ↓ Native Messaging stdio
 Chrome Extension (this extension)
-    ↓ (Chrome APIs)
-Isolated Chrome automation window
+    ↓ chrome.debugger
+Chrome tab
 ```
 
-All data stays on the user's machine. No data leaves `localhost`.
-
-## Cookie access
-
-The extension reads cookies **only** when explicitly requested by a CLI command, and **only** for the specific domain the command targets. It cannot and does not dump all cookies. Cookie data is returned to the local daemon process and is never sent to any external server.
-
-## Third-party services
-
-This extension does not integrate with, send data to, or receive data from any third-party service.
-
-## Open source
-
-This extension is fully open source. You can audit the complete source code at:
-https://github.com/jackwener/opencli/tree/main/extension
-
-## Contact
-
-For privacy questions or concerns, please open an issue at:
-https://github.com/jackwener/opencli/issues
+All control-plane data stays on the user's machine. No data leaves the local host.

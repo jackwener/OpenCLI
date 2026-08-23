@@ -2,7 +2,7 @@
 
 > **⚠️ 重要**: 浏览器命令复用你的 Chrome 登录会话。运行命令前必须在 Chrome 中登录目标网站。
 
-OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展 + 微守护进程连接浏览器（零配置，自动启动）。
+OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展连接浏览器。Chrome 用 Native Messaging 拉起 native host；CLI 永不 listen TCP。
 
 ## 扩展安装
 
@@ -20,7 +20,8 @@ OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展 + 微守护进程连接
 ## 验证
 
 ```bash
-opencli doctor            # 检查扩展 + 守护进程连接
+opencli host install      # 写入 Native Messaging manifest
+opencli doctor            # 检查扩展 + native host 连接
 ```
 
 ## 多 Tab 定位
@@ -62,16 +63,17 @@ OpenCLI 拥有的 browser session 使用交互式 tab lease，默认空闲超时
 opencli browser my-session close
 ```
 
-如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 daemon 重启。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
+如果要把 OpenCLI 绑定到你已经手动打开的 Chrome tab，请使用 `opencli browser <session> bind`。绑定 session 没有 owned session 的 idle close 计时器，会一直保持到 `unbind`、tab 关闭、窗口关闭或 Chrome 退出。对于 OpenCLI 自己创建的 owned session，使用 `--window foreground` 可以在可见自动化窗口里观察 OpenCLI 操作；使用 `--window background` 可以让这个自动化窗口留在后台。
 
 `OpenCLI Browser` 和 `OpenCLI Adapter` tab group 是扩展管理的自动化容器；请不要把自己的长期 tab 放进去，也不要重命名。
 
-## Daemon 生命周期
+## Native host
 
-Daemon 在首次运行浏览器命令时自动启动，之后保持常驻运行。
+Chrome 打开且扩展启用时，会通过 `connectNative` 拉起 `opencli-host`。CLI 不 spawn host。
 
 ```bash
-opencli daemon stop      # 优雅关停
+opencli host install      # 写入 Native Messaging manifest
+opencli host status
 ```
 
-Daemon 为常驻模式，会一直运行直到你显式停止（`opencli daemon stop`）或卸载包。
+关掉 Chrome 后 host 一起退出。没有 `opencli daemon`。

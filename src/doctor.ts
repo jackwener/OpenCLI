@@ -1,10 +1,10 @@
 /**
  * opencli doctor — diagnose browser connectivity.
  *
- * Simplified for the daemon-based architecture.
+ * Diagnoses Chrome + native host + extension connectivity.
  */
 
-import { DEFAULT_DAEMON_PORT } from './constants.js';
+import { nativeHostManifestInstalled, installNativeHostManifest } from './native-manifest.js';
 import { sendCommand, setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
 import { getDaemonHealth } from './browser/daemon-transport.js';
 import { getErrorMessage } from './errors.js';
@@ -71,6 +71,7 @@ export type DoctorReport = {
   connectivity?: ConnectivityResult;
   profiles?: BrowserProfileStatus[];
   adapterShadows?: AdapterShadow[];
+  nativeManifestInstalled?: boolean;
   issues: string[];
 };
 
@@ -82,7 +83,7 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
   const start = Date.now();
   const timeoutSeconds = opts?.timeout ?? DOCTOR_LIVE_TIMEOUT_SECONDS;
   // This is a health probe: shrink the transport's per-command deadline so a
-  // hung daemon/extension fails the check in seconds, not the default 120s.
+  // hung host/extension fails the check in seconds, not the default 120s.
   setDaemonCommandTimeoutSeconds(timeoutSeconds);
   try {
     await sendCommand('cookies', {
@@ -99,8 +100,9 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Live connectivity is the core of doctor. The command transport doubles as
-  // daemon auto-start and validates end-to-end Browser Bridge health.
+  try { installNativeHostManifest(); } catch { /* best-effort */ }
+  // Live connectivity is the core of doctor. The command transport waits for
+  // Chrome to spawn the native host and validates end-to-end Browser Bridge health.
   const connectivity = await checkConnectivity();
 
   // Single status read *after* connectivity side-effects settle. Threads the
@@ -119,24 +121,24 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const issues: string[] = [];
   if (daemonFlaky) {
     issues.push(
-      'Daemon connectivity is unstable. The live browser test succeeded, but the daemon was no longer running immediately afterward.\n' +
-      'This usually means the daemon crashed or exited right after serving the live probe.',
+      'Host connectivity is unstable. The live browser test succeeded, but the native host was no longer running immediately afterward.\n' +
+      'This usually means Chrome closed the native port (reload the OpenCLI extension).',
     );
   } else if (!daemonRunning) {
-    issues.push('Daemon is not running. It should start automatically when you run an opencli browser command.');
+    issues.push('Native host is not running. Open Chrome with the OpenCLI extension enabled so Chrome can spawn it.');
   }
   if (daemonStale && opts.cliVersion) {
     issues.push(staleDaemonIssue(health.status, opts.cliVersion));
   }
   if (extensionFlaky) {
     issues.push(
-      'Extension connection is unstable. The live browser test succeeded, but the daemon reported the extension disconnected immediately afterward.\n' +
-      'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
+      'Extension connection is unstable. The live browser test succeeded, but the host reported the extension disconnected immediately afterward.\n' +
+      'Reload the OpenCLI extension so connectNative runs again.',
     );
   } else if (daemonRunning && !extensionConnected) {
     if (health.state === 'profile-required') {
       issues.push(
-        'Multiple Chrome profiles are connected to the daemon, but no default profile was selected.\n' +
+        'Multiple Chrome profiles are connected, but no default profile was selected.\n' +
         '  Run opencli profile list, then opencli profile use <name>, or pass --profile <name>.',
       );
     } else if (health.state === 'profile-disconnected') {
@@ -146,12 +148,13 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       );
     } else {
       issues.push(
-        'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
-        'If the extension is already installed, try: opencli daemon restart\n' +
+        'Native host is running but the Chrome/Chromium extension is not connected.\n' +
+        'If the extension is already installed, reload it in chrome://extensions.\n' +
         'If the extension is not installed:\n' +
         '  1. Download from https://github.com/jackwener/opencli/releases\n' +
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
-        '  3. Click "Load unpacked" → select the extension folder',
+        '  3. Click "Load unpacked" → select the extension folder\n' +
+        '  4. Run: opencli host install',
       );
     }
   }
@@ -229,6 +232,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     connectivity,
     profiles,
     adapterShadows,
+    nativeManifestInstalled: nativeHostManifestInstalled(),
     issues,
   };
 }
@@ -236,20 +240,21 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 export function renderBrowserDoctorReport(report: DoctorReport): string {
   const lines = [`opencli v${report.cliVersion ?? 'unknown'} doctor` + ` (${getRuntimeLabel()})`, ''];
 
-  // Daemon status
-  const daemonIcon = report.daemonFlaky
+  const hostIcon = report.daemonFlaky
     ? '[WARN]'
     : report.daemonStale
       ? '[WARN]'
       : report.daemonRunning ? '[OK]' : '[MISSING]';
-  const daemonLabel = report.daemonFlaky
+  const hostLabel = report.daemonFlaky
     ? 'unstable (running during live check, then stopped)'
     : report.daemonRunning
-      ? `running on port ${DEFAULT_DAEMON_PORT} (${report.daemonStale
+      ? `running (${report.daemonStale
         ? `${formatDaemonVersion(report)}, stale; CLI v${report.cliVersion ?? 'unknown'}`
         : formatDaemonVersion(report)})`
       : 'not running';
-  lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
+  lines.push(`${hostIcon} Host: ${hostLabel}`);
+  const manifestOk = report.nativeManifestInstalled !== false;
+  lines.push(`${manifestOk ? '[OK]' : '[MISSING]'} Native manifest: ${manifestOk ? 'installed' : 'missing — run opencli host install'}`);
 
   // Extension status
   const extIcon = report.extensionFlaky || (report.extensionConnected && !report.extensionVersion)

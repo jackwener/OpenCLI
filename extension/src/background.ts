@@ -1,19 +1,20 @@
 /**
  * OpenCLI — Service Worker (background script).
  *
- * Connects to the opencli daemon via WebSocket, receives commands,
- * dispatches them to Chrome APIs (debugger/tabs/cookies), returns results.
+ * Chrome parents the native host via connectNative(); the host muxes CLI
+ * unix-socket commands onto this port. chrome.debugger still drives the page.
  */
 
 declare const __OPENCLI_COMPAT_RANGE__: string;
 
 import type { Command, Result } from './protocol';
-import { DAEMON_HOST, DAEMON_PORT, DAEMON_WS_URL, DAEMON_PING_URL } from './protocol';
+import { NATIVE_HOST_NAME } from './protocol';
 import * as executor from './cdp';
 import * as identity from './identity';
 import { executeWithJournal } from './journal';
 
-let ws: WebSocket | null = null;
+let nativePort: chrome.runtime.Port | null = null;
+let hostVersion: string | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 const CONTEXT_ID_KEY = 'opencli_context_id_v1';
@@ -78,7 +79,7 @@ function generateContextId(): string {
 }
 
 // ─── Console log forwarding ──────────────────────────────────────────
-// Hook console.log/warn/error to forward logs to daemon via WebSocket.
+// Hook console.log/warn/error to forward logs to the native host.
 
 const _origLog = console.log.bind(console);
 const _origWarn = console.warn.bind(console);
@@ -87,14 +88,14 @@ const _origError = console.error.bind(console);
 function forwardLog(level: 'info' | 'warn' | 'error', args: unknown[]): void {
   try {
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-    safeSend(ws, { type: 'log', level, msg, ts: Date.now() });
+    safePost({ type: 'log', level, msg, ts: Date.now() });
   } catch { /* don't recurse */ }
 }
 
-function safeSend(socket: WebSocket | null | undefined, payload: unknown): boolean {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+function safePost(payload: unknown): boolean {
+  if (!nativePort) return false;
   try {
-    socket.send(JSON.stringify(payload));
+    nativePort.postMessage(payload);
     return true;
   } catch {
     return false;
@@ -105,28 +106,13 @@ console.log = (...args: unknown[]) => { _origLog(...args); forwardLog('info', ar
 console.warn = (...args: unknown[]) => { _origWarn(...args); forwardLog('warn', args); };
 console.error = (...args: unknown[]) => { _origError(...args); forwardLog('error', args); };
 
-// ─── WebSocket connection ────────────────────────────────────────────
+// ─── Native Messaging connection ─────────────────────────────────────
+// connectNative keeps this service worker alive (Chrome 105+). Chrome is the
+// parent of the host process: when this port closes, Chrome closes host stdin.
 
-function isDaemonSocketActive(socket: WebSocket | null | undefined = ws): boolean {
-  return socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING;
-}
-
-/**
- * Probe the daemon via its /ping HTTP endpoint before attempting a WebSocket
- * connection.  fetch() failures are silently catchable; new WebSocket() is not
- * — Chrome logs ERR_CONNECTION_REFUSED to the extension error page before any
- * JS handler can intercept it.  By keeping the probe inside connect() every
- * call site remains unchanged and the guard can never be accidentally skipped.
- */
 function connect(): Promise<void> {
-  if (isDaemonSocketActive()) return Promise.resolve();
+  if (nativePort) return Promise.resolve();
   if (connectInFlight) return connectInFlight;
-  // Gate on startup recovery so a keepalive/reconnect wake never opens the
-  // socket into an un-rehydrated worker (daemon commands would then run against
-  // empty lease state). Once recovered, skip straight to connectAttempt so the
-  // steady-state path adds no extra tick. connectInFlight is set synchronously
-  // either way, so concurrent callers still coalesce; workerReady excludes
-  // connect itself, so no deadlock.
   const attempt = workerRecovered ? connectAttempt() : workerReady.then(() => connectAttempt());
   connectInFlight = attempt.finally(() => {
     connectInFlight = null;
@@ -135,126 +121,79 @@ function connect(): Promise<void> {
 }
 
 async function connectAttempt(): Promise<void> {
-  if (isDaemonSocketActive()) return;
-
-  try {
-    // omit credentials so the browser doesn't attach the localhost cookie jar —
-    // a large jar can push the request past Node's default header limit and make
-    // the daemon answer 431, silently wedging the connect loop forever.
-    const res = await fetch(DAEMON_PING_URL, {
-      signal: AbortSignal.timeout(1000),
-      credentials: 'omit',
-    });
-    if (!res.ok) {
-      console.warn(`[opencli] daemon ping failed: HTTP ${res.status}`);
-      scheduleReconnect();
-      return; // unexpected response — not our daemon, but keep polling.
-    }
-    // Daemon is reachable — proceed straight to the WebSocket below.
-    reconnectAttempts = 0;
-  } catch {
-    // Daemon not running is the expected idle state — keep the probe silent to
-    // avoid per-poll service-worker noise (see connect() docstring). The 431
-    // wedge this fixes is surfaced in the !res.ok branch above.
-    scheduleReconnect();
-    return; // daemon not running — keep polling until the next daemon spawn.
-  }
-  if (isDaemonSocketActive()) return;
-
-  let thisWs: WebSocket;
+  if (nativePort) return;
+  let port: chrome.runtime.Port;
   try {
     const contextId = await getCurrentContextId();
-    if (isDaemonSocketActive()) return;
-    thisWs = new WebSocket(DAEMON_WS_URL);
-    ws = thisWs;
+    if (nativePort) return;
+    port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
+    nativePort = port;
     currentContextId = contextId;
   } catch {
     scheduleReconnect();
     return;
   }
 
-  thisWs.onopen = () => {
-    if (ws !== thisWs) return;
-    console.log('[opencli] Connected to daemon');
-    reconnectAttempts = 0; // Reset on successful connection
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    // Send version + compatibility range so the daemon can report mismatches to the CLI
-    safeSend(thisWs, {
+  port.onMessage.addListener((msg: unknown) => {
+    if (nativePort !== port) return;
+    void handleNativeMessage(port, msg);
+  });
+  port.onDisconnect.addListener(() => {
+    if (nativePort !== port) return;
+    nativePort = null;
+    hostVersion = null;
+    connectInFlight = null;
+    console.log('[opencli] Native host disconnected');
+    // Official MV3 contract: reconnect immediately so the SW stays alive.
+    // Call connectAttempt directly so we don't coalesce with the just-finished
+    // in-flight connect() that created this dead port.
+    void connectAttempt();
+  });
+
+  try {
+    port.postMessage({
       type: 'hello',
       contextId: currentContextId,
       version: chrome.runtime.getManifest().version,
       compatRange: __OPENCLI_COMPAT_RANGE__,
     });
-    // Application-level keepalive. Chrome (116+) extends the service worker's
-    // lifetime on WebSocket ACTIVITY — an idle OPEN socket does not count, so
-    // without this the worker lives on a knife-edge between the 30s idle kill
-    // and the 30s keepalive alarm. The daemon ignores `ping` messages.
-    startWsKeepalive(thisWs);
-  };
-
-  thisWs.onmessage = async (event) => {
-    if (ws !== thisWs) return;
-    try {
-      const command = JSON.parse(event.data as string) as Command;
-      const result = await executeWithJournal(command, handleCommand);
-      // The socket may have been replaced while a long command ran. Deliver
-      // the result on the freshest open socket — the daemon correlates by id,
-      // and the journal replays it if this delivery is lost too.
-      const target = ws && ws.readyState === WebSocket.OPEN ? ws : thisWs;
-      safeSend(target, result);
-    } catch (err) {
-      console.error('[opencli] Message handling error:', err);
+    reconnectAttempts = 0;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
     }
-  };
-
-  thisWs.onclose = () => {
-    stopWsKeepalive(thisWs);
-    if (ws !== thisWs) return;
-    console.log('[opencli] Disconnected from daemon');
-    ws = null;
+    console.log('[opencli] Connected to native host');
+  } catch {
+    nativePort = null;
     scheduleReconnect();
-  };
-
-  thisWs.onerror = () => {
-    thisWs.close();
-  };
+  }
 }
 
-// ─── WebSocket keepalive ─────────────────────────────────────────────
-
-const WS_KEEPALIVE_INTERVAL_MS = 20_000;
-let wsKeepaliveTimer: ReturnType<typeof setInterval> | null = null;
-let wsKeepaliveSocket: WebSocket | null = null;
-
-function startWsKeepalive(socket: WebSocket): void {
-  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
-  wsKeepaliveSocket = socket;
-  wsKeepaliveTimer = setInterval(() => {
-    if (socket !== ws || socket.readyState !== WebSocket.OPEN) {
-      stopWsKeepalive(socket);
-      return;
+async function handleNativeMessage(port: chrome.runtime.Port, msg: unknown): Promise<void> {
+  if (!msg || typeof msg !== 'object') return;
+  const rec = msg as Record<string, unknown>;
+  if (rec.type === 'hello-ok') {
+    hostVersion = typeof rec.hostVersion === 'string' ? rec.hostVersion : null;
+    return;
+  }
+  if (rec.type === 'ping' || rec.type === 'log') return;
+  try {
+    const command = rec as unknown as Command;
+    if (typeof command.action !== 'string' || typeof command.id !== 'string') return;
+    const result = await executeWithJournal(command, handleCommand);
+    if (nativePort === port) {
+      try { port.postMessage(result); } catch { /* port died mid-command */ }
+    } else if (nativePort) {
+      try { nativePort.postMessage(result); } catch { /* replaced port */ }
     }
-    safeSend(socket, { type: 'ping', ts: Date.now() });
-  }, WS_KEEPALIVE_INTERVAL_MS);
-}
-
-function stopWsKeepalive(socket: WebSocket): void {
-  if (wsKeepaliveSocket !== socket) return;
-  if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
-  wsKeepaliveTimer = null;
-  wsKeepaliveSocket = null;
+  } catch (err) {
+    console.error('[opencli] Message handling error:', err);
+  }
 }
 
 /**
- * Reconnect cadence: plain exponential backoff with jitter, never giving up
- * while Chrome keeps the service worker alive. 1s → 2s → 4s → … capped at 15s
- * (+0-500ms jitter); attempts reset on a successful WS open. The durable wake
- * path is chrome.alarms: production Chrome enforces a ~30s minimum alarm
- * interval, so alarms wake the worker after idle eviction while setTimeout
- * provides the faster path only when the worker remains alive.
+ * Backoff only when connectNative itself throws (host not installed). A live
+ * port's onDisconnect already reconnects immediately.
  */
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 15000;
@@ -265,7 +204,7 @@ function nextReconnectDelayMs(): number {
 }
 
 function scheduleReconnect(): void {
-  if (reconnectTimer) return;
+  if (nativePort || reconnectTimer) return;
   const delay = nextReconnectDelayMs();
   reconnectAttempts++;
   reconnectTimer = setTimeout(() => {
@@ -1251,7 +1190,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   // Idle-lease alarms and keepalive can both fire in a freshly woken worker;
   // gate on recovery so releaseLease never persists an empty snapshot.
   await workerReady;
-  if (alarm.name === 'keepalive') void connect();
+  if (alarm.name === 'keepalive' && !nativePort) void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
   if (!leaseKey) return;
   if ((activeCommandCounts.get(leaseKey) ?? 0) > 0) {
@@ -1269,41 +1208,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'getStatus') {
     void (async () => {
       const contextId = await getCurrentContextId();
-      const connected = ws?.readyState === WebSocket.OPEN;
+      const connected = nativePort != null;
       const extensionVersion = chrome.runtime.getManifest().version;
-      const daemonVersion = connected ? await fetchDaemonVersion() : null;
       sendResponse({
         connected,
         reconnecting: reconnectTimer !== null,
         contextId,
         extensionVersion,
-        daemonVersion,
+        hostVersion,
       });
     })();
     return true;
   }
   return false;
 });
-
-/**
- * Best-effort fetch of the daemon's reported version for the popup status panel.
- * Resolves to null on any failure — the popup degrades to showing connection
- * state without the version label.
- */
-async function fetchDaemonVersion(): Promise<string | null> {
-  try {
-    const res = await fetch(`http://${DAEMON_HOST}:${DAEMON_PORT}/status`, {
-      method: 'GET',
-      headers: { 'X-OpenCLI': '1' },
-      signal: AbortSignal.timeout(1500),
-    });
-    if (!res.ok) return null;
-    const body = await res.json() as { daemonVersion?: unknown };
-    return typeof body.daemonVersion === 'string' ? body.daemonVersion : null;
-  } catch {
-    return null;
-  }
-}
 
 // ─── Command dispatcher ─────────────────────────────────────────────
 
@@ -2279,15 +2197,14 @@ export const __test__ = {
   getReconnectAttempts: () => reconnectAttempts,
   setReconnectAttempts: (value: number) => { reconnectAttempts = value; },
   nextReconnectDelayMs,
+  getNativePort: () => nativePort,
   resetReconnectState: () => {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = null;
     reconnectAttempts = 0;
-    if (wsKeepaliveTimer) clearInterval(wsKeepaliveTimer);
-    wsKeepaliveTimer = null;
-    wsKeepaliveSocket = null;
     connectInFlight = null;
-    ws = null;
+    nativePort = null;
+    hostVersion = null;
   },
   getSession: (leaseKey: string = 'default') => automationSessions.get(leaseKey) ?? null,
   getAutomationWindowId: (leaseKey: string = 'default') => automationSessions.get(leaseKey)?.windowId ?? null,

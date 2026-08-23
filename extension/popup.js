@@ -16,7 +16,7 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
 
   if (chrome.runtime.lastError || !resp) {
     setState(card, dot, 'disconnected');
-    status.textContent = 'No daemon connected';
+    status.textContent = 'Native host not connected';
     daemonVersion.textContent = '';
     profileRow.style.display = 'none';
     hint.style.display = 'block';
@@ -33,9 +33,9 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
 
   if (resp.connected) {
     setState(card, dot, 'connected');
-    status.textContent = 'Connected to daemon';
-    if (typeof resp.daemonVersion === 'string') {
-      daemonVersion.textContent = `daemon v${resp.daemonVersion}`;
+    status.textContent = 'Connected to native host';
+    if (typeof resp.hostVersion === 'string') {
+      daemonVersion.textContent = `host v${resp.hostVersion}`;
     }
     hint.style.display = 'none';
   } else if (resp.reconnecting) {
@@ -45,7 +45,7 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
     hint.style.display = 'none';
   } else {
     setState(card, dot, 'disconnected');
-    status.textContent = 'No daemon connected';
+    status.textContent = 'Native host not connected';
     daemonVersion.textContent = '';
     hint.style.display = 'block';
   }

@@ -1,12 +1,12 @@
 /**
- * HTTP client for communicating with the opencli daemon.
+ * Unix-socket client for the OpenCLI native host.
  *
- * Provides a typed send() function that posts a Command and returns a Result.
+ * Sends a Command frame and reads a Result frame. Chrome parents the host.
  */
 
 import { sleep } from '../utils.js';
 import { BrowserConnectError, SessionBusyError } from '../errors.js';
-import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT } from '../daemon-utils.js';
+import { COMMAND_RESULT_UNKNOWN_CODE, COMMAND_RESULT_UNKNOWN_HINT, resolveProfileRoute } from '../daemon-utils.js';
 import { classifyBrowserError } from './errors.js';
 import { profileRouteParams, resolveProfileSelection } from './profile.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './config.js';
@@ -15,12 +15,13 @@ import { isPreDispatchError } from './bridge-readiness.js';
 import {
   fetchDaemonStatus,
   getDaemonHealth,
-  requestDaemon,
   requestDaemonShutdown,
   type BrowserProfileStatus,
   type DaemonHealth,
   type DaemonStatus,
 } from './daemon-transport.js';
+import { listLiveHostStates } from '../host-protocol.js';
+import { isPreConnectSocketError, requestHost } from './host-rpc.js';
 
 let _idCounter = 0;
 
@@ -75,18 +76,15 @@ export async function releaseSiteSessionLease(params: {
   surface: 'adapter';
 }): Promise<void> {
   try {
-    await requestDaemon('/command', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: generateId(),
-        action: 'lease-release',
-        runId: params.runId,
-        session: params.session,
-        surface: params.surface,
-      }),
-      timeout: 2000,
-    });
+    const live = listLiveHostStates();
+    if (live.length === 0) return;
+    await requestHost(live[0].sock, {
+      id: generateId(),
+      action: 'lease-release',
+      runId: params.runId,
+      session: params.session,
+      surface: params.surface,
+    }, { timeout: 2000 });
   } catch {
     // Best-effort: TTL expiry reclaims the lease if the daemon is unreachable.
   }
@@ -103,8 +101,8 @@ export async function releaseSiteSessionLease(params: {
 const DEFAULT_COMMAND_TIMEOUT_SECONDS = 120;
 /** Headroom past an extension-side operation's own timer (e.g. wait-download). */
 const EXTENSION_OP_TIMEOUT_MARGIN_MS = 15_000;
-/** Client aborts only this long after the daemon timer should have fired. */
-const HTTP_TIMEOUT_MARGIN_MS = 10_000;
+/** Client aborts only this long after the host timer should have fired. */
+const SOCKET_TIMEOUT_MARGIN_MS = 10_000;
 
 let _userCommandTimeoutSeconds: number | null = null;
 
@@ -176,27 +174,16 @@ const TRANSPORT_MAX_ATTEMPTS = 4;
  * or hang-up after connect means the daemon may have already dispatched the
  * command to the browser.
  */
-const PRE_CONNECT_ERROR_CODES = new Set([
-  'ECONNREFUSED',
-  'UND_ERR_CONNECT_TIMEOUT',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'ENOTFOUND',
-]);
-
-function isPreConnectFetchError(err: unknown): boolean {
-  const queue: unknown[] = [err];
-  const seen = new Set<unknown>();
-  while (queue.length) {
-    const current = queue.pop();
-    if (!current || typeof current !== 'object' || seen.has(current)) continue;
-    seen.add(current);
-    const { code, cause, errors } = current as { code?: unknown; cause?: unknown; errors?: unknown };
-    if (typeof code === 'string' && PRE_CONNECT_ERROR_CODES.has(code)) return true;
-    if (cause) queue.push(cause);
-    if (Array.isArray(errors)) queue.push(...errors);
-  }
-  return false;
+function resolveHostSock(contextId?: string, preferredContextId?: string): string | null {
+  const live = listLiveHostStates();
+  if (live.length === 0) return null;
+  const route = resolveProfileRoute({
+    requestedContextId: contextId,
+    preferredContextId,
+    connectedContextIds: live.map((h) => h.contextId),
+  });
+  if (!route.ok) return null;
+  return live.find((h) => h.contextId === route.contextId)?.sock ?? null;
 }
 
 export interface DaemonCommand {
@@ -391,14 +378,22 @@ async function sendCommandRaw(
       }),
     };
     try {
-      const res = await requestDaemon('/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(command),
-        timeout: remainingMs + HTTP_TIMEOUT_MARGIN_MS,
-      });
-
-      const result = (await res.json()) as DaemonResult;
+      const sock = resolveHostSock(contextId, preferredContextId);
+      if (!sock) {
+        if (!ensureUsed) {
+          ensureUsed = true;
+          await ensureBridge();
+          continue;
+        }
+        throw new BrowserConnectError(
+          'Browser Bridge host is not connected',
+          'Open Chrome with the OpenCLI extension enabled, then retry.',
+          'host-not-running',
+        );
+      }
+      const result = await requestHost(sock, command, {
+        timeout: remainingMs + SOCKET_TIMEOUT_MARGIN_MS,
+      }) as unknown as DaemonResult;
 
       if (result.ok) return result;
 
@@ -420,15 +415,12 @@ async function sendCommandRaw(
         continue;
       }
 
-      if (result.errorCode === 'daemon_shutting_down' && !ensureUsed) {
-        // The command WAS dispatched and the daemon died before the result
-        // came back. Resending the same id is only safe when the extension
-        // journals ids; otherwise the outcome is genuinely unknown.
+      if (result.errorCode === 'host_shutting_down' && !ensureUsed) {
         ensureUsed = true;
         await ensureBridge();
         if (executorJournaled) continue;
         throw new BrowserCommandError(
-          result.error ?? 'Daemon shut down mid-command; the command may have already been applied.',
+          result.error ?? 'Host shut down mid-command; the command may have already been applied.',
           COMMAND_RESULT_UNKNOWN_CODE,
           COMMAND_RESULT_UNKNOWN_HINT,
         );
@@ -442,11 +434,11 @@ async function sendCommandRaw(
         continue;
       }
 
-      throw new BrowserCommandError(result.error ?? 'Daemon command failed', result.errorCode, result.errorHint);
+      throw new BrowserCommandError(result.error ?? 'Host command failed', result.errorCode, result.errorHint);
     } catch (err) {
       if (err instanceof BrowserCommandError || err instanceof BrowserConnectError || err instanceof SessionBusyError) throw err;
 
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (err instanceof Error && (err.name === 'AbortError' || (err as { code?: string }).code === 'ETIMEDOUT')) {
         throw new BrowserCommandError(
           'Browser command timed out client-side; the page may still have applied it.',
           COMMAND_RESULT_UNKNOWN_CODE,
@@ -454,22 +446,13 @@ async function sendCommandRaw(
         );
       }
 
-      if (err instanceof TypeError) {
-        // Transport failure — the request may or may not have reached the
-        // daemon. Bring the bridge back up (spawns a daemon if none is
-        // running) and learn whether the extension journals command ids.
-        await ensureBridge();
-        // Same-id resend is safe when the request never connected, or when
-        // the executor dedupes ids. Otherwise the outcome is unknown.
-        if (executorJournaled || isPreConnectFetchError(err)) continue;
-        throw new BrowserCommandError(
-          'Connection to the daemon was lost mid-command; it may have already been applied.',
-          COMMAND_RESULT_UNKNOWN_CODE,
-          COMMAND_RESULT_UNKNOWN_HINT,
-        );
-      }
-
-      throw err;
+      await ensureBridge();
+      if (executorJournaled || isPreConnectSocketError(err)) continue;
+      throw new BrowserCommandError(
+        'Connection to the host was lost mid-command; it may have already been applied.',
+        COMMAND_RESULT_UNKNOWN_CODE,
+        COMMAND_RESULT_UNKNOWN_HINT,
+      );
     }
   }
 

@@ -40,7 +40,7 @@ npm install -g @jackwener/opencli
 
 ### 2. Install the Browser Bridge Extension
 
-OpenCLI connects to Chrome/Chromium through a lightweight Browser Bridge extension plus a small local daemon. The daemon auto-starts when needed.
+OpenCLI connects to Chrome/Chromium through a lightweight Browser Bridge extension. Chrome parents a Native Messaging host; the CLI never listens on a TCP port.
 
 **Option A — Chrome Web Store (recommended):**
 Install **OpenCLI** from the [Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk).
@@ -291,7 +291,7 @@ See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 - **"attach failed: Cannot access a chrome-extension:// URL"** — Another extension may be interfering. Try disabling other extensions temporarily.
 - **Empty data or 'Unauthorized' error** — Your Chrome/Chromium login session may have expired. Navigate to the target site and log in again.
 - **Node API errors / missing `fetch` / startup crash on old Node** — OpenCLI requires **Node.js >= 20**. Run `node --version`, upgrade Node if needed, then retry.
-- **Daemon issues** — Check status: `curl localhost:19825/status` · View logs: `curl localhost:19825/logs`
+- **Host issues** — `opencli host status` · `opencli host install` · `opencli doctor`
 
 ## Star History
 

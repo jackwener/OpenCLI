@@ -9,9 +9,13 @@ describe('extension manifest regression', () => {
     const manifest = JSON.parse(raw) as {
       permissions?: string[];
       host_permissions?: string[];
+      key?: string;
     };
 
     expect(manifest.permissions).toContain('cookies');
+    expect(manifest.permissions).toContain('debugger');
+    expect(manifest.permissions).toContain('nativeMessaging');
     expect(manifest.host_permissions).toContain('<all_urls>');
+    expect(typeof manifest.key).toBe('string');
   });
 });
