@@ -1,5 +1,5 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
+import { buildUserByScreenNameQueryUrl, resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
 import { parseListsManagement } from './lists.js';
 import { TWITTER_BEARER_TOKEN } from './utils.js';
 
@@ -42,27 +42,6 @@ const LISTS_MANAGEMENT_FEATURES = {
     responsive_web_grok_image_annotation_enabled: true,
     responsive_web_enhance_cards_enabled: false,
 };
-
-function buildUserByScreenNameUrl(queryId, screenName) {
-    const vars = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
-    const feats = JSON.stringify({
-        hidden_profile_subscriptions_enabled: true,
-        rweb_tipjar_consumption_enabled: true,
-        responsive_web_graphql_exclude_directive_enabled: true,
-        verified_phone_label_enabled: false,
-        subscriptions_verification_info_is_identity_verified_enabled: true,
-        subscriptions_verification_info_verified_since_enabled: true,
-        highlights_tweets_tab_ui_enabled: true,
-        responsive_web_twitter_article_notes_tab_enabled: true,
-        subscriptions_feature_can_gift_premium: true,
-        creator_subscriptions_tweet_preview_api_enabled: true,
-        responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-        responsive_web_graphql_timeline_navigation_enabled: true,
-    });
-    return `/i/api/graphql/${queryId}/UserByScreenName`
-        + `?variables=${encodeURIComponent(vars)}`
-        + `&features=${encodeURIComponent(feats)}`;
-}
 
 function fatalGraphqlErrors(errors) {
     const list = Array.isArray(errors) ? errors : [];
@@ -150,7 +129,7 @@ export async function listAddUser(page, kwargs) {
 
         // opencli >=1.7.x wraps page.evaluate return values as { session, data }.
         // Unwrap before use so JSON.stringify of nested values doesn't become "[object Object]".
-        const userLookupUrl = buildUserByScreenNameUrl(userByScreenNameQueryId, username);
+        const userLookupUrl = buildUserByScreenNameQueryUrl(userByScreenNameQueryId, username);
         const userIdRaw = await page.evaluate(`async () => {
             const resp = await fetch(${JSON.stringify(userLookupUrl)}, { headers: ${headers}, credentials: 'include' });
             if (!resp.ok) return null;

@@ -5,6 +5,20 @@ const SCREEN_NAME_PATTERN = /^[A-Za-z0-9_]{1,15}$/;
 const TWEET_PATH_PATTERN = /^\/(?:[^/]+|i)\/status\/(\d+)\/?$/;
 const TWEET_HOSTS = new Set(['x.com', 'twitter.com']);
 const SCREEN_NAME_HOSTS = new Set(['x.com', 'twitter.com', 'mobile.twitter.com']);
+const USER_BY_SCREEN_NAME_FEATURES = {
+    hidden_profile_subscriptions_enabled: true,
+    rweb_tipjar_consumption_enabled: true,
+    responsive_web_graphql_exclude_directive_enabled: true,
+    verified_phone_label_enabled: false,
+    subscriptions_verification_info_is_identity_verified_enabled: true,
+    subscriptions_verification_info_verified_since_enabled: true,
+    highlights_tweets_tab_ui_enabled: true,
+    responsive_web_twitter_article_notes_tab_enabled: true,
+    subscriptions_feature_can_gift_premium: true,
+    creator_subscriptions_tweet_preview_api_enabled: true,
+    responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+    responsive_web_graphql_timeline_navigation_enabled: true,
+};
 const RESERVED_SCREEN_NAME_PATHS = new Set([
     'compose',
     'explore',
@@ -100,6 +114,14 @@ export function buildTwitterArticleScopeSource(tweetId) {
 
 export function sanitizeQueryId(resolved, fallbackId) {
     return typeof resolved === 'string' && QUERY_ID_PATTERN.test(resolved) ? resolved : fallbackId;
+}
+
+export function buildUserByScreenNameQueryUrl(queryId, screenName) {
+    const variables = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
+    const features = JSON.stringify(USER_BY_SCREEN_NAME_FEATURES);
+    return `/i/api/graphql/${queryId}/UserByScreenName`
+        + `?variables=${encodeURIComponent(variables)}`
+        + `&features=${encodeURIComponent(features)}`;
 }
 
 export function normalizeTwitterScreenName(value) {
@@ -548,6 +570,7 @@ export function describeTwitterApiError(operation, status, extraHint) {
 
 export const __test__ = {
     sanitizeQueryId,
+    buildUserByScreenNameQueryUrl,
     normalizeTwitterOperationFlags,
     sanitizeTwitterOperationMetadata,
     unwrapBrowserResult,
