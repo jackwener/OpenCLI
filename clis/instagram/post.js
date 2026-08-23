@@ -4,7 +4,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { installInstagramProtocolCapture, readInstagramProtocolCapture, } from './_shared/protocol-capture.js';
 import { publishMediaViaPrivateApi, publishImagesViaPrivateApi, resolveInstagramPrivatePublishConfig, } from './_shared/private-publish.js';
-import { resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
+import { resolveCurrentUserId, resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
 import { INSTAGRAM_HOME_URL, gotoInstagramHome } from './_shared/navigation.js';
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4']);
@@ -1263,10 +1263,6 @@ async function waitForPublishSuccess(page) {
     }
     await page.screenshot({ path: '/tmp/instagram_post_share_debug.png' });
     throw new CommandExecutionError('Instagram post share confirmation did not appear', 'Inspect /tmp/instagram_post_share_debug.png for the final publish state');
-}
-async function resolveCurrentUserId(page) {
-    const cookies = await page.getCookies({ domain: 'instagram.com' });
-    return cookies.find((cookie) => cookie.name === 'ds_user_id')?.value || '';
 }
 async function resolveProfileUrl(page, currentUserId = '') {
     if (currentUserId) {

@@ -5,7 +5,7 @@ import { Page as BrowserPage } from '@jackwener/opencli/browser/page';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { buildClickActionJs, buildEnsureComposerOpenJs, buildInspectUploadStageJs, } from './post.js';
-import { resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
+import { resolveCurrentUserId, resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
 import { INSTAGRAM_HOME_URL, gotoInstagramHome } from './_shared/navigation.js';
 const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4']);
 const INSTAGRAM_REEL_TIMEOUT_SECONDS = 600;
@@ -626,10 +626,6 @@ async function waitForPublishSuccess(page) {
             await page.wait({ time: 1 });
     }
     throw new CommandExecutionError('Instagram reel share confirmation did not appear');
-}
-async function resolveCurrentUserId(page) {
-    const cookies = await page.getCookies({ domain: 'instagram.com' });
-    return cookies.find((cookie) => cookie.name === 'ds_user_id')?.value || '';
 }
 async function resolveProfileUrl(page, currentUserId = '') {
     if (currentUserId) {

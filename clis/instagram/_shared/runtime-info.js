@@ -79,3 +79,7 @@ export async function resolveInstagramRuntimeInfo(page) {
         instagramAjax: runtime?.instagramAjax || '',
     };
 }
+export async function resolveCurrentUserId(page) {
+    const cookies = await page.getCookies({ domain: 'instagram.com' });
+    return cookies.find((cookie) => cookie.name === 'ds_user_id')?.value || '';
+}
