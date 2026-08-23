@@ -5,6 +5,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SEARCH_URL_BASE = 'https://www.linkedin.com/search/results/people/';
@@ -27,11 +28,6 @@ function parseLimit(value) {
         throw new ArgumentError(`--limit must be an integer between 1 and ${MAX_LIMIT}`);
     }
     return limit;
-}
-
-function unwrapEvaluateResult(payload) {
-    if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-    return payload;
 }
 
 function buildSearchUrl(keywords) {

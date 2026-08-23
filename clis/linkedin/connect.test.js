@@ -9,7 +9,6 @@ const {
     matchInvitationName,
     canonicalizeLinkedInProfileUrl,
     canonicalizeLinkedInInviteUrl,
-    unwrapEvaluateResult,
     clampNote,
     assessProfileSafety,
     buildProfileProbeScript,
@@ -95,12 +94,6 @@ describe('linkedin connect helpers', () => {
             .toBe('https://www.linkedin.com/preload/custom-invite/?vanityName=jane');
         expect(canonicalizeLinkedInInviteUrl('https://www.linkedin.com/feed/')).toBe('');
         expect(canonicalizeLinkedInInviteUrl('https://evil-linkedin.com/preload/custom-invite/?vanityName=jane')).toBe('');
-    });
-
-    it('unwraps browser bridge evaluate envelopes', () => {
-        expect(unwrapEvaluateResult({ session: 'site:linkedin:1', data: { ok: true } })).toEqual({ ok: true });
-        const raw = { ok: true };
-        expect(unwrapEvaluateResult(raw)).toBe(raw);
     });
 
     it('enforces LinkedIn note length', () => {
