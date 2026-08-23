@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './answer-detail.js';
-import { __test__ as helpers } from './answer-detail.js';
 
 describe('zhihu answer-detail', () => {
     it('registers as a cookie read command', () => {
@@ -296,24 +295,4 @@ describe('zhihu answer-detail', () => {
         }
         expect(page.goto).not.toHaveBeenCalled();
     });
-});
-
-describe('zhihu answer-detail helpers', () => {
-    it('stripHtml drops tags and decodes common entities', () => {
-        const out = helpers.stripHtml('<p>hi&nbsp;there &amp; you</p><p>second</p>');
-        expect(out).toBe('hi there & you\n\nsecond');
-    });
-
-    it('stripHtml decodes numeric entities', () => {
-        expect(helpers.stripHtml('&#34;中文&#34; &#x26; &#39;test&#39;')).toBe('"中文" & \'test\'');
-    });
-
-    it('stripHtml keeps invalid numeric entities unchanged', () => {
-        expect(helpers.stripHtml('bad &#9999999999; entity')).toBe('bad &#9999999999; entity');
-    });
-
-    it('stripHtml maps <br> to single newline', () => {
-        expect(helpers.stripHtml('a<br>b<br/>c')).toBe('a\nb\nc');
-    });
-
 });

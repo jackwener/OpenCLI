@@ -1,11 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { normalizeCount, normalizeUnixSeconds, stripHtml } from './answer-normalize.js';
 import { ANSWER_PATH_RE, parseAnswerTarget } from './answer-target.js';
-import { stripHtml as stripHtmlText } from './text.js';
-
-function stripHtml(html) {
-    return stripHtmlText(html, { preserveBlocks: true });
-}
 
 const QUESTION_PATH_RE = /^\/question\/(\d+)\/?$/;
 const QUESTION_API_PATH_RE = /^\/api\/v4\/questions\/(\d+)\/?$/;
@@ -25,16 +21,6 @@ function extractQuestionIdFromAnswerUrl(input) {
     } catch {
         return '';
     }
-}
-
-function normalizeCount(value) {
-    return Number.isInteger(value) && value >= 0 ? value : 0;
-}
-
-function normalizeUnixSeconds(value) {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0
-        ? new Date(value * 1000).toISOString()
-        : '';
 }
 
 cli({
@@ -173,4 +159,4 @@ cli({
     },
 });
 
-export const __test__ = { stripHtml, extractQuestionIdFromAnswerUrl };
+export const __test__ = { extractQuestionIdFromAnswerUrl };

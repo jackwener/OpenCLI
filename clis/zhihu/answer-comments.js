@@ -1,12 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { normalizeCount, normalizeUnixSeconds, stripHtml } from './answer-normalize.js';
 import { ANSWER_PATH_RE, parseAnswerTarget } from './answer-target.js';
-import { stripHtml as stripHtmlText } from './text.js';
-
-function stripHtml(html) {
-    return stripHtmlText(html, { preserveBlocks: true });
-}
-
 
 function extractQuestionIdFromAnswerUrl(input) {
     const value = String(input ?? '').trim();
@@ -18,16 +13,6 @@ function extractQuestionIdFromAnswerUrl(input) {
     } catch {
         return '';
     }
-}
-
-function normalizeCount(value) {
-    return Number.isInteger(value) && value >= 0 ? value : 0;
-}
-
-function normalizeUnixSeconds(value) {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0
-        ? new Date(value * 1000).toISOString()
-        : '';
 }
 
 function memberName(author) {
@@ -247,4 +232,4 @@ cli({
     },
 });
 
-export const __test__ = { stripHtml, normalizeCommentsApiUrl, buildRows };
+export const __test__ = { normalizeCommentsApiUrl, buildRows };
