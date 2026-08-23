@@ -4,7 +4,7 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { publishStoryViaPrivateApi, resolveInstagramPrivatePublishConfig, } from './_shared/private-publish.js';
 import { resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
-const INSTAGRAM_HOME_URL = 'https://www.instagram.com/';
+import { INSTAGRAM_HOME_URL } from './_shared/navigation.js';
 const SUPPORTED_STORY_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const SUPPORTED_STORY_VIDEO_EXTENSIONS = new Set(['.mp4']);
 function requirePage(page) {

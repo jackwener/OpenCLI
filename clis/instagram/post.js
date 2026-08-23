@@ -5,18 +5,11 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwe
 import { installInstagramProtocolCapture, readInstagramProtocolCapture, } from './_shared/protocol-capture.js';
 import { publishMediaViaPrivateApi, publishImagesViaPrivateApi, resolveInstagramPrivatePublishConfig, } from './_shared/private-publish.js';
 import { resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
-const INSTAGRAM_HOME_URL = 'https://www.instagram.com/';
+import { INSTAGRAM_HOME_URL, gotoInstagramHome } from './_shared/navigation.js';
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4']);
 const MAX_MEDIA_ITEMS = 10;
 const INSTAGRAM_PROTOCOL_TRACE_OUTPUT_PATH = '/tmp/instagram_post_protocol_trace.json';
-async function gotoInstagramHome(page, forceReload = false) {
-    if (forceReload) {
-        await page.goto(`${INSTAGRAM_HOME_URL}?__opencli_reset=${Date.now()}`);
-        await page.wait({ time: 1 });
-    }
-    await page.goto(INSTAGRAM_HOME_URL);
-}
 export function buildEnsureComposerOpenJs() {
     return `
     (() => {
