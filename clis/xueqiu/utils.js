@@ -18,6 +18,16 @@ export function formatChinaDate(ts) {
     return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+export function stripHtml(html) {
+    return (html || '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim();
+}
+
 /**
  * Fetch a xueqiu JSON API from inside the browser context (credentials included).
  * Page must already be navigated to xueqiu.com before calling this function.

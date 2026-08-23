@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatChinaDate } from './utils.js';
+import { formatChinaDate, stripHtml } from './utils.js';
 
 describe('formatChinaDate', () => {
     it('returns the Asia/Shanghai date for a UTC ms at China midnight', () => {
@@ -22,5 +22,28 @@ describe('formatChinaDate', () => {
     it('returns null for nullish input', () => {
         expect(formatChinaDate(null)).toBeNull();
         expect(formatChinaDate(undefined)).toBeNull();
+    });
+});
+
+describe('stripHtml', () => {
+    it('removes HTML tags', () => {
+        expect(stripHtml('<p>Hello <strong>Xueqiu</strong></p>')).toBe('Hello Xueqiu');
+    });
+    it('decodes current named entities before trimming', () => {
+        expect(stripHtml(' &nbsp;A&amp;B&lt;C&gt; &nbsp; ')).toBe('A&B<C>');
+    });
+    it('returns empty strings for nullish and empty input', () => {
+        expect(stripHtml(null)).toBe('');
+        expect(stripHtml(undefined)).toBe('');
+        expect(stripHtml('')).toBe('');
+    });
+    it('does not insert spaces between adjacent block tags', () => {
+        expect(stripHtml('<p>first</p><p>second</p>')).toBe('firstsecond');
+    });
+    it('does not decode numeric entities', () => {
+        expect(stripHtml('&#65; &#x42;')).toBe('&#65; &#x42;');
+    });
+    it('does not collapse whitespace', () => {
+        expect(stripHtml('a   b')).toBe('a   b');
     });
 });
