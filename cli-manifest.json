@@ -40021,6 +40021,33 @@
   },
   {
     "site": "twitter",
+    "name": "mute-word",
+    "description": "Add a muted word or phrase on Twitter/X",
+    "access": "write",
+    "domain": "x.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Word or phrase to mute"
+      }
+    ],
+    "columns": [
+      "keyword",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "twitter/mute-word.js",
+    "sourceFile": "twitter/mute-word.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "twitter",
     "name": "notifications",
     "description": "Get your Twitter/X notifications (the logged-in user's likes/replies/follows feed, newest first)",
     "access": "read",
