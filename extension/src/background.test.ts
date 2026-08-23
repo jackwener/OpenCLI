@@ -382,6 +382,11 @@ describe('background tab isolation', () => {
 
     const mod = await import('./background');
     mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+    // URL-less commands on the browser surface no longer auto-create a tab — that
+    // guard is what stops a mistyped session name from spawning an orphan blank tab.
+    // Materialize the browser-surface lease first; what this test asserts is the
+    // lease-key namespacing, not the incidental auto-create.
+    await mod.__test__.resolveTabId(undefined, browserKey(adapterKey('twitter')), 'https://example.com');
 
     const result = await mod.__test__.handleCommand({
       id: 'encoded-session',
@@ -1293,7 +1298,15 @@ describe('background tab isolation', () => {
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./background');
-    const browserTabId = await mod.__test__.resolveTabId(undefined, browserKey('default'));
+    // URL-less commands on the browser surface are refused so a mistyped session
+    // cannot spawn an orphan blank tab; `tabs op:new` is the explicit way to open
+    // one. The adapter surface still creates its automation tab without a URL.
+    const browserTab = await mod.__test__.handleTabs(
+      { id: 'seed', action: 'tabs', op: 'new' } as never,
+      browserKey('default'),
+    );
+    expect(browserTab.ok).toBe(true);
+    const browserTabId = tabs.at(-1)!.id!;
     const adapterTabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
 
     expect(tabs.find((tab) => tab.id === browserTabId)?.windowId).toBe(20);
@@ -1301,7 +1314,9 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ focused: true }));
     expect(chrome.windows.create).toHaveBeenNthCalledWith(2, expect.objectContaining({ focused: false }));
     expect(groups).toEqual([
-      expect.objectContaining({ windowId: 20, title: 'OpenCLI Browser' }),
+      // Group titles are session-derived now (dynamic tab group titles), so the
+      // browser container is titled after the sessions living in it.
+      expect.objectContaining({ windowId: 20, title: 'OpenCLI: default' }),
     ]);
     expect(tabs.find((tab) => tab.id === adapterTabId)?.groupId).toBe(-1);
   });

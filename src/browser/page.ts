@@ -26,6 +26,19 @@ function isUnsupportedNetworkCaptureError(err: unknown): boolean {
     || (normalized.includes('network capture') && normalized.includes('not supported'));
 }
 
+// `open` arms network capture BEFORE navigating, so on a brand-new session the
+// capture command reaches the extension before any tab exists. Since the extension
+// refuses to auto-create a tab for a command that carries no URL (that guard is what
+// keeps eval/click/state from spawning orphan blank tabs), the capture call fails with
+// `session_not_found`. That is not a real failure here: the navigation that follows
+// creates the tab, and the JS interceptor fallback covers the request log. Treat it as
+// "capture unavailable for this call" WITHOUT marking capture permanently unsupported.
+function isSessionNotFoundError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  const normalized = message.toLowerCase();
+  return normalized.includes('session_not_found') || normalized.includes('no active session');
+}
+
 // The extension throws "Page not found: <id> — stale page identity" when our cached
 // `_page` targetId no longer maps to a live tab — e.g. the user closed the automation
 // window, or a long-running script left the cache pointing at an evicted target.
@@ -272,6 +285,7 @@ export class Page extends CDPBasePage {
       });
       return true;
     } catch (err) {
+      if (isSessionNotFoundError(err)) return false;
       if (!isUnsupportedNetworkCaptureError(err)) throw err;
       this._markUnsupportedNetworkCapture();
       return false;
@@ -286,6 +300,7 @@ export class Page extends CDPBasePage {
       });
       return Array.isArray(result) ? result : [];
     } catch (err) {
+      if (isSessionNotFoundError(err)) return [];
       if (!isUnsupportedNetworkCaptureError(err)) throw err;
       this._markUnsupportedNetworkCapture();
       return [];
