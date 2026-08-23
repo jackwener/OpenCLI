@@ -116,8 +116,3 @@ export function isElectronApp(site: string): boolean {
 export function getAllElectronApps(): Record<string, ElectronAppEntry> {
   return ensureLoaded();
 }
-
-/** Reset loaded apps (for testing). */
-export function _resetRegistry(): void {
-  _apps = null;
-}
