@@ -884,7 +884,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .argument('[target]', 'site or site/name')
     .action(async (target) => {
       const { validateClisWithTarget, renderValidationReport } = await import('./validate.js');
-      console.log(renderValidationReport(validateClisWithTarget([BUILTIN_CLIS, USER_CLIS], target)));
+      console.log(renderValidationReport(validateClisWithTarget(target)));
     });
 
   program
@@ -1233,7 +1233,7 @@ Examples:
   // ── Navigation ──
 
   addBrowserTabOption(browser.command('open').argument('<url>').description('Open URL in the browser session'))
-    .action(browserAction(async (page, url, opts) => {
+    .action(browserAction(async (page, url) => {
       // Start session-level capture before navigation (catches initial requests)
       const hasSessionCapture = await page.startNetworkCapture?.() ?? false;
       await page.goto(url);
@@ -1252,7 +1252,7 @@ Examples:
     }));
 
   addBrowserTabOption(browser.command('back').description('Go back in browser history'))
-    .action(browserAction(async (page, opts) => {
+    .action(browserAction(async (page) => {
       await page.evaluate('history.back()');
       await page.wait(2);
       console.log('Navigated back');

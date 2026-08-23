@@ -350,7 +350,7 @@ async function sendCommandRaw(
     // Bound the connect wait by the command's remaining budget so repeated
     // daemon failures cannot stretch the total wall time far past --timeout.
     const remainingSeconds = Math.ceil((deadlineAt - Date.now()) / 1000);
-    const ready = await ensureBrowserBridgeReady({
+    const health = await ensureBrowserBridgeReady({
       timeoutSeconds: Math.max(1, Math.min(DEFAULT_BROWSER_CONNECT_TIMEOUT, remainingSeconds)),
       // Only an explicit requirement pins readiness to a specific profile; a
       // preferred one is arbitrated against live connections on every poll,
@@ -360,7 +360,7 @@ async function sendCommandRaw(
       preferredContextId,
       verbose: false,
     });
-    executorJournaled = versionAtLeast(ready.health.status?.extensionVersion, MIN_JOURNAL_EXTENSION_VERSION);
+    executorJournaled = versionAtLeast(health.status?.extensionVersion, MIN_JOURNAL_EXTENSION_VERSION);
   };
 
   for (let attempt = 1; attempt <= TRANSPORT_MAX_ATTEMPTS; attempt++) {

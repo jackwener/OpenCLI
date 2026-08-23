@@ -25,7 +25,6 @@ import { isSupportedNodeVersion, MIN_SUPPORTED_NODE_MAJOR } from './runtime-dete
 import { isIgnorableDaemonPortEnv, unsupportedDaemonPortEnvMessage } from './constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 // Adapters are JS-first and live at <package-root>/clis/.
 // Use findPackageRoot so the path works both in dev (src/main.ts) and prod (dist/src/main.js).
 const BUILTIN_CLIS = path.join(findPackageRoot(__filename), 'clis');

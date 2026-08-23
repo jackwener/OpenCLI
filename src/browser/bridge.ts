@@ -2,7 +2,6 @@
  * Browser session manager — auto-spawns daemon and provides IPage.
  */
 
-import type { ChildProcess } from 'node:child_process';
 import type { IPage } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { Page } from './page.js';
@@ -19,7 +18,6 @@ export type BrowserBridgeState = 'idle' | 'connecting' | 'connected' | 'closing'
 export class BrowserBridge implements IBrowserFactory {
   private _state: BrowserBridgeState = 'idle';
   private _page: Page | null = null;
-  private _daemonProc: ChildProcess | null = null;
 
   get state(): BrowserBridgeState {
     return this._state;
@@ -62,11 +60,10 @@ export class BrowserBridge implements IBrowserFactory {
   }
 
   private async _ensureDaemon(timeoutSeconds?: number, contextId?: string, preferredContextId?: string): Promise<void> {
-    const result = await ensureBrowserBridgeReady({
+    await ensureBrowserBridgeReady({
       timeoutSeconds: timeoutSeconds ?? Math.ceil(DAEMON_SPAWN_TIMEOUT / 1000),
       contextId,
       preferredContextId,
     });
-    this._daemonProc = result.spawnedProcess;
   }
 }

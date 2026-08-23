@@ -30,7 +30,7 @@ export interface VerifyReport {
 }
 
 export async function verifyClis(opts: VerifyOptions): Promise<VerifyReport> {
-  const report = validateClisWithTarget([opts.builtinClis, opts.userClis], opts.target);
+  const report = validateClisWithTarget(opts.target);
   let smoke: VerifyReport['smoke'] = null;
   if (opts.smoke) {
     smoke = await runSmokeTests(opts.builtinClis);

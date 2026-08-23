@@ -428,20 +428,17 @@ describe('daemon-client', () => {
 
   function mockEnsureReady(extensionVersion?: string) {
     return vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
-      health: {
-        state: 'ready',
-        status: {
-          ok: true,
-          pid: 1,
-          uptime: 1,
-          extensionConnected: true,
-          ...(extensionVersion && { extensionVersion }),
-          pending: 0,
-          memoryMB: 0,
-          port: 19825,
-        },
+      state: 'ready',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 1,
+        extensionConnected: true,
+        ...(extensionVersion && { extensionVersion }),
+        pending: 0,
+        memoryMB: 0,
+        port: 19825,
       },
-      spawnedProcess: null,
     });
   }
 

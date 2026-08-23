@@ -29,11 +29,8 @@ export interface ValidationReport {
 
 /**
  * Validate registered CLI commands from the in-memory registry.
- *
- * The `_dirs` parameter is kept for call-site compatibility but is no longer
- * used — validation now operates on the registry populated by `discoverClis()`.
  */
-export function validateClisWithTarget(_dirs: string[], target?: string): ValidationReport {
+export function validateClisWithTarget(target?: string): ValidationReport {
   const registry = getRegistry();
   const results: CommandValidationResult[] = [];
   let errors = 0; let warnings = 0;

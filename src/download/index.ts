@@ -10,7 +10,6 @@ import { Readable, Transform } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
-import type { ProgressBar } from './progress.js';
 import { isBinaryInstalled } from '../external.js';
 import type { BrowserCookie } from '../types.js';
 import { getErrorMessage } from '../errors.js';
