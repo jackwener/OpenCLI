@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { __test__ } from './utils.js';
+import { __test__, normalizeLimit } from './utils.js';
 import { __test__ as priceTest } from './price.js';
 import { __test__ as trainTest } from './train.js';
 import { __test__ as trainsTest } from './trains.js';
@@ -89,6 +89,34 @@ describe('12306 utils - validateDate', () => {
     it('throws ArgumentError on impossible calendar dates', () => {
         expect(() => validateDate('2026-02-30')).toThrow(ArgumentError);
         expect(() => validateDate('2026-13-01')).toThrow(ArgumentError);
+    });
+});
+
+describe('12306 utils - normalizeLimit', () => {
+    it('uses the default for omitted, null, and empty values', () => {
+        expect(normalizeLimit(undefined, 20, 50)).toBe(20);
+        expect(normalizeLimit(null, 30, 80)).toBe(30);
+        expect(normalizeLimit('', 50, 100)).toBe(50);
+    });
+
+    it('accepts numeric values and numeric strings at legal boundaries', () => {
+        expect(normalizeLimit(1, 20, 50)).toBe(1);
+        expect(normalizeLimit('25', 20, 50)).toBe(25);
+        expect(normalizeLimit(50, 20, 50)).toBe(50);
+    });
+
+    it('rejects non-integer and non-positive values with the positive integer message', () => {
+        expect(() => normalizeLimit('abc', 20, 50)).toThrow(ArgumentError);
+        expect(() => normalizeLimit('abc', 20, 50)).toThrow('limit must be a positive integer (1-50)');
+        expect(() => normalizeLimit(1.5, 20, 50)).toThrow('limit must be a positive integer (1-50)');
+        expect(() => normalizeLimit(0, 20, 50)).toThrow('limit must be a positive integer (1-50)');
+        expect(() => normalizeLimit(-1, 20, 50)).toThrow('limit must be a positive integer (1-50)');
+    });
+
+    it('rejects values over the command max with the max message', () => {
+        expect(() => normalizeLimit(51, 20, 50)).toThrow(ArgumentError);
+        expect(() => normalizeLimit(51, 20, 50)).toThrow('limit must be <= 50');
+        expect(() => normalizeLimit('101', 50, 100)).toThrow('limit must be <= 100');
     });
 });
 
