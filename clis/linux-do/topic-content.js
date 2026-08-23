@@ -1,14 +1,9 @@
 import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { htmlToMarkdown, isRecord } from '@jackwener/opencli/utils';
+import { toLocalTime } from './format.js';
 const LINUX_DO_DOMAIN = 'linux.do';
 const LINUX_DO_HOME = 'https://linux.do';
-function toLocalTime(utcStr) {
-    if (!utcStr)
-        return '';
-    const date = new Date(utcStr);
-    return Number.isNaN(date.getTime()) ? utcStr : date.toLocaleString();
-}
 function normalizeTopicPayload(payload) {
     if (!isRecord(payload))
         return null;
@@ -151,5 +146,4 @@ export const __test__ = {
     buildTopicMarkdownDocument,
     extractTopicContent,
     normalizeTopicPayload,
-    toLocalTime,
 };

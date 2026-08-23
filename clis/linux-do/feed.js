@@ -14,6 +14,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { toLocalTime } from './format.js';
 const LINUX_DO_HOME = 'https://linux.do';
 const LINUX_DO_METADATA_TTL_MS = 24 * 60 * 60 * 1000;
 let liveTagsPromise = null;
@@ -219,14 +220,6 @@ async function fetchLiveCategories(page) {
         });
     }
     return liveCategoriesPromise;
-}
-function toLocalTime(utcStr) {
-    if (!utcStr)
-        return '';
-    const d = new Date(utcStr);
-    if (isNaN(d.getTime()))
-        return utcStr;
-    return d.toLocaleString();
 }
 function normalizeReplyCount(postsCount) {
     const count = typeof postsCount === 'number' ? postsCount : 1;
