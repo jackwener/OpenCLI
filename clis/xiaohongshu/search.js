@@ -254,7 +254,37 @@ export function unwrapEvaluateResult(payload) {
     }
     return payload;
 }
-function requireHarvestPayload(payload) {
+function isTrustedAuthorUrl(url, webHost) {
+    if (url === '')
+        return true;
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'https:' &&
+            parsed.hostname.toLowerCase() === webHost.toLowerCase() &&
+            /^\/user\/profile\/[^/]+\/?$/i.test(parsed.pathname);
+    }
+    catch {
+        return false;
+    }
+}
+function requireTrustedHarvestRow(row, index, webHost) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        throw new CommandExecutionError(`Unexpected Xiaohongshu search harvest row ${index + 1} shape; expected an object.`);
+    }
+    for (const field of ['title', 'author', 'likes', 'url', 'author_url']) {
+        if (typeof row[field] !== 'string') {
+            throw new CommandExecutionError(`Unexpected Xiaohongshu search harvest row ${index + 1} shape; expected string ${field}.`);
+        }
+    }
+    if (!noteUrlInfo(row.url, webHost).key) {
+        throw new CommandExecutionError(`Unexpected Xiaohongshu search harvest row ${index + 1} URL; expected a trusted note URL.`);
+    }
+    if (!isTrustedAuthorUrl(row.author_url, webHost)) {
+        throw new CommandExecutionError(`Unexpected Xiaohongshu search harvest row ${index + 1} author URL; expected a trusted profile URL.`);
+    }
+    return row;
+}
+function requireHarvestPayload(payload, webHost) {
     const result = unwrapEvaluateResult(payload);
     const diag = result?.diag;
     if (!result || typeof result !== 'object' || Array.isArray(result) || !Array.isArray(result.rows) ||
@@ -262,6 +292,7 @@ function requireHarvestPayload(payload) {
         typeof diag.securityBlock !== 'boolean' || typeof diag.stopReason !== 'string') {
         throw new CommandExecutionError('Unexpected Xiaohongshu search harvest payload shape; expected rows plus typed diagnostics.');
     }
+    result.rows = result.rows.map((row, index) => requireTrustedHarvestRow(row, index, webHost));
     return result;
 }
 export function parseLimit(raw) {
@@ -548,7 +579,7 @@ export const command = cli({
                 throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
             }
             const harvestOptions = harvestOptionsForLimit(limit);
-            const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)));
+            const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
             if (harvest.diag.securityBlock) {
                 throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying or use a different logged-in browser session.');
             }

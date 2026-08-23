@@ -223,6 +223,38 @@ describe('xiaohongshu search', () => {
             message: expect.stringContaining('payload shape'),
         });
     });
+    it('fails typed instead of silently dropping malformed harvest rows', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            'content',
+            harvestPayload([null]),
+        ]);
+
+        await expect(cmd.func(page, { query: '测试', limit: 1 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('harvest row 1 shape'),
+        });
+    });
+    it('fails typed instead of emitting untrusted harvest row URLs', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([
+            'content',
+            harvestPayload([
+                {
+                    title: '外站结果',
+                    author: 'UserA',
+                    likes: '10',
+                    url: 'https://evil.example/explore/68e90be80000000004022e66',
+                    author_url: '',
+                },
+            ]),
+        ]);
+
+        await expect(cmd.func(page, { query: '测试', limit: 1 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('trusted note URL'),
+        });
+    });
     it('fails typed for malformed wait envelopes and raw bridge failures', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const malformedPage = createPageMock([{ session: 'site:xiaohongshu', data: { state: 'content' } }]);
@@ -261,21 +293,21 @@ describe('xiaohongshu search', () => {
                         title: 'Result A',
                         author: 'UserA',
                         likes: '10',
-                        url: 'https://www.xiaohongshu.com/search_result/aaa',
+                        url: 'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66',
                         author_url: '',
                     },
                     {
                         title: '',
                         author: 'UserB',
                         likes: '5',
-                        url: 'https://www.xiaohongshu.com/search_result/bbb',
+                        url: 'https://www.xiaohongshu.com/search_result/697f6c74000000002103de17',
                         author_url: '',
                     },
                     {
                         title: 'Result C',
                         author: 'UserC',
                         likes: '3',
-                        url: 'https://www.xiaohongshu.com/search_result/ccc',
+                        url: 'https://www.xiaohongshu.com/search_result/69b739f00000000000000000',
                         author_url: '',
                     },
                 ]),
