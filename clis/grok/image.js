@@ -3,15 +3,9 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { GROK_URL, isOnGrok, normalizeBooleanFlag } from './utils.js';
 
-const GROK_URL = 'https://grok.com/';
 const SESSION_HINT = 'Likely login/auth/challenge/session issue in the existing grok.com browser session.';
-
-function normalizeBooleanFlag(value) {
-  if (typeof value === 'boolean') return value;
-  const normalized = String(value ?? '').trim().toLowerCase();
-  return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
-}
 
 /**
  * Validate a positive-integer arg without silently flooring/clamping.
@@ -53,18 +47,6 @@ function buildFilename(src, ct) {
   const ext = extFromContentType(ct);
   const hash = crypto.createHash('sha1').update(src).digest('hex').slice(0, 12);
   return `grok-${Date.now()}-${hash}.${ext}`;
-}
-
-/** Check whether the tab is already on grok.com (any path). */
-async function isOnGrok(page) {
-  const url = await page.evaluate('window.location.href').catch(() => '');
-  if (typeof url !== 'string' || !url) return false;
-  try {
-    const hostname = new URL(url).hostname;
-    return hostname === 'grok.com' || hostname.endsWith('.grok.com');
-  } catch {
-    return false;
-  }
 }
 
 async function tryStartFreshChat(page) {
@@ -332,9 +314,7 @@ export const imageCommand = cli({
 });
 
 export const __test__ = {
-  normalizeBooleanFlag,
   normalizePositiveInteger,
-  isOnGrok,
   dedupeBySrc,
   imagesSignature,
   extFromContentType,

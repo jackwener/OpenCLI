@@ -7,9 +7,7 @@ import {
   requireBooleanEvaluateResult,
   requireObjectEvaluateResult,
 } from './export-utils.js';
-
-const GROK_DOMAIN = 'grok.com';
-const GROK_URL = 'https://grok.com/';
+import { GROK_DOMAIN, GROK_URL } from './utils.js';
 
 function normalizeInteger(value, defaultValue, label, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
   const raw = value ?? defaultValue;

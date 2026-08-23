@@ -1,9 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 import { normalizeConversationRows, requireObjectEvaluateResult } from './export-utils.js';
-
-const GROK_DOMAIN = 'grok.com';
-const GROK_URL = 'https://grok.com/';
+import { GROK_DOMAIN, GROK_URL } from './utils.js';
 
 function normalizeLimit(value) {
   const raw = value ?? 0;
