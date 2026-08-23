@@ -24,6 +24,18 @@ export function normalizeHttpUrl(value, base) {
   }
 }
 
+export function decodeLinkedInSafetyUrl(value) {
+  const url = normalizeWhitespace(value);
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.endsWith('linkedin.com') && parsed.pathname === '/safety/go/') {
+      return normalizeHttpUrl(parsed.searchParams.get('url') || '');
+    }
+  } catch {}
+  return normalizeHttpUrl(url);
+}
+
 export function compactRepeatedText(value) {
   const text = normalizeWhitespace(value);
   if (!text) return '';

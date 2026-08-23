@@ -3,6 +3,7 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 import {
   assertLinkedInAuthenticated,
   assertSafeLinkedinUrl,
+  decodeLinkedInSafetyUrl,
   normalizeHttpUrl,
   normalizeWhitespace,
   unwrapEvaluateResult,
@@ -53,18 +54,6 @@ function parseProjectText(rawText, profileUrl, index) {
     profile_url: profileUrl,
     raw_text: lines.join(' | '),
   };
-}
-
-function decodeLinkedInSafetyUrl(value) {
-  const url = normalizeWhitespace(value);
-  if (!url) return '';
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname.endsWith('linkedin.com') && parsed.pathname === '/safety/go/') {
-      return normalizeHttpUrl(parsed.searchParams.get('url') || '');
-    }
-  } catch {}
-  return normalizeHttpUrl(url);
 }
 
 function parseProjectsSectionText(rawText, profileUrl) {
@@ -306,6 +295,5 @@ export const __test__ = {
   profileProjectsUrl,
   parseProjectText,
   parseProjectsSectionText,
-  decodeLinkedInSafetyUrl,
   normalizeProject,
 };

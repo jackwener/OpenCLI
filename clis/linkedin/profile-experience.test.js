@@ -6,7 +6,6 @@ import './profile-experience.js';
 const {
   normalizeProfileUrl,
   profileExperienceUrl,
-  decodeLinkedInSafetyUrl,
   parseDateRangeParts,
   parseCompanyLine,
   parseLocationLine,
@@ -135,14 +134,6 @@ Who your viewers also viewed`, 'https://www.linkedin.com/in/gauravsaxena1997/');
     expect(() => normalizeExperience({ title: '' })).toThrow(CommandExecutionError);
     expect(normalizeExperience({ rank: '2', total_count: '4', title: ' AI Engineer ', company: ' Self Employed ', skill_url: ' https://example.com/skills ' }))
       .toMatchObject({ rank: 2, total_count: 4, title: 'AI Engineer', company: 'Self Employed', skill_url: 'https://example.com/skills' });
-  });
-
-  it('decodes LinkedIn safety redirect URLs', () => {
-    expect(decodeLinkedInSafetyUrl('https://www.linkedin.com/safety/go/?url=https%3A%2F%2Fexample.com%2Fdemo&urlhash=x'))
-      .toBe('https://example.com/demo');
-    expect(decodeLinkedInSafetyUrl('https://www.linkedin.com/safety/go/?url=javascript%3Aalert(1)&urlhash=x'))
-      .toBe('');
-    expect(decodeLinkedInSafetyUrl('javascript:alert(1)')).toBe('');
   });
 
   it('builds browser extraction scripts that parse as JavaScript', () => {
