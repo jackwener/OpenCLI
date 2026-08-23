@@ -1894,7 +1894,7 @@ async function resolveTab(tabId, leaseKey, initialUrl) {
     }
   }
   if (!existingSession || existingSession.owned && existingSession.preferredTabId === null) {
-    if (!existingSession && !initialUrl) {
+    if (!existingSession && !initialUrl && getSurfaceFromKey(leaseKey) === "browser") {
       const sessionName = getSessionFromKey(leaseKey);
       const activeSessions = [];
       for (const [k, s] of automationSessions.entries()) {
@@ -2352,7 +2352,15 @@ async function handleInsertText(cmd, leaseKey) {
 }
 async function handleNetworkCaptureStart(cmd, leaseKey) {
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  let tabId;
+  try {
+    tabId = await resolveTabId(cmdTabId, leaseKey);
+  } catch (err) {
+    if (err instanceof CommandFailure && err.code === "session_not_found") {
+      return { id: cmd.id, ok: true, data: { started: false } };
+    }
+    throw err;
+  }
   try {
     await startNetworkCapture(tabId, cmd.pattern);
     return pageScopedResult(cmd.id, tabId, { started: true });

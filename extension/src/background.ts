@@ -1588,7 +1588,11 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
     // This prevents a common mistake where $$ in shell expands to a different
     // PID on each Bash tool invocation, silently creating orphan blank tabs
     // instead of reusing the intended session.
-    if (!existingSession && !initialUrl) {
+    // Only guard the user-facing `opencli browser <session> ...` surface. Adapter
+    // leases (COOKIE/INTERCEPT/UI strategies) legitimately open their automation tab
+    // without a URL, so applying this guard to them breaks every browser-backed
+    // adapter command — and `opencli doctor`'s probe along with them.
+    if (!existingSession && !initialUrl && getSurfaceFromKey(leaseKey) === 'browser') {
       const sessionName = getSessionFromKey(leaseKey);
       const activeSessions: string[] = [];
       for (const [k, s] of automationSessions.entries()) {
@@ -2139,7 +2143,18 @@ async function handleInsertText(cmd: Command, leaseKey: string): Promise<Result>
 
 async function handleNetworkCaptureStart(cmd: Command, leaseKey: string): Promise<Result> {
   const cmdTabId = await resolveCommandTabId(cmd);
-  const tabId = await resolveTabId(cmdTabId, leaseKey);
+  // network-capture-start is called speculatively before navigation (open command);
+  // if the session doesn't exist yet, return started:false instead of erroring —
+  // the subsequent navigate command will create the session.
+  let tabId: number;
+  try {
+    tabId = await resolveTabId(cmdTabId, leaseKey);
+  } catch (err) {
+    if (err instanceof CommandFailure && err.code === 'session_not_found') {
+      return { id: cmd.id, ok: true, data: { started: false } };
+    }
+    throw err;
+  }
   try {
     await executor.startNetworkCapture(tabId, cmd.pattern);
     return pageScopedResult(cmd.id, tabId, { started: true });
