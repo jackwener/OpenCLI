@@ -1,13 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SENT_URL = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
-
-function unwrapEvaluateResult(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-  return payload;
-}
 
 function buildSentInvitationsScript() {
   return String.raw`(() => {
@@ -88,5 +84,4 @@ cli({
 
 export const __test__ = {
   buildSentInvitationsScript,
-  unwrapEvaluateResult,
 };

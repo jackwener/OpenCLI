@@ -1,7 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { decodeLinkedInSafetyUrl } from './shared.js';
+import { decodeLinkedInSafetyUrl, unwrapEvaluateResult } from './shared.js';
 
 describe('linkedin shared helpers', () => {
+  it('unwraps complete browser evaluate envelopes', () => {
+    const data = { ok: true, rows: [1, 2] };
+    expect(unwrapEvaluateResult({ session: 'site:linkedin:1', data })).toBe(data);
+  });
+
+  it('preserves non-envelope payload identity', () => {
+    const raw = { data: { ok: true } };
+    const sessionOnly = { session: 'site:linkedin:1' };
+    expect(unwrapEvaluateResult(raw)).toBe(raw);
+    expect(unwrapEvaluateResult(sessionOnly)).toBe(sessionOnly);
+  });
+
+  it('returns null and scalar evaluate payloads unchanged', () => {
+    expect(unwrapEvaluateResult(null)).toBe(null);
+    expect(unwrapEvaluateResult('text')).toBe('text');
+    expect(unwrapEvaluateResult(42)).toBe(42);
+  });
+
   it('normalizes empty and direct HTTP URLs', () => {
     expect(decodeLinkedInSafetyUrl('')).toBe('');
     expect(decodeLinkedInSafetyUrl(null)).toBe('');

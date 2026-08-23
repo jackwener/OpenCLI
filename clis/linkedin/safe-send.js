@@ -1,16 +1,12 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createHash } from 'node:crypto';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 
 function normalizeWhitespace(value) {
   return String(value ?? '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function unwrapEvaluateResult(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-  return payload;
 }
 
 function normalizeName(value) {
@@ -349,7 +345,6 @@ cli({
 
 export const __test__ = {
   normalizeWhitespace,
-  unwrapEvaluateResult,
   normalizeName,
   canonicalizeLinkedInThreadUrl,
   hashText,
