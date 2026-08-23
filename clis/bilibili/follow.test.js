@@ -20,6 +20,17 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import './follow.js';
 import './unfollow.js';
 
+async function expectRejectsWithMessage(promise, type, message) {
+    try {
+        await promise;
+    } catch (error) {
+        expect(error).toBeInstanceOf(type);
+        expect(error.message).toBe(message);
+        return;
+    }
+    throw new Error(`Expected rejection with message: ${message}`);
+}
+
 describe('bilibili follow', () => {
     const command = getRegistry().get('bilibili/follow');
 
@@ -101,12 +112,20 @@ describe('bilibili follow', () => {
     });
 
     it('rejects an empty target before touching the API', async () => {
-        await expect(command.func({}, { target: '   ' })).rejects.toBeInstanceOf(ArgumentError);
+        await expectRejectsWithMessage(
+            command.func({}, { target: '   ' }),
+            ArgumentError,
+            'bilibili follow target cannot be empty',
+        );
         expect(mockGetSelfUid).not.toHaveBeenCalled();
     });
 
     it('rejects malformed Bilibili profile URLs instead of searching the whole URL', async () => {
-        await expect(command.func({}, { target: 'https://space.bilibili.com/not-a-uid' })).rejects.toBeInstanceOf(ArgumentError);
+        await expectRejectsWithMessage(
+            command.func({}, { target: 'https://space.bilibili.com/not-a-uid' }),
+            ArgumentError,
+            'bilibili follow target must be a valid space.bilibili.com/<uid> URL',
+        );
         expect(mockResolveUid).not.toHaveBeenCalled();
         expect(mockFetchJson).not.toHaveBeenCalled();
     });
@@ -199,5 +218,24 @@ describe('bilibili unfollow', () => {
         mockFetchJson.mockResolvedValueOnce({ code: 0, data: { attribute: 6 } });
 
         await expect(command.func({}, { target: '9617619' })).rejects.toThrow(/did not verify not following/);
+    });
+
+    it('rejects an empty target with unfollow-specific text before touching the API', async () => {
+        await expectRejectsWithMessage(
+            command.func({}, { target: '   ' }),
+            ArgumentError,
+            'bilibili unfollow target cannot be empty',
+        );
+        expect(mockGetSelfUid).not.toHaveBeenCalled();
+    });
+
+    it('rejects malformed profile URLs with unfollow-specific text', async () => {
+        await expectRejectsWithMessage(
+            command.func({}, { target: 'https://space.bilibili.com/not-a-uid' }),
+            ArgumentError,
+            'bilibili unfollow target must be a valid space.bilibili.com/<uid> URL',
+        );
+        expect(mockResolveUid).not.toHaveBeenCalled();
+        expect(mockFetchJson).not.toHaveBeenCalled();
     });
 });
