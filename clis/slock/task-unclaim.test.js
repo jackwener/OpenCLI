@@ -43,7 +43,10 @@ describe('slock task-unclaim', () => {
 
   it('[postcondition] rejects a 2xx unclaim response without task identity', async () => {
     const page = makePage({ kind: 'ok', rows: [{ taskStatus: 'todo' }] });
-    await expect(command.func(page, { taskId: ID }))
+    const result = command.func(page, { taskId: ID });
+    await expect(result)
       .rejects.toBeInstanceOf(CommandExecutionError);
+    await expect(result)
+      .rejects.toThrow(`Slock task-unclaim succeeded without returning task id ${ID}; refusing to report a task row.`);
   });
 });
