@@ -58,6 +58,18 @@ class ActionPage extends BasePage {
 
 const resolveOk = { ok: true, matches_n: 1, match_level: 'exact' };
 
+describe('BasePage capability boundary', () => {
+  it('does not expose CDP-only capabilities on transport-neutral pages', () => {
+    const page = new TestPage() as unknown as Record<string, unknown>;
+
+    expect('cdp' in page).toBe(false);
+    expect('handleJavaScriptDialog' in page).toBe(false);
+    expect('nativeClick' in page).toBe(false);
+    expect('nativeType' in page).toBe(false);
+    expect('nativeKeyPress' in page).toBe(false);
+  });
+});
+
 describe('BasePage.fetchJson', () => {
   it('passes a narrow browser-context JSON request and parses the response in Node', async () => {
     const page = new TestPage();

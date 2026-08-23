@@ -15,7 +15,7 @@ import { buildEvaluateExpression } from './utils.js';
 import { saveBase64ToFile } from '../utils.js';
 import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
-import { BasePage } from './base-page.js';
+import { CDPBasePage } from './base-page.js';
 import { classifyBrowserError } from './errors.js';
 import { log } from '../logger.js';
 
@@ -39,7 +39,7 @@ function isStalePageIdentityError(err: unknown): boolean {
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
  */
-export class Page extends BasePage {
+export class Page extends CDPBasePage {
   private readonly _idleTimeout: number | undefined;
 
   constructor(
@@ -345,23 +345,6 @@ export class Page extends BasePage {
     });
   }
 
-  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
-    await this.cdp('Page.handleJavaScriptDialog', {
-      accept,
-      ...(promptText !== undefined && { promptText }),
-    });
-  }
-
-  /** CDP native click fallback — called when JS el.click() fails */
-  protected override async tryNativeClick(x: number, y: number): Promise<boolean> {
-    try {
-      await this.nativeClick(x, y);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   /** Precise click using DOM.getContentQuads/getBoxModel for inline elements */
   async clickWithQuads(ref: string): Promise<void> {
     const safeRef = JSON.stringify(ref);
@@ -424,48 +407,4 @@ export class Page extends BasePage {
     `);
   }
 
-  async nativeClick(x: number, y: number): Promise<void> {
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x,
-      y,
-    });
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x, y,
-      button: 'left',
-      clickCount: 1,
-    });
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x, y,
-      button: 'left',
-      clickCount: 1,
-    });
-  }
-
-  async nativeType(text: string): Promise<void> {
-    // Use Input.insertText for reliable Unicode/CJK text insertion
-    await this.cdp('Input.insertText', { text });
-  }
-
-  async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
-    let modifierFlags = 0;
-    for (const mod of modifiers) {
-      if (mod === 'Alt') modifierFlags |= 1;
-      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
-      if (mod === 'Meta') modifierFlags |= 4;
-      if (mod === 'Shift') modifierFlags |= 8;
-    }
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key,
-      modifiers: modifierFlags,
-    });
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key,
-      modifiers: modifierFlags,
-    });
-  }
 }

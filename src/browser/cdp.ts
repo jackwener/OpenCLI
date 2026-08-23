@@ -18,7 +18,7 @@ import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
 import { getAllElectronApps } from '../electron-apps.js';
-import { BasePage } from './base-page.js';
+import { CDPBasePage } from './base-page.js';
 
 export interface CDPTarget {
   type?: string;
@@ -183,7 +183,7 @@ export class CDPBridge implements IBrowserFactory {
   }
 }
 
-class CDPPage extends BasePage {
+class CDPPage extends CDPBasePage {
   private _pageEnabled = false;
 
   // Network capture state (mirrors extension/src/cdp.ts NetworkCaptureEntry shape)
@@ -414,61 +414,8 @@ class CDPPage extends BasePage {
     return this.bridge.send(method, params);
   }
 
-  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
-    await this.cdp('Page.handleJavaScriptDialog', {
-      accept,
-      ...(promptText !== undefined && { promptText }),
-    });
-  }
-
-  async nativeClick(x: number, y: number): Promise<void> {
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x,
-      y,
-    });
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1,
-    });
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1,
-    });
-  }
-
-  async nativeType(text: string): Promise<void> {
-    await this.cdp('Input.insertText', { text });
-  }
-
   async insertText(text: string): Promise<void> {
     await this.nativeType(text);
-  }
-
-  async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
-    let modifierFlags = 0;
-    for (const mod of modifiers) {
-      if (mod === 'Alt') modifierFlags |= 1;
-      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
-      if (mod === 'Meta') modifierFlags |= 4;
-      if (mod === 'Shift') modifierFlags |= 8;
-    }
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key,
-      modifiers: modifierFlags,
-    });
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key,
-      modifiers: modifierFlags,
-    });
   }
 }
 
