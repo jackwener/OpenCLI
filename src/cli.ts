@@ -104,6 +104,80 @@ export function selectFreshByTimestamp<T extends { timestamp?: unknown }>(
   return { fresh, lastSeenTs: nextSeenTs };
 }
 
+const STATIC_IMPORT_SPECIFIER_RE = /^\s*(?:import\s+(?:[^;]*?\s+from\s*)?|export\s+(?:\*(?:\s+as\s+[\w$]+)?|{[^;]*?})\s+from\s*)['"]([^'"]+)['"]/gm;
+const DYNAMIC_IMPORT_SPECIFIER_RE = /(?:^|[^\w$])import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+function isPathInside(child: string, parent: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function listJsFiles(dir: string): string[] {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listJsFiles(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
+function extractImportSpecifiers(source: string): string[] {
+  const specifiers: string[] = [];
+  for (const pattern of [STATIC_IMPORT_SPECIFIER_RE, DYNAMIC_IMPORT_SPECIFIER_RE]) {
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(source)) !== null) {
+      specifiers.push(match[1]);
+    }
+  }
+  return specifiers;
+}
+
+function resolveImportTarget(importerPath: string, specifier: string): string | null {
+  if (!specifier.startsWith('.')) return null;
+  const base = path.resolve(path.dirname(importerPath), specifier);
+  const candidates = path.extname(base) ? [base] : [base, `${base}.js`, path.join(base, 'index.js')];
+  return candidates.find(candidate => fs.existsSync(candidate)) ?? base;
+}
+
+function collectRepoSharedDependencies(entryDir: string, sharedDir: string): string[] {
+  const pending = listJsFiles(entryDir);
+  const seenFiles = new Set<string>();
+  const sharedDeps = new Set<string>();
+
+  for (let index = 0; index < pending.length; index += 1) {
+    const filePath = pending[index];
+    if (seenFiles.has(filePath)) continue;
+    seenFiles.add(filePath);
+
+    const source = fs.readFileSync(filePath, 'utf-8');
+    for (const specifier of extractImportSpecifiers(source)) {
+      const resolved = resolveImportTarget(filePath, specifier);
+      if (!resolved || !isPathInside(resolved, sharedDir)) continue;
+      sharedDeps.add(resolved);
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) pending.push(resolved);
+      else if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) pending.push(...listJsFiles(resolved));
+    }
+  }
+
+  return [...sharedDeps].sort();
+}
+
+function copyEjectedRepoSharedDependencies(builtinSiteDir: string, builtinSharedDir: string, userClisDir: string): void {
+  const sharedDeps = collectRepoSharedDependencies(builtinSiteDir, builtinSharedDir);
+  for (const source of sharedDeps) {
+    const relative = path.relative(builtinSharedDir, source);
+    const target = path.join(userClisDir, '_shared', relative);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.cpSync(source, target, { recursive: true });
+  }
+}
+
 /**
  * Normalize raw capture entries (from daemon/CDP `readNetworkCapture` or
  * the JS interceptor's `window.__opencli_net`) into a consistent shape.
@@ -3237,6 +3311,7 @@ cli({
       const os = await import('node:os');
       const userClisDir = path.join(os.homedir(), '.opencli', 'clis');
       const builtinSiteDir = path.join(BUILTIN_CLIS, site);
+      const builtinSharedDir = path.join(BUILTIN_CLIS, '_shared');
       const userSiteDir = path.join(userClisDir, site);
 
       try {
@@ -3255,6 +3330,7 @@ cli({
       } catch { /* good, doesn't exist yet */ }
 
       fs.cpSync(builtinSiteDir, userSiteDir, { recursive: true });
+      copyEjectedRepoSharedDependencies(builtinSiteDir, builtinSharedDir, userClisDir);
       console.log(`✅ Ejected "${site}" to ~/.opencli/clis/${site}/`);
       console.log('You can now edit the adapter files. Changes take effect immediately.');
       console.log('Note: Official updates to this adapter will overwrite your changes.');

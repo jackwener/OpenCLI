@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { cli, getRegistry, Strategy } from './registry.js';
 import { BrowserCommandError } from './browser/daemon-client.js';
@@ -1036,6 +1037,62 @@ describe('browser verify', () => {
       if (originalUserProfile === undefined) delete process.env.USERPROFILE;
       else process.env.USERPROFILE = originalUserProfile;
       fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('adapter eject', () => {
+  it('copies repo-level shared imports so an ejected adapter can load', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-adapter-eject-home-'));
+    const fakePackage = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-adapter-eject-package-'));
+    const builtinClis = path.join(fakePackage, 'clis');
+    const userClis = path.join(fakeHome, '.opencli', 'clis');
+    vi.mocked(console.log).mockClear();
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+
+    try {
+      fs.mkdirSync(path.join(builtinClis, '_shared'), { recursive: true });
+      fs.mkdirSync(path.join(builtinClis, 'demo'), { recursive: true });
+      fs.writeFileSync(
+        path.join(builtinClis, '_shared', 'helper.js'),
+        "import { nestedValue } from './nested.js';\nexport const sharedValue = nestedValue;\n",
+        'utf-8',
+      );
+      fs.writeFileSync(
+        path.join(builtinClis, '_shared', 'nested.js'),
+        'export const nestedValue = 42;\n',
+        'utf-8',
+      );
+      fs.writeFileSync(
+        path.join(builtinClis, '_shared', 'unused.js'),
+        'export const unused = true;\n',
+        'utf-8',
+      );
+      fs.writeFileSync(
+        path.join(builtinClis, 'demo', 'command.js'),
+        "export * as shared from '../_shared/helper.js';\n",
+        'utf-8',
+      );
+
+      const program = createProgram(builtinClis, userClis);
+      await program.parseAsync(['node', 'opencli', 'adapter', 'eject', 'demo']);
+
+      const ejectedCommand = path.join(userClis, 'demo', 'command.js');
+      const module = await import(`${pathToFileURL(ejectedCommand).href}?t=${Date.now()}`);
+      expect(module.shared.sharedValue).toBe(42);
+      expect(fs.existsSync(path.join(userClis, '_shared', 'helper.js'))).toBe(true);
+      expect(fs.existsSync(path.join(userClis, '_shared', 'nested.js'))).toBe(true);
+      expect(fs.existsSync(path.join(userClis, '_shared', 'unused.js'))).toBe(false);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+      fs.rmSync(fakePackage, { recursive: true, force: true });
     }
   });
 });
