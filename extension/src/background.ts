@@ -1583,6 +1583,32 @@ async function resolveTab(tabId: number | undefined, leaseKey: string, initialUr
   }
 
   if (!existingSession || (existingSession.owned && existingSession.preferredTabId === null)) {
+    // When no URL is provided (non-navigation commands like eval/click/state),
+    // refuse to auto-create a blank tab for a session that doesn't exist.
+    // This prevents a common mistake where $$ in shell expands to a different
+    // PID on each Bash tool invocation, silently creating orphan blank tabs
+    // instead of reusing the intended session.
+    if (!existingSession && !initialUrl) {
+      const sessionName = getSessionFromKey(leaseKey);
+      const activeSessions: string[] = [];
+      for (const [k, s] of automationSessions.entries()) {
+        if (s.owned) {
+          const name = getSessionFromKey(k);
+          const url = s.preferredTabId != null
+            ? await chrome.tabs.get(s.preferredTabId).then(t => t.url ?? '(unknown)').catch(() => '(closed)')
+            : '(no tab)';
+          activeSessions.push(`  ${name}  ${url}`);
+        }
+      }
+      const sessionList = activeSessions.length > 0
+        ? `\nActive sessions:\n${activeSessions.join('\n')}`
+        : '\nNo active sessions.';
+      throw new CommandFailure(
+        'session_not_found',
+        `No active session "${sessionName}".${sessionList}`,
+        'Open a URL first with "opencli browser <session> open <url>". If using $$ for session names, note that $$ changes with each shell process — use a fixed name instead.',
+      );
+    }
     return createOwnedTabLease(leaseKey, initialUrl);
   }
 

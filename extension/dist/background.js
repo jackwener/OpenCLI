@@ -1894,6 +1894,25 @@ async function resolveTab(tabId, leaseKey, initialUrl) {
     }
   }
   if (!existingSession || existingSession.owned && existingSession.preferredTabId === null) {
+    if (!existingSession && !initialUrl) {
+      const sessionName = getSessionFromKey(leaseKey);
+      const activeSessions = [];
+      for (const [k, s] of automationSessions.entries()) {
+        if (s.owned) {
+          const name = getSessionFromKey(k);
+          const url = s.preferredTabId != null ? await chrome.tabs.get(s.preferredTabId).then((t) => t.url ?? "(unknown)").catch(() => "(closed)") : "(no tab)";
+          activeSessions.push(`  ${name}  ${url}`);
+        }
+      }
+      const sessionList = activeSessions.length > 0 ? `
+Active sessions:
+${activeSessions.join("\n")}` : "\nNo active sessions.";
+      throw new CommandFailure(
+        "session_not_found",
+        `No active session "${sessionName}".${sessionList}`,
+        'Open a URL first with "opencli browser <session> open <url>". If using $$ for session names, note that $$ changes with each shell process — use a fixed name instead.'
+      );
+    }
     return createOwnedTabLease(leaseKey, initialUrl);
   }
   const windowId = await getAutomationWindow(leaseKey, initialUrl);
