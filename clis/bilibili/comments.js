@@ -1,7 +1,7 @@
 /**
  * Bilibili comments — fetches comments via the official API.
- * Top-level comments come from /x/v2/reply/main (WBI-signed); with --parent,
- * the replies nested under a given comment come from /x/v2/reply/reply.
+ * Top-level and pinned comments come from /x/v2/reply/main (WBI-signed); with
+ * --parent, replies nested under a given comment come from /x/v2/reply/reply.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
@@ -47,25 +47,33 @@ function requireOkPayload(payload, label) {
     return payload.data;
 }
 
-function requireReplies(data, label, key = 'replies') {
+function requireReplies(data, label) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw new CommandExecutionError(`Bilibili ${label} API returned malformed data`);
     }
-    // top_replies is omitted entirely when a video has no pinned comment; treat
-    // its absence as an empty list rather than a malformed payload.
-    if (!Object.hasOwn(data, key)) {
-        if (key !== 'replies') {
-            return [];
-        }
-        throw new CommandExecutionError(`Bilibili ${label} API did not return ${key}`);
+    if (!Object.hasOwn(data, 'replies')) {
+        throw new CommandExecutionError(`Bilibili ${label} API did not return replies`);
     }
-    if (data[key] === null) {
+    if (data.replies === null) {
         return [];
     }
-    if (!Array.isArray(data[key])) {
-        throw new CommandExecutionError(`Bilibili ${label} API returned malformed ${key}`);
+    if (!Array.isArray(data.replies)) {
+        throw new CommandExecutionError(`Bilibili ${label} API returned malformed replies`);
     }
-    return data[key];
+    return data.replies;
+}
+
+function requireTopReplies(data, label) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new CommandExecutionError(`Bilibili ${label} API returned malformed data`);
+    }
+    if (!Object.hasOwn(data, 'top_replies')) {
+        throw new CommandExecutionError(`Bilibili ${label} API did not return top_replies`);
+    }
+    if (!Array.isArray(data.top_replies)) {
+        throw new CommandExecutionError(`Bilibili ${label} API returned malformed top_replies`);
+    }
+    return data.top_replies;
 }
 
 function formatReplyRow(reply, index) {
@@ -109,18 +117,18 @@ cli({
         if (!page) {
             throw new CommandExecutionError('Browser session required for bilibili comments');
         }
+        const limit = parseLimit(kwargs.limit);
+        const parent = parseParent(kwargs.parent);
+        const top = kwargs.top === true;
+        if (top && parent != null) {
+            throw new ArgumentError('bilibili comments --top cannot be combined with --parent (pinned comments only exist at the top level)');
+        }
         let bvid;
         try {
             bvid = await resolveBvid(kwargs.bvid);
         }
         catch (error) {
             throw new ArgumentError(`Cannot resolve Bilibili BV ID from input: ${String(kwargs.bvid ?? '')}`, error instanceof Error ? error.message : String(error));
-        }
-        const limit = parseLimit(kwargs.limit);
-        const parent = parseParent(kwargs.parent);
-        const top = kwargs.top === true;
-        if (top && parent != null) {
-            throw new ArgumentError('bilibili comments --top cannot be combined with --parent (pinned comments only exist at the top level)');
         }
         // Resolve bvid → aid (required by reply API)
         const view = await apiGet(page, '/x/web-interface/view', { params: { bvid } });
@@ -133,13 +141,13 @@ cli({
                 params: { oid: aid, type: 1, root: parent, pn: 1, ps: limit },
             })
             : await apiGet(page, '/x/v2/reply/main', {
-                params: { oid: aid, type: 1, mode: 3, ps: limit },
+                params: { oid: aid, type: 1, mode: 3, ps: top ? 1 : limit },
                 signed: true,
             });
         const label = parent != null ? 'reply thread' : 'reply main';
         const data = requireOkPayload(payload, label);
         const replies = top
-            ? requireReplies(data, label, 'top_replies')
+            ? requireTopReplies(data, label)
             : requireReplies(data, label);
         if (replies.length === 0) {
             if (top) {
