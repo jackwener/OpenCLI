@@ -28,8 +28,6 @@ export const PRE_DISPATCH_ERROR_CODES = new Set([
   'profile_disconnected',
 ] as const);
 
-export type PreDispatchErrorCode = typeof PRE_DISPATCH_ERROR_CODES extends Set<infer T> ? T : never;
-
 export function isPreDispatchError(errorCode: string | undefined): boolean {
   if (!errorCode) return false;
   return (PRE_DISPATCH_ERROR_CODES as Set<string>).has(errorCode);
