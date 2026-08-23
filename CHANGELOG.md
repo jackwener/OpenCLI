@@ -4,7 +4,7 @@
 
 ### Breaking
 
-* **browser bridge** — drop the TCP daemon on `:19825`. Chrome parents `opencli-host` via Native Messaging; the CLI only connects to a unix socket under `~/.opencli/run/`. `opencli daemon` is replaced by `opencli host status` and `opencli host install`. There is no HTTP, WebSocket, CORS, or `OPENCLI_DAEMON_PORT`. Status JSON and `opencli doctor` report `hostVersion` only — the `daemonVersion` alias is gone. This is a coordinated release: **CLI v2.0.0 is native-only** and **extension 1.0.24** (`compatRange >=2.0.0`) is native-only. There is no dual-stack fallback — publish the Store extension in the same window as npm 2.0.0. Reload the OpenCLI extension after upgrade so Chrome spawns the host.
+* **browser bridge** — drop the TCP daemon on `:19825`. Chrome parents `opencli-host` via Native Messaging; the CLI only connects to a unix socket under `~/.opencli/run/`. `npm install -g` registers the native host (no extra `opencli host install` on the happy path; that command is repair-only). `opencli daemon` is replaced by `opencli host status`. There is no HTTP, WebSocket, CORS, or `OPENCLI_DAEMON_PORT`. Status JSON and `opencli doctor` report `hostVersion` only — the `daemonVersion` alias is gone. This is a coordinated release: **CLI v2.0.0 is native-only** and **extension 1.0.24** (`compatRange >=2.0.0`) is native-only. There is no dual-stack fallback — publish the Store extension in the same window as npm 2.0.0. Reload the OpenCLI extension after upgrade so Chrome spawns the host.
 
 ## [1.8.4](https://github.com/jackwener/opencli/compare/v1.8.3...v1.8.4) (2026-06-15)
 

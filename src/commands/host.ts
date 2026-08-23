@@ -13,7 +13,7 @@ export async function hostStatus(): Promise<void> {
   const status = await fetchDaemonStatus();
   if (!status) {
     console.log('Host: not running (open Chrome with the OpenCLI extension enabled)');
-    console.log(`Native manifest: ${nativeHostManifestInstalled() ? 'installed' : 'missing — run opencli host install'}`);
+    console.log(`Native manifest: ${nativeHostManifestInstalled() ? 'installed' : 'missing — will be written on the next browser command, or run opencli host install to repair'}`);
     return;
   }
 

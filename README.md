@@ -291,7 +291,7 @@ See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 - **"attach failed: Cannot access a chrome-extension:// URL"** — Another extension may be interfering. Try disabling other extensions temporarily.
 - **Empty data or 'Unauthorized' error** — Your Chrome/Chromium login session may have expired. Navigate to the target site and log in again.
 - **Node API errors / missing `fetch` / startup crash on old Node** — OpenCLI requires **Node.js >= 20**. Run `node --version`, upgrade Node if needed, then retry.
-- **Host issues** — `opencli host status` · `opencli host install` · `opencli doctor`
+- **Host issues** — `opencli host status` · `opencli doctor` · `opencli host install` (repair only)
 
 ## Star History
 

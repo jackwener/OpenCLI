@@ -331,8 +331,8 @@ opencli plugin uninstall my-tool                            # 卸载
   - OpenCLI 要求 **Node.js >= 20**。先执行 `node --version`，如果版本过低先升级，再重试命令。
 - **Host 问题**
   - `opencli host status`
-  - `opencli host install`
   - `opencli doctor`
+  - `opencli host install`（仅修复：重写 Native Messaging manifest）
 
 
 ## Star History

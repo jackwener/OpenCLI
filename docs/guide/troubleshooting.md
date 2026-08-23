@@ -30,9 +30,9 @@ OPENCLI_CDP_TARGET=detail.1688.com opencli 1688 item 841141931191 -f json
 ### Native host issues
 
 ```bash
-opencli host install      # write the Chrome Native Messaging manifest
 opencli host status       # pid, socket, connected profiles
 opencli doctor            # full diagnostics
+opencli host install      # repair only: rewrite the Native Messaging manifest
 ```
 
 > Chrome owns the host process. Closing Chrome stops the host. Reload the OpenCLI extension to spawn it again. There is no `opencli daemon`.

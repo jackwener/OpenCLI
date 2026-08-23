@@ -16,8 +16,11 @@
  */
 
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
 
 // ── Completion script content ──────────────────────────────────────────────
@@ -71,27 +74,46 @@ function ensureDir(dir) {
   }
 }
 
+async function installNativeHostManifestBestEffort() {
+  const entry = join(SCRIPT_DIR, '..', 'dist', 'src', 'native-manifest.js');
+  if (!existsSync(entry)) return;
+  try {
+    const { installNativeHostManifest } = await import(pathToFileURL(entry).href);
+    const result = installNativeHostManifest();
+    if (result?.files?.length) {
+      console.log(`✓ Native Messaging host registered (${result.files.length} browser${result.files.length === 1 ? '' : 's'})`);
+    }
+  } catch (err) {
+    if (process.env.OPENCLI_VERBOSE) {
+      console.error(`Warning: Could not install native host: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
   // Skip in CI environments
   if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
     return;
   }
 
-  // Only install completion for global installs and npm link
+  // Global installs and `npm link` only — a nested node_modules copy must
+  // not overwrite the user's Chrome native-host registration.
   const isGlobal = process.env.npm_config_global === 'true';
   if (!isGlobal) {
     return;
   }
 
+  await installNativeHostManifestBestEffort();
+
   const shell = detectShell();
+  const home = homedir();
+
   if (!shell) {
-    // Cannot determine shell; silently skip
+    printBrowserBridgeHint();
     return;
   }
-
-  const home = homedir();
 
   try {
     switch (shell) {
@@ -159,16 +181,19 @@ function main() {
     console.log(`  Edit the file and add your Client ID and Secret, then run: opencli spotify auth`);
   }
 
-  // ── Browser Bridge setup hint ───────────────────────────────────────
+  printBrowserBridgeHint();
+}
+
+function printBrowserBridgeHint() {
   console.log('');
-  console.log('  \x1b[1mNext step — Browser Bridge setup\x1b[0m');
-  console.log('  Browser commands (bilibili, zhihu, twitter...) require the extension:');
+  console.log('  \x1b[1mNext step — Browser Bridge\x1b[0m');
+  console.log('  Browser commands need the Chrome extension (the native host is already registered):');
   console.log('  1. Download: https://github.com/jackwener/opencli/releases');
-  console.log('  2. In Chrome or Chromium, open chrome://extensions → enable Developer Mode → Load unpacked');
+  console.log('  2. chrome://extensions → Developer Mode → Load unpacked');
+  console.log('  3. Reload the extension if Chrome was already open');
   console.log('');
   console.log('  Then run \x1b[36mopencli doctor\x1b[0m to verify.');
   console.log('');
-
 }
 
-main();
+void main();

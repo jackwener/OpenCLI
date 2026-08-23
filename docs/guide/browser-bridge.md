@@ -19,10 +19,9 @@ OpenCLI connects to your browser through a lightweight **Browser Bridge** Chrome
 
 ## Verification
 
-That's it! With Chrome open and the extension enabled, Chrome spawns the native host. No tokens, no TCP daemon.
+That's it! `npm install -g` already registers the Native Messaging host. With Chrome open and the extension enabled (reload it if Chrome was already running), Chrome spawns `opencli-host`. No tokens, no TCP daemon, no extra `opencli host install`.
 
 ```bash
-opencli host install      # Write the Native Messaging manifest
 opencli doctor            # Check extension + native host connectivity
 ```
 

@@ -154,7 +154,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
         '  1. Download from https://github.com/jackwener/opencli/releases\n' +
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
         '  3. Click "Load unpacked" → select the extension folder\n' +
-        '  4. Run: opencli host install',
+        '  4. Reload the extension so Chrome spawns the native host',
       );
     }
   }
@@ -254,7 +254,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
       : 'not running';
   lines.push(`${hostIcon} Host: ${hostLabel}`);
   const manifestOk = report.nativeManifestInstalled !== false;
-  lines.push(`${manifestOk ? '[OK]' : '[MISSING]'} Native manifest: ${manifestOk ? 'installed' : 'missing — run opencli host install'}`);
+  lines.push(`${manifestOk ? '[OK]' : '[MISSING]'} Native manifest: ${manifestOk ? 'installed' : 'missing — next command writes it, or opencli host install to repair'}`);
 
   // Extension status
   const extIcon = report.extensionFlaky || (report.extensionConnected && !report.extensionVersion)

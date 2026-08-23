@@ -105,7 +105,7 @@ function browserConnectErrorFromHealth(health: DaemonHealth, contextId?: string)
     'If the extension is not installed:\n' +
     '  1. Download: https://github.com/jackwener/opencli/releases\n' +
     '  2. Open chrome://extensions → Developer Mode → Load unpacked\n' +
-    'Then run: opencli host install && opencli doctor',
+    'Then reload the extension and run: opencli doctor',
     health.state === 'stopped' ? 'host-not-running' : 'extension-not-connected',
   );
 }

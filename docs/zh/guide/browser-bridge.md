@@ -19,8 +19,9 @@ OpenCLI 通过轻量级 **Browser Bridge** Chrome 扩展连接浏览器。Chrome
 
 ## 验证
 
+`npm install -g` 已经写好 Native Messaging manifest。打开 Chrome、启用扩展（若 Chrome 本来就开着，reload 一次），Chrome 会自己拉起 `opencli-host`。不需要再跑 `opencli host install`。
+
 ```bash
-opencli host install      # 写入 Native Messaging manifest
 opencli doctor            # 检查扩展 + native host 连接
 ```
 
@@ -72,7 +73,6 @@ opencli browser my-session close
 Chrome 打开且扩展启用时，会通过 `connectNative` 拉起 `opencli-host`。CLI 不 spawn host。
 
 ```bash
-opencli host install      # 写入 Native Messaging manifest
 opencli host status
 ```
 

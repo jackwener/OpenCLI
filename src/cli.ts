@@ -3476,7 +3476,7 @@ cli({
     .action(async () => { await hostStatus(); });
   hostCmd
     .command('install')
-    .description('Install the Chrome Native Messaging host manifest')
+    .description('Repair the Chrome Native Messaging host manifest (already written on npm install -g)')
     .action(async () => { await hostInstall(); });
 
   // ── External CLIs ─────────────────────────────────────────────────────────
