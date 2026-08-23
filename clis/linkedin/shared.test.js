@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { decodeLinkedInSafetyUrl, unwrapEvaluateResult } from './shared.js';
+import {
+  canonicalizeLinkedInThreadUrl,
+  decodeLinkedInSafetyUrl,
+  normalizeWhitespace,
+  unwrapEvaluateResult,
+} from './shared.js';
 
 describe('linkedin shared helpers', () => {
   it('unwraps complete browser evaluate envelopes', () => {
@@ -36,5 +41,22 @@ describe('linkedin shared helpers', () => {
       .toBe('');
     expect(decodeLinkedInSafetyUrl('javascript:alert(1)')).toBe('');
     expect(decodeLinkedInSafetyUrl('https://user:pass@example.com/demo')).toBe('');
+  });
+
+  it('normalizes LinkedIn messaging whitespace', () => {
+    expect(normalizeWhitespace('  Lokesh\n\tRamesh  ')).toBe('Lokesh Ramesh');
+    expect(normalizeWhitespace('A\u00a0\u202fB')).toBe('A B');
+  });
+
+  it('canonicalizes LinkedIn messaging thread URLs', () => {
+    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/abc/?foo=1#bar'))
+      .toBe('https://www.linkedin.com/messaging/thread/abc/');
+    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/2-abc==/?mini=true#x'))
+      .toBe('https://www.linkedin.com/messaging/thread/2-abc==/');
+    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/abc/extra')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('https://evil-linkedin.com/messaging/thread/abc/')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('http://www.linkedin.com/messaging/thread/abc/')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('https://user:pass@www.linkedin.com/messaging/thread/abc/')).toBe('');
+    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com:444/messaging/thread/abc/')).toBe('');
   });
 });

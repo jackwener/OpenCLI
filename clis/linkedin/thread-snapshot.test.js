@@ -3,7 +3,7 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import './thread-snapshot.js';
 
-const { canonicalizeLinkedInThreadUrl, parseMaxScrolls } = await import('./thread-snapshot.js').then((m) => m.__test__);
+const { parseMaxScrolls } = await import('./thread-snapshot.js').then((m) => m.__test__);
 
 function makeFakePage(snapshot) {
   return {
@@ -14,14 +14,6 @@ function makeFakePage(snapshot) {
 }
 
 describe('linkedin thread-snapshot command', () => {
-  it('accepts only exact LinkedIn messaging thread URLs', () => {
-    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/2-abc==/?mini=true#x'))
-      .toBe('https://www.linkedin.com/messaging/thread/2-abc==/');
-    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/2-abc==/extra')).toBe('');
-    expect(canonicalizeLinkedInThreadUrl('https://evil-linkedin.com/messaging/thread/2-abc==/')).toBe('');
-    expect(canonicalizeLinkedInThreadUrl('http://www.linkedin.com/messaging/thread/2-abc==/')).toBe('');
-  });
-
   it('validates max-scrolls without silent clamping', () => {
     expect(parseMaxScrolls(undefined)).toBe(30);
     expect(parseMaxScrolls(0)).toBe(0);
