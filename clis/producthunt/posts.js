@@ -1,5 +1,13 @@
 /**
  * Product Hunt latest posts — public Atom feed, no browser needed.
+ *
+ * Strategy: PUBLIC_API. Contract: stable (Atom feed, 200 without auth).
+ *
+ * Known shape of the source: the feed is ordered by <updated>, so an old launch
+ * that just got a comment sits at the top. `parseFeed` re-sorts by launch date
+ * so "latest" is true. The feed carries NO rank and NO vote count — `rank` here
+ * is list position only. For real rank/votes use `producthunt today` or
+ * `producthunt hot`.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { fetchFeed, PRODUCTHUNT_CATEGORY_SLUGS } from './utils.js';
@@ -7,7 +15,7 @@ cli({
     site: 'producthunt',
     name: 'posts',
     access: 'read',
-    description: 'Latest Product Hunt launches (optional category filter)',
+    description: 'Latest Product Hunt launches by launch date, no votes/rank (optional category filter)',
     domain: 'www.producthunt.com',
     strategy: Strategy.PUBLIC,
     args: [

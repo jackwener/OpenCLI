@@ -1,111 +1,59 @@
 /**
- * Product Hunt top posts with vote counts — INTERCEPT strategy.
+ * Product Hunt top posts with vote counts.
  *
- * Navigates to the Product Hunt homepage and scrapes rendered product cards.
+ * Strategy: UI (DOM/hydration state) — reads the Apollo store the homepage
+ * hydrates itself from.
+ * Contract: visible-ui. Evidence (2026-08-23): `window.__APOLLO_CLIENT__.cache
+ * .extract()` on https://www.producthunt.com/ holds 36 `Post` entities with
+ * `dailyRank` / `latestScore` / `commentsCount` / `featuredAt`.
+ *
+ * Why not INTERCEPT (the previous implementation): the homepage is server
+ * rendered, so the leaderboard data never crosses the wire as an XHR after
+ * navigation. `installInterceptor('producthunt.com')` + `waitForCapture(5)`
+ * therefore timed out with "No network capture within 5s" on every run —
+ * before the (working) DOM scrape below was ever reached.
+ *
+ * Why not PUBLIC_API: producthunt.com serves a Cloudflare managed challenge to
+ * plain HTTP clients (403 + cf-mitigated: challenge), and the official GraphQL
+ * API v2 needs a developer token.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
-import { pickVoteCount } from './utils.js';
+import { APOLLO_POSTS_EVAL } from './utils.js';
 cli({
     site: 'producthunt',
     name: 'hot',
     access: 'read',
     description: "Today's top Product Hunt launches with vote counts",
     domain: 'www.producthunt.com',
-    strategy: Strategy.INTERCEPT,
+    strategy: Strategy.UI,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of results (max 50)' },
     ],
     columns: ['rank', 'name', 'votes', 'url'],
     func: async (page, args) => {
         const count = Math.min(Number(args.limit) || 20, 50);
-        await page.installInterceptor('producthunt.com');
         await page.goto('https://www.producthunt.com');
-        await page.waitForCapture(5);
-        const domItems = await page.evaluate(`
-      (() => {
-        const seen = new Set();
-        const results = [];
-
-        const cardLinks = Array.from(document.querySelectorAll('a[href^="/products/"]')).filter((el) => {
-          const href = el.getAttribute('href') || '';
-          const text = el.textContent?.trim() || '';
-          return href && !href.includes('/reviews') && text.length > 0 && text.length < 120;
-        });
-
-        const normalizeName = (text) => text
-          .replace(/^\\d+\\.\\s*/, '')
-          .replace(/\\s*Launched\\s+this\\s+(month|week|year|day)\\s*/gi, '')
-          .replace(/\\s*Featured\\s*/gi, '')
-          .trim();
-
-        for (const cardLink of cardLinks) {
-          const href = cardLink.getAttribute('href') || '';
-          if (!href || seen.has(href)) continue;
-
-          let card = cardLink;
-          let node = cardLink.parentElement;
-          for (let i = 0; i < 6 && node; i++) {
-            const hasReviewLink = !!node.querySelector('a[href="' + href + '/reviews"]');
-            const hasNumericNode = Array.from(node.querySelectorAll('button, [role="button"], p, span, div'))
-              .some((el) => /^\\d+$/.test(el.textContent?.trim() || ''));
-            if (hasReviewLink || hasNumericNode) {
-              card = node;
-              break;
-            }
-            node = node.parentElement;
-          }
-
-          const name = normalizeName(cardLink.textContent?.trim() || '');
-          if (!name) continue;
-
-          const voteCandidates = Array.from(card.querySelectorAll('button, [role="button"], a, p, span, div'))
-            .map((el) => {
-              const reviewLink = el.closest('a[href="' + href + '/reviews"]');
-              return {
-                text: el.textContent?.trim() || '',
-                tagName: el.tagName,
-                className: el.className || '',
-                role: el.getAttribute('role') || '',
-                inButton: !!el.closest('button, [role="button"]'),
-                inReviewLink: !!reviewLink,
-              };
-            })
-            .filter((candidate) => /^\\d+$/.test(candidate.text));
-
-          if (voteCandidates.length === 0) continue;
-
-          seen.add(href);
-          results.push({
-            name,
-            voteCandidates,
-            url: 'https://www.producthunt.com' + href,
-          });
+        await page.wait({ selector: 'a[href^="/products/"]', timeout: 20000 }).catch(() => { });
+        const posts = await page.evaluate(APOLLO_POSTS_EVAL);
+        if (!Array.isArray(posts)) {
+            throw new CliError('PAGE_CHANGED', 'Product Hunt no longer exposes window.__APOLLO_CLIENT__', 'The homepage data store moved; re-inspect the page and update APOLLO_POSTS_EVAL');
         }
-
-        return results;
-      })()
-    `);
-        const items = Array.isArray(domItems) ? domItems : [];
-        if (items.length === 0) {
-            throw new CliError('NO_DATA', 'Could not retrieve Product Hunt top posts', 'Product Hunt may have changed its layout');
+        // The homepage mixes today's feed with "top of last week/month" rails,
+        // so every card can legitimately carry dailyRank "1". Rank here is list
+        // position by vote count — same contract as before this fix. For a real
+        // per-day leaderboard rank use `producthunt today`.
+        const ranked = posts
+            .filter((p) => Number(p.votes) > 0)
+            .sort((a, b) => Number(b.votes) - Number(a.votes));
+        if (ranked.length === 0) {
+            throw new CliError('EMPTY_RESULT', 'Could not retrieve Product Hunt vote counts', 'Open https://www.producthunt.com in a normal tab — a challenge page returns an empty store');
         }
-        const rankedItems = items
-            .map((item) => ({
-            name: item.name,
-            url: item.url,
-            votes: pickVoteCount(Array.isArray(item.voteCandidates) ? item.voteCandidates : []),
-        }))
-            .filter((item) => item.name && item.url && item.votes);
-        if (rankedItems.length === 0) {
-            throw new CliError('NO_DATA', 'Could not retrieve Product Hunt vote counts', 'Product Hunt may have changed its vote button structure');
-        }
-        rankedItems.sort((a, b) => parseInt(b.votes, 10) - parseInt(a.votes, 10));
-        return rankedItems.slice(0, count).map((item, i) => ({
+        return ranked.slice(0, count).map((p, i) => ({
             rank: i + 1,
-            name: item.name,
-            votes: item.votes,
-            url: item.url,
+            name: p.name,
+            votes: Number(p.votes) || 0,
+            url: p.url,
         }));
     },
 });

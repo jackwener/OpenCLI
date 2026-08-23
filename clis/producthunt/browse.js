@@ -1,8 +1,16 @@
 /**
- * Product Hunt category browse — INTERCEPT strategy.
+ * Product Hunt category browse.
  *
  * Navigates to a Product Hunt category page and scrapes the top-rated products.
  * Shows all-time best products for a category (ranked by review score, not daily votes).
+ *
+ * Strategy: UI (DOM). Contract: visible-ui.
+ * Why not INTERCEPT (the previous implementation): the category page is server
+ * rendered, so no matching XHR fires after navigation and
+ * `waitForCapture(5)` failed with "No network capture within 5s" on every run.
+ * The DOM scrape below was already correct — it just never got to run.
+ * The Apollo store on this page carries `Product` entities without review
+ * counts, so the card DOM stays the source for `reviews`.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
@@ -13,7 +21,7 @@ cli({
     access: 'read',
     description: 'Best products in a Product Hunt category',
     domain: 'www.producthunt.com',
-    strategy: Strategy.INTERCEPT,
+    strategy: Strategy.UI,
     args: [
         {
             name: 'category',
@@ -28,9 +36,8 @@ cli({
     func: async (page, args) => {
         const count = Math.min(Number(args.limit) || 20, 50);
         const slug = String(args.category || '').trim().toLowerCase();
-        await page.installInterceptor('producthunt.com');
         await page.goto(`https://www.producthunt.com/categories/${slug}`);
-        await page.waitForCapture(5);
+        await page.wait({ selector: 'a[href^="/products/"]', timeout: 20000 }).catch(() => { });
         const domItems = await page.evaluate(`
       (() => {
         const seen = new Set();
