@@ -3,11 +3,9 @@ import path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { extractMedia, describeTwitterApiError, resolveTwitterQueryId, unwrapBrowserResult } from './shared.js';
+import { DEFAULT_MAX_PAGINATION_PAGES, appendJsonlRows, ensureParentDir, loadJsonlArchiveState, removeResumeFile, resolveMaxPages, resolveOptionalFilePath } from './archive.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const BOOKMARKS_QUERY_ID = 'Fy0QMy4q_aZCpkO0PnyLYw';
-// Safety cap only. Full-archive runs can set a higher page budget via --max-pages.
-const DEFAULT_MAX_PAGINATION_PAGES = 100;
-const HARD_MAX_PAGINATION_PAGES = 100000;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -104,14 +102,6 @@ export function parseBookmarks(data, seen) {
     }
     return { tweets, nextCursor };
 }
-function resolveOptionalFilePath(raw, label) {
-    if (raw === undefined || raw === null || raw === '')
-        return '';
-    const value = String(raw).trim();
-    if (!value)
-        throw new ArgumentError(`${label} cannot be empty`);
-    return path.resolve(value);
-}
 function readResumeFile(filePath, expected = null) {
     if (!filePath || !fs.existsSync(filePath))
         return null;
@@ -153,56 +143,9 @@ function readResumeFile(filePath, expected = null) {
         updatedAt: parsed.updatedAt || null,
     };
 }
-function ensureParentDir(filePath) {
-    if (!filePath)
-        return;
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-}
-function removeFile(filePath) {
-    if (!filePath)
-        return;
-    try {
-        fs.rmSync(filePath, { force: true });
-    }
-    catch {
-    }
-}
-function loadJsonlArchiveState(filePath) {
-    const seen = new Set();
-    let count = 0;
-    if (!filePath || !fs.existsSync(filePath))
-        return { seen, count };
-    const text = fs.readFileSync(filePath, 'utf8');
-    for (const [index, line] of text.split('\n').entries()) {
-        const trimmed = line.trim();
-        if (!trimmed)
-            continue;
-        try {
-            const row = JSON.parse(trimmed);
-            if (!row?.id)
-                throw new Error('missing id');
-            const id = String(row.id);
-            if (seen.has(id))
-                throw new Error(`duplicate id ${id}`);
-            seen.add(id);
-            count += 1;
-        }
-        catch (error) {
-            throw new CommandExecutionError(`Invalid JSONL record in ${filePath} at line ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-    return { seen, count };
-}
-function appendJsonlRows(filePath, rows) {
-    if (!filePath || !Array.isArray(rows) || rows.length === 0)
-        return;
-    ensureParentDir(filePath);
-    // Escape LS/PS so JSONL stays one physical line even when tweet text contains them.
-    const text = rows
-        .map((row) => JSON.stringify(row).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'))
-        .join('\n') + '\n';
-    fs.appendFileSync(filePath, text, 'utf8');
-}
+
+// Keep this in sync with twitter/likes; wording is command-specific, so the
+// atomic tmp-write/rename cleanup sequence intentionally remains local.
 function writeResumeFile(filePath, payload) {
     if (!filePath)
         return;
@@ -220,20 +163,6 @@ function writeResumeFile(filePath, payload) {
         }
         throw new CommandExecutionError(`Could not persist Twitter bookmarks resume state: ${error instanceof Error ? error.message : String(error)}`);
     }
-}
-function removeResumeFile(filePath) {
-    removeFile(filePath);
-}
-function resolveMaxPages(kwargs, fetchAll) {
-    const raw = kwargs['max-pages'];
-    if (raw === undefined || raw === null || raw === '') {
-        return fetchAll ? HARD_MAX_PAGINATION_PAGES : DEFAULT_MAX_PAGINATION_PAGES;
-    }
-    const value = Number(raw);
-    if (!Number.isInteger(value) || value < 1 || value > HARD_MAX_PAGINATION_PAGES) {
-        throw new ArgumentError(`--max-pages must be an integer between 1 and ${HARD_MAX_PAGINATION_PAGES}`);
-    }
-    return value;
 }
 cli({
     site: 'twitter',
@@ -385,6 +314,5 @@ cli({
 export const __test__ = {
     parseBookmarks,
     extractBookmarkTweet,
-    appendJsonlRows,
     readResumeFile,
 };
