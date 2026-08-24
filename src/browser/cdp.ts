@@ -70,7 +70,8 @@ export class CDPBridge implements IBrowserFactory {
     }
 
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(wsUrl);
+      const origin = process.env.OPENCLI_CDP_ORIGIN;
+      const ws = new WebSocket(wsUrl, origin ? { origin } : undefined);
       const timeoutMs = (opts?.timeout ?? 10) * 1000;
       const timeout = setTimeout(() => {
         this._ws = null;
