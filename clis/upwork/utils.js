@@ -18,6 +18,7 @@ import {
     ArgumentError,
     CommandExecutionError,
 } from '@jackwener/opencli/errors';
+export { unwrapBrowserResult } from '../_shared/search-adapter.js';
 
 export const UPWORK_ORIGIN = 'https://www.upwork.com';
 
@@ -29,13 +30,6 @@ const FEED_TABS = {
 };
 
 const SORT_VALUES = new Set(['recency', 'relevance', 'client_total_charge', 'client_total_reviews']);
-
-export function unwrapBrowserResult(value) {
-    if (value && typeof value === 'object' && !Array.isArray(value) && 'session' in value && 'data' in value) {
-        return value.data;
-    }
-    return value;
-}
 
 export function isPlainObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
