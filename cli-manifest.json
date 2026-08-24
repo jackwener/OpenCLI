@@ -26539,7 +26539,7 @@
   {
     "site": "nowcoder",
     "name": "detail",
-    "description": "Post detail view (supports ID / UUID / URL)",
+    "description": "Content or moment detail (use an ID or URL returned by search/experience)",
     "access": "read",
     "domain": "www.nowcoder.com",
     "strategy": "cookie",
@@ -26550,12 +26550,19 @@
         "type": "str",
         "required": true,
         "positional": true,
-        "help": "Post ID, UUID, or URL"
+        "help": "Numeric content ID, moment UUID, or canonical URL"
       }
     ],
     "columns": [
+      "post_type",
+      "id",
+      "uuid",
+      "entity_id",
+      "url",
       "title",
       "author",
+      "author_id",
+      "author_url",
       "school",
       "content",
       "likes",
@@ -26567,12 +26574,12 @@
     "type": "js",
     "modulePath": "nowcoder/detail.js",
     "sourceFile": "nowcoder/detail.js",
-    "navigateBefore": "https://www.nowcoder.com"
+    "navigateBefore": false
   },
   {
     "site": "nowcoder",
     "name": "experience",
-    "description": "Interview experience posts",
+    "description": "Interview experience content and moment posts",
     "access": "read",
     "domain": "www.nowcoder.com",
     "strategy": "cookie",
@@ -26583,30 +26590,38 @@
         "type": "int",
         "default": 1,
         "required": false,
-        "help": "Page number"
+        "help": "Page number (1-1000)"
       },
       {
         "name": "limit",
         "type": "int",
         "default": 15,
         "required": false,
-        "help": "Number of items"
+        "help": "Number of posts (1-50)"
       }
     ],
     "columns": [
       "rank",
+      "post_type",
+      "id",
+      "uuid",
+      "entity_id",
+      "url",
       "title",
       "author",
+      "author_id",
+      "author_url",
       "school",
+      "content",
       "likes",
       "comments",
       "views",
-      "id"
+      "time"
     ],
     "type": "js",
     "modulePath": "nowcoder/experience.js",
     "sourceFile": "nowcoder/experience.js",
-    "navigateBefore": "https://www.nowcoder.com"
+    "navigateBefore": false
   },
   {
     "site": "nowcoder",
@@ -26897,7 +26912,7 @@
   {
     "site": "nowcoder",
     "name": "search",
-    "description": "Full-text search",
+    "description": "Search content and moment posts",
     "access": "read",
     "domain": "www.nowcoder.com",
     "strategy": "cookie",
@@ -26913,30 +26928,40 @@
       {
         "name": "type",
         "type": "str",
-        "default": "all",
+        "default": "post",
         "required": false,
-        "help": "Search type (all/post/question/user/job)"
+        "help": "Post search scope (post/all)"
       },
       {
         "name": "limit",
         "type": "int",
         "default": 10,
         "required": false,
-        "help": "Number of results"
+        "help": "Number of posts (1-50)"
       }
     ],
     "columns": [
       "rank",
+      "post_type",
+      "id",
+      "uuid",
+      "entity_id",
+      "url",
       "title",
       "author",
+      "author_id",
+      "author_url",
       "school",
       "content",
-      "id"
+      "likes",
+      "comments",
+      "views",
+      "time"
     ],
     "type": "js",
     "modulePath": "nowcoder/search.js",
     "sourceFile": "nowcoder/search.js",
-    "navigateBefore": "https://www.nowcoder.com"
+    "navigateBefore": false
   },
   {
     "site": "nowcoder",
