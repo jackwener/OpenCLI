@@ -14,6 +14,8 @@ import { classifyAdapter } from './help.js';
 const {
   mockBrowserConnect,
   mockBrowserClose,
+  mockCdpConnect,
+  mockCdpClose,
   mockBindTab,
   mockSendCommand,
   mockExecFileSync,
@@ -21,6 +23,8 @@ const {
 } = vi.hoisted(() => ({
   mockBrowserConnect: vi.fn(),
   mockBrowserClose: vi.fn(),
+  mockCdpConnect: vi.fn(),
+  mockCdpClose: vi.fn(),
   mockBindTab: vi.fn(),
   mockSendCommand: vi.fn(),
   mockExecFileSync: vi.fn(),
@@ -33,6 +37,10 @@ vi.mock('./browser/index.js', () => {
     BrowserBridge: class {
       connect = mockBrowserConnect;
       close = mockBrowserClose;
+    },
+    CDPBridge: class {
+      connect = mockCdpConnect;
+      close = mockCdpClose;
     },
   };
 });
@@ -613,7 +621,7 @@ describe('createProgram root help descriptions', () => {
       });
       // session is now a hidden internal option (consumed from the <session> positional).
       // namespace_options should only list user-facing options.
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window']);
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window', 'cdpEndpoint']);
       expect(data.structured_help).toMatchObject({
         usage: 'opencli browser <session> tab --help -f yaml',
       });
@@ -644,8 +652,8 @@ describe('createProgram root help descriptions', () => {
         },
       });
       expect(data.command_options.map((option: any) => option.name)).toEqual(['role', 'name', 'label', 'text', 'testid', 'nth', 'tab']);
-      // session is hidden; only `window` surfaces as a namespace option.
-      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window']);
+      // session is hidden; user-facing browser routing options remain visible.
+      expect(data.namespace_options.map((option: any) => option.name)).toEqual(['window', 'cdpEndpoint']);
       expect(data.global_options.map((option: any) => option.name)).toContain('profile');
     } finally {
       process.argv = argv;
@@ -1171,6 +1179,9 @@ describe('browser tab targeting commands', () => {
     stderrSpy.mockClear();
     mockBrowserConnect.mockClear();
     mockBrowserClose.mockReset().mockResolvedValue(undefined);
+    mockCdpConnect.mockReset().mockImplementation(async () => browserState.page as IPage);
+    mockCdpClose.mockReset().mockResolvedValue(undefined);
+    delete process.env.OPENCLI_CDP_ENDPOINT;
     delete process.env.OPENCLI_WINDOW;
     mockBindTab.mockReset().mockResolvedValue({
       session: 'test',
@@ -1256,6 +1267,29 @@ describe('browser tab targeting commands', () => {
 
     expect(mockBrowserConnect).toHaveBeenCalledWith({ timeout: 45, session: 'test', surface: 'browser', windowMode: 'foreground' });
     expect(browserState.page?.snapshot).toHaveBeenCalled();
+  });
+
+  it('routes browser commands through CDP when an endpoint is provided', async () => {
+    const program = createProgram('', '');
+
+    await program.parseAsync([
+      'node',
+      'opencli',
+      'browser',
+      '--session',
+      'test',
+      '--cdp-endpoint',
+      'http://127.0.0.1:9222',
+      'state',
+    ]);
+
+    expect(mockBrowserConnect).not.toHaveBeenCalled();
+    expect(mockCdpConnect).toHaveBeenCalledWith({
+      timeout: 45,
+      cdpEndpoint: 'http://127.0.0.1:9222',
+    });
+    expect(browserState.page?.snapshot).toHaveBeenCalled();
+    expect(mockCdpClose).toHaveBeenCalledTimes(1);
   });
 
   it('passes browser --window through Commander options without relying on env pre-processing', async () => {

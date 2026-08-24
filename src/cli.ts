@@ -41,11 +41,16 @@ import { aliasForContextId, loadProfileConfig, profileRouteParams, renameProfile
 import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js';
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
-import type { BrowserWindowMode } from './runtime.js';
+import { getBrowserFactory, type BrowserWindowMode } from './runtime.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
 const FOLLOW_POLL_MS = 1_000;
+const BROWSER_PAGE_CLEANUP = Symbol('opencli.browserPageCleanup');
+
+type BrowserPageWithCleanup = IPage & {
+  [BROWSER_PAGE_CLEANUP]?: () => Promise<void>;
+};
 
 type BrowserNetworkItem = {
   url: string;
@@ -594,10 +599,25 @@ async function getBrowserPage(
   session: string,
   targetPage?: string,
   profileSelection?: ProfileSelection,
-  opts: { windowMode?: BrowserWindowMode } = {},
+  opts: { windowMode?: BrowserWindowMode; cdpEndpoint?: string } = {},
 ): Promise<import('./types.js').IPage> {
-  const { BrowserBridge } = await import('./browser/index.js');
-  const bridge = new BrowserBridge();
+  const cdpEndpoint = opts.cdpEndpoint?.trim();
+  const BrowserFactory = getBrowserFactory(undefined, cdpEndpoint);
+  const bridge = new BrowserFactory();
+  if (cdpEndpoint) {
+    if (targetPage) {
+      throw new Error('Direct CDP mode does not support --tab. Start Chrome with a dedicated profile instead.');
+    }
+    const page = await bridge.connect({
+      timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
+      cdpEndpoint,
+    }) as BrowserPageWithCleanup;
+    Object.defineProperties(page, {
+      session: { value: session, configurable: true },
+      [BROWSER_PAGE_CLEANUP]: { value: () => bridge.close(), configurable: true },
+    });
+    return page;
+  }
   // Internal GC timeout for browser sessions. Not the per-command runtime timeout.
   const envTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
   const idleTimeout = envTimeout ? parseInt(envTimeout, 10) : undefined;
@@ -656,6 +676,13 @@ function getCommandOption(command: Command | undefined, option: string): unknown
   return undefined;
 }
 
+function getBrowserCdpEndpoint(command?: Command): string | undefined {
+  const raw = getCommandOption(command, 'cdpEndpoint');
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  const env = process.env.OPENCLI_CDP_ENDPOINT;
+  return typeof env === 'string' && env.trim() ? env.trim() : undefined;
+}
+
 function getBrowserSession(command?: Command): string {
   // The CLI surface is `opencli browser <session> <subcommand>`. main.ts rewrites
   // argv to insert `--session <name>` before commander parses it; this helper
@@ -686,6 +713,10 @@ function getPageScope(page: import('./types.js').IPage): string {
     ? contextId.trim()
     : (typeof preferredContextId === 'string' && preferredContextId.trim() ? preferredContextId.trim() : undefined);
   return getBrowserScope(getPageSession(page), selected);
+}
+
+async function closeBrowserPageTransport(page: IPage): Promise<void> {
+  await (page as BrowserPageWithCleanup)[BROWSER_PAGE_CLEANUP]?.().catch(() => {});
 }
 
 type SnapshotSource = 'dom' | 'ax';
@@ -979,6 +1010,7 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     // positional; main.ts argv preprocessor rewrites positional -> --session.
     .addOption(new Option('--session <name>', 'Internal — set automatically from the <session> positional').hideHelp())
     .option('--window <mode>', 'Browser window mode: foreground or background')
+    .option('--cdp-endpoint <url>', 'Chrome DevTools Protocol endpoint for direct browser automation')
     .description('Browser control — navigate, click, type, extract, wait (no LLM needed)')
     .usage('<session> <command> [options]')
     .addHelpText('after', `
@@ -1088,7 +1120,10 @@ Examples:
         const session = getBrowserSession(command);
         const profileSelection = getBrowserProfileSelection(command);
         const windowMode = getBrowserWindowMode(command, 'foreground');
-        page = await getBrowserPage(session, targetPage, profileSelection, { windowMode });
+        page = await getBrowserPage(session, targetPage, profileSelection, {
+          windowMode,
+          cdpEndpoint: getBrowserCdpEndpoint(command),
+        });
         await fn(page, ...args);
       } catch (err) {
         if (err instanceof BrowserConnectError) {
@@ -1118,6 +1153,8 @@ Examples:
           }
         }
         process.exitCode = EXIT_CODES.GENERIC_ERROR;
+      } finally {
+        if (page) await closeBrowserPageTransport(page);
       }
     };
   }

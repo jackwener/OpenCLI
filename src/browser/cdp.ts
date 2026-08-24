@@ -21,6 +21,7 @@ import { getAllElectronApps } from '../electron-apps.js';
 import { CDPBasePage } from './base-page.js';
 
 export interface CDPTarget {
+  id?: string;
   type?: string;
   url?: string;
   title?: string;
@@ -52,8 +53,10 @@ export class CDPBridge implements IBrowserFactory {
   private _idCounter = 0;
   private _pending = new Map<number, { resolve: (val: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private _eventListeners = new Map<string, Set<(params: unknown) => void>>();
+  private _httpBase: string | null = null;
+  private _createdTargetId: string | null = null;
 
-  async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' }): Promise<IPage> {
+  async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
 
     const endpoint = opts?.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
@@ -61,12 +64,23 @@ export class CDPBridge implements IBrowserFactory {
 
     let wsUrl = endpoint;
     if (endpoint.startsWith('http')) {
-      const targets = await fetchJsonDirect(`${endpoint.replace(/\/$/, '')}/json`) as CDPTarget[];
-      const target = selectCDPTarget(targets);
-      if (!target || !target.webSocketDebuggerUrl) {
-        throw new Error('No inspectable targets found at CDP endpoint');
+      const httpBase = endpoint.replace(/\/$/, '');
+      if (opts?.dedicatedTarget) {
+        const created = await fetchJsonDirect(`${httpBase}/json/new?url=about:blank`, 'PUT') as CDPTarget;
+        if (!created.id || !created.webSocketDebuggerUrl) {
+          throw new Error('CDP endpoint created an invalid target');
+        }
+        this._httpBase = httpBase;
+        this._createdTargetId = created.id;
+        wsUrl = created.webSocketDebuggerUrl;
+      } else {
+        const targets = await fetchJsonDirect(`${httpBase}/json`) as CDPTarget[];
+        const target = selectCDPTarget(targets);
+        if (!target || !target.webSocketDebuggerUrl) {
+          throw new Error('No inspectable targets found at CDP endpoint');
+        }
+        wsUrl = target.webSocketDebuggerUrl;
       }
-      wsUrl = target.webSocketDebuggerUrl;
     }
 
     return new Promise((resolve, reject) => {
@@ -137,6 +151,11 @@ export class CDPBridge implements IBrowserFactory {
     }
     this._pending.clear();
     this._eventListeners.clear();
+    if (this._httpBase && this._createdTargetId) {
+      await fetchJsonDirect(`${this._httpBase}/json/close/${this._createdTargetId}`, 'GET', false).catch(() => {});
+      this._httpBase = null;
+      this._createdTargetId = null;
+    }
   }
 
   async send(method: string, params: Record<string, unknown> = {}, timeoutMs: number = CDP_SEND_TIMEOUT): Promise<unknown> {
@@ -549,10 +568,10 @@ export const __test__ = {
   scoreCDPTarget,
 };
 
-function fetchJsonDirect(url: string): Promise<unknown> {
+function fetchJsonDirect(url: string, method: 'GET' | 'PUT' = 'GET', parseJson = true): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
-    const request = (parsed.protocol === 'https:' ? httpsRequest : httpRequest)(parsed, (res) => {
+    const request = (parsed.protocol === 'https:' ? httpsRequest : httpRequest)(parsed, { method }, (res) => {
       const statusCode = res.statusCode ?? 0;
       if (statusCode < 200 || statusCode >= 300) {
         res.resume();
@@ -563,8 +582,13 @@ function fetchJsonDirect(url: string): Promise<unknown> {
       const chunks: Buffer[] = [];
       res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
       res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        if (!parseJson) {
+          resolve(body);
+          return;
+        }
         try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+          resolve(JSON.parse(body));
         } catch (error) {
           reject(error instanceof Error ? error : new Error(String(error)));
         }
