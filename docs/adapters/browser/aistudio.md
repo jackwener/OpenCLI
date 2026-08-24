@@ -127,6 +127,24 @@ fails with the AI Studio link instead of reporting partial success.
 The command walks the virtualized picker, deduplicates canonical model ids, and
 requires the picker dialog to close before returning data.
 
+## Strategy note
+
+```md
+Strategy: UI_SELECTOR + DOM_STATE (registry session: COOKIE via the browser bridge)
+Contract: visible-ui
+Evidence:
+- observed request/state: prompt composer textarea, Run button with its shortcut chip,
+  virtualized model-picker dialog, completed-turn DOM; AI Studio exposes no public API
+  and its internal XHR endpoints are undocumented and token-gated
+- auth source: real Chrome login state held by the browser bridge persistent session
+- replay result: HTTP replay not applicable; correctness is pinned by `opencli browser verify`
+  plus JSDOM unit tests against frozen zh-CN DOM fixtures in `clis/aistudio/__fixtures__/`
+```
+
+Semantic anchors are user-visible UI elements (composer, Run button, picker rows), so
+failures surface as typed errors (`ArgumentError`, `AuthRequiredError`, `EmptyResultError`,
+`TimeoutError`, `CommandExecutionError`) instead of silent empty results.
+
 ## Execution contract
 
 - `ask` uses an ephemeral site session and starts a fresh AI Studio chat for
