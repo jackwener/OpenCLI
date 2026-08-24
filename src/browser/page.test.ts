@@ -445,6 +445,22 @@ describe('Page active target tracking', () => {
     }));
   });
 
+  it('keeps the fresh active binding when closing an exact old page', async () => {
+    sendCommandMock.mockResolvedValueOnce({ closed: 'page-old' });
+
+    const page = new Page('site:xiaohongshu');
+    page.setActivePage?.('page-fresh');
+    await page.closeTab?.('page-old');
+
+    expect(sendCommandMock).toHaveBeenCalledWith('tabs', expect.objectContaining({
+      op: 'close',
+      session: 'site:xiaohongshu',
+      surface: 'browser',
+      page: 'page-old',
+    }));
+    expect(page.getActivePage()).toBe('page-fresh');
+  });
+
   it('clears the active page binding when closing the selected tab by numeric index', async () => {
     sendCommandFullMock.mockResolvedValueOnce({ data: { selected: true }, page: 'page-2' });
     sendCommandMock

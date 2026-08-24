@@ -15,14 +15,15 @@ import {
 } from './search.js';
 
 function markVisible(el) {
-    el.getBoundingClientRect = () => ({ width: 100, height: 100 });
+    el.getBoundingClientRect = () => ({ width: 100, height: 100, top: 0 });
 }
 function createPageMock(evaluateResults) {
     const evaluate = vi.fn();
+    let activePage = 'page-old';
     for (const result of evaluateResults) {
         evaluate.mockResolvedValueOnce(result);
     }
-    return {
+    const page = {
         goto: vi.fn().mockResolvedValue(undefined),
         evaluate,
         snapshot: vi.fn().mockResolvedValue(undefined),
@@ -33,7 +34,15 @@ function createPageMock(evaluateResults) {
         getFormState: vi.fn().mockResolvedValue({ forms: [], orphanFields: [] }),
         wait: vi.fn().mockResolvedValue(undefined),
         tabs: vi.fn().mockResolvedValue([]),
-        selectTab: vi.fn().mockResolvedValue(undefined),
+        getActivePage: vi.fn(() => activePage),
+        newTab: vi.fn().mockResolvedValue('page-new'),
+        setActivePage: vi.fn((pageId) => {
+            activePage = pageId;
+        }),
+        selectTab: vi.fn(async (pageId) => {
+            activePage = pageId;
+        }),
+        closeTab: vi.fn().mockResolvedValue(undefined),
         networkRequests: vi.fn().mockResolvedValue([]),
         consoleMessages: vi.fn().mockResolvedValue([]),
         scroll: vi.fn().mockResolvedValue(undefined),
@@ -44,6 +53,7 @@ function createPageMock(evaluateResults) {
         screenshot: vi.fn().mockResolvedValue(''),
         waitForCapture: vi.fn().mockResolvedValue(undefined),
     };
+    return page;
 }
 function harvestPayload(rows, diag = {}) {
     return {
@@ -51,6 +61,11 @@ function harvestPayload(rows, diag = {}) {
         diag: {
             securityBlock: false,
             stopReason: 'target',
+            scrollHeight: 2818,
+            clientHeight: 900,
+            cardCount: rows.length,
+            feedClientHeight: 2509,
+            distinctCardTops: rows.length,
             ...diag,
         },
     };
@@ -272,13 +287,23 @@ describe('xiaohongshu search', () => {
     it('maps a harvested risk-control interstitial to SECURITY_BLOCK', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const page = createPageMock([
-            'timeout',
+            'content',
             harvestPayload([], { securityBlock: true, stopReason: 'security-block' }),
         ]);
 
         await expect(cmd.func(page, { query: '测试', limit: 5 })).rejects.toMatchObject({
             code: 'SECURITY_BLOCK',
         });
+    });
+    it('maps a risk-control interstitial detected before hydration to SECURITY_BLOCK', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock(['security_block']);
+
+        await expect(cmd.func(page, { query: '风控', limit: 5 })).rejects.toMatchObject({
+            code: 'SECURITY_BLOCK',
+        });
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+        expect(page.newTab).not.toHaveBeenCalled();
     });
     it('filters out results with no title and respects the limit', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
@@ -309,14 +334,15 @@ describe('xiaohongshu search', () => {
                         url: 'https://www.xiaohongshu.com/search_result/69b739f00000000000000000',
                         author_url: '',
                     },
-                ]),
+                ], { cardCount: 3, feedClientHeight: 500, distinctCardTops: 1 }),
         ]);
         const result = (await cmd.func(page, { query: '测试', limit: 1 }));
         // limit=1 should return only the first valid-titled result
         expect(result).toHaveLength(1);
         expect(result[0]).toMatchObject({ rank: 1, title: 'Result A' });
+        expect(page.newTab).not.toHaveBeenCalled();
     });
-    it('waits for content via MutationObserver before extracting', async () => {
+    it('maps a healthy empty harvest to EmptyResultError without replacing the tab', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
@@ -325,12 +351,125 @@ describe('xiaohongshu search', () => {
             // Second evaluate: scroll + harvest completes with no rows.
             harvestPayload([], { stopReason: 'exhausted' }),
         ]);
-        const result = (await cmd.func(page, { query: '测试等待', limit: 5 }));
-        expect(result).toHaveLength(0);
-        // Only one navigation, no retry
+        await expect(cmd.func(page, { query: '测试等待', limit: 5 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
         expect(page.goto).toHaveBeenCalledTimes(1);
-        // Two evaluate calls: wait, then the single scroll + harvest IIFE.
         expect(page.evaluate).toHaveBeenCalledTimes(2);
+        expect(page.newTab).not.toHaveBeenCalled();
+    });
+    it('maps an ordinary hydration timeout to TimeoutError without replacing the tab', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock(['timeout']);
+
+        await expect(cmd.func(page, { query: '加载超时', limit: 5 })).rejects.toMatchObject({ code: 'TIMEOUT' });
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+        expect(page.newTab).not.toHaveBeenCalled();
+    });
+    it('replaces one proven-collapsed target and closes the old target after rebinding', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const recoveredRow = {
+            title: 'Recovered',
+            author: 'UserA',
+            likes: '10',
+            url: 'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66',
+            author_url: '',
+        };
+        const page = createPageMock([
+            'content',
+            harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 }),
+            'content',
+            harvestPayload([recoveredRow]),
+        ]);
+
+        const result = await cmd.func(page, { query: '塌陷恢复', limit: 1 });
+
+        expect(result).toHaveLength(1);
+        expect(result[0].title).toBe('Recovered');
+        expect(page.newTab).toHaveBeenCalledTimes(1);
+        expect(page.setActivePage).toHaveBeenCalledWith('page-new');
+        expect(page.selectTab).not.toHaveBeenCalled();
+        expect(page.closeTab).toHaveBeenCalledWith('page-old');
+        expect(page.newTab.mock.invocationCallOrder[0]).toBeLessThan(page.setActivePage.mock.invocationCallOrder[0]);
+        expect(page.setActivePage.mock.invocationCallOrder[0]).toBeLessThan(page.closeTab.mock.invocationCallOrder[0]);
+        expect(page.closeTab.mock.invocationCallOrder[0]).toBeLessThan(page.evaluate.mock.invocationCallOrder[2]);
+        expect(page.getActivePage()).toBe('page-new');
+    });
+    it('fails execution after one fresh target also renders with the proven collapsed signature', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const collapsed = harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 });
+        const page = createPageMock(['content', collapsed, 'content', collapsed]);
+
+        await expect(cmd.func(page, { query: '持续塌陷', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('remained collapsed'),
+        });
+        expect(page.newTab).toHaveBeenCalledTimes(1);
+        expect(page.closeTab).toHaveBeenCalledTimes(1);
+        expect(page.getActivePage()).toBe('page-new');
+    });
+    it('preserves the old target when opening the fresh target fails', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const collapsed = harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 });
+        const page = createPageMock(['content', collapsed]);
+        page.newTab.mockRejectedValueOnce(new Error('new tab failed'));
+
+        await expect(cmd.func(page, { query: '开页失败', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('new tab failed'),
+        });
+        expect(page.closeTab).not.toHaveBeenCalled();
+        expect(page.getActivePage()).toBe('page-old');
+    });
+    it('restores the old preferred target and closes the fresh target when Node rebinding fails', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const collapsed = harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 });
+        const page = createPageMock(['content', collapsed]);
+        page.setActivePage.mockImplementationOnce(() => {
+            throw new Error('bind failed');
+        });
+
+        await expect(cmd.func(page, { query: '绑定失败', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('bind failed'),
+        });
+        expect(page.setActivePage).toHaveBeenCalledWith('page-new');
+        expect(page.selectTab).toHaveBeenCalledOnce();
+        expect(page.selectTab).toHaveBeenCalledWith('page-old');
+        expect(page.closeTab).toHaveBeenCalledWith('page-new');
+        expect(page.closeTab).not.toHaveBeenCalledWith('page-old');
+        expect(page.getActivePage()).toBe('page-old');
+    });
+    it('rolls back to the old target when closing it after rebinding fails', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const collapsed = harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 });
+        const page = createPageMock(['content', collapsed]);
+        page.closeTab.mockRejectedValueOnce(new Error('close old failed'));
+
+        await expect(cmd.func(page, { query: '关旧页失败', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringContaining('close old failed'),
+        });
+        expect(page.closeTab).toHaveBeenNthCalledWith(1, 'page-old');
+        expect(page.selectTab).toHaveBeenCalledOnce();
+        expect(page.selectTab).toHaveBeenCalledWith('page-old');
+        expect(page.closeTab).toHaveBeenNthCalledWith(2, 'page-new');
+        expect(page.getActivePage()).toBe('page-old');
+    });
+    it('keeps the fresh target when an ambiguous old-close failure cannot restore the old target', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const collapsed = harvestPayload([], { cardCount: 22, feedClientHeight: 0, distinctCardTops: 1 });
+        const page = createPageMock(['content', collapsed]);
+        page.selectTab.mockRejectedValueOnce(new Error('old target is already gone'));
+        page.closeTab.mockRejectedValueOnce(new Error('close old response lost'));
+
+        await expect(cmd.func(page, { query: '旧页状态不明', limit: 5 })).rejects.toMatchObject({
+            code: 'COMMAND_EXEC',
+            message: expect.stringMatching(/close old response lost.*Cleanup also failed: old target is already gone/),
+        });
+        expect(page.selectTab).toHaveBeenCalledOnce();
+        expect(page.selectTab).toHaveBeenCalledWith('page-old');
+        expect(page.closeTab).toHaveBeenCalledTimes(1);
+        expect(page.closeTab).toHaveBeenCalledWith('page-old');
+        expect(page.getActivePage()).toBe('page-new');
     });
 });
 describe('buildSearchExtractJs', () => {
@@ -503,7 +642,13 @@ describe('buildScrollHarvestJs', () => {
             { height: 2400, cards: [{ id: c, title: '第三屏', likes: '3' }] },
         ], { target: 3 });
 
-        expect(result.diag).toMatchObject({ usable: 3, stopReason: 'target', securityBlock: false });
+        expect(result.diag).toMatchObject({
+            usable: 3,
+            stopReason: 'target',
+            securityBlock: false,
+            feedClientHeight: null,
+            distinctCardTops: 1,
+        });
         expect(result.rows.map((row) => row.title)).toEqual(['后渲染标题', '第二屏', '第三屏']);
         expect(result.rows[0]).toMatchObject({ likes: '7' });
         expect(result.rows[0].url).toContain('xsec_token=signed-token');

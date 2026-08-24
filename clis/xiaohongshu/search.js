@@ -6,12 +6,12 @@
  * Ref: https://github.com/jackwener/opencli/issues/10
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 import { unwrapEvaluateResult } from './shared.js';
 /**
  * Wait for search results or login wall using MutationObserver (max 5s).
- * Returns 'content' if note items appeared, 'login_wall' if login gate
- * detected, or 'timeout' if neither appeared within the deadline.
+ * Returns 'content' if note items appeared, a typed wall state when login or
+ * risk controls appear, or 'timeout' if none appears within the deadline.
  *
  * Note-item detection tries the legacy `section.note-item` class first
  * (still observed in many sessions, including rednote) and falls back to
@@ -25,7 +25,9 @@ const WAIT_FOR_CONTENT_JS = `
     );
     const detect = () => {
       if (findNoteCard()) return 'content';
-      if (/登录后查看搜索结果/.test(document.body?.innerText || '')) return 'login_wall';
+      const bodyText = document.body?.innerText || '';
+      if (/登录后查看搜索结果/.test(bodyText)) return 'login_wall';
+      if (/请求太频繁|访问频次异常|安全限制/.test(bodyText)) return 'security_block';
       return null;
     };
     const found = detect();
@@ -39,6 +41,13 @@ const WAIT_FOR_CONTENT_JS = `
   })
 `;
 const DEFAULT_HARVEST_STEP = 900;
+const CONTENT_WAIT_SECONDS = 5;
+
+function isCollapsedRender(diag) {
+    return diag.cardCount > 1 &&
+        diag.feedClientHeight === 0 &&
+        diag.distinctCardTops === 1;
+}
 
 function harvestOptionsForLimit(limit) {
     return {
@@ -277,7 +286,12 @@ function requireHarvestPayload(payload, webHost) {
     const diag = result?.diag;
     if (!result || typeof result !== 'object' || Array.isArray(result) || !Array.isArray(result.rows) ||
         !diag || typeof diag !== 'object' || Array.isArray(diag) ||
-        typeof diag.securityBlock !== 'boolean' || typeof diag.stopReason !== 'string') {
+        typeof diag.securityBlock !== 'boolean' || typeof diag.stopReason !== 'string' ||
+        !Number.isFinite(diag.scrollHeight) || diag.scrollHeight < 0 ||
+        !Number.isFinite(diag.clientHeight) || diag.clientHeight < 0 ||
+        !Number.isSafeInteger(diag.cardCount) || diag.cardCount < 0 ||
+        !(diag.feedClientHeight === null || (Number.isFinite(diag.feedClientHeight) && diag.feedClientHeight >= 0)) ||
+        !Number.isSafeInteger(diag.distinctCardTops) || diag.distinctCardTops < 0) {
         throw new CommandExecutionError('Unexpected Xiaohongshu search harvest payload shape; expected rows plus typed diagnostics.');
     }
     result.rows = result.rows.map((row, index) => requireTrustedHarvestRow(row, index, webHost));
@@ -519,6 +533,22 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
           await wait(atBottom ? 1000 : 500);
         }
         const elapsedMs = Date.now() - startedAt;
+        const classMatches = document.querySelectorAll('section.note-item');
+        let diagnosticCards = classMatches;
+        if (classMatches.length === 0) {
+          const sections = new Set();
+          for (const anchor of document.querySelectorAll('a[href*="/search_result/"], a[href*="/explore/"]')) {
+            const section = anchor.closest('section');
+            if (section) sections.add(section);
+          }
+          diagnosticCards = sections;
+        }
+        const distinctCardTops = new Set();
+        for (const card of diagnosticCards) {
+          if (card.classList?.contains('query-note-item')) continue;
+          distinctCardTops.add(Math.round(card.getBoundingClientRect().top));
+        }
+        const feedContainer = document.querySelector('.feeds-container');
         return {
           rows: Array.from(acc.values()),
           collected: acc.size,
@@ -528,6 +558,8 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
             scrollHeight: metrics.scrollHeight,
             clientHeight: metrics.clientHeight,
             cardCount,
+            feedClientHeight: feedContainer ? feedContainer.clientHeight : null,
+            distinctCardTops: distinctCardTops.size,
             rounds: round,
             stopReason,
             elapsedMs,
@@ -536,6 +568,84 @@ export function buildScrollHarvestJs(webHost, targetCount, options = {}) {
         };
       })()
     `;
+}
+
+async function collectSearchHarvest(page, limit) {
+    const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
+    if (waitResult === 'login_wall') {
+        throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
+    }
+    if (waitResult === 'security_block') {
+        throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying or use a different logged-in browser session.');
+    }
+    if (waitResult === 'timeout') {
+        throw new TimeoutError('xiaohongshu search content', CONTENT_WAIT_SECONDS);
+    }
+    if (waitResult !== 'content') {
+        throw new CommandExecutionError('Unexpected Xiaohongshu search wait payload shape.');
+    }
+    const harvestOptions = harvestOptionsForLimit(limit);
+    const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
+    if (harvest.diag.securityBlock) {
+        throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying or use a different logged-in browser session.');
+    }
+    return harvest;
+}
+
+async function replaceCollapsedTab(page, url) {
+    if (typeof page.getActivePage !== 'function' || typeof page.newTab !== 'function' ||
+        typeof page.setActivePage !== 'function' || typeof page.selectTab !== 'function' ||
+        typeof page.closeTab !== 'function') {
+        throw new CommandExecutionError(
+            'Xiaohongshu search rendered in a collapsed tab, but this browser session cannot replace the failed target.',
+            'Retry the command in a Browser Bridge session that supports tab replacement.',
+        );
+    }
+    const previousPage = page.getActivePage();
+    if (!previousPage) {
+        throw new CommandExecutionError('Xiaohongshu search cannot identify the collapsed browser target for safe replacement.');
+    }
+    let freshPage;
+    try {
+        freshPage = await page.newTab(url);
+        if (!freshPage) {
+            throw new Error('newTab returned no page identity');
+        }
+        page.setActivePage(freshPage);
+        await page.closeTab(previousPage);
+    }
+    catch (error) {
+        const cleanupErrors = [];
+        if (freshPage) {
+            let restoredPrevious = false;
+            try {
+                await page.selectTab(previousPage);
+                restoredPrevious = true;
+            }
+            catch (cleanupError) {
+                cleanupErrors.push(cleanupError?.message ?? String(cleanupError));
+            }
+            if (restoredPrevious) {
+                try {
+                    await page.closeTab(freshPage);
+                }
+                catch (cleanupError) {
+                    cleanupErrors.push(cleanupError?.message ?? String(cleanupError));
+                }
+            }
+            else {
+                // If the old target disappeared despite the original error,
+                // keep the fresh preferred target bound for --keep-tab.
+                page.setActivePage(freshPage);
+            }
+        }
+        const cleanupContext = cleanupErrors.length > 0
+            ? ` Cleanup also failed: ${cleanupErrors.join('; ')}.`
+            : '';
+        throw new CommandExecutionError(
+            `Failed to replace collapsed Xiaohongshu search tab: ${error?.message ?? String(error)}.${cleanupContext}`,
+        );
+    }
 }
 
 export const command = cli({
@@ -555,25 +665,26 @@ export const command = cli({
         try {
             const limit = parseLimit(kwargs.limit);
             const keyword = encodeURIComponent(kwargs.query);
-            await page.goto(`https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`);
-            // Wait for search results to render (or login wall to appear).
-            // Uses MutationObserver to resolve as soon as content appears,
-            // instead of a fixed delay + blind retry.
-            const waitResult = unwrapEvaluateResult(await page.evaluate(WAIT_FOR_CONTENT_JS));
-            if (!['content', 'login_wall', 'timeout'].includes(waitResult)) {
-                throw new CommandExecutionError('Unexpected Xiaohongshu search wait payload shape.');
+            const url = `https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`;
+            await page.goto(url);
+            let harvest = await collectSearchHarvest(page, limit);
+            if (isCollapsedRender(harvest.diag)) {
+                await replaceCollapsedTab(page, url);
+                harvest = await collectSearchHarvest(page, limit);
+                if (isCollapsedRender(harvest.diag)) {
+                    throw new CommandExecutionError(
+                        'Xiaohongshu search masonry remained collapsed after one fresh-tab recovery.',
+                        'Retry later or use a different logged-in browser session.',
+                    );
+                }
             }
-            if (waitResult === 'login_wall') {
-                throw new AuthRequiredError('www.xiaohongshu.com', 'Xiaohongshu search results are blocked behind a login wall');
-            }
-            const harvestOptions = harvestOptionsForLimit(limit);
-            const harvest = requireHarvestPayload(await page.evaluate(buildScrollHarvestJs('www.xiaohongshu.com', limit, harvestOptions)), 'www.xiaohongshu.com');
-            if (harvest.diag.securityBlock) {
-                throw new CliError('SECURITY_BLOCK', 'Xiaohongshu search was blocked by request-frequency or security controls.', 'Wait before retrying or use a different logged-in browser session.');
-            }
-            return harvest.rows
+            const rows = harvest.rows
                 .filter((item) => item.title)
-                .slice(0, limit)
+                .slice(0, limit);
+            if (rows.length === 0) {
+                throw new EmptyResultError('xiaohongshu search', 'No usable notes were rendered for this query.');
+            }
+            return rows
                 .map((item, i) => ({
                 rank: i + 1,
                 ...item,
