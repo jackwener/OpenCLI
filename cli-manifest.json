@@ -32949,9 +32949,9 @@
     "name": "rolling-news",
     "description": "新浪财经滚动新闻",
     "access": "read",
-    "domain": "finance.sina.com.cn/roll",
-    "strategy": "cookie",
-    "browser": true,
+    "domain": "feed.mix.sina.com.cn",
+    "strategy": "public",
+    "browser": false,
     "args": [],
     "columns": [
       "column",
@@ -32961,8 +32961,7 @@
     ],
     "type": "js",
     "modulePath": "sinafinance/rolling-news.js",
-    "sourceFile": "sinafinance/rolling-news.js",
-    "navigateBefore": "https://finance.sina.com.cn/roll"
+    "sourceFile": "sinafinance/rolling-news.js"
   },
   {
     "site": "sinafinance",
