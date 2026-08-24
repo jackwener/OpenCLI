@@ -7,9 +7,6 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 import {
     extractAnswer,
     extractColumnArticle,
-    extractQuestionId,
-    normalizeContentImages,
-    normalizeUnixSeconds,
     parseDownloadTarget,
 } from './download-helpers.js';
 
@@ -20,6 +17,7 @@ cli({
     description: '导出知乎专栏文章或回答为 Markdown 格式',
     domain: 'www.zhihu.com',
     strategy: Strategy.COOKIE,
+    navigateBefore: false,
     args: [
         { name: 'url', required: true, help: 'Column article URL, answer ID, typed target, or answer URL' },
         { name: 'output', default: './zhihu-articles', help: 'Output directory' },
@@ -48,8 +46,7 @@ cli({
             output: kwargs.output,
             downloadImages: kwargs['download-images'],
             imageHeaders: { Referer: target.kind === 'answer' ? 'https://www.zhihu.com/' : 'https://zhuanlan.zhihu.com/' },
+            ...(target.kind === 'answer' && { requireImageContentType: true }),
         });
     },
 });
-
-export const __test__ = { parseDownloadTarget, extractQuestionId, normalizeContentImages, normalizeUnixSeconds };

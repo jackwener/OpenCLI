@@ -47293,7 +47293,7 @@
     "type": "js",
     "modulePath": "zhihu/download.js",
     "sourceFile": "zhihu/download.js",
-    "navigateBefore": "https://www.zhihu.com"
+    "navigateBefore": false
   },
   {
     "site": "zhihu",

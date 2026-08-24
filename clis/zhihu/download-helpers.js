@@ -1,191 +1,262 @@
 import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { normalizeUnixSeconds } from './answer-normalize.js';
+import { parseAnswerTarget } from './answer-target.js';
+import { unwrapEvaluateResult } from './paginate.js';
 
-const ANSWER_ID_RE = /^\d+$/;
-const ANSWER_TYPED_RE = /^answer:(\d+):(\d+)$/;
-const ANSWER_PATH_RE = /^\/question\/(\d+)\/answer\/(\d+)\/?$/;
-const BARE_ANSWER_PATH_RE = /^\/answer\/(\d+)\/?$/;
 const ARTICLE_TYPED_RE = /^article:(\d+)$/;
 const ARTICLE_PATH_RE = /^\/p\/(\d+)\/?$/;
+const ANSWER_API_PATH_RE = /^(?:\/api\/v4)?\/answers\/(\d+)\/?$/;
+const QUESTION_PATH_RE = /^(?:\/api\/v4)?\/questions\/(\d+)\/?$/;
 
 export function parseDownloadTarget(input) {
     const value = String(input ?? '').trim();
-    if (!value) return null;
-    if (ANSWER_ID_RE.test(value)) return { kind: 'answer', answerId: value, questionId: '' };
-    const typedAnswer = value.match(ANSWER_TYPED_RE);
-    if (typedAnswer) return { kind: 'answer', questionId: typedAnswer[1], answerId: typedAnswer[2] };
     const typedArticle = value.match(ARTICLE_TYPED_RE);
-    if (typedArticle) return { kind: 'article', articleId: typedArticle[1], url: `https://zhuanlan.zhihu.com/p/${typedArticle[1]}` };
+    if (typedArticle) return articleTarget(typedArticle[1]);
     try {
         const url = new URL(value);
-        if (url.protocol !== 'https:' || url.username || url.password || url.port) return null;
-        if (url.hostname === 'zhuanlan.zhihu.com') {
-            const article = url.pathname.match(ARTICLE_PATH_RE);
-            return article
-                ? { kind: 'article', articleId: article[1], url: `https://zhuanlan.zhihu.com/p/${article[1]}` }
-                : null;
-        }
-        if (url.hostname !== 'www.zhihu.com' && url.hostname !== 'zhihu.com') return null;
-        const answer = url.pathname.match(ANSWER_PATH_RE);
-        if (answer) return { kind: 'answer', questionId: answer[1], answerId: answer[2] };
-        const bareAnswer = url.pathname.match(BARE_ANSWER_PATH_RE);
-        return bareAnswer ? { kind: 'answer', questionId: '', answerId: bareAnswer[1] } : null;
-    } catch {
+        const articleId = url.protocol === 'https:' && !url.username && !url.password && !url.port
+            && url.hostname === 'zhuanlan.zhihu.com'
+            ? url.pathname.match(ARTICLE_PATH_RE)?.[1]
+            : '';
+        if (articleId) return articleTarget(articleId);
+    }
+    catch {
+        // The shared answer parser also accepts bare and typed answer ids.
+    }
+    const answer = parseAnswerTarget(value);
+    return answer ? { kind: 'answer', ...answer } : null;
+}
+
+function articleTarget(articleId) {
+    return { kind: 'article', articleId, url: `https://zhuanlan.zhihu.com/p/${articleId}` };
+}
+
+function trustedZhihuUrl(input) {
+    if (typeof input !== 'string' || !input) return '';
+    try {
+        const url = new URL(input);
+        if (url.protocol !== 'https:' || url.username || url.password || url.port
+            || url.hash || !['api.zhihu.com', 'www.zhihu.com', 'zhihu.com'].includes(url.hostname)) return null;
+        return url;
+    }
+    catch {
         return null;
     }
 }
 
-export function extractQuestionId(url) {
-    try {
-        const parsed = new URL(String(url || ''));
-        if (parsed.protocol !== 'https:' || (parsed.hostname !== 'www.zhihu.com' && parsed.hostname !== 'zhihu.com')) return '';
-        return parsed.pathname.match(ANSWER_PATH_RE)?.[1] || '';
-    } catch {
-        return '';
-    }
+function answerTargetFromUrl(input) {
+    const url = trustedZhihuUrl(input);
+    if (!url) return null;
+    const webTarget = parseAnswerTarget(url.toString());
+    const apiAnswerId = url.pathname.match(ANSWER_API_PATH_RE)?.[1];
+    return webTarget || (apiAnswerId ? { answerId: apiAnswerId, questionId: '' } : null);
 }
 
-export function normalizeUnixSeconds(value) {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0
-        ? new Date(value * 1000).toISOString()
-        : '';
+function questionIdFromUrl(input) {
+    const url = trustedZhihuUrl(input);
+    if (!url) return '';
+    return parseAnswerTarget(url.toString())?.questionId || url.pathname.match(QUESTION_PATH_RE)?.[1] || '';
 }
 
 export function normalizeContentImages(contentHtml, documentRef = document) {
     const root = documentRef.createElement('div');
-    root.innerHTML = contentHtml || '';
+    root.innerHTML = typeof contentHtml === 'string' ? contentHtml : '';
     const imageUrls = [];
     const seen = new Set();
+    const normalizeUrl = (raw) => {
+        const value = String(raw || '').trim();
+        if (!value) return '';
+        try {
+            const url = new URL(value, 'https://www.zhihu.com/');
+            return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.toString() : '';
+        }
+        catch {
+            return '';
+        }
+    };
+    const normalizeSrcset = (raw) => String(raw || '').split(',').flatMap((entry) => {
+        const [url, ...descriptor] = entry.trim().split(/\s+/);
+        const normalized = normalizeUrl(url);
+        return normalized ? [[normalized, ...descriptor].join(' ')] : [];
+    });
+    const lastSrcsetUrl = (raw) => normalizeSrcset(raw).at(-1)?.split(/\s+/, 1)[0] || '';
+
+    root.querySelectorAll('img, source').forEach((element) => {
+        const srcset = normalizeSrcset(element.getAttribute('data-srcset') || element.getAttribute('srcset'));
+        if (srcset.length) element.setAttribute('srcset', srcset.join(', '));
+        else element.removeAttribute('srcset');
+        element.removeAttribute('data-srcset');
+    });
     root.querySelectorAll('img').forEach((img) => {
-        const src = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.getAttribute('src') || '';
-        if (!src || src.startsWith('data:')) return;
-        const normalized = src.startsWith('//') ? `https:${src}` : src;
-        img.setAttribute('src', normalized);
-        if (!seen.has(normalized)) {
-            seen.add(normalized);
-            imageUrls.push(normalized);
+        const source = img.closest('picture')?.querySelector('source');
+        const src = normalizeUrl(
+            img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.getAttribute('data-src')
+            || lastSrcsetUrl(img.getAttribute('srcset')) || lastSrcsetUrl(source?.getAttribute('srcset'))
+            || img.getAttribute('src'),
+        );
+        for (const name of ['data-original', 'data-actualsrc', 'data-src']) img.removeAttribute(name);
+        if (!src) img.removeAttribute('src');
+        else {
+            img.setAttribute('src', src);
+            if (!seen.has(src)) {
+                seen.add(src);
+                imageUrls.push(src);
+            }
         }
     });
     return { contentHtml: root.innerHTML, imageUrls };
 }
 
+function requireArticle(raw) {
+    const data = unwrapEvaluateResult(raw);
+    if (!data || typeof data !== 'object' || Array.isArray(data)
+        || typeof data.title !== 'string' || typeof data.contentHtml !== 'string'
+        || !Array.isArray(data.imageUrls) || !data.imageUrls.every((url) => typeof url === 'string')) {
+        throw new CommandExecutionError('Zhihu column download returned malformed article fields');
+    }
+    if (!data.contentHtml.trim()) {
+        throw new EmptyResultError('zhihu download', 'The Zhihu column article had no exportable content.');
+    }
+    return data;
+}
+
 export async function extractColumnArticle(page, target) {
     await page.goto(target.url);
     await page.wait(3);
-    return page.evaluate(`
+    const normalize = `(${normalizeContentImages.toString()})`;
+    const raw = await page.evaluate(`
       (() => {
-        const result = {
-          title: '',
-          author: '',
-          publishTime: '',
-          contentHtml: '',
-          imageUrls: []
+        const content = document.querySelector('.Post-RichTextContainer, .RichText, .ArticleContent');
+        const normalized = ${normalize}(content?.innerHTML || '');
+        return {
+          title: document.querySelector('.Post-Title, h1.ContentItem-title, .ArticleTitle')?.textContent?.trim() || 'untitled',
+          author: document.querySelector('.AuthorInfo-name, .UserLink-link')?.textContent?.trim() || '',
+          publishTime: document.querySelector('.ContentItem-time, .Post-Time')?.textContent?.trim() || '',
+          ...normalized
         };
-        const titleEl = document.querySelector('.Post-Title, h1.ContentItem-title, .ArticleTitle');
-        result.title = titleEl?.textContent?.trim() || 'untitled';
-        const authorEl = document.querySelector('.AuthorInfo-name, .UserLink-link');
-        result.author = authorEl?.textContent?.trim() || '';
-        const timeEl = document.querySelector('.ContentItem-time, .Post-Time');
-        result.publishTime = timeEl?.textContent?.trim() || '';
-        const contentEl = document.querySelector('.Post-RichTextContainer, .RichText, .ArticleContent');
-        if (contentEl) {
-          const clone = contentEl.cloneNode(true);
-          const seen = new Set();
-          clone.querySelectorAll('img').forEach(img => {
-            const src = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.getAttribute('src') || '';
-            if (!src || src.startsWith('data:')) return;
-            const normalized = src.startsWith('//') ? 'https:' + src : src;
-            img.setAttribute('src', normalized);
-            if (!seen.has(normalized)) {
-              seen.add(normalized);
-              result.imageUrls.push(normalized);
-            }
-          });
-          result.contentHtml = clone.innerHTML;
-        }
-        return result;
       })()
-    `);
+    `).catch((error) => {
+        throw new CommandExecutionError(`Zhihu column extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    return requireArticle(raw);
 }
 
 export async function extractAnswer(page, target) {
     try {
         await page.goto(`https://www.zhihu.com/answer/${target.answerId}`);
-    } catch (err) {
+    }
+    catch (error) {
         throw new CommandExecutionError(
-            `Failed to open Zhihu answer ${target.answerId}: ${err instanceof Error ? err.message : String(err)}`,
+            `Failed to open Zhihu answer ${target.answerId}: ${error instanceof Error ? error.message : String(error)}`,
             'Open the answer URL in Chrome and retry after the page is reachable.',
         );
     }
-    const currentUrl = page.getCurrentUrl ? await page.getCurrentUrl().catch(() => '') : '';
-    const apiUrl = `https://www.zhihu.com/api/v4/answers/${target.answerId}?include=content,author,created_time,question`;
-    const normalizeContentImagesSource = `(${normalizeContentImages.toString()})`;
-    const data = await page.evaluate(`
+    const currentUrl = typeof page.getCurrentUrl === 'function' ? await page.getCurrentUrl().catch(() => '') : '';
+    const currentTarget = parseAnswerTarget(currentUrl);
+    if (!currentTarget || currentTarget.answerId !== target.answerId || !currentTarget.questionId
+        || (target.questionId && currentTarget.questionId && target.questionId !== currentTarget.questionId)) {
+        throw new CommandExecutionError(`Zhihu answer navigation changed identity for answer ${target.answerId}`);
+    }
+
+    const apiUrl = `https://www.zhihu.com/api/v4/answers/${target.answerId}?include=content,author,created_time,question,url`;
+    const normalize = `(${normalizeContentImages.toString()})`;
+    const raw = await page.evaluate(`
       (async () => {
-        const response = await fetch(${JSON.stringify(apiUrl)}, { credentials: 'include' });
+        let response;
+        try {
+          response = await fetch(${JSON.stringify(apiUrl)}, { credentials: 'include' });
+        } catch (error) {
+          return { fetchError: error instanceof Error ? error.message : String(error) };
+        }
         let payload;
         try {
           payload = await response.json();
-        } catch (error) {
-          return { __httpError: response.status, __malformedJson: error instanceof Error ? error.message : String(error) };
+        } catch {
+          return { status: response.status, malformed: true };
         }
-        const errorCode = payload?.error?.code ?? '';
-        const errorMessage = payload?.error?.message || payload?.error_msg || payload?.message || '';
-        if (!response.ok) return { __httpError: response.status, __errorCode: errorCode, __errorMessage: errorMessage };
-        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { __malformedPayload: true };
-        if (errorCode || errorMessage) return { __errorCode: errorCode, __errorMessage: errorMessage };
-        if (!Object.prototype.hasOwnProperty.call(payload, 'content')) return { __missingContent: true };
-
-        const normalizedContent = ${normalizeContentImagesSource}(payload.content || '');
-        return {
-          title: payload.question?.title || 'untitled',
-          author: payload.author?.name || '',
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { status: response.status, malformed: true };
+        const errorCode = payload.error?.code ?? '';
+        const errorMessage = payload.error?.message || payload.error_msg || payload.message || '';
+        const needLogin = payload.error?.need_login === true || payload.need_login === true;
+        if (!response.ok || errorCode || errorMessage || needLogin) {
+          return { status: response.status, errorCode, errorMessage, needLogin };
+        }
+        if (typeof payload.content !== 'string') return { malformed: true };
+        const normalized = ${normalize}(payload.content, document);
+        return { value: {
+          answerUrl: typeof payload.url === 'string' ? payload.url : '',
+          questionUrl: typeof payload.question?.url === 'string' ? payload.question.url : '',
+          title: typeof payload.question?.title === 'string' ? payload.question.title : '',
+          author: typeof payload.author?.name === 'string' ? payload.author.name : '',
           createdTime: payload.created_time,
-          contentHtml: normalizedContent.contentHtml,
-          imageUrls: normalizedContent.imageUrls,
-        };
+          ...normalized
+        } };
       })()
-    `).catch((err) => {
+    `).catch((error) => {
         throw new CommandExecutionError(
-            `Zhihu answer download request failed: ${err instanceof Error ? err.message : String(err)}`,
+            `Zhihu answer download request failed: ${error instanceof Error ? error.message : String(error)}`,
             'Try again later or rerun with -v for more detail.',
         );
     });
 
-    if (!data || data.__httpError) {
-        const status = data?.__httpError;
-        if (status === 403 && String(data?.__errorCode) === '40362') {
-            throw new CommandExecutionError(
-                `Zhihu risk control blocked answer ${target.answerId} (40362): ${data?.__errorMessage || 'abnormal request'}`,
-                'Open the answer in the connected Chrome profile and retry later.',
-            );
-        }
-        if (status === 401 || status === 403) {
-            throw new AuthRequiredError('www.zhihu.com', 'Failed to download Zhihu answer');
-        }
-        if (status === 404) {
-            throw new EmptyResultError('zhihu download', `No Zhihu answer was found for ${target.answerId}.`);
-        }
+    const data = unwrapEvaluateResult(raw);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new CommandExecutionError('Zhihu answer download returned a malformed Browser Bridge payload');
+    }
+    const status = data.status;
+    if (String(data.errorCode) === '40362') {
         throw new CommandExecutionError(
-            status ? `Zhihu answer download request failed (HTTP ${status})` : 'Zhihu answer download request failed',
-            'Try again later or rerun with -v for more detail.',
+            `Zhihu risk control blocked answer ${target.answerId} (40362): ${data.errorMessage || 'abnormal request'}`,
+            'Open the answer in the connected Chrome profile and retry later.',
         );
     }
-    if (data.__malformedJson || data.__malformedPayload || data.__missingContent) {
-        throw new CommandExecutionError('Zhihu answer download returned a malformed payload');
+    if (status === 401 || status === 403 || String(data.errorCode) === '40353' || data.needLogin) {
+        throw new AuthRequiredError('www.zhihu.com', 'Failed to download Zhihu answer');
     }
-    if (data.__errorCode || data.__errorMessage) {
-        throw new CommandExecutionError(`Zhihu answer download returned an error payload: ${data.__errorMessage || data.__errorCode}`);
+    if (status === 404) {
+        throw new EmptyResultError('zhihu download', `No Zhihu answer was found for ${target.answerId}.`);
+    }
+    if (status || data.fetchError) {
+        throw new CommandExecutionError(
+            status ? `Zhihu answer download request failed (HTTP ${status})` : 'Zhihu answer download request failed',
+            String(data.fetchError || data.errorMessage || 'Try again later or rerun with -v for more detail.'),
+        );
+    }
+    if (data.malformed || data.errorCode || data.errorMessage) {
+        throw new CommandExecutionError('Zhihu answer download returned a malformed or error payload');
     }
 
-    const questionId = target.questionId || extractQuestionId(currentUrl);
+    const value = data.value;
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || typeof value.contentHtml !== 'string' || !Array.isArray(value.imageUrls)
+        || !value.imageUrls.every((url) => typeof url === 'string')) {
+        throw new CommandExecutionError('Zhihu answer download returned malformed answer fields');
+    }
+    if (!value.contentHtml.trim()) {
+        throw new EmptyResultError('zhihu download', `Zhihu answer ${target.answerId} had no exportable content.`);
+    }
+    const payloadAnswerTarget = answerTargetFromUrl(value.answerUrl);
+    const payloadQuestionId = value.questionUrl ? questionIdFromUrl(value.questionUrl) : '';
+    if (!payloadAnswerTarget || payloadAnswerTarget.answerId !== target.answerId) {
+        throw new CommandExecutionError(`Zhihu answer payload did not match requested answer ${target.answerId}`);
+    }
+    if (!payloadQuestionId) {
+        throw new CommandExecutionError('Zhihu answer download returned an untrusted question URL');
+    }
+    const questionId = target.questionId || currentTarget.questionId || payloadQuestionId;
+    if (!questionId || payloadQuestionId !== questionId
+        || (payloadAnswerTarget.questionId && payloadAnswerTarget.questionId !== questionId)) {
+        throw new CommandExecutionError(`Zhihu answer payload changed question identity for answer ${target.answerId}`);
+    }
+    const title = typeof value.title === 'string' && value.title.trim() ? value.title.trim() : 'Zhihu answer';
     return {
-        title: data.title || 'untitled',
-        author: data.author || '',
-        publishTime: normalizeUnixSeconds(data.createdTime),
+        title: `${target.answerId} - ${title}`,
+        author: typeof value.author === 'string' ? value.author : '',
+        publishTime: normalizeUnixSeconds(value.createdTime),
         sourceUrl: questionId
             ? `https://www.zhihu.com/question/${questionId}/answer/${target.answerId}`
             : `https://www.zhihu.com/answer/${target.answerId}`,
-        contentHtml: data.contentHtml || '',
-        imageUrls: data.imageUrls || [],
+        contentHtml: value.contentHtml,
+        imageUrls: value.imageUrls,
     };
 }
