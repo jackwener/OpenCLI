@@ -12,7 +12,7 @@ export const statusCommand = cli({
   siteSession: 'persistent',
   navigateBefore: false,
   args: [],
-  columns: ['Status', 'Login', 'Model', 'Url'],
+  columns: ['status', 'login', 'model', 'url'],
   func: async (page) => {
     let state = await getAIStudioPageState(page).catch(() => null);
     if (!state?.url?.includes(AISTUDIO_DOMAIN)) {
@@ -30,10 +30,10 @@ export const statusCommand = cli({
       );
     }
     return [{
-      Status: state.hasComposer ? 'Connected' : 'Page not ready',
-      Login: state.signedIn ? 'Yes' : 'No',
-      Model: state.currentModel,
-      Url: state.url,
+      status: state.hasComposer ? 'ready' : 'not_ready',
+      login: state.signedIn === true,
+      model: state.currentModel ?? null,
+      url: state.url,
     }];
   },
 });

@@ -1755,10 +1755,10 @@
     "browser": true,
     "args": [],
     "columns": [
-      "Status",
-      "Login",
-      "Model",
-      "Url"
+      "status",
+      "login",
+      "model",
+      "url"
     ],
     "type": "js",
     "modulePath": "aistudio/status.js",
