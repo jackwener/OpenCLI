@@ -10,8 +10,9 @@ export { DEFAULT_BROWSER_COMMAND_TIMEOUT, DEFAULT_BROWSER_CONNECT_TIMEOUT };
  * Returns the appropriate browser factory based on site type.
  * Uses CDPBridge for registered Electron apps, otherwise BrowserBridge.
  */
-export function getBrowserFactory(site?: string): new () => IBrowserFactory {
+export function getBrowserFactory(site?: string, cdpEndpoint = process.env.OPENCLI_CDP_ENDPOINT): new () => IBrowserFactory {
   if (site && isElectronApp(site)) return CDPBridge;
+  if (cdpEndpoint?.trim()) return CDPBridge;
   return BrowserBridge;
 }
 
@@ -54,14 +55,14 @@ export function withTimeoutMs<T>(
 
 /** Interface for browser factory (BrowserBridge or test mocks) */
 export interface IBrowserFactory {
-  connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent' }): Promise<IPage>;
+  connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean }): Promise<IPage>;
   close(): Promise<void>;
 }
 
 export async function browserSession<T>(
   BrowserFactory: new () => IBrowserFactory,
   fn: (page: IPage) => Promise<T>,
-  opts: { session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent' } = {},
+  opts: { session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean } = {},
 ): Promise<T> {
   const browser = new BrowserFactory();
   try {
@@ -69,6 +70,7 @@ export async function browserSession<T>(
       timeout: DEFAULT_BROWSER_CONNECT_TIMEOUT,
       session: opts.session,
       cdpEndpoint: opts.cdpEndpoint,
+      dedicatedTarget: opts.dedicatedTarget,
       contextId: opts.contextId,
       preferredContextId: opts.preferredContextId,
       idleTimeout: opts.idleTimeout,

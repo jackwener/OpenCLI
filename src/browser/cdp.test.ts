@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createServer } from 'node:http';
 
 const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
@@ -95,5 +96,35 @@ describe('CDPBridge cookies', () => {
       ['Page.handleJavaScriptDialog', { accept: true, promptText: 'ok' }],
       ['Page.getLayoutMetrics', {}],
     ]);
+  });
+});
+
+describe('CDPBridge dedicated target', () => {
+  it('creates and closes an isolated tab for a website CLI', async () => {
+    const seen: string[] = [];
+    const server = createServer((req, res) => {
+      seen.push(`${req.method} ${req.url?.split('?')[0]}`);
+      if (req.method === 'PUT' && req.url?.startsWith('/json/new')) {
+        res.end(JSON.stringify({ id: 'T1', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T1' }));
+      } else if (req.method === 'GET' && req.url === '/json/close/T1') {
+        res.end('Target is closing');
+      } else {
+        res.writeHead(500).end('{}');
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const endpoint = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
+
+    try {
+      const bridge = new CDPBridge();
+      vi.spyOn(bridge, 'send').mockResolvedValue({});
+      await bridge.connect({ cdpEndpoint: endpoint, dedicatedTarget: true });
+      await bridge.close();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+
+    expect(seen).toEqual(['PUT /json/new', 'GET /json/close/T1']);
   });
 });
