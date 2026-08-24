@@ -18,11 +18,14 @@ function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100, top: 0 });
 }
 function createPageMock(evaluateResults) {
-    const evaluate = vi.fn();
+    const queuedResults = [...evaluateResults];
+    const evaluate = vi.fn(async (script) => {
+        if (String(script).includes('const requestedFilters =')) {
+            return { status: 'ok' };
+        }
+        return queuedResults.shift();
+    });
     let activePage = 'page-old';
-    for (const result of evaluateResults) {
-        evaluate.mockResolvedValueOnce(result);
-    }
     const page = {
         goto: vi.fn().mockResolvedValue(undefined),
         evaluate,
@@ -81,6 +84,164 @@ function noteCard({ id, title = '', likes = '0', signed = false, host = 'www.xia
       </section>
     `;
 }
+
+const FILTER_FIXTURE = [
+    ['排序依据', ['综合', '最新', '最多点赞', '最多评论', '最多收藏']],
+    ['笔记类型', ['不限', '视频', '图文']],
+    ['发布时间', ['不限', '一天内', '一周内', '半年内']],
+    ['搜索范围', ['不限', '已看过', '未看过', '已关注']],
+    ['位置距离', ['不限', '同城', '附近']],
+];
+
+function createFilterBehaviorPage(options = {}) {
+    const dom = new JSDOM(`
+      <body>
+        <div class="search-layout__top"><div class="filter"><span>筛选</span></div></div>
+        <div class="search-layout__main"><div class="feeds-container"></div></div>
+      </body>
+    `, { url: 'https://www.xiaohongshu.com/search_result?keyword=test' });
+    const { document } = dom.window;
+    const state = Object.fromEntries(FILTER_FIXTURE.map(([group, choices]) => [group, choices[0]]));
+    Object.assign(state, options.initial || {});
+    const clicks = [];
+    let panelRenders = 0;
+    let geometry = 1000;
+    const trigger = document.querySelector('.filter');
+    const main = document.querySelector('.search-layout__main');
+    const feeds = document.querySelector('.feeds-container');
+    markVisible(trigger);
+    Object.defineProperty(document.body, 'innerText', {
+        configurable: true,
+        get: () => document.body.textContent || '',
+    });
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+        configurable: true,
+        get: () => options.unstableGeometry ? geometry++ : geometry,
+    });
+    Object.defineProperty(feeds, 'clientHeight', { configurable: true, value: 640 });
+
+    const renderResults = (empty = false) => {
+        main.innerHTML = empty
+            ? '<div class="search-empty-wrapper">没有筛选到相关内容</div>'
+            : noteCard({ id: '68e90be80000000004022e66', title: '相同首条', likes: '8' });
+        for (const element of main.querySelectorAll('section.note-item, .search-empty-wrapper')) markVisible(element);
+        if (!empty) {
+            for (const element of main.querySelectorAll('a, .title, .author, .count')) markVisible(element);
+        }
+    };
+    renderResults(false);
+
+    const renderPanel = () => {
+        document.querySelector('.filter-panel')?.remove();
+        const panel = document.createElement('div');
+        panel.className = 'filter-panel';
+        for (const [groupLabel, choices] of FILTER_FIXTURE) {
+            const group = document.createElement('div');
+            group.className = 'filters';
+            const label = document.createElement('span');
+            label.textContent = groupLabel;
+            group.append(label);
+            const container = document.createElement('div');
+            container.className = 'tag-container';
+            for (const choice of choices) {
+                if (options.missing === `${groupLabel}/${choice}`) continue;
+                const copies = options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
+                for (let copy = 0; copy < copies; copy++) {
+                    const option = document.createElement('div');
+                    option.className = `tags${state[groupLabel] === choice ? ' active' : ''}`;
+                    const optionLabel = document.createElement('span');
+                    optionLabel.textContent = choice;
+                    option.append(optionLabel);
+                    option.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        clicks.push(`${groupLabel}/${choice}`);
+                        if (options.locationDenied && groupLabel === '位置距离' && choice !== '不限') {
+                            const toast = document.createElement('div');
+                            toast.textContent = '请开启浏览器地理位置权限';
+                            document.body.append(toast);
+                            return;
+                        }
+                        if (options.inactive === `${groupLabel}/${choice}`) return;
+                        state[groupLabel] = choice;
+                        renderPanel();
+                        const loading = document.createElement('div');
+                        loading.className = 'filter-loading';
+                        loading.setAttribute('aria-busy', 'true');
+                        main.append(loading);
+                        setTimeout(() => {
+                            renderResults(options.emptyOn === `${groupLabel}/${choice}`);
+                        }, 300);
+                    });
+                    container.append(option);
+                    markVisible(option);
+                    markVisible(optionLabel);
+                }
+            }
+            group.append(container);
+            panel.append(group);
+            markVisible(group);
+            markVisible(label);
+            markVisible(container);
+        }
+        trigger.append(panel);
+        panelRenders++;
+        markVisible(panel);
+    };
+    trigger.addEventListener('click', () => {
+        const panel = document.querySelector('.filter-panel');
+        if (panel) panel.remove();
+        else renderPanel();
+    });
+
+    const page = createPageMock([]);
+    page.evaluate.mockImplementation(async (script) => {
+        const source = String(script);
+        if (source.includes('findNoteCard')) return 'content';
+        if (source.includes('const requestedFilters =')) {
+            return Function(
+                'document',
+                'window',
+                'getComputedStyle',
+                'setTimeout',
+                `return (${source})`,
+            )(
+                document,
+                dom.window,
+                dom.window.getComputedStyle.bind(dom.window),
+                setTimeout,
+            );
+        }
+        if (source.includes('const targetCount =')) {
+            const empty = Boolean(document.querySelector('.search-empty-wrapper'));
+            return harvestPayload(empty ? [] : [{
+                title: state['排序依据'],
+                author: '作者',
+                likes: '8',
+                url: 'https://www.xiaohongshu.com/search_result/68e90be80000000004022e66',
+                author_url: '',
+            }], { stopReason: empty ? 'exhausted' : 'target' });
+        }
+        throw new Error(`Unexpected evaluate script: ${source.slice(0, 40)}`);
+    });
+    page.filterState = state;
+    page.filterClicks = clicks;
+    page.panelRenderCount = () => panelRenders;
+    page.closeFilterPanel = () => document.querySelector('.filter-panel')?.remove();
+    return page;
+}
+
+async function runFilterCommand(page, args) {
+    const command = getRegistry().get('xiaohongshu/search');
+    const settled = command.func(page, { query: '美食', limit: 1, ...args }).then(
+        (value) => ({ value }),
+        (error) => ({ error }),
+    );
+    await vi.runAllTimersAsync();
+    const outcome = await settled;
+    if (outcome.error) throw outcome.error;
+    return outcome.value;
+}
+
 async function runHarvestFrames(frames, { target = frames.length, stallsBeforeAdvance = 0 } = {}) {
     const dom = new JSDOM('<body></body>', {
         url: 'https://www.xiaohongshu.com/search_result?keyword=test',
@@ -163,6 +324,16 @@ describe('xiaohongshu search', () => {
         await expect(cmd.func(page, { query: '特斯拉', limit: 0 })).rejects.toMatchObject({
             code: 'ARGUMENT',
             message: expect.stringContaining('--limit'),
+        });
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+    it('rejects invalid filter values before browser navigation', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock([]);
+
+        await expect(cmd.func(page, { query: '特斯拉', limit: 5, sort: 'oldest' })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+            message: expect.stringContaining('--sort'),
         });
         expect(page.goto).not.toHaveBeenCalled();
     });
@@ -353,7 +524,7 @@ describe('xiaohongshu search', () => {
         ]);
         await expect(cmd.func(page, { query: '测试等待', limit: 5 })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
         expect(page.goto).toHaveBeenCalledTimes(1);
-        expect(page.evaluate).toHaveBeenCalledTimes(2);
+        expect(page.evaluate).toHaveBeenCalledTimes(3);
         expect(page.newTab).not.toHaveBeenCalled();
     });
     it('maps an ordinary hydration timeout to TimeoutError without replacing the tab', async () => {
@@ -390,7 +561,8 @@ describe('xiaohongshu search', () => {
         expect(page.closeTab).toHaveBeenCalledWith('page-old');
         expect(page.newTab.mock.invocationCallOrder[0]).toBeLessThan(page.setActivePage.mock.invocationCallOrder[0]);
         expect(page.setActivePage.mock.invocationCallOrder[0]).toBeLessThan(page.closeTab.mock.invocationCallOrder[0]);
-        expect(page.closeTab.mock.invocationCallOrder[0]).toBeLessThan(page.evaluate.mock.invocationCallOrder[2]);
+        expect(page.closeTab.mock.invocationCallOrder[0]).toBeLessThan(page.evaluate.mock.invocationCallOrder[3]);
+        expect(page.evaluate.mock.calls.filter(([script]) => String(script).includes('const requestedFilters ='))).toHaveLength(2);
         expect(page.getActivePage()).toBe('page-new');
     });
     it('fails execution after one fresh target also renders with the proven collapsed signature', async () => {
@@ -472,6 +644,127 @@ describe('xiaohongshu search', () => {
         expect(page.getActivePage()).toBe('page-new');
     });
 });
+
+describe('xiaohongshu search filter behavior', () => {
+    it('converges reused-tab state for filtered -> default and filter set A -> B', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage();
+            await runFilterCommand(page, { sort: 'latest', 'note-type': 'video' });
+            expect(page.filterState).toMatchObject({ '排序依据': '最新', '笔记类型': '视频' });
+
+            page.closeFilterPanel();
+            await runFilterCommand(page, {});
+            expect(page.filterState).toEqual({
+                '排序依据': '综合',
+                '笔记类型': '不限',
+                '发布时间': '不限',
+                '搜索范围': '不限',
+                '位置距离': '不限',
+            });
+
+            await runFilterCommand(page, { sort: 'most-liked', 'note-type': 'image' });
+            await runFilterCommand(page, { sort: 'most-commented', 'note-type': 'video' });
+            expect(page.filterState).toMatchObject({ '排序依据': '最多评论', '笔记类型': '视频' });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not toggle an already-active chip and accepts settled rows with the same first href', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ initial: { '排序依据': '最新' } });
+            const result = await runFilterCommand(page, { sort: 'latest' });
+            expect(result[0].title).toBe('最新');
+            expect(page.filterClicks).toEqual([]);
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('reacquires a re-rendered panel while applying a multi-filter combination', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage();
+            await runFilterCommand(page, { sort: 'latest', 'publish-time': 'day', scope: 'following' });
+            expect(page.panelRenderCount()).toBeGreaterThan(3);
+            expect(page.filterState).toMatchObject({
+                '排序依据': '最新',
+                '发布时间': '一天内',
+                '搜索范围': '已关注',
+            });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('fails closed for ambiguous visible options and unavailable account-scoped options', async () => {
+        vi.useFakeTimers();
+        try {
+            const ambiguous = createFilterBehaviorPage({ ambiguous: '排序依据/最新' });
+            await expect(runFilterCommand(ambiguous, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('ambiguous_option'),
+            });
+
+            const unavailable = createFilterBehaviorPage({ missing: '搜索范围/已关注' });
+            await expect(runFilterCommand(unavailable, { scope: 'following' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('account-scoped filter was unavailable'),
+            });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('reports location denial and a non-activating ordinary chip as distinct execution failures', async () => {
+        vi.useFakeTimers();
+        try {
+            const denied = createFilterBehaviorPage({ locationDenied: true });
+            await expect(runFilterCommand(denied, { location: 'nearby' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('geolocation_denied'),
+            });
+
+            const inactive = createFilterBehaviorPage({ inactive: '排序依据/最新' });
+            await expect(runFilterCommand(inactive, { sort: 'latest' })).rejects.toMatchObject({
+                code: 'COMMAND_EXEC',
+                message: expect.stringContaining('did not become active'),
+            });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('types an active-but-never-stable result surface as a timeout', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ unstableGeometry: true });
+            await expect(runFilterCommand(page, { sort: 'latest' })).rejects.toMatchObject({ code: 'TIMEOUT' });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('preserves a legitimate filtered zero-result state as EmptyResultError', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ emptyOn: '发布时间/一天内' });
+            await expect(runFilterCommand(page, { 'publish-time': 'day' })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
 describe('buildSearchExtractJs', () => {
     it('separates fallback author text from appended relative date', () => {
         const dom = new JSDOM(`

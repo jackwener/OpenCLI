@@ -44972,6 +44972,70 @@
         "default": 20,
         "required": false,
         "help": "Number of results"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "comprehensive",
+        "required": false,
+        "help": "Sort order",
+        "choices": [
+          "comprehensive",
+          "latest",
+          "most-liked",
+          "most-commented",
+          "most-collected"
+        ]
+      },
+      {
+        "name": "note-type",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Note type",
+        "choices": [
+          "all",
+          "video",
+          "image"
+        ]
+      },
+      {
+        "name": "publish-time",
+        "type": "string",
+        "default": "anytime",
+        "required": false,
+        "help": "Publish time range",
+        "choices": [
+          "anytime",
+          "day",
+          "week",
+          "half-year"
+        ]
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Search scope",
+        "choices": [
+          "all",
+          "seen",
+          "unseen",
+          "following"
+        ]
+      },
+      {
+        "name": "location",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Location distance",
+        "choices": [
+          "all",
+          "same-city",
+          "nearby"
+        ]
       }
     ],
     "columns": [

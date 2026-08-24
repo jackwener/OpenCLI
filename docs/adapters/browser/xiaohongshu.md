@@ -32,6 +32,9 @@
 # Search for notes
 opencli xiaohongshu search 美食 --limit 10
 
+# Combine visible search-panel filters
+opencli xiaohongshu search 美食 --sort latest --note-type video --publish-time week
+
 # Ask 点点 and keep the citation audit trail
 opencli xiaohongshu ask "上海露营需要注意什么？" -f json
 
@@ -70,6 +73,8 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893
 # Actually delete after the target row and delete action are verified
 opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 ```
+
+`search` supports the same visible filter-panel choices as the website: `--sort comprehensive|latest|most-liked|most-commented|most-collected`, `--note-type all|video|image`, `--publish-time anytime|day|week|half-year`, `--scope all|seen|unseen|following`, and `--location all|same-city|nearby`. Account-scoped and location filters fail explicitly when the logged-in browser session lacks the required account or geolocation capability.
 
 > Note: `note` and `comments` now require a full signed note URL with `xsec_token`. `download` accepts either a signed note URL or an `xhslink` short link. Bare note IDs are no longer reliable on xiaohongshu.
 > With `comments --with-replies`, `reply_to` is the direct reply target displayed by the page. Replies without an explicit `回复 <name>` marker target the enclosing top-level comment.
