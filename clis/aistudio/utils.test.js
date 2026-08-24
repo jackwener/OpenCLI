@@ -11,6 +11,7 @@ import {
   AI_STUDIO_SELECTORS,
   aiStudioTurnFingerprint,
   closeTopDialog,
+  collectAIStudioEmptyShellEvidence,
   createAIStudioDeadline,
   ensureAIStudioPage,
   focusAIStudioComposer,
@@ -18,6 +19,7 @@ import {
   findNewModelTurn,
   getAIStudioSubmissionEvidence,
   injectAIStudioFiles,
+  isAIStudioBlockedContentText,
   isAIStudioErrorText,
   isAIStudioInlineErrorText,
   matchesAIStudioMarkdownClipboard,
@@ -42,6 +44,54 @@ import {
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const fixturePath = path.resolve(testDirectory, '__fixtures__', 'prompt-submit-zh-cn.html');
+
+// Correct answers a user asked for. If the blocked-content classifier matches
+// any of these, waitForAIStudioResponse throws and hands the user's own answer
+// back as the failure reason. Reproduced against the live service before this
+// guard existed: a benign React question whose reply opened with 不允许 failed with
+// COMMAND_EXEC while the identical pipeline answered a control prompt in 23s.
+const BLOCKED_CONTENT_BENIGN = [
+  'Content filters are typically implemented as a classifier layer.',
+  'The deployment failed because the port was blocked by the firewall rule.',
+  'Using eval() here is not appropriate for untrusted input; prefer JSON.parse.',
+  'Direct mutation of props is not permitted in React; use state instead.',
+  'I cannot help with the vendor benchmark because it is under NDA.',
+  'The regex approach will not be able to handle nested parentheses.',
+  'Writes are prohibited by the read-only transaction, so open a new one.',
+  'The linker was unable to produce a binary; check the target triple.',
+  '不允许直接修改 props，React 中应当通过 state 更新。',
+  '这个类型不符合接口定义，需要显式转换。',
+  '该操作不允许在只读事务中执行。',
+  '很抱歉，这份文档无法提供更多细节。',
+  '编译器无法生成目标代码，请检查依赖版本。',
+];
+
+// Genuine platform refusals. AI Studio renders these as the ENTIRE turn text,
+// so every entry must full-match (anchored) at least one pattern in
+// AI_STUDIO_BLOCKED_CONTENT_PATTERNS.
+const BLOCKED_CONTENT_REFUSALS = [
+  'Prohibited content.',
+  'Blocked content.',
+  'Content blocked.',
+  'Your request was blocked.',
+  'Request has been blocked.',
+  'Blocked for safety reasons.',
+  'I cannot generate that image.',
+  'I am not able to create this content.',
+  "I can't produce this content.",
+  'This goes against our content policy.',
+  'That request violates our usage policies.',
+  'The model refused to generate this content.',
+  'Safety settings blocked this response.',
+  '该请求包含不当内容。',
+  '检测到违规内容。',
+  '生成内容违反内容政策。',
+  '生成内容被安全策略阻止，无法输出。',
+  '我无法生成这类内容。',
+  '我不能生成该图片。',
+  '模型拒绝生成该内容。',
+  '模型拒绝创建该图像。',
+];
 
 function userTurn(text) {
   return { role: 'user', text, images: [] };
@@ -600,6 +650,82 @@ it('snapshot recognizes an explicit ms-error-message without role=alert', async 
   try {
     const snapshot = await readAIStudioSnapshot({ evaluate: async (fn, ...args) => fn(...args) });
     expect(snapshot.alerts).toContain('Quota exceeded. Please try again later.');
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    dom.window.close();
+  }
+});
+
+it('snapshot surfaces an explicit error widget verbatim at any length', async () => {
+  const longError = Array.from({ length: 12 }, (_, i) => `Sentence ${i + 1} of the native quota error message.`).join(' ');
+  if (longError.length <= 160) throw new Error('fixture too short');
+  const dom = new JSDOM(`<!doctype html><body>
+    <ms-prompt-box><textarea aria-label="Enter a prompt"></textarea><ms-run-button><button type="submit">Run</button></ms-run-button></ms-prompt-box>
+    <ms-error-message>${longError}</ms-error-message>
+  </body>`);
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  try {
+    const snapshot = await readAIStudioSnapshot({ evaluate: async (fn, ...args) => fn(...args) });
+    expect(snapshot.alerts).toContain(longError);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    dom.window.close();
+  }
+});
+
+it('snapshot still window-trims a broad live region longer than 160 chars', async () => {
+  const filler = Array.from({ length: 20 }, (_, i) => `filler clause ${i + 1} about subscriptions and regions`).join(', ');
+  // A broad live region wrapping UI chrome plus a short inline error idiom:
+  // the window-trim keeps the surfaced alert readable. Blocked-content idioms
+  // no longer participate here (anchored full-match), so use an inline idiom.
+  const longLive = `Generation status: content generation failed while streaming. ${filler}`.slice(0, 240);
+  const dom = new JSDOM(`<!doctype html><body>
+    <ms-prompt-box><textarea aria-label="Enter a prompt"></textarea><ms-run-button><button type="submit">Run</button></ms-run-button></ms-prompt-box>
+    <div role="alert">${longLive}</div>
+  </body>`);
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  try {
+    const snapshot = await readAIStudioSnapshot({ evaluate: async (fn, ...args) => fn(...args) });
+    expect(snapshot.alerts).toHaveLength(1);
+    expect(snapshot.alerts[0].length).toBeLessThan(longLive.length);
+    expect(snapshot.alerts[0]).toContain('content generation failed');
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    dom.window.close();
+  }
+});
+
+it('empty-shell evidence captures the raw model turn and live regions verbatim', async () => {
+  const dom = new JSDOM(`<!doctype html><body>
+    <ms-chat-turn><div class="chat-turn-container user"><div class="turn-content"><ms-text-chunk>question</ms-text-chunk></div></div></ms-chat-turn>
+    <ms-chat-turn id="shell"><div class="chat-turn-container model render">
+      <span class="author-label">Model</span>
+      <div class="turn-content"></div>
+      <div class="turn-footer"><span class="model-run-time-pill">2.7s</span></div>
+    </div></ms-chat-turn>
+    <div role="alert">Rate limit exceeded. Try again later.</div>
+  </body>`);
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  try {
+    const evidence = await collectAIStudioEmptyShellEvidence({ evaluate: async (fn, ...args) => fn(...args) });
+    expect(evidence.turnFound).toBe(true);
+    expect(evidence.turnHtml).toContain("model-run-time-pill");
+    expect(evidence.turnHtml).toContain("2.7s");
+    expect(evidence.turnHtml).not.toContain("question");
+    expect(evidence.liveRegions).toEqual(["Rate limit exceeded. Try again later."]);
+    expect(evidence.pageTextTail).toContain("Rate limit exceeded");
   } finally {
     globalThis.document = previousDocument;
     globalThis.window = previousWindow;
@@ -1674,6 +1800,88 @@ it('inline error classifier ignores benign words that appear in normal model rep
   expect(isAIStudioInlineErrorText('Prohibited content.')).toBe(true);
   expect(isAIStudioInlineErrorText('Your request was blocked by the Prohibited Use policy.')).toBe(true);
   expect(isAIStudioInlineErrorText('Sorry, I cannot help because it violates our usage policies.')).toBe(true);
+});
+
+it('blocked-content classifier ignores ordinary technical prose', () => {
+  for (const text of BLOCKED_CONTENT_BENIGN) {
+    expect(isAIStudioBlockedContentText(text), text).toBe(false);
+  }
+});
+
+// A refusal idiom embedded inside a longer sentence is ordinary prose — the
+// platform renders real refusals as the entire turn text. Anchored full-match
+// must reject these even though an unanchored substring test would fire.
+const BLOCKED_CONTENT_MID_SENTENCE = [
+  'The log shows the request was blocked by the upstream proxy, not by our service.',
+  'This answer violates our expectation that policies be cited; cite them.',
+  '发布违规内容的账号会被平台封禁。',
+  '这段过滤器会拦截包含敏感词的不当内容并给出警告。',
+  '系统检测到违规内容后会自动重试。',
+];
+
+it('blocked-content classifier requires the refusal to be the entire text', () => {
+  for (const text of BLOCKED_CONTENT_MID_SENTENCE) {
+    expect(isAIStudioBlockedContentText(text), text).toBe(false);
+  }
+});
+
+it('blocked-content classifier still catches genuine platform refusals', () => {
+  for (const text of BLOCKED_CONTENT_REFUSALS) {
+    expect(isAIStudioBlockedContentText(text), text).toBe(true);
+  }
+});
+
+it('every blocked-content pattern fires on a refusal and none fires on benign prose', () => {
+  const source = fs.readFileSync(path.resolve(testDirectory, 'utils.js'), 'utf8');
+  const arrayStart = source.indexOf('const AI_STUDIO_BLOCKED_CONTENT_PATTERNS = [');
+  const arrayEnd = source.indexOf('];', arrayStart) + 2;
+  const patterns = vm.runInNewContext(
+    `${source.slice(arrayStart, arrayEnd)}; AI_STUDIO_BLOCKED_CONTENT_PATTERNS`,
+  );
+  expect(patterns.length).toBeGreaterThan(0);
+
+  const unexercised = patterns.filter(
+    (pattern) => !BLOCKED_CONTENT_REFUSALS.some((text) => new RegExp(pattern, 'i').test(text)),
+  );
+  expect(unexercised).toEqual([]);
+
+  const overreaching = patterns.flatMap((pattern) => {
+    const re = new RegExp(pattern, 'i');
+    return BLOCKED_CONTENT_BENIGN
+      .filter((text) => re.test(text))
+      .map((text) => `${pattern} matched benign: ${text}`);
+  });
+  expect(overreaching).toEqual([]);
+});
+
+it('a refusal surfaces the chrome-stripped answer text, not the greedy detection haystack', async () => {
+  const dom = new JSDOM(`<!doctype html><body>
+    <ms-prompt-box><textarea aria-label="Enter a prompt"></textarea><ms-run-button><button type="submit">Run</button></ms-run-button></ms-prompt-box>
+    <ms-chat-turn id="model-turn"><div class="chat-turn-container model render">
+      <div class="actions-container"><ms-chat-turn-options><button aria-label="Open options"><span class="material-symbols-outlined">more_vert</span></button></ms-chat-turn-options></div>
+      <span class="author-label">Model</span>
+      <div class="turn-content"><ms-text-chunk>Prohibited content.</ms-text-chunk></div>
+      <div class="turn-footer"><span class="model-run-time-pill">2.7s</span></div>
+    </div></ms-chat-turn>
+  </body>`);
+  const document = dom.window.document;
+  const page = { evaluate: async (fn, ...args) => fn(...args) };
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = document;
+  globalThis.window = dom.window;
+  try {
+    const snapshot = await readAIStudioSnapshot(page);
+    const model = snapshot.turns.find((turn) => turn.role === 'model');
+    expect(model?.error).toBe('Prohibited content.');
+    expect(model?.error).not.toContain('more_vert');
+    expect(model?.error).not.toContain('2.7s');
+    expect(snapshot.alerts).toEqual(['Prohibited content.']);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    dom.window.close();
+  }
 });
 
 it('model category classifies TTS and audio models as audio', () => {

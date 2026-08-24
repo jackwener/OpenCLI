@@ -166,31 +166,43 @@ const AI_STUDIO_INLINE_ERROR_PATTERNS = [
 const AI_STUDIO_INLINE_ERROR_RE = new RegExp(AI_STUDIO_INLINE_ERROR_PATTERNS.map((pattern) => `(?:${pattern})`).join('|'), 'i');
 const AI_STUDIO_INLINE_ERROR_MAX_LENGTH = 240;
 
-// Blocked-content refusals render as a model turn (often with the feedback
-// footer) but usually as a full paragraph, which the 240-char inline gate
-// rejects. These unmistakable refusal idioms bypass the length gate so a
-// blocked generation fails fast instead of idling to the shared deadline.
+// Platform blocked-content refusals render as a standalone surface — the whole
+// model turn (often with the feedback footer) or a dedicated error node whose
+// ENTIRE text is the refusal idiom. Detection is therefore anchored full-match:
+// a model answer that merely discusses or contains these words ("the request was
+// blocked by the firewall") must never fire. Under-matching only costs a slower
+// failure — a refusal that renders no text at all is caught by the empty-shell
+// timeout in waitForAIStudioResponse, and a prose-written refusal reaches the
+// user verbatim as the answer — while over-matching discards a correct response.
+// Patterns are full-sentence templates: optional subjects/objects are spelled
+// out so the whole surfaced text can match end to end. Every pattern must name
+// the platform's safety machinery ("prohibited content", "违反内容政策") or be a
+// first-person refusal to generate; bare inability phrases ("not permitted",
+// "cannot help", "不允许", "无法提供") are ordinary technical prose and stay out.
 const AI_STUDIO_BLOCKED_CONTENT_PATTERNS = [
-  'prohibited content', 'prohibited by', 'prohibited under', 'blocked content',
-  'content blocked', 'request (?:was|has been) blocked', 'was blocked',
-  'blocked by (?:our|content|safety|a safety)',
-  'can\'t help with that', 'cannot help with that', 'can\'t help you with that',
-  'i (?:can\'t|cannot|am not able to) (?:generate|create|produce)',
-  'i\'m not able to (?:generate|create|produce)',
-  '(?:can\'t|cannot|won\'t) (?:generate|create|produce)',
-  'unable to (?:generate|create|produce|fulfill|comply|help)',
-  'not able to (?:generate|create|produce|help|assist)',
-  'against (?:my|our) (?:safety|guidelines|policies|policy)',
-  'violates? (?:my|our|the) (?:safety|guidelines|policies|policy|content)',
-  'content (?:filters?|filtering)', 'refus(?:ed|es|e)? to (?:generate|create|produce|respond)',
-  'not permitted', 'not appropriate', 'cannot help', 'doesn\'t (?:allow|permit)',
-  'model (?:can\'t|cannot) (?:generate|create)', 'won\'t be able to',
-  '无法生成', '不能生成', '无法创建', '不能创建', '无法帮助', '无法完成', '无法做到', '无法提供',
-  '拒绝生成', '拒绝创建', '不允许', '不符合', '违反安全', '违反政策',
-  '抱歉，?我?(?:无法|不能|帮不了)', '对不起，?我?(?:无法|不能|帮不了)',
-  '不能这么做', '无法满足',
+  'prohibited content',
+  'blocked content',
+  'content blocked',
+  '(?:your |a )?request (?:was |has been )?blocked',
+  'blocked (?:by|for) (?:our |the )?(?:content|safety)(?: reasons)?',
+  'i (?:can\'t|cannot|am not able to|won\'t) (?:generate|create|produce)(?: (?:that|this|such))?(?: (?:image|images|content|output))?',
+  'i(?:\'m| am) not able to (?:generate|create|produce)(?: (?:that|this|such))?(?: (?:image|images|content|output))?',
+  '(?:this )?(?:goes )?against (?:my|our) (?:safety |content )?(?:guidelines|policies|policy)',
+  '(?:this |that )?(?:request |response |prompt |content )?violates? (?:my|our|the) (?:safety |content |usage )?(?:guidelines|policies|polic(?:y|ies))',
+  '(?:the )?(?:model )?refus(?:ed|es|e)? to (?:generate|create|produce)(?: (?:that|this|such))?(?: (?:image|images|content|output))?',
+  'safety (?:policy|policies|settings) (?:blocked|prevented)(?: (?:this|the) (?:response|request))?',
+  '不当内容',
+  '(?:检测到|发现)?违规内容',
+  '(?:该|此)?(?:请求|提示词)?包含不当内容',
+  '(?:生成内容|输出内容)?违反(?:内容|使用|安全)(?:政策|策略|准则|规范)',
+  '(?:生成内容被|内容被)?(?:安全策略|内容政策|安全设置)(?:已)?阻止(?:，?无法(?:输出|生成|显示|展示))?',
+  '我(?:们)?无法生成(?:该|此|这类|此类)?(?:内容|图片|图像)?',
+  '我(?:们)?不能生成(?:该|此|这类|此类)?(?:内容|图片|图像)?',
+  '(?:模型)?拒绝生成(?:该|此|这类|此类)?(?:内容|图片|图像)?',
+  '(?:模型)?拒绝创建(?:该|此|这类|此类)?(?:内容|图片|图像)?',
 ];
-const AI_STUDIO_BLOCKED_CONTENT_RE = new RegExp(AI_STUDIO_BLOCKED_CONTENT_PATTERNS.map((pattern) => `(?:${pattern})`).join('|'), 'i');
+// Anchored full-match: the surfaced text must BE a refusal, not contain one.
+const AI_STUDIO_BLOCKED_CONTENT_RE = new RegExp(`^(?:${AI_STUDIO_BLOCKED_CONTENT_PATTERNS.map((pattern) => `(?:${pattern})`).join('|')})\\s*[.。!！]?\\s*$`, 'i');
 const AI_STUDIO_BLOCKED_CONTENT_MAX_LENGTH = 3000;
 
 const AI_STUDIO_GENERATING_RE = /^(?:stop|cancel|停止生成|取消)(?:\s|$)/i;
@@ -350,6 +362,13 @@ export function isAIStudioInlineErrorText(value) {
     && AI_STUDIO_INLINE_ERROR_RE.test(text);
 }
 
+export function isAIStudioBlockedContentText(value) {
+  const text = String(value || '');
+  return text.length > 0
+    && text.length <= AI_STUDIO_BLOCKED_CONTENT_MAX_LENGTH
+    && AI_STUDIO_BLOCKED_CONTENT_RE.test(text);
+}
+
 export function validateAIStudioImageAsset(asset) {
   const dataUrl = String(asset?.dataUrl || '');
   const match = dataUrl.match(/^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i);
@@ -390,7 +409,7 @@ export async function readAIStudioPageAlerts(page) {
       const explicitSurface = element.matches('.error-message, ms-error-message, [data-error]');
       const snackbarSurface = element.matches('mat-snack-bar-container, .mat-mdc-snack-bar-label');
       const liveRegionError = (text.length <= maxInlineErrorLength && inlineErrorRe.test(searchable))
-        || (text.length <= blockedContentMaxLength && blockedContentRe.test(searchable));
+        || (text.length <= blockedContentMaxLength && blockedContentRe.test(text)); // anchored: pure text only
       return text && (explicitSurface || (snackbarSurface ? errorRe.test(searchable) : liveRegionError))
         ? [text]
         : [];
@@ -2827,23 +2846,39 @@ export async function readAIStudioSnapshot(page) {
         // idioms apply there. Explicit error elements remain authoritative.
         const searchable = `${metadata} ${text}`;
         const liveRegionError = (text.length <= maxInlineErrorLength && inlineErrorRe.test(searchable))
-          || (text.length <= blockedContentMaxLength && blockedContentRe.test(searchable));
+          || (text.length <= blockedContentMaxLength && blockedContentRe.test(text)); // anchored: pure text only
         return explicitSurface || liveRegionError;
       };
       const errorNode = deepQueryAll(turn, errorNodeSelector).find(isStructuredErrorNode) || null;
-      // Strong refusal idioms (e.g. "Prohibited content") bypass the short-turn
-      // length gate: a blocked generation usually renders a full paragraph, and
-      // failing to classify it would leave the wait loop idling to the deadline.
+      // The blocked-content heuristic speaks only when the DOM offers no
+      // structured error node, and matches the CHROME-STRIPPED answer text with
+      // an anchored full-match RE: AI Studio renders a platform refusal as the
+      // entire turn ("Prohibited content."), so anything longer or mixed with
+      // other prose is an ordinary model answer, never an error.
+      const cleanTurnText = normalize(text);
       const blockedContent = role === 'model'
-        && rawTurnText.length <= blockedContentMaxLength
-        && blockedContentRe.test(rawTurnText);
+        && cleanTurnText.length <= blockedContentMaxLength
+        && blockedContentRe.test(cleanTurnText);
+      // rawTurnText is a deliberately greedy haystack: it concatenates the turn
+      // innerText, its textContent, and every descendant's text, so each nesting
+      // level repeats its children and the icon ligatures, author label, and
+      // run-time pill all survive. That is acceptable for matching but unreadable
+      // as a message, so the surfaced detail prefers the chrome-stripped answer
+      // and only falls back to a window of the haystack when the turn has no text.
+      const refusalDetail = () => {
+        const clean = normalize(text);
+        if (clean) return clean;
+        const match = blockedContentRe.exec(rawTurnText) || inlineErrorRe.exec(rawTurnText);
+        if (!match) return rawTurnText.slice(0, 200);
+        return rawTurnText.slice(Math.max(0, match.index - 20), match.index + match[0].length + 140);
+      };
       const inlineError = role === 'model'
-        ? (blockedContent
-            ? rawTurnText
-            : errorNode
-                ? normalize(errorNode.innerText || errorNode.textContent || '')
+        ? (errorNode
+            ? normalize(errorNode.innerText || errorNode.textContent || '')
+            : blockedContent
+                ? refusalDetail()
                 : (rawTurnText.length <= maxInlineErrorLength && inlineErrorRe.test(rawTurnText)
-                    ? rawTurnText
+                    ? refusalDetail()
                     : null))
         : null;
       const images = role === 'model' ? deepQueryAll(turn, 'img').flatMap((image) => {
@@ -2910,14 +2945,19 @@ export async function readAIStudioSnapshot(page) {
       const searchable = `${metadata} ${text}`;
       const explicitSurface = element.matches('.error-message, ms-error-message, [data-error]');
       const snackbarSurface = element.matches('mat-snack-bar-container, .mat-mdc-snack-bar-label');
+      // blockedContentRe is anchored, so it must test the pure text: metadata
+      // (class names, aria-labels) would break the full-match contract.
       const liveRegionError = (text.length <= maxInlineErrorLength && inlineErrorRe.test(searchable))
-        || (text.length <= blockedContentMaxLength && blockedContentRe.test(searchable));
+        || (text.length <= blockedContentMaxLength && blockedContentRe.test(text));
       const isError = explicitSurface || (snackbarSurface ? errorRe.test(searchable) : liveRegionError);
       if (!text || !isError) return [];
       // A broad live region can wrap the whole conversation (author labels,
       // action icons, thinking indicator) next to the actual refusal. Trim to a
       // window around the first error-phrase match so the alert stays readable.
-      if (text.length > 160) {
+      // Explicit error widgets (.error-message, ms-error-message, [data-error])
+      // and snackbar labels are bounded surfaces whose full innerText IS the
+      // native error — they are surfaced verbatim at any length.
+      if (text.length > 160 && !explicitSurface && !snackbarSurface) {
         const match = errorRe.exec(text);
         if (match) {
           const start = Math.max(0, match.index - 20);
@@ -2962,6 +3002,40 @@ export async function readAIStudioSnapshot(page) {
   }, AI_STUDIO_SELECTORS.composer, AI_STUDIO_SELECTORS.runButton, AI_STUDIO_ERROR_RE.source, AI_STUDIO_INLINE_ERROR_RE.source, AI_STUDIO_ERROR_NODE_SELECTOR, AI_STUDIO_INLINE_ERROR_MAX_LENGTH, AI_STUDIO_BLOCKED_CONTENT_RE.source, AI_STUDIO_BLOCKED_CONTENT_MAX_LENGTH);
 }
 
+// A completed-but-empty model turn is usually a server-side silent block: no
+// error node, no refusal text, nothing for the classifiers to match. Before the
+// wait loop gives up, capture the raw page surfaces verbatim — the last model
+// turn's HTML plus every live region's unfiltered text — so the thrown error
+// carries evidence instead of a synthetic guess. Every string is bounded
+// because these fragments flow into CLI output.
+export async function collectAIStudioEmptyShellEvidence(page) {
+  return evaluatePage(page, 'AI Studio empty-shell evidence', (
+    turnSelector,
+    maxTurnHtmlLength,
+    maxLiveRegions,
+    maxPageTailLength,
+  ) => {
+    const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+    const modelTurns = Array.from(document.querySelectorAll(turnSelector)).filter((turn) => {
+      const container = turn.querySelector('.chat-turn-container');
+      return !!container?.classList.contains('model') || turn.classList.contains('model');
+    });
+    const lastModelTurn = modelTurns.at(-1) || null;
+    const turnHtml = lastModelTurn ? String(lastModelTurn.outerHTML || '') : '';
+    const liveRegions = Array.from(document.querySelectorAll(
+      '[role="alert"], [aria-live="assertive"], mat-snack-bar-container',
+    )).map((element) => normalize(element.innerText || element.textContent)).filter(Boolean);
+    const pageText = normalize(document.body?.innerText || document.body?.textContent || '');
+    return {
+      turnFound: !!lastModelTurn,
+      turnCharCount: turnHtml.length,
+      turnHtml: turnHtml.slice(0, maxTurnHtmlLength),
+      turnTruncated: turnHtml.length > maxTurnHtmlLength,
+      liveRegions: liveRegions.slice(0, maxLiveRegions),
+      pageTextTail: pageText.slice(-maxPageTailLength),
+    };
+  }, 'ms-chat-turn', 2000, 8, 500);
+}
 export function findNewModelTurn(snapshot, baseline) {
   return findNewAIStudioTurns(snapshot, baseline?.baseline || baseline, 'model')
     .filter((turn) => !turn.thinkingOnly)
@@ -3639,9 +3713,27 @@ export async function waitForAIStudioResponse(page, baseline, timeoutSeconds, op
         // 8s was too eager and killed real Pro renders; 60s still fails refusals
         // ~4x faster than the default 240s deadline without dropping slow renders.
         if (emptyMs >= 60000) {
+          // A silently blocked generation renders no classifier-visible error, so
+          // capture the raw page surfaces before giving up: the thrown error then
+          // carries verbatim evidence instead of asking the user to inspect the
+          // retained tab blind. Evidence collection must never mask the original
+          // failure, hence the catch.
+          const evidence = await collectAIStudioEmptyShellEvidence(page).catch(() => null);
+          let helpText = 'This usually means the request was blocked (e.g. "Prohibited content") or the image model failed to render.';
+          if (evidence) {
+            const parts = [];
+            if (!evidence.turnFound) parts.push('(no model turn element found in the page)');
+            else if (evidence.turnCharCount > 0) parts.push(`model turn HTML (${evidence.turnCharCount} chars${evidence.turnTruncated ? ', truncated' : ''}): ${evidence.turnHtml}`);
+            else parts.push('(model turn element present but renders no HTML text)');
+            if (evidence.liveRegions?.length) parts.push(`live regions: ${evidence.liveRegions.join(' | ')}`);
+            if (evidence.pageTextTail) parts.push(`page text tail: ${evidence.pageTextTail}`);
+            if (parts.length) helpText += ` Page evidence:\n${parts.join('\n')}`;
+          } else {
+            helpText += ' Inspect the retained tab for the refusal, and the trace for the turn DOM.';
+          }
           throw new CommandExecutionError(
             'AI Studio completed a model turn with no text and no image',
-            'This usually means the request was blocked (e.g. "Prohibited content") or the image model failed to render. Inspect the retained tab for the refusal, and the trace for the turn DOM.',
+            helpText,
           );
         }
       } else {
