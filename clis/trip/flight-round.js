@@ -66,7 +66,11 @@ cli({
         }
         const raw = await page.evaluate(buildFlightExtractJs());
         if (!Array.isArray(raw)) {
-            throw new CommandExecutionError('Trip.com flight DOM extraction returned malformed rows');
+            const reason = raw && typeof raw === 'object' && typeof raw.error === 'string'
+                && /^malformed flight card \d+: [a-z /]+$/.test(raw.error)
+                ? `: ${raw.error}`
+                : '';
+            throw new CommandExecutionError(`Trip.com flight DOM extraction returned malformed rows${reason}`);
         }
         if (raw.length === 0) {
             throw new EmptyResultError('trip flight-round', `No round-trip flights for ${fromCode} to ${toCode} on ${depart} .. ${ret}`);
