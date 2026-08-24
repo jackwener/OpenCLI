@@ -1,5 +1,14 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { fetchComments, fetchIssue, jiraConfig, normalizeJiraIssue, requireIssueKey } from './shared.js';
+import {
+    fetchComments,
+    fetchIssue,
+    issueSelectionIncludes,
+    jiraConfig,
+    normalizeJiraIssue,
+    parseIssueFieldSelection,
+    parseJiraLimit,
+    requireIssueKey,
+} from './shared.js';
 
 cli({
     site: 'jira',
@@ -17,13 +26,18 @@ cli({
     columns: ['key', 'summary', 'issueType', 'status', 'priority', 'assignee', 'updated', 'url'],
     func: async (args) => {
         const key = requireIssueKey(args.key);
+        const selection = parseIssueFieldSelection(args.fields);
+        const commentsLimit = parseJiraLimit(args['comments-limit'], 100, 100);
         const config = jiraConfig();
-        const issue = await fetchIssue(config, key, [], args.fields);
-        const inlineComments = issue?.fields?.comment?.comments;
-        const total = Number(issue?.fields?.comment?.total ?? inlineComments?.length ?? 0);
-        const comments = total > (inlineComments?.length ?? 0)
-            ? await fetchComments(config, key, args['comments-limit'])
-            : inlineComments;
-        return [normalizeJiraIssue(issue, config, { comments, fields: args.fields })];
+        const issue = await fetchIssue(config, key, [], selection);
+        let comments;
+        if (issueSelectionIncludes(selection, 'comment')) {
+            const inlineComments = issue?.fields?.comment?.comments;
+            const total = Number(issue?.fields?.comment?.total ?? inlineComments?.length ?? 0);
+            comments = total > (inlineComments?.length ?? 0)
+                ? await fetchComments(config, key, commentsLimit)
+                : inlineComments;
+        }
+        return [normalizeJiraIssue(issue, config, { comments, selection })];
     },
 });

@@ -11,7 +11,7 @@ import {
     requirePayloadString,
     requireString,
 } from '../_atlassian/shared.js';
-import { ArgumentError, ConfigError } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 const DEFAULT_ISSUE_FIELDS = [
     'summary',
@@ -53,26 +53,45 @@ function configuredFieldNames() {
     };
 }
 
-function configuredIssueFields(raw) {
+export function parseIssueFieldSelection(raw) {
     if (raw === undefined) return null;
-    if (raw.trim().toLowerCase() === 'auto') return 'auto';
+    if (typeof raw !== 'string') {
+        throw new ArgumentError('Jira --fields must be a comma-separated string or auto');
+    }
 
-    const fields = raw.split(',').map((field) => field.trim()).filter(Boolean);
-    if (fields.length === 0) {
-        throw new ConfigError(
-            'Invalid Jira fields',
-            'Set --fields to comma-separated field names, for example summary,status,customfield_12345.',
+    const parts = raw.split(',').map((field) => field.trim());
+    if (parts.length === 0 || parts.some((field) => !field)) {
+        throw new ArgumentError(
+            'Invalid Jira --fields selection',
+            'Use comma-separated field ids without empty entries, for example summary,status,customfield_12345.',
         );
     }
-    return [...new Set(fields)];
+    if (parts.some((field) => field.toLowerCase() === 'auto')) {
+        if (parts.length !== 1) {
+            throw new ArgumentError('Jira --fields auto cannot be combined with other field ids');
+        }
+        return { mode: 'auto' };
+    }
+    if (parts.some((field) => !/^[A-Za-z][A-Za-z0-9_.:-]*$/.test(field))) {
+        throw new ArgumentError(
+            'Invalid Jira field id in --fields',
+            'Use Jira field ids such as summary, status, or customfield_12345.',
+        );
+    }
+    return { mode: 'selected', ids: [...new Set(parts)] };
 }
 
-function issueFields(extraFields = [], fieldsOverride) {
-    const selected = configuredIssueFields(fieldsOverride);
-    if (selected === 'auto') return undefined;
-    if (selected !== null) return selected.join(',');
+function issueFields(extraFields = [], selection = null) {
+    if (selection?.mode === 'auto') return '*all';
+    if (selection?.mode === 'selected') {
+        return [...new Set([...selection.ids, ...extraFields.filter(Boolean)])].join(',');
+    }
     const configured = Object.values(configuredFieldNames()).filter(Boolean);
     return [...new Set([...DEFAULT_ISSUE_FIELDS, ...configured, ...extraFields.filter(Boolean)])].join(',');
+}
+
+export function issueSelectionIncludes(selection, field) {
+    return selection === null || selection?.mode === 'auto' || selection?.ids?.includes(field) === true;
 }
 
 export function parseJiraLimit(value, fallback = 20, max = 100) {
@@ -153,25 +172,21 @@ function customValueToMarkdown(value) {
     return valueName(value);
 }
 
-function autoFields(fields, names) {
-    const result = {};
-    for (const [field, value] of Object.entries(fields)) {
-        if (value === null) continue;
-        const name = field.startsWith('customfield_')
-            && typeof names[field] === 'string'
-            && names[field].trim()
-            ? names[field].trim()
-            : field;
-        result[name] = value;
-    }
-    return result;
-}
-
 function inlineComments(fields, key, options) {
     if (options.comments !== undefined) return requirePayloadArray(options.comments, `jira issue ${key} comments`);
-    if (options.requireNestedCollections === false) return [];
     const commentBlock = requirePayloadObject(fields.comment, `jira issue ${key} comment field`);
     return requirePayloadArray(commentBlock.comments, `jira issue ${key} comment field comments`);
+}
+
+function selectedFieldRows(fields, names, selection, key) {
+    const ids = selection.mode === 'auto' ? Object.keys(fields).sort() : selection.ids;
+    return ids.map((id) => {
+        if (!Object.prototype.hasOwnProperty.call(fields, id)) {
+            throw new CommandExecutionError(`jira issue ${key} did not return requested field ${id}.`);
+        }
+        const name = typeof names[id] === 'string' && names[id].trim() ? names[id].trim() : id;
+        return { id, name, value: fields[id] };
+    });
 }
 
 export function normalizeJiraIssue(issue, config, options = {}) {
@@ -181,14 +196,16 @@ export function normalizeJiraIssue(issue, config, options = {}) {
     const rendered = row.renderedFields && typeof row.renderedFields === 'object' && !Array.isArray(row.renderedFields)
         ? row.renderedFields
         : {};
-    const selectedFields = configuredIssueFields(options.fields);
+    const selection = options.selection ?? null;
     const custom = configuredFieldNames();
-    const requireNestedCollections = selectedFields === null && options.requireNestedCollections !== false;
-    const comments = inlineComments(fields, key, { ...options, requireNestedCollections });
-    const attachments = requireNestedCollections
+    const includeComments = options.requireNestedCollections !== false && issueSelectionIncludes(selection, 'comment');
+    const includeAttachments = options.requireNestedCollections !== false && issueSelectionIncludes(selection, 'attachment');
+    const includeIssueLinks = options.requireNestedCollections !== false && issueSelectionIncludes(selection, 'issuelinks');
+    const comments = includeComments ? inlineComments(fields, key, options) : [];
+    const attachments = includeAttachments
         ? requirePayloadArray(fields.attachment, `jira issue ${key} attachment field`)
         : [];
-    const issueLinks = requireNestedCollections
+    const issueLinks = includeIssueLinks
         ? requirePayloadArray(fields.issuelinks, `jira issue ${key} issuelinks field`)
         : [];
     const normalized = {
@@ -228,19 +245,9 @@ export function normalizeJiraIssue(issue, config, options = {}) {
     if (custom.storyPoints && fields[custom.storyPoints] !== undefined) {
         normalized.storyPoints = Number(fields[custom.storyPoints]);
     }
-    if (selectedFields !== null) {
+    if (selection !== null) {
         const names = row.names && typeof row.names === 'object' && !Array.isArray(row.names) ? row.names : {};
-        if (selectedFields === 'auto') {
-            normalized.fields = autoFields(fields, names);
-        } else {
-            const customFields = {};
-            for (const field of selectedFields) {
-                if (!field.startsWith('customfield_') || fields[field] === undefined) continue;
-                const name = typeof names[field] === 'string' && names[field].trim() ? names[field].trim() : field;
-                customFields[name] = fields[field];
-            }
-            if (Object.keys(customFields).length > 0) normalized.customFields = customFields;
-        }
+        normalized.selectedFields = selectedFieldRows(fields, names, selection, key);
     }
     return normalized;
 }
@@ -259,12 +266,11 @@ export function issueSummaryRow(issue, config) {
     };
 }
 
-export async function fetchIssue(config, key, extraFields = [], fieldsOverride) {
-    const fields = issueFields(extraFields, fieldsOverride);
+export async function fetchIssue(config, key, extraFields = [], selection = null) {
     const params = {
-        expand: 'renderedFields,names',
+        fields: issueFields(extraFields, selection),
+        expand: selection === null ? 'renderedFields' : 'renderedFields,names',
     };
-    if (fields !== undefined) params.fields = fields;
     const issue = await jiraRequest(config, `/issue/${encodeURIComponent(key)}`, {
         params,
         label: `jira issue ${key}`,
@@ -293,6 +299,8 @@ export function jiraConfig() {
 export const __test__ = {
     configuredFieldNames,
     fetchIssue,
+    issueFields,
+    issueSelectionIncludes,
     issueSummaryRow,
     jiraApiPath,
     jiraBodyToMarkdown,
@@ -300,5 +308,6 @@ export const __test__ = {
     normalizeComment,
     normalizeIssueLink,
     normalizeJiraIssue,
+    parseIssueFieldSelection,
     requireIssueKey,
 };

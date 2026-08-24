@@ -20296,6 +20296,12 @@
         "default": 100,
         "required": false,
         "help": "Max comments to include (1-100)"
+      },
+      {
+        "name": "fields",
+        "type": "string",
+        "required": false,
+        "help": "Fields to request, comma-separated, or auto for all fields"
       }
     ],
     "columns": [

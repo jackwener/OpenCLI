@@ -30,12 +30,15 @@ To request a specific set of Jira fields, pass a comma-separated list to the
 opencli jira issue PROJ-123 --fields 'summary,status,customfield_12345'
 ```
 
-Requested `customfield_*` values are returned under `customFields`, using the
-human-readable names returned by Jira when available.
+The result adds `selectedFields`, an ordered list of `{ id, name, value }`
+entries. The stable Jira field id is always preserved; display names are
+metadata, so duplicate names and names that collide with standard fields do not
+lose data. Explicit lists keep their first-requested order and ignore duplicate
+ids.
 
-Set `--fields` to `auto` to let Jira return all fields. The result adds a
-`fields` object with top-level `null` values removed and `customfield_*` keys
-replaced by their human-readable names from Jira:
+Set `--fields` to `auto` to explicitly request Jira's `*all` field set. The
+result uses the same `selectedFields` structure, ordered by stable field id;
+`null` and structured JSON values are preserved:
 
 ```bash
 opencli jira issue PROJ-123 --fields auto
