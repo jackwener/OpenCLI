@@ -31,7 +31,7 @@ open the app once and use the System page to install or repair the `opencli`
 command.
 
 **Option B — npm global install (CLI-only / CI / servers):**
-OpenCLI requires **Node.js >= 20** when installed through npm.
+OpenCLI requires **Node.js >= 20.18.1** when installed through npm.
 
 ```bash
 node --version
@@ -290,7 +290,7 @@ See **[TESTING.md](./TESTING.md)** for how to run and write tests.
 - **"Extension not connected"** — Ensure the Browser Bridge extension is installed from the [Chrome Web Store](https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk) and **enabled** in `chrome://extensions`.
 - **"attach failed: Cannot access a chrome-extension:// URL"** — Another extension may be interfering. Try disabling other extensions temporarily.
 - **Empty data or 'Unauthorized' error** — Your Chrome/Chromium login session may have expired. Navigate to the target site and log in again.
-- **Node API errors / missing `fetch` / startup crash on old Node** — OpenCLI requires **Node.js >= 20**. Run `node --version`, upgrade Node if needed, then retry.
+- **Node API errors / missing `fetch` / startup crash on old Node** — OpenCLI requires **Node.js >= 20.18.1**. Run `node --version`, upgrade Node if needed, then retry.
 - **Daemon issues** — Check status: `curl localhost:19825/status` · View logs: `curl localhost:19825/logs`
 
 ## Star History

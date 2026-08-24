@@ -30,7 +30,7 @@ UI 来做环境诊断、更新、浏览器登录态保活和网页转 Markdown�
 System 页面安装或修复 `opencli` 命令。
 
 **方式 B — npm 全局安装（纯 CLI / CI / 服务器）：**
-通过 npm 安装时，OpenCLI 要求 **Node.js >= 20**。
+通过 npm 安装时，OpenCLI 要求 **Node.js >= 20.18.1**。
 
 ```bash
 node --version
@@ -328,7 +328,7 @@ opencli plugin uninstall my-tool                            # 卸载
 - **返回空数据，或者报错 "Unauthorized"**
   - Chrome/Chromium 里的登录态可能已经过期。请打开当前页面，在新标签页重新手工登录或刷新该页面。
 - **Node API 错误 / 缺少 `fetch` / 旧 Node 启动即崩**
-  - OpenCLI 要求 **Node.js >= 20**。先执行 `node --version`，如果版本过低先升级，再重试命令。
+  - OpenCLI 要求 **Node.js >= 20.18.1**。先执行 `node --version`，如果版本过低先升级，再重试命令。
 - **Daemon 问题**
   - 检查 daemon 状态：`curl localhost:19825/status`
   - 查看扩展日志：`curl localhost:19825/logs`

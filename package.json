@@ -6,7 +6,7 @@
   },
   "description": "Make any website or Electron App your CLI. AI-powered.",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.18.1"
   },
   "type": "module",
   "main": "dist/src/main.js",
