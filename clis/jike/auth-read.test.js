@@ -1,0 +1,104 @@
+import { describe, expect, it, vi } from 'vitest';
+import { getRegistry } from '@jackwener/opencli/registry';
+import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { requireJikeIdentity } from './utils.js';
+import './auth.js';
+import './feed.js';
+import './notifications.js';
+import './search.js';
+
+function makePage(...evaluateResults) {
+  return {
+    goto: vi.fn().mockResolvedValue(undefined),
+    wait: vi.fn().mockResolvedValue(undefined),
+    autoScroll: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockImplementation(async () => evaluateResults.shift()),
+  };
+}
+
+const identity = {
+  ok: true,
+  user_id: 'user-1',
+  screen_name: 'Alice',
+  username: 'alice',
+};
+
+describe('Jike identity guard', () => {
+  it('preserves the whoami identity contract', async () => {
+    const page = makePage(identity);
+
+    await expect(getRegistry().get('jike/whoami').func(page, {})).resolves.toEqual({
+      logged_in: true,
+      site: 'jike',
+      user_id: 'user-1',
+      screen_name: 'Alice',
+      username: 'alice',
+    });
+    expect(page.goto).toHaveBeenCalledWith('https://web.okjike.com/');
+  });
+
+  it('classifies missing or rejected credentials as AuthRequiredError', async () => {
+    await expect(requireJikeIdentity(makePage({
+      kind: 'auth',
+      detail: 'Jike JK_ACCESS_TOKEN missing from localStorage (anonymous)',
+    }))).rejects.toBeInstanceOf(AuthRequiredError);
+  });
+
+  it.each([
+    [{ kind: 'http', httpStatus: 503 }],
+    [{ kind: 'exception', detail: 'network failed' }],
+    [{ unexpected: true }],
+  ])('classifies non-auth probe failure as CommandExecutionError', async (probe) => {
+    await expect(requireJikeIdentity(makePage(probe))).rejects.toBeInstanceOf(CommandExecutionError);
+  });
+
+  it.each([
+    ['jike/feed', {}, 'https://web.okjike.com'],
+    ['jike/search', { query: 'OpenCLI' }, 'https://web.okjike.com/search?q=OpenCLI'],
+    ['jike/notifications', {}, 'https://web.okjike.com/notification'],
+  ])('prevents %s from silently returning an empty anonymous result', async (commandName, args, expectedUrl) => {
+    const page = makePage({
+      kind: 'auth',
+      detail: 'Jike JK_ACCESS_TOKEN missing from localStorage (anonymous)',
+    });
+
+    await expect(getRegistry().get(commandName).func(page, args)).rejects.toBeInstanceOf(AuthRequiredError);
+    expect(page.goto).toHaveBeenCalledWith(expectedUrl);
+    expect(page.evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [
+      'jike/feed',
+      { limit: 1 },
+      [{ id: 'post-1', author: 'Alice', content: 'hello', likes: 2, comments: 1, time: 'now', url: 'https://web.okjike.com/originalPost/post-1' }],
+    ],
+    [
+      'jike/search',
+      { query: 'OpenCLI', limit: 1 },
+      [{ id: 'post-2', author: 'Bob', content: 'result', likes: 3, comments: 4, time: 'later', url: 'https://web.okjike.com/originalPost/post-2' }],
+    ],
+  ])('continues %s extraction after a successful identity probe', async (commandName, args, rows) => {
+    const page = makePage(identity, rows);
+
+    await expect(getRegistry().get(commandName).func(page, args)).resolves.toEqual(rows);
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
+  });
+
+  it('continues notification extraction after a successful identity probe', async () => {
+    const page = makePage(identity, [{
+      actionType: 'LIKE_ORIGINAL_POST',
+      fromUser: 'Bob',
+      content: 'hello\nworld',
+      time: 'now',
+    }]);
+
+    await expect(getRegistry().get('jike/notifications').func(page, { limit: 1 })).resolves.toEqual([{
+      type: '赞了你',
+      user: 'Bob',
+      content: 'hello world',
+      time: 'now',
+    }]);
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
+  });
+});

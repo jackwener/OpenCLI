@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { getPostDataJs } from './utils.js';
+import { getPostDataJs, requireJikeIdentity } from './utils.js';
 /**
  * 即刻搜索适配器
  *
@@ -25,6 +25,7 @@ cli({
         // 1. 直接导航到搜索页
         const encodedKeyword = encodeURIComponent(keyword);
         await page.goto(`https://web.okjike.com/search?q=${encodedKeyword}`);
+        await requireJikeIdentity(page);
         // 2. 通过 React fiber 提取帖子数据
         const extract = async () => {
             return (await page.evaluate(`(() => {
