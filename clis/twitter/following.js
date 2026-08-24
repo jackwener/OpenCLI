@@ -77,7 +77,10 @@ function extractUser(result) {
         screen_name: screenName,
         name: core.name || legacy.name || '',
         bio: legacy.description || result.profile_bio?.description || '',
-        followers: legacy.followers_count || legacy.normal_followers_count || 0,
+        followers: result.relationship_counts?.followers
+            ?? legacy.followers_count
+            ?? legacy.normal_followers_count
+            ?? 0,
     };
 }
 
