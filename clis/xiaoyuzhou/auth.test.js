@@ -100,6 +100,45 @@ describe('xiaoyuzhou auth helpers', () => {
         expect(result.credentials.access_token).toBe('refreshed-access');
     });
 
+    it('reports final HTTP auth rejection after the single refresh retry', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(createJsonResponse(401, { message: 'expired' }))
+            .mockResolvedValueOnce(createJsonResponse(200, {
+                success: true,
+                'x-jike-access-token': 'refreshed-access',
+                'x-jike-refresh-token': 'refreshed-refresh',
+            }))
+            .mockResolvedValueOnce(createJsonResponse(401, { message: 'still unauthorized' }));
+
+        await expect(requestXiaoyuzhouJson('/v1/episode-played/list-history', {
+            method: 'POST',
+            body: {},
+            credentials: normalizeXiaoyuzhouCredentials({
+                access_token: 'old-access',
+                refresh_token: 'old-refresh',
+            }),
+        }, fetchMock)).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it.each([
+        [403, { code: 200, data: [] }, 'AUTH_REQUIRED'],
+        [200, { code: 403, msg: 'credential denied' }, 'AUTH_REQUIRED'],
+        [200, { code: 500, msg: 'service unavailable' }, 'COMMAND_EXEC'],
+        [200, { code: 'unexpected', data: [] }, 'COMMAND_EXEC'],
+    ])('types HTTP/service failures (HTTP %s, body %o)', async (status, payload, code) => {
+        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse(status, payload));
+        await expect(requestXiaoyuzhouJson('/v1/episode-played/list-history', {
+            method: 'POST',
+            body: {},
+            credentials: normalizeXiaoyuzhouCredentials({
+                access_token: 'access',
+                refresh_token: 'refresh',
+            }),
+        }, fetchMock)).rejects.toMatchObject({ code });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it('extracts transcript text from segment arrays and direct text payloads', () => {
         expect(extractTranscriptText(JSON.stringify({
             segments: [{ text: 'hello ' }, { text: ' world' }],

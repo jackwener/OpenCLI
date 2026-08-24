@@ -45202,6 +45202,55 @@
   },
   {
     "site": "xiaoyuzhou",
+    "name": "history",
+    "description": "List playback history for the logged-in Xiaoyuzhou account",
+    "access": "read",
+    "domain": "api.xiaoyuzhoufm.com",
+    "strategy": "local",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum rows to return (default 20, max 5000). Ignored with --all."
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Fetch every history page until the API cursor is exhausted."
+      },
+      {
+        "name": "max-pages",
+        "type": "int",
+        "default": 500,
+        "required": false,
+        "help": "Pagination safety limit (default 500, max 1000)."
+      }
+    ],
+    "columns": [
+      "rank",
+      "eid",
+      "pid",
+      "title",
+      "podcast",
+      "durationSec",
+      "progressSec",
+      "progressPct",
+      "playedAt",
+      "pubDate",
+      "finished",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "xiaoyuzhou/history.js",
+    "sourceFile": "xiaoyuzhou/history.js"
+  },
+  {
+    "site": "xiaoyuzhou",
     "name": "podcast",
     "description": "View a Xiaoyuzhou podcast profile",
     "access": "read",

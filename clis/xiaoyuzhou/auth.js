@@ -218,6 +218,9 @@ export async function requestXiaoyuzhouJson(endpoint, options = {}, fetchImpl = 
     }
     const bodyText = await response.text();
     if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            throw createXiaoyuzhouAuthError(`Xiaoyuzhou API rejected the credentials with HTTP ${response.status}`);
+        }
         throw new CommandExecutionError(`Xiaoyuzhou API request failed with HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''}`);
     }
     let parsed;
@@ -226,6 +229,21 @@ export async function requestXiaoyuzhouJson(endpoint, options = {}, fetchImpl = 
     }
     catch (error) {
         throw new CommandExecutionError(`Xiaoyuzhou API returned invalid JSON: ${getErrorMessage(error)}`);
+    }
+    const serviceCode = parsed?.code;
+    if (serviceCode !== undefined && serviceCode !== null) {
+        const numericCode = Number(serviceCode);
+        if (!Number.isFinite(numericCode)) {
+            throw new CommandExecutionError('Xiaoyuzhou API returned an invalid service code');
+        }
+        if (numericCode === 401 || numericCode === 403) {
+            throw createXiaoyuzhouAuthError(`Xiaoyuzhou API rejected the credentials with service code ${numericCode}`);
+        }
+        if (numericCode !== 0 && numericCode !== 200) {
+            throw new CommandExecutionError(
+                parsed?.message || parsed?.msg || `Xiaoyuzhou API returned service code ${numericCode}`,
+            );
+        }
     }
     if (parsed?.success === false) {
         throw new CommandExecutionError(parsed?.message || parsed?.msg || 'Xiaoyuzhou API returned success=false');
