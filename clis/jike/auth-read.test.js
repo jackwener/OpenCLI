@@ -37,6 +37,26 @@ describe('Jike identity guard', () => {
     expect(page.goto).toHaveBeenCalledWith('https://web.okjike.com/');
   });
 
+  it('keeps login polling after a transient non-auth probe failure', async () => {
+    const page = makePage(
+      { kind: 'auth', detail: 'anonymous' },
+      { kind: 'http', httpStatus: 503 },
+      identity,
+    );
+
+    await expect(getRegistry().get('jike/login').func(page, { timeout: 5 })).resolves.toEqual({
+      status: 'login_complete',
+      logged_in: true,
+      site: 'jike',
+      user_id: 'user-1',
+      screen_name: 'Alice',
+      username: 'alice',
+    });
+    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://web.okjike.com/');
+    expect(page.goto).toHaveBeenNthCalledWith(2, 'https://web.okjike.com/login');
+    expect(page.evaluate).toHaveBeenCalledTimes(3);
+  });
+
   it('classifies missing or rejected credentials as AuthRequiredError', async () => {
     await expect(requireJikeIdentity(makePage({
       kind: 'auth',

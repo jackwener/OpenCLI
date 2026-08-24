@@ -22,10 +22,11 @@ registerSiteAuthCommands({
     try {
       return await requireJikeIdentity(page);
     } catch (error) {
-      if (error instanceof AuthRequiredError) {
-        throw new AuthRequiredError('web.okjike.com', 'Waiting for Jike login');
-      }
-      throw error;
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new AuthRequiredError(
+        'web.okjike.com',
+        detail ? `Waiting for Jike login: ${detail}` : 'Waiting for Jike login',
+      );
     }
   },
 });
