@@ -46742,7 +46742,7 @@
   {
     "site": "youtube",
     "name": "search",
-    "description": "Search YouTube videos",
+    "description": "Search YouTube videos, Shorts, channels, and playlists",
     "access": "read",
     "domain": "www.youtube.com",
     "strategy": "cookie",
