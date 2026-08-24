@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <body>
+    <ms-run-settings>
+      <ms-model-selector>
+        <button class="model-selector-card">Gemini 3.1 Flash Lite <span>gemini-3.1-flash-lite</span></button>
+      </ms-model-selector>
+      <mat-form-field>
+        <mat-label>宽高比</mat-label>
+        <mat-select aria-label="宽高比">
+          <mat-option>1:1</mat-option>
+          <mat-option>16:9</mat-option>
+          <mat-option>9:16</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>分辨率</mat-label>
+        <mat-select aria-label="分辨率">
+          <mat-option>1K</mat-option>
+          <mat-option>2K</mat-option>
+          <mat-option>4K</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>思考级别</mat-label>
+        <mat-select aria-label="思考级别">
+          <mat-option>无</mat-option>
+          <mat-option>低</mat-option>
+          <mat-option>高</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>温度</mat-label>
+        <input type="number" role="spinbutton" aria-label="温度" min="0" max="2" value="1">
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Top P</mat-label>
+        <input type="number" role="spinbutton" aria-label="Top P" min="0" max="1" value="0.95">
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>最大输出 token 数</mat-label>
+        <input type="number" role="spinbutton" aria-label="最大输出 token 数" min="1" max="8192" value="8192">
+      </mat-form-field>
+      <div role="radio" aria-checked="true">仅图片</div>
+      <div role="radio" aria-checked="false">图片和文本</div>
+      <button aria-label="系统指令">系统指令</button>
+    </ms-run-settings>
+  </body>
+</html>

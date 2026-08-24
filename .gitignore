@@ -25,3 +25,9 @@ docs/.vitepress/cache
 *.db
 autoresearch/results/
 autoresearch-results.tsv
+
+# Local debug backups
+.backups/
+
+# Dev-only aistudio working notes (user docs live in aistudio.md)
+docs/adapters/browser/aistudio-*.md
