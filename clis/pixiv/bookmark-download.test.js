@@ -98,6 +98,19 @@ describe('pixiv bookmark-download', () => {
     expect(result[0]).toMatchObject({ rank: 1, type: 'novel', id: '10588915', download_status: 'success' });
   });
 
+  it('rejects malformed novel metadata before creating the batch output tree', async () => {
+    const page = loggedInPage([
+      currentUser,
+      { body: { works: [{ id: '10588915', title: '星之观测手记', userName: '作者B', userId: '200', tags: [] }] } },
+      { body: {
+        id: '10588915', title: '星之观测手记', userName: '作者B', userId: '200',
+        content: '正文', tags: { tags: [] }, wordCount: { drifted: true },
+      } },
+    ]);
+    await expect(cmd.func(page, { type: 'novel', output: tempRoot, execute: true })).rejects.toThrow(CommandExecutionError);
+    expect(fs.readdirSync(tempRoot)).toEqual([]);
+  });
+
   it('completes every page/schema plan before creating any file', async () => {
     const page = loggedInPage([
       currentUser,

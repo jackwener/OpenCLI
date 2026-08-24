@@ -2,7 +2,15 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
-import { tagsToString } from './bookmark-utils.js';
+import { dateOnly, tagsToString } from './bookmark-utils.js';
+
+function optionalDownloadCount(value, label) {
+  if (value == null || value === '') return null;
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new CommandExecutionError(`Pixiv novel ${label} returned malformed data`);
+  }
+  return value;
+}
 
 function requireNovelDownloadBody(body, id) {
   if (!body || Array.isArray(body) || typeof body !== 'object') {
@@ -20,7 +28,20 @@ function requireNovelDownloadBody(body, id) {
   }
   // Validate metadata before any file is planned or created.
   tagsToString(body.tags);
-  return { ...body, id: novelId, title, userName: author, userId, content: body.content };
+  const createdDate = dateOnly(body.createDate);
+  const wordCount = optionalDownloadCount(body.wordCount, 'word count');
+  const bookmarkCount = optionalDownloadCount(body.bookmarkCount, 'bookmark count');
+  return {
+    ...body,
+    id: novelId,
+    title,
+    userName: author,
+    userId,
+    content: body.content,
+    createdDate,
+    wordCount,
+    bookmarkCount,
+  };
 }
 
 export function normalizeNovelFileFormat(value) {
@@ -95,7 +116,6 @@ export async function fetchNovelForDownload(page, id) {
 
 export function formatNovelContent(body, format) {
   const tags = tagsToString(body.tags);
-  const created = typeof body.createDate === 'string' ? body.createDate.split('T')[0] : '';
   const url = `https://www.pixiv.net/novel/show.php?id=${body.id}`;
   if (format === 'md') {
     return [
@@ -105,7 +125,7 @@ export function formatNovelContent(body, format) {
       `- User ID: ${body.userId}`,
       `- Novel ID: ${body.id}`,
       `- URL: ${url}`,
-      created ? `- Created: ${created}` : '',
+      body.createdDate ? `- Created: ${body.createdDate}` : '',
       tags ? `- Tags: ${tags}` : '',
       body.wordCount != null ? `- Words: ${body.wordCount}` : '',
       body.bookmarkCount != null ? `- Bookmarks: ${body.bookmarkCount}` : '',
@@ -122,7 +142,7 @@ export function formatNovelContent(body, format) {
     `User ID: ${body.userId}`,
     `Novel ID: ${body.id}`,
     `URL: ${url}`,
-    created ? `Created: ${created}` : '',
+    body.createdDate ? `Created: ${body.createdDate}` : '',
     tags ? `Tags: ${tags}` : '',
     body.wordCount != null ? `Words: ${body.wordCount}` : '',
     body.bookmarkCount != null ? `Bookmarks: ${body.bookmarkCount}` : '',
