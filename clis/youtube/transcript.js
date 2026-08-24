@@ -13,13 +13,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
 import { groupTranscriptSegments, formatGroupedTranscript, } from './transcript-group.js';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-
-function unwrapBrowserResult(value) {
-    if (value && typeof value === 'object' && 'session' in value && 'data' in value) {
-        return value.data;
-    }
-    return value;
-}
+import { unwrapBrowserResult } from './shared.js';
 
 function normalizeSegmentsPayload(value, source, { allowNull = false } = {}) {
     const payload = unwrapBrowserResult(value);

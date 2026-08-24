@@ -4,13 +4,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { extractJsonAssignmentFromHtml, parseVideoId, prepareYoutubeApiPage } from './utils.js';
 import { CommandExecutionError } from '@jackwener/opencli/errors';
-
-function unwrapBrowserResult(value) {
-    if (value && typeof value === 'object' && 'session' in value && 'data' in value) {
-        return value.data;
-    }
-    return value;
-}
+import { unwrapBrowserResult } from './shared.js';
 
 function requireVideoPayload(value) {
     const payload = unwrapBrowserResult(value);
