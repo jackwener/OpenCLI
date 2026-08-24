@@ -8,17 +8,14 @@ import {
   requirePixivPayloadObject,
   requirePixivString,
 } from './utils.js';
+import { dateOnly, tagsToString } from './bookmark-utils.js';
 
-function dateOnly(value) {
-  return typeof value === 'string' && value ? value.split('T')[0] : '';
-}
-
-function workTagsToString(tags) {
-  if (tags == null) return '';
-  if (!Array.isArray(tags)) {
-    throw new CommandExecutionError('Pixiv user novels returned malformed tags payload');
+function optionalCount(value, label, fallback = '') {
+  if (value == null || value === '') return fallback;
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new CommandExecutionError(`Pixiv user novel item returned malformed ${label}`);
   }
-  return tags.filter(tag => typeof tag === 'string' && tag.trim()).slice(0, 8).join(', ');
+  return value;
 }
 
 function userNovelRow(work, rank, expectedId) {
@@ -32,10 +29,10 @@ function userNovelRow(work, rank, expectedId) {
     rank,
     title,
     novel_id: id,
-    words: item.wordCount ?? '',
-    characters: item.textCount ?? item.characterCount ?? '',
-    bookmarks: item.bookmarkCount ?? 0,
-    tags: workTagsToString(item.tags),
+    words: optionalCount(item.wordCount, 'word count'),
+    characters: optionalCount(item.textCount ?? item.characterCount, 'character count'),
+    bookmarks: optionalCount(item.bookmarkCount, 'bookmark count', 0),
+    tags: tagsToString(item.tags),
     created: dateOnly(item.createDate),
     url: `https://www.pixiv.net/novel/show.php?id=${id}`,
   };
@@ -85,7 +82,7 @@ cli({
       notFoundMsg: `User not found: ${userId}`,
     });
     const allIds = requireProfileNovelIds(profileBody)
-      .sort((a, b) => Number(b) - Number(a))
+      .sort((a, b) => (BigInt(a) < BigInt(b) ? 1 : (BigInt(a) > BigInt(b) ? -1 : 0)))
       .slice(0, limit);
     if (allIds.length === 0) return [];
 

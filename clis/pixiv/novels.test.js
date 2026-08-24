@@ -106,4 +106,24 @@ describe('pixiv novels', () => {
     const secondFetch = page.evaluate.mock.calls[1]?.[0] || '';
     expect(secondFetch).toContain('/ajax/user/37119297/profile/novels?ids[]');
   });
+
+  it('keeps decimal ID ordering string-safe above Number precision', async () => {
+    const page = createPageMock([
+      { body: { novels: { '9007199254740992': null, '9007199254740993': null } } },
+      { body: { works: {
+        '9007199254740993': { id: '9007199254740993', title: 'newer', userId: '1', tags: [] },
+        '9007199254740992': { id: '9007199254740992', title: 'older', userId: '1', tags: [] },
+      } } },
+    ]);
+    const rows = await cmd.func(page, { 'user-id': '37119297', limit: 2 });
+    expect(rows.map(row => row.novel_id)).toEqual(['9007199254740993', '9007199254740992']);
+  });
+
+  it('fails typed on malformed detail metrics and tags', async () => {
+    const page = createPageMock([
+      { body: { novels: { '1': null } } },
+      { body: { works: { '1': { id: '1', title: 'bad', tags: [{ nope: true }], bookmarkCount: {} } } } },
+    ]);
+    await expect(cmd.func(page, { 'user-id': '37119297', limit: 1 })).rejects.toThrow(CommandExecutionError);
+  });
 });

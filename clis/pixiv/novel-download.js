@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { fetchNovelForDownload, normalizeNovelFileFormat, writeNovelFile } from './novel-download-utils.js';
+import { fetchNovelForDownload, normalizeNovelFileFormat, normalizePixivOutputRoot, writeNovelFile } from './novel-download-utils.js';
 
 cli({
   site: 'pixiv',
@@ -13,15 +13,19 @@ cli({
     { name: 'novel-id', positional: true, required: true, help: 'Novel ID' },
     { name: 'output', default: './pixiv-downloads/novels', help: 'Output directory' },
     { name: 'file-format', default: 'txt', help: 'Output file format: txt or md' },
+    { name: 'execute', type: 'boolean', default: false, help: 'Actually write the local novel file' },
   ],
   columns: ['novel_id', 'title', 'format', 'status', 'path'],
   func: async (page, kwargs) => {
+    if (kwargs.execute !== true) {
+      throw new ArgumentError('Refusing to write a local Pixiv novel: pass --execute');
+    }
     const id = String(kwargs['novel-id'] ?? '');
     if (!/^\d+$/.test(id)) {
       throw new ArgumentError(`Invalid novel ID: ${id}`, 'Example: opencli pixiv novel-download 10588915 --file-format txt');
     }
     const format = normalizeNovelFileFormat(kwargs['file-format'] ?? kwargs.format);
-    const output = String(kwargs.output ?? './pixiv-downloads/novels');
+    const output = normalizePixivOutputRoot(kwargs.output, './pixiv-downloads/novels');
     const body = await fetchNovelForDownload(page, id);
     const destPath = writeNovelFile(body, output, format);
     return [{ novel_id: body.id, title: body.title, format, status: 'success', path: destPath }];

@@ -1,14 +1,14 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
+import { dateOnly, tagsToString } from './bookmark-utils.js';
 
-function tagsToString(tags) {
-  const items = Array.isArray(tags?.tags) ? tags.tags : [];
-  return items.map(t => t?.tag).filter(Boolean).join(', ');
-}
-
-function dateOnly(value) {
-  return typeof value === 'string' && value ? value.split('T')[0] : '';
+function optionalCount(value, label) {
+  if (value == null || value === '') return '';
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new CommandExecutionError(`Pixiv novel returned malformed ${label}`);
+  }
+  return value;
 }
 
 function requireNovelBody(body, id) {
@@ -22,34 +22,45 @@ function requireNovelBody(body, id) {
   if (!/^\d+$/.test(novelId) || novelId !== id || !title || !userName || !/^\d+$/.test(userId)) {
     throw new CommandExecutionError(`Pixiv novel ${id} returned malformed detail payload`);
   }
-  body.id = novelId;
-  body.title = title;
-  body.userName = userName;
-  body.userId = userId;
-  return body;
+  return { payload: body, identity: { novelId, title, userName, userId } };
 }
 
 export function novelRowFromBody(body, id) {
-  const b = requireNovelBody(body, id);
-  const series = b.seriesNavData && typeof b.seriesNavData === 'object' ? b.seriesNavData : {};
+  const normalized = requireNovelBody(body, id);
+  const b = normalized.payload;
+  const identity = normalized.identity;
+  if (b.seriesNavData != null && (Array.isArray(b.seriesNavData) || typeof b.seriesNavData !== 'object')) {
+    throw new CommandExecutionError('Pixiv novel returned malformed series metadata');
+  }
+  const series = b.seriesNavData || {};
   const seriesId = b.seriesId ?? series.seriesId ?? '';
   const seriesTitle = b.seriesTitle ?? series.title ?? '';
+  if (seriesId !== '' && !/^\d+$/.test(String(seriesId))) {
+    throw new CommandExecutionError('Pixiv novel returned malformed series ID');
+  }
+  if (seriesTitle !== '' && typeof seriesTitle !== 'string') {
+    throw new CommandExecutionError('Pixiv novel returned malformed series title');
+  }
+  const seriesOrder = series.order ?? b.seriesContentOrder ?? '';
+  if (seriesOrder !== '' && (!Number.isSafeInteger(seriesOrder) || seriesOrder < 1)) {
+    throw new CommandExecutionError('Pixiv novel returned malformed series order');
+  }
   return {
-    novel_id: b.id,
-    title: b.title,
-    author: b.userName,
-    user_id: b.userId,
+    novel_id: identity.novelId,
+    title: identity.title,
+    author: identity.userName,
+    user_id: identity.userId,
     series_id: seriesId === '' ? '' : String(seriesId),
     series_title: seriesTitle || '',
-    series_order: series.order ?? b.seriesContentOrder ?? '',
-    words: b.wordCount ?? '',
-    characters: b.characterCount ?? b.textCount ?? '',
-    bookmarks: b.bookmarkCount ?? 0,
-    likes: b.likeCount ?? 0,
-    views: b.viewCount ?? 0,
+    series_order: seriesOrder,
+    words: optionalCount(b.wordCount, 'word count'),
+    characters: optionalCount(b.characterCount ?? b.textCount, 'character count'),
+    bookmarks: optionalCount(b.bookmarkCount, 'bookmark count') || 0,
+    likes: optionalCount(b.likeCount, 'like count') || 0,
+    views: optionalCount(b.viewCount, 'view count') || 0,
     tags: tagsToString(b.tags),
     created: dateOnly(b.createDate),
-    url: `https://www.pixiv.net/novel/show.php?id=${b.id}`,
+    url: `https://www.pixiv.net/novel/show.php?id=${identity.novelId}`,
   };
 }
 

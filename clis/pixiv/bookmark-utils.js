@@ -18,17 +18,34 @@ export function normalizeBookmarkType(value) {
 }
 
 export function dateOnly(value) {
-  return typeof value === 'string' && value ? value.split('T')[0] : '';
+  if (value == null || value === '') return '';
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value)) {
+    throw new CommandExecutionError('Pixiv bookmark item returned malformed creation date');
+  }
+  return value.split('T')[0];
 }
 
 export function tagsToString(tags) {
-  if (Array.isArray(tags)) {
-    return tags.map(t => typeof t === 'string' ? t : t?.tag).filter(Boolean).join(', ');
+  if (tags == null) return '';
+  const values = Array.isArray(tags) ? tags : (Array.isArray(tags?.tags) ? tags.tags : null);
+  if (!values) {
+    throw new CommandExecutionError('Pixiv item returned malformed tags payload');
   }
-  if (Array.isArray(tags?.tags)) {
-    return tags.tags.map(t => typeof t === 'string' ? t : t?.tag).filter(Boolean).join(', ');
+  return values.map((entry) => {
+    const value = typeof entry === 'string' ? entry : entry?.tag;
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new CommandExecutionError('Pixiv item returned malformed tag');
+    }
+    return value.trim();
+  }).join(', ');
+}
+
+function optionalCount(value, label, fallback = '') {
+  if (value == null || value === '') return fallback;
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new CommandExecutionError(`Pixiv bookmark item returned malformed ${label}`);
   }
-  return '';
+  return value;
 }
 
 export function normalizeBookmarkWorks(body) {
@@ -38,7 +55,7 @@ export function normalizeBookmarkWorks(body) {
   throw new CommandExecutionError('Pixiv bookmarks returned malformed payload');
 }
 
-export function bookmarkRow(work, index, type) {
+export function bookmarkRow(work, index, type, bookmarkOwnerId) {
   const item = requirePixivPayloadObject(work, 'Pixiv bookmark item');
   const isNovel = type === 'novel';
   const id = requirePixivId(item.id ?? (isNovel ? item.novelId : item.illustId), 'Pixiv bookmark item');
@@ -48,14 +65,15 @@ export function bookmarkRow(work, index, type) {
   return {
     rank: index + 1,
     type,
+    bookmark_owner_id: bookmarkOwnerId,
     title,
     author,
     user_id: userId,
     illust_id: isNovel ? '' : id,
     novel_id: isNovel ? id : '',
-    pages: isNovel ? '' : (item.pageCount ?? item.page_count ?? 1),
-    words: isNovel ? (item.wordCount ?? item.textCount ?? item.characterCount ?? '') : '',
-    bookmarks: item.bookmarkCount ?? item.totalBookmarks ?? 0,
+    pages: isNovel ? '' : optionalCount(item.pageCount ?? item.page_count, 'page count', 1),
+    words: isNovel ? optionalCount(item.wordCount ?? item.textCount ?? item.characterCount, 'word count') : '',
+    bookmarks: optionalCount(item.bookmarkCount ?? item.totalBookmarks, 'bookmark count', 0),
     tags: tagsToString(item.tags),
     created: dateOnly(item.createDate ?? item.created_at),
     url: isNovel ? `https://www.pixiv.net/novel/show.php?id=${id}` : `https://www.pixiv.net/artworks/${id}`,
@@ -77,5 +95,5 @@ export async function fetchCurrentBookmarks(page, kwargs = {}) {
   const body = await pixivFetch(page, path, {
     params: { tag: '', offset, limit, rest: visibility },
   });
-  return normalizeBookmarkWorks(body).slice(0, limit).map((work, i) => bookmarkRow(work, offset + i, type));
+  return normalizeBookmarkWorks(body).slice(0, limit).map((work, i) => bookmarkRow(work, offset + i, type, user.id));
 }

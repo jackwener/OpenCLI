@@ -14,6 +14,6 @@ cli({
     { name: 'offset', type: 'int', default: 0, help: 'Pagination offset' },
     { name: 'visibility', default: 'show', help: 'Bookmark visibility: show(public) or hide(private)' },
   ],
-  columns: ['rank', 'type', 'title', 'author', 'user_id', 'illust_id', 'novel_id', 'pages', 'words', 'bookmarks', 'tags', 'created', 'url'],
+  columns: ['rank', 'type', 'bookmark_owner_id', 'title', 'author', 'user_id', 'illust_id', 'novel_id', 'pages', 'words', 'bookmarks', 'tags', 'created', 'url'],
   func: async (page, kwargs) => fetchCurrentBookmarks(page, kwargs),
 });

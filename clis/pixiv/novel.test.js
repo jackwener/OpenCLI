@@ -72,4 +72,21 @@ describe('pixiv novel', () => {
     }]);
     expect(JSON.stringify(result)).not.toContain('FULL TEXT');
   });
+
+  it('fails typed on malformed metrics, tags, or series metadata', async () => {
+    const malformedMetrics = createPageMock([{ body: {
+      id: '1', title: 'A', userName: 'B', userId: '2', bookmarkCount: {}, tags: { tags: [] },
+    } }]);
+    await expect(cmd.func(malformedMetrics, { id: '1' })).rejects.toThrow(CommandExecutionError);
+
+    const malformedTags = createPageMock([{ body: {
+      id: '1', title: 'A', userName: 'B', userId: '2', tags: { tags: [{ nope: true }] },
+    } }]);
+    await expect(cmd.func(malformedTags, { id: '1' })).rejects.toThrow(CommandExecutionError);
+
+    const malformedSeries = createPageMock([{ body: {
+      id: '1', title: 'A', userName: 'B', userId: '2', tags: { tags: [] }, seriesNavData: [],
+    } }]);
+    await expect(cmd.func(malformedSeries, { id: '1' })).rejects.toThrow(CommandExecutionError);
+  });
 });

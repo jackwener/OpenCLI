@@ -1,11 +1,14 @@
-import { readFileSync } from 'node:fs';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 import './me.js';
 
 let cmd;
+const sessionCookies = [{ name: 'PHPSESSID', value: '37119297_session' }];
+const loggedInPage = (results, cookies = sessionCookies) => createPageMock(results, {
+  getCookies: vi.fn().mockResolvedValue(cookies),
+});
 
 beforeAll(() => {
   cmd = getRegistry().get('pixiv/me');
@@ -13,13 +16,13 @@ beforeAll(() => {
 });
 
 describe('pixiv me', () => {
-  it('returns current logged-in account metadata', async () => {
-    const page = createPageMock([{
+  it('returns current logged-in account metadata from the executable carrier', async () => {
+    const page = loggedInPage([{ found: true, user: {
       id: '37119297',
       name: '示例用户',
       premium: true,
       profileImageUrl: 'https://i.pximg.net/user-profile/img.jpg',
-    }]);
+    } }]);
 
     await expect(cmd.func(page, {})).resolves.toEqual([{
       user_id: '37119297',
@@ -30,12 +33,12 @@ describe('pixiv me', () => {
     }]);
   });
 
-  it('accepts sparse current user data from trusted Pixiv globals', async () => {
-    const page = createPageMock([{
+  it('unwraps Browser Bridge envelopes and accepts sparse trusted user data', async () => {
+    const page = loggedInPage([{ session: 's', data: { found: true, user: {
       id: '66676548',
       name: '_ *',
       profileImageUrl: '',
-    }]);
+    } } }], [{ name: 'PHPSESSID', value: '66676548_session' }]);
 
     await expect(cmd.func(page, {})).resolves.toEqual([{
       user_id: '66676548',
@@ -46,18 +49,44 @@ describe('pixiv me', () => {
     }]);
   });
 
-  it('does not use arbitrary profile links as current-account proof', () => {
-    const source = readFileSync(new URL('./utils.js', import.meta.url), 'utf8');
-    expect(source).not.toContain("querySelectorAll('a[href]')");
-  });
-
-  it('throws AuthRequiredError when Pixiv has no current user data', async () => {
-    const page = createPageMock([null]);
+  it('does not trust visible identity data without an authenticated session cookie', async () => {
+    const page = createPageMock([{ found: true, user: { id: '37119297', name: 'visible user' } }]);
     await expect(cmd.func(page, {})).rejects.toThrow(AuthRequiredError);
   });
 
+  it('uses the authenticated session id when optional account metadata is absent', async () => {
+    const page = loggedInPage([{ found: false, user: null }]);
+    await expect(cmd.func(page, {})).resolves.toEqual([{
+      user_id: '37119297',
+      name: '',
+      premium: false,
+      profile_image: '',
+      url: 'https://www.pixiv.net/users/37119297',
+    }]);
+  });
+
+  it('fails typed on malformed found identities and off-host profile images', async () => {
+    const malformed = loggedInPage([{ found: true, user: { id: '../escape' } }]);
+    await expect(cmd.func(malformed, {})).rejects.toThrow(CommandExecutionError);
+
+    const offHost = loggedInPage([{ found: true, user: {
+      id: '1', name: 'user', profileImageUrl: 'https://evil.example/avatar.jpg',
+    } }]);
+    await expect(cmd.func(offHost, {})).rejects.toThrow(CommandExecutionError);
+  });
+
+  it('fails typed when page metadata names a different account than the session', async () => {
+    const page = loggedInPage([{ found: true, user: { id: '999', name: 'other' } }]);
+    await expect(cmd.func(page, {})).rejects.toThrow(/did not match/);
+  });
+
+  it('fails typed on malformed carrier data', async () => {
+    const page = loggedInPage([{ id: '37119297' }]);
+    await expect(cmd.func(page, {})).rejects.toThrow(CommandExecutionError);
+  });
+
   it('wraps browser evaluation failures as CommandExecutionError', async () => {
-    const page = createPageMock([]);
+    const page = loggedInPage([]);
     page.evaluate.mockRejectedValueOnce(new Error('bridge down'));
     await expect(cmd.func(page, {})).rejects.toThrow(CommandExecutionError);
   });

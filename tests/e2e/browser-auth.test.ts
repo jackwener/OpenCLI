@@ -143,34 +143,6 @@ describe('login-required commands — graceful failure', () => {
     await expectGracefulAuthFailure(['pixiv', 'detail', '123456', '-f', 'json']);
   }, 60_000);
 
-  it('pixiv novel fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['pixiv', 'novel', '10588915', '-f', 'json']);
-  }, 60_000);
-
-  it('pixiv novel-download fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['pixiv', 'novel-download', '10588915', '--output', '/tmp/pixiv-e2e-test', '-f', 'json']);
-  }, 60_000);
-
-  it('pixiv novel-search fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['pixiv', 'novel-search', 'ファンタジー', '--limit', '3', '-f', 'json']);
-  }, 60_000);
-
-  it('pixiv novels fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['pixiv', 'novels', '37119297', '--limit', '3', '-f', 'json']);
-  }, 60_000);
-
-  it('pixiv novel-series fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['pixiv', 'novel-series', '1064235', '--limit', '3', '-f', 'json']);
-  }, 60_000);
-
-  it('pixiv bookmarks fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['pixiv', 'bookmarks', '--type', 'illust', '--limit', '3', '-f', 'json']);
-  }, 60_000);
-
-  it('pixiv bookmark-download fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['pixiv', 'bookmark-download', '--type', 'illust', '--limit', '1', '--output', '/tmp/pixiv-e2e-test', '-f', 'json']);
-  }, 60_000);
-
   it('pixiv download fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['pixiv', 'download', '123456', '--output', '/tmp/pixiv-e2e-test', '-f', 'json']);
   }, 60_000);

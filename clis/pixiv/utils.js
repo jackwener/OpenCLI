@@ -154,19 +154,68 @@ export function normalizePixivUserData(raw) {
         return null;
     }
     const id = String(raw.id ?? raw.userId ?? raw.user_id ?? '').trim();
-    const name = String(raw.name ?? raw.userName ?? raw.user_name ?? '').trim();
+    const rawName = raw.name ?? raw.userName ?? raw.user_name ?? '';
+    const rawPremium = raw.premium ?? raw.isPremium ?? raw.is_premium ?? false;
+    const rawProfileImage = raw.profileImageUrl ?? raw.imageBig ?? raw.image ?? raw.avatar ?? '';
+    if (typeof rawName !== 'string' || typeof rawPremium !== 'boolean' || typeof rawProfileImage !== 'string') {
+        return null;
+    }
+    const name = rawName.trim();
+    const profileImageUrl = rawProfileImage.trim();
     if (!/^\d+$/.test(id)) {
         return null;
+    }
+    if (profileImageUrl) {
+        try {
+            const parsed = new URL(profileImageUrl);
+            if (parsed.protocol !== 'https:' || parsed.hostname !== 'i.pximg.net' || parsed.username || parsed.password || parsed.port) {
+                return null;
+            }
+        } catch {
+            return null;
+        }
     }
     return {
         id,
         name,
-        premium: Boolean(raw.premium ?? raw.isPremium ?? raw.is_premium ?? false),
-        profileImageUrl: String(raw.profileImageUrl ?? raw.imageBig ?? raw.image ?? raw.avatar ?? '').trim(),
+        premium: rawPremium,
+        profileImageUrl,
     };
 }
 
+async function getPixivSessionUserId(page) {
+    let cookies;
+    try {
+        cookies = await page.getCookies({ url: `https://${PIXIV_DOMAIN}` });
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv session lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!Array.isArray(cookies)) {
+        throw new CommandExecutionError('Pixiv session lookup returned malformed cookie data');
+    }
+    const sessions = cookies.filter((cookie) => cookie?.name === 'PHPSESSID');
+    if (sessions.length === 0) {
+        throw new AuthRequiredError(PIXIV_DOMAIN, 'Authentication required — Pixiv PHPSESSID cookie missing');
+    }
+    const userIds = new Set();
+    for (const session of sessions) {
+        if (typeof session.value !== 'string') {
+            throw new CommandExecutionError('Pixiv PHPSESSID cookie returned malformed data');
+        }
+        const match = session.value.match(/^(\d+)_/);
+        if (match) userIds.add(match[1]);
+    }
+    if (userIds.size === 0) {
+        throw new AuthRequiredError(PIXIV_DOMAIN, 'Authentication required — Pixiv session is anonymous');
+    }
+    if (userIds.size !== 1) {
+        throw new CommandExecutionError('Pixiv session lookup returned conflicting account identities');
+    }
+    return userIds.values().next().value;
+}
+
 export async function getCurrentPixivUser(page) {
+    const sessionUserId = await getPixivSessionUserId(page);
     try {
         await page.goto(`https://${PIXIV_DOMAIN}`);
     } catch (error) {
@@ -178,31 +227,37 @@ export async function getCurrentPixivUser(page) {
     (() => {
       const candidates = [
         globalThis?.pixiv?.context?.userData,
-        globalThis?.pixiv?.user,
         globalThis?.globalInitData?.userData,
-        globalThis?.globalInitData?.user,
         globalThis?.__PIXIV_CONTEXT__?.userData,
       ];
       for (const value of candidates) {
-        if (value && typeof value === 'object') return value;
+        if (value && typeof value === 'object') return { found: true, user: value };
       }
       const meta = document.querySelector('meta[name="global-data"]')?.content;
       if (meta) {
         try {
           const parsed = JSON.parse(meta);
-          if (parsed?.userData) return parsed.userData;
-          if (parsed?.user) return parsed.user;
+          if (parsed?.userData) return { found: true, user: parsed.userData };
         } catch {}
       }
-      return null;
+      return { found: false, user: null };
     })()
   `));
     } catch (error) {
         throw new CommandExecutionError(`Pixiv current-account lookup failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const user = normalizePixivUserData(data);
+    if (!data || Array.isArray(data) || typeof data !== 'object' || typeof data.found !== 'boolean' || !('user' in data)) {
+        throw new CommandExecutionError('Pixiv current-account lookup returned malformed Browser Bridge data');
+    }
+    if (!data.found) {
+        return { id: sessionUserId, name: '', premium: false, profileImageUrl: '' };
+    }
+    const user = normalizePixivUserData(data.user);
     if (!user) {
-        throw new AuthRequiredError(PIXIV_DOMAIN, 'Authentication required — please log in to Pixiv in Chrome');
+        throw new CommandExecutionError('Pixiv current-account lookup returned malformed user identity');
+    }
+    if (user.id !== sessionUserId) {
+        throw new CommandExecutionError('Pixiv current-account identity did not match the authenticated session');
     }
     return user;
 }
