@@ -170,6 +170,7 @@ Run `opencli list` for the live registry.
 | **[flomo](./browser/flomo.md)**                   | `memos`                                                                                                                                        | 🔐 Browser   |
 | **[jianyu](./browser/jianyu.md)**                 | `search` `detail`                                                                                                                              | 🔐 Browser   |
 | **[taobao](./browser/taobao.md)**                 | `search` `detail` `reviews` `cart` `add-cart`                                                                                                  | 🔐 Browser   |
+| **[minimax](./browser/minimax.md)**               | `music`                                                                                                                                        | 🔑 MiniMax API |
 
 ## Desktop Adapters
 

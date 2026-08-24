@@ -25487,6 +25487,153 @@
     "siteSession": "persistent"
   },
   {
+    "site": "minimax",
+    "name": "music",
+    "description": "Generate music for legacy paid MiniMax Music API accounts",
+    "access": "write",
+    "domain": "api.minimax.io",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "Music style, mood, and scenario (max 2000 characters)"
+      },
+      {
+        "name": "lyrics",
+        "type": "str",
+        "required": false,
+        "help": "Lyrics with section tags and newlines (max 3500 characters)"
+      },
+      {
+        "name": "model",
+        "type": "str",
+        "default": "music-3.0",
+        "required": false,
+        "help": "Legacy paid generation model",
+        "choices": [
+          "music-3.0",
+          "music-2.6"
+        ]
+      },
+      {
+        "name": "region",
+        "type": "str",
+        "default": "global",
+        "required": false,
+        "help": "API deployment: global or cn",
+        "choices": [
+          "global",
+          "cn"
+        ]
+      },
+      {
+        "name": "output-format",
+        "type": "str",
+        "default": "url",
+        "required": false,
+        "help": "Return a 24-hour URL or save inline hex audio",
+        "choices": [
+          "url",
+          "hex"
+        ]
+      },
+      {
+        "name": "audio-format",
+        "type": "str",
+        "default": "mp3",
+        "required": false,
+        "help": "Rendered audio format",
+        "choices": [
+          "mp3",
+          "wav",
+          "pcm"
+        ]
+      },
+      {
+        "name": "sample-rate",
+        "type": "int",
+        "required": false,
+        "help": "Audio sample rate in Hz",
+        "choices": [
+          "16000",
+          "24000",
+          "32000",
+          "44100"
+        ]
+      },
+      {
+        "name": "bitrate",
+        "type": "int",
+        "required": false,
+        "help": "Audio bitrate in bps",
+        "choices": [
+          "32000",
+          "64000",
+          "128000",
+          "256000"
+        ]
+      },
+      {
+        "name": "instrumental",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Generate instrumental music; requires prompt and forbids lyrics"
+      },
+      {
+        "name": "lyrics-optimizer",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Generate lyrics from prompt when --lyrics is omitted"
+      },
+      {
+        "name": "aigc-watermark",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "CN-only audio watermark"
+      },
+      {
+        "name": "op",
+        "type": "str",
+        "required": false,
+        "help": "Directory for --output-format hex (default: ~/Music/minimax)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 600,
+        "required": false,
+        "help": "HTTP generation timeout in seconds (1-1800)"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Submit the billable generation request"
+      }
+    ],
+    "columns": [
+      "status",
+      "model",
+      "region",
+      "output_format",
+      "audio_format",
+      "audio_url",
+      "file",
+      "expires_in_hours"
+    ],
+    "type": "js",
+    "modulePath": "minimax/music.js",
+    "sourceFile": "minimax/music.js"
+  },
+  {
     "site": "mubu",
     "name": "doc",
     "description": "读取幕布文档内容（默认输出 Markdown，可用 --output text 输出纯文本）",
