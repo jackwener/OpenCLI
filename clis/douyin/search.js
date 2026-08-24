@@ -42,6 +42,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './_shared/evaluate-result.js';
 
 export const MAX_SEARCH_LIMIT = 30;
 // Time budget for the SPA's initial DOM commit. Empirically the
@@ -242,13 +243,6 @@ const WAIT_AND_EXTRACT_JS = (timeoutMs) => `
     }, ${timeoutMs});
   })
 `;
-
-function unwrapEvaluateResult(payload) {
-    if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
-        return payload.data;
-    }
-    return payload;
-}
 
 cli({
     site: 'douyin',
