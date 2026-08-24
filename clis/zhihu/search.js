@@ -1,6 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { stripHtml } from './text.js';
+import { unwrapEvaluateResult } from './paginate.js';
 
 function itemKey(item) {
     const obj = item.object || {};
@@ -65,11 +66,6 @@ function requireType(value) {
         throw new ArgumentError(`zhihu search --type must be one of: ${TYPES.join(', ')}`, 'Example: opencli zhihu search codex --type answer');
     }
     return type;
-}
-
-function unwrapEvaluateResult(payload) {
-    if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-    return payload;
 }
 
 function requireSearchPayload(data, url) {
