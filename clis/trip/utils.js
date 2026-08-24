@@ -94,8 +94,10 @@ export function buildFlightRoundSearchUrl(fromCode, toCode, depart, ret) {
  * `.result-item` cards. Fields are read from stable `data-testid` anchors plus
  * the `HH:MM` / `AM-PM` / `IATA` leaf-node pattern. Airport codes come from the
  * same leaf scan as the times — Trip.com no longer emits the `font-black` class
- * the previous selector keyed on. Cards missing the airline, both airports, or
- * both times are dropped rather than surfaced with blanks.
+ * the previous selector keyed on. Arrival times carry a `+N` suffix when the
+ * `flight-time-<ISO>` anchors show the leg landing on a later calendar day.
+ * Cards missing the airline, both airports, or both times are dropped rather
+ * than surfaced with blanks.
  */
 export function buildFlightExtractJs() {
     return `
@@ -112,6 +114,11 @@ export function buildFlightExtractJs() {
           const duration = leaves.find((t) => /^\\d+h(\\s\\d+m)?$/.test(t)) || null;
           if (!airline || codes.length < 2 || times.length < 2) return;
           const withMeridiem = (i) => times[i] + (meridiems[i] ? ' ' + meridiems[i] : '');
+          const stamps = Array.from(card.querySelectorAll('[data-testid^="flight-time-"]'))
+            .map((el) => (el.getAttribute('data-testid') || '').slice('flight-time-'.length));
+          const dayOffset = stamps.length > 1
+            ? Math.round((Date.parse(stamps[1].slice(0, 10)) - Date.parse(stamps[0].slice(0, 10))) / 86400000)
+            : 0;
           const priceEl = card.querySelector('[data-testid^="flight_price"]');
           const priceText = clean(priceEl);
           const priceNum = priceText.replace(/[^0-9.]/g, '');
@@ -119,7 +126,7 @@ export function buildFlightExtractJs() {
             airline,
             departureTime: withMeridiem(0),
             departureAirport: codes[0],
-            arrivalTime: withMeridiem(1),
+            arrivalTime: withMeridiem(1) + (dayOffset > 0 ? '+' + dayOffset : ''),
             arrivalAirport: codes[1],
             duration,
             stops: clean(card.querySelector('[data-testid="stopInfoText"]')) || null,

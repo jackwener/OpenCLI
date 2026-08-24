@@ -211,6 +211,20 @@ describe('trip buildFlightExtractJs (JSDOM)', () => {
         <div data-testid="flight_price_1-0">$662</div>
       </div>`;
 
+    // Overnight leg: Trip.com renders a literal `+1` next to the arrival airport and
+    // the `flight-time-` anchors land on the following calendar day.
+    const OVERNIGHT_CARD = `
+      <div class="result-item">
+        <div data-testid="flights-name">China Southern Airlines</div>
+        <div data-testid="flight-time-2026-09-07 19:50:00"><span>7:50</span><span>PM</span></div>
+        <div>SHA</div><div>T2</div>
+        <div data-testid="flightInfoDuration"><span>17h 40m</span></div>
+        <div data-testid="stopInfoText">2h 40m in Guangzhou</div>
+        <div data-testid="flight-time-2026-09-08 06:30:00"><span>6:30</span><span>AM</span></div>
+        <div>LGW</div><div>S</div><div>+1</div>
+        <div data-testid="flight_price_1-0">$557</div>
+      </div>`;
+
     it('extracts a flight card via data-testid + time/code anchors', () => {
         expect(runExtract(CARD)).toEqual([{
             airline: 'Norse Atlantic Airways',
@@ -223,6 +237,24 @@ describe('trip buildFlightExtractJs (JSDOM)', () => {
             price: 662,
             currency: 'USD',
         }]);
+    });
+
+    it('flags a later-day arrival with a +N suffix', () => {
+        expect(runExtract(OVERNIGHT_CARD)).toEqual([{
+            airline: 'China Southern Airlines',
+            departureTime: '7:50 PM',
+            departureAirport: 'SHA',
+            arrivalTime: '6:30 AM+1',
+            arrivalAirport: 'LGW',
+            duration: '17h 40m',
+            stops: '2h 40m in Guangzhou',
+            price: 557,
+            currency: 'USD',
+        }]);
+    });
+
+    it('leaves same-day arrivals unsuffixed', () => {
+        expect(runExtract(CARD)[0].arrivalTime).toBe('3:55 PM');
     });
 
     it('keeps price null when the price node is missing/non-numeric', () => {
