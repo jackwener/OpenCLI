@@ -146,6 +146,12 @@ describe('zhihu download', () => {
             output: '/tmp/zhihu',
         })).rejects.toBeInstanceOf(CommandExecutionError);
 
+        const answerUrlAsQuestion = answerPage({
+            value: answerValue({ questionUrl: `https://www.zhihu.com/question/${QUESTION_ID}/answer/999` }),
+        });
+        await expect(cmd.func(answerUrlAsQuestion, { url: ANSWER_ID, output: '/tmp/zhihu' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+
         const missingQuestion = answerPage({ value: answerValue({ questionUrl: '' }) });
         await expect(cmd.func(missingQuestion, { url: ANSWER_ID, output: '/tmp/zhihu' }))
             .rejects.toBeInstanceOf(CommandExecutionError);

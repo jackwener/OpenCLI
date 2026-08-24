@@ -6,7 +6,8 @@ import { unwrapEvaluateResult } from './paginate.js';
 const ARTICLE_TYPED_RE = /^article:(\d+)$/;
 const ARTICLE_PATH_RE = /^\/p\/(\d+)\/?$/;
 const ANSWER_API_PATH_RE = /^(?:\/api\/v4)?\/answers\/(\d+)\/?$/;
-const QUESTION_PATH_RE = /^(?:\/api\/v4)?\/questions\/(\d+)\/?$/;
+const QUESTION_API_PATH_RE = /^(?:\/api\/v4)?\/questions\/(\d+)\/?$/;
+const QUESTION_WEB_PATH_RE = /^\/question\/(\d+)\/?$/;
 
 export function parseDownloadTarget(input) {
     const value = String(input ?? '').trim();
@@ -55,7 +56,7 @@ function answerTargetFromUrl(input) {
 function questionIdFromUrl(input) {
     const url = trustedZhihuUrl(input);
     if (!url) return '';
-    return parseAnswerTarget(url.toString())?.questionId || url.pathname.match(QUESTION_PATH_RE)?.[1] || '';
+    return url.pathname.match(QUESTION_API_PATH_RE)?.[1] || url.pathname.match(QUESTION_WEB_PATH_RE)?.[1] || '';
 }
 
 export function normalizeContentImages(contentHtml, documentRef = document) {
