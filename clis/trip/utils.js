@@ -92,8 +92,10 @@ export function buildFlightRoundSearchUrl(fromCode, toCode, depart, ret) {
 /**
  * Browser-context IIFE that extracts flight rows from Trip.com's rendered
  * `.result-item` cards. Fields are read from stable `data-testid` anchors plus
- * the `HH:MM` / `AM-PM` / `IATA` leaf-node pattern. Cards missing the airline,
- * both airports, or both times are dropped rather than surfaced with blanks.
+ * the `HH:MM` / `AM-PM` / `IATA` leaf-node pattern. Airport codes come from the
+ * same leaf scan as the times — Trip.com no longer emits the `font-black` class
+ * the previous selector keyed on. Cards missing the airline, both airports, or
+ * both times are dropped rather than surfaced with blanks.
  */
 export function buildFlightExtractJs() {
     return `
@@ -102,10 +104,9 @@ export function buildFlightExtractJs() {
         const rows = [];
         document.querySelectorAll('.result-item').forEach((card) => {
           const airline = clean(card.querySelector('[data-testid="flights-name"]'));
-          const codes = Array.from(card.querySelectorAll('[class*="font-black"]'))
-            .map((el) => clean(el)).filter((t) => /^[A-Z]{3}$/.test(t));
           const leaves = Array.from(card.querySelectorAll('*'))
             .filter((el) => !el.children.length).map((el) => clean(el));
+          const codes = leaves.filter((t) => /^[A-Z]{3}$/.test(t));
           const times = leaves.filter((t) => /^\\d{1,2}:\\d{2}$/.test(t));
           const meridiems = leaves.filter((t) => /^(AM|PM)$/.test(t));
           const duration = leaves.find((t) => /^\\d+h(\\s\\d+m)?$/.test(t)) || null;

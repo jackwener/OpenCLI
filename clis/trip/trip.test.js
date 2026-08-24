@@ -196,15 +196,18 @@ describe('trip buildFlightExtractJs (JSDOM)', () => {
         return Function('document', `return (${js})`)(dom.window.document);
     }
 
+    // Mirrors Trip.com's live card markup (captured 2026-08). Airport codes sit in
+    // plain leaf nodes — the `font-black` class this fixture used to assert on is
+    // gone from the site, which is exactly what let the old selector rot unnoticed.
     const CARD = `
       <div class="result-item">
         <div data-testid="flights-name">Norse Atlantic Airways</div>
-        <div class="font-black_x">LGW</div>
-        <div class="font-black_x">JFK</div>
-        <span>1:05</span><span>PM</span>
-        <span>3:55</span><span>PM</span>
-        <span>7h 50m</span>
+        <div data-testid="flight-time-2026-09-07 13:05:00"><span>1:05</span><span>PM</span></div>
+        <div>LGW</div><div>N</div>
+        <div data-testid="flightInfoDuration"><span>7h 50m</span></div>
         <div data-testid="stopInfoText">Nonstop</div>
+        <div data-testid="flight-time-2026-09-07 15:55:00"><span>3:55</span><span>PM</span></div>
+        <div>JFK</div><div>T4</div>
         <div data-testid="flight_price_1-0">$662</div>
       </div>`;
 
