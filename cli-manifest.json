@@ -39648,7 +39648,7 @@
     "description": "Get accounts following a Twitter/X user (defaults to the logged-in user when no user is given)",
     "access": "read",
     "domain": "x.com",
-    "strategy": "ui",
+    "strategy": "intercept",
     "browser": true,
     "args": [
       {
