@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, selectorError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './_actions.js';
 
 // Codex Desktop App exposes the active model + reasoning level on a button
 // in the composer bottom toolbar. As of 2026-05-31 the button has no
@@ -15,13 +16,6 @@ import { ArgumentError, CommandExecutionError, selectorError } from '@jackwener/
 
 const MODEL_BTN_TEXT_RE = /5\.\d|[Ee]xtra [Hh]igh|^High$|^Medium$|^Low$|^Auto$|^Fast$|^Speed$|^Pro$|GPT-/;
 const MODEL_BTN_PATTERN = MODEL_BTN_TEXT_RE.source;
-
-function unwrapEvaluateResult(result) {
-    if (result && typeof result === 'object' && 'data' in result && 'session' in result) {
-        return result.data;
-    }
-    return result;
-}
 
 function normalizeModelText(value) {
     return String(value ?? '')
