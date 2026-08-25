@@ -235,7 +235,12 @@ function parseThreadPages(pages) {
       if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
         throw new CommandExecutionError('LinkedIn messengerMessages payload contains a malformed included entity.');
       }
-      if (entity.entityUrn) entities.set(entity.entityUrn, entity);
+      if (entity.entityUrn) {
+        const existing = entities.get(entity.entityUrn);
+        if (!existing || Object.keys(entity).length > Object.keys(existing).length) {
+          entities.set(entity.entityUrn, entity);
+        }
+      }
     }
     apiUrls.push(page.url);
   }
@@ -314,8 +319,18 @@ cli({
 
     let discovery = unwrapEvaluateResult(await page.evaluate(buildThreadApiDiscoveryScript(maxScrolls)));
     if (discovery && Array.isArray(discovery.apiUrls) && discovery.apiUrls.length === 0) {
+      const firstDiscovery = discovery;
       await page.wait(4);
-      discovery = unwrapEvaluateResult(await page.evaluate(buildThreadApiDiscoveryScript(maxScrolls)));
+      const retried = unwrapEvaluateResult(await page.evaluate(buildThreadApiDiscoveryScript(0)));
+      if (retried && typeof retried === 'object' && !Array.isArray(retried)) {
+        discovery = {
+          ...retried,
+          scrollAttempts: firstDiscovery.scrollAttempts,
+          scrollStable: firstDiscovery.scrollStable,
+        };
+      } else {
+        discovery = retried;
+      }
     }
     if (discovery?.authRequired) {
       throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn thread-snapshot requires an active signed-in LinkedIn browser session.');

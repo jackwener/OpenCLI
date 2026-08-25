@@ -132,11 +132,44 @@ describe('linkedin thread-snapshot command', () => {
       url: API_URL.replace('abc123', 'def456').replace('variables=(', 'variables=(deliveredAt:100,countBefore:20,countAfter:0,'),
       json: {
         data: { data: { messengerMessagesByAnchorTimestamp: { metadata: { prevCursor: null }, elements: [] } } },
-        included: [message('urn:li:msg_message:1', OTHER_PARTICIPANT, 100, 'damn i just saw ur msg sry sry')],
+        included: [{ entityUrn: 'urn:li:msg_message:1', $type: 'com.linkedin.messenger.Message' }],
       },
     });
     const parsed = parseThreadPages(pages);
     expect(parsed.messages).toHaveLength(2);
+  });
+
+  it('retries slow API discovery without repeating the configured scroll budget', async () => {
+    const command = getRegistry().get('linkedin/thread-snapshot');
+    const page = makeFakePage();
+    page.evaluate = vi.fn()
+      .mockResolvedValueOnce({
+        url: THREAD_URL,
+        title: 'Messaging | LinkedIn',
+        authRequired: false,
+        apiUrls: [],
+        scrollAttempts: 8,
+        scrollStable: true,
+      })
+      .mockResolvedValueOnce({
+        url: THREAD_URL,
+        title: 'Messaging | LinkedIn',
+        authRequired: false,
+        apiUrls: [API_URL],
+        scrollAttempts: 0,
+        scrollStable: null,
+      })
+      .mockResolvedValueOnce({ pages: liveFixturePages() });
+
+    const rows = await command.func(page, {
+      'thread-url': THREAD_URL,
+      'max-scrolls': 8,
+    });
+
+    expect(rows[0].message_count).toBe(2);
+    expect(page.evaluate).toHaveBeenCalledTimes(3);
+    expect(page.evaluate.mock.calls[1][0]).toContain('index < 0');
+    expect(page.wait).toHaveBeenNthCalledWith(2, 4);
   });
 
   it('rejects invalid thread URL before navigation', async () => {
