@@ -23207,10 +23207,10 @@
   {
     "site": "linkedin",
     "name": "thread-snapshot",
-    "description": "Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot",
+    "description": "Load a LinkedIn messaging thread and return a structured conversation snapshot",
     "access": "read",
     "domain": "www.linkedin.com",
-    "strategy": "ui",
+    "strategy": "cookie",
     "browser": true,
     "args": [
       {
@@ -23224,7 +23224,7 @@
         "type": "number",
         "default": 30,
         "required": false,
-        "help": "Maximum upward scroll attempts to load older messages"
+        "help": "Maximum upward scroll attempts used to request older message pages"
       },
       {
         "name": "json",
@@ -23244,7 +23244,7 @@
     "type": "js",
     "modulePath": "linkedin/thread-snapshot.js",
     "sourceFile": "linkedin/thread-snapshot.js",
-    "navigateBefore": true
+    "navigateBefore": "https://www.linkedin.com"
   },
   {
     "site": "linkedin",
