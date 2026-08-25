@@ -87,34 +87,30 @@ describe('Jike identity guard', () => {
     expect(page.evaluate).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    [
-      'jike/feed',
-      { limit: 1 },
-      [{ id: 'post-1', author: 'Alice', content: 'hello', likes: 2, comments: 1, time: 'now', url: 'https://web.okjike.com/originalPost/post-1' }],
-    ],
-    [
-      'jike/search',
-      { query: 'OpenCLI', limit: 1 },
-      [{ id: 'post-2', author: 'Bob', content: 'result', likes: 3, comments: 4, time: 'later', url: 'https://web.okjike.com/originalPost/post-2' }],
-    ],
-  ])('continues %s extraction after a successful identity probe', async (commandName, args, rows) => {
+  it('continues feed extraction after a successful identity probe', async () => {
+    const rows = [{ id: 'post-1', author: 'Alice', content: 'hello', likes: 2, comments: 1, time: 'now', url: 'https://web.okjike.com/originalPost/post-1' }];
     const page = makePage(identity, rows);
 
-    await expect(getRegistry().get(commandName).func(page, args)).resolves.toEqual(rows);
+    await expect(getRegistry().get('jike/feed').func(page, { limit: 1 })).resolves.toEqual(rows);
     expect(page.evaluate).toHaveBeenCalledTimes(2);
   });
 
   it('continues notification extraction after a successful identity probe', async () => {
-    const page = makePage(identity, [{
-      actionType: 'LIKE_ORIGINAL_POST',
-      fromUser: 'Bob',
-      content: 'hello\nworld',
-      time: 'now',
-    }]);
+    const page = makePage(identity, {
+      kind: 'response',
+      status: 200,
+      body: {
+        data: [{
+          id: 'notification-1',
+          type: 'LIKE_PERSONAL_UPDATE',
+          createdAt: 'now',
+          actionItem: { users: [{ screenName: 'Bob' }], content: 'hello\nworld' },
+        }],
+      },
+    });
 
     await expect(getRegistry().get('jike/notifications').func(page, { limit: 1 })).resolves.toEqual([{
-      type: '赞了你',
+      type: '赞了你的动态',
       user: 'Bob',
       content: 'hello world',
       time: 'now',

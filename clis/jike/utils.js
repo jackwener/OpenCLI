@@ -1,4 +1,4 @@
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 
 /**
  * 即刻适配器公共定义
@@ -32,6 +32,62 @@ export async function requireJikeIdentity(page) {
   if (probe?.kind === 'exception') throw new CommandExecutionError(`Jike identity probe failed: ${probe.detail}`);
   if (!probe?.ok) throw new CommandExecutionError(`Unexpected Jike identity probe: ${JSON.stringify(probe)}`);
   return { user_id: probe.user_id, screen_name: probe.screen_name, username: probe.username };
+}
+
+export function normalizeJikeLimit(raw, defaultValue = 20) {
+  const limit = raw ?? defaultValue;
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new ArgumentError('--limit must be a positive integer');
+  }
+  return limit;
+}
+
+export async function postJikeApi(page, path, requestBody, label) {
+  const url = `https://api.ruguoapp.com${path}`;
+  const outcome = await page.evaluate(`(async () => {
+    const token = localStorage.getItem('JK_ACCESS_TOKEN') || '';
+    const deviceId = localStorage.getItem('JK_DEVICE_ID') || '';
+    if (!token) return { kind: 'auth', detail: 'Jike access token is missing' };
+    const headers = {
+      'content-type': 'application/json',
+      'x-jike-access-token': token,
+      platform: 'web',
+    };
+    if (deviceId) headers['x-jike-device-id'] = deviceId;
+    try {
+      const response = await fetch(${JSON.stringify(url)}, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify(${JSON.stringify(requestBody)}),
+      });
+      let body;
+      try {
+        body = await response.json();
+      } catch (error) {
+        return { kind: 'json', status: response.status, detail: String(error?.message || error) };
+      }
+      return { kind: 'response', status: response.status, body };
+    } catch (error) {
+      return { kind: 'transport', detail: String(error?.message || error) };
+    }
+  })()`);
+  if (outcome?.kind === 'auth' || outcome?.status === 401 || outcome?.status === 403) {
+    throw new AuthRequiredError('web.okjike.com', outcome?.detail || `${label} returned HTTP ${outcome?.status}`);
+  }
+  if (outcome?.kind === 'transport') {
+    throw new CommandExecutionError(`${label} request failed: ${outcome.detail}`);
+  }
+  if (outcome?.kind === 'json') {
+    throw new CommandExecutionError(`${label} returned invalid JSON: ${outcome.detail}`);
+  }
+  if (outcome?.kind !== 'response' || !Number.isInteger(outcome.status)) {
+    throw new CommandExecutionError(`${label} returned an unexpected response`);
+  }
+  if (outcome.status < 200 || outcome.status >= 300) {
+    throw new CommandExecutionError(`${label} returned HTTP ${outcome.status}`);
+  }
+  return outcome.body;
 }
 
 /**
