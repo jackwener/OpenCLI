@@ -51,7 +51,7 @@ import {
     WAIT_FOR_HOTEL_DETAIL_JS,
 } from './utils.js';
 
-function createPageMock(evaluateResults) {
+function createPageMock(evaluateResults, networkCaptures = []) {
     const evaluate = vi.fn();
     for (const result of evaluateResults) {
         evaluate.mockResolvedValueOnce(result);
@@ -63,6 +63,10 @@ function createPageMock(evaluateResults) {
         scroll: vi.fn().mockResolvedValue(undefined),
         autoScroll: vi.fn().mockResolvedValue(undefined),
         getCookies: vi.fn().mockResolvedValue([]),
+        startNetworkCapture: vi.fn().mockResolvedValue(true),
+        readNetworkCapture: vi.fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(networkCaptures),
     };
 }
 
@@ -558,24 +562,45 @@ describe('ctrip hotel-search command (registry-level)', () => {
 describe('ctrip flight command (registry-level)', () => {
     const cmd = getRegistry().get('ctrip/flight');
 
-    const FLIGHT_RAW = {
-        airline: '厦门航空',
-        flightNo: 'MF8561',
-        aircraft: '空客321(中)',
-        departureTime: '07:50',
-        departureAirport: '大兴国际机场',
-        arrivalTime: '09:45',
-        arrivalAirport: '浦东国际机场',
-        terminal: 'T2',
-        price: 487,
-        currency: '¥',
-        cabin: '经济舱',
-    };
+    function itinerary({
+        id = 'MF8561_1', airline = '厦门航空', flightNo = 'MF8561', aircraft = '空客321(中)',
+        departure = '2026-06-15 07:50:00', departureAirport = '大兴国际机场',
+        arrival = '2026-06-15 09:45:00', arrivalAirport = '浦东国际机场', terminal = 'T2',
+        price = 487, cabin = 'Y', legs,
+    } = {}) {
+        const flightList = legs || [{
+            flightNo,
+            aircraftName: aircraft,
+            departureDateTime: departure,
+            departureAirportName: departureAirport,
+            arrivalDateTime: arrival,
+            arrivalAirportName: arrivalAirport,
+            arrivalTerminal: terminal,
+        }];
+        return {
+            itineraryId: id,
+            flightSegments: [{ airlineName: airline, flightList }],
+            priceList: [{ sortPrice: price, adultPrice: price, cabin }],
+        };
+    }
 
-    it('declares Strategy.COOKIE + browser:true + navigateBefore:false + access:read', () => {
+    function batchPayload(flightItineraryList, { finished = true, status = 0, msg = 'success' } = {}) {
+        return { status, msg, data: { context: { finished }, flightItineraryList } };
+    }
+
+    function batchCapture(payload, overrides = {}) {
+        return {
+            url: 'https://flights.ctrip.com/international/search/api/search/batchSearch?v=1',
+            responseStatus: 200,
+            responsePreview: JSON.stringify(payload),
+            ...overrides,
+        };
+    }
+
+    it('declares Strategy.INTERCEPT + browser:true + navigateBefore:false + access:read', () => {
         expect(cmd.access).toBe('read');
         expect(cmd.browser).toBe(true);
-        expect(String(cmd.strategy)).toContain('cookie');
+        expect(String(cmd.strategy)).toContain('intercept');
         expect(cmd.navigateBefore).toBe(false);
         expect(cmd.domain).toBe('flights.ctrip.com');
     });
@@ -590,63 +615,80 @@ describe('ctrip flight command (registry-level)', () => {
             .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--date') });
         await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 0 }))
             .rejects.toMatchObject({ code: 'ARGUMENT', message: expect.stringContaining('--limit') });
+        expect(page.startNetworkCapture).not.toHaveBeenCalled();
         expect(page.goto).not.toHaveBeenCalled();
     });
 
-    it('throws AuthRequired when captcha gate is detected', async () => {
+    it('throws AuthRequired when no capture arrives behind a captcha gate', async () => {
         const page = createPageMock(['captcha']);
         await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
             .rejects.toThrow('Ctrip is asking for a captcha');
         expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
 
-    it('throws EmptyResultError when DOM extraction returns no flights', async () => {
-        const page = createPageMock(['content', 0, []]);
+    it('throws TimeoutError when no capture arrives without a captcha', async () => {
+        const page = createPageMock(['timeout']);
+        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
+            .rejects.toMatchObject({ code: 'TIMEOUT', message: expect.stringContaining('Ctrip flight API capture') });
+    });
+
+    it('throws EmptyResultError only for a completed empty search', async () => {
+        const page = createPageMock([], [batchCapture(batchPayload([]))]);
         await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
             .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
     });
 
-    it('throws CommandExecutionError when visible cards render but parser finds no flight anchors', async () => {
-        const page = createPageMock(['content', 2, []]);
-        await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
-            .rejects.toMatchObject({
-                code: 'COMMAND_EXEC',
-                message: expect.stringContaining('parser did not find required flight anchors'),
-            });
-    });
-
-    it('throws CommandExecutionError when flight render waits timeout or extraction is malformed', async () => {
-        await expect(cmd.func(createPageMock(['timeout']), { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
-            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render flight cards') });
-        await expect(cmd.func(createPageMock(['content', 1, { rows: [] }]), { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
-            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+    it('rejects auth HTTP, other HTTP, invalid JSON, upstream, malformed, truncated, and unfinished responses', async () => {
+        const args = { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 };
+        await expect(cmd.func(createPageMock([], [batchCapture({}, { responseStatus: 401 })]), args))
+            .rejects.toMatchObject({ code: 'AUTH_REQUIRED', message: expect.stringContaining('HTTP 401') });
+        await expect(cmd.func(createPageMock([], [batchCapture({}, { responseStatus: 500 })]), args))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('HTTP 500') });
+        await expect(cmd.func(createPageMock([], [batchCapture({}, { responsePreview: '{' })]), args))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('invalid JSON') });
+        await expect(cmd.func(createPageMock([], [batchCapture(batchPayload([], { status: 7, msg: 'denied' }))]), args))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('status=7') });
+        await expect(cmd.func(createPageMock([], [batchCapture({ status: 0, data: {} })]), args))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed batchSearch') });
+        await expect(cmd.func(createPageMock([], [batchCapture({}, { responseBodyTruncated: true })]), args))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('capture limit') });
+        await expect(cmd.func(createPageMock([], [batchCapture(batchPayload([itinerary()], { finished: false }))]), args))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('reported completion') });
     });
 
     it('builds URL with lowercase IATA codes and Y_S_C_F cabin', async () => {
-        const page = createPageMock(['content', 1, [FLIGHT_RAW]]);
+        const page = createPageMock([], [batchCapture(batchPayload([itinerary()]))]);
         await cmd.func(page, { from: 'pek', to: 'sha', date: '2026-06-15', limit: 1 });
         const url = page.goto.mock.calls[0][0];
         expect(url).toContain('oneway-pek-sha');
         expect(url).toContain('depdate=2026-06-15');
         expect(url).toContain('cabin=Y_S_C_F');
         expect(url).toContain('adult=1');
+        expect(page.startNetworkCapture).toHaveBeenCalledWith('/international/search/api/search/batchSearch');
+        expect(page.startNetworkCapture.mock.invocationCallOrder[0])
+            .toBeLessThan(page.goto.mock.invocationCallOrder[0]);
     });
 
-    it('maps DOM-extracted rows and respects --limit', async () => {
-        const page = createPageMock([
-            'content',
-            2,
-            [FLIGHT_RAW, { ...FLIGHT_RAW, flightNo: 'CA1234', airline: '国航' }],
-        ]);
+    it('maps and sorts structured itineraries, fixes overnight fields, and respects --limit', async () => {
+        const laterCheap = itinerary({
+            id: 'Y87596_2', airline: '新海航｜金鹏航空', flightNo: 'Y87596', aircraft: '波音737(中)',
+            departure: '2026-06-15 22:55:00', departureAirport: '首都国际机场',
+            arrival: '2026-06-16 00:55:00', arrivalAirport: '浦东国际机场', price: 450,
+        });
+        const page = createPageMock([], [batchCapture(batchPayload([
+            itinerary({ id: 'MF8561_1', price: 487 }), laterCheap,
+        ]))]);
         const rows = await cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 1 });
         expect(rows).toHaveLength(1);
         expect(rows[0]).toMatchObject({
             rank: 1,
-            airline: '厦门航空',
-            flightNo: 'MF8561',
-            departureTime: '07:50',
-            arrivalTime: '09:45',
-            price: 487,
+            airline: '新海航｜金鹏航空',
+            flightNo: 'Y87596',
+            aircraft: '波音737(中)',
+            departureTime: '22:55',
+            arrivalTime: '00:55',
+            arrivalAirport: '浦东国际机场',
+            price: 450,
             currency: '¥',
             cabin: '经济舱',
         });
@@ -655,24 +697,54 @@ describe('ctrip flight command (registry-level)', () => {
         }
     });
 
-    it('filters out flight rows missing core anchors (no silent partial rows)', async () => {
-        const page = createPageMock(['content', 2, [{ ...FLIGHT_RAW, departureTime: '' }, FLIGHT_RAW]]);
-        const rows = await cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 });
-        expect(rows).toHaveLength(1);
-        expect(rows[0].departureTime).toBe('07:50');
-    });
-
-    it('throws CommandExecutionError when every flight row misses core anchors', async () => {
-        const page = createPageMock(['content', 2, [{ ...FLIGHT_RAW, departureAirport: '' }, { ...FLIGHT_RAW, arrivalTime: '' }]]);
+    it('rejects any malformed itinerary instead of returning accumulated partial rows', async () => {
+        const malformed = itinerary({ id: 'MF8561_2' });
+        malformed.flightSegments[0].flightList[0].arrivalAirportName = '';
+        const page = createPageMock([], [batchCapture(batchPayload([itinerary(), malformed]))]);
         await expect(cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 }))
-            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('required airline/flight/time/airport anchors') });
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('index 1') });
     });
 
-    it('keeps a row whose .flight-item card omits the flight number (flightNo null, not dropped)', async () => {
-        const page = createPageMock(['content', 1, [{ ...FLIGHT_RAW, flightNo: null }]]);
+    it('merges multiple completed batches, deduplicates itineraries, and joins connecting legs', async () => {
+        const connecting = itinerary({
+            id: 'MU1_MU2', airline: '东方航空', price: 750, cabin: '@Y-Y',
+            legs: [
+                { flightNo: 'MU1', aircraftName: '空客320(中)', departureDateTime: '2026-06-15 17:15:00', departureAirportName: '大兴国际机场', arrivalDateTime: '2026-06-15 19:00:00', arrivalAirportName: '武汉天河机场', arrivalTerminal: 'T3' },
+                { flightNo: 'MU2', aircraftName: '空客320(中)', departureDateTime: '2026-06-15 20:00:00', departureAirportName: '武汉天河机场', arrivalDateTime: '2026-06-15 21:55:00', arrivalAirportName: '虹桥国际机场', arrivalTerminal: 'T2' },
+            ],
+        });
+        const page = createPageMock([]);
+        page.readNetworkCapture
+            .mockReset()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([
+                batchCapture(batchPayload([connecting], { finished: false })),
+                batchCapture(batchPayload([connecting], { finished: true }), { url: 'https://flights.ctrip.com/international/search/api/search/batchSearch?v=2' }),
+            ]);
         const rows = await cmd.func(page, { from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 5 });
         expect(rows).toHaveLength(1);
-        expect(rows[0].flightNo).toBeNull();
+        expect(rows[0]).toMatchObject({
+            flightNo: 'MU1 / MU2',
+            aircraft: '空客320(中)',
+            departureAirport: '大兴国际机场',
+            arrivalAirport: '虹桥国际机场',
+            cabin: '经济舱',
+        });
+    });
+
+    it('keeps direct flights ahead of cheaper transfers, matching the page grouping', async () => {
+        const direct = itinerary({ id: 'DIRECT', price: 600 });
+        const transfer = itinerary({
+            id: 'TRANSFER', price: 450,
+            legs: [
+                { flightNo: 'MU1', aircraftName: '空客320(中)', departureDateTime: '2026-06-15 08:00:00', departureAirportName: '大兴国际机场', arrivalDateTime: '2026-06-15 10:00:00', arrivalAirportName: '武汉天河机场', arrivalTerminal: 'T3' },
+                { flightNo: 'MU2', aircraftName: '空客320(中)', departureDateTime: '2026-06-15 11:00:00', departureAirportName: '武汉天河机场', arrivalDateTime: '2026-06-15 13:00:00', arrivalAirportName: '虹桥国际机场', arrivalTerminal: 'T2' },
+            ],
+        });
+        const rows = await cmd.func(createPageMock([], [batchCapture(batchPayload([transfer, direct]))]), {
+            from: 'PEK', to: 'SHA', date: '2026-06-15', limit: 2,
+        });
+        expect(rows.map((row) => row.flightNo)).toEqual(['MF8561', 'MU1 / MU2']);
     });
 });
 
