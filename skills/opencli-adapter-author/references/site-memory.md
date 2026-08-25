@@ -9,7 +9,7 @@
 ```
 skills/opencli-adapter-author/references/site-memory/<site>.md
     — 公共种子。手写 + PR 审核进入。多 agent 共享的第一批起点。
-    — 已铺：eastmoney / xueqiu / bilibili / tonghuashun
+    — 已铺：eastmoney / xueqiu / bilibili / tonghuashun / gmail
 
 ~/.opencli/sites/<site>/
     — 本地累积。agent 跑 adapter 过程里自动写入，跨 session 复用。
@@ -63,14 +63,14 @@ agent 每跑一次相关 adapter 就可以自动写/读：
   field-map.json         — 字段代号 → 含义（key 为字段代号，value 为 {meaning, verified_at, source}）
   verify/                — `opencli browser verify` 期望值（值级校验锚点，每个 adapter 一份）
     <cmd>.json
-  fixtures/              — 完整响应样本（给字段对比 / 离线 replay；**调试时的原始 dump 也只能落在这里或 /tmp/**）
+  fixtures/              — 公开/合成/已完成脱敏的响应样本（给字段对比 / 离线 replay；高敏私人响应不落盘）
     <cmd>-<ts>.json
   last-probe.log         — 最近一次侦察输出（下次接着用）
 ```
 
 `verify/` vs `fixtures/` 别混：
 - `verify/<cmd>.json` 是**结构期望**（rowCount / columns / types / patterns / notEmpty），每 adapter 一份、会被 verify 读。
-- `fixtures/<cmd>-<ts>.json` 是**原始响应样本**，给人 / 下一个 agent 做字段比对用，verify 不会读。
+- `fixtures/<cmd>-<ts>.json` 是**可安全持久化的响应样本**，给人 / 下一个 agent 做字段比对用，verify 不会读；高敏私人响应只用合成 fixture。
 
 ### `endpoints.json` 格式（schema 锁死）
 
@@ -182,12 +182,18 @@ key = 字段代号（`f237` / `f152`），value 三件套：
 
 ### `fixtures/<cmd>-<YYYYMMDDHHMM>.json` 格式
 
-一份该 endpoint 的**完整**响应样本。用途：
+一份该 endpoint 的**可安全持久化**响应样本。优先级：合成 fixture > 公开响应 > 可证明完成脱敏的真实响应。用途：
 
 - 未来字段代号再变时，拿样本和 `field-map.json` 做 regression 对比
 - 站点换版时，新响应和旧 fixture 做 diff 看哪个字段结构变了
 
-**存之前脱敏**：去掉 cookie / token / 登录态相关 header、去掉用户自己的 uid / 用户名 / 手机号 / 邮箱。
+**存之前做数据分级**：
+
+- 公开列表/行情等无账户私有内容：可保存，仍需移除 cookie/token/header。
+- 低敏账号数据：只有完成字段级脱敏且不会从正文、snippet、URL、附件名反推个人时才保存。
+- 邮箱、私信、通讯录、支付、健康、草稿、上传文件等高敏内容：不要保存真实 response，即使“删了邮箱地址”也不够；用保持 shape/arity 的合成 fixture。
+
+原始 capture 只在 `/tmp/` 或受控本地 cache 中短暂存在，任务结束删除；不要把 raw private response 当成“完整 fixture”长期积累。
 
 ---
 
@@ -207,7 +213,7 @@ Step 11 肉眼对比通过后 → 写 ~/.opencli/sites/<site>/
                         - endpoints.json：按 schema 追加或更新 verified_at
                         - field-map.json：只追加新 key，已有的不默默覆盖
                         - notes.md：顶部追加一段
-                        - fixtures/：脱敏后存一份完整响应样本（区别于 verify/）
+                        - fixtures/：按数据分级保存公开/合成/已脱敏样本（区别于 verify/）
 ```
 
 **回写是 commit，不是 stash**：不过 Step 10 verify + Step 11 肉眼对比不写，防止把错的映射喂给下一轮。
@@ -217,12 +223,12 @@ Step 11 肉眼对比通过后 → 写 ~/.opencli/sites/<site>/
 ## 不要写进 `~/.opencli/sites/` 的东西
 
 - 真实账户 cookie / token — 不要保存任何鉴权凭据
-- 用户私有数据（返回体里有个人敏感字段的 → 脱敏再存 fixtures）
+- 用户私有数据：高敏内容一律不存；低敏内容只有完成字段级脱敏才可存
 - 过期超过 30 天的 last-probe.log（自动清）
 
 ## 不要写进 **repo / adapter 目录** 的东西
 
-调试过程里的临时 dump（`.dbg-*.html` / `raw-*.json` / `sample-*` / `trace-*.txt`）**只能**落在 `~/.opencli/sites/<site>/fixtures/` 或系统 `/tmp/`。PR diff 会把 repo 根目录和 `clis/<site>/` 下的文件一起带走——别人 review 时看到一堆调试副产物会很烦。
+调试过程里的临时 dump（`.dbg-*.html` / `raw-*.json` / `sample-*` / `trace-*.txt`）**只能**落在系统 `/tmp/`；只有通过上面数据分级、准备长期保留的安全样本才进入 `~/.opencli/sites/<site>/fixtures/`。PR diff 会把 repo 根目录和 `clis/<site>/` 下的文件一起带走；任务结束还要删除原始 capture/cache。
 
 ---
 

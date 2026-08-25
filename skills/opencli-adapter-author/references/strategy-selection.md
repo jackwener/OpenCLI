@@ -143,6 +143,7 @@ Why the maintenance cost is acceptable: <因为业务需求要 raw timeline curs
 | 文件 | 关系 |
 |---|---|
 | [`api-discovery.md`](./api-discovery.md) | §1-5 是 endpoint 发现的具体方法。本文件指它，但本文件管"用 endpoint 证据填 strategy note"，那边管"怎么先找到 endpoint" |
+| [`deep-recon.md`](./deep-recon.md) | 无文档私有协议、写入、分页/缓存或证据冲突时，先做动作归因和 contract gate；只有通过后才进入本文件选 strategy |
 | [`site-recon.md`](./site-recon.md) | Pattern A-E 是 site classification。Pattern A 命中 ≠ `PAGE_FETCH` 必然合适 — 还要看 `api_candidates` 是不是 `likely_data` |
 | [`coverage-matrix.md`](./coverage-matrix.md) | 鉴权列已对齐 6 档 strategy enum |
 | [`adapter-template.md`](./adapter-template.md) | 写代码模板。strategy note 应该在打开 template 之前已经定好 |
