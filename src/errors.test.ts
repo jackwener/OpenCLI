@@ -119,6 +119,36 @@ describe('toEnvelope', () => {
     expect(envelope.error.message).toBe('string error');
   });
 
+
+  it('passes through cross-package CliError copies (duck-typed shape)', () => {
+    // Simulates a CliError thrown by a plugin that resolves its own copy of
+    // @jackwener/opencli — different class identity, same shape.
+    class ForeignCliError extends Error {
+      code = 'INVALID_ARGS';
+      hint: string | undefined;
+      constructor(message: string, hint?: string) {
+        super(message);
+        this.name = 'CliError';
+        this.hint = hint;
+      }
+    }
+    const envelope = toEnvelope(new ForeignCliError('bad file', 'pass a real path'));
+    expect(envelope.error.code).toBe('INVALID_ARGS');
+    expect(envelope.error.help).toBe('pass a real path');
+    expect(envelope.error.message).toBe('bad file');
+  });
+
+  it('passes through error-like plain objects with code/message', () => {
+    const envelope = toEnvelope({ code: 'FORBIDDEN', message: 'scope violation' });
+    expect(envelope.error.code).toBe('FORBIDDEN');
+    expect(envelope.error.message).toBe('scope violation');
+  });
+
+  it('keeps UNKNOWN for Errors without a code', () => {
+    const envelope = toEnvelope(new Error('random failure'));
+    expect(envelope.error.code).toBe('UNKNOWN');
+  });
+
   it('serializes deep cause chains without stack overflow', () => {
     // Build a 20-level deep cause chain — should truncate at depth 10
     let deepErr: Error = new Error('root');

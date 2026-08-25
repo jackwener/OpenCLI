@@ -257,14 +257,26 @@ export function toEnvelope(err: unknown): ErrorEnvelope {
     receiptPath: traceReceipt.receiptPath,
     status: traceReceipt.status,
   } : undefined;
-  if (err instanceof CliError) {
+  // Duck typing: accept own CliError instances AND cross-package copies that
+  // carry the same shape ({code, message, optional hint}). `instanceof` fails
+  // when the throwing module resolves a different copy of @jackwener/opencli
+  // (e.g. a plugin with its own node_modules) — those errors used to degrade
+  // to UNKNOWN and lose `hint`. Shape check keeps behavior identical for real
+  // CliError and plain Errors (which have no string `code`).
+  const isCliErrorLike =
+    err !== null &&
+    typeof err === 'object' &&
+    typeof (err as any).code === 'string' &&
+    typeof (err as any).message === 'string';
+  if (err instanceof CliError || isCliErrorLike) {
+    const e = err as any;
     return {
       ok: false,
       error: {
-        code: err.code,
-        message: err.message,
-        ...(err.hint ? { help: err.hint } : {}),
-        exitCode: err.exitCode,
+        code: e.code,
+        message: e.message,
+        ...(typeof e.hint === 'string' && e.hint ? { help: e.hint } : {}),
+        exitCode: e.exitCode ?? EXIT_CODES.GENERIC_ERROR,
         ...(cause ? { cause } : {}),
       },
       ...(trace ? { trace } : {}),
