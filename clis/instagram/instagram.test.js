@@ -535,6 +535,9 @@ describe('instagram business-account endpoint fallback', () => {
             following: 510,
             posts: 1493,
             verified: 'Yes',
+            email: '',
+            phone: '',
+            website: '',
         }]);
         expect(fetchFn.mock.calls[2][0]).toContain('/api/v1/users/4213518589/info/');
     });
@@ -563,6 +566,69 @@ describe('instagram business-account endpoint fallback', () => {
 
         expect(result[0]).toMatchObject({ username: 'personal', followers: 10, following: 20, posts: 30 });
         expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('profile reads the public contact fields from both endpoints', async () => {
+        const gatedFetch = vi.fn()
+            .mockResolvedValueOnce(gatedResponse)
+            .mockResolvedValueOnce(feedResponse)
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({
+                    user: {
+                        username: 'bizaccount',
+                        full_name: 'Biz Account',
+                        biography: '',
+                        follower_count: 1,
+                        following_count: 2,
+                        media_count: 3,
+                        is_verified: false,
+                        public_email: 'hello@biz.example',
+                        contact_phone_number: '+390000000000',
+                        external_url: 'https://biz.example',
+                    },
+                }),
+            });
+
+        const gated = await runCommandEvaluate('profile', gatedFetch, {
+            '${{ args.username | json }}': JSON.stringify('bizaccount'),
+        });
+
+        expect(gated[0]).toMatchObject({
+            email: 'hello@biz.example',
+            phone: '+390000000000',
+            website: 'https://biz.example',
+        });
+
+        const webFetch = vi.fn().mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({
+                data: {
+                    user: {
+                        username: 'personal',
+                        full_name: 'Personal User',
+                        biography: '',
+                        edge_followed_by: { count: 10 },
+                        edge_follow: { count: 20 },
+                        edge_owner_to_timeline_media: { count: 30 },
+                        is_verified: false,
+                        business_email: 'shop@personal.example',
+                        business_phone_number: '+391111111111',
+                        external_url: 'https://personal.example',
+                    },
+                },
+            }),
+        });
+
+        const web = await runCommandEvaluate('profile', webFetch, {
+            '${{ args.username | json }}': JSON.stringify('personal'),
+        });
+
+        expect(web[0]).toMatchObject({
+            email: 'shop@personal.example',
+            phone: '+391111111111',
+            website: 'https://personal.example',
+        });
     });
 
     it('following paginates after resolving the id through the fallback', async () => {

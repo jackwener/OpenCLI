@@ -18980,7 +18980,10 @@
       "following",
       "posts",
       "verified",
-      "bio"
+      "bio",
+      "email",
+      "phone",
+      "website"
     ],
     "type": "js",
     "modulePath": "instagram/profile.js",
