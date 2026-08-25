@@ -14,11 +14,11 @@ function makePage({ cookies = [{ name: '_t', value: 'session' }], probe } = {}) 
 describe('linux-do auth identity probe', () => {
   it('uses Discourse session/current.json instead of the removed username meta tag', async () => {
     const page = makePage({
-      probe: { ok: true, user_id: '246112', username: 'alice', name: '' },
+      probe: { ok: true, user_id: '42', username: 'alice', name: '' },
     });
 
     await expect(__test__.verifyLinuxDoIdentity(page)).resolves.toEqual({
-      user_id: '246112',
+      user_id: '42',
       username: 'alice',
       name: '',
     });
