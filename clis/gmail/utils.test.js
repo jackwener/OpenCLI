@@ -236,6 +236,23 @@ describe('gmail browser capture path', () => {
       .rejects.toThrow(/refusing partial results/);
   });
 
+  it('rejects a completed short page when another capture was drained without a body', async () => {
+    const completed = captureEntry('bv', batchPage(0, 5));
+    const bodyless = {
+      url: 'https://mail.google.com/sync/u/0/i/bv',
+      responseStatus: 200,
+    };
+    const page = capturePage(null, 'in:anywhere');
+    page.readNetworkCapture
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([bodyless, completed])
+      .mockResolvedValueOnce([]);
+
+    await expect(queryThreads(page, 'in:anywhere', { limit: 10, account: 0 }))
+      .rejects.toThrow(/refusing possibly partial results/);
+  });
+
   it('lists labels through a fresh captured bv response', async () => {
     const page = capturePage(captureEntry('bv', batchViewFixture({ threads: false })));
     await expect(listLabels(page, 0)).resolves.toHaveLength(2);

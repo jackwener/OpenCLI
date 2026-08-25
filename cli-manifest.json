@@ -15165,61 +15165,6 @@
   },
   {
     "site": "gmail",
-    "name": "draft",
-    "description": "Create and save a Gmail draft without sending it",
-    "access": "write",
-    "domain": "mail.google.com",
-    "strategy": "ui",
-    "browser": true,
-    "args": [
-      {
-        "name": "to",
-        "type": "string",
-        "required": true,
-        "positional": true,
-        "help": "Comma-separated recipient email addresses"
-      },
-      {
-        "name": "subject",
-        "type": "string",
-        "required": true,
-        "help": "Draft subject"
-      },
-      {
-        "name": "body",
-        "type": "string",
-        "required": true,
-        "help": "Plain-text draft body"
-      },
-      {
-        "name": "account",
-        "type": "int",
-        "default": 0,
-        "required": false,
-        "help": "Gmail account index from the /mail/u/<index>/ URL"
-      },
-      {
-        "name": "execute",
-        "type": "boolean",
-        "default": false,
-        "required": false,
-        "help": "Actually create the remote draft"
-      }
-    ],
-    "columns": [
-      "to",
-      "subject",
-      "status",
-      "message"
-    ],
-    "type": "js",
-    "modulePath": "gmail/draft.js",
-    "sourceFile": "gmail/draft.js",
-    "navigateBefore": false,
-    "siteSession": "persistent"
-  },
-  {
-    "site": "gmail",
     "name": "drafts",
     "description": "List Gmail draft threads",
     "access": "read",

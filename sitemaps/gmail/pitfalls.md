@@ -24,8 +24,8 @@ symptom: read-only `/bv` and `/fd` POSTs are mistaken for writes, or private wri
 workaround: classify by user-visible action and observed effect; never replay private Gmail writes
 verified_at: 2026-08-25
 
-### pitfall:draft_retry_can_duplicate_state
-trigger: draft confirmation times out after Compose opened
-symptom: command reports temporary failure while a complete or partial draft may already exist
-workaround: inspect Drafts before retrying; never assume a timeout means nothing changed
+### pitfall:private_sync_writes_are_not_replayable_contracts
+trigger: an agent tries to turn one captured `/sync` send or delete request into a production command
+symptom: replay depends on opaque positional state or a page-generated anti-abuse token and may fail, duplicate, or mutate the wrong message
+workaround: do not fabricate or replay Gmail private writes; use Google OAuth with Gmail scopes for supported API-backed write commands
 verified_at: 2026-08-25

@@ -21,7 +21,6 @@
 | `opencli gmail labels` | List system and user labels |
 | `opencli gmail thread <thread>` | Read all messages in a thread |
 | `opencli gmail attachments <thread>` | List attachment metadata for a thread |
-| `opencli gmail draft <to>` | Create and save a draft without sending it |
 
 ## Usage Examples
 
@@ -37,12 +36,6 @@ opencli gmail labels -f json
 
 # List attachment metadata without downloading files
 opencli gmail attachments 'thread-f:1234567890123456789' -f json
-
-# Draft saving is refused unless --execute is explicit; this never clicks Send
-opencli gmail draft recipient@example.com \
-  --subject 'Draft subject' \
-  --body 'Draft body' \
-  --execute
 ```
 
 All list commands accept `--account <index>` for Gmail URLs under `/mail/u/<index>/`. Thread-list commands also accept `--limit` from 1 to 200.
@@ -53,10 +46,8 @@ Search and mailbox views return thread identity, subject, sender, snippet, messa
 
 Reads let Gmail perform its normal search/navigation and parse the resulting browser response. Recently cached threads may use the already rendered message containers instead. The adapter does not reconstruct Gmail's private authentication or write requests.
 
-`draft` is the only mail-content write command. It requires `--execute`, enters recipients/subject/body through visible Compose controls, verifies every field before Save & close, and never sends the message. If confirmation is uncertain after Compose opens, inspect Drafts before retrying because Gmail may already have autosaved partial state.
-
 ## Prerequisites
 
 - Chrome running and **logged into** Gmail
 - [Browser Bridge extension](/guide/browser-bridge) installed
-- Use `opencli gmail whoami` to verify the active account before reading or saving a draft
+- Use `opencli gmail whoami` to verify the active account before reading mail

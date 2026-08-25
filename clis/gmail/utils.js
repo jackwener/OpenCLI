@@ -301,24 +301,51 @@ async function installGmailCapture(page, account, endpoint, operation) {
 
 async function waitGmailCaptures(page, endpoint, operation, timeoutSeconds = CAPTURE_WAIT_SECONDS) {
   const deadline = Date.now() + timeoutSeconds * 1000;
+  let bodylessCaptureObserved = false;
   // The bridge capture queue is request-oriented: reading it while a response
   // is still in flight drains that request before its status/body arrive.
   // Give Gmail's own action time to settle before the first read.
   await page.sleep(endpoint === 'fd' ? 1 : 3);
   while (Date.now() < deadline) {
     const entries = await page.readNetworkCapture();
-    const matches = (Array.isArray(entries) ? entries : [])
-      .filter((entry) => String(entry?.url || '').includes(`/i/${endpoint}`)
-        && (typeof entry?.responsePreview === 'string' || entry?.responseBodyTruncated === true));
+    const endpointEntries = (Array.isArray(entries) ? entries : [])
+      .filter((entry) => String(entry?.url || '').includes(`/i/${endpoint}`));
+    if (endpointEntries.some((entry) => (
+      typeof entry?.responsePreview !== 'string'
+      && entry?.responseBodyTruncated !== true
+    ))) {
+      bodylessCaptureObserved = true;
+    }
+    const matches = endpointEntries.filter((entry) => (
+      typeof entry?.responsePreview === 'string' || entry?.responseBodyTruncated === true
+    ));
     if (matches.length > 0) {
       await page.sleep(1);
       const settled = await page.readNetworkCapture();
-      matches.push(...(Array.isArray(settled) ? settled : [])
-        .filter((entry) => String(entry?.url || '').includes(`/i/${endpoint}`)
-          && (typeof entry?.responsePreview === 'string' || entry?.responseBodyTruncated === true)));
+      const settledEndpointEntries = (Array.isArray(settled) ? settled : [])
+        .filter((entry) => String(entry?.url || '').includes(`/i/${endpoint}`));
+      if (settledEndpointEntries.some((entry) => (
+        typeof entry?.responsePreview !== 'string'
+        && entry?.responseBodyTruncated !== true
+      ))) {
+        bodylessCaptureObserved = true;
+      }
+      matches.push(...settledEndpointEntries.filter((entry) => (
+        typeof entry?.responsePreview === 'string' || entry?.responseBodyTruncated === true
+      )));
+      if (bodylessCaptureObserved) {
+        throw new CommandExecutionError(
+          `Gmail ${operation} capture included a response without a body; refusing possibly partial results`,
+        );
+      }
       return matches.map((entry) => parseJsonCapture(entry, operation));
     }
     await page.sleep(0.25);
+  }
+  if (bodylessCaptureObserved) {
+    throw new CommandExecutionError(
+      `Gmail ${operation} capture lost a response body; refusing possibly partial results`,
+    );
   }
   throw new TimeoutError(`Gmail ${operation} capture`, timeoutSeconds, `No /${endpoint} response was observed after the Gmail action.`);
 }

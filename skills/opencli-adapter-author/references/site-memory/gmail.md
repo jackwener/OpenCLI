@@ -26,7 +26,7 @@
 
 - Reads: `INTERCEPT`. Let Gmail submit the visible search/open action, then parse the natural `bv/fd` response. Never reconstruct private XSRF/BTAI request bodies.
 - Cached thread fallback: rendered message containers (`data-message-id`, `.a3s`, scoped attachment cards).
-- Draft write: `UI_SELECTOR`, explicit `--execute`, Save & close only. A post-compose failure is uncertain because Gmail may autosave.
+- Writes: no supported browser-session API contract is currently available. Gmail's private `/sync` operations require page-runtime state, and the official Gmail API requires separate OAuth credentials and scopes.
 
 ## Durable pitfalls
 
@@ -36,3 +36,4 @@
 4. A new `/fd` response is not guaranteed for cached messages. Treat rendered content as a legitimate visible-ui fallback.
 5. Responses are anti-XSSI-prefixed positional arrays. Enforce arity/required-field guards and fail typed on drift.
 6. Never store live subjects, addresses, message bodies, attachment names, cookies, or account-specific ids in fixtures/site memory.
+7. Do not replay legacy `?ui=2` write actions or fabricate `/sync` write payloads. Current send commits include a page-generated WAA anti-abuse token; supported API-backed writes require Google OAuth.
