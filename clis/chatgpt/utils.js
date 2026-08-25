@@ -2366,6 +2366,11 @@ async function waitForChatGPTUploadPreview(page, fileNames) {
                 const scope = root || document.body;
                 if (!scope) return false;
 
+                const accessibleNames = Array.from(scope.querySelectorAll('[role="group"][aria-label]'))
+                    .map(node => node.getAttribute('aria-label') || '');
+                const matchedAccessibleNames = names.filter(name => accessibleNames.some(label => label.includes(name))).length;
+                if (matchedAccessibleNames >= names.length) return true;
+
                 const isVisibleMedia = (node) => {
                     if (!(node instanceof HTMLElement)) return false;
                     const style = window.getComputedStyle(node);
