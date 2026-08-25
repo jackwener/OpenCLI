@@ -43,7 +43,7 @@ cli({
         { name: 'jobTitle', type: 'string', default: '生鲜价格策略专家', help: '开聊时关联的职位名称' },
         { name: 'confirm', type: 'boolean', default: false, help: '必须显式传 true 才会发送' },
     ],
-    columns: ['resume_id', 'name', 'status'],
+    columns: ['resume_id', 'name', 'ready', 'status'],
     func: async (page, args) => {
         requireConfirmation(args.confirm, 'greet-search-results');
         const resumeIds = parseResumeIds(args.resumeIds);
@@ -63,11 +63,11 @@ cli({
                 return { name, ready: true };
             }, resumeId);
             if (!candidate) {
-                rows.push({ resume_id: resumeId, name: null, status: 'not_found' });
+                rows.push({ resume_id: resumeId, name: null, ready: false, status: 'not_found' });
                 continue;
             }
             if (!candidate.ready) {
-                rows.push({ resume_id: resumeId, name: candidate.name, status: 'already_contacted' });
+                rows.push({ resume_id: resumeId, name: candidate.name, ready: false, status: 'already_contacted' });
                 continue;
             }
             await new Promise((resolve) => setTimeout(resolve, 700));
@@ -86,6 +86,7 @@ cli({
             rows.push({
                 resume_id: resumeId,
                 name: candidate.name,
+                ready: true,
                 status: opened ? 'greeting_sent' : 'job_selection_failed',
             });
         }

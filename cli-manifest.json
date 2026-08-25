@@ -22454,6 +22454,7 @@
     "columns": [
       "resume_id",
       "name",
+      "ready",
       "status"
     ],
     "type": "js",
