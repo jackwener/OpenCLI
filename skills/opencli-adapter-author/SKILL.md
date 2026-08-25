@@ -155,6 +155,7 @@ DONE
        [ ] Pattern C → §3 bundle / script src 搜索
        [ ] Pattern D → §4 token 来源 + 降级 §5
        [ ] Pattern E → 找 HTTP 轮询接口；找不到才 §5
+       [ ] 无文档 API / DOM 丢数据 / bundle 与 network 冲突 → `deep-recon.md` 做可见状态、动态因果与静态候选三角验证
 [ ] 5. 直接 fetch 候选 endpoint 验证：
        [ ] 返回 200
        [ ] 响应含目标数据（不是 HTML / 广告）
@@ -220,6 +221,7 @@ DONE
 | `references/coverage-matrix.md` | 动手前做"是否在范围内"自测 |
 | `references/site-recon.md` | Step 3 定站点类型 |
 | `references/api-discovery.md` | Step 4 找 endpoint |
+| `references/deep-recon.md` | 无文档复杂站：动作归因、jsluice 候选扩展、契约选择与真实数据验证 |
 | `references/strategy-selection.md` | Step 6 填 strategy note 之前：契约模型 + 实测 fix 频率 + `api_candidates` 证据用法 + 反例 |
 | `references/field-conventions.md` | Step 7 查已知字段代号 |
 | `references/field-decode-playbook.md` | Step 7 字段不在词典时 |

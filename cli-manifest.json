@@ -15127,6 +15127,651 @@
     "sourceFile": "github-trending/repos.js"
   },
   {
+    "site": "gmail",
+    "name": "attachments",
+    "description": "List attachment metadata for a Gmail thread",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Thread id from gmail search, legacy id, or Gmail thread URL"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "attachmentId",
+      "name",
+      "mimeType",
+      "size"
+    ],
+    "type": "js",
+    "modulePath": "gmail/attachments.js",
+    "sourceFile": "gmail/attachments.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "draft",
+    "description": "Create and save a Gmail draft without sending it",
+    "access": "write",
+    "domain": "mail.google.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "to",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Comma-separated recipient email addresses"
+      },
+      {
+        "name": "subject",
+        "type": "string",
+        "required": true,
+        "help": "Draft subject"
+      },
+      {
+        "name": "body",
+        "type": "string",
+        "required": true,
+        "help": "Plain-text draft body"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      },
+      {
+        "name": "execute",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Actually create the remote draft"
+      }
+    ],
+    "columns": [
+      "to",
+      "subject",
+      "status",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "gmail/draft.js",
+    "sourceFile": "gmail/draft.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "drafts",
+    "description": "List Gmail draft threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "important",
+    "description": "List important Gmail threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "inbox",
+    "description": "List Gmail inbox threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "labels",
+    "description": "List Gmail system and user labels with counts",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "unreadCount",
+      "totalCount"
+    ],
+    "type": "js",
+    "modulePath": "gmail/labels.js",
+    "sourceFile": "gmail/labels.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "login",
+    "description": "Open gmail login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "mail.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "email",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "gmail/auth.js",
+    "sourceFile": "gmail/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "gmail",
+    "name": "search",
+    "description": "Search Gmail using Gmail search syntax",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Gmail search query"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "sent",
+    "description": "List sent Gmail threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "snoozed",
+    "description": "List snoozed Gmail threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "spam",
+    "description": "List Gmail spam threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "starred",
+    "description": "List starred Gmail threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "thread",
+    "description": "Read every message in a Gmail thread",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "thread",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Thread id from gmail search, legacy id, or Gmail thread URL"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "messageId",
+      "legacyMessageId",
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "to",
+      "cc",
+      "date",
+      "snippet",
+      "body",
+      "attachments"
+    ],
+    "type": "js",
+    "modulePath": "gmail/thread.js",
+    "sourceFile": "gmail/thread.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "trash",
+    "description": "List Gmail trash threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "unread",
+    "description": "List unread Gmail threads",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "intercept",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Maximum threads to return (1-200)"
+      },
+      {
+        "name": "account",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Gmail account index from the /mail/u/<index>/ URL"
+      }
+    ],
+    "columns": [
+      "threadId",
+      "subject",
+      "from",
+      "fromName",
+      "snippet",
+      "messageCount",
+      "unread",
+      "starred",
+      "date",
+      "labels"
+    ],
+    "type": "js",
+    "modulePath": "gmail/search.js",
+    "sourceFile": "gmail/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "gmail",
+    "name": "whoami",
+    "description": "Show the current logged-in gmail account",
+    "access": "read",
+    "domain": "mail.google.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "email",
+      "name"
+    ],
+    "type": "js",
+    "modulePath": "gmail/auth.js",
+    "sourceFile": "gmail/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "google",
     "name": "images",
     "description": "Search Google Images for photos and image results",
