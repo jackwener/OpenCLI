@@ -46,6 +46,7 @@ const CDP_SEND_TIMEOUT = 30_000;
 // surface `responseBodyFullSize` + `responseBodyTruncated` so downstream layers
 // can tell the agent what happened instead of lying about the payload.
 export const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
+export const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 
 export class CDPBridge implements IBrowserFactory {
   private _ws: WebSocket | null = null;
@@ -191,6 +192,11 @@ class CDPPage extends CDPBasePage {
   private _networkCapturePattern = '';
   private _networkEntries: Array<{
     url: string; method: string; responseStatus?: number;
+    requestHeaders?: Record<string, string>;
+    requestBodyKind?: string;
+    requestBodyPreview?: string;
+    requestBodyFullSize?: number;
+    requestBodyTruncated?: boolean;
     responseContentType?: string;
     responsePreview?: string;
     responseBodyFullSize?: number;
@@ -313,14 +319,51 @@ class CDPPage extends CDPBasePage {
 
       // Step 1: Record request method/url on requestWillBeSent
       this.bridge.on('Network.requestWillBeSent', (params: unknown) => {
-        const p = params as { requestId: string; request: { method: string; url: string }; timestamp: number };
+        const p = params as {
+          requestId: string;
+          request: {
+            method: string;
+            url: string;
+            headers?: Record<string, unknown>;
+            postData?: string;
+            hasPostData?: boolean;
+          };
+          timestamp: number;
+        };
         if (!this._networkCapturePattern || p.request.url.includes(this._networkCapturePattern)) {
+          const rawBody = typeof p.request.postData === 'string' ? p.request.postData : '';
+          const bodyTruncated = rawBody.length > CDP_REQUEST_BODY_CAPTURE_LIMIT;
           const idx = this._networkEntries.push({
             url: p.request.url,
             method: p.request.method,
+            requestHeaders: Object.fromEntries(
+              Object.entries(p.request.headers ?? {}).map(([name, value]) => [name, String(value)]),
+            ),
+            requestBodyKind: p.request.hasPostData ? 'string' : 'empty',
+            requestBodyPreview: bodyTruncated ? rawBody.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : rawBody,
+            requestBodyFullSize: rawBody.length,
+            requestBodyTruncated: bodyTruncated,
             timestamp: Date.now(),
           }) - 1;
           this._pendingRequests.set(p.requestId, idx);
+
+          if (p.request.hasPostData && p.request.postData === undefined) {
+            const requestBodyFetch = this.bridge.send('Network.getRequestPostData', { requestId: p.requestId }).then((result: unknown) => {
+              const postData = (result as { postData?: string } | undefined)?.postData;
+              if (typeof postData !== 'string') return;
+              const truncated = postData.length > CDP_REQUEST_BODY_CAPTURE_LIMIT;
+              this._networkEntries[idx].requestBodyPreview = truncated
+                ? postData.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT)
+                : postData;
+              this._networkEntries[idx].requestBodyFullSize = postData.length;
+              this._networkEntries[idx].requestBodyTruncated = truncated;
+            }).catch(() => {
+              // Some request types do not expose post data.
+            }).finally(() => {
+              this._pendingBodyFetches.delete(requestBodyFetch);
+            });
+            this._pendingBodyFetches.add(requestBodyFetch);
+          }
         }
       });
 

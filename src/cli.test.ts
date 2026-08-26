@@ -1996,6 +1996,112 @@ describe('browser network command', () => {
     expect(out.entries[0].shape['$.messages']).toBe('array(1)');
   });
 
+  it('treats React Server Component responses as API-like traffic', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://www.linkedin.com/flagship-web/rsc-action/actions/pagination',
+        method: 'POST',
+        responseStatus: 200,
+        responseContentType: 'text/x-component',
+        responsePreview: '1:{"posts":[{"id":"p1"}]}',
+      },
+      {
+        url: 'https://www.linkedin.com/flagship-web/rsc-action/actions/detail',
+        method: 'POST',
+        responseStatus: 200,
+        responseContentType: 'text/html',
+        responsePreview: '<rsc-stream>',
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(2);
+    expect(out.filtered_out).toBe(0);
+    expect(out.entries.map((entry: any) => entry.key)).toEqual([
+      'POST www.linkedin.com/flagship-web/rsc-action/actions/pagination',
+      'POST www.linkedin.com/flagship-web/rsc-action/actions/detail',
+    ]);
+  });
+
+  it('caches the raw drained batch before display filtering so a later --all can recover it', async () => {
+    browserState.page!.readNetworkCapture = vi.fn()
+      .mockResolvedValueOnce([
+        {
+          url: 'https://example.com/page-fragment',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'text/html',
+          responsePreview: '<main>hidden from default output</main>',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+    expect(lastJsonLog()).toMatchObject({ count: 0, filtered_out: 1 });
+
+    consoleLogSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--all']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.cache_reused).toBe(true);
+    expect(out.entries[0].key).toBe('GET example.com/page-fragment');
+  });
+
+  it('--detail exposes sanitized request context without credential values', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://www.linkedin.com/flagship-web/rsc-action/actions/pagination?csrf_token=url-secret',
+        method: 'POST',
+        requestHeaders: {
+          'Content-Type': 'application/json',
+          Cookie: 'li_at=cookie-secret',
+          'X-CSRF-Token': 'header-secret',
+          'X-Trace-Id': 'trace-1',
+        },
+        requestBodyKind: 'string',
+        requestBodyPreview: JSON.stringify({ variables: { cursor: 'next', accessToken: 'body-secret' } }),
+        requestBodyFullSize: 123,
+        requestBodyTruncated: false,
+        responseStatus: 200,
+        responseContentType: 'text/x-component',
+        responsePreview: '1:{"posts":[]}',
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+    consoleLogSpy.mockClear();
+    await program.parseAsync([
+      'node', 'opencli', 'browser', '--session', 'test', 'network',
+      '--detail', 'POST www.linkedin.com/flagship-web/rsc-action/actions/pagination',
+    ]);
+
+    const out = lastJsonLog();
+    expect(out.url).toContain('csrf_token=%3Credacted%3E');
+    expect(out.request).toMatchObject({
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: '<redacted>',
+        'X-CSRF-Token': '<redacted>',
+        'X-Trace-Id': 'trace-1',
+      },
+      body_kind: 'json',
+      body: { variables: { cursor: 'next', accessToken: '<redacted>' } },
+      body_full_size: 123,
+      redacted: true,
+    });
+    expect(out.request.body_shape['$.variables.accessToken']).toBe('string');
+    expect(JSON.stringify(out)).not.toContain('url-secret');
+    expect(JSON.stringify(out)).not.toContain('cookie-secret');
+    expect(JSON.stringify(out)).not.toContain('header-secret');
+    expect(JSON.stringify(out)).not.toContain('body-secret');
+  });
+
   it('--raw emits full bodies inline for every entry', async () => {
     const program = createProgram('', '');
 

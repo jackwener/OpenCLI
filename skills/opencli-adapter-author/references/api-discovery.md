@@ -57,7 +57,7 @@ opencli browser network
 - `shape` — response body 的路径→类型映射（不含原 body，省 token）
 - `status / url / method / ct / size`
 
-静态资源 / 埋点 / 追踪默认已过滤。默认会保留 JSON / XML / plain text / `text/javascript` 这类 API 响应；如果你确定浏览器 DevTools 里有目标请求但这里缺失，用 `--all` 查一遍是否被 content-type 或 URL 噪音过滤挡掉。
+静态资源 / 埋点 / 追踪默认已过滤。默认会保留 JSON / XML / plain text / `text/javascript`，也会识别 `text/x-component` 与明确的 `/rsc-action/` React Server Component 流。如果你确定浏览器 DevTools 里有目标请求但这里缺失，用 `--all` 查一遍是否被其他 content-type 或 URL 噪音过滤挡掉。capture queue 是破坏性读取；Core 会先缓存本批原始条目再做展示过滤，所以紧接着的空 `--all` 仍可复用该 session 的 raw cache，而不是永久丢掉被隐藏的条目。
 
 如果是冷启动，先看 `opencli browser analyze <url>` 里的 `api_candidates`：
 
@@ -102,11 +102,13 @@ opencli browser network --detail <key>
 
 capture 会持久化到 `~/.opencli/cache/browser-network/<session>.json`（默认 TTL 24h），所以 `--detail` 即使跨多条其他命令也还在。
 
+`--detail` 还会在 capture provider 支持时返回 `request`：method 仍在顶层；headers 中 cookie、Authorization、CSRF/XSRF、token/key/secret/session 等值会替换为 `<redacted>`；可安全识别的 JSON object / URL-encoded form 会保留结构，位置数组、opaque 或截断 body 只保留 kind、shape、full size、truncated/omitted 状态。不要因为 body 被安全省略就拿 URL 单独 replay——这说明请求合同仍不完整。
+
 这也意味着私有页面的 response 可能落在本地 cache。侦察结束要删除相关 session capture 并释放 browser session；不要依赖 24h TTL 代替清理。
 
 ### 关键 request headers
 
-`browser network` 当前只抓响应（body + status + ct），抓不到请求头。要看请求头就在 DevTools Network 面板里点这条 request，或用 `browser eval` 手动 `fetch(url)` 复现一次观察浏览器发出去的头：
+先用 `browser network --detail <key>` 看脱敏后的 request headers / body shape；不要打印或复制 credential 原值。旧 capture provider 若没有返回 `request`，再去 DevTools Network 面板核字段名，或用页面自然动作重新 capture，不能用 `browser eval` 猜造一份缺 header/body 的 URL-only 请求：
 
 | 看到 | 含义 | 对应策略 |
 |------|------|---------|

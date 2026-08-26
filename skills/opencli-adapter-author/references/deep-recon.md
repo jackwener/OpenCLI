@@ -34,6 +34,8 @@ Never paste credentials or response bodies into the ledger. Store structural fac
 
 Dynamic evidence proves that a request occurred. Static scanning expands recall to lazy pagination, detail, search, and routes that this session did not trigger. Neither alone proves a production contract.
 
+Do not equate “structured” with JSON. React Server Components (`text/x-component`), streamed HTML fragments, protobuf-like payloads, and positional arrays may carry the authoritative data. Preserve their content type, request context, truncation state, and structural shape even when the default network view would normally hide them.
+
 jsluice is optional and stays outside adapter runtime. Feed it script text through stdin, keep source locations, and treat `EXPR` as unknown. Do not persist suspected secret values. A candidate becomes useful only after dynamic occurrence or a safe replay verifies its shape and semantics.
 
 ## 4. Attribute requests with causal diffs
@@ -74,6 +76,8 @@ A read contract must prove all of these:
 5. **Auth boundary**: cookies/CSRF/origin/runtime requirements are explicit and do not leak secrets.
 6. **Failure semantics**: auth, HTTP, malformed/truncated body, repeated cursor/page, timeout, and partial data fail typed.
 
+Replay the complete request contract, not a URL-shaped fragment. A captured URL returning 4xx/5xx does not reject the underlying endpoint when headers, body, cookies, runtime action identifiers, or page-owned signing were omitted. Record the missing context and use `INTERCEPT` until it can be reproduced safely; never guess absent request fields from a bundle string.
+
 A direct API-backed write contract additionally must prove:
 
 1. target identity is deterministically bound in the request;
@@ -90,12 +94,16 @@ A direct API-backed write contract additionally must prove:
 Browser capture queues may be destructive drains. Before relying on them:
 
 - install capture before the action and drain stale entries;
+- cache the raw selected capture before applying display-only MIME, static-resource, or shape filters;
 - allow in-flight responses to settle;
 - treat bodyless or truncated relevant entries as possible data loss;
+- inspect non-JSON structured streams with request method, safely redacted headers, body shape, and size/truncation metadata;
 - merge all relevant completed responses in the action window;
 - identify pages/cursors by content, not arrival order alone;
 - deduplicate by stable entity ID;
 - reject repeated pages/cursors and page-cap exhaustion rather than return accumulated partial rows.
+
+Never copy authorization, cookies, CSRF/XSRF values, API keys, session identifiers, or token-bearing request bodies into output, ledgers, fixtures, or site memory. Redact keyed values; if a positional or opaque body cannot be sanitized confidently, preserve only its kind, shape, full size, and truncation/omission state.
 
 A cached page may render without a fresh request. A DOM fallback is valid only when it is strictly scoped to the target container, preserves the public columns, and can distinguish empty state from structure drift. Do not silently switch to a weaker page-wide selector.
 
