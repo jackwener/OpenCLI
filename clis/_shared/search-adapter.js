@@ -60,6 +60,34 @@ export function emptySearchResults(site, query) {
   return new EmptyResultError(`${site} search`, `No ${site} results matched "${query}".`);
 }
 
+/**
+ * Guard that a result array is non-empty, throwing EmptyResultError otherwise.
+ *
+ * @template T
+ * @param {T[]} rows
+ * @param {string} site
+ * @param {string} recoveryHint
+ * @returns {T[]}
+ */
+export function requireNonEmptyRows(rows, site, recoveryHint) {
+  if (rows.length > 0) return rows;
+  throw new EmptyResultError(site, recoveryHint);
+}
+
+/**
+ * Guard that a value is present (truthy), throwing EmptyResultError otherwise.
+ *
+ * @template T
+ * @param {T|null|undefined} value
+ * @param {string} site
+ * @param {string} recoveryHint
+ * @returns {T}
+ */
+export function requirePresentRow(value, site, recoveryHint) {
+  if (value) return value;
+  throw new EmptyResultError(site, recoveryHint);
+}
+
 export async function runBrowserStep(label, fn) {
   try {
     return await fn();
