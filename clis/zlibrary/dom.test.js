@@ -5,7 +5,7 @@ import fs from 'node:fs';
 
 function readFixtureJson(name) {
     return JSON.parse(
-        fs.readFileSync(new URL(`../../tests/fixtures/zlibrary-app/${name}/evaluate-output.json`, import.meta.url), 'utf-8'),
+        fs.readFileSync(new URL(`./fixtures/zlibrary-app/${name}/evaluate-output.json`, import.meta.url), 'utf-8'),
     );
 }
 
@@ -261,7 +261,7 @@ describe('zlibrary dom functions', () => {
      */
     async function runFixtureExtract(fixtureName, limit) {
         const base = new URL(
-            `../../tests/fixtures/zlibrary-app/${fixtureName}/`,
+            `./fixtures/zlibrary-app/${fixtureName}/`,
             import.meta.url,
         );
         const cardsHtml = fs.readFileSync(new URL('cards.html', base), 'utf-8');
