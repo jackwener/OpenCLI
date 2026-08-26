@@ -131,7 +131,7 @@
     "rule": "silent-clamp",
     "command": "douyin/user-videos",
     "file": "clis/douyin/user-videos.js",
-    "line": 17,
+    "line": 35,
     "text": "return Math.min(DEFAULT_COMMENT_LIMIT, Math.max(1, Math.round(numeric)));",
     "occurrence": 0
   },
@@ -139,7 +139,7 @@
     "rule": "silent-clamp",
     "command": "douyin/user-videos",
     "file": "clis/douyin/user-videos.js",
-    "line": 11,
+    "line": 29,
     "text": "return Math.min(MAX_USER_VIDEOS_LIMIT, Math.max(1, Math.round(numeric)));",
     "occurrence": 0
   },
@@ -148,14 +148,6 @@
     "command": "eastmoney/announcement",
     "file": "clis/eastmoney/announcement.js",
     "line": 24,
-    "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
-    "command": "eastmoney/convertible",
-    "file": "clis/eastmoney/convertible.js",
-    "line": 36,
     "text": "const limit = Math.max(1, Math.min(Number(args.limit) || 20, 100));",
     "occurrence": 0
   },
@@ -617,26 +609,10 @@
   },
   {
     "rule": "silent-clamp",
-    "command": "twitter/bookmarks",
-    "file": "clis/twitter/bookmarks.js",
-    "line": 157,
-    "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
     "command": "twitter/following",
     "file": "clis/twitter/following.js",
-    "line": 232,
+    "line": 214,
     "text": "const fetchCount = Math.min(50, limit - allUsers.length + 10);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
-    "command": "twitter/likes",
-    "file": "clis/twitter/likes.js",
-    "line": 208,
-    "text": "const fetchCount = Math.min(100, limit - allTweets.length + 10);",
     "occurrence": 0
   },
   {
@@ -659,7 +635,7 @@
     "rule": "silent-clamp",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 316,
+    "line": 134,
     "text": "const fetchCount = Math.min(USER_TWEETS_PAGE_SIZE, limit - all.length + 10);",
     "occurrence": 0
   },
@@ -753,34 +729,10 @@
   },
   {
     "rule": "silent-clamp",
-    "command": "youtube/history",
-    "file": "clis/youtube/history.js",
-    "line": 22,
-    "text": "await page.autoScroll({ times: Math.min(Math.max(Math.ceil(limit / 20), 1), 8), delayMs: 1200 });",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
-    "command": "youtube/history",
-    "file": "clis/youtube/history.js",
-    "line": 19,
-    "text": "const limit = Math.min(kwargs.limit || 30, 200);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
     "command": "youtube/playlist",
     "file": "clis/youtube/playlist.js",
     "line": 37,
     "text": "const limit = Math.min(kwargs.limit || 50, 200);",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-clamp",
-    "command": "youtube/search",
-    "file": "clis/youtube/search.js",
-    "line": 21,
-    "text": "const limit = Math.min(kwargs.limit || 20, 50);",
     "occurrence": 0
   },
   {
@@ -905,17 +857,9 @@
   },
   {
     "rule": "silent-sentinel",
-    "command": "twitter/article",
-    "file": "clis/twitter/article.js",
-    "line": 109,
-    "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
-    "occurrence": 0
-  },
-  {
-    "rule": "silent-sentinel",
     "command": "twitter/bookmarks",
     "file": "clis/twitter/bookmarks.js",
-    "line": 55,
+    "line": 57,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -923,7 +867,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/likes",
     "file": "clis/twitter/likes.js",
-    "line": 91,
+    "line": 73,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
@@ -963,7 +907,7 @@
     "rule": "silent-sentinel",
     "command": "twitter/tweets",
     "file": "clis/twitter/tweets.js",
-    "line": 163,
+    "line": 28,
     "text": "const screenName = user?.legacy?.screen_name || user?.core?.screen_name || 'unknown';",
     "occurrence": 0
   },
