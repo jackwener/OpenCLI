@@ -1,0 +1,20 @@
+{
+  "results": {
+    "quota": {
+      "selector": "Quota DOM extraction",
+      "shape": "countText,resetText,progressExists,progressAriaNow,parsedCount",
+      "observedCount": "5",
+      "data": {
+        "countText": "0 / 0",
+        "resetText": "[RESET_COUNTDOWN]",
+        "progressExists": true,
+        "progressAriaNow": 0,
+        "parsedCount": {
+          "used": 0,
+          "limit": 0,
+          "remaining": 0
+        }
+      }
+    }
+  }
+}

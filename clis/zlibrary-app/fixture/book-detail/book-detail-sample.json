@@ -1,0 +1,50 @@
+{
+  "results": {
+    "book-detail-card": {
+      "path": "/book/D2RAkwnKvL/astronomy-101.html",
+      "httpStatus": 200,
+      "shape": "bookId,title,author,year,language,extension,filesize,rating,quality,publisher,isbn,url_path,md5",
+      "observedCount": "13",
+      "data": {
+        "bookId": "2316106",
+        "title": "Astronomy 101",
+        "author": "Carolyn Collins Petersen",
+        "year": "",
+        "language": "",
+        "extension": "",
+        "filesize": "",
+        "rating": "",
+        "quality": "",
+        "publisher": "",
+        "isbn": "9781440563591",
+        "url_path": "",
+        "md5": ""
+      }
+    },
+    "book-detail-detail": {
+      "path": "/book/D2RAkwnKvL/astronomy-101.html",
+      "httpStatus": 200,
+      "shape": "publisher,isbn,pages,isbn10,isbn13,series,volume,categories,description,metaDescription,year,language,extension,filesize,mainFormat,quality,rating",
+      "observedCount": "17",
+      "data": {
+        "publisher": "Simon and Schuster",
+        "isbn": "",
+        "pages": "288",
+        "isbn10": "1440563594",
+        "isbn13": "9781440563591",
+        "series": "",
+        "volume": "",
+        "categories": "Astronomy",
+        "description": "A guide to astronomy covers such topics as the Sun, the planets, galaxies, the big bang, and astrobiology, along with brief profiles of prominent figures in astronomy.",
+        "metaDescription": "Read online or download for free from Z-Library the Book: Astronomy 101, Author: Carolyn Collins Petersen, Publisher: Simon and Schuster, ISBN: 9781440563591, Year: 2013, Language: English, Format: EPUB, Filesize: 2.37 MB",
+        "year": "2013",
+        "language": "English",
+        "extension": "EPUB",
+        "filesize": "2.37 MB",
+        "mainFormat": "epub",
+        "quality": "5.0",
+        "rating": "5.0"
+      }
+    }
+  }
+}

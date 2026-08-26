@@ -1,0 +1,15 @@
+{
+  "results": {
+    "profile-selectors": {
+      "selector": "profile DOM data",
+      "shape": "username,accountTier,navCardElement,filenameFormat",
+      "observedCount": "4",
+      "data": {
+        "username": "[REDACTED]",
+        "accountTier": "[REDACTED]",
+        "navCardElement": "found",
+        "filenameFormat": "{title} ({author})__MD5_{md5}__"
+      }
+    }
+  }
+}

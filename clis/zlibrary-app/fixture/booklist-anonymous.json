@@ -1,0 +1,103 @@
+{
+  "results": {
+    "api-current-user": {
+      "endpoint": "/papi/booklist/current-user/",
+      "httpStatus": 200,
+      "shape": "list<id,title>",
+      "observedCount": "22",
+      "response": {
+        "success": 1,
+        "list": [
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          },
+          {
+            "id": 0,
+            "title": "[REDACTED]"
+          }
+        ]
+      }
+    }
+  }
+}

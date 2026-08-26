@@ -1,0 +1,56 @@
+{
+  "results": {
+    "search-rows": {
+      "endpoint": "/s/Python?languages[]=chinese&extensions[]=EPUB&content_type=book&yearFrom=2005&yearTo=2010",
+      "httpStatus": 200,
+      "selector": "[data-testid='search-results']",
+      "fieldCount": 17,
+      "sampleValue": "Sample Book Title",
+      "shape": "array<rank,title,author,year,language,extension,contentType,size,url_path,id,qualityRating,formatQualityRating,favorite,booklist,downloaded,publisher,isbn,md5>",
+      "observedCount": "2",
+      "query": "test",
+      "data": [
+        {
+          "rank": 1,
+          "title": "Sample Book Title",
+          "author": "Test Author",
+          "year": "2024",
+          "language": "english",
+          "extension": "epub",
+          "contentType": "book",
+          "size": "1.5 MB",
+          "url_path": "/book/abc123/sample-book-title.html",
+          "id": "1234567",
+          "qualityRating": "5.0",
+          "formatQualityRating": "4.0",
+          "favorite": false,
+          "booklist": false,
+          "downloaded": false,
+          "publisher": "Test Publisher",
+          "isbn": "1234567890",
+          "md5": "abc123def456"
+        },
+        {
+          "rank": 2,
+          "title": "Another Test Book",
+          "author": "Another Author",
+          "year": "2023",
+          "language": "french",
+          "extension": "pdf",
+          "contentType": "book",
+          "size": "5.2 MB",
+          "url_path": "/book/xyz789/another-test-book.html",
+          "id": "7654321",
+          "qualityRating": "4.5",
+          "formatQualityRating": "3.5",
+          "favorite": false,
+          "booklist": false,
+          "downloaded": false,
+          "publisher": "Another Publisher",
+          "isbn": "0987654321",
+          "md5": "789ghi012jkl"
+        }
+      ]
+    }
+  }
+}
