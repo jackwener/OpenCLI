@@ -44,6 +44,10 @@ function isSensitiveName(name: string): boolean {
         || normalized === 'credentials'
         || normalized === 'signature'
         || normalized === 'sig'
+        || normalized === 'csrf'
+        || normalized === 'xcsrf'
+        || normalized === 'xsrf'
+        || normalized === 'xxsrf'
         || normalized === 'clientsecret'
         || normalized.endsWith('authorization')
         || normalized.endsWith('cookie')

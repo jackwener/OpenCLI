@@ -8,13 +8,14 @@ describe('network request sanitization', () => {
                 'Content-Type': 'application/json',
                 Authorization: 'Bearer live-secret',
                 Cookie: 'sid=live-cookie',
+                'X-CSRF': 'bare-header-csrf',
                 'X-Trace-Id': 'trace-1',
                 'X-Runtime-Id': 'a'.repeat(48),
             },
             bodyKind: 'string',
             bodyPreview: JSON.stringify({
                 query: 'timeline',
-                variables: { cursor: 'next', csrfToken: 'live-csrf' },
+                variables: { cursor: 'next', csrfToken: 'live-csrf', csrf: 'bare-body-csrf' },
             }),
             bodyFullSize: 91,
         });
@@ -24,13 +25,14 @@ describe('network request sanitization', () => {
                 'Content-Type': 'application/json',
                 Authorization: '<redacted>',
                 Cookie: '<redacted>',
+                'X-CSRF': '<redacted>',
                 'X-Trace-Id': 'trace-1',
                 'X-Runtime-Id': '<redacted>',
             },
             body_kind: 'json',
             body: {
                 query: 'timeline',
-                variables: { cursor: 'next', csrfToken: '<redacted>' },
+                variables: { cursor: 'next', csrfToken: '<redacted>', csrf: '<redacted>' },
             },
             body_full_size: 91,
             redacted: true,
@@ -39,13 +41,15 @@ describe('network request sanitization', () => {
         expect(JSON.stringify(request)).not.toContain('live-secret');
         expect(JSON.stringify(request)).not.toContain('live-cookie');
         expect(JSON.stringify(request)).not.toContain('live-csrf');
+        expect(JSON.stringify(request)).not.toContain('bare-header-csrf');
+        expect(JSON.stringify(request)).not.toContain('bare-body-csrf');
     });
 
     it('redacts form credentials and preserves repeated safe fields', () => {
         const request = sanitizeCapturedRequest({
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
             bodyKind: 'string',
-            bodyPreview: 'q=opencli&tag=one&tag=two&access_token=secret',
+            bodyPreview: 'q=opencli&tag=one&tag=two&access_token=secret&xsrf=bare-form-xsrf',
         });
 
         expect(request?.body_kind).toBe('form');
@@ -53,6 +57,7 @@ describe('network request sanitization', () => {
             q: 'opencli',
             tag: ['one', 'two'],
             access_token: '<redacted>',
+            xsrf: '<redacted>',
         });
         expect(request?.redacted).toBe(true);
     });
@@ -82,9 +87,11 @@ describe('network request sanitization', () => {
     });
 
     it('redacts credential-shaped URL query parameters', () => {
-        const url = sanitizeCapturedUrl('https://api.example.test/rsc-action?page=2&csrf_token=secret');
+        const url = sanitizeCapturedUrl('https://api.example.test/rsc-action?page=2&csrf_token=secret&xsrf=bare-query-xsrf');
         expect(url).toContain('page=2');
         expect(url).toContain('csrf_token=%3Credacted%3E');
+        expect(url).toContain('xsrf=%3Credacted%3E');
         expect(url).not.toContain('secret');
+        expect(url).not.toContain('bare-query-xsrf');
     });
 });
