@@ -12954,6 +12954,232 @@
     "siteSession": "persistent"
   },
   {
+    "site": "dribbble",
+    "name": "designer",
+    "description": "Browse Dribbble designers and freelance agencies",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "positional": true,
+        "help": "Optional designer or skill keyword"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of designers (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "username",
+      "name",
+      "rating",
+      "projectCount",
+      "budgetText",
+      "location",
+      "responseTime",
+      "serviceCount",
+      "skills",
+      "url",
+      "avatarUrl"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/designer.js",
+    "sourceFile": "dribbble/designer.js"
+  },
+  {
+    "site": "dribbble",
+    "name": "login",
+    "description": "Open dribbble login and wait until the browser session is authenticated",
+    "access": "write",
+    "domain": "dribbble.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 300,
+        "required": false,
+        "help": "Maximum seconds to wait for the user to finish login"
+      }
+    ],
+    "columns": [
+      "status",
+      "logged_in",
+      "site",
+      "username",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/auth.js",
+    "sourceFile": "dribbble/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "dribbble",
+    "name": "profile",
+    "description": "Show a public Dribbble designer profile",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "designer",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Dribbble username or profile slug (for example: halolab)"
+      }
+    ],
+    "columns": [
+      "username",
+      "name",
+      "intro",
+      "followersCount",
+      "followingCount",
+      "likesCount",
+      "availableForWork",
+      "website",
+      "url",
+      "avatarUrl"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/profile.js",
+    "sourceFile": "dribbble/profile.js"
+  },
+  {
+    "site": "dribbble",
+    "name": "service",
+    "description": "List services offered by a Dribbble designer",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "designer",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Dribbble username or profile slug (for example: halolab)"
+      },
+      {
+        "name": "query",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Optional service title filter"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of services (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "priceText",
+      "duration",
+      "description",
+      "quickHire",
+      "url",
+      "imageUrl",
+      "designer"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/service.js",
+    "sourceFile": "dribbble/service.js"
+  },
+  {
+    "site": "dribbble",
+    "name": "shot",
+    "description": "Search public Dribbble shots by keyword",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "public",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Search keyword"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "popular",
+        "required": false,
+        "help": "Sort order: following, popular, or recent (New & Noteworthy)",
+        "choices": [
+          "following",
+          "popular",
+          "recent"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of shots (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "designer",
+      "likes",
+      "views",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/shot.js",
+    "sourceFile": "dribbble/shot.js"
+  },
+  {
+    "site": "dribbble",
+    "name": "whoami",
+    "description": "Show the current logged-in dribbble account",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "logged_in",
+      "site",
+      "username",
+      "profile_url"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/auth.js",
+    "sourceFile": "dribbble/auth.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
     "site": "duckduckgo",
     "name": "search",
     "description": "Search DuckDuckGo",
