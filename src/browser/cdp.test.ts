@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
     static OPEN = 1;
+    static lastInstance: MockWebSocket | undefined;
     readyState = 1;
     private handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
     constructor(_url: string) {
+      MockWebSocket.lastInstance = this;
       queueMicrotask(() => this.emit('open'));
     }
 
@@ -22,7 +24,7 @@ const { MockWebSocket } = vi.hoisted(() => {
       this.readyState = 3;
     }
 
-    private emit(event: string, ...args: unknown[]): void {
+    emit(event: string, ...args: unknown[]): void {
       for (const handler of this.handlers.get(event) ?? []) {
         handler(...args);
       }
@@ -36,7 +38,7 @@ vi.mock('ws', () => ({
   WebSocket: MockWebSocket,
 }));
 
-import { CDPBridge } from './cdp.js';
+import { CDPBridge, CDP_REQUEST_BODY_CAPTURE_LIMIT } from './cdp.js';
 
 describe('CDPBridge cookies', () => {
   beforeEach(() => {
@@ -95,5 +97,42 @@ describe('CDPBridge cookies', () => {
       ['Page.handleJavaScriptDialog', { accept: true, promptText: 'ok' }],
       ['Page.getLayoutMetrics', {}],
     ]);
+  });
+
+  it('captures request headers and bounded post data on direct CDP pages', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    const fullBody = 'x'.repeat(CDP_REQUEST_BODY_CAPTURE_LIMIT + 5);
+    vi.spyOn(bridge, 'send').mockImplementation(async (method: string) => {
+      if (method === 'Network.getRequestPostData') return { postData: fullBody };
+      return {};
+    });
+
+    const page = await bridge.connect();
+    await page.startNetworkCapture?.();
+    MockWebSocket.lastInstance?.emit('message', Buffer.from(JSON.stringify({
+      method: 'Network.requestWillBeSent',
+      params: {
+        requestId: 'request-1',
+        request: {
+          method: 'POST',
+          url: 'https://example.test/rsc-action/actions/pagination',
+          headers: { Authorization: 'Bearer secret', 'Content-Type': 'application/json' },
+          hasPostData: true,
+        },
+      },
+    })));
+
+    const entries = await page.readNetworkCapture?.() as Array<Record<string, unknown>>;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      method: 'POST',
+      requestHeaders: { Authorization: 'Bearer secret', 'Content-Type': 'application/json' },
+      requestBodyKind: 'string',
+      requestBodyFullSize: fullBody.length,
+      requestBodyTruncated: true,
+    });
+    expect(String(entries[0].requestBodyPreview)).toHaveLength(CDP_REQUEST_BODY_CAPTURE_LIMIT);
   });
 });
