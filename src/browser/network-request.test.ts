@@ -9,6 +9,7 @@ describe('network request sanitization', () => {
                 Authorization: 'Bearer live-secret',
                 Cookie: 'sid=live-cookie',
                 'X-Trace-Id': 'trace-1',
+                'X-Runtime-Id': 'a'.repeat(48),
             },
             bodyKind: 'string',
             bodyPreview: JSON.stringify({
@@ -24,6 +25,7 @@ describe('network request sanitization', () => {
                 Authorization: '<redacted>',
                 Cookie: '<redacted>',
                 'X-Trace-Id': 'trace-1',
+                'X-Runtime-Id': '<redacted>',
             },
             body_kind: 'json',
             body: {

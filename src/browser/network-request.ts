@@ -55,16 +55,25 @@ function isSensitiveName(name: string): boolean {
         || normalized.endsWith('sessionid');
 }
 
+function isCredentialLikeValue(value: string): boolean {
+    const trimmed = value.trim();
+    return /^(?:bearer|basic)\s+\S+/i.test(trimmed)
+        || /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(trimmed)
+        || /^[a-f0-9]{32,}$/i.test(trimmed)
+        || /^[A-Za-z0-9_-]{48,}$/.test(trimmed);
+}
+
 function sanitizeHeaders(raw: unknown): { headers?: Record<string, string>; redacted: boolean } {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { redacted: false };
     const headers: Record<string, string> = {};
     let redacted = false;
     for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
-        if (isSensitiveName(name)) {
+        const stringValue = String(value);
+        if (isSensitiveName(name) || isCredentialLikeValue(stringValue)) {
             headers[name] = REDACTED;
             redacted = true;
         } else {
-            headers[name] = String(value);
+            headers[name] = stringValue;
         }
     }
     return { ...(Object.keys(headers).length > 0 ? { headers } : {}), redacted };
@@ -79,6 +88,9 @@ function redactObject(value: unknown): { value: unknown; redacted: boolean } {
             return result.value;
         });
         return { value: next, redacted };
+    }
+    if (typeof value === 'string' && isCredentialLikeValue(value)) {
+        return { value: REDACTED, redacted: true };
     }
     if (!value || typeof value !== 'object') return { value, redacted: false };
 
@@ -102,7 +114,7 @@ function formBody(raw: string): { body: Record<string, string | string[]>; redac
     const body: Record<string, string | string[]> = {};
     let redacted = false;
     for (const [key, value] of values.entries()) {
-        const safeValue = isSensitiveName(key) ? REDACTED : value;
+        const safeValue = isSensitiveName(key) || isCredentialLikeValue(value) ? REDACTED : value;
         redacted ||= safeValue === REDACTED;
         const previous = body[key];
         if (previous === undefined) body[key] = safeValue;
@@ -188,7 +200,8 @@ export function sanitizeCapturedUrl(rawUrl: string): string {
         const url = new URL(rawUrl);
         let changed = false;
         for (const key of [...url.searchParams.keys()]) {
-            if (isSensitiveName(key)) {
+            const value = url.searchParams.get(key) ?? '';
+            if (isSensitiveName(key) || isCredentialLikeValue(value)) {
                 url.searchParams.set(key, REDACTED);
                 changed = true;
             }
