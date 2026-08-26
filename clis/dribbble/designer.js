@@ -18,7 +18,7 @@ cli({
     access: 'read',
     browser: true,
     args: [
-        { name: 'query', positional: true, default: '', help: 'Optional designer or skill keyword' },
+        { name: 'query', type: 'string', default: '', help: 'Optional designer or skill keyword' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of designers (max 30)' },
     ],
     columns: [

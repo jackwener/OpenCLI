@@ -12964,10 +12964,9 @@
     "args": [
       {
         "name": "query",
-        "type": "str",
+        "type": "string",
         "default": "",
         "required": false,
-        "positional": true,
         "help": "Optional designer or skill keyword"
       },
       {
