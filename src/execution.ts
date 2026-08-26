@@ -28,7 +28,7 @@ import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
-import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
+import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, normalizeCdpEndpoint, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
@@ -178,6 +178,34 @@ function urlMatchesDomain(url: string | null | undefined, domain: string | undef
   }
 }
 
+function resolveManualCdpEndpoint(): string | undefined {
+  const endpoint = normalizeCdpEndpoint(process.env.OPENCLI_CDP_ENDPOINT);
+  if (!endpoint) return undefined;
+  try {
+    const parsed = new URL(endpoint);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:' && parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+      throw new Error(`unsupported protocol ${parsed.protocol}`);
+    }
+  } catch {
+    throw new CommandExecutionError(
+      `Invalid OPENCLI_CDP_ENDPOINT: ${endpoint}`,
+      'Set OPENCLI_CDP_ENDPOINT to a valid http(s) or ws(s) URL, e.g. http://127.0.0.1:9222.',
+    );
+  }
+  return endpoint;
+}
+
+function readCdpEndpointPort(endpoint: string): number {
+  const port = Number(new URL(endpoint).port);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new CommandExecutionError(
+      `Invalid OPENCLI_CDP_ENDPOINT: ${endpoint}`,
+      'Include the remote debugging port in the endpoint, e.g. http://127.0.0.1:9222.',
+    );
+  }
+  return port;
+}
+
 function isDomainRootPreNav(preNavUrl: string, domain: string | undefined): boolean {
   if (!domain) return false;
   try {
@@ -249,9 +277,9 @@ export async function executeCommand(
 
       if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
-        const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
+        const manualEndpoint = resolveManualCdpEndpoint();
         if (manualEndpoint) {
-          const port = Number(new URL(manualEndpoint).port);
+          const port = readCdpEndpointPort(manualEndpoint);
           if (!await probeCDP(port)) {
             throw new CommandExecutionError(
               `CDP not reachable at ${manualEndpoint}`,
