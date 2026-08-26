@@ -21,7 +21,7 @@
 //     third, data-sort-free layout with locale-dependent text cells.
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { cleanRating, DOMAIN, extractTable, fetchDetails, formatDetail, toDate } from './utils.js';
+import { cleanRating, DOMAIN, extractTable, fetchDetails, formatDetail, toDate, warnPageCap } from './utils.js';
 
 const TYPES = {
     'most-played': '/charts/',
@@ -45,7 +45,7 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'type', type: 'string', default: 'most-played', help: `Ranking table: ${Object.keys(TYPES).join(' / ')}` },
-        { name: 'limit', type: 'int', default: 25, help: `Rows to return (max ${MAX_LIMIT})` },
+        { name: 'limit', type: 'int', default: 25, help: `Rows to return (max ${MAX_LIMIT}; SteamDB serves one fixed page (~100 rows), so more than that returns ~100)` },
         { name: 'detail', type: 'bool', default: false, help: 'Enrich each game via its hover card (tags, microtrailer, screenshots, developer, platforms, anti-cheat). 1 request/game' },
     ],
     // Player metrics stay flat (they identify most rankings); store metrics and
@@ -72,6 +72,7 @@ cli({
             // No ranking table usually means a Cloudflare interstitial or a redesign.
             throw new CommandExecutionError(`no ranking table found on ${path} — the page may have shown a challenge or changed layout`);
         }
+        warnPageCap({ path, want: limit, got: base.length, argName: 'limit' });
 
         const wanted = base.slice(0, limit);
         const detailMap = wantDetail ? await fetchDetails(page, wanted.map((r) => r.appid)) : {};

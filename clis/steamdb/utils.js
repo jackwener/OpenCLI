@@ -13,10 +13,28 @@
 //     (tags / platforms / developer / microtrailer / screenshots / anti-cheat).
 //   - reduceWeekSeries(values): reduce a GetGraphWeek hourly player series to a
 //     momentum summary (avg last 24h vs avg first 24h).
+//   - detectPageBlock(): classify a page that carries no ranking table, so a
+//     throttle is never reported as an anti-bot challenge (see below).
+//
+// THREE DIFFERENT LIMITS sit in front of this site — keep them apart:
+//   1. Cloudflare edge      -> solved by browser:true + the real session.
+//   2. GetGraphWeek bursts  -> ~80 req/10s; handled in fetchPlayerMomentum.
+//   3. SteamDB's OWN page limiter -> loading several pages back to back returns
+//      a 200 page titled "Error · SteamDB" reading "Do not refresh this page so
+//      much." It clears in ~2 minutes. detectPageBlock() names it exactly,
+//      because calling it a "challenge or layout change" sends the caller
+//      hunting an anti-bot problem that is not there.
 import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { log } from '@jackwener/opencli/logger';
 
 export const BASE = 'https://steamdb.info';
 export const DOMAIN = 'steamdb.info';
+
+// Every ranking/stats table ships ONE fixed page of rows (100 as of 2026-08-25)
+// with no way to page past it, so a --limit/--scan above that silently returns
+// fewer rows than asked. warnPageCap() says so on stderr instead of letting the
+// caller read a short result as "that is all the data there is".
+export const PAGE_ROW_CAP_HINT = 'SteamDB ships one fixed page of rows per table (~100) with no way to page past it.';
 
 // Momentum sources shared by rising / hot-tags. `all/released/new-releases`
 // read the mixed wishlist-mover table; `upcoming` reads the dedicated page.
@@ -99,6 +117,28 @@ export function extractRankingRows() {
     return { rows };
 }
 
+// Page-context function (self-contained, no imports/closures): classify a page
+// that produced no ranking table. Returns null when the page looks normal — the
+// caller then reports a genuine layout change. Order matters: SteamDB's own
+// throttle page is checked FIRST so it is never mistaken for a Cloudflare
+// interstitial. Uses innerText when available and falls back to textContent so
+// the same function works under JSDOM in tests.
+export function detectPageBlock() {
+    const title = (document.title || '').trim();
+    const body = document.body;
+    const text = body ? (body.innerText || body.textContent || '') : '';
+    if (/do not refresh this page so much/i.test(text)) {
+        return { kind: 'rate-limit', title };
+    }
+    if (/just a moment|checking your browser|verify you are human|cf-browser-verification|enable javascript and cookies/i.test(text)) {
+        return { kind: 'challenge', title };
+    }
+    if (/^error\b/i.test(title)) {
+        return { kind: 'error-page', title };
+    }
+    return null;
+}
+
 // Page-context function (self-contained): parse one RenderAppHover HTML
 // fragment. Needs a global DOMParser — the browser's, or JSDOM's in tests.
 export function parseHoverFragment(html) {
@@ -168,6 +208,19 @@ export function buildCohort(rows, phase, { withinDays = 60, now }) {
     return cohort;
 }
 
+// Warn when the caller asked for more rows than the page can ever serve. Only
+// fires on that specific silent cap (want > rows the page shipped), never on a
+// cohort filter legitimately narrowing the result. `warn` is injectable so tests
+// can assert the message without writing to stderr.
+export function warnPageCap({ path, want, got, argName, warn = log.warn }) {
+    if (!Number.isFinite(want) || !Number.isFinite(got) || want <= got) return false;
+    const extra = path.startsWith('/charts/')
+        ? ' Logged out, /charts/ is additionally filtered to games with 1K+ current players or 10K+ peak.'
+        : '';
+    warn(`steamdb: ${path} served ${got} rows, so --${argName} ${want} was capped at ${got}. ${PAGE_ROW_CAP_HINT}${extra}`);
+    return true;
+}
+
 // Format the grouped detail object for a row (or null when not enriched).
 export function formatDetail(d) {
     if (!d) return null;
@@ -181,15 +234,48 @@ export function formatDetail(d) {
     };
 }
 
-// Navigate to a data-sort ranking page and return one raw row per game.
-export async function extractTable(page, path) {
-    try {
-        await page.goto(`${BASE}${path}`, { waitUntil: 'load', settleMs: 600 });
-    } catch (error) {
-        throw new CommandExecutionError(`could not open ${BASE}${path}: ${error?.message || error}`);
+// Turn a detectPageBlock() verdict into a typed, correctly-named error. Kept
+// out of extractTable so the wording lives in one place.
+export function pageBlockError(block, url) {
+    if (block.kind === 'rate-limit') {
+        return new CommandExecutionError(
+            `SteamDB is throttling this session — ${url} returned its "Do not refresh this page so much." error page`,
+            "This is SteamDB's own page rate limiter, not a Cloudflare block and not a layout change. It clears in ~2 minutes; space steamdb commands ~30s apart.",
+        );
     }
-    const parsed = unwrapBrowser(await page.evaluate(`(${extractRankingRows.toString()})()`));
-    return Array.isArray(parsed?.rows) ? parsed.rows : [];
+    if (block.kind === 'challenge') {
+        return new CommandExecutionError(
+            `Cloudflare challenge on ${url}`,
+            'Open the page in the connected Chrome profile, clear the challenge once, then retry.',
+        );
+    }
+    return new CommandExecutionError(
+        `SteamDB returned an error page for ${url} (title: "${block.title}")`,
+        'Retry in a minute. If it persists the page may have moved or been renamed.',
+    );
+}
+
+// Navigate to a data-sort ranking page and return one raw row per game. Throws
+// a named error when the page was throttled/challenged instead of handing the
+// caller an empty array it would have to guess about.
+export async function extractTable(page, path) {
+    const url = `${BASE}${path}`;
+    try {
+        await page.goto(url, { waitUntil: 'load', settleMs: 600 });
+    } catch (error) {
+        throw new CommandExecutionError(`could not open ${url}: ${error?.message || error}`);
+    }
+    const script = `(() => {
+        const extractRows = ${extractRankingRows.toString()};
+        const detectBlock = ${detectPageBlock.toString()};
+        const out = extractRows();
+        const rows = out && Array.isArray(out.rows) ? out.rows : [];
+        return { rows, block: rows.length ? null : detectBlock() };
+    })()`;
+    const parsed = unwrapBrowser(await page.evaluate(script));
+    const rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+    if (!rows.length && parsed?.block) throw pageBlockError(parsed.block, url);
+    return rows;
 }
 
 // Fetch + parse the hover card for a list of appids, concurrently, from page

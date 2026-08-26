@@ -23,7 +23,7 @@
 //     error instead of returning a silently empty/partial result.
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { DOMAIN, extractTable, fetchDetails, fetchPlayerMomentum, formatDetail } from './utils.js';
+import { DOMAIN, extractTable, fetchDetails, fetchPlayerMomentum, formatDetail, warnPageCap } from './utils.js';
 
 const CHARTS = '/charts/';
 const MAX_SCAN = 200;
@@ -41,7 +41,7 @@ cli({
     browser: true,
     navigateBefore: false,
     args: [
-        { name: 'scan', type: 'int', default: 50, help: `How many Most-Played games to analyze (max ${MAX_SCAN}). 1 request/game` },
+        { name: 'scan', type: 'int', default: 50, help: `How many Most-Played games to analyze (max ${MAX_SCAN}; SteamDB serves one fixed page (~100 rows), so more than that returns ~100). 1 request/game` },
         { name: 'by', type: 'string', default: 'pct', help: 'Rank by: pct (relative growth) or abs (absolute player gain)' },
         { name: 'min-players', type: 'int', default: 1000, help: 'Ignore games below this current player count (noise floor for pct)' },
         { name: 'limit', type: 'int', default: 25, help: `Rows to return (max ${MAX_LIMIT})` },
@@ -72,6 +72,7 @@ cli({
         if (charts.length === 0) {
             throw new CommandExecutionError(`no Most Played table on ${CHARTS} — the page may have shown a challenge or changed layout`);
         }
+        warnPageCap({ path: CHARTS, want: scan, got: charts.length, argName: 'scan' });
 
         // chartRank is the game's position on Most Played (1-based) before we
         // re-rank by growth.

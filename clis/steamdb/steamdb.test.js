@@ -8,10 +8,12 @@ import { getRegistry } from '@jackwener/opencli/registry';
 import {
     buildCohort,
     cleanRating,
+    detectPageBlock,
     extractRankingRows,
     parseHoverFragment,
     reduceWeekSeries,
     toDate,
+    warnPageCap,
 } from './utils.js';
 import './rankings.js';
 import './rising.js';
@@ -23,6 +25,7 @@ const CHARTS_FIXTURE = readFileSync(join(__dirname, '__fixtures__/charts.html'),
 const WISHLIST_FIXTURE = readFileSync(join(__dirname, '__fixtures__/wishlistactivity.html'), 'utf8');
 const HOVER_FIXTURE = readFileSync(join(__dirname, '__fixtures__/app-hover.html'), 'utf8');
 const GRAPH_WEEK = JSON.parse(readFileSync(join(__dirname, '__fixtures__/graph-week.json'), 'utf8'));
+const THROTTLED_FIXTURE = readFileSync(join(__dirname, '__fixtures__/error-throttled.html'), 'utf8');
 
 // Run a page-context function against a JSDOM document, the same way the live
 // adapter runs it against the real page via `${fn.toString()}` injection.
@@ -234,5 +237,66 @@ describe('steamdb/player-gainers func() — throttle fail-fast', () => {
         await expect(
             getRegistry().get('steamdb/player-gainers').func(page, { scan: 5, by: 'pct', limit: 5 }),
         ).rejects.toThrow(/rate-limited/);
+    });
+});
+
+describe("detectPageBlock — telling SteamDB's three limits apart", () => {
+    it("names the site's own throttle page, not a challenge", () => {
+        const block = withDom(THROTTLED_FIXTURE, () => detectPageBlock());
+        expect(block).toEqual({ kind: 'rate-limit', title: 'Error · SteamDB' });
+    });
+
+    it('returns null on a normal ranking page', () => {
+        expect(withDom(CHARTS_FIXTURE, () => detectPageBlock())).toBeNull();
+    });
+
+    it('classifies a Cloudflare interstitial as a challenge', () => {
+        const html = '<html><head><title>Just a moment...</title></head>'
+            + '<body><h1>Checking your browser before accessing steamdb.info</h1></body></html>';
+        expect(withDom(html, () => detectPageBlock())).toEqual({ kind: 'challenge', title: 'Just a moment...' });
+    });
+
+    it('falls back to a generic error page when the body says nothing recognisable', () => {
+        const html = '<html><head><title>Error · SteamDB</title></head><body><p>That’s all we know.</p></body></html>';
+        expect(withDom(html, () => detectPageBlock())).toEqual({ kind: 'error-page', title: 'Error · SteamDB' });
+    });
+});
+
+describe('extractTable — a throttled page is a named error, not an empty result', () => {
+    const run = (args, page) => getRegistry().get('steamdb/rankings').func(page, args);
+
+    it('reports the throttle by name and points at the real cause', async () => {
+        const page = createPageMock(async (script) => withDom(THROTTLED_FIXTURE, () => eval(script)));
+        const err = await run({ type: 'most-played', limit: 5 }, page).catch((e) => e);
+        expect(err).toBeInstanceOf(CommandExecutionError);
+        expect(err.message).toMatch(/throttling this session/);
+        expect(err.message).toMatch(/Do not refresh this page so much/);
+        // The old wording sent readers hunting an anti-bot problem that isn't there.
+        expect(err.message).not.toMatch(/challenge or changed layout/);
+        expect(err.hint).toMatch(/not a Cloudflare block/);
+    });
+});
+
+describe('warnPageCap — the silent 100-row cap is spoken aloud', () => {
+    it('warns when more rows were asked for than the page can serve', () => {
+        const warn = vi.fn();
+        expect(warnPageCap({ path: '/stats/mostwished/', want: 250, got: 100, argName: 'limit', warn })).toBe(true);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0][0]).toMatch(/served 100 rows, so --limit 250 was capped at 100/);
+    });
+
+    it('stays quiet when the page served everything that was asked for', () => {
+        const warn = vi.fn();
+        expect(warnPageCap({ path: '/charts/', want: 25, got: 100, argName: 'limit', warn })).toBe(false);
+        expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('adds the logged-out /charts/ filter note only for /charts/', () => {
+        const warn = vi.fn();
+        warnPageCap({ path: '/charts/', want: 200, got: 100, argName: 'scan', warn });
+        expect(warn.mock.calls[0][0]).toMatch(/1K\+ current players or 10K\+ peak/);
+        const warn2 = vi.fn();
+        warnPageCap({ path: '/upcoming/', want: 200, got: 100, argName: 'scan', warn: warn2 });
+        expect(warn2.mock.calls[0][0]).not.toMatch(/1K\+ current players/);
     });
 });

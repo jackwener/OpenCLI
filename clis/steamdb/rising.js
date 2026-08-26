@@ -8,11 +8,12 @@
 //
 // Sources per --phase (each is a data-sort table; we re-sort by 7d Gain because
 // neither page is sorted by it):
-//   upcoming      -> /upcoming/                (300 unreleased games)
+//   upcoming      -> /upcoming/                (unreleased games, follows + 7d gain)
 //   all / released / new-releases
 //                 -> /stats/wishlistactivity/  (top ~100 wishlist movers, mixed)
 //
-// HONEST LIMIT: each page loads a fixed top set (100 / 300 rows) that is NOT
+// HONEST LIMIT: each page loads ONE fixed top set (100 rows as of 2026-08-25,
+// and /upcoming/ used to serve 300 — do not hard-code it) that is NOT
 // ordered by 7d Gain, so we surface the hottest *within that loaded set*. A
 // climber outside it (e.g. a low-follower game with a sudden spike that did not
 // make the page's default cut) is not visible. For released momentum measured
@@ -21,6 +22,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import {
     buildCohort, cleanRating, DOMAIN, extractTable, fetchDetails, formatDetail, RISING_SOURCES, toDate,
+    warnPageCap,
 } from './utils.js';
 
 const PHASES = Object.keys(RISING_SOURCES);
@@ -39,7 +41,7 @@ cli({
     args: [
         { name: 'phase', type: 'string', default: 'all', help: `Which cohort: ${PHASES.join(' / ')}` },
         { name: 'within-days', type: 'int', default: 60, help: 'For --phase new-releases: released within this many days' },
-        { name: 'limit', type: 'int', default: 25, help: `Rows to return (max ${MAX_LIMIT})` },
+        { name: 'limit', type: 'int', default: 25, help: `Rows to return (max ${MAX_LIMIT}; SteamDB serves one fixed page (~100 rows), so more than that returns ~100)` },
         { name: 'detail', type: 'bool', default: false, help: 'Enrich each game via its hover card (tags/microtrailer/etc). 1 request/game' },
     ],
     columns: [
@@ -66,6 +68,7 @@ cli({
         if (rows.length === 0) {
             throw new CommandExecutionError(`no table found on ${path} — the page may have shown a challenge or changed layout`);
         }
+        warnPageCap({ path, want: limit, got: rows.length, argName: 'limit' });
 
         const isReleased = (r) => r.releaseTs != null && r.releaseTs <= now;
         const cohort = buildCohort(rows, phase, { withinDays, now });

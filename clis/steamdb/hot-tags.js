@@ -16,7 +16,7 @@
 // hot cohort, not an all-of-Steam tag census.
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { buildCohort, DOMAIN, extractTable, fetchDetails, RISING_SOURCES } from './utils.js';
+import { buildCohort, DOMAIN, extractTable, fetchDetails, RISING_SOURCES, warnPageCap } from './utils.js';
 
 const PHASES = Object.keys(RISING_SOURCES);
 const MAX_SCAN = 200;
@@ -34,7 +34,7 @@ cli({
     navigateBefore: false,
     args: [
         { name: 'phase', type: 'string', default: 'all', help: `Cohort to read tags from: ${PHASES.join(' / ')}` },
-        { name: 'scan', type: 'int', default: 60, help: `How many top-rising games to sample tags from (max ${MAX_SCAN}). 1 request/game` },
+        { name: 'scan', type: 'int', default: 60, help: `How many top-rising games to sample tags from (max ${MAX_SCAN}; SteamDB serves one fixed page (~100 rows), so more than that returns ~100). 1 request/game` },
         { name: 'within-days', type: 'int', default: 60, help: 'For --phase new-releases: released within this many days' },
         { name: 'limit', type: 'int', default: 25, help: `Number of tags to return (max ${MAX_LIMIT})` },
         { name: 'min-games', type: 'int', default: 2, help: 'Only keep tags shared by at least this many sampled games' },
@@ -65,6 +65,7 @@ cli({
         if (rows.length === 0) {
             throw new CommandExecutionError(`no table found on ${path} — the page may have shown a challenge or changed layout`);
         }
+        warnPageCap({ path, want: scan, got: rows.length, argName: 'scan' });
 
         const cohort = buildCohort(rows, phase, { withinDays, now }).slice(0, scan);
         if (cohort.length === 0) {
