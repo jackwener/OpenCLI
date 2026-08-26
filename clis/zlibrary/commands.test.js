@@ -34,6 +34,23 @@ describe('zlibrary commands', () => {
     await expect(command.func(page, { query: 'missing', limit: 10 })).rejects.toBeInstanceOf(EmptyResultError);
   });
 
+  it('search returns results with absolute HTTP(S) URL', async () => {
+    const command = getRegistry().get('zlibrary/search');
+    const page = createPageMock([
+      JSON.stringify([{ rank:1, title:'Book One', author:'Author One',
+          url:'https://z-library.im/book/12345' }]),
+    ]);
+    const [row] = await command.func(page, { query: 'test', limit: 10 });
+    expect(row.url).toMatch(/^https?:\/\//);
+    expect(row.title).toBe('Book One');
+  });
+
+  it('search columns use url not urlRelative', () => {
+    const columns = getRegistry().get('zlibrary/search').columns;
+    expect(columns).toContain('url');
+    expect(columns).not.toContain('urlRelative');
+  });
+
   it('info waits seconds, not milliseconds-as-seconds, before extracting formats', async () => {
     const command = getRegistry().get('zlibrary/info');
     const page = createPageMock([
