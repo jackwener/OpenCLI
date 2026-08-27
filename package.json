@@ -37,7 +37,9 @@
     "cli-manifest.json",
     "scripts/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "!**/*.test.*",
+    "!**/__fixtures__/"
   ],
   "scripts": {
     "dev": "tsx src/main.ts",
