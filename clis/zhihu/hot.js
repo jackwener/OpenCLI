@@ -52,6 +52,7 @@ cli({
     description: '知乎热榜',
     domain: 'www.zhihu.com',
     strategy: Strategy.COOKIE,
+    navigateBefore: false,
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of items to return (1-50)' },
     ],

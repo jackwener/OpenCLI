@@ -48671,7 +48671,7 @@
     "type": "js",
     "modulePath": "zhihu/hot.js",
     "sourceFile": "zhihu/hot.js",
-    "navigateBefore": "https://www.zhihu.com"
+    "navigateBefore": false
   },
   {
     "site": "zhihu",
