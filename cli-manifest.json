@@ -48658,14 +48658,15 @@
         "type": "int",
         "default": 20,
         "required": false,
-        "help": "Number of items to return"
+        "help": "Number of items to return (1-50)"
       }
     ],
     "columns": [
       "rank",
       "title",
       "heat",
-      "answers"
+      "answers",
+      "url"
     ],
     "type": "js",
     "modulePath": "zhihu/hot.js",
