@@ -7,7 +7,7 @@
  * validate artifact -> ingest -> return result. CLI loop owns book iteration
  * and retry; workflow owns the artifact pipeline.
  *
- * @module _shared/download/workflow
+ * @module _shared/book-download/workflow
  */
 
 import fs from 'node:fs'

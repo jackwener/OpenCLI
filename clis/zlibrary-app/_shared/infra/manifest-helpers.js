@@ -7,14 +7,14 @@
  *
  * Imported by:
  *   - utils.js (re-exports for backward compat)
- *   - _shared/download-workflow.js (direct import)
+ *   - _shared/book-download/workflow.js (direct import)
  */
 
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { isLikelyHtmlPrefix, MIN_DOWNLOAD_SIZE } from '../download/contracts.js'
+import { isLikelyHtmlPrefix, MIN_DOWNLOAD_SIZE } from '../book-download/contracts.js'
 import { formatMd5Tag } from './md5-format.js'
 
 // ---------------------------------------------------------------------------

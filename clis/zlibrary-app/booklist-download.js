@@ -36,19 +36,19 @@ import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { appendFileSync, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { resolveBooklistByNameOrThrow, getBooklistBooks, getScopeTabUrl } from './_shared/booklist/api.js'
-import { extractNativeDownloadLink } from './_shared/download/link.js'
+import { extractNativeDownloadLink } from './_shared/book-download/link.js'
 import { isCompleted, loadManifest, saveManifestEntry, saveCompletedManifestEntry, verifyCompleted, sanitiseBookId, renderFilenameTemplate, normalizeOutputKeys, readFirstBytes, FILENAME_TEMPLATE_DEFAULT } from './_shared/infra/manifest-helpers.js';
 import { validateExtension, EXTS } from '../zlibrary/dom.js';
 import { buildBookPageMetadata } from './_shared/book-metadata.js';
 import { extractBookMd5 } from './_shared/infra/md5-format.js';
-import { detectHtmlBlockContent, isLikelyHtmlPrefix } from './_shared/download/contracts.js'
-import { MIN_DOWNLOAD_SIZE } from './_shared/download/contracts.js'
+import { detectHtmlBlockContent, isLikelyHtmlPrefix } from './_shared/book-download/contracts.js'
+import { MIN_DOWNLOAD_SIZE } from './_shared/book-download/contracts.js'
 import { DownloadFixtureRecorder } from './_shared/fixture/index.js'
 import { toSameOriginAbsoluteUrl, toDownloadUrlRelative } from './_shared/infra/url-boundary.js'
-import { initCdpDownload } from './_shared/download/transport.js'
+import { initCdpDownload } from './_shared/book-download/transport.js'
 import { loadQuotaTracker } from './_shared/quota/checker.js'
 import { acquireLockOrThrow } from './_shared/infra/pid-lock.js'
-import { recordCompletedDownload } from './_shared/download/workflow.js'
+import { recordCompletedDownload } from './_shared/book-download/workflow.js'
 
 // ---------------------------------------------------------------------------
 // Constants

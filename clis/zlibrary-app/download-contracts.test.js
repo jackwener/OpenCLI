@@ -6,7 +6,7 @@ import {
   sanitizeDownloadTraceUrl,
   toNonNegativeInteger,
   extractCdnMd5,
-} from './_shared/download/contracts.js'
+} from './_shared/book-download/contracts.js'
 
 // ---------------------------------------------------------------------------
 // validateDownloadRequest

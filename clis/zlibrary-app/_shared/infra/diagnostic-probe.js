@@ -10,7 +10,7 @@
  * @module _shared/diagnostic-probe
  */
 
-import { sanitizeDownloadTraceUrl } from '../download/contracts.js'
+import { sanitizeDownloadTraceUrl } from '../book-download/contracts.js'
 import { doctorRow } from '../snapshot/rows.js'
 
 // ---------------------------------------------------------------------------

@@ -100,10 +100,10 @@ export {
   hasCanonicalDownloadForBookId,
 } from './_shared/infra/manifest-helpers.js'
 
-// download-contracts.js → _shared/download/contracts.js
+// download-contracts.js → _shared/book-download/contracts.js
 export {
   sniffMimeType,
   isLikelyHtmlPrefix,
   detectDownloadedContentKind,
   detectHtmlBlockContent,
-} from './_shared/download/contracts.js'
+} from './_shared/book-download/contracts.js'

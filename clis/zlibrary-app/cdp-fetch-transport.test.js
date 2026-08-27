@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ElectronCdpFetchDownloadTransport } from './_shared/download/transport.js'
+import { ElectronCdpFetchDownloadTransport } from './_shared/book-download/transport.js'
 
 // ---------------------------------------------------------------------------
 // Helpers

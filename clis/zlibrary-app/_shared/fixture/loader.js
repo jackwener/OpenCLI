@@ -9,7 +9,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { validateDownloadTraceV2 } from '../download/contracts.js'
+import { validateDownloadTraceV2 } from '../book-download/contracts.js'
 
 /**
  * Load and validate a directory of .fixture.json download trace files.

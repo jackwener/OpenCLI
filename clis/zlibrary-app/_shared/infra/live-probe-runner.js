@@ -22,7 +22,7 @@
  */
 
 import { CDPBridge } from '@jackwener/opencli/browser/cdp'
-import { sanitizeDownloadTraceUrl } from '../download/contracts.js'
+import { sanitizeDownloadTraceUrl } from '../book-download/contracts.js'
 import { toDownloadUrlRelative } from './url-boundary.js'
 
 // ---------------------------------------------------------------------------
@@ -213,7 +213,7 @@ async function runLiveProbes() {
     // Probe 0: Target enumeration
     // -----------------------------------------------------------------------
     phaseLog('probe_targets')
-    const { probeCdpTargets } = await import('../download/probe.js')
+    const { probeCdpTargets } = await import('../book-download/probe.js')
     let targetsResult
     try {
       targetsResult = await probeCdpTargets(page)
@@ -228,7 +228,7 @@ async function runLiveProbes() {
     // Probe 1: Domain enumeration
     // -----------------------------------------------------------------------
     phaseLog('probe_domains')
-    const { probeCdpDomains } = await import('../download/probe.js')
+    const { probeCdpDomains } = await import('../book-download/probe.js')
     let domainsResult
     try {
       domainsResult = await probeCdpDomains(page)
@@ -243,7 +243,7 @@ async function runLiveProbes() {
     // Probe 2: Browser.setDownloadBehavior
     // -----------------------------------------------------------------------
     phaseLog('probe_download_behavior')
-    const { probeBrowserDownloadBehavior } = await import('../download/probe.js')
+    const { probeBrowserDownloadBehavior } = await import('../book-download/probe.js')
     let behaviorResult
     try {
       behaviorResult = await probeBrowserDownloadBehavior(page, eventBus, downloadPath)
@@ -260,7 +260,7 @@ async function runLiveProbes() {
     // Probe 3-7: Fetch stream
     // -----------------------------------------------------------------------
     phaseLog('probe_fetch_stream')
-    const { probeFetchStreamLive } = await import('../download/probe.js')
+    const { probeFetchStreamLive } = await import('../book-download/probe.js')
     let fetchResult = null
 
     try {

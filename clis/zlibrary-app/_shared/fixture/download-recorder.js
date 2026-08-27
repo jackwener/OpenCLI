@@ -10,7 +10,7 @@
  * @module download-recorder
  */
 import path from 'node:path'
-import { createDownloadTraceV2, sanitizeDownloadTraceUrl } from '../download/contracts.js'
+import { createDownloadTraceV2, sanitizeDownloadTraceUrl } from '../book-download/contracts.js'
 import { writeJsonAtomic, formatFixtureTimestamp, sanitiseFixtureId } from './output.js'
 
 class DownloadFixtureRecorder {

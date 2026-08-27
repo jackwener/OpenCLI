@@ -18,15 +18,15 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { parseBookIdFromUrlPath } from './_shared/infra/book-selector.js';
-import { extractDownloadLinkFromCurrentPage } from './_shared/download/link.js';
+import { extractDownloadLinkFromCurrentPage } from './_shared/book-download/link.js';
 import { getCurrentHttpOrigin, assertSameOriginNotLoginWall, toDownloadUrlRelative } from './_shared/infra/url-boundary.js';
 import { loadQuotaTracker } from './_shared/quota/checker.js';
 import { acquireLockOrThrow } from './_shared/infra/pid-lock.js';
 import { DownloadFixtureRecorder } from './_shared/fixture/index.js';
 import { hasCanonicalDownloadForBookId, FILENAME_TEMPLATE_DEFAULT } from './_shared/infra/manifest-helpers.js';
 import { buildBookPageMetadata } from './_shared/book-metadata.js';
-import { initCdpDownload } from './_shared/download/transport.js';
-import { recordCompletedDownload } from './_shared/download/workflow.js';
+import { initCdpDownload } from './_shared/book-download/transport.js';
+import { recordCompletedDownload } from './_shared/book-download/workflow.js';
 
 // ---------------------------------------------------------------------------
 // CLI command registration

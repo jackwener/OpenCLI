@@ -13,7 +13,7 @@
 
 import { assertSameOriginHttpUrl, assertSameOriginNotLoginWall } from './url-boundary.js'
 import { buildBookPageMetadata } from '../book-metadata.js'
-import { extractDownloadLinkFromCurrentPage } from '../download/link.js'
+import { extractDownloadLinkFromCurrentPage } from '../book-download/link.js'
 import { extractBookMd5 } from './md5-format.js'
 
 /**

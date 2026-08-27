@@ -12,7 +12,7 @@ describe('download-rules', function () {
       expect(rc.code).toBe('NO_DL_REQUEST')
       expect(rc.confidence).toBe('high')
       expect(rc.adapterHints.length).toBeGreaterThan(0)
-      expect(rc.adapterHints[0].file).toBe('_shared/download/link.js')
+      expect(rc.adapterHints[0].file).toBe('_shared/book-download/link.js')
     })
 
     it('returns high confidence for DL_STATUS_403', function () {

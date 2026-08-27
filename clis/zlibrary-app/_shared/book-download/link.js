@@ -6,7 +6,7 @@
  *
  * Used by both `download.js` (single-book) and `booklist-download.js` (batch).
  *
- * @module _shared/download-link
+ * @module _shared/book-download/link
  */
 
 import { CommandExecutionError } from '@jackwener/opencli/errors'

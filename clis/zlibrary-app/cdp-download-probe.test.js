@@ -4,7 +4,7 @@ import {
   probeCdpDomains,
   probeBrowserDownloadBehavior,
   probeFetchStreamLive,
-} from './_shared/download/probe.js'
+} from './_shared/book-download/probe.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -325,7 +325,7 @@ describe('probeBrowserDownloadBehavior', () => {
 describe('probeFetchStreamLive', () => {
   it('requires a real browser — not runnable in unit tests', async () => {
     // Dynamic import inside test to verify module exports exist
-    const probe = await import('./_shared/download/probe.js')
+    const probe = await import('./_shared/book-download/probe.js')
     expect(typeof probe.probeFetchStreamLive).toBe('function')
   })
 
