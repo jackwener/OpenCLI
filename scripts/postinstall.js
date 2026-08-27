@@ -15,9 +15,10 @@
  * the main source tree) so that it can run without a build step.
  */
 
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { createRequire } from 'node:module';
 
 
 // ── Completion script content ──────────────────────────────────────────────
@@ -71,9 +72,28 @@ function ensureDir(dir) {
   }
 }
 
+// ── Prune vendored test suites ─────────────────────────────────────────────
+
+function pruneVendoredTests() {
+  // @mixmark-io/domino (pulled in via turndown) publishes its entire test
+  // suite to npm: 959 files / 7 MB, ~94% of the package. Upstream is
+  // unmaintained (mixmark-io/domino#2 has been open since 2024), so remove
+  // the dead weight here. Nothing at runtime touches domino/test.
+  try {
+    const require = createRequire(import.meta.url);
+    const dominoDir = dirname(require.resolve('@mixmark-io/domino/package.json'));
+    rmSync(join(dominoDir, 'test'), { recursive: true, force: true });
+  } catch {
+    // Best-effort; never fail the install.
+  }
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 
 function main() {
+  // Prune runs everywhere, including CI, so packaged app bundles shrink too.
+  pruneVendoredTests();
+
   // Skip in CI environments
   if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
     return;
