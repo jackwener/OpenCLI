@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { extractCdnMd5Tag } from '../infra/md5-format.js'
 import { sanitizeDownloadTraceUrl } from '../infra/url-boundary.js'
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 
 /** Minimum valid download size — 4 KiB. Files below this are stubs. */
 export const MIN_DOWNLOAD_SIZE = 4096
@@ -237,21 +238,21 @@ export function buildDownloadArtifact(tempPath, request) {
   // Validate input request first (R5)
   const reqValidation = validateDownloadRequest(request)
   if (!reqValidation.valid) {
-    throw new Error('Cannot build artifact from invalid request: ' + /** @type {any} */ (reqValidation).error)
+    throw new ArgumentError('Cannot build artifact from invalid request: ' + /** @type {any} */ (reqValidation).error)
   }
   // Reject non-electron-cdp-fetch transport (zlibrary-app contract)
   if (request.transport !== undefined && request.transport !== 'electron-cdp-fetch') {
-    throw new Error('transport must be "electron-cdp-fetch" for zlibrary-app')
+    throw new ArgumentError('transport must be "electron-cdp-fetch" for zlibrary-app')
   }
   // Ensure tempPath is absolute
   if (typeof tempPath !== 'string' || !path.isAbsolute(tempPath)) {
-    throw new Error('tempPath must be an absolute path')
+    throw new ArgumentError('tempPath must be an absolute path')
   }
   // Ensure tempPath resolves inside outputDir (path containment via path.relative)
   const outDir = path.resolve(request.outputDir)
   const rel = path.relative(outDir, path.resolve(tempPath))
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new Error('tempPath must resolve inside outputDir')
+    throw new ArgumentError('tempPath must resolve inside outputDir')
   }
   return {
     tempPath: String(tempPath),
@@ -549,12 +550,12 @@ export function validateDownloadTraceV2(trace) {
  */
 export function createDownloadTraceV2(sources) {
   if (typeof sources !== 'object' || sources === null || Array.isArray(sources)) {
-    throw new Error('createDownloadTraceV2: sources must be a plain object')
+    throw new ArgumentError('createDownloadTraceV2: sources must be a plain object')
   }
 
   const transportValidation = validateTransportSource(sources.transport)
   if (!transportValidation.valid) {
-    throw new Error('Cannot build DownloadTraceV2: ' + transportValidation.error)
+    throw new ArgumentError('Cannot build DownloadTraceV2: ' + transportValidation.error)
   }
 
   const trace = {
@@ -575,7 +576,7 @@ export function createDownloadTraceV2(sources) {
 
   const validation = validateDownloadTraceV2(trace)
   if (!validation.valid) {
-    throw new Error('Cannot build DownloadTraceV2: ' + validation.error)
+    throw new ArgumentError('Cannot build DownloadTraceV2: ' + validation.error)
   }
 
   return trace
@@ -715,18 +716,18 @@ export function validateDownloadArtifact(artifact, request, requestChain) {
  */
 export function renderFinalFilename(bookId, format, template = '{bookId}.{format}') {
   if (typeof template !== 'string') {
-    throw new Error('filenameTemplate must be a string')
+    throw new ArgumentError('filenameTemplate must be a string')
   }
   const safe = template.replace(/\{bookId\}/g, bookId).replace(/\{format\}/g, format)
 
   // Reject path separators and dot segments
   if (safe.includes('/') || safe.includes('\\') || safe.includes('..')) {
-    throw new Error('Rendered filename contains path separators: ' + safe)
+    throw new ArgumentError('Rendered filename contains path separators: ' + safe)
   }
 
   // Reject unsafe characters
   if (/[<>:"|?*\x00-\x1f]/.test(safe)) {
-    throw new Error('Rendered filename contains unsafe characters: ' + safe)
+    throw new ArgumentError('Rendered filename contains unsafe characters: ' + safe)
   }
 
   return safe
@@ -879,7 +880,7 @@ export function ingestDownloadArtifact(artifact, request, policy = {}) {
   // Step 0: Validate inputs
   const artifactValidation = validateDownloadArtifact(artifact, request)
   if (!artifactValidation.valid) {
-    throw new Error('Cannot ingest invalid artifact: ' + artifactValidation.error)
+    throw new ArgumentError('Cannot ingest invalid artifact: ' + artifactValidation.error)
   }
 
   // Step 0b: Path containment check
@@ -887,7 +888,7 @@ export function ingestDownloadArtifact(artifact, request, policy = {}) {
   const tempPath = path.resolve(artifact.tempPath)
   const rel = path.relative(outDir, tempPath)
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new Error('tempPath must resolve inside outputDir')
+    throw new ArgumentError('tempPath must resolve inside outputDir')
   }
 
   // Step 1: Stat file — consolidated min-size check (0 < MIN_DOWNLOAD_SIZE)
@@ -895,7 +896,7 @@ export function ingestDownloadArtifact(artifact, request, policy = {}) {
   if (stat.size < MIN_DOWNLOAD_SIZE) {
     const reason = stat.size === 0 ? 'empty' : 'too_small'
     try { fs.unlinkSync(tempPath) } catch { /* best-effort */ }
-    throw new Error('Downloaded file ' + reason + ' (' + stat.size + ' bytes, minimum ' + MIN_DOWNLOAD_SIZE + '): likely a stub')
+    throw new CommandExecutionError('Downloaded file ' + reason + ' (' + stat.size + ' bytes, minimum ' + MIN_DOWNLOAD_SIZE + '): likely a stub')
   }
 
   // Step 2: Sniff MIME type
@@ -909,13 +910,13 @@ export function ingestDownloadArtifact(artifact, request, policy = {}) {
     // Path containment check (path.relative to prevent sibling-dir escape)
     const relError = path.relative(outDir, errorPath)
     if (relError.startsWith('..') || path.isAbsolute(relError)) {
-      throw new Error('Block page error path escapes output dir: ' + errorPath)
+      throw new CommandExecutionError('Block page error path escapes output dir: ' + errorPath)
     }
     try {
       fs.renameSync(tempPath, errorPath)
     } catch {
       // If rename fails, temp file remains  -  caller can clean up
-      throw new Error('Block page detected but rename to error file at ' + errorPath)
+      throw new CommandExecutionError('Block page detected but rename to error file at ' + errorPath)
     }
     // Append rejected manifest entry (Rule R12: rejected MUST be recorded)
     const manifestPath = path.join(outDir, '.manifest.jsonl')
@@ -939,7 +940,7 @@ export function ingestDownloadArtifact(artifact, request, policy = {}) {
   // Detect by: EPUB MIME + abnormally small size (< 20KB).
   if (contentType === 'application/epub+zip' && stat.size < STUB_EPUB_MAX_BYTES) {
     try { fs.unlinkSync(tempPath) } catch { /* best-effort */ }
-    throw new Error('Downloaded EPUB is a stub (' + stat.size + ' bytes): valid ZIP header with mimetype only')
+    throw new CommandExecutionError('Downloaded EPUB is a stub (' + stat.size + ' bytes): valid ZIP header with mimetype only')
   }
 
   // Step 4: Compute MD5 — trust transport-computed hash (SSOT)
@@ -954,7 +955,7 @@ export function ingestDownloadArtifact(artifact, request, policy = {}) {
   if (policy.verifyMd5 && artifact.source?.cdnMd5) {
     if (computedMd5 !== artifact.source.cdnMd5) {
       try { fs.unlinkSync(tempPath) } catch { /* best-effort */ }
-      throw new Error('CDN MD5 mismatch: file is corrupt or wrong')
+      throw new CommandExecutionError('CDN MD5 mismatch: file is corrupt or wrong')
     }
   }
 

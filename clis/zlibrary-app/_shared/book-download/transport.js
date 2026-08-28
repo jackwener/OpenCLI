@@ -7,6 +7,7 @@ import path from 'node:path'
 import { validateDownloadRequest, buildDownloadArtifact, extractCdnMd5 } from './contracts.js'
 import { sanitizeDownloadTraceUrl } from '../infra/url-boundary.js'
 import { buildDesktopAppHeaders } from '../infra/desktop-app-headers.js'
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 
 /**
  * Transport function signature for `downloadWithElectronCdpFetch`.
@@ -181,7 +182,7 @@ export async function downloadWithElectronCdpFetch(request, context) {
   // Step 1: Validate request
   const validation = validateDownloadRequest(request)
   if (!validation.valid) {
-    throw new Error(`Invalid download request: ${/** @type {any} */ (validation).error}`)
+    throw new ArgumentError(`Invalid download request: ${/** @type {any} */ (validation).error}`)
   }
 
   const { urlRelative, outputDir, bookId, format } = request
@@ -191,7 +192,7 @@ export async function downloadWithElectronCdpFetch(request, context) {
   const resolvedDir = path.resolve(outputDir)
   const resolvedTemp = path.resolve(tempPath)
   if (!resolvedTemp.startsWith(resolvedDir + path.sep) && resolvedTemp !== resolvedDir) {
-    throw new Error(`Temp path escapes outputDir: ${tempPath}`)
+    throw new ArgumentError(`Temp path escapes outputDir: ${tempPath}`)
   }
 
   // Step 2: Set up Fetch.requestPaused listener
@@ -356,7 +357,7 @@ export async function downloadWithElectronCdpFetch(request, context) {
             headers: mergedHeaders,
           })
         } catch (continueErr) {
-          throw new Error('Failed to inject desktop-app headers into /dl/* request: ' + (continueErr.message || continueErr))
+          throw new CommandExecutionError('Failed to inject desktop-app headers into /dl/* request: ' + (continueErr.message || continueErr))
         }
         return
       }
@@ -389,7 +390,8 @@ export async function downloadWithElectronCdpFetch(request, context) {
         timestamp: Date.now(),
       })
     } catch {
-      throw new Error('Fetch domain not available on this target')
+      // CDP command failure (Fetch.enable rejected), not a connection-level failure
+      throw new CommandExecutionError('Fetch domain not available on this target')
     }
 
     // Step 4: Trigger download via programmatic click
@@ -413,7 +415,7 @@ export async function downloadWithElectronCdpFetch(request, context) {
     ])
 
     if (!streamRequestId) {
-      throw new Error('No final CDN response received')
+      throw new CommandExecutionError('No final CDN response received')
     }
 
     // Step 6: Take response body as stream and write incrementally to file
@@ -421,7 +423,7 @@ export async function downloadWithElectronCdpFetch(request, context) {
       requestId: streamRequestId,
     }))
     ioHandle = /** @type {string} */ (streamResult.stream || streamResult.handle || '')
-    if (!ioHandle) throw new Error('Failed to get stream handle')
+    if (!ioHandle) throw new CommandExecutionError('Failed to get stream handle')
 
     // Ensure temp dir exists
     const dir = path.dirname(tempPath)
@@ -450,7 +452,7 @@ export async function downloadWithElectronCdpFetch(request, context) {
         if (chunk && chunk.eof) break
         iterations++
         if (iterations >= maxIterations) {
-          throw new Error('IO.read exceeded maximum iterations (' + maxIterations + ')')
+          throw new CommandExecutionError('IO.read exceeded maximum iterations (' + maxIterations + ')')
         }
       }
     } finally {

@@ -24,6 +24,7 @@
 import { CDPBridge } from '@jackwener/opencli/browser/cdp'
 import { sanitizeDownloadTraceUrl } from '../book-download/contracts.js'
 import { toDownloadUrlRelative } from './url-boundary.js'
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -270,14 +271,14 @@ async function runLiveProbes() {
         try {
           const parsedTarget = new URL(targetUrl)
           if (parsedTarget.origin !== preNavOrigin) {
-            throw new Error('Cross-origin navigation rejected: target ' + parsedTarget.origin + ' !== current ' + preNavOrigin)
+            throw new CommandExecutionError('Cross-origin navigation rejected: target ' + parsedTarget.origin + ' !== current ' + preNavOrigin)
           }
           if (parsedTarget.protocol !== 'https:') {
-            throw new Error('Non-HTTPS navigation rejected: ' + targetUrl)
+            throw new CommandExecutionError('Non-HTTPS navigation rejected: ' + targetUrl)
           }
         } catch (err) {
           if (err instanceof TypeError) {
-            throw new Error('Invalid target URL: ' + targetUrl)
+            throw new ArgumentError('Invalid target URL: ' + targetUrl)
           }
           throw err
         }

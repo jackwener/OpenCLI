@@ -15,7 +15,7 @@ import path from 'node:path'
 
 import { validateDownloadRequest, buildDownloadArtifact, validateDownloadArtifact, ingestDownloadArtifact, renderFinalFilename } from './contracts.js'
 import { saveCompletedManifestEntry, renderFilenameTemplate, normalizeOutputKeys } from '../infra/manifest-helpers.js'
-import { CommandExecutionError } from '@jackwener/opencli/errors'
+import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 
 // ---------------------------------------------------------------------------
 // Type definitions
@@ -77,8 +77,8 @@ export function buildDownloadRequestFromBook(book, pageContext, opts = {}) {
   const { bookId, url, extension } = book
   const { origin, referer } = pageContext
 
-  if (!bookId) throw new Error('bookId is required')
-  if (!origin) throw new Error('origin is required')
+  if (!bookId) throw new ArgumentError('bookId is required')
+  if (!origin) throw new ArgumentError('origin is required')
 
   const format = (extension || 'epub').toLowerCase()
   const outputDir = opts.outputDir || './downloads'

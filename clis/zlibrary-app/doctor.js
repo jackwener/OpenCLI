@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry'
 import { DOCTOR_OUTPUT_COLUMNS } from './_shared/snapshot/rows.js'
+import { ArgumentError } from '@jackwener/opencli/errors'
 
 import { doctorApiUserCommand } from './doctor-api-user.js'
 import { doctorBooklistCommand } from './doctor-booklist.js'
@@ -39,7 +40,7 @@ const DOCTOR_ARGS = [
 function selectDoctorMode (args) {
   const selected = MODE_FLAGS.filter(function (flag) { return Boolean(args[flag]) })
   if (selected.length !== 1) {
-    throw new Error('Select exactly one mode: --booklist, --api-user, --dom-search, --dom-profile, --dom-quota, --dom-book-detail, --download, or --booklist-manage')
+    throw new ArgumentError('Select exactly one mode: --booklist, --api-user, --dom-search, --dom-profile, --dom-quota, --dom-book-detail, --download, or --booklist-manage')
   }
   return selected[0]
 }

@@ -15,6 +15,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { CommandExecutionError, SessionBusyError } from '@jackwener/opencli/errors'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -86,7 +87,7 @@ export class PidLock {
       return true
     } catch (err) {
       if (err.code === 'EEXIST') return false
-      throw new Error(`Failed to acquire PID lock: ${err.message}`)
+      throw new CommandExecutionError(`Failed to acquire PID lock: ${err.message}`)
     }
   }
 
@@ -206,7 +207,7 @@ export async function acquireLockOrThrow(commandName) {
   const acquired = await lock.acquire()
   if (!acquired) {
     const existingPid = lock.readPid()
-    throw new Error(
+    throw new SessionBusyError(
       `Another ${commandName} process is already running (PID: ${existingPid || 'unknown'}). ` +
       `Wait for it to complete or run 'zlibrary-app quota-status' to check status.`
     )
