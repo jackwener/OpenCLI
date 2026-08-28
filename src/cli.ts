@@ -3091,11 +3091,19 @@ cli({
     .command('doctor')
     .description('Diagnose opencli browser bridge connectivity')
     .option('-v, --verbose', 'Debug output')
+    .option('-f, --format <fmt>', 'Output format: text, json, yaml', 'text')
+    .option('--strict', 'Exit non-zero when the bridge is not healthy', false)
     .action(async (opts) => {
       applyVerbose(opts);
       const { runBrowserDoctor, renderBrowserDoctorReport } = await import('./doctor.js');
       const report = await runBrowserDoctor({ cliVersion: PKG_VERSION });
-      console.log(renderBrowserDoctorReport(report));
+      const fmt = String(opts.format ?? 'text').toLowerCase();
+      if (fmt === 'json' || fmt === 'yaml' || fmt === 'yml') {
+        renderOutput(report, { fmt });
+      } else {
+        console.log(renderBrowserDoctorReport(report));
+      }
+      if (opts.strict && !report.ok) process.exitCode = EXIT_CODES.GENERIC_ERROR;
     });
 
   program
