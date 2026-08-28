@@ -18,6 +18,7 @@ const ASK_COLUMNS = [
     'source_total_text',
     'sources_summary',
     'sources',
+    'share_url',
     'warning',
     'message_id',
     'conversation_id',
@@ -143,11 +144,13 @@ function extractNoteId(source) {
 
 export function buildNoteUrl(noteId, xsecToken) {
     if (!/^[0-9a-f]{24}$/i.test(String(noteId || ''))) return '';
+    // No token, no URL. A bare /explore/<id> resolves for nobody — Xiaohongshu serves
+    // its "page not found" body under HTTP 200 — so returning one only launders a
+    // dead link into somewhere it looks trustworthy.
+    if (!xsecToken) return '';
     const url = new URL(`https://${XHS_WEB_HOST}/explore/${noteId}`);
-    if (xsecToken) {
-        url.searchParams.set('xsec_token', xsecToken);
-        url.searchParams.set('xsec_source', '');
-    }
+    url.searchParams.set('xsec_token', xsecToken);
+    url.searchParams.set('xsec_source', '');
     return url.toString();
 }
 
@@ -168,16 +171,25 @@ export function normalizeAskSource(source, index) {
         .map(parseTrustedSourceLink)
         .find(Boolean);
     const noteId = extractNoteId(source);
-    const xsecToken = trustedLink?.xsecToken || '';
+    // dqa/detail supplies the token as its own field; the older onebox/detail payload
+    // only ever carried one inside a link, and usually not at all.
+    const xsecToken = compactSingleLine(source?.xsecToken || source?.xsec_token)
+        || trustedLink?.xsecToken
+        || '';
+    const url = buildNoteUrl(noteId, xsecToken);
     const normalized = {
         rank: index + 1,
         type: 'note',
         title: firstNonEmpty(source?.title, source?.displayTitle, source?.name),
-        url: buildNoteUrl(noteId, xsecToken),
         note_id: noteId,
         xsec_token: xsecToken,
         author: firstNonEmpty(source?.nickName, source?.nickname, source?.author, source?.userName),
     };
+    // Emit `url` only when it works. Xiaohongshu answers a tokenless note URL with
+    // HTTP 200 and a "你访问的页面不见了" body, so shipping one hands the caller a
+    // link that every status-code check calls healthy and every human finds broken.
+    // #994 removed exactly this shape from note/comments; ask was missed.
+    if (url) normalized.url = url;
     const noteType = firstNonEmpty(source?.noteType);
     if (noteType) normalized.note_type = noteType;
     const likeCount = parseCount(source?.like);
@@ -216,6 +228,7 @@ export function buildAskResult(raw) {
         source_total_text: compactSingleLine(raw?.source_total_text),
         sources_summary: buildSourcesSummary(sources),
         sources,
+        share_url: compactSingleLine(raw?.share_url),
         warning,
         message_id: compactSingleLine(raw?.message_id),
         conversation_id: compactSingleLine(raw?.conversation_id),
@@ -235,6 +248,60 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
           const text = String(value || '');
           return text.length > max ? text.slice(0, max) : text;
         };
+        // Citation sources come from search/dqa/detail, not search/dqa/onebox/detail.
+        //
+        // Both answer for the same message, but only dqa/detail carries \`xsecToken\`,
+        // and Xiaohongshu requires that token on a note URL. Measured 2026-08-28 across
+        // one conversation, 10 sources each:
+        //   getResponseReferences (onebox/detail) -> 10 items,  0 with a token
+        //   dqa/detail                            -> 10 items, 10 with a token
+        //
+        // dqa/detail needs the site's signed transport: a bare same-origin fetch of the
+        // identical URL returns 406 {"code":-1,"success":false}. So borrow the page's own
+        // signed axios wrapper, located by shape rather than by module id for the same
+        // reason the conversation store is. Shape alone is not decisive — two modules
+        // match on a live page — so a candidate is accepted only once it answers.
+        const locateSignedClients = (req) => {
+          const clients = [];
+          for (const id of Object.keys(req.c || {})) {
+            let exports;
+            try { exports = req.c[id].exports; } catch { continue; }
+            if (!exports || typeof exports !== 'object') continue;
+            for (const key of Object.keys(exports)) {
+              let value;
+              try { value = exports[key]; } catch { continue; }
+              if (
+                value
+                && typeof value === 'object'
+                && typeof value.get === 'function'
+                && typeof value.post === 'function'
+                && typeof value.buildURL === 'function'
+                && value.interceptors
+              ) clients.push(value);
+            }
+          }
+          return clients;
+        };
+        const fetchTracedSources = async (clients, messageId, conversationId, size) => {
+          for (const client of clients) {
+            try {
+              const response = await client.get('/api/sns/web/v1/search/dqa/detail', {
+                params: {
+                  message_id: messageId,
+                  conversation_id: conversationId,
+                  query: '',
+                  scene: 'web_ask',
+                  type: 'inside',
+                  page_from: 0,
+                  size,
+                },
+              });
+              const body = response && response.data !== undefined ? response.data : response;
+              if (Array.isArray(body?.items) && body.items.length > 0) return body;
+            } catch { /* not the signed client, or this build moved the endpoint */ }
+          }
+          return null;
+        };
         const latestRound = (store, scenes, msgId) => {
           const rounds = typeof store.getSceneRounds === 'function'
             ? store.getSceneRounds(scenes.AiChat)
@@ -253,6 +320,9 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
           textLink: item?.textLink || '',
           link: item?.link || item?.imageList?.[0]?.link || '',
           url: item?.url || '',
+          // Required to build a URL that resolves. This projection is a whitelist:
+          // omitting a field here makes it unreachable no matter what the API returned.
+          xsecToken: item?.xsecToken || item?.xsec_token || '',
           like: item?.like ?? null,
           time: item?.time || '',
         });
@@ -346,17 +416,28 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
           let detail = null;
           let sourceError = '';
           try {
-            if (store.agent?.getResponseReferences) {
-              for (let attempt = 0; attempt < 5; attempt++) {
-              detail = await store.agent.getResponseReferences({
-                query: prompt,
-                message_id: msgId,
-                page: 0,
-                size: requestSourceSize,
-                version: 0,
-                result_version: 0,
-                id: '',
-              });
+            // Sources land a beat after the answer does, so this retries — but only
+            // when there is a client to retry against. Retrying an empty candidate list
+            // just delays the fallback by the length of the loop.
+            const signedClients = locateSignedClients(webpackRequire);
+            for (let attempt = 0; signedClients.length && attempt < 5 && !detail; attempt++) {
+              detail = await fetchTracedSources(signedClients, msgId, conversationId, requestSourceSize);
+              if (!detail) await sleep(1000);
+            }
+            // Fall back to the store's own reference call. Its rows carry no token, so
+            // their URLs are omitted rather than emitted dead — but a citation with
+            // note_id, title, author and quote is still worth returning.
+            if (!detail && store.agent?.getResponseReferences) {
+              for (let attempt = 0; attempt < 3; attempt++) {
+                detail = await store.agent.getResponseReferences({
+                  query: prompt,
+                  message_id: msgId,
+                  page: 0,
+                  size: requestSourceSize,
+                  version: 0,
+                  result_version: 0,
+                  id: '',
+                });
                 if (Array.isArray(detail?.items) && detail.items.length > 0) break;
                 await sleep(1000);
               }
@@ -364,6 +445,10 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
           } catch (err) {
             sourceError = String(err?.message || err || '');
           }
+          const shareEntries = Array.isArray(detail?.shareInfo?.functionEntries)
+            ? detail.shareInfo.functionEntries
+            : [];
+          const shareEntry = shareEntries.find((entry) => entry?.type === 'copy_link') || shareEntries[0];
 
           const rawSources = Array.isArray(detail?.items) ? detail.items.slice(0, sourceLimit).map(slimSource) : [];
           return {
@@ -372,6 +457,7 @@ export function buildAskEvaluateJs(query, timeoutSeconds, sourceLimit) {
             answer,
             source_total_text: detail?.baseInfo?.totalCnt || aiMessage?.querySource?.text || aiMessage?.querySource?.oneboxText || '',
             sources: rawSources,
+            share_url: shareEntry?.link || '',
             warning: sourceError,
             message_id: msgId,
             conversation_id: conversationId,
