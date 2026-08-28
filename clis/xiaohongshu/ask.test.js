@@ -197,7 +197,10 @@ describe('xiaohongshu ask', () => {
 
         const result = await cmd.func(page, { query: '上海露营需要注意什么？', timeout: 30, 'source-limit': 10 });
 
-        expect(page.goto).toHaveBeenCalledWith(expect.stringContaining('https://www.xiaohongshu.com/search_result?keyword='));
+        // 点点's own page, never search_result?keyword=... — that URL costs a real
+        // note search on load and is the pattern #1224 tied to security verification.
+        expect(page.goto).toHaveBeenCalledWith('https://www.xiaohongshu.com/ai_chat');
+        expect(page.goto).not.toHaveBeenCalledWith(expect.stringContaining('search_result'));
         expect(page.evaluate.mock.calls[0][0]).toContain('window.webpackChunkxhs_pc_web');
         expect(result).toMatchObject({
             answer: '答案正文',

@@ -440,8 +440,25 @@ export const command = cli({
         const query = requirePrompt(kwargs?.query);
         const timeout = parseAskTimeout(kwargs?.timeout);
         const sourceLimit = parseAskLimit(kwargs?.['source-limit']);
-        const keyword = encodeURIComponent(query);
-        await page.goto(`https://${XHS_WEB_HOST}/search_result?keyword=${keyword}&source=web_search_result_notes`);
+        // Enter through 点点's own page, not search_result?keyword=<query>.
+        //
+        // Two reasons, both measured 2026-08-28 on a live logged-in session:
+        //
+        // 1. Cost. Loading search_result?keyword=... fires a real note search
+        //    (so.xiaohongshu.com/api/sns/web/v2/search/notes) before any chat happens —
+        //    a search request spent purely as a side effect of the URL chosen to reach
+        //    a chat store. /ai_chat serves the same conversation store and fires zero
+        //    search/notes for the whole page lifetime.
+        // 2. Risk control. #1224 documented that direct navigation to
+        //    search_result?keyword=... triggers Xiaohongshu's security verification in
+        //    the automation browser; xiaohongshu/search was reworked away from that
+        //    exact pattern. ask still used it.
+        //
+        // Controlled A/B, identical query ("清迈 咖啡馆 推荐"), same session, minutes apart:
+        //    search_result -> 1238 chars, 5 sources, 1x search/notes
+        //    /ai_chat      -> 1195 chars, 5 sources, 0x search/notes
+        // The navigation contributes nothing to answer quality or citation count.
+        await page.goto(`https://${XHS_WEB_HOST}/ai_chat`);
         await page.wait?.(1);
         const raw = unwrapEvaluateResult(await page.evaluate(buildAskEvaluateJs(query, timeout, sourceLimit)));
         if (!raw || typeof raw !== 'object') {
