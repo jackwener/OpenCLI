@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { EmptyResultError } from '@jackwener/opencli/errors';
 import {
     DRIBBBLE_HOST,
     DRIBBBLE_ORIGIN,
@@ -8,6 +8,7 @@ import {
     optionalQuery,
     requireDesigner,
     requireRows,
+    runBrowserTask,
 } from './utils.js';
 
 cli({
@@ -15,7 +16,7 @@ cli({
     name: 'service',
     description: 'List services offered by a Dribbble designer',
     domain: DRIBBBLE_HOST,
-    strategy: Strategy.PUBLIC,
+    strategy: Strategy.UI,
     access: 'read',
     browser: true,
     args: [
@@ -29,10 +30,10 @@ cli({
         const query = optionalQuery(args.query);
         const limit = normalizeLimit(args.limit, 20, 30);
         const url = `${DRIBBBLE_ORIGIN}/${encodeURIComponent(designer)}/services`;
-        try {
+        return runBrowserTask('Dribbble service extraction', async () => {
             await page.goto(url);
-            await page.wait(2);
-            const payload = await page.evaluate(extractServiceRows, designer, limit);
+            await page.wait(5);
+            const payload = await page.evaluate(extractServiceRows, designer);
             let rows = requireRows(payload, 'dribbble service');
             if (query) {
                 const needle = query.toLowerCase();
@@ -42,9 +43,6 @@ cli({
                 }
             }
             return rows.slice(0, limit).map((row, index) => ({ ...row, rank: index + 1 }));
-        } catch (error) {
-            if (error?.code === 'EMPTY_RESULT' || error?.code === 'COMMAND_EXEC' || error?.code === 'ARGUMENT') throw error;
-            throw new CommandExecutionError(`Dribbble service extraction failed: ${error?.message ?? error}`);
-        }
+        });
     },
 });

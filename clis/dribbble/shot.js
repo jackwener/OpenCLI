@@ -1,12 +1,14 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
 import {
     DRIBBBLE_HOST,
     DRIBBBLE_ORIGIN,
     extractShotRows,
+    hasDribbbleSessionCookie,
     normalizeLimit,
     requireQuery,
     requireRows,
+    runBrowserTask,
 } from './utils.js';
 
 const SHOT_SORT_OPTIONS = ['following', 'popular', 'recent'];
@@ -24,7 +26,7 @@ cli({
     name: 'shot',
     description: 'Search public Dribbble shots by keyword',
     domain: DRIBBBLE_HOST,
-    strategy: Strategy.PUBLIC,
+    strategy: Strategy.UI,
     access: 'read',
     browser: true,
     args: [
@@ -43,16 +45,16 @@ cli({
         const query = requireQuery(args.query);
         const limit = normalizeLimit(args.limit, 20, 30);
         const sort = normalizeShotSort(args.sort);
+        if (sort === 'following' && !await hasDribbbleSessionCookie(page)) {
+            throw new AuthRequiredError(DRIBBBLE_HOST, 'Following search requires a signed-in Dribbble browser session');
+        }
         const url = new URL(`${DRIBBBLE_ORIGIN}/search/shots/${sort}`);
         url.searchParams.set('q', query);
-        try {
+        return runBrowserTask('Dribbble shot search', async () => {
             await page.goto(url.href);
-            await page.wait(3);
+            await page.wait(5);
             const payload = await page.evaluate(extractShotRows, limit);
             return requireRows(payload, 'dribbble shot');
-        } catch (error) {
-            if (error?.code === 'EMPTY_RESULT' || error?.code === 'COMMAND_EXEC' || error?.code === 'ARGUMENT') throw error;
-            throw new CommandExecutionError(`Dribbble shot extraction failed: ${error?.message ?? error}`);
-        }
+        });
     },
 });

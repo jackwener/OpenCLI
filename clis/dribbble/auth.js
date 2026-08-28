@@ -1,22 +1,19 @@
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { registerSiteAuthCommands } from '../_shared/site-auth.js';
-import { DRIBBBLE_HOST, DRIBBBLE_ORIGIN } from './utils.js';
-
-async function hasDribbbleSessionCookie(page) {
-    const cookies = await page.getCookies({ url: DRIBBBLE_ORIGIN });
-    const names = new Set((cookies || []).map((cookie) => cookie.name));
-    return names.has('window._drbbbv_sess') || names.has('has_logged_in');
-}
+import { DRIBBBLE_HOST, DRIBBBLE_ORIGIN, hasDribbbleSessionCookie } from './utils.js';
 
 async function verifyDribbbleIdentity(page) {
     if (!await hasDribbbleSessionCookie(page)) {
         throw new AuthRequiredError(DRIBBBLE_HOST, 'Dribbble session cookies are missing');
     }
     await page.goto(DRIBBBLE_ORIGIN);
-    await page.wait(2);
+    // Dribbble serves an AWS WAF challenge before the real document on fresh
+    // tabs. Three seconds is not enough consistently; probing early turns a
+    // valid session into a false AUTH_REQUIRED result.
+    await page.wait(5);
     const result = await page.evaluate(`(() => {
         const profile = document.querySelector('a[title="Open profile"]');
-        const signOut = document.querySelector('form[action="/session"] input[name="_method"][value="delete"]');
+        const signOut = document.querySelector('form[action$="/session"] input[name="_method"][value="delete"]');
         const href = profile?.getAttribute('href') || '';
         if (!signOut || !/^\\/[^/]+$/.test(href)) {
             return { kind: 'auth', detail: 'Dribbble header does not show a logged-in profile' };

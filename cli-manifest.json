@@ -12955,11 +12955,48 @@
   },
   {
     "site": "dribbble",
+    "name": "collection",
+    "description": "List public collections curated by a Dribbble designer",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "designer",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Dribbble username or profile slug"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of collections (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "shotCount",
+      "designerCount",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/collection.js",
+    "sourceFile": "dribbble/collection.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "dribbble",
     "name": "designer",
     "description": "Browse Dribbble designers and freelance agencies",
     "access": "read",
     "domain": "dribbble.com",
-    "strategy": "public",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -12994,7 +13031,8 @@
     ],
     "type": "js",
     "modulePath": "dribbble/designer.js",
-    "sourceFile": "dribbble/designer.js"
+    "sourceFile": "dribbble/designer.js",
+    "navigateBefore": true
   },
   {
     "site": "dribbble",
@@ -13029,11 +13067,99 @@
   },
   {
     "site": "dribbble",
+    "name": "member",
+    "description": "List public members of a Dribbble team profile",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "designer",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Dribbble team username or profile slug"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of members (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "username",
+      "name",
+      "location",
+      "url",
+      "avatarUrl",
+      "recentShotUrls"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/member.js",
+    "sourceFile": "dribbble/member.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "dribbble",
+    "name": "portfolio",
+    "description": "List a Dribbble designer's published or liked shots",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "designer",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Dribbble username or profile slug"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "default": "work",
+        "required": false,
+        "help": "Portfolio type: work or likes",
+        "choices": [
+          "work",
+          "likes"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of shots (max 30)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "id",
+      "title",
+      "designer",
+      "likes",
+      "views",
+      "imageUrl",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/portfolio.js",
+    "sourceFile": "dribbble/portfolio.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "dribbble",
     "name": "profile",
     "description": "Show a public Dribbble designer profile",
     "access": "read",
     "domain": "dribbble.com",
-    "strategy": "public",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -13048,17 +13174,24 @@
       "username",
       "name",
       "intro",
+      "biography",
       "followersCount",
       "followingCount",
       "likesCount",
       "availableForWork",
+      "location",
+      "memberSince",
+      "skills",
+      "languages",
+      "socialLinks",
       "website",
       "url",
       "avatarUrl"
     ],
     "type": "js",
     "modulePath": "dribbble/profile.js",
-    "sourceFile": "dribbble/profile.js"
+    "sourceFile": "dribbble/profile.js",
+    "navigateBefore": true
   },
   {
     "site": "dribbble",
@@ -13066,7 +13199,7 @@
     "description": "List services offered by a Dribbble designer",
     "access": "read",
     "domain": "dribbble.com",
-    "strategy": "public",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -13105,7 +13238,8 @@
     ],
     "type": "js",
     "modulePath": "dribbble/service.js",
-    "sourceFile": "dribbble/service.js"
+    "sourceFile": "dribbble/service.js",
+    "navigateBefore": true
   },
   {
     "site": "dribbble",
@@ -13113,7 +13247,7 @@
     "description": "Search public Dribbble shots by keyword",
     "access": "read",
     "domain": "dribbble.com",
-    "strategy": "public",
+    "strategy": "ui",
     "browser": true,
     "args": [
       {
@@ -13155,7 +13289,43 @@
     ],
     "type": "js",
     "modulePath": "dribbble/shot.js",
-    "sourceFile": "dribbble/shot.js"
+    "sourceFile": "dribbble/shot.js",
+    "navigateBefore": true
+  },
+  {
+    "site": "dribbble",
+    "name": "shot-detail",
+    "description": "Show details and media for a Dribbble shot",
+    "access": "read",
+    "domain": "dribbble.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "shot",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Numeric shot id or dribbble.com/shots URL"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "designer",
+      "designerUrl",
+      "team",
+      "description",
+      "imageUrl",
+      "mediaUrls",
+      "colors",
+      "availableForWork",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "dribbble/shot-detail.js",
+    "sourceFile": "dribbble/shot-detail.js",
+    "navigateBefore": true
   },
   {
     "site": "dribbble",

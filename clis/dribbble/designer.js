@@ -1,5 +1,4 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
 import {
     DRIBBBLE_HOST,
     DRIBBBLE_ORIGIN,
@@ -7,6 +6,7 @@ import {
     normalizeLimit,
     optionalQuery,
     requireRows,
+    runBrowserTask,
 } from './utils.js';
 
 cli({
@@ -14,7 +14,7 @@ cli({
     name: 'designer',
     description: 'Browse Dribbble designers and freelance agencies',
     domain: DRIBBBLE_HOST,
-    strategy: Strategy.PUBLIC,
+    strategy: Strategy.UI,
     access: 'read',
     browser: true,
     args: [
@@ -30,14 +30,11 @@ cli({
         const limit = normalizeLimit(args.limit, 20, 30);
         const url = new URL(`${DRIBBBLE_ORIGIN}/hire`);
         if (query) url.searchParams.set('keywords', query);
-        try {
+        return runBrowserTask('Dribbble designer extraction', async () => {
             await page.goto(url.href);
-            await page.wait(3);
+            await page.wait(5);
             const payload = await page.evaluate(extractDesignerRows, limit);
             return requireRows(payload, 'dribbble designer');
-        } catch (error) {
-            if (error?.code === 'EMPTY_RESULT' || error?.code === 'COMMAND_EXEC' || error?.code === 'ARGUMENT') throw error;
-            throw new CommandExecutionError(`Dribbble designer extraction failed: ${error?.message ?? error}`);
-        }
+        });
     },
 });
