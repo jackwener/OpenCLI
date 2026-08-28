@@ -72,7 +72,6 @@ booklist APIs.
 - Requires the Desktop app running with `--remote-debugging-port=9230`
 - Requires `OPENCLI_CDP_TARGET='https://'` (or the alias above) so commands
   bind to content pages instead of the loader shell
-- Tested on macOS (app v2.1.2); Windows/Linux builds should work the same
-  way but are untested
+- Tested on macOS (app v2.1.x, Apple Silicon M4). The Windows/Linux line (v3.x) speaks the same CDP surface but is untested.
 - Daily download quota is enforced by Z-Library; the adapter reports it but
   does not bypass it
