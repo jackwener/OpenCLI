@@ -202,7 +202,7 @@ Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不�
 
 注册自定义本地 CLI：`opencli external register <name>`；查看所有：`opencli external list`。
 
-**桌面应用适配器**（Electron，通过 CDP）：Cursor / Trae CN / Codex / Antigravity / ChatGPT App / ChatWise / Qoder / Discord / Doubao / Trae SOLO — 详见 [`docs/adapters/desktop/`](./docs/adapters/desktop/)。
+**桌面应用适配器**（Electron，通过 CDP）：Cursor / Trae CN / Codex / Antigravity / ChatGPT App / ChatWise / Qoder / Discord / Doubao / Trae SOLO / Z-Library — 详见 [`docs/adapters/desktop/`](./docs/adapters/desktop/)。
 
 ## 下载支持
 

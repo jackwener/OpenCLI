@@ -169,6 +169,7 @@ export default defineConfig({
                 { text: 'Discord', link: '/adapters/desktop/discord' },
                 { text: 'Doubao App', link: '/adapters/desktop/doubao-app' },
                 { text: 'Trae SOLO', link: '/adapters/desktop/trae-solo' },
+                { text: 'Z-Library App', link: '/adapters/desktop/zlibrary-app' },
               ],
             },
           ],
