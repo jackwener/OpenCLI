@@ -124,18 +124,44 @@ export function extractShotRows(limit) {
     if (!root) {
         return { ok: false, reason: 'shot result root was not found', title: document.title || '' };
     }
-    if (cards.length === 0 && !document.querySelector('.no-results, .empty-shots-list')) {
+    const searchEmpty = /^\/search\/shots\/(?:following|popular|recent)\/?$/.test(document.location.pathname)
+        && document.body?.id === 'search-results'
+        && document.querySelector('#wrap > .no-results');
+    const portfolioEmpty = /^\/[A-Za-z0-9_-]+\/(?:shots|likes)\/?$/.test(document.location.pathname)
+        && root.querySelector('.empty-shots-list');
+    if (cards.length === 0 && !searchEmpty && !portfolioEmpty) {
         return { ok: false, reason: 'shot cards and the empty-state marker were not found', title: document.title || '' };
     }
 
-    const parsedRows = cards.map((el, index) => {
-        const shotLink = [...el.querySelectorAll('a[href]')]
-            .find((anchor) => /^\/shots\/\d+(?:-|\/|$)/.test(anchor.getAttribute('href') || ''));
-        if (!shotLink) return null;
+    const parsedCards = cards.map((el) => {
+        const anchors = [...el.querySelectorAll('a[href]')];
+        const shotLink = anchors.find((anchor) => {
+            try {
+                const target = new URL(anchor.getAttribute('href') || '', location.href);
+                return /(^|\.)dribbble\.com$/i.test(target.hostname)
+                    && /^\/shots\/\d+(?:-[^/]+)?\/?$/.test(target.pathname);
+            } catch {
+                return false;
+            }
+        });
+        if (!shotLink) {
+            const hasOutboundTarget = anchors.some((anchor) => {
+                try {
+                    return !/(^|\.)dribbble\.com$/i.test(
+                        new URL(anchor.getAttribute('href') || '', location.href).hostname,
+                    );
+                } catch {
+                    return false;
+                }
+            });
+            const isPromoted = hasOutboundTarget
+                && anchors.some((anchor) => /^\/advertise\/?$/.test(anchor.getAttribute('href') || ''));
+            return { promoted: isPromoted };
+        }
         const profileLink = el.querySelector('.user-information a[href], a[data-search-profile-clicked][href]');
         const image = el.querySelector('img');
-        return {
-            rank: index + 1,
+        const row = {
+            rank: 0,
             id: clean(el.getAttribute('data-thumbnail-id') || el.id.replace(/^screenshot-/, '')),
             title: clean(el.querySelector('.shot-title')?.textContent || image?.getAttribute('alt') || ''),
             designer: clean(profileLink?.textContent || ''),
@@ -144,9 +170,16 @@ export function extractShotRows(limit) {
             imageUrl: clean(image?.currentSrc || image?.getAttribute('src') || image?.getAttribute('data-src') || ''),
             url: new URL(shotLink.getAttribute('href'), location.href).href,
         };
+        return { row };
     });
-    if (parsedRows.some((row) => !row || !row.id || !row.title || !row.url)) {
+    if (parsedCards.some((card) => !card.promoted && (!card.row || !card.row.id || !card.row.title || !card.row.url))) {
         return { ok: false, reason: 'one or more shot cards were missing required identity fields' };
+    }
+    const parsedRows = parsedCards
+        .flatMap((card) => card.row ? [card.row] : [])
+        .map((row, index) => ({ ...row, rank: index + 1 }));
+    if (parsedRows.length === 0 && cards.length > 0) {
+        return { ok: false, reason: 'shot results contained only promoted cards' };
     }
 
     return { ok: true, rows: parsedRows.slice(0, limit) };
@@ -427,7 +460,7 @@ export function extractMemberRows(designer, limit) {
         return { ok: true, empty: true, reason: `Dribbble profile "${designer}" does not expose a team member directory` };
     }
 
-    const cards = [...root.querySelectorAll('li')]
+    const cards = [...root.querySelectorAll('li[data-user-id]')]
         .filter((card) => card.querySelector('a[href$="/followers"]'));
     const parsedRows = cards.map((card, index) => {
         const profile = [...card.querySelectorAll('a[href]')].find((anchor) => {

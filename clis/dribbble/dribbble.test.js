@@ -126,6 +126,32 @@ describe('dribbble production DOM extractors', () => {
         }]);
     });
 
+    it('skips explicit promoted cards and keeps canonical absolute shot URLs', async () => {
+        const page = pageFor(`
+          <main id="content">
+            <li id="screenshot-ad" data-thumbnail-id="ad">
+              <a href="https://sponsor.example/campaign">Sponsored design</a>
+              <a href="/advertise">Advertise</a>
+            </li>
+            <li id="screenshot-27611165" data-thumbnail-id="27611165">
+              <img alt="Cabin seat map" src="https://cdn.example/shot.png">
+              <a href="https://dribbble.com/shots/27611165-Pick-Your-Seat">View shot</a>
+              <a href="/shots/27611165-Pick-Your-Seat/bucketings/new">Save shot</a>
+              <div class="user-information"><a href="/mondaysys">Mondaysys</a></div>
+            </li>
+          </main>
+        `, 'https://dribbble.com/search/shots/popular?q=mobile');
+
+        await expect(command('shot').func(page, {
+            query: 'mobile', sort: 'popular', limit: 1,
+        })).resolves.toEqual([expect.objectContaining({
+            rank: 1,
+            id: '27611165',
+            title: 'Cabin seat map',
+            url: 'https://dribbble.com/shots/27611165-Pick-Your-Seat',
+        })]);
+    });
+
     it('extracts the exact profile heading and rich about fields without badge text', () => {
         const payload = runInDom(extractProfileRow, `
           <div class="profile-masthead" data-profile-masthead-container>
@@ -246,7 +272,12 @@ describe('dribbble production DOM extractors', () => {
     });
 
     it('distinguishes an explicit empty shot page from shot-card selector drift', async () => {
-        const emptyPage = pageFor('<div class="no-results">No results found</div><main id="content"></main>',
+        const emptyPage = pageFor(`
+          <body id="search-results">
+            <div id="wrap"><div class="no-results">No results found</div></div>
+            <main id="content"></main>
+          </body>
+        `,
             'https://dribbble.com/search/shots/popular?q=missing');
         await expect(command('shot').func(emptyPage, {
             query: 'missing', sort: 'popular', limit: 1,
@@ -255,6 +286,13 @@ describe('dribbble production DOM extractors', () => {
         const driftPage = pageFor('<main id="content"></main>',
             'https://dribbble.com/search/shots/popular?q=mobile');
         await expect(command('shot').func(driftPage, {
+            query: 'mobile', sort: 'popular', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+
+        const unrelatedMarkerPage = pageFor(`
+          <div class="no-results">Unrelated component</div><main id="content"></main>
+        `, 'https://dribbble.com/search/shots/popular?q=mobile');
+        await expect(command('shot').func(unrelatedMarkerPage, {
             query: 'mobile', sort: 'popular', limit: 1,
         })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
     });
@@ -317,6 +355,28 @@ describe('dribbble production DOM extractors', () => {
         })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
     });
 
+    it('extracts a member card once when its nested controls repeat follower links', async () => {
+        const page = pageFor(`
+          <main>
+            <li class="scrolling-row js-designer" data-user-id="6234">
+              <a class="user-avatar" href="/haloweb"><img alt="Halo UI/UX" src="https://cdn.example/avatar.png"></a>
+              <a href="/haloweb">Halo UI/UX</a>
+              <a href="/haloweb/followers">Follow</a>
+              <ul><li><a href="/haloweb/followers">Follow</a></li></ul>
+            </li>
+          </main>
+        `, 'https://dribbble.com/halolab/members');
+
+        await expect(command('member').func(page, {
+            designer: 'halolab', limit: 3,
+        })).resolves.toEqual([expect.objectContaining({
+            rank: 1,
+            username: 'haloweb',
+            name: 'Halo UI/UX',
+            url: 'https://dribbble.com/haloweb',
+        })]);
+    });
+
     it('rejects malformed cards instead of silently dropping them as empty', async () => {
         const malformedShot = pageFor('<main id="content"><li id="screenshot-1"></li></main>',
             'https://dribbble.com/search/shots/popular?q=mobile');
@@ -346,7 +406,7 @@ describe('dribbble production DOM extractors', () => {
         })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
 
         const malformedMember = pageFor(`
-          <main><li><a href="/haloweb/followers">Follow</a></li></main>
+          <main><li data-user-id="6234"><a href="/haloweb/followers">Follow</a></li></main>
         `, 'https://dribbble.com/halolab/members');
         await expect(command('member').func(malformedMember, {
             designer: 'halolab', limit: 1,
@@ -397,7 +457,7 @@ describe('dribbble production DOM extractors', () => {
         });
 
         const members = runInDom(extractMemberRows, `
-          <main><ul><li>
+          <main><ul><li data-user-id="6234">
             <a href="/haloweb"><img alt="Halo UI/UX" src="https://cdn.example/member.png">Halo UI/UX</a>
             <span class="user-location">San Francisco, CA</span>
             <a href="/haloweb/followers">Follow</a>
