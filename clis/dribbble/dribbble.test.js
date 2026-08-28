@@ -245,6 +245,114 @@ describe('dribbble production DOM extractors', () => {
             'https://dribbble.com/shots/999999999')).toMatchObject({ ok: true, empty: true });
     });
 
+    it('distinguishes an explicit empty shot page from shot-card selector drift', async () => {
+        const emptyPage = pageFor('<div class="no-results">No results found</div><main id="content"></main>',
+            'https://dribbble.com/search/shots/popular?q=missing');
+        await expect(command('shot').func(emptyPage, {
+            query: 'missing', sort: 'popular', limit: 1,
+        })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+
+        const driftPage = pageFor('<main id="content"></main>',
+            'https://dribbble.com/search/shots/popular?q=mobile');
+        await expect(command('shot').func(driftPage, {
+            query: 'mobile', sort: 'popular', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+
+    it('distinguishes completed empty designer results from card selector drift', async () => {
+        const emptyPage = pageFor(`
+          <div class="designer-search-results">
+            <drb-infinite-scroll data-designer-search-infinite-scroll disabled></drb-infinite-scroll>
+          </div>
+        `, 'https://dribbble.com/hire?keywords=missing');
+        await expect(command('designer').func(emptyPage, {
+            query: 'missing', limit: 1,
+        })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+
+        const driftPage = pageFor('<div class="designer-search-results"></div>',
+            'https://dribbble.com/hire?keywords=product');
+        await expect(command('designer').func(driftPage, {
+            query: 'product', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+
+    it('distinguishes empty profile tabs from service and collection selector drift', async () => {
+        const emptyService = pageFor(`
+          <li class="services active empty"><a href="/vin-jake/services">Services</a></li>
+          <main id="content"></main>
+        `, 'https://dribbble.com/vin-jake/services');
+        await expect(command('service').func(emptyService, {
+            designer: 'vin-jake', query: '', limit: 1,
+        })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+
+        const driftService = pageFor('<main id="content"></main>', 'https://dribbble.com/halolab/services');
+        await expect(command('service').func(driftService, {
+            designer: 'halolab', query: '', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+
+        const emptyCollection = pageFor(`
+          <li class="collections active empty"><a href="/vin-jake/collections">Collections</a></li>
+          <main></main>
+        `, 'https://dribbble.com/vin-jake/collections');
+        await expect(command('collection').func(emptyCollection, {
+            designer: 'vin-jake', limit: 1,
+        })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+
+        const driftCollection = pageFor('<main></main>', 'https://dribbble.com/halolab/collections');
+        await expect(command('collection').func(driftCollection, {
+            designer: 'halolab', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+
+    it('treats a missing team as empty but missing member cards as drift', async () => {
+        const missingTeam = pageFor('<main>Whoops, that page is gone.</main>',
+            'https://dribbble.com/missing/members');
+        await expect(command('member').func(missingTeam, {
+            designer: 'missing', limit: 1,
+        })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+
+        const driftPage = pageFor('<main></main>', 'https://dribbble.com/halolab/members');
+        await expect(command('member').func(driftPage, {
+            designer: 'halolab', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+
+    it('rejects malformed cards instead of silently dropping them as empty', async () => {
+        const malformedShot = pageFor('<main id="content"><li id="screenshot-1"></li></main>',
+            'https://dribbble.com/search/shots/popular?q=mobile');
+        await expect(command('shot').func(malformedShot, {
+            query: 'mobile', sort: 'popular', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+
+        const malformedDesigner = pageFor(`
+          <div class="designer-search-results"><article data-resume-user-card></article></div>
+        `, 'https://dribbble.com/hire?keywords=product');
+        await expect(command('designer').func(malformedDesigner, {
+            query: 'product', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+
+        const malformedService = pageFor(`
+          <main id="content"><article class="service-card" role="article"></article></main>
+        `, 'https://dribbble.com/halolab/services');
+        await expect(command('service').func(malformedService, {
+            designer: 'halolab', query: '', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+
+        const malformedCollection = pageFor(`
+          <main><a href="/halolab/collections/not-a-number">Collection</a></main>
+        `, 'https://dribbble.com/halolab/collections');
+        await expect(command('collection').func(malformedCollection, {
+            designer: 'halolab', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+
+        const malformedMember = pageFor(`
+          <main><li><a href="/haloweb/followers">Follow</a></li></main>
+        `, 'https://dribbble.com/halolab/members');
+        await expect(command('member').func(malformedMember, {
+            designer: 'halolab', limit: 1,
+        })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+    });
+
     it('extracts shot detail media, authors, and palette from the visible shot contract', () => {
         const payload = runInDom(extractShotDetailRow, `
           <meta property="og:image" content="https://cdn.example/cover.png">
