@@ -6,8 +6,9 @@
  * the --with-replies flag.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
+import { readXhsDetailPage } from './risk-control.js';
 
 const XHS_PROFILE_HREF_SELECTOR = '.author-wrapper a[href*="/user/profile/"], a.name[href*="/user/profile/"], a.user-name[href*="/user/profile/"], a[href*="/user/profile/"]';
 
@@ -300,16 +301,18 @@ export const command = cli({
         const withReplies = Boolean(kwargs['with-replies']);
         const raw = String(kwargs['note-id']);
         const noteId = parseNoteId(raw);
-        await page.goto(buildNoteUrl(raw, { commandName: 'xiaohongshu comments' }));
-        await page.wait({ time: 2 + Math.random() * 3 });
-        const data = await page.evaluate(buildCommentsExtractJs(withReplies, limit));
+        // readXhsDetailPage paces the navigation and retries once through a
+        // cooldown if risk control soft-blocks the page (throws SECURITY_BLOCK
+        // when still blocked after the retry).
+        const data = await readXhsDetailPage(page, {
+            url: buildNoteUrl(raw, { commandName: 'xiaohongshu comments' }),
+            extractJs: buildCommentsExtractJs(withReplies, limit),
+            securityHelp: /^https?:\/\//.test(raw)
+                ? 'The page may be temporarily restricted. Try again later or from a different session.'
+                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.',
+        });
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('xiaohongshu/comments', 'Unexpected evaluate response');
-        }
-        if (data.securityBlock) {
-            throw new CliError('SECURITY_BLOCK', 'Xiaohongshu security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
-                ? 'The page may be temporarily restricted. Try again later or from a different session.'
-                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }
         if (data.loginWall) {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Note comments require login');

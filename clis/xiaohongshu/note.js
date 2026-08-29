@@ -7,8 +7,9 @@
  * Requires a full Xiaohongshu note URL with xsec_token.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CliError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
+import { readXhsDetailPage } from './risk-control.js';
 /**
  * Host-agnostic IIFE that scrapes note title / author / counts / tags from a
  * rendered note detail page. Exported so the rednote adapter can reuse the
@@ -77,16 +78,18 @@ export const command = cli({
         const raw = String(kwargs['note-id']);
         const noteId = parseNoteId(raw);
         const url = buildNoteUrl(raw, { commandName: 'xiaohongshu note' });
-        await page.goto(url);
-        await page.wait({ time: 2 + Math.random() * 3 });
-        const data = await page.evaluate(NOTE_EXTRACT_JS);
+        // readXhsDetailPage paces the navigation and retries once through a
+        // cooldown if risk control soft-blocks the page (throws SECURITY_BLOCK
+        // when still blocked after the retry).
+        const data = await readXhsDetailPage(page, {
+            url,
+            extractJs: NOTE_EXTRACT_JS,
+            securityHelp: /^https?:\/\//.test(raw)
+                ? 'The page may be temporarily restricted. Try again later or from a different session.'
+                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.',
+        });
         if (!data || typeof data !== 'object') {
             throw new EmptyResultError('xiaohongshu/note', 'Unexpected evaluate response');
-        }
-        if (data.securityBlock) {
-            throw new CliError('SECURITY_BLOCK', 'Xiaohongshu security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(raw)
-                ? 'The page may be temporarily restricted. Try again later or from a different session.'
-                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
         }
         if (data.loginWall) {
             throw new AuthRequiredError('www.xiaohongshu.com', 'Note content requires login');

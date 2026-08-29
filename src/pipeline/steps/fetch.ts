@@ -2,7 +2,7 @@
  * Pipeline step: fetch — HTTP API requests.
  */
 
-import { CliError, getErrorMessage } from '../../errors.js';
+import { ArgumentError, CliError, getErrorMessage } from '../../errors.js';
 import { log } from '../../logger.js';
 import type { IPage } from '../../types.js';
 import { render } from '../template.js';
@@ -95,6 +95,9 @@ export async function stepFetch(page: IPage | null, params: unknown, data: unkno
   // Per-item fetch when data is array and URL references item
   if (Array.isArray(data) && urlTemplate.includes('item')) {
     const concurrency = typeof paramObject.concurrency === 'number' ? paramObject.concurrency : 5;
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+      throw new ArgumentError(`Concurrency limit must be a positive integer. Received: "${String(concurrency)}"`);
+    }
 
     // Render all URLs upfront
     const renderedHeaders: Record<string, string> = {};

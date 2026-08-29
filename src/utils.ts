@@ -5,7 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import TurndownService from 'turndown';
-import { LoginWallError } from './errors.js';
+import { ArgumentError, LoginWallError } from './errors.js';
 
 /** Type guard: checks if a value is a non-null, non-array object. */
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -18,6 +18,10 @@ export async function mapConcurrent<T, R>(
   limit: number,
   fn: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new ArgumentError(`Concurrency limit must be a positive integer. Received: "${String(limit)}"`);
+  }
+
   const results: R[] = new Array(items.length);
   let index = 0;
 

@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  mapConcurrent,
   parseJsonOrThrowLoginWall,
   throwIfLoginWall,
   BROWSER_JSON_SNIFF_FN,
   type LoginWallSignal,
 } from './utils.js';
-import { LoginWallError } from './errors.js';
+import { ArgumentError, LoginWallError } from './errors.js';
 
 function makeResponse(body: string, opts: { status?: number; contentType?: string; url?: string } = {}): Response {
   return new Response(body, {
@@ -13,6 +14,17 @@ function makeResponse(body: string, opts: { status?: number; contentType?: strin
     headers: { 'content-type': opts.contentType ?? 'application/json' },
   });
 }
+
+describe('mapConcurrent', () => {
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects invalid concurrency limit %s instead of skipping work',
+    async (limit) => {
+      const worker = async (value: number) => value * 2;
+
+      await expect(mapConcurrent([1, 2], limit, worker)).rejects.toBeInstanceOf(ArgumentError);
+    },
+  );
+});
 
 describe('parseJsonOrThrowLoginWall', () => {
   it('returns parsed JSON on a normal application/json response', async () => {

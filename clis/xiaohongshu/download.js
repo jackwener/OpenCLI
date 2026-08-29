@@ -9,7 +9,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader } from '@jackwener/opencli/download';
 import { downloadMedia } from '@jackwener/opencli/download/media-download';
-import { CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { readXhsDetailPage } from './risk-control.js';
 import { buildNoteUrl, parseNoteId } from './note-helpers.js';
 /**
  * Build the media-extraction IIFE. The note id is interpolated as a default
@@ -219,14 +220,18 @@ export const command = cli({
         const rawInput = String(kwargs['note-id']);
         const output = kwargs.output;
         const noteId = parseNoteId(rawInput);
-        await page.goto(buildNoteUrl(rawInput, { allowShortLink: true, commandName: 'xiaohongshu download' }));
-        await page.wait({ time: 1 + Math.random() * 2 });
-        const data = await page.evaluate(buildDownloadExtractJs(noteId));
-        if (data?.securityBlock) {
-            throw new CliError('SECURITY_BLOCK', 'Xiaohongshu security block: the note detail page was blocked by risk control.', /^https?:\/\//.test(rawInput)
+        // readXhsDetailPage paces the navigation and retries once through a
+        // cooldown if risk control soft-blocks the page (throws SECURITY_BLOCK
+        // when still blocked after the retry).
+        const data = await readXhsDetailPage(page, {
+            url: buildNoteUrl(rawInput, { allowShortLink: true, commandName: 'xiaohongshu download' }),
+            extractJs: buildDownloadExtractJs(noteId),
+            securityHelp: /^https?:\/\//.test(rawInput)
                 ? 'The page may be temporarily restricted. Try again later or from a different session.'
-                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.');
-        }
+                : 'Try using a full URL from search results (with xsec_token) instead of a bare note ID.',
+            settleMinS: 1,
+            settleMaxS: 3,
+        });
         if (!data || typeof data !== 'object' || !Array.isArray(data.media)) {
             throw new CommandExecutionError('Xiaohongshu media extraction returned malformed payload.');
         }
