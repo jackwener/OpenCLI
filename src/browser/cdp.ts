@@ -21,6 +21,7 @@ import { getAllElectronApps } from '../electron-apps.js';
 import { CDPBasePage } from './base-page.js';
 
 export interface CDPTarget {
+  id?: string;
   type?: string;
   url?: string;
   title?: string;
@@ -53,8 +54,11 @@ export class CDPBridge implements IBrowserFactory {
   private _idCounter = 0;
   private _pending = new Map<number, { resolve: (val: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private _eventListeners = new Map<string, Set<(params: unknown) => void>>();
+  private _httpBase: string | null = null;
+  private _createdTargetId: string | null = null;
+  private _keepDedicatedTarget = false;
 
-  async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' }): Promise<IPage> {
+  async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean; keepTab?: boolean }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
 
     const endpoint = opts?.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
@@ -62,15 +66,31 @@ export class CDPBridge implements IBrowserFactory {
 
     let wsUrl = endpoint;
     if (endpoint.startsWith('http')) {
-      const targets = await fetchJsonDirect(`${endpoint.replace(/\/$/, '')}/json`) as CDPTarget[];
-      const target = selectCDPTarget(targets);
-      if (!target || !target.webSocketDebuggerUrl) {
-        throw new Error('No inspectable targets found at CDP endpoint');
+      const httpBase = endpoint.replace(/\/$/, '');
+      if (opts?.dedicatedTarget) {
+        // Website sessions on a shared browser must not hijack whichever tab
+        // happens to rank first — open a dedicated tab and clean it up on close().
+        const created = await createDedicatedCDPTarget(httpBase);
+        if (!created.webSocketDebuggerUrl) {
+          throw new Error('CDP endpoint created a target without webSocketDebuggerUrl');
+        }
+        this._httpBase = httpBase;
+        this._createdTargetId = created.id ?? null;
+        // --keep-tab (and `--site-session persistent`, which implies it) means the
+        // caller wants the tab left behind for inspection or a follow-up command.
+        this._keepDedicatedTarget = opts?.keepTab === true;
+        wsUrl = created.webSocketDebuggerUrl;
+      } else {
+        const targets = await fetchJsonDirect(`${httpBase}/json`) as CDPTarget[];
+        const target = selectCDPTarget(targets);
+        if (!target || !target.webSocketDebuggerUrl) {
+          throw new Error('No inspectable targets found at CDP endpoint');
+        }
+        wsUrl = target.webSocketDebuggerUrl;
       }
-      wsUrl = target.webSocketDebuggerUrl;
     }
 
-    return new Promise((resolve, reject) => {
+    const session = new Promise<IPage>((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
       const timeoutMs = (opts?.timeout ?? 10) * 1000;
       const timeout = setTimeout(() => {
@@ -125,6 +145,29 @@ export class CDPBridge implements IBrowserFactory {
         }
       });
     });
+
+    try {
+      return await session;
+    } catch (err) {
+      // The tab exists before the WebSocket handshake starts, so a refused
+      // connection, a connect timeout, or a failed Page.enable would otherwise
+      // strand it on someone's shared browser. Discard it even when keep-tab was
+      // requested: nothing ever attached to it, so there is nothing to keep.
+      await this._discardDedicatedTarget();
+      throw err;
+    }
+  }
+
+  /** Close the tab this bridge opened (if any) and forget it. Never throws. */
+  private async _discardDedicatedTarget(): Promise<void> {
+    const httpBase = this._httpBase;
+    const targetId = this._createdTargetId;
+    this._httpBase = null;
+    this._createdTargetId = null;
+    this._keepDedicatedTarget = false;
+    if (!httpBase || !targetId) return;
+    // Best-effort: the browser may already be gone.
+    await closeDedicatedCDPTarget(httpBase, targetId).catch(() => {});
   }
 
   async close(): Promise<void> {
@@ -138,6 +181,17 @@ export class CDPBridge implements IBrowserFactory {
     }
     this._pending.clear();
     this._eventListeners.clear();
+    if (this._keepDedicatedTarget) {
+      // keep-tab semantics: leave the tab open and just forget it. The next
+      // command opens its own tab -- login state lives in the shared Chrome
+      // profile, not in the tab, so nothing is lost by not reusing this one.
+      this._httpBase = null;
+      this._createdTargetId = null;
+      this._keepDedicatedTarget = false;
+      return;
+    }
+    // Remove the tab we opened so repeated runs don't litter the shared browser.
+    await this._discardDedicatedTarget();
   }
 
   async send(method: string, params: Record<string, unknown> = {}, timeoutMs: number = CDP_SEND_TIMEOUT): Promise<unknown> {
@@ -592,10 +646,10 @@ export const __test__ = {
   scoreCDPTarget,
 };
 
-function fetchJsonDirect(url: string): Promise<unknown> {
+function fetchJsonDirect(url: string, method: 'GET' | 'PUT' = 'GET'): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
-    const request = (parsed.protocol === 'https:' ? httpsRequest : httpRequest)(parsed, (res) => {
+    const request = (parsed.protocol === 'https:' ? httpsRequest : httpRequest)(parsed, { method }, (res) => {
       const statusCode = res.statusCode ?? 0;
       if (statusCode < 200 || statusCode >= 300) {
         res.resume();
@@ -606,10 +660,12 @@ function fetchJsonDirect(url: string): Promise<unknown> {
       const chunks: Buffer[] = [];
       res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
       res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
         try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-        } catch (error) {
-          reject(error instanceof Error ? error : new Error(String(error)));
+          resolve(JSON.parse(body));
+        } catch {
+          // /json/close (and some older endpoints) reply with plain text.
+          resolve(body);
         }
       });
     });
@@ -618,4 +674,28 @@ function fetchJsonDirect(url: string): Promise<unknown> {
     request.setTimeout(10_000, () => request.destroy(new Error('Timed out fetching CDP targets')));
     request.end();
   });
+}
+
+/**
+ * Open a dedicated tab on a shared browser via the DevTools HTTP API.
+ * Chrome 111+ requires PUT for /json/new; older versions only accept GET —
+ * try PUT first and fall back so both generations work.
+ */
+export async function createDedicatedCDPTarget(httpBase: string): Promise<CDPTarget> {
+  const newUrl = `${httpBase}/json/new?url=about:blank`;
+  let created: unknown;
+  try {
+    created = await fetchJsonDirect(newUrl, 'PUT');
+  } catch {
+    created = await fetchJsonDirect(newUrl, 'GET');
+  }
+  if (!isRecord(created) || typeof created.webSocketDebuggerUrl !== 'string') {
+    throw new Error('CDP /json/new did not return an inspectable target');
+  }
+  return created as CDPTarget;
+}
+
+/** Best-effort close of a tab previously opened by createDedicatedCDPTarget. */
+export async function closeDedicatedCDPTarget(httpBase: string, targetId: string): Promise<void> {
+  await fetchJsonDirect(`${httpBase}/json/close/${targetId}`, 'GET');
 }
