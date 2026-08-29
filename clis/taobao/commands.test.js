@@ -5,10 +5,22 @@ import './detail.js';
 import './reviews.js';
 import './cart.js';
 import './add-cart.js';
+import './sessions.js';
+import './chat.js';
+import './orders.js';
+import './bought-shops.js';
+import './favorites.js';
+import './reason.js';
+import './export.js';
+import './sync.js';
 import { createPageMock } from '../test-utils.js';
 describe('taobao command registration', () => {
-    it('registers all taobao shopping commands', () => {
-        for (const name of ['search', 'detail', 'reviews', 'cart', 'add-cart']) {
+    it('registers all taobao shopping and chat/order commands', () => {
+        for (const name of [
+            'search', 'detail', 'reviews', 'cart', 'add-cart',
+            'sessions', 'chat', 'orders', 'bought-shops', 'favorites',
+            'reason', 'export', 'sync'
+        ]) {
             expect(getRegistry().get(`taobao/${name}`)).toBeDefined();
         }
     });

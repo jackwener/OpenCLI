@@ -169,7 +169,7 @@ Run `opencli list` for the live registry.
 | **[cnki](./browser/cnki.md)**                     | `search`                                                                                                                                       | 🔐 Browser   |
 | **[flomo](./browser/flomo.md)**                   | `memos`                                                                                                                                        | 🔐 Browser   |
 | **[jianyu](./browser/jianyu.md)**                 | `search` `detail`                                                                                                                              | 🔐 Browser   |
-| **[taobao](./browser/taobao.md)**                 | `search` `detail` `reviews` `cart` `add-cart`                                                                                                  | 🔐 Browser   |
+| **[taobao](./browser/taobao.md)**                 | `search` `detail` `reviews` `cart` `add-cart` `sessions` `chat` `orders` `bought-shops` `favorites` `reason` `export` `sync`                                                                                                  | 🔐 Browser   |
 | **[minimax](./browser/minimax.md)**               | `music`                                                                                                                                        | 🔑 MiniMax API |
 
 ## Desktop Adapters

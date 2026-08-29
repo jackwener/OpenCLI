@@ -37335,6 +37335,61 @@
   },
   {
     "site": "taobao",
+    "name": "bought-shops",
+    "description": "获取淘宝购买过的店铺列表 (支持多页翻页拉取、类目筛选、搜索)",
+    "access": "read",
+    "domain": "i.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "按店铺名称搜索筛选"
+      },
+      {
+        "name": "category",
+        "type": "str",
+        "required": false,
+        "help": "按店铺行业类目筛选 (如: 数码, 收藏/兴趣, 家居, 男装, 教育培训, DIY)"
+      },
+      {
+        "name": "pages",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "翻页抓取的总页数 (默认 1 页, 设为 5 可拉取更多)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "返回的最大店铺数量"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "是否全量翻页抓取全部购买过的店铺 (最多 25 页)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "shop",
+      "category",
+      "is_collected"
+    ],
+    "type": "js",
+    "modulePath": "taobao/bought-shops.js",
+    "sourceFile": "taobao/bought-shops.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
     "name": "cart",
     "description": "查看淘宝购物车",
     "access": "read",
@@ -37364,6 +37419,60 @@
   },
   {
     "site": "taobao",
+    "name": "chat",
+    "description": "获取与指定淘宝卖家的完整历史聊天记录 (支持店铺名称或CID搜索，自动多轮分页逆向拉取全部消息)",
+    "access": "read",
+    "domain": "market.m.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "seller",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "卖家店铺名称或会话CID (例如: 郭氏永盛旗舰店 或 1779237934.1-...)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "拉取最大消息条数 (默认 100, 最大 5000)"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "是否拉取该店铺全部历史消息"
+      },
+      {
+        "name": "order",
+        "type": "str",
+        "default": "asc",
+        "required": false,
+        "help": "排序方式: asc (正序/时间先后) 或 desc (倒序/最新在前)"
+      }
+    ],
+    "columns": [
+      "index",
+      "id",
+      "create_at",
+      "time",
+      "sender_role",
+      "sender_nick",
+      "type",
+      "content",
+      "attachment_url"
+    ],
+    "type": "js",
+    "modulePath": "taobao/chat.js",
+    "sourceFile": "taobao/chat.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
     "name": "detail",
     "description": "淘宝商品详情",
     "access": "read",
@@ -37386,6 +37495,99 @@
     "type": "js",
     "modulePath": "taobao/detail.js",
     "sourceFile": "taobao/detail.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
+    "name": "export",
+    "description": "将与淘宝卖家的完整聊天记录导出为 Markdown、JSON 或 HTML 文件",
+    "access": "read",
+    "domain": "market.m.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "seller",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "卖家店铺名称或会话CID"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "./taobao-chat-export.md",
+        "required": false,
+        "help": "输出文件路径 (.md, .json, .html)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 500,
+        "required": false,
+        "help": "导出最大消息条数 (默认 500)"
+      },
+      {
+        "name": "file-type",
+        "type": "str",
+        "default": "md",
+        "required": false,
+        "help": "导出文件格式: md | json | html"
+      }
+    ],
+    "columns": [
+      "seller",
+      "total_exported",
+      "output_file",
+      "file_size",
+      "date_range"
+    ],
+    "type": "js",
+    "modulePath": "taobao/export.js",
+    "sourceFile": "taobao/export.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
+    "name": "favorites",
+    "description": "查看淘宝宝贝收藏列表 (支持搜索关键词、多轮滚动翻页)",
+    "access": "read",
+    "domain": "i.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "搜索或筛选收藏夹商品名称"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "返回商品最大条数 (默认 30)"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "是否全量滚动加载所有收藏夹商品"
+      }
+    ],
+    "columns": [
+      "index",
+      "title",
+      "price",
+      "discount",
+      "collected_count"
+    ],
+    "type": "js",
+    "modulePath": "taobao/favorites.js",
+    "sourceFile": "taobao/favorites.js",
     "navigateBefore": false
   },
   {
@@ -37418,6 +37620,109 @@
     "navigateBefore": false,
     "siteSession": "persistent",
     "defaultWindowMode": "foreground"
+  },
+  {
+    "site": "taobao",
+    "name": "orders",
+    "description": "获取淘宝已买到的宝贝 / 历史订单列表 (支持跨页翻页拉取、关键词搜索、状态过滤)",
+    "access": "read",
+    "domain": "buyertrade.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "按商品名称、店铺名或订单号搜索筛选"
+      },
+      {
+        "name": "pages",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "翻页抓取的总页数 (默认 1 页 = 30条, 设为 5 可拉取 150条)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "返回的最大订单数量"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "是否全量翻页拉取全部历史订单 (最多翻 50 页)"
+      },
+      {
+        "name": "status",
+        "type": "str",
+        "required": false,
+        "help": "按订单状态筛选 (如: 交易成功, 待发货, 待收货, 待付款)"
+      }
+    ],
+    "columns": [
+      "order_date",
+      "shop",
+      "status",
+      "title",
+      "spec",
+      "total_paid",
+      "order_id"
+    ],
+    "type": "js",
+    "modulePath": "taobao/orders.js",
+    "sourceFile": "taobao/orders.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
+    "name": "reason",
+    "description": "对指定卖家的聊天记录进行智能推理与结构化提炼 (承诺/质保/规格/发货/纠纷证据/摘要)",
+    "access": "read",
+    "domain": "market.m.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "seller",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "卖家店铺名称或会话CID"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 100,
+        "required": false,
+        "help": "分析最近多少条消息 (默认 100)"
+      },
+      {
+        "name": "type",
+        "type": "str",
+        "default": "all",
+        "required": false,
+        "help": "分析维度: all (全景), promises (承诺), dispute (纠纷留证), specs (参数定制)"
+      }
+    ],
+    "columns": [
+      "seller",
+      "total_messages",
+      "summary",
+      "commitments",
+      "specs_agreed",
+      "risk_alerts",
+      "attachments_count"
+    ],
+    "type": "js",
+    "modulePath": "taobao/reason.js",
+    "sourceFile": "taobao/reason.js",
+    "navigateBefore": false
   },
   {
     "site": "taobao",
@@ -37504,6 +37809,88 @@
     "type": "js",
     "modulePath": "taobao/search.js",
     "sourceFile": "taobao/search.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
+    "name": "sessions",
+    "description": "列出所有淘宝卖家客服聊天会话 (联系人列表、最后消息、未读数)",
+    "access": "read",
+    "domain": "market.m.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": false,
+        "positional": true,
+        "help": "按卖家店铺名称关键词搜索筛选"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "返回最大会话数量 (默认 50, 最大 1000)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "seller",
+      "cid",
+      "last_message",
+      "last_time",
+      "unread",
+      "is_seller",
+      "modify_time"
+    ],
+    "type": "js",
+    "modulePath": "taobao/sessions.js",
+    "sourceFile": "taobao/sessions.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "taobao",
+    "name": "sync",
+    "description": "高速批量同步淘宝卖家会话及全量聊天记录 (在浏览器 SDK 内部批量循环拉取)",
+    "access": "read",
+    "domain": "market.m.taobao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "批量同步的会话数量 (默认 30, 最大 500)"
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "是否同步账号下全部店铺的所有历史聊天记录"
+      },
+      {
+        "name": "msg-limit",
+        "type": "int",
+        "default": 200,
+        "required": false,
+        "help": "每个店铺最大拉取消息数 (默认 200)"
+      }
+    ],
+    "columns": [
+      "seller",
+      "cid",
+      "messages_count",
+      "status",
+      "last_time"
+    ],
+    "type": "js",
+    "modulePath": "taobao/sync.js",
+    "sourceFile": "taobao/sync.js",
     "navigateBefore": false
   },
   {
