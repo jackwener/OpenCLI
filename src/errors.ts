@@ -258,16 +258,21 @@ export function toEnvelope(err: unknown): ErrorEnvelope {
     status: traceReceipt.status,
   } : undefined;
   // Duck typing: accept own CliError instances AND cross-package copies that
-  // carry the same shape ({code, message, optional hint}). `instanceof` fails
-  // when the throwing module resolves a different copy of @jackwener/opencli
-  // (e.g. a plugin with its own node_modules) — those errors used to degrade
-  // to UNKNOWN and lose `hint`. Shape check keeps behavior identical for real
-  // CliError and plain Errors (which have no string `code`).
+  // carry the same shape. `instanceof` fails when the throwing module resolves
+  // a different copy of @jackwener/opencli (e.g. a plugin with its own
+  // node_modules) — those errors used to degrade to UNKNOWN and lose `hint`.
+  //
+  // `exitCode` is the discriminator: CliError's constructor always assigns it
+  // (defaulting to GENERIC_ERROR), while Node system errors carry a string
+  // `code` (ENOENT, ECONNREFUSED, EACCES) and a string `message` but never an
+  // `exitCode`. Without this check those would be reported with their errno as
+  // the envelope `code`, silently widening the contract that callers switch on.
   const isCliErrorLike =
     err !== null &&
     typeof err === 'object' &&
     typeof (err as any).code === 'string' &&
-    typeof (err as any).message === 'string';
+    typeof (err as any).message === 'string' &&
+    typeof (err as any).exitCode === 'number';
   if (err instanceof CliError || isCliErrorLike) {
     const e = err as any;
     return {

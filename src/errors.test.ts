@@ -126,6 +126,9 @@ describe('toEnvelope', () => {
     class ForeignCliError extends Error {
       code = 'INVALID_ARGS';
       hint: string | undefined;
+      // A real CliError always assigns exitCode in its constructor, so a
+      // faithful cross-package copy carries it too.
+      exitCode = 2;
       constructor(message: string, hint?: string) {
         super(message);
         this.name = 'CliError';
@@ -138,10 +141,19 @@ describe('toEnvelope', () => {
     expect(envelope.error.message).toBe('bad file');
   });
 
-  it('passes through error-like plain objects with code/message', () => {
+  it('does not treat a bare {code,message} object as a CliError', () => {
+    // No exitCode => not CliError-shaped. Accepting these would let any
+    // foreign string `code` into the envelope contract.
     const envelope = toEnvelope({ code: 'FORBIDDEN', message: 'scope violation' });
-    expect(envelope.error.code).toBe('FORBIDDEN');
-    expect(envelope.error.message).toBe('scope violation');
+    expect(envelope.error.code).toBe('UNKNOWN');
+  });
+
+  it('keeps Node system errors as UNKNOWN instead of surfacing their errno', () => {
+    // fs/net errors have a string `code` and `message` but no exitCode.
+    // Reporting `ENOENT` as the envelope code would widen the machine-readable
+    // contract that callers switch on.
+    const enoent = Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
+    expect(toEnvelope(enoent).error.code).toBe('UNKNOWN');
   });
 
   it('keeps UNKNOWN for Errors without a code', () => {
