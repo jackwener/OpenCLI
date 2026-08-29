@@ -399,6 +399,13 @@ export async function waitForSubmittedJobAfter(page, userId, prompt, baselineIds
   return (await waitForSubmittedJobsAfter(page, userId, prompt, baselineIds, timeoutSeconds, submittedAtMs, 1))[0];
 }
 
+async function waitForNextPoll(page, deadline, intervalSeconds) {
+  const remainingSeconds = (deadline - Date.now()) / 1000;
+  if (remainingSeconds <= 0) return false;
+  await page.wait(Math.min(intervalSeconds, remainingSeconds));
+  return Date.now() < deadline;
+}
+
 export async function waitForSubmittedJobsAfter(
   page,
   userId,
@@ -415,7 +422,7 @@ export async function waitForSubmittedJobsAfter(
   const historyPageSize = Math.min(100, Math.max(20, expectedCount));
   let ambiguousIds = [];
   let consecutivePollFailures = 0;
-  while (Date.now() < deadline) {
+  do {
     let recent = [];
     try {
       recent = await fetchHistory(page, userId, historyPageSize);
@@ -424,7 +431,7 @@ export async function waitForSubmittedJobsAfter(
       if (error instanceof AuthRequiredError) throw error;
       consecutivePollFailures += 1;
       if (consecutivePollFailures >= 3) throw error;
-      await page.wait(1.5);
+      if (!(await waitForNextPoll(page, deadline, 1.5))) break;
       continue;
     }
     const newRows = recent.filter((row) => {
@@ -449,8 +456,8 @@ export async function waitForSubmittedJobsAfter(
         .map((row) => String(row.id).toLowerCase());
     }
     if (matching.length > expectedCount) ambiguousIds = matching.map((row) => String(row.id).toLowerCase());
-    await page.wait(1.5);
-  }
+    if (!(await waitForNextPoll(page, deadline, 1.5))) break;
+  } while (true);
   if (ambiguousIds.length > expectedCount) {
     throw new CommandExecutionError(
       `Midjourney submission is ambiguous; ${ambiguousIds.length} new jobs matched the prompt`,
@@ -468,7 +475,7 @@ export async function waitForDerivedJob(page, userId, parentJobId, baselineIds, 
   const deadline = Date.now() + timeoutSeconds * 1000;
   let candidates = [];
   let consecutivePollFailures = 0;
-  while (Date.now() < deadline) {
+  do {
     let recent;
     try {
       recent = await fetchHistory(page, userId, 50);
@@ -477,7 +484,7 @@ export async function waitForDerivedJob(page, userId, parentJobId, baselineIds, 
       if (error instanceof AuthRequiredError) throw error;
       consecutivePollFailures += 1;
       if (consecutivePollFailures >= 3) throw error;
-      await page.wait(1.5);
+      if (!(await waitForNextPoll(page, deadline, 1.5))) break;
       continue;
     }
     candidates = recent.filter((row) => {
@@ -491,8 +498,8 @@ export async function waitForDerivedJob(page, userId, parentJobId, baselineIds, 
         && enqueuedAt >= submittedAtMs - 5000;
     });
     if (candidates.length === 1) return String(candidates[0].id).toLowerCase();
-    await page.wait(1.5);
-  }
+    if (!(await waitForNextPoll(page, deadline, 1.5))) break;
+  } while (true);
   if (candidates.length > 1) {
     throw new CommandExecutionError(
       `Midjourney action is ambiguous; ${candidates.length} derived jobs matched parent ${parentJobId}`,
@@ -505,7 +512,7 @@ export async function waitForDerivedJob(page, userId, parentJobId, baselineIds, 
 export async function waitForCompletedJob(page, jobId, timeoutSeconds) {
   const deadline = Date.now() + timeoutSeconds * 1000;
   let lastStatus = 'unknown';
-  while (Date.now() < deadline) {
+  do {
     const job = await fetchJobStatus(page, jobId, { allowMissing: true });
     if (job) {
       lastStatus = String(job.current_status || job.status || 'unknown').toLowerCase();
@@ -514,8 +521,8 @@ export async function waitForCompletedJob(page, jobId, timeoutSeconds) {
         throw new CommandExecutionError(`Midjourney job ${jobId} ended with status "${lastStatus}"`);
       }
     }
-    await page.wait(2);
-  }
+    if (!(await waitForNextPoll(page, deadline, 2))) break;
+  } while (true);
   throw new TimeoutError(
     `Midjourney job ${jobId} (last status: ${lastStatus})`,
     timeoutSeconds,

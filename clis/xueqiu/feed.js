@@ -1,14 +1,5 @@
 import { cli } from '@jackwener/opencli/registry';
-import { fetchXueqiuJson } from './utils.js';
-function strip(html) {
-    return (html || '')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .trim();
-}
+import { fetchXueqiuJson, stripHtml as strip } from './utils.js';
 cli({
     site: 'xueqiu',
     name: 'feed',

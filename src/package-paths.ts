@@ -52,7 +52,3 @@ export function getBuiltEntryCandidates(
 export function getCliManifestPath(clisDir: string): string {
   return path.resolve(clisDir, '..', 'cli-manifest.json');
 }
-
-export function getFetchAdaptersScriptPath(packageRoot: string): string {
-  return path.join(packageRoot, 'scripts', 'fetch-adapters.js');
-}

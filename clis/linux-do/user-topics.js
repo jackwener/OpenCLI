@@ -1,11 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { fetchLinuxDoJson } from './feed.js';
-function toLocalTime(utcStr) {
-    if (!utcStr)
-        return '';
-    const date = new Date(utcStr);
-    return Number.isNaN(date.getTime()) ? utcStr : date.toLocaleString();
-}
+import { toLocalTime } from './format.js';
 cli({
     site: 'linux-do',
     name: 'user-topics',

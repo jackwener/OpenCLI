@@ -502,14 +502,6 @@
     ]
   },
   {
-    "command": "jike/notifications",
-    "file": "clis/jike/notifications.js",
-    "missing": [
-      "actionType",
-      "fromUser"
-    ]
-  },
-  {
     "command": "jike/topic",
     "file": "clis/jike/topic.js",
     "missing": [
@@ -603,15 +595,6 @@
     "file": "clis/twitter/bookmarks.js",
     "missing": [
       "name"
-    ]
-  },
-  {
-    "command": "twitter/list-remove",
-    "file": "clis/twitter/list-remove.js",
-    "missing": [
-      "method",
-      "ts",
-      "url"
     ]
   },
   {
@@ -759,14 +742,6 @@
       "seller_score",
       "seller_url",
       "status"
-    ]
-  },
-  {
-    "command": "xianyu/search",
-    "file": "clis/xianyu/search.js",
-    "missing": [
-      "extra",
-      "original_price"
     ]
   },
   {

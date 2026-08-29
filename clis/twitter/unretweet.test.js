@@ -39,18 +39,20 @@ describe('twitter unretweet command', () => {
         ]);
     });
 
-    it('returns a failed row when the confirm menu item never appears', async () => {
+    it('typed-fails when the confirm menu item never appears', async () => {
         const cmd = getRegistry().get('twitter/unretweet');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
             { ok: false, message: 'Unretweet menu opened but the confirm option did not appear.' },
         ]);
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Unretweet menu opened but the confirm option did not appear.',
         });
-        expect(result).toEqual([
-            { status: 'failed', message: 'Unretweet menu opened but the confirm option did not appear.' },
-        ]);
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
 

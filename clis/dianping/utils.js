@@ -36,10 +36,10 @@ export const CITY_ID = {
     changsha: 344, '长沙': 344,
     dalian: 19, '大连': 19,
     shenyang: 18, '沈阳': 18,
-    kunming: 25, '昆明': 25,
-    fuzhou: 110, '福州': 110,
-    xiamen: 14, '厦门': 14,
-    hefei: 26, '合肥': 26,
+    kunming: 267, '昆明': 267,
+    fuzhou: 14, '福州': 14,
+    xiamen: 15, '厦门': 15,
+    hefei: 110, '合肥': 110,
 };
 
 export const SEARCH_COLUMNS = ['rank', 'shop_id', 'name', 'rating', 'reviews', 'price', 'cuisine', 'district', 'url'];

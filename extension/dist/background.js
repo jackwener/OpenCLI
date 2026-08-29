@@ -861,8 +861,12 @@ function connect() {
 async function connectAttempt() {
   if (isDaemonSocketActive()) return;
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1e3) });
+    const res = await fetch(DAEMON_PING_URL, {
+      signal: AbortSignal.timeout(1e3),
+      credentials: "omit"
+    });
     if (!res.ok) {
+      console.warn(`[opencli] daemon ping failed: HTTP ${res.status}`);
       scheduleReconnect();
       return;
     }
@@ -1978,6 +1982,18 @@ async function handleFrames(cmd, leaseKey) {
     return errorResult(cmd.id, err);
   }
 }
+function preferOwnedTab(leaseKey, tabId) {
+  const session = automationSessions.get(leaseKey);
+  if (!session?.owned) return;
+  setLeaseSession(leaseKey, {
+    session: session.session,
+    surface: session.surface,
+    kind: session.kind,
+    windowId: session.windowId,
+    owned: true,
+    preferredTabId: tabId
+  });
+}
 async function handleNavigate(cmd, leaseKey) {
   if (!cmd.url) return { id: cmd.id, ok: false, error: "Missing url" };
   if (!isSafeNavigationUrl(cmd.url)) {
@@ -2112,6 +2128,34 @@ async function handleTabs(cmd, leaseKey) {
         }
         return { id: cmd.id, ok: true, data: { closed: closedPage2 } };
       }
+      if (cmd.page !== void 0 && session?.owned) {
+        let tabId2;
+        try {
+          tabId2 = await resolveCommandTabId(cmd);
+        } catch {
+          return { id: cmd.id, ok: false, error: `Page no longer exists` };
+        }
+        if (tabId2 === void 0) {
+          return { id: cmd.id, ok: false, error: `Page no longer exists` };
+        }
+        let tab;
+        try {
+          tab = await chrome.tabs.get(tabId2);
+        } catch {
+          return { id: cmd.id, ok: false, error: `Page no longer exists` };
+        }
+        if (tab.windowId !== session.windowId) {
+          return { id: cmd.id, ok: false, error: `Page is not in the automation container` };
+        }
+        const closedPage2 = await resolveTargetId(tabId2).catch(() => void 0);
+        if (session.preferredTabId === tabId2) {
+          await releaseLease(leaseKey, "tab close");
+        } else {
+          await safeDetach(tabId2);
+          await chrome.tabs.remove(tabId2);
+        }
+        return { id: cmd.id, ok: true, data: { closed: closedPage2 } };
+      }
       const cmdTabId = await resolveCommandTabId(cmd);
       const tabId = await resolveTabId(cmdTabId, leaseKey);
       const closedPage = await resolveTargetId(tabId).catch(() => void 0);
@@ -2140,12 +2184,14 @@ async function handleTabs(cmd, leaseKey) {
           return { id: cmd.id, ok: false, error: `Page is not in the automation container` };
         }
         await chrome.tabs.update(cmdTabId, { active: true });
+        preferOwnedTab(leaseKey, cmdTabId);
         return pageScopedResult(cmd.id, cmdTabId, { selected: true });
       }
       const tabs = await listAutomationWebTabs(leaseKey);
       const target = tabs[cmd.index];
       if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
       await chrome.tabs.update(target.id, { active: true });
+      preferOwnedTab(leaseKey, target.id);
       return pageScopedResult(cmd.id, target.id, { selected: true });
     }
     default:

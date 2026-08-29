@@ -5,14 +5,11 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { looksLinkedInAuthWall, normalizeWhitespace, unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SEARCH_URL_BASE = 'https://www.linkedin.com/search/results/people/';
 const MAX_LIMIT = 10;
-
-function normalizeWhitespace(value) {
-    return String(value ?? '').replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
-}
 
 function requireStringArg(args, key, label = key) {
     const value = normalizeWhitespace(args[key]);
@@ -29,21 +26,8 @@ function parseLimit(value) {
     return limit;
 }
 
-function unwrapEvaluateResult(payload) {
-    if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-    return payload;
-}
-
 function buildSearchUrl(keywords) {
     return SEARCH_URL_BASE + '?keywords=' + encodeURIComponent(keywords);
-}
-
-function looksLinkedInAuthWall(value) {
-    const text = normalizeWhitespace(value).toLowerCase();
-    if (!text) return false;
-    return /linkedin\.com\/(?:login|checkpoint|authwall|uas)/i.test(text)
-        || /\b(sign in|log in|join linkedin|captcha|verification required)\b/i.test(text)
-        || /(请登录|登录领英|安全验证)/.test(text);
 }
 
 function normalizeProfileUrl(value) {
@@ -103,6 +87,15 @@ function extractionScript() {
     }
     const main = document.querySelector('main') || document.body;
     const normalize = (s) => String(s || '').replace(/[\s\u00a0\u202f]+/g, ' ').trim();
+    const collapseRepeatedName = (name) => {
+      const parts = normalize(name).split(' ').filter(Boolean);
+      if (parts.length === 0 || parts.length % 2 !== 0) return normalize(name);
+      const half = parts.length / 2;
+      for (let i = 0; i < half; i++) {
+        if (parts[i] !== parts[i + half]) return normalize(name);
+      }
+      return parts.slice(0, half).join(' ');
+    };
     const skip = (l) => !l
       || /^Status is/.test(l)
       || /^(Message|Connect|Follow|View profile|Pending|Remove)$/i.test(l)
@@ -126,6 +119,7 @@ function extractionScript() {
       name = name.replace(/^Status is (online|offline)\.?\s*/i, '')
                  .replace(/'?s profile$/i, '')
                  .replace(/\s*[•·].*$/, '').trim();
+      name = collapseRepeatedName(name);
       if (!name) continue;
       seenHandles.add(profileHandle);
       personEntries.push({ profileHandle, displayName: name });
@@ -251,10 +245,8 @@ cli({
 });
 
 export const __test__ = {
-    normalizeWhitespace,
     parseLimit,
     buildSearchUrl,
-    looksLinkedInAuthWall,
     normalizeProfileUrl,
     normalizePeopleRows,
     parseNonNegativeCount,

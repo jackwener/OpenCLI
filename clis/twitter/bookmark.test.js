@@ -35,7 +35,7 @@ describe('twitter bookmark command', () => {
         ]);
     });
 
-    it('returns a failed row without re-waiting when the bookmark script reports a UI mismatch', async () => {
+    it('typed-fails without re-waiting when the bookmark script reports a UI mismatch', async () => {
         const cmd = getRegistry().get('twitter/bookmark');
         const page = createPageMock([
             {
@@ -43,15 +43,14 @@ describe('twitter bookmark command', () => {
                 message: 'Could not find Bookmark button on the requested tweet. Are you logged in?',
             },
         ]);
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Could not find Bookmark button on the requested tweet. Are you logged in?',
         });
-        expect(result).toEqual([
-            {
-                status: 'failed',
-                message: 'Could not find Bookmark button on the requested tweet. Are you logged in?',
-            },
-        ]);
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
 

@@ -11,24 +11,12 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { fetchStationBundle, mintSession, resolveStation, validateDate, parseTrainRecord } from './utils.js';
+import { fetchStationBundle, mintSession, normalizeLimit, resolveStation, validateDate, parseTrainRecord } from './utils.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36';
 const QUERY_ENDPOINTS = ['queryG', 'queryO', 'queryZ', 'queryA'];
 const MAX_LIMIT = 100;
 const QUERY_ENDPOINT_RE = /^query[A-Z]$/;
-
-function normalizeLimit(value, defaultValue, max) {
-    if (value === undefined || value === null || value === '') return defaultValue;
-    const n = Number(value);
-    if (!Number.isInteger(n) || n < 1) {
-        throw new ArgumentError(`limit must be a positive integer (1-${max})`);
-    }
-    if (n > max) {
-        throw new ArgumentError(`limit must be <= ${max}`);
-    }
-    return n;
-}
 
 function extractQueryEndpoint(value) {
     const raw = String(value ?? '').trim();
@@ -163,4 +151,4 @@ cli({
     },
 });
 
-export const __test__ = { normalizeLimit, extractQueryEndpoint, queryLeftTickets };
+export const __test__ = { extractQueryEndpoint, queryLeftTickets };

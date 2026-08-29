@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import './people-search.js';
@@ -6,7 +7,6 @@ import './people-search.js';
 const {
     parseLimit,
     buildSearchUrl,
-    looksLinkedInAuthWall,
     normalizeProfileUrl,
     normalizePeopleRows,
     parseNonNegativeCount,
@@ -70,6 +70,8 @@ describe('linkedin people-search command', () => {
         expect(s).toContain('seenHandles');
         // Aria-hidden span as canonical name source.
         expect(s).toContain('span[aria-hidden="true"]');
+        // Current LinkedIn may duplicate the exact leading name tokens in anchors.
+        expect(s).toContain('collapseRepeatedName');
         // Only operates on the people-search page.
         expect(s).toContain('search\\/results\\/people');
         expect(s).toContain('candidate_count');
@@ -83,12 +85,6 @@ describe('linkedin people-search command', () => {
         expect(normalizeProfileUrl('https://evil-linkedin.com/in/bob-builder')).toBe('');
         expect(normalizeProfileUrl('http://www.linkedin.com/in/bob-builder')).toBe('');
         expect(normalizeProfileUrl('https://www.linkedin.com/company/opencli')).toBe('');
-    });
-
-    it('detects LinkedIn auth-wall URLs separately from CUL redirects', () => {
-        expect(looksLinkedInAuthWall('https://www.linkedin.com/authwall Sign in to continue')).toBe(true);
-        expect(looksLinkedInAuthWall('https://www.linkedin.com/checkpoint/challenge security verification required')).toBe(true);
-        expect(looksLinkedInAuthWall('https://www.linkedin.com/feed/')).toBe(false);
     });
 
     it('rejects malformed extraction rows instead of fabricating success rows', () => {
@@ -106,6 +102,38 @@ describe('linkedin people-search command', () => {
         expect(() => parseNonNegativeCount(undefined, 'candidate_count')).toThrow(CommandExecutionError);
         expect(() => parseNonNegativeCount(-1, 'candidate_count')).toThrow(CommandExecutionError);
         expect(() => parseNonNegativeCount(1.2, 'candidate_count')).toThrow(CommandExecutionError);
+    });
+
+    it('collapses duplicated leading profile names in browser extraction', () => {
+        const dom = new JSDOM(`
+          <!doctype html>
+          <main>
+            <a href="/in/micah-hill-smith/">
+              <span aria-hidden="true">Micah Hill-Smith Micah Hill-Smith • 3度+</span>
+            </a>
+          </main>
+        `, {
+            url: 'https://www.linkedin.com/search/results/people/?keywords=artificial%20analysis',
+            runScripts: 'outside-only',
+        });
+        Object.defineProperty(dom.window.document.querySelector('main'), 'innerText', {
+            value: 'Micah Hill-Smith\nCo-Founder and CEO\nLondon, England, United Kingdom',
+            configurable: true,
+        });
+
+        const result = dom.window.eval(extractionScript());
+
+        expect(result).toEqual({
+            rows: [{
+                name: 'Micah Hill-Smith',
+                headline: 'Co-Founder and CEO',
+                location: 'London, England, United Kingdom',
+                profile_url: 'https://www.linkedin.com/in/micah-hill-smith/',
+            }],
+            candidate_count: 1,
+            person_entries_count: 1,
+            resolved_count: 1,
+        });
     });
 
     it('returns ranked rows when the page yields people', async () => {

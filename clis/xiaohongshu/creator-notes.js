@@ -9,6 +9,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 const DATE_LINE_RE = /^发布于 (\d{4}年\d{2}月\d{2}日 \d{2}:\d{2})$/;
 const METRIC_LINE_RE = /^\d+$/;
 const VISIBILITY_LINE_RE = /可见$/;
@@ -107,12 +108,6 @@ function mapAnalyzeItems(items) {
         comments: item.comment_count ?? 0,
         url: buildNoteDetailUrl(item.id),
     }));
-}
-function unwrapEvaluateResult(payload) {
-    if (payload && typeof payload === 'object' && !Array.isArray(payload) && 'session' in payload && 'data' in payload) {
-        return payload.data;
-    }
-    return payload;
 }
 // Capture the dashboard's signed /api/galaxy/* responses on window.__xhsCapture
 // since a direct fetch() from page.evaluate bypasses the x-s signing and gets 406.
@@ -475,5 +470,4 @@ export const __test__ = {
     harvestAnalyzeListCaptures,
     isAnalyzeCaptureComplete,
     parseCaptureMapPayload,
-    unwrapEvaluateResult,
 };

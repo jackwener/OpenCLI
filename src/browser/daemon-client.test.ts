@@ -156,6 +156,27 @@ describe('daemon-client', () => {
     expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?contextId=work$/);
   });
 
+  it('fetchDaemonStatus joins contextId and preferredContextId in the status query', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        ok: true,
+        pid: 1,
+        uptime: 0,
+        extensionConnected: true,
+        pending: 0,
+        memoryMB: 1,
+        port: 19825,
+      }),
+    } as Response);
+
+    await fetchDaemonStatus({ preferredContextId: 'zvypsyje' });
+    await fetchDaemonStatus({ contextId: 'work', preferredContextId: 'zvypsyje' });
+
+    expect(vi.mocked(fetch).mock.calls[0][0]).toMatch(/\/status\?preferredContextId=zvypsyje$/);
+    expect(vi.mocked(fetch).mock.calls[1][0]).toMatch(/\/status\?contextId=work&preferredContextId=zvypsyje$/);
+  });
+
   it('rejects OPENCLI_DAEMON_PORT so CLI and extension cannot split bridge ports', async () => {
     vi.resetModules();
     vi.stubEnv('OPENCLI_DAEMON_PORT', '19999');
@@ -407,20 +428,17 @@ describe('daemon-client', () => {
 
   function mockEnsureReady(extensionVersion?: string) {
     return vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
-      health: {
-        state: 'ready',
-        status: {
-          ok: true,
-          pid: 1,
-          uptime: 1,
-          extensionConnected: true,
-          ...(extensionVersion && { extensionVersion }),
-          pending: 0,
-          memoryMB: 0,
-          port: 19825,
-        },
+      state: 'ready',
+      status: {
+        ok: true,
+        pid: 1,
+        uptime: 1,
+        extensionConnected: true,
+        ...(extensionVersion && { extensionVersion }),
+        pending: 0,
+        memoryMB: 0,
+        port: 19825,
       },
-      spawnedProcess: null,
     });
   }
 
@@ -444,9 +462,9 @@ describe('daemon-client', () => {
         json: () => Promise.resolve({ id: 'server', ok: true, data: 7 }),
       } as Response);
 
-    await expect(sendCommand('exec', { code: '1 + 6', contextId: 'work' })).resolves.toBe(7);
+    await expect(sendCommand('exec', { code: '1 + 6', contextId: 'work', preferredContextId: 'zvypsyje' })).resolves.toBe(7);
 
-    expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ contextId: 'work', verbose: false }));
+    expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ contextId: 'work', preferredContextId: 'zvypsyje', verbose: false }));
     const ids = fetchMock.mock.calls.map(([, init]) => (JSON.parse(String(init?.body)) as { id: string }).id);
     expect(ids).toHaveLength(2);
     // Transport retries keep the id stable so the executor's journal can dedupe.

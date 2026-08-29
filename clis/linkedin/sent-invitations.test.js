@@ -13,19 +13,20 @@ describe('linkedin sent-invitations command', () => {
     expect(command.columns).toEqual(['rank', 'name', 'profile_url', 'invited_date_text']);
   });
 
-  it('extracts clean names and dedupes invitation cards by profile url', () => {
+  it('scopes extraction to semantic invitation rows and ignores navigation labels', () => {
     const dom = new JSDOM(`<!doctype html><body>
+      <header>
+        <a href="/in/olga-magere/">0 notifications</a>
+        <a href="/in/olga-magere/">Home</a>
+        <button>Withdraw</button>
+      </header>
       <ul>
-        <li>
-          <a href="/in/olga-magere/?miniProfileUrn=x"><span>Olga Magere</span></a>
-          <span>Pending</span><button>Withdraw</button><span>Sent 2 weeks ago</span>
-        </li>
-        <li>
-          <a href="/in/olga-magere/?trk=dup"><span>Olga Magere</span></a>
-          <span>Pending</span><button>Withdraw</button><span>Sent 2 weeks ago</span>
-        </li>
-        <li>
-          <div>Sam Founder\nSent yesterday\nWithdraw</div>
+        <li role="listitem">
+          <a href="/in/olga-magere/?miniProfileUrn=x"><span aria-label="Olga Magere's profile picture"></span></a>
+          <p>Olga Magere</p>
+          <span>Pending</span>
+          <button aria-label="Withdraw invitation sent to Olga Magere">Withdraw</button>
+          <span>Sent 2 weeks ago</span>
         </li>
       </ul>
     </body>`, { url: 'https://www.linkedin.com/mynetwork/invitation-manager/sent/' });
@@ -40,16 +41,13 @@ describe('linkedin sent-invitations command', () => {
       Object.defineProperty(dom.window.HTMLElement.prototype, 'offsetParent', { get() { return dom.window.document.body; }, configurable: true });
       const run = Function(`return ${buildSentInvitationsScript()}`);
       const result = run();
+      expect(result.candidateCount).toBe(1);
+      expect(result.malformedCount).toBe(0);
       expect(result.rows).toEqual([
         {
           name: 'Olga Magere',
           profile_url: 'https://www.linkedin.com/in/olga-magere/',
           invited_date_text: 'Sent 2 weeks ago',
-        },
-        {
-          name: 'Sam Founder',
-          profile_url: '',
-          invited_date_text: 'Sent yesterday',
         },
       ]);
       expect(result.rows[0]).not.toHaveProperty('raw');

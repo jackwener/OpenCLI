@@ -1,13 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 const SENT_URL = 'https://www.linkedin.com/mynetwork/invitation-manager/sent/';
-
-function unwrapEvaluateResult(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-  return payload;
-}
 
 function buildSentInvitationsScript() {
   return String.raw`(() => {
@@ -23,35 +19,61 @@ function buildSentInvitationsScript() {
         .replace(/^(view\s+)?profile\s+of\s+/i, '')
         .replace(/\s*(?:View profile|LinkedIn|Pending|Sent|Withdraw).*$/i, ''));
     };
-    const cards = Array.from(document.querySelectorAll('li, div, section, article')).filter((el) => {
+    const explicitEmpty = /(?:no|don't have any|haven't sent any)\s+(?:pending\s+)?(?:sent\s+)?invitations?/i.test(text)
+      || /暂无(?:已发送|待处理)?邀请/.test(text);
+    const cards = Array.from(document.querySelectorAll('[role="listitem"], li, article')).filter((el) => {
       if (!el || el.offsetParent === null) return false;
-      const t = clean(el.innerText || el.textContent || '');
-      return t && /withdraw/i.test(t) && t.length < 1200;
+      const profileLink = el.querySelector('a[href*="/in/"]');
+      const actions = Array.from(el.querySelectorAll('a, button'));
+      const withdraw = actions.find((action) => {
+        const label = clean(action.getAttribute('aria-label') || action.innerText || action.textContent || '');
+        return /^withdraw(?:\s+invitation\s+sent\s+to\b|$)/i.test(label);
+      });
+      return Boolean(profileLink && withdraw);
     });
-    const byName = new Map();
+    const byProfile = new Map();
+    let malformedCount = 0;
     for (const card of cards) {
       const raw = card.innerText || card.textContent || '';
-      if (!/withdraw/i.test(raw)) continue;
       const lines = raw.split(/\n+/).map(clean).filter(Boolean);
       const link = card.querySelector('a[href*="/in/"]');
+      const withdraw = Array.from(card.querySelectorAll('a, button')).find((action) => {
+        const label = clean(action.getAttribute('aria-label') || action.innerText || action.textContent || '');
+        return /^withdraw(?:\s+invitation\s+sent\s+to\b|$)/i.test(label);
+      });
+      const withdrawLabel = clean(withdraw ? (withdraw.getAttribute('aria-label') || '') : '');
+      const actionName = cleanName((withdrawLabel.match(/^withdraw\s+invitation\s+sent\s+to\s+(.+)$/i) || [])[1] || '');
       const linkName = cleanName(link ? (link.innerText || link.textContent || link.getAttribute('aria-label') || '') : '');
-      const name = linkName
+      const name = actionName
+        || linkName
         || cleanName(lines.find((line) => !/^(pending|sent|withdraw|message|view profile|invitation|invited|ago|manage|received)\b/i.test(line)) || '');
-      if (!name) continue;
       const hrefAttr = link ? (link.getAttribute('href') || '') : '';
       const profile_url = hrefAttr ? new URL(hrefAttr, location.origin).toString().replace(/[?#].*$/, '') : '';
       const invited_date_text = clean((raw.match(/(?:Sent|Invited)\s+(?:\d+\s+\w+\s+ago|yesterday|today)/i) || [''])[0]);
-      const key = name.toLowerCase();
-      const existing = byName.get(key);
+      if (!name || !profile_url) {
+        malformedCount += 1;
+        continue;
+      }
+      const key = profile_url.toLowerCase();
+      const existing = byProfile.get(key);
       if (!existing) {
-        byName.set(key, { name, profile_url, invited_date_text });
+        byProfile.set(key, { name, profile_url, invited_date_text });
       } else {
-        if (!existing.profile_url && profile_url) existing.profile_url = profile_url;
         if (!existing.invited_date_text && invited_date_text) existing.invited_date_text = invited_date_text;
       }
     }
-    const rows = Array.from(byName.values());
-    return { url: href, title: document.title || '', authRequired, warning, count: rows.length, rows, bodyText: text.slice(0, 1000) };
+    const rows = Array.from(byProfile.values());
+    return {
+      url: href,
+      title: document.title || '',
+      authRequired,
+      warning,
+      explicitEmpty,
+      candidateCount: cards.length,
+      malformedCount,
+      count: rows.length,
+      rows,
+    };
   })()`;
 }
 
@@ -76,7 +98,19 @@ cli({
     if (result?.warning) {
       throw new CommandExecutionError('LinkedIn warning/restriction state visible on sent invitations page.');
     }
-    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    if (!result || typeof result !== 'object' || Array.isArray(result) || !Array.isArray(result.rows)) {
+      throw new CommandExecutionError('LinkedIn sent invitations returned a malformed extraction payload.');
+    }
+    if (result.malformedCount > 0) {
+      throw new CommandExecutionError('LinkedIn sent invitations contained a malformed invitation card.');
+    }
+    const rows = result.rows;
+    if (rows.length === 0) {
+      if (result.explicitEmpty) {
+        throw new EmptyResultError('linkedin sent-invitations', 'No pending sent invitations were found.');
+      }
+      throw new CommandExecutionError('LinkedIn sent invitation cards were not found; the page structure may have changed.');
+    }
     return rows.map((row, index) => ({
       rank: index + 1,
       name: row.name || '',
@@ -88,5 +122,4 @@ cli({
 
 export const __test__ = {
   buildSentInvitationsScript,
-  unwrapEvaluateResult,
 };

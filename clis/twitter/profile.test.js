@@ -224,6 +224,41 @@ describe('twitter profile command', () => {
         ]);
     });
 
+    it('passes live UserByScreenName operation features into the profile request script', async () => {
+        const command = getRegistry().get('twitter/profile');
+        let profileScript = '';
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: 'ct0', value: 'csrf' }]),
+            evaluate: vi.fn(async (script) => {
+                const source = String(script);
+                if (source.includes('placeholder.json')) {
+                    return {
+                        queryId: 'DYNAMIC_USER',
+                        features: { current_user_feature: true },
+                        fieldToggles: { withCurrentUserLabels: true },
+                    };
+                }
+                profileScript = source;
+                return {
+                    ok: true,
+                    result: {
+                        core: { screen_name: 'core_user', name: 'Core User', created_at: 'now' },
+                    },
+                };
+            }),
+        };
+
+        await expect(command.func(page, { username: 'core_user' })).resolves.toHaveLength(1);
+
+        expect(profileScript).toContain('"queryId":"DYNAMIC_USER"');
+        expect(profileScript).toContain('"current_user_feature":true');
+        expect(profileScript).not.toContain('"withCurrentUserLabels":true');
+        expect(profileScript).toContain("operation.queryId + '/UserByScreenName");
+        expect(profileScript).not.toContain('&fieldToggles=');
+    });
+
     it('maps GraphQL auth and not-found envelopes to typed failures', async () => {
         const command = getRegistry().get('twitter/profile');
         const createPage = (payload) => ({

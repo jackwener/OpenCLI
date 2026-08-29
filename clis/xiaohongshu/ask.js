@@ -8,6 +8,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const XHS_WEB_HOST = 'www.xiaohongshu.com';
 const ASK_COLUMNS = [
@@ -21,13 +22,6 @@ const ASK_COLUMNS = [
     'message_id',
     'conversation_id',
 ];
-
-export function unwrapEvaluateResult(payload) {
-    if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
-        return payload.data;
-    }
-    return payload;
-}
 
 function parseBoundedInteger(raw, defaultValue, min, max, label) {
     const value = raw ?? defaultValue;

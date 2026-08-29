@@ -11,6 +11,29 @@ export function normalizeWhitespace(value) {
   return String(value ?? '').replace(/[\u00a0\u202f]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function isLinkedInHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'linkedin.com' || host.endsWith('.linkedin.com');
+}
+
+export function canonicalizeLinkedInThreadUrl(value) {
+  const raw = normalizeWhitespace(value);
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !isLinkedInHost(url.hostname)) return '';
+    const match = url.pathname.match(/^\/messaging\/thread\/([^/]+)\/?$/i);
+    if (!match || !match[1]) return '';
+    url.hostname = 'www.linkedin.com';
+    url.hash = '';
+    url.search = '';
+    if (!url.pathname.endsWith('/')) url.pathname += '/';
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
 export function normalizeHttpUrl(value, base) {
   const raw = normalizeWhitespace(value);
   if (!raw) return '';
@@ -22,6 +45,18 @@ export function normalizeHttpUrl(value, base) {
   } catch {
     return '';
   }
+}
+
+export function decodeLinkedInSafetyUrl(value) {
+  const url = normalizeWhitespace(value);
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.endsWith('linkedin.com') && parsed.pathname === '/safety/go/') {
+      return normalizeHttpUrl(parsed.searchParams.get('url') || '');
+    }
+  } catch {}
+  return normalizeHttpUrl(url);
 }
 
 export function compactRepeatedText(value) {

@@ -69,8 +69,11 @@ describe('slock task-claim', () => {
 
   it('[postcondition] rejects a 2xx claim response with the wrong task identity', async () => {
     const page = makePage({ kind: 'ok', rows: [{ id: '550e8400-e29b-41d4-a716-446655440001', taskStatus: 'in_progress' }] });
-    await expect(command.func(page, { taskId: ID }))
+    const result = command.func(page, { taskId: ID });
+    await expect(result)
       .rejects.toBeInstanceOf(CommandExecutionError);
+    await expect(result)
+      .rejects.toThrow(`Slock task-claim returned task id 550e8400-e29b-41d4-a716-446655440001, expected ${ID}.`);
   });
 
   it('passes --server override into authHeadersFragment', async () => {

@@ -152,25 +152,40 @@ describe('twitter quote command', () => {
         })).rejects.toThrow(CommandExecutionError);
     });
 
-    it('returns a failed row when the quote target fails to render', async () => {
+    it('typed-fails when the quote target fails to render', async () => {
         const cmd = getRegistry().get('twitter/quote');
         expect(cmd?.func).toBeTypeOf('function');
         const page = createPageMock([
             { ok: false, message: 'Quote target did not render in the composer. The source tweet may be deleted or restricted.' },
         ]);
-        const result = await cmd.func(page, {
+
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
             text: 'orphaned quote',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            hint: expect.stringContaining('Nothing was posted'),
         });
-        expect(result).toEqual([
-            {
-                status: 'failed',
-                message: 'Quote target did not render in the composer. The source tweet may be deleted or restricted.',
-                text: 'orphaned quote',
-            },
-        ]);
-        // Only the textarea wait should run when ok is false (no extra 3s post-submit wait).
         expect(page.wait).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports an unconfirmed quote as temporary, without claiming nothing was posted', async () => {
+        const cmd = getRegistry().get('twitter/quote');
+        const page = createPageMock([
+            { ok: false, unconfirmed: true, message: 'Quote tweet submission did not complete before timeout.' },
+        ]);
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/alice/status/2040254679301718161',
+            text: 'unconfirmed',
+        })).rejects.toMatchObject({
+            name: 'TimeoutError',
+            code: 'TIMEOUT',
+            exitCode: 75,
+            hint: expect.stringContaining('may already be live'),
+        });
     });
 
     it('throws CommandExecutionError when no page is provided', async () => {

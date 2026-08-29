@@ -3,6 +3,35 @@
  */
 import https from 'node:https';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+
+const EXACT_BVID_RE = /^BV[0-9A-Za-z]{10}$/;
+const VIDEO_HOSTS = new Set(['bilibili.com', 'www.bilibili.com', 'm.bilibili.com']);
+
+/**
+ * Parse one exact, case-sensitive BVID or a trusted bilibili.com video URL.
+ * Unlike the legacy short-link resolver, this is synchronous and never treats
+ * malformed input as a b23.tv network lookup.
+ */
+export function parseBvidOrVideoUrl(value) {
+    const raw = String(value ?? '').trim();
+    if (EXACT_BVID_RE.test(raw)) return raw;
+
+    let parsed;
+    try {
+        parsed = new URL(raw);
+    }
+    catch {
+        throw new ArgumentError('Expected an exact BVID or bilibili.com video URL, for example BV1xx411c7mD');
+    }
+    if (!VIDEO_HOSTS.has(parsed.hostname) || parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) {
+        throw new ArgumentError('Expected a trusted HTTPS bilibili.com video URL without credentials or a custom port');
+    }
+    const match = parsed.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})\/?$/);
+    if (!match) {
+        throw new ArgumentError('Bilibili video URL did not contain an exact case-sensitive BVID');
+    }
+    return match[1];
+}
 /**
  * Resolve Bilibili short URL / short code to BV ID.
  * Supports: BV1MV9NBtENN, XYzsqGa, b23.tv/XYzsqGa, https://b23.tv/XYzsqGa

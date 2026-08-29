@@ -44,7 +44,7 @@ export async function executePipeline(
           );
         }
 
-        if (debug) debugStepResult(op, data);
+        if (debug) debugStepResult(data);
       }
     }
   } catch (err) {
@@ -93,7 +93,7 @@ function debugStepStart(stepNum: number, total: number, op: string, params: unkn
   log.step(stepNum, total, op, preview);
 }
 
-function debugStepResult(op: string, data: unknown): void {
+function debugStepResult(data: unknown): void {
   if (data === null || data === undefined) {
     log.stepResult('(no data)');
   } else if (Array.isArray(data)) {

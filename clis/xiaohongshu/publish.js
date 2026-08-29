@@ -989,17 +989,43 @@ async function currentComposerMediaCount(page) {
         .map((sel) => Array.from(document.querySelectorAll(sel)))
         .flat()
         .find((el) => visibleBox(el));
-      const root = titleEl?.closest('form, [class*="publish"], [class*="editor"], [class*="note"]') || document.body;
+      const imageInputSelector = ${JSON.stringify(IMAGE_INPUT_SELECTOR)};
+      const imageInput = Array.from(document.querySelectorAll(imageInputSelector))
+        .find((el) => visibleBox(el) || el.type === 'file');
+      const rootSelectors = [
+        '[class*="publish"]',
+        '[class*="editor"]',
+        'form',
+        '[class*="note"]',
+      ];
+      const roots = [];
+      const addRoot = (root) => {
+        if (root && !roots.includes(root)) roots.push(root);
+      };
+      const addAnchoredRoot = (anchor) => {
+        if (!anchor) return;
+        for (const sel of rootSelectors) {
+          const root = anchor.closest(sel);
+          if (root) { addRoot(root); return; }
+        }
+      };
+      // The generated-card media and title can live in sibling subtrees, so
+      // anchor from both the image input and title, but keep the scan inside
+      // publish/editor/form roots rather than all of main.
+      addAnchoredRoot(imageInput);
+      addAnchoredRoot(titleEl);
       const seen = new Set();
       let count = 0;
-      for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
-        if (!visibleMedia(el)) continue;
-        const rect = el.getBoundingClientRect();
-        const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
-        const key = src || String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
-        if (seen.has(key)) continue;
-        seen.add(key);
-        count += 1;
+      for (const root of roots) {
+        for (const el of Array.from(root.querySelectorAll('img, video, canvas, [style*="background-image"]'))) {
+          if (!visibleMedia(el)) continue;
+          const rect = el.getBoundingClientRect();
+          const src = el.currentSrc || el.src || el.getAttribute('src') || el.style?.backgroundImage || '';
+          const key = src || String(Math.round(rect.left)) + ':' + String(Math.round(rect.top));
+          if (seen.has(key)) continue;
+          seen.add(key);
+          count += 1;
+        }
       }
       return { ok: true, count };
     })()

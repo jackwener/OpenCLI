@@ -18,7 +18,7 @@ import { generateStealthJs } from './stealth.js';
 import { waitForDomStableJs } from './dom-helpers.js';
 import { isRecord, saveBase64ToFile } from '../utils.js';
 import { getAllElectronApps } from '../electron-apps.js';
-import { BasePage } from './base-page.js';
+import { CDPBasePage } from './base-page.js';
 
 export interface CDPTarget {
   type?: string;
@@ -46,6 +46,7 @@ const CDP_SEND_TIMEOUT = 30_000;
 // surface `responseBodyFullSize` + `responseBodyTruncated` so downstream layers
 // can tell the agent what happened instead of lying about the payload.
 export const CDP_RESPONSE_BODY_CAPTURE_LIMIT = 8 * 1024 * 1024;
+export const CDP_REQUEST_BODY_CAPTURE_LIMIT = 1 * 1024 * 1024;
 
 export class CDPBridge implements IBrowserFactory {
   private _ws: WebSocket | null = null;
@@ -183,7 +184,7 @@ export class CDPBridge implements IBrowserFactory {
   }
 }
 
-class CDPPage extends BasePage {
+class CDPPage extends CDPBasePage {
   private _pageEnabled = false;
 
   // Network capture state (mirrors extension/src/cdp.ts NetworkCaptureEntry shape)
@@ -191,6 +192,11 @@ class CDPPage extends BasePage {
   private _networkCapturePattern = '';
   private _networkEntries: Array<{
     url: string; method: string; responseStatus?: number;
+    requestHeaders?: Record<string, string>;
+    requestBodyKind?: string;
+    requestBodyPreview?: string;
+    requestBodyFullSize?: number;
+    requestBodyTruncated?: boolean;
     responseContentType?: string;
     responsePreview?: string;
     responseBodyFullSize?: number;
@@ -313,14 +319,51 @@ class CDPPage extends BasePage {
 
       // Step 1: Record request method/url on requestWillBeSent
       this.bridge.on('Network.requestWillBeSent', (params: unknown) => {
-        const p = params as { requestId: string; request: { method: string; url: string }; timestamp: number };
+        const p = params as {
+          requestId: string;
+          request: {
+            method: string;
+            url: string;
+            headers?: Record<string, unknown>;
+            postData?: string;
+            hasPostData?: boolean;
+          };
+          timestamp: number;
+        };
         if (!this._networkCapturePattern || p.request.url.includes(this._networkCapturePattern)) {
+          const rawBody = typeof p.request.postData === 'string' ? p.request.postData : '';
+          const bodyTruncated = rawBody.length > CDP_REQUEST_BODY_CAPTURE_LIMIT;
           const idx = this._networkEntries.push({
             url: p.request.url,
             method: p.request.method,
+            requestHeaders: Object.fromEntries(
+              Object.entries(p.request.headers ?? {}).map(([name, value]) => [name, String(value)]),
+            ),
+            requestBodyKind: p.request.hasPostData ? 'string' : 'empty',
+            requestBodyPreview: bodyTruncated ? rawBody.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT) : rawBody,
+            requestBodyFullSize: rawBody.length,
+            requestBodyTruncated: bodyTruncated,
             timestamp: Date.now(),
           }) - 1;
           this._pendingRequests.set(p.requestId, idx);
+
+          if (p.request.hasPostData && p.request.postData === undefined) {
+            const requestBodyFetch = this.bridge.send('Network.getRequestPostData', { requestId: p.requestId }).then((result: unknown) => {
+              const postData = (result as { postData?: string } | undefined)?.postData;
+              if (typeof postData !== 'string') return;
+              const truncated = postData.length > CDP_REQUEST_BODY_CAPTURE_LIMIT;
+              this._networkEntries[idx].requestBodyPreview = truncated
+                ? postData.slice(0, CDP_REQUEST_BODY_CAPTURE_LIMIT)
+                : postData;
+              this._networkEntries[idx].requestBodyFullSize = postData.length;
+              this._networkEntries[idx].requestBodyTruncated = truncated;
+            }).catch(() => {
+              // Some request types do not expose post data.
+            }).finally(() => {
+              this._pendingBodyFetches.delete(requestBodyFetch);
+            });
+            this._pendingBodyFetches.add(requestBodyFetch);
+          }
         }
       });
 
@@ -414,61 +457,8 @@ class CDPPage extends BasePage {
     return this.bridge.send(method, params);
   }
 
-  async handleJavaScriptDialog(accept: boolean, promptText?: string): Promise<void> {
-    await this.cdp('Page.handleJavaScriptDialog', {
-      accept,
-      ...(promptText !== undefined && { promptText }),
-    });
-  }
-
-  async nativeClick(x: number, y: number): Promise<void> {
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x,
-      y,
-    });
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1,
-    });
-    await this.cdp('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1,
-    });
-  }
-
-  async nativeType(text: string): Promise<void> {
-    await this.cdp('Input.insertText', { text });
-  }
-
   async insertText(text: string): Promise<void> {
     await this.nativeType(text);
-  }
-
-  async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
-    let modifierFlags = 0;
-    for (const mod of modifiers) {
-      if (mod === 'Alt') modifierFlags |= 1;
-      if (mod === 'Ctrl' || mod === 'Control') modifierFlags |= 2;
-      if (mod === 'Meta') modifierFlags |= 4;
-      if (mod === 'Shift') modifierFlags |= 8;
-    }
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key,
-      modifiers: modifierFlags,
-    });
-    await this.cdp('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key,
-      modifiers: modifierFlags,
-    });
   }
 }
 
@@ -489,11 +479,31 @@ function matchesCookieDomain(cookieDomain: string, targetDomain: string): boolea
 function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
   const preferredPattern = compilePreferredPattern(process.env.OPENCLI_CDP_TARGET);
 
-  const ranked = targets
+  const candidates = targets
     .map((target, index) => ({ target, index, score: scoreCDPTarget(target, preferredPattern) }))
-    .filter(({ score }) => Number.isFinite(score))
+    .filter(({ score }) => Number.isFinite(score));
+
+  // Electron apps route auxiliary windows onto the main document through a
+  // query: Codex ships its avatar overlay as
+  // `app://-/index.html?initialRoute=%2Favatar-overlay`, which answers `/json`
+  // first and scores exactly like the main window, so document order used to
+  // send every command to a surface with no app UI (#2242). Only break that
+  // tie; a routed window that outscores its plain sibling is still the better
+  // target, and on http(s) a query is ordinary page state.
+  const plainDocuments = new Set<string>();
+  for (const { target } of candidates) {
+    const url = parseLocalDocumentUrl(target.url);
+    if (url && !url.search) plainDocuments.add(toDocumentKey(url));
+  }
+
+  const ranked = candidates
+    .map((entry) => {
+      const url = parseLocalDocumentUrl(entry.target.url);
+      return { ...entry, routed: !!url && !!url.search && plainDocuments.has(toDocumentKey(url)) };
+    })
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
+      if (a.routed !== b.routed) return a.routed ? 1 : -1;
       return a.index - b.index;
     });
 
@@ -539,6 +549,32 @@ function scoreCDPTarget(target: CDPTarget, preferredPattern?: RegExp): number {
   }
 
   return score;
+}
+
+// Keep this explicit: these are the schemes Electron serves a shared local
+// document over, where a query is a window route (#2242). A "not http(s)"
+// check would also sweep in schemes we know nothing about.
+const LOCAL_DOCUMENT_SCHEMES = new Set(['app:', 'file:']);
+
+/**
+ * Parse a URL that names a local app document eligible for routed-window
+ * demotion (#2242).
+ *
+ * Only allowlisted schemes qualify: on http(s), and on any scheme we cannot
+ * vouch for, a query is ordinary page state, so returning null there keeps
+ * plain document-order selection.
+ */
+function parseLocalDocumentUrl(raw: string | undefined): URL | null {
+  try {
+    const url = new URL(raw ?? '');
+    return LOCAL_DOCUMENT_SCHEMES.has(url.protocol) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function toDocumentKey(url: URL): string {
+  return `${url.protocol}//${url.host}${url.pathname}`;
 }
 
 function compilePreferredPattern(raw: string | undefined): RegExp | undefined {

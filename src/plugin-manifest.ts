@@ -136,7 +136,11 @@ function satisfiesSingleConstraint(
   if (trimmed.startsWith('^')) {
     const target = parseVersion(trimmed.slice(1));
     if (!target) return true;
-    const upper: [number, number, number] = [target[0] + 1, 0, 0];
+    const upper: [number, number, number] = target[0] > 0
+      ? [target[0] + 1, 0, 0]
+      : target[1] > 0
+        ? [0, target[1] + 1, 0]
+        : [0, 0, target[2] + 1];
     return compareVersions(version, target) >= 0 && compareVersions(version, upper) < 0;
   }
 

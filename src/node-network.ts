@@ -185,7 +185,7 @@ export function decideProxy(url: URL, env: NodeJS.ProcessEnv = process.env): Pro
   return { mode: 'proxy', proxyUrl };
 }
 
-export function getDispatcherForUrl(url: URL, env: NodeJS.ProcessEnv = process.env): Dispatcher {
+export function getNetworkDispatcher(env: NodeJS.ProcessEnv = process.env): Dispatcher {
   const config = resolveProxyConfig(env);
   if (!config.httpProxy && !config.httpsProxy) return directDispatcher;
   return createProxyDispatcher(config);
@@ -199,7 +199,7 @@ export async function fetchWithNodeNetwork(input: RequestInfo | URL, init: Reque
 
   return (await undiciFetch(input as Parameters<typeof undiciFetch>[0], {
     ...init,
-    dispatcher: getDispatcherForUrl(url),
+    dispatcher: getNetworkDispatcher(),
   } as Parameters<typeof undiciFetch>[1])) as unknown as Response;
 }
 

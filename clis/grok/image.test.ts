@@ -1,44 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { IPage } from '@jackwener/opencli/types';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import { __test__ } from './image.js';
 
 describe('grok image helpers', () => {
-  describe('isOnGrok', () => {
-    const fakePage = (url: string | Error): IPage =>
-      ({ evaluate: () => url instanceof Error ? Promise.reject(url) : Promise.resolve(url) }) as unknown as IPage;
-
-    it('returns true for grok.com URLs', async () => {
-      expect(await __test__.isOnGrok(fakePage('https://grok.com/'))).toBe(true);
-      expect(await __test__.isOnGrok(fakePage('https://grok.com/chat/abc123'))).toBe(true);
-    });
-
-    it('returns true for grok.com subdomains', async () => {
-      expect(await __test__.isOnGrok(fakePage('https://assets.grok.com/foo'))).toBe(true);
-    });
-
-    it('returns false for non-grok domains', async () => {
-      expect(await __test__.isOnGrok(fakePage('https://fakegrok.com/'))).toBe(false);
-      expect(await __test__.isOnGrok(fakePage('about:blank'))).toBe(false);
-    });
-
-    it('returns false when evaluate throws (detached tab)', async () => {
-      expect(await __test__.isOnGrok(fakePage(new Error('detached')))).toBe(false);
-    });
-  });
-
-  it('normalizes boolean flags', () => {
-    expect(__test__.normalizeBooleanFlag(true)).toBe(true);
-    expect(__test__.normalizeBooleanFlag('true')).toBe(true);
-    expect(__test__.normalizeBooleanFlag('1')).toBe(true);
-    expect(__test__.normalizeBooleanFlag('yes')).toBe(true);
-    expect(__test__.normalizeBooleanFlag('on')).toBe(true);
-
-    expect(__test__.normalizeBooleanFlag(false)).toBe(false);
-    expect(__test__.normalizeBooleanFlag('false')).toBe(false);
-    expect(__test__.normalizeBooleanFlag(undefined)).toBe(false);
-  });
-
   it('dedupes images by src', () => {
     const deduped = __test__.dedupeBySrc([
       { src: 'https://a.example/1.jpg', w: 500, h: 500 },

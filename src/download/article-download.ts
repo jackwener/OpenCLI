@@ -14,6 +14,19 @@ import { httpDownload, sanitizeFilename } from './index.js';
 import { formatBytes } from './progress.js';
 
 const IMAGE_CONCURRENCY = 5;
+const IMAGE_EXT_BY_CONTENT_TYPE: Record<string, string> = {
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/gif': 'gif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/svg+xml': 'svg',
+  'image/webp': 'webp',
+  'image/x-icon': 'ico',
+};
+const RELIABLE_IMAGE_EXTENSIONS = new Set([
+  'avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp',
+]);
 
 // ============================================================
 // Types
@@ -47,6 +60,8 @@ export interface ArticleDownloadOptions {
   configureTurndown?: (td: TurndownService) => void;
   /** Custom image extension detector (default: infer from URL extension) */
   detectImageExt?: (url: string) => string;
+  /** Require a supported image Content-Type and use it for the local extension. */
+  requireImageContentType?: boolean;
   /** Custom frontmatter labels (default: Chinese labels) */
   frontmatterLabels?: FrontmatterLabels;
   /**
@@ -253,11 +268,26 @@ function defaultDetectImageExt(url: string): string {
   return extMatch ? extMatch[1] : 'jpg';
 }
 
+function normalizeImageExt(value: string): string {
+  const ext = value.replace(/^\./, '').toLowerCase();
+  return /^[a-z0-9]{2,5}$/.test(ext) ? ext : 'jpg';
+}
+
+function reliableImageExt(url: string): string {
+  try {
+    const ext = path.extname(new URL(url).pathname).slice(1).toLowerCase();
+    return RELIABLE_IMAGE_EXTENSIONS.has(ext) ? ext : '';
+  } catch {
+    return '';
+  }
+}
+
 async function downloadImages(
   imgUrls: string[],
   imgDir: string,
   headers?: Record<string, string>,
   detectExt?: (url: string) => string,
+  requireContentType = false,
 ): Promise<Record<string, string>> {
   const urlMap: Record<string, string> = {};
   if (imgUrls.length === 0) return urlMap;
@@ -280,19 +310,35 @@ async function downloadImages(
         let imgUrl = rawUrl;
         if (imgUrl.startsWith('//')) imgUrl = `https:${imgUrl}`;
 
-        const ext = detect(imgUrl);
-        const filename = `img_${String(index).padStart(3, '0')}.${ext}`;
-        const filepath = path.join(imgDir, filename);
+        const baseName = `img_${String(index).padStart(3, '0')}`;
+        const guessedExt = requireContentType ? normalizeImageExt(detect(imgUrl)) : detect(imgUrl);
+        const guessedFilename = `${baseName}.${guessedExt}`;
+        const guessedPath = path.join(imgDir, guessedFilename);
 
         try {
-          const result = await httpDownload(imgUrl, filepath, {
+          const result = await httpDownload(imgUrl, guessedPath, {
             headers,
             timeout: 15000,
+            includeContentType: requireContentType,
           });
           if (result.success) {
+            const responseExt = IMAGE_EXT_BY_CONTENT_TYPE[result.contentType || ''];
+            if (requireContentType && !responseExt) {
+              await fs.promises.rm(guessedPath, { force: true });
+              return null;
+            }
+            const finalUrlExt = requireContentType ? reliableImageExt(result.finalUrl || imgUrl) : '';
+            const actualExt = requireContentType ? (finalUrlExt || responseExt!) : guessedExt;
+            const filename = `${baseName}.${actualExt}`;
+            if (actualExt !== guessedExt) {
+              const actualPath = path.join(imgDir, filename);
+              await fs.promises.rm(actualPath, { force: true });
+              await fs.promises.rename(guessedPath, actualPath);
+            }
             return { remoteUrl: rawUrl, localPath: `images/${filename}` };
           }
         } catch {
+          await fs.promises.rm(guessedPath, { force: true }).catch(() => undefined);
           // Skip failed downloads
         }
         return null;
@@ -332,6 +378,7 @@ export async function downloadArticle(
     maxTitleLength = 80,
     configureTurndown,
     detectImageExt,
+    requireImageContentType = false,
     frontmatterLabels,
     cleanSelectors,
     stdout = false,
@@ -379,7 +426,13 @@ export async function downloadArticle(
     const imagesDir = path.join(articleDir, 'images');
     fs.mkdirSync(imagesDir, { recursive: true });
 
-    const urlMap = await downloadImages(data.imageUrls, imagesDir, imageHeaders, detectImageExt);
+    const urlMap = await downloadImages(
+      data.imageUrls,
+      imagesDir,
+      imageHeaders,
+      detectImageExt,
+      requireImageContentType,
+    );
     markdown = replaceImageUrls(markdown, urlMap);
   }
 

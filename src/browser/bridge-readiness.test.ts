@@ -54,6 +54,19 @@ describe('waitForBridgeReady', () => {
     expect(fetchHealth).toHaveBeenCalledTimes(3);
   });
 
+  it('forwards preferredContextId to every health poll', async () => {
+    const sequence: DaemonHealth[] = [notReadyHealth('profile-required'), readyHealth()];
+    let i = 0;
+    const fetchHealth: HealthFetcher = vi.fn(async () => sequence[i++] ?? readyHealth());
+
+    await waitForBridgeReady(fetchHealth, { timeoutMs: 10_000, intervalMs: 1, preferredContextId: 'zvypsyje' });
+
+    expect(vi.mocked(fetchHealth).mock.calls.length).toBeGreaterThan(1);
+    for (const call of vi.mocked(fetchHealth).mock.calls) {
+      expect(call[0]).toMatchObject({ preferredContextId: 'zvypsyje' });
+    }
+  });
+
   it('returns the last observed non-ready health when the deadline expires', async () => {
     const fetchHealth: HealthFetcher = vi.fn(async () => notReadyHealth('profile-disconnected'));
 

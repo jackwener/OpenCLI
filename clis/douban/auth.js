@@ -7,28 +7,41 @@ async function hasDoubanSessionCookie(page) {
   return names.has('dbcl2') || names.has('ck');
 }
 
+function parseDoubanUserId(value) {
+  const text = String(value ?? '');
+  return text.match(/(?:^|\/)people\/(\d+)\/?/)?.[1]
+    || text.match(/^"?(\d+):/)?.[1]
+    || '';
+}
+
 async function verifyDoubanIdentity(page) {
-  if (!await hasDoubanSessionCookie(page)) {
+  const cookies = await page.getCookies({ url: 'https://www.douban.com' });
+  const names = new Set(cookies.map(c => c.name));
+  if (!names.has('dbcl2') && !names.has('ck')) {
     throw new AuthRequiredError('douban.com', 'Douban dbcl2 / ck cookies missing');
   }
-  await page.goto('https://www.douban.com/');
+  const cookieUid = parseDoubanUserId(cookies.find(c => c.name === 'dbcl2')?.value);
+  await page.goto('https://www.douban.com/mine/');
   await page.wait(2);
   const probe = await page.evaluate(`
     (() => {
+      const parseUid = (value) => String(value || '').match(/(?:^|\\/)people\\/(\\d+)\\/?/)?.[1] || '';
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.hostname === 'accounts.douban.com' || currentUrl.pathname.startsWith('/passport/')) {
+        return { kind: 'auth', detail: 'Douban /mine redirected to the login flow' };
+      }
       const navUser = document.querySelector('.nav-user-account .bn-more, .top-nav-info a.bn-more');
-      if (!navUser) {
-        return { kind: 'auth', detail: 'Douban nav-user element missing — not signed in' };
-      }
-      const href = navUser.getAttribute('href') || '';
-      const m = href.match(/people\\/(\\d+)\\/?/);
-      const user_id = m ? m[1] : '';
-      const name = (navUser.textContent || '').trim();
-      if (!user_id) {
-        return { kind: 'auth', detail: 'Douban user_id parse failed: href=' + href };
-      }
-      return { ok: true, user_id, name };
+      const navHref = navUser?.getAttribute('href') || navUser?.href || '';
+      const user_id = parseUid(window.location.href) || parseUid(navHref);
+      const name = (navUser?.textContent || document.querySelector('.info h1, h1')?.textContent || '').trim();
+      return user_id
+        ? { ok: true, user_id, name }
+        : { kind: 'unknown', detail: 'Douban user_id parse failed: href=' + navHref + ' location=' + window.location.href };
     })()
   `);
+  if (probe?.kind === 'unknown' && cookieUid) {
+    return { user_id: cookieUid, name: '' };
+  }
   if (probe?.kind === 'auth') throw new AuthRequiredError('douban.com', probe.detail);
   if (!probe?.ok) throw new CommandExecutionError(`Unexpected Douban probe: ${JSON.stringify(probe)}`);
   return { user_id: probe.user_id, name: probe.name };

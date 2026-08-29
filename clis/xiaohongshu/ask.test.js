@@ -8,7 +8,6 @@ import {
     normalizeAskSource,
     parseAskLimit,
     parseAskTimeout,
-    unwrapEvaluateResult,
 } from './ask.js';
 import './ask.js';
 
@@ -174,9 +173,6 @@ describe('xiaohongshu ask', () => {
         });
     });
 
-    it('unwraps Browser Bridge envelopes', () => {
-        expect(unwrapEvaluateResult({ session: 'site:xiaohongshu', data: { ok: true } })).toEqual({ ok: true });
-    });
 
     it('runs the page evaluate path and normalizes returned sources', async () => {
         const cmd = getRegistry().get('xiaohongshu/ask');

@@ -25,7 +25,7 @@ export const WEREAD_DOMAIN = 'weread.qq.com';
  * Skill version reported with every gateway request. Bump when official
  * `weread-skills.zip` ships a new SKILL.md `version:` line.
  */
-export const SKILL_VERSION = '1.0.3';
+export const SKILL_VERSION = '1.0.4';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 

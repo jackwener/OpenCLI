@@ -92,40 +92,129 @@ export function buildFlightRoundSearchUrl(fromCode, toCode, depart, ret) {
 /**
  * Browser-context IIFE that extracts flight rows from Trip.com's rendered
  * `.result-item` cards. Fields are read from stable `data-testid` anchors plus
- * the `HH:MM` / `AM-PM` / `IATA` leaf-node pattern. Cards missing the airline,
- * both airports, or both times are dropped rather than surfaced with blanks.
+ * the endpoint wrappers that bind one local-ISO time anchor to one airport.
+ * Trip.com no longer emits the `font-black` class the previous selector keyed
+ * on, but scanning every leaf in a card is too broad: an airline or price badge
+ * can itself be three uppercase letters. Arrival times carry the signed day
+ * suffix Trip.com renders (`+N` or `-N`) when the two local calendar dates
+ * differ. Any ambiguous or malformed card makes the whole extraction non-array
+ * so the host command fails typed instead of silently returning a wrong route
+ * or a partial result set.
  */
 export function buildFlightExtractJs() {
     return `
       (() => {
         const clean = (el) => el ? (el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
+        const invalid = (cardIndex, field) => ({ error: 'malformed flight card ' + cardIndex + ': ' + field });
+        const isVisible = (el, boundary) => {
+          for (let node = el; node; node = node.parentElement) {
+            if (node.hidden || (node.getAttribute('aria-hidden') || '').toLowerCase() === 'true') return false;
+            const view = node.ownerDocument && node.ownerDocument.defaultView;
+            const style = view && typeof view.getComputedStyle === 'function' ? view.getComputedStyle(node) : null;
+            if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
+            if (node === boundary) break;
+          }
+          return true;
+        };
+        const visibleText = (root, boundary = root) => {
+          if (!isVisible(root, boundary)) return '';
+          const parts = [];
+          const visit = (node) => {
+            if (node.nodeType === 3) {
+              const value = (node.textContent || '').replace(/\\s+/g, ' ').trim();
+              if (value) parts.push(value);
+              return;
+            }
+            if (node.nodeType !== 1 || !isVisible(node, boundary)) return;
+            Array.from(node.childNodes).forEach(visit);
+          };
+          visit(root);
+          return parts.join(' ');
+        };
+        const visibleLeafTexts = (root, boundary = root) => {
+          const elements = root.children.length ? Array.from(root.querySelectorAll('*')) : [root];
+          return elements
+            .filter((el) => !el.children.length && isVisible(el, boundary))
+            .map((el) => clean(el))
+            .filter(Boolean);
+        };
+        const parseStamp = (anchor) => {
+          const raw = anchor && anchor.getAttribute('data-testid');
+          const match = /^flight-time-(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$/.exec(raw || '');
+          if (!match) return null;
+          const year = Number(match[1]);
+          const month = Number(match[2]);
+          const day = Number(match[3]);
+          const hour = Number(match[4]);
+          const minute = Number(match[5]);
+          const second = Number(match[6]);
+          if (hour > 23 || minute > 59 || second > 59) return null;
+          const utc = Date.UTC(year, month - 1, day);
+          const check = new Date(utc);
+          if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+          return { dayNumber: Math.floor(utc / 86400000), hour, minute };
+        };
+        const parseEndpoint = (endpoint) => {
+          const anchors = Array.from(endpoint.querySelectorAll('[data-testid^="flight-time-"]'))
+            .filter((anchor) => isVisible(anchor, endpoint));
+          if (anchors.length !== 1) return null;
+          const stamp = parseStamp(anchors[0]);
+          if (!stamp) return null;
+          const display = visibleText(anchors[0], endpoint);
+          const timeMatch = /^(\\d{1,2}):(\\d{2})(?:\\s*(AM|PM))?$/.exec(display);
+          if (!timeMatch) return null;
+          let displayHour = Number(timeMatch[1]);
+          const displayMinute = Number(timeMatch[2]);
+          const meridiem = timeMatch[3] || null;
+          if (displayMinute > 59) return null;
+          if (meridiem) {
+            if (displayHour < 1 || displayHour > 12) return null;
+            displayHour = displayHour % 12 + (meridiem === 'PM' ? 12 : 0);
+          } else if (displayHour > 23) {
+            return null;
+          }
+          if (displayHour !== stamp.hour || displayMinute !== stamp.minute) return null;
+          const codes = visibleLeafTexts(endpoint)
+            .filter((text) => /^[A-Z]{3}$/.test(text));
+          if (codes.length !== 1) return null;
+          const normalizedTime = timeMatch[1] + ':' + timeMatch[2] + (meridiem ? ' ' + meridiem : '');
+          return { time: normalizedTime, airport: codes[0], dayNumber: stamp.dayNumber };
+        };
         const rows = [];
-        document.querySelectorAll('.result-item').forEach((card) => {
+        const cards = Array.from(document.querySelectorAll('.result-item'));
+        for (let cardIndex = 0; cardIndex < cards.length; cardIndex += 1) {
+          const card = cards[cardIndex];
           const airline = clean(card.querySelector('[data-testid="flights-name"]'));
-          const codes = Array.from(card.querySelectorAll('[class*="font-black"]'))
-            .map((el) => clean(el)).filter((t) => /^[A-Z]{3}$/.test(t));
-          const leaves = Array.from(card.querySelectorAll('*'))
-            .filter((el) => !el.children.length).map((el) => clean(el));
-          const times = leaves.filter((t) => /^\\d{1,2}:\\d{2}$/.test(t));
-          const meridiems = leaves.filter((t) => /^(AM|PM)$/.test(t));
-          const duration = leaves.find((t) => /^\\d+h(\\s\\d+m)?$/.test(t)) || null;
-          if (!airline || codes.length < 2 || times.length < 2) return;
-          const withMeridiem = (i) => times[i] + (meridiems[i] ? ' ' + meridiems[i] : '');
+          if (!airline) return invalid(cardIndex, 'airline');
+          const routeWrappers = Array.from(card.querySelectorAll('[data-testid="flt-info-stop__wrapper"]'))
+            .filter((el) => isVisible(el, card));
+          if (routeWrappers.length !== 1) return invalid(cardIndex, 'route wrapper');
+          const endpointWrappers = Array.from(routeWrappers[0].querySelectorAll('[role="textbox"]'))
+            .filter((el) => isVisible(el, routeWrappers[0]))
+            .filter((el) => Array.from(el.querySelectorAll('[data-testid^="flight-time-"]'))
+              .some((anchor) => isVisible(anchor, el)));
+          if (endpointWrappers.length !== 2) return invalid(cardIndex, 'route endpoints');
+          const departure = parseEndpoint(endpointWrappers[0]);
+          const arrival = parseEndpoint(endpointWrappers[1]);
+          if (!departure || !arrival) return invalid(cardIndex, 'endpoint time/airport');
+          const dayOffset = arrival.dayNumber - departure.dayNumber;
+          const daySuffix = dayOffset > 0 ? '+' + dayOffset : (dayOffset < 0 ? String(dayOffset) : '');
+          const duration = clean(card.querySelector('[data-testid="flightInfoDuration"]')) || null;
           const priceEl = card.querySelector('[data-testid^="flight_price"]');
           const priceText = clean(priceEl);
           const priceNum = priceText.replace(/[^0-9.]/g, '');
           rows.push({
             airline,
-            departureTime: withMeridiem(0),
-            departureAirport: codes[0],
-            arrivalTime: withMeridiem(1),
-            arrivalAirport: codes[1],
+            departureTime: departure.time,
+            departureAirport: departure.airport,
+            arrivalTime: arrival.time + daySuffix,
+            arrivalAirport: arrival.airport,
             duration,
             stops: clean(card.querySelector('[data-testid="stopInfoText"]')) || null,
             price: priceNum ? Number(priceNum) : null,
             currency: priceText.startsWith('$') ? 'USD' : (priceText.replace(/[0-9.,\\s]/g, '') || null),
           });
-        });
+        }
         return rows;
       })()
     `;

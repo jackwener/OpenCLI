@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandExecutionError, ArgumentError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
@@ -1130,6 +1131,52 @@ describe('xiaohongshu publish 文字配图 flow', () => {
             if (code.includes('__opencli_xhs_preview_ready')) return { ok: true };
             if (code.includes('__opencli_xhs_card_text')) return { ok: true, text: 'x' };
             if (code.includes('__opencli_xhs_composer_media_count')) return { ok: true, count: 0 };
+            if (code.includes('const sels =') && code.includes('for (const sel of sels)')) return true;
+            return null;
+        }, { insertText });
+
+        await expect(
+            cmd.func(page, { title: 't', content: 'c', 'card-text': '卡片' })
+        ).rejects.toThrow(/generated images/);
+    });
+
+    it('does not count unrelated visible page media as generated card media', async () => {
+        const cmd = getCmd();
+        const capture = { clicks: [] };
+        const insertText = vi.fn().mockResolvedValue(undefined);
+        const page = createConditionalPageMock((code) => {
+            if (code.includes('location.href')) return 'https://creator.xiaohongshu.com/publish/publish?from=menu_left';
+            if (code.includes("const targets = ['上传图文', '图文', '图片']")) return { ok: true, target: '上传图文', text: '上传图文' };
+            if (code.includes('hasTitleInput') && code.includes('hasVideoSurface'))
+                return { state: 'image_surface', hasTitleInput: false, hasImageInput: true, hasVideoSurface: false };
+            if (code.includes('__opencli_xhs_click_label')) {
+                capture.clicks.push(code.match(/wantLabel:\s*"([^"]+)"/)?.[1] ?? 'unknown');
+                return { ok: true };
+            }
+            if (code.includes('__opencli_xhs_focus_card')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_count')) return { ok: true, count: 9, activeEmpty: true };
+            if (code.includes('__opencli_xhs_preview_ready')) return { ok: true };
+            if (code.includes('__opencli_xhs_card_text')) return { ok: true, text: 'x' };
+            if (code.includes('__opencli_xhs_composer_media_count')) {
+                const dom = new JSDOM(`<!doctype html><html><body>
+                  <main class="creator-shell">
+                    <aside>
+                      <img id="site-logo" src="https://static.example/logo.png">
+                    </aside>
+                    <section class="editor-pane">
+                      <input type="file" accept="image/png">
+                      <input placeholder="标题" maxlength="20">
+                    </section>
+                  </main>
+                </body></html>`, {
+                    url: 'https://creator.xiaohongshu.com/publish/publish?from=menu_left',
+                    runScripts: 'outside-only',
+                });
+                const logo = dom.window.document.querySelector('#site-logo');
+                Object.defineProperty(logo, 'offsetParent', { configurable: true, value: dom.window.document.body });
+                logo.getBoundingClientRect = () => ({ left: 1, top: 1, width: 128, height: 128 });
+                return dom.window.eval(code);
+            }
             if (code.includes('const sels =') && code.includes('for (const sel of sels)')) return true;
             return null;
         }, { insertText });

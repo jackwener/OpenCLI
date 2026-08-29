@@ -1,131 +1,133 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError } from '@jackwener/opencli/errors';
-import { buildNotebooklmRpcBody, extractNotebooklmRpcResult, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, unwrapNotebooklmEvaluateResult, } from './rpc.js';
-describe('notebooklm rpc transport', () => {
-    it('unwraps Browser Bridge evaluate envelopes', () => {
-        const data = { ok: true };
-        expect(unwrapNotebooklmEvaluateResult({ session: 'site:notebooklm:abc', data })).toBe(data);
-        expect(unwrapNotebooklmEvaluateResult(data)).toBe(data);
-    });
+import { AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
+import { callNotebooklmRpc, extractNotebooklmRpcResult, getNotebooklmPageAuth } from './rpc.js';
 
-    it('extracts auth tokens from the page html via page evaluation', async () => {
-        const page = {
-            evaluate: vi.fn(async (script) => {
-                expect(script).toContain('document.documentElement.innerHTML');
-                return {
-                    html: '<html>"SNlM0e":"csrf-123","FdrFJe":"sess-456"</html>',
-                    sourcePath: '/',
-                };
-            }),
+function rpcBody(rpcId = 'wXbhsf', payload = []) {
+    return `)]}'\n1\n${JSON.stringify([['wrb.fr', rpcId, JSON.stringify(payload)]])}`;
+}
+
+function makeExecutablePage({
+    url = 'https://notebook.google.com/',
+    responseUrl = `${new URL(url).origin}/_/LabsTailwindUi/data/batchexecute`,
+    status = 200,
+    ok = true,
+    body = rpcBody(),
+    envelope = false,
+} = {}) {
+    const requests = [];
+    const location = new URL(url);
+    const window = {
+        WIZ_global_data: {
+            SNlM0e: 'csrf-wiz',
+            FdrFJe: 'sess-wiz',
+        },
+    };
+    const document = {
+        documentElement: { innerHTML: '<html><body>NotebookLM</body></html>' },
+        readyState: 'complete',
+    };
+    const fetch = vi.fn(async (requestUrl, options) => {
+        requests.push({ url: String(requestUrl), options });
+        return {
+            ok,
+            status,
+            url: responseUrl,
+            text: async () => body,
         };
-        await expect(getNotebooklmPageAuth(page)).resolves.toEqual({
-            csrfToken: 'csrf-123',
-            sessionId: 'sess-456',
-            sourcePath: '/',
-            authuser: '',
-        });
-        expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
-    it('extracts auth tokens when page evaluation is wrapped in a Browser Bridge envelope', async () => {
-        const page = {
-            evaluate: vi.fn(async () => ({
-                session: 'site:notebooklm:abc',
-                data: {
-                    html: '<html>"SNlM0e":"csrf-123","FdrFJe":"sess-456"</html>',
-                    sourcePath: '/notebook/nb-demo',
-                },
-            })),
-        };
-        await expect(getNotebooklmPageAuth(page)).resolves.toEqual({
-            csrfToken: 'csrf-123',
-            sessionId: 'sess-456',
-            sourcePath: '/notebook/nb-demo',
-            authuser: '',
-        });
-    });
-    it('falls back to WIZ_global_data tokens when html regex data is missing', async () => {
-        const page = {
-            evaluate: vi.fn(async () => ({
-                html: '<html><body>NotebookLM</body></html>',
-                sourcePath: '/notebook/nb-demo',
-                readyState: 'complete',
-                csrfToken: 'csrf-wiz',
-                sessionId: 'sess-wiz',
-            })),
-        };
+    const page = {
+        evaluate: vi.fn(async (script) => {
+            const run = new Function('window', 'document', 'location', 'fetch', 'URL', `return (${script});`);
+            const data = await run(window, document, location, fetch, URL);
+            return envelope ? { session: 'site:notebooklm:test', data } : data;
+        }),
+        wait: vi.fn(async () => undefined),
+    };
+    return { page, requests };
+}
+
+describe('notebooklm rpc transport', () => {
+    it.each([
+        'https://notebook.google.com/?pli=1',
+        'https://notebooklm.google.com/notebook/legacy-id',
+    ])('extracts page tokens and the active trusted origin from %s', async (url) => {
+        const { page } = makeExecutablePage({ url, envelope: true });
         await expect(getNotebooklmPageAuth(page)).resolves.toEqual({
             csrfToken: 'csrf-wiz',
             sessionId: 'sess-wiz',
-            sourcePath: '/notebook/nb-demo',
+            sourcePath: new URL(url).pathname,
             authuser: '',
+            origin: new URL(url).origin,
         });
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
     });
-    it('retries token extraction once when the first probe returns no tokens', async () => {
-        const page = {
-            evaluate: vi.fn()
-                .mockResolvedValueOnce({
-                html: '<html><body>Loading…</body></html>',
-                sourcePath: '/notebook/nb-demo',
-                readyState: 'interactive',
-                csrfToken: '',
-                sessionId: '',
-            })
-                .mockResolvedValueOnce({
-                html: '<html>"SNlM0e":"csrf-123","FdrFJe":"sess-456"</html>',
-                sourcePath: '/notebook/nb-demo',
+
+    it('typed-fails auth and malformed RPC frames', () => {
+        const auth = `)]}'\n1\n${JSON.stringify([['er', null, null, null, null, 401, 'generic']])}`;
+        expect(() => extractNotebooklmRpcResult(auth, 'wXbhsf')).toThrow(AuthRequiredError);
+        expect(() => extractNotebooklmRpcResult(`)]}'\n1\n[]`, 'wXbhsf')).toThrowError(expect.objectContaining({ code: 'NOTEBOOKLM_RPC_SCHEMA' }));
+        const malformedJson = `)]}'\n1\n${JSON.stringify([['wrb.fr', 'wXbhsf', '{bad']])}`;
+        expect(() => extractNotebooklmRpcResult(malformedJson, 'wXbhsf')).toThrowError(expect.objectContaining({ code: 'NOTEBOOKLM_RPC_SCHEMA' }));
+    });
+
+    it.each([
+        'https://notebook.google.com/?pli=1',
+        'https://notebooklm.google.com/notebook/legacy-id',
+    ])('resolves the relative RPC path against the active origin for %s', async (url) => {
+        const { page, requests } = makeExecutablePage({ url, envelope: true });
+        const result = await callNotebooklmRpc(page, 'wXbhsf', [null, 1, null, [2]]);
+        const request = new URL(requests[0].url);
+        expect(request.origin).toBe(new URL(url).origin);
+        expect(request.pathname).toBe('/_/LabsTailwindUi/data/batchexecute');
+        expect(request.searchParams.get('rpcids')).toBe('wXbhsf');
+        expect(requests[0].options).toMatchObject({ method: 'POST', credentials: 'include' });
+        expect(result.url).toBe(request.href);
+    });
+
+    it('rejects RPC redirects to another trusted origin or an off-origin endpoint', async () => {
+        const trustedRedirect = makeExecutablePage({ responseUrl: 'https://notebooklm.google.com/_/LabsTailwindUi/data/batchexecute' });
+        await expect(callNotebooklmRpc(trustedRedirect.page, 'wXbhsf', [])).rejects.toBeInstanceOf(CommandExecutionError);
+        const offOrigin = makeExecutablePage({ responseUrl: 'https://evil.test/_/LabsTailwindUi/data/batchexecute' });
+        await expect(callNotebooklmRpc(offOrigin.page, 'wXbhsf', [])).rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('classifies a same-origin login redirect and HTTP auth as AuthRequiredError', async () => {
+        const login = makeExecutablePage({ responseUrl: 'https://notebook.google.com/login?continue=x' });
+        await expect(callNotebooklmRpc(login.page, 'wXbhsf', [])).rejects.toBeInstanceOf(AuthRequiredError);
+        const forbidden = makeExecutablePage({ status: 403, ok: false });
+        await expect(callNotebooklmRpc(forbidden.page, 'wXbhsf', [])).rejects.toBeInstanceOf(AuthRequiredError);
+    });
+
+    it('typed-fails malformed Browser Bridge transport data', async () => {
+        const { page } = makeExecutablePage();
+        page.evaluate
+            .mockImplementationOnce(async () => ({
+                html: '<html>"SNlM0e":"csrf","FdrFJe":"session"</html>',
+                sourcePath: '/',
                 readyState: 'complete',
                 csrfToken: '',
                 sessionId: '',
-            }),
-            wait: vi.fn(async () => undefined),
-        };
-        await expect(getNotebooklmPageAuth(page)).resolves.toEqual({
-            csrfToken: 'csrf-123',
-            sessionId: 'sess-456',
-            sourcePath: '/notebook/nb-demo',
-            authuser: '',
-        });
-        expect(page.evaluate).toHaveBeenCalledTimes(2);
+                authuser: '',
+                url: 'https://notebook.google.com/',
+            }))
+            .mockResolvedValueOnce({
+                session: 'site:notebooklm:test',
+                data: {
+                    ok: true,
+                    status: 200,
+                    body: rpcBody(),
+                    requestUrl: 'https://notebook.google.com/_/LabsTailwindUi/data/batchexecute',
+                },
+            });
+        await expect(callNotebooklmRpc(page, 'wXbhsf', [])).rejects.toBeInstanceOf(CommandExecutionError);
     });
-    it('builds the rpc body with the expected notebooklm payload shape', () => {
-        const body = buildNotebooklmRpcBody('wXbhsf', [null, 1, null, [2]], 'csrf-123');
-        expect(body).toContain('f.req=');
-        expect(body).toContain('at=csrf-123');
-        expect(body.endsWith('&')).toBe(true);
-        expect(decodeURIComponent(body)).toContain('"[null,1,null,[2]]"');
+
+    it('wraps raw bridge failures but preserves existing typed timeouts', async () => {
+        const rawFailure = { evaluate: vi.fn().mockRejectedValue(new Error('bridge disconnected')) };
+        await expect(getNotebooklmPageAuth(rawFailure)).rejects.toBeInstanceOf(CommandExecutionError);
+        const timeout = new TimeoutError('NotebookLM bridge', 60);
+        const timedOut = { evaluate: vi.fn().mockRejectedValue(timeout) };
+        await expect(getNotebooklmPageAuth(timedOut)).rejects.toBe(timeout);
     });
-    it('parses chunked batchexecute responses into json chunks', () => {
-        const raw = `)]}'\n107\n[["wrb.fr","wXbhsf","[[[\\\"Notebook One\\\",null,\\\"nb1\\\",null,null,[null,false,null,null,null,[1704067200]]]]]"]]`;
-        const chunks = parseNotebooklmChunkedResponse(raw);
-        expect(chunks).toHaveLength(1);
-        expect(Array.isArray(chunks[0])).toBe(true);
-        expect(chunks[0]).toEqual([
-            [
-                'wrb.fr',
-                'wXbhsf',
-                '[[["Notebook One",null,"nb1",null,null,[null,false,null,null,null,[1704067200]]]]]',
-            ],
-        ]);
-    });
-    it('extracts the rpc payload from wrb.fr responses', () => {
-        const raw = `)]}'\n107\n[["wrb.fr","wXbhsf","[[[\\\"Notebook One\\\",null,\\\"nb1\\\",null,null,[null,false,null,null,null,[1704067200]]]]]"]]`;
-        const result = extractNotebooklmRpcResult(raw, 'wXbhsf');
-        expect(result).toEqual([
-            [
-                ['Notebook One', null, 'nb1', null, null, [null, false, null, null, null, [1704067200]]],
-            ],
-        ]);
-    });
-    it('classifies auth errors as AuthRequiredError', () => {
-        const raw = `)]}'\n25\n[["er",null,null,null,null,401,"generic"]]`;
-        expect(() => extractNotebooklmRpcResult(raw, 'wXbhsf')).toThrow(AuthRequiredError);
-        try {
-            extractNotebooklmRpcResult(raw, 'wXbhsf');
-        }
-        catch (error) {
-            expect(error).toBeInstanceOf(AuthRequiredError);
-            expect(error.domain).toBe('notebooklm.google.com');
-            expect(error.code).toBe('AUTH_REQUIRED');
-        }
-    });
+
 });

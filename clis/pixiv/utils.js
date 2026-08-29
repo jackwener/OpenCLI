@@ -5,7 +5,7 @@
  * On failure the HTTP status code is used to distinguish auth (401/403),
  * not-found (404), and other errors.
  */
-import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 const PIXIV_DOMAIN = 'www.pixiv.net';
 
 function unwrapEvaluateResult(payload) {
@@ -96,3 +96,168 @@ export async function pixivFetch(page, path, opts = {}) {
 }
 /** Maximum number of illust IDs per batch detail request (Pixiv server limit). */
 export const BATCH_SIZE = 48;
+
+export function normalizePixivPositiveInteger(value, defaultValue, label, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+    const raw = value ?? defaultValue;
+    let numberValue;
+    if (typeof raw === 'number') {
+        numberValue = raw;
+    } else if (typeof raw === 'string') {
+        if (!/^(0|[1-9]\d*)$/.test(raw)) {
+            throw new ArgumentError(`${label} must be a decimal integer`);
+        }
+        numberValue = Number(raw);
+    } else {
+        throw new ArgumentError(`${label} must be an integer`);
+    }
+    if (!Number.isInteger(numberValue)) {
+        throw new ArgumentError(`${label} must be an integer`);
+    }
+    if (numberValue < min) {
+        throw new ArgumentError(`${label} must be >= ${min}`);
+    }
+    if (numberValue > max) {
+        throw new ArgumentError(`${label} must be <= ${max}`);
+    }
+    return numberValue;
+}
+
+export function normalizePixivNonNegativeInteger(value, defaultValue, label, { max = Number.MAX_SAFE_INTEGER } = {}) {
+    return normalizePixivPositiveInteger(value, defaultValue, label, { min: 0, max });
+}
+
+export function requirePixivPayloadObject(value, label) {
+    if (!value || Array.isArray(value) || typeof value !== 'object') {
+        throw new CommandExecutionError(`${label} returned malformed payload`);
+    }
+    return value;
+}
+
+export function requirePixivId(value, label) {
+    const id = String(value ?? '').trim();
+    if (!/^\d+$/.test(id)) {
+        throw new CommandExecutionError(`${label} returned malformed Pixiv ID`);
+    }
+    return id;
+}
+
+export function requirePixivString(value, label) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        throw new CommandExecutionError(`${label} returned malformed text field`);
+    }
+    return text;
+}
+
+export function normalizePixivUserData(raw) {
+    if (!raw || Array.isArray(raw) || typeof raw !== 'object') {
+        return null;
+    }
+    const id = String(raw.id ?? raw.userId ?? raw.user_id ?? '').trim();
+    const rawName = raw.name ?? raw.userName ?? raw.user_name ?? '';
+    const rawPremium = raw.premium ?? raw.isPremium ?? raw.is_premium ?? false;
+    const rawProfileImage = raw.profileImageUrl ?? raw.imageBig ?? raw.image ?? raw.avatar ?? '';
+    if (typeof rawName !== 'string' || typeof rawPremium !== 'boolean' || typeof rawProfileImage !== 'string') {
+        return null;
+    }
+    const name = rawName.trim();
+    const profileImageUrl = rawProfileImage.trim();
+    if (!/^\d+$/.test(id)) {
+        return null;
+    }
+    if (profileImageUrl) {
+        try {
+            const parsed = new URL(profileImageUrl);
+            if (parsed.protocol !== 'https:' || parsed.hostname !== 'i.pximg.net' || parsed.username || parsed.password || parsed.port) {
+                return null;
+            }
+        } catch {
+            return null;
+        }
+    }
+    return {
+        id,
+        name,
+        premium: rawPremium,
+        profileImageUrl,
+    };
+}
+
+async function getPixivSessionUserId(page) {
+    let cookies;
+    try {
+        cookies = await page.getCookies({ url: `https://${PIXIV_DOMAIN}` });
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv session lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!Array.isArray(cookies)) {
+        throw new CommandExecutionError('Pixiv session lookup returned malformed cookie data');
+    }
+    const sessions = cookies.filter((cookie) => cookie?.name === 'PHPSESSID');
+    if (sessions.length === 0) {
+        throw new AuthRequiredError(PIXIV_DOMAIN, 'Authentication required — Pixiv PHPSESSID cookie missing');
+    }
+    const userIds = new Set();
+    for (const session of sessions) {
+        if (typeof session.value !== 'string') {
+            throw new CommandExecutionError('Pixiv PHPSESSID cookie returned malformed data');
+        }
+        const match = session.value.match(/^(\d+)_/);
+        if (match) userIds.add(match[1]);
+    }
+    if (userIds.size === 0) {
+        throw new AuthRequiredError(PIXIV_DOMAIN, 'Authentication required — Pixiv session is anonymous');
+    }
+    if (userIds.size !== 1) {
+        throw new CommandExecutionError('Pixiv session lookup returned conflicting account identities');
+    }
+    return userIds.values().next().value;
+}
+
+export async function getCurrentPixivUser(page) {
+    const sessionUserId = await getPixivSessionUserId(page);
+    try {
+        await page.goto(`https://${PIXIV_DOMAIN}`);
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv navigation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    let data;
+    try {
+        data = unwrapEvaluateResult(await page.evaluate(`
+    (() => {
+      const candidates = [
+        globalThis?.pixiv?.context?.userData,
+        globalThis?.globalInitData?.userData,
+        globalThis?.__PIXIV_CONTEXT__?.userData,
+      ];
+      for (const value of candidates) {
+        if (value && typeof value === 'object') return { found: true, user: value };
+      }
+      const meta = document.querySelector('meta[name="global-data"]')?.content;
+      if (meta) {
+        try {
+          const parsed = JSON.parse(meta);
+          if (parsed?.userData) return { found: true, user: parsed.userData };
+        } catch {}
+      }
+      return { found: false, user: null };
+    })()
+  `));
+    } catch (error) {
+        throw new CommandExecutionError(`Pixiv current-account lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!data || Array.isArray(data) || typeof data !== 'object' || typeof data.found !== 'boolean' || !('user' in data)) {
+        throw new CommandExecutionError('Pixiv current-account lookup returned malformed Browser Bridge data');
+    }
+    if (!data.found) {
+        return { id: sessionUserId, name: '', premium: false, profileImageUrl: '' };
+    }
+    const user = normalizePixivUserData(data.user);
+    if (!user) {
+        throw new CommandExecutionError('Pixiv current-account lookup returned malformed user identity');
+    }
+    if (user.id !== sessionUserId) {
+        throw new CommandExecutionError('Pixiv current-account identity did not match the authenticated session');
+    }
+    return user;
+}

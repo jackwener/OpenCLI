@@ -21,11 +21,6 @@ export interface DaemonRestartResult {
   spawned: boolean;
 }
 
-export interface EnsureBrowserBridgeReadyResult {
-  health: DaemonHealth;
-  spawnedProcess: ChildProcess | null;
-}
-
 export function resolveDaemonLaunchSpec(): DaemonLaunchSpec {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const parentDir = path.resolve(__dirname, '..');
@@ -94,18 +89,18 @@ export async function restartDaemon(opts: { stopTimeoutMs?: number; startTimeout
 }
 
 export async function ensureBrowserBridgeReady(
-  opts: { timeoutSeconds?: number; contextId?: string; verbose?: boolean } = {},
-): Promise<EnsureBrowserBridgeReadyResult> {
+  opts: { timeoutSeconds?: number; contextId?: string; preferredContextId?: string; verbose?: boolean } = {},
+): Promise<DaemonHealth> {
   const timeoutSeconds = opts.timeoutSeconds && opts.timeoutSeconds > 0 ? opts.timeoutSeconds : 10;
   const timeoutMs = timeoutSeconds * 1000;
   const verbose = opts.verbose ?? true;
   const contextId = opts.contextId;
+  const preferredContextId = opts.preferredContextId;
 
-  const health = await getDaemonHealth({ contextId });
+  const health = await getDaemonHealth({ contextId, preferredContextId });
   const daemonVersion = health.status?.daemonVersion;
   const isStale = !!health.status && (!daemonVersion || daemonVersion !== PKG_VERSION);
   let staleDaemonReplaced = false;
-  let spawnedProcess: ChildProcess | null = null;
 
   if (isStale) {
     const reason = daemonVersion
@@ -141,7 +136,7 @@ export async function ensureBrowserBridgeReady(
   }
 
   if (!staleDaemonReplaced && health.state === 'ready') {
-    return { health, spawnedProcess };
+    return health;
   }
 
   if (!staleDaemonReplaced && health.state === 'profile-required') {
@@ -152,14 +147,14 @@ export async function ensureBrowserBridgeReady(
     if (verbose && (process.env.OPENCLI_VERBOSE || process.stderr.isTTY)) {
       process.stderr.write('⏳ Starting daemon...\n');
     }
-    spawnedProcess = daemonLifecycleHooks.spawnDaemonProcess();
+    daemonLifecycleHooks.spawnDaemonProcess();
   } else if (verbose && (process.env.OPENCLI_VERBOSE || process.stderr.isTTY)) {
     process.stderr.write('⏳ Waiting for Chrome/Chromium extension to connect...\n');
     process.stderr.write('   Make sure Chrome or Chromium is open and the OpenCLI extension is enabled.\n');
   }
 
-  const finalHealth = await waitForBridgeReady(getDaemonHealth, { timeoutMs, contextId });
-  if (finalHealth.state === 'ready') return { health: finalHealth, spawnedProcess };
+  const finalHealth = await waitForBridgeReady(getDaemonHealth, { timeoutMs, contextId, preferredContextId });
+  if (finalHealth.state === 'ready') return finalHealth;
   throw browserConnectErrorFromHealth(finalHealth, contextId);
 }
 

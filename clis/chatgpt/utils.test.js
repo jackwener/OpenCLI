@@ -64,8 +64,80 @@ describe('chatgpt image wait contract', () => {
             generating: [true, true, true, true, true, true],
         });
 
-        await expect(waitForChatGPTImages(page, [], 18, convUrl)).resolves.toEqual([]);
+        await expect(waitForChatGPTImages(page, [], 18, convUrl)).rejects.toThrow(/chatgpt image timed out/);
         expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('does not return a frozen canvas snapshot as a generated image', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['data:image/png;base64,halfdrawnframe']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).rejects.toThrow(/chatgpt image timed out/);
+    });
+
+    it('rejects data URL completion candidates case-insensitively', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['DATA:image/png;base64,halfdrawnframe']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).rejects.toThrow(/chatgpt image timed out/);
+    });
+
+    it('keeps only backend-served URLs when a canvas frame renders alongside them', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['data:image/png;base64,halfdrawnframe', 'https://cdn.openai.com/generated/demo.png']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).resolves.toEqual([
+            'https://cdn.openai.com/generated/demo.png',
+        ]);
+    });
+
+    it('drops the canvas frame from a deadline capture that also has a backend URL', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [['data:image/png;base64,halfdrawnframe', 'https://cdn.openai.com/generated/demo.png']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 3, convUrl)).resolves.toEqual([
+            'https://cdn.openai.com/generated/demo.png',
+        ]);
+    });
+
+    it('returns the captured URLs when generation resumes until the deadline', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false, true],
+            imageUrls: [['https://cdn.openai.com/generated/demo.png']],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).resolves.toEqual([
+            'https://cdn.openai.com/generated/demo.png',
+        ]);
+    });
+
+    it('still resolves empty when the conversation finishes with no image', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            imageUrls: [[]],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).resolves.toEqual([]);
     });
 
     it('jumps back to the captured conversation when the page drifts away', async () => {
@@ -1476,6 +1548,62 @@ describe('chatgpt generated image detection', () => {
         ]);
     });
 
+    it('ignores user-uploaded previews labeled by the Chinese UI', async () => {
+        const page = createDomPage(`
+            <!doctype html>
+            <button aria-label="打开图片 1 / 2 用户上传的图片">
+              <img alt="" src="https://chatgpt.com/backend-api/files/reference">
+            </button>
+            <section data-testid="conversation-turn-2">
+              <h4>ChatGPT said:</h4>
+              <img alt="generated image" src="https://chatgpt.com/backend-api/generated/foo.webp">
+            </section>
+        `, (window) => {
+            for (const img of window.document.querySelectorAll('img')) {
+                Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 512 });
+                Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 512 });
+                img.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            }
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'https://chatgpt.com/backend-api/generated/foo.webp',
+        ]);
+    });
+
+    it('ignores multiple upload-preview thumbnails via data-turn before their alt/aria-label metadata populate', async () => {
+        // Reproduces a real regression: uploading 2+ reference images made
+        // waitForChatGPTImages return the just-uploaded thumbnails instead of
+        // the actual generated image. Right after upload, a thumbnail's alt
+        // text and "Open image N of M: <name>" aria-label haven't populated
+        // yet, so the old alt/aria-label-only fallback couldn't tell them
+        // apart from a real result during that window. `data-turn` on the
+        // turn <section> is set immediately and must be checked first.
+        const page = createDomPage(`
+            <!doctype html>
+            <section data-testid="conversation-turn-1" data-turn="user">
+              <h4>You said:</h4>
+              <img alt="" src="https://chatgpt.com/backend-api/uploaded/ref-1.png">
+              <img alt="" src="https://chatgpt.com/backend-api/uploaded/ref-2.png">
+              <img alt="" src="https://chatgpt.com/backend-api/uploaded/ref-3.png">
+            </section>
+            <section data-testid="conversation-turn-2" data-turn="assistant">
+              <h4>ChatGPT said:</h4>
+              <img alt="Generated image: result" src="https://chatgpt.com/backend-api/generated/foo.webp">
+            </section>
+        `, (window) => {
+            for (const img of window.document.querySelectorAll('img')) {
+                Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 512 });
+                Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 512 });
+                img.getBoundingClientRect = () => ({ width: 512, height: 512 });
+            }
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
+            'https://chatgpt.com/backend-api/generated/foo.webp',
+        ]);
+    });
+
     it('keeps assistant generated images even when they are inside an open-image button', async () => {
         const page = createDomPage(`
             <!doctype html>
@@ -1495,6 +1623,24 @@ describe('chatgpt generated image detection', () => {
         await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([
             'https://chatgpt.com/backend-api/generated/foo.webp',
         ]);
+    });
+
+    it('recognizes the "Open image N of M: name" aria-label ChatGPT uses for multi-attachment uploads', async () => {
+        const page = createDomPage(`
+            <!doctype html>
+            <section data-testid="conversation-turn-1">
+              <button aria-label="Open image 1 of 3: reference.png">
+                <img alt="" src="https://chatgpt.com/backend-api/uploaded/reference.png">
+              </button>
+            </section>
+        `, (window) => {
+            const img = window.document.querySelector('img');
+            Object.defineProperty(img, 'naturalWidth', { configurable: true, value: 512 });
+            Object.defineProperty(img, 'naturalHeight', { configurable: true, value: 512 });
+            img.getBoundingClientRect = () => ({ width: 512, height: 512 });
+        });
+
+        await expect(getChatGPTVisibleImageUrls(page)).resolves.toEqual([]);
     });
 
     it('exports assets for generated CSS background images', async () => {

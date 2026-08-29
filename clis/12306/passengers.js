@@ -7,19 +7,11 @@
  * `--include-sensitive` to surface the unmasked-by-12306 fields.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { isAuthLikePayload, maskChineseName, require12306Login, requireEvaluateObject } from './utils.js';
+import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { isAuthLikePayload, maskChineseName, normalizeLimit, require12306Login, requireEvaluateObject } from './utils.js';
 
 const PASSENGER_QUERY_URL = 'https://kyfw.12306.cn/otn/passengers/query';
 const MAX_PAGE_SIZE = 50;
-
-function normalizeLimit(value, defaultValue, max) {
-    if (value === undefined || value === null || value === '') return defaultValue;
-    const n = Number(value);
-    if (!Number.isInteger(n) || n < 1) throw new ArgumentError(`limit must be a positive integer (1-${max})`);
-    if (n > max) throw new ArgumentError(`limit must be <= ${max}`);
-    return n;
-}
 
 cli({
     site: '12306',
@@ -86,5 +78,3 @@ cli({
         }));
     },
 });
-
-export const __test__ = { normalizeLimit };

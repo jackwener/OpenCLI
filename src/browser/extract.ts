@@ -162,9 +162,3 @@ export function runExtractFromHtml(opts: RunExtractOptions): RunExtractResult {
         content: chunk.content,
     };
 }
-
-export const __extractInternals = {
-    DEFAULT_CHUNK_SIZE,
-    MIN_CHUNK_SIZE,
-    MAX_CHUNK_SIZE,
-};

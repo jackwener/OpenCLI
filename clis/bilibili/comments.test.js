@@ -77,6 +77,71 @@ describe('bilibili comments', () => {
         expect(result[0].rpid).toBe('888');
         expect(result[0].text).toBe('视频总结：作者开了一家咖啡馆');
     });
+    it('returns UP and admin pinned comments from top_replies with a minimal page size', async () => {
+        mockApiGet
+            .mockResolvedValueOnce({ code: 0, data: { aid: 12345 } }) // view endpoint
+            .mockResolvedValueOnce({
+            code: 0,
+            data: {
+                top_replies: [
+                    {
+                        rpid: 999,
+                        member: { uname: 'UP主' },
+                        content: { message: '置顶：欢迎大家' },
+                        like: 100,
+                        rcount: 5,
+                        ctime: 1700000000,
+                        reply_control: { is_up_top: true },
+                    },
+                    {
+                        rpid: 1000,
+                        member: { uname: '社区管理员' },
+                        content: { message: '管理员置顶' },
+                        like: 80,
+                        rcount: 2,
+                        ctime: 1700000001,
+                        reply_control: { is_admin_top: true },
+                    },
+                ],
+                replies: [
+                    { rpid: 777, member: { uname: 'Alice' }, content: { message: 'Great video!' }, like: 42, rcount: 3, ctime: 1700000000 },
+                ],
+            },
+        });
+        const result = await command.func({}, { bvid: 'BV1WtAGzYEBm', top: true, limit: 5 });
+        expect(mockApiGet).toHaveBeenNthCalledWith(2, {}, '/x/v2/reply/main', {
+            params: { oid: 12345, type: 1, mode: 3, ps: 1 },
+            signed: true,
+        });
+        expect(result.map(({ rpid, author, text }) => ({ rpid, author, text }))).toEqual([
+            { rpid: '999', author: 'UP主', text: '置顶：欢迎大家' },
+            { rpid: '1000', author: '社区管理员', text: '管理员置顶' },
+        ]);
+    });
+    it('rejects --top combined with --parent before fetching', async () => {
+        await expect(command.func({}, { bvid: 'not-a-valid-bvid', top: true, parent: 777, limit: 5 }))
+            .rejects.toThrow('bilibili comments --top cannot be combined with --parent');
+        expect(mockApiGet).not.toHaveBeenCalled();
+    });
+    it('throws EmptyResultError when --top finds no pinned comment', async () => {
+        mockApiGet
+            .mockResolvedValueOnce({ code: 0, data: { aid: 1 } })
+            .mockResolvedValueOnce({ code: 0, data: { top_replies: [], replies: [] } });
+        await expect(command.func({}, { bvid: 'BV1xxx', top: true, limit: 5 }))
+            .rejects.toBeInstanceOf(EmptyResultError);
+    });
+    it.each([
+        ['missing', {}],
+        ['null', { top_replies: null }],
+        ['malformed', { top_replies: {} }],
+        ['a malformed row', { top_replies: [{ ctime: 1700000000 }] }],
+    ])('fails closed when top_replies is %s', async (_case, data) => {
+        mockApiGet
+            .mockResolvedValueOnce({ code: 0, data: { aid: 1 } })
+            .mockResolvedValueOnce({ code: 0, data });
+        await expect(command.func({}, { bvid: 'BV1xxx', top: true, limit: 5 }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
     it('throws when aid cannot be resolved', async () => {
         mockApiGet.mockResolvedValueOnce({ code: 0, data: {} }); // no aid
         await expect(command.func({}, { bvid: 'BVinvalid123', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
@@ -98,10 +163,11 @@ describe('bilibili comments', () => {
             .rejects.toBeInstanceOf(ArgumentError);
         expect(mockApiGet).not.toHaveBeenCalled();
     });
-    it('maps auth-like API errors to AuthRequiredError', async () => {
+    it('maps auth-like pinned-comment API errors to AuthRequiredError', async () => {
         mockApiGet
+            .mockResolvedValueOnce({ code: 0, data: { aid: 1 } })
             .mockResolvedValueOnce({ code: -101, message: '账号未登录', data: null });
-        await expect(command.func({}, { bvid: 'BV1xxx', limit: 5 }))
+        await expect(command.func({}, { bvid: 'BV1xxx', top: true, limit: 5 }))
             .rejects.toBeInstanceOf(AuthRequiredError);
     });
     it('throws EmptyResultError for explicit empty comments', async () => {

@@ -1,7 +1,38 @@
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { parseNoteId, buildNoteUrl } from './note-helpers.js';
-import './note.js';
+import { NOTE_EXTRACT_JS } from './note.js';
+
+function runExtract(html) {
+    const dom = new JSDOM(html, {
+        url: 'https://www.xiaohongshu.com/explore/69c131c9000000002800be4c?xsec_token=abc',
+        runScripts: 'outside-only',
+    });
+    return dom.window.eval(NOTE_EXTRACT_JS);
+}
+
+const RECOMMEND_FEED = `
+    <div class="feeds-container">
+      <section class="note-item"><a class="title"><span>不懂为什么...</span></a></section>
+      <section class="note-item"><a class="title"><span>另一篇推荐笔记</span></a></section>
+    </div>`;
+
+function notePage({ title = '', desc = '正文在这里', author = '芭比 Q' } = {}) {
+    return `<!doctype html><html><body>
+      <div id="noteContainer">
+        <div class="author-wrapper"><span class="username">${author}</span></div>
+        ${title ? `<div id="detail-title">${title}</div>` : ''}
+        <div id="detail-desc">${desc}</div>
+        <div class="interact-container">
+          <span class="like-wrapper"><span class="count">10</span></span>
+          <span class="collect-wrapper"><span class="count">1</span></span>
+          <span class="chat-wrapper"><span class="count">15</span></span>
+        </div>
+      </div>
+      ${RECOMMEND_FEED}
+    </body></html>`;
+}
 function createPageMock(evaluateResult) {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
@@ -245,5 +276,50 @@ describe('xiaohongshu note', () => {
         }));
         expect(result.find((r) => r.field === 'tags')).toBeUndefined();
         expect(result).toHaveLength(6);
+    });
+});
+
+describe('NOTE_EXTRACT_JS', () => {
+    it('reports an empty title for a note that has none, ignoring recommendation cards', () => {
+        const d = runExtract(notePage());
+        // Regression: the unscoped '#detail-title, .title' selector used to fall
+        // through to the recommendation feed and return '不懂为什么...' here.
+        expect(d.title).toBe('');
+        expect(d.desc).toBe('正文在这里');
+        expect(d.author).toBe('芭比 Q');
+        expect(d.likes).toBe('10');
+        expect(d.collects).toBe('1');
+        expect(d.comments).toBe('15');
+    });
+
+    it('still reads the note title when the note has one', () => {
+        const d = runExtract(notePage({ title: '尚界Z7实车体验' }));
+        expect(d.title).toBe('尚界Z7实车体验');
+        expect(d.author).toBe('芭比 Q');
+    });
+
+    it('falls back to document scope when #noteContainer is absent', () => {
+        const d = runExtract(`<!doctype html><html><body>
+          <div id="detail-title">老版布局</div>
+          <div id="detail-desc">正文</div>
+          <div class="author-wrapper"><span class="username">作者</span></div>
+        </body></html>`);
+        expect(d.title).toBe('老版布局');
+        expect(d.author).toBe('作者');
+    });
+
+    it('does not use document-level recommendation title or desc when #noteContainer is absent', () => {
+        const d = runExtract(`<!doctype html><html><body>
+          <div class="feeds-container">
+            <section class="note-item">
+              <a class="title"><span>推荐卡片标题</span></a>
+              <div class="desc">推荐卡片正文</div>
+            </section>
+          </div>
+          <div class="author-wrapper"><span class="username">作者</span></div>
+        </body></html>`);
+        expect(d.title).toBe('');
+        expect(d.desc).toBe('');
+        expect(d.author).toBe('作者');
     });
 });

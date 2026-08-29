@@ -42,7 +42,7 @@ describe('validate.ts pipeline step allowlist', () => {
     });
 
     try {
-      const report = validateClisWithTarget([], 'validate-allowlist-test/all-steps');
+      const report = validateClisWithTarget('validate-allowlist-test/all-steps');
       const r = report.results[0];
       const unknownStepWarning = r.warnings.find(w => w.startsWith('Pipeline step '));
       expect(unknownStepWarning).toBeUndefined();
@@ -77,7 +77,7 @@ describe('validate.ts pipeline step allowlist', () => {
       });
 
       try {
-        const report = validateClisWithTarget([], 'validate-dynamic-test/uses-custom');
+        const report = validateClisWithTarget('validate-dynamic-test/uses-custom');
         const r = report.results[0];
         const unknownStepWarning = r.warnings.find(w => w.includes(customStep));
         expect(unknownStepWarning).toBeUndefined();

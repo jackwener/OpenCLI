@@ -3,6 +3,7 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import { getRegistry } from '@jackwener/opencli/registry';
 import './like.js';
 import { createPageMock } from '../test-utils.js';
+import { createTwitterDomPage } from './test-dom-utils.js';
 
 describe('twitter like command', () => {
     it('navigates to the tweet URL and reports success when the like script confirms', async () => {
@@ -33,7 +34,15 @@ describe('twitter like command', () => {
         ]);
     });
 
-    it('returns a failed row without re-waiting when the like script reports a UI mismatch', async () => {
+    it('keeps an already-liked tweet a success rather than a failure', async () => {
+        const cmd = getRegistry().get('twitter/like');
+        const page = createPageMock([{ ok: true, message: 'Tweet is already liked.' }]);
+
+        await expect(cmd.func(page, { url: 'https://x.com/alice/status/2040254679301718161' }))
+            .resolves.toEqual([{ status: 'success', message: 'Tweet is already liked.' }]);
+    });
+
+    it('typed-fails without re-waiting when the like script reports a UI mismatch', async () => {
         const cmd = getRegistry().get('twitter/like');
         const page = createPageMock([
             {
@@ -41,16 +50,35 @@ describe('twitter like command', () => {
                 message: 'Could not find the Like button on this tweet after waiting 10 seconds. Are you logged in?',
             },
         ]);
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Could not find the Like button on this tweet after waiting 10 seconds. Are you logged in?',
         });
-        expect(result).toEqual([
-            {
-                status: 'failed',
-                message: 'Could not find the Like button on this tweet after waiting 10 seconds. Are you logged in?',
-            },
-        ]);
         // Only the primaryColumn wait should run when ok is false.
+        expect(page.wait).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a post-click state mismatch as unconfirmed rather than safe to retry', async () => {
+        const cmd = getRegistry().get('twitter/like');
+        const page = createTwitterDomPage(`
+            <article>
+              <a href="https://x.com/alice/status/2040254679301718161">tweet</a>
+              <button data-testid="like">Like</button>
+            </article>
+        `);
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'TimeoutError',
+            code: 'TIMEOUT',
+            exitCode: 75,
+            hint: expect.stringContaining('may already have succeeded'),
+        });
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
 

@@ -131,6 +131,10 @@ describe('login-required commands — graceful failure', () => {
     await expectGracefulAuthFailure(['pixiv', 'user', '11', '-f', 'json']);
   }, 60_000);
 
+  it('pixiv me fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'me', '-f', 'json']);
+  }, 60_000);
+
   it('pixiv illusts fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['pixiv', 'illusts', '11', '--limit', '3', '-f', 'json']);
   }, 60_000);

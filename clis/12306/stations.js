@@ -6,21 +6,9 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, EmptyResultError } from '@jackwener/opencli/errors';
-import { fetchStationBundle } from './utils.js';
+import { fetchStationBundle, normalizeLimit } from './utils.js';
 
 const MAX_LIMIT = 50;
-
-function normalizeLimit(value, defaultValue, max) {
-    if (value === undefined || value === null || value === '') return defaultValue;
-    const n = Number(value);
-    if (!Number.isInteger(n) || n < 1) {
-        throw new ArgumentError(`limit must be a positive integer (1-${max})`);
-    }
-    if (n > max) {
-        throw new ArgumentError(`limit must be <= ${max}`);
-    }
-    return n;
-}
 
 cli({
     site: '12306',
@@ -62,5 +50,3 @@ cli({
         }));
     },
 });
-
-export const __test__ = { normalizeLimit };

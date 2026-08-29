@@ -2,13 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
+import { buildUserByScreenNameQueryUrl, looksLikePrivateTwitterTimeline, normalizeTwitterScreenName, resolveTwitterQueryId, sanitizeQueryId, extractMedia, unwrapBrowserResult, describeTwitterApiError } from './shared.js';
+import { DEFAULT_MAX_PAGINATION_PAGES, appendJsonlRows, ensureParentDir, loadJsonlArchiveState, removeResumeFile, resolveMaxPages, resolveOptionalFilePath } from './archive.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 const LIKES_QUERY_ID = 'CDWHmpZeSdIJ3HGeRbNm0w';
 const USER_BY_SCREEN_NAME_QUERY_ID = 'IGgvgiOx4QZndDHuD3x9TQ';
-// Safety cap only. Full-archive runs can set a higher page budget via --max-pages.
-const DEFAULT_MAX_PAGINATION_PAGES = 100;
-const HARD_MAX_PAGINATION_PAGES = 100000;
 const FEATURES = {
     rweb_video_screen_enabled: false,
     profile_label_improvements_pcf_label_in_post_enabled: true,
@@ -62,26 +60,6 @@ function buildLikesUrl(queryId, userId, count, cursor) {
     return `/i/api/graphql/${queryId}/Likes`
         + `?variables=${encodeURIComponent(JSON.stringify(vars))}`
         + `&features=${encodeURIComponent(JSON.stringify(FEATURES))}`;
-}
-function buildUserByScreenNameUrl(queryId, screenName) {
-    const vars = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
-    const feats = JSON.stringify({
-        hidden_profile_subscriptions_enabled: true,
-        rweb_tipjar_consumption_enabled: true,
-        responsive_web_graphql_exclude_directive_enabled: true,
-        verified_phone_label_enabled: false,
-        subscriptions_verification_info_is_identity_verified_enabled: true,
-        subscriptions_verification_info_verified_since_enabled: true,
-        highlights_tweets_tab_ui_enabled: true,
-        responsive_web_twitter_article_notes_tab_enabled: true,
-        subscriptions_feature_can_gift_premium: true,
-        creator_subscriptions_tweet_preview_api_enabled: true,
-        responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-        responsive_web_graphql_timeline_navigation_enabled: true,
-    });
-    return `/i/api/graphql/${queryId}/UserByScreenName`
-        + `?variables=${encodeURIComponent(vars)}`
-        + `&features=${encodeURIComponent(feats)}`;
 }
 function extractLikedTweet(result, seen) {
     if (!result)
@@ -139,14 +117,6 @@ function parseLikes(data, seen) {
     }
     return { tweets, nextCursor };
 }
-function resolveOptionalFilePath(raw, label) {
-    if (raw === undefined || raw === null || raw === '')
-        return '';
-    const value = String(raw).trim();
-    if (!value)
-        throw new ArgumentError(`${label} cannot be empty`);
-    return path.resolve(value);
-}
 function readResumeFile(filePath, expected = null) {
     if (!filePath || !fs.existsSync(filePath))
         return null;
@@ -191,56 +161,9 @@ function readResumeFile(filePath, expected = null) {
         updatedAt: parsed.updatedAt || null,
     };
 }
-function ensureParentDir(filePath) {
-    if (!filePath)
-        return;
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-}
-function removeFile(filePath) {
-    if (!filePath)
-        return;
-    try {
-        fs.rmSync(filePath, { force: true });
-    }
-    catch {
-    }
-}
-function loadJsonlArchiveState(filePath) {
-    const seen = new Set();
-    let count = 0;
-    if (!filePath || !fs.existsSync(filePath))
-        return { seen, count };
-    const text = fs.readFileSync(filePath, 'utf8');
-    for (const [index, line] of text.split('\n').entries()) {
-        const trimmed = line.trim();
-        if (!trimmed)
-            continue;
-        try {
-            const row = JSON.parse(trimmed);
-            if (!row?.id)
-                throw new Error('missing id');
-            const id = String(row.id);
-            if (seen.has(id))
-                throw new Error(`duplicate id ${id}`);
-            seen.add(id);
-            count += 1;
-        }
-        catch (error) {
-            throw new CommandExecutionError(`Invalid JSONL record in ${filePath} at line ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-    return { seen, count };
-}
-function appendJsonlRows(filePath, rows) {
-    if (!filePath || !Array.isArray(rows) || rows.length === 0)
-        return;
-    ensureParentDir(filePath);
-    // Escape LS/PS so JSONL stays one physical line even when tweet text contains them.
-    const text = rows
-        .map((row) => JSON.stringify(row).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'))
-        .join('\n') + '\n';
-    fs.appendFileSync(filePath, text, 'utf8');
-}
+
+// Keep this in sync with twitter/bookmarks; wording is command-specific, so the
+// atomic tmp-write/rename cleanup sequence intentionally remains local.
 function writeResumeFile(filePath, payload) {
     if (!filePath)
         return;
@@ -258,20 +181,6 @@ function writeResumeFile(filePath, payload) {
         }
         throw new CommandExecutionError(`Could not persist Twitter likes resume state: ${error instanceof Error ? error.message : String(error)}`);
     }
-}
-function removeResumeFile(filePath) {
-    removeFile(filePath);
-}
-function resolveMaxPages(kwargs, fetchAll) {
-    const raw = kwargs['max-pages'];
-    if (raw === undefined || raw === null || raw === '') {
-        return fetchAll ? HARD_MAX_PAGINATION_PAGES : DEFAULT_MAX_PAGINATION_PAGES;
-    }
-    const value = Number(raw);
-    if (!Number.isInteger(value) || value < 1 || value > HARD_MAX_PAGINATION_PAGES) {
-        throw new ArgumentError(`--max-pages must be an integer between 1 and ${HARD_MAX_PAGINATION_PAGES}`);
-    }
-    return value;
 }
 cli({
     site: 'twitter',
@@ -350,7 +259,7 @@ cli({
         // Get userId from screen_name
         const userId = unwrapBrowserResult(await page.evaluate(`async () => {
       const screenName = ${JSON.stringify(username)};
-      const url = ${JSON.stringify(buildUserByScreenNameUrl(userByScreenNameQueryId, username))};
+      const url = ${JSON.stringify(buildUserByScreenNameQueryUrl(userByScreenNameQueryId, username))};
       const resp = await fetch(url, { headers: ${headers}, credentials: 'include' });
       if (!resp.ok) return null;
       const d = await resp.json();
@@ -472,8 +381,6 @@ cli({
 export const __test__ = {
     sanitizeQueryId,
     buildLikesUrl,
-    buildUserByScreenNameUrl,
     parseLikes,
-    appendJsonlRows,
     readResumeFile,
 };

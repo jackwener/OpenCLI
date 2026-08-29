@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CliError } from '../../errors.js';
+import { ArgumentError, CliError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import { stepFetch } from './fetch.js';
 
@@ -90,6 +90,20 @@ describe('stepFetch', () => {
       { error: 'HTTP 503 Service Unavailable from https://api.example.com/items/1' },
     ]);
     expect(jsonMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid browser batch concurrency before evaluating page code', async () => {
+    const page = {
+      evaluate: vi.fn(),
+    } as unknown as IPage;
+
+    await expect(stepFetch(
+      page,
+      { url: 'https://api.example.com/items/${{ item.id }}', concurrency: 0 },
+      [{ id: 1 }],
+      {},
+    )).rejects.toBeInstanceOf(ArgumentError);
+    expect(page.evaluate).not.toHaveBeenCalled();
   });
 
   it('stringifies non-Error batch browser failures consistently', async () => {

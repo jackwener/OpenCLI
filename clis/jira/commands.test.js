@@ -16,7 +16,30 @@ const ENV_KEYS = [
     'ATLASSIAN_USERNAME',
     'ATLASSIAN_PASSWORD',
     'ATLASSIAN_PAT',
+    'ATLASSIAN_JIRA_ACCEPTANCE_FIELD',
+    'ATLASSIAN_JIRA_SPRINT_FIELD',
+    'ATLASSIAN_JIRA_STORY_POINTS_FIELD',
 ];
+
+const DEFAULT_ISSUE_FIELDS = [
+    'summary',
+    'issuetype',
+    'status',
+    'priority',
+    'labels',
+    'description',
+    'comment',
+    'attachment',
+    'issuelinks',
+    'fixVersions',
+    'versions',
+    'components',
+    'project',
+    'reporter',
+    'assignee',
+    'created',
+    'updated',
+].join(',');
 
 function clearEnv() {
     for (const key of ENV_KEYS) delete process.env[key];
@@ -52,7 +75,10 @@ describe('jira commands', () => {
     it('normalizes a Cloud issue into agent-friendly context', async () => {
         setCloudEnv();
         vi.stubGlobal('fetch', vi.fn(async (url) => {
-            expect(String(url)).toContain('/rest/api/3/issue/PROJ-1?');
+            const parsed = new URL(String(url));
+            expect(parsed.pathname).toBe('/rest/api/3/issue/PROJ-1');
+            expect(parsed.searchParams.get('fields')).toBe(DEFAULT_ISSUE_FIELDS);
+            expect(parsed.searchParams.get('expand')).toBe('renderedFields');
             return jsonResponse({
                 id: '10001',
                 key: 'PROJ-1',
@@ -97,6 +123,174 @@ describe('jira commands', () => {
         expect(rows[0].comments[0].markdown).toBe('Needs RCA');
         expect(rows[0].attachments[0].filename).toBe('log.txt');
         expect(rows[0].linkedIssues[0]).toEqual({ key: 'PROJ-2', type: 'Blocks', direction: 'outward' });
+        expect(rows[0]).not.toHaveProperty('selectedFields');
+    });
+
+    it('keeps selected field ids when display names collide and preserves request order', async () => {
+        setCloudEnv();
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            const parsed = new URL(String(url));
+            expect(parsed.searchParams.get('fields')).toBe('summary,customfield_12345,customfield_12346');
+            expect(parsed.searchParams.get('expand')).toBe('renderedFields,names');
+            return jsonResponse({
+                key: 'PROJ-1',
+                fields: {
+                    summary: 'Checkout fails',
+                    customfield_12345: 8,
+                    customfield_12346: { tier: 'enterprise' },
+                },
+                names: {
+                    summary: 'Story Estimate',
+                    customfield_12345: 'Story Estimate',
+                    customfield_12346: 'Story Estimate',
+                },
+            });
+        }));
+        const cmd = getRegistry().get('jira/issue');
+        const rows = await cmd.func({
+            key: 'PROJ-1',
+            fields: ' summary , customfield_12345, customfield_12346, customfield_12345 ',
+        });
+        expect(rows[0]).toMatchObject({
+            key: 'PROJ-1',
+            summary: 'Checkout fails',
+            selectedFields: [
+                { id: 'summary', name: 'Story Estimate', value: 'Checkout fails' },
+                { id: 'customfield_12345', name: 'Story Estimate', value: 8 },
+                { id: 'customfield_12346', name: 'Story Estimate', value: { tier: 'enterprise' } },
+            ],
+        });
+        expect(rows[0].comments).toEqual([]);
+        expect(rows[0].attachments).toEqual([]);
+        expect(rows[0].linkedIssues).toEqual([]);
+    });
+
+    it.each([
+        ' , ',
+        'summary,,status',
+        'auto,summary',
+        'summary/status',
+    ])('rejects invalid --fields value %j before configuration or fetch', async (fields) => {
+        clearEnv();
+        const fetchMock = vi.fn(async () => jsonResponse({}));
+        vi.stubGlobal('fetch', fetchMock);
+        const cmd = getRegistry().get('jira/issue');
+        await expect(cmd.func({ key: 'PROJ-1', fields })).rejects.toMatchObject({ code: 'ARGUMENT' });
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('explicitly requests all fields in auto mode and preserves stable ids, nulls, and objects', async () => {
+        setCloudEnv();
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            const parsed = new URL(String(url));
+            expect(parsed.searchParams.get('fields')).toBe('*all');
+            expect(parsed.searchParams.get('expand')).toBe('renderedFields,names');
+            return jsonResponse({
+                key: 'PROJ-1',
+                fields: {
+                    summary: 'Checkout fails',
+                    customfield_12345: { tier: 'enterprise' },
+                    customfield_12346: null,
+                    status: { name: 'In Progress' },
+                    comment: { total: 0, comments: [] },
+                    attachment: [],
+                    issuelinks: [],
+                },
+                names: {
+                    customfield_12345: 'Customer Segment',
+                    customfield_12346: null,
+                },
+            });
+        }));
+        const cmd = getRegistry().get('jira/issue');
+        const rows = await cmd.func({ key: 'PROJ-1', fields: 'auto' });
+        expect(rows[0].selectedFields.map((field) => field.id)).toEqual([
+            'attachment',
+            'comment',
+            'customfield_12345',
+            'customfield_12346',
+            'issuelinks',
+            'status',
+            'summary',
+        ]);
+        expect(rows[0].selectedFields.find((field) => field.id === 'customfield_12345')).toEqual({
+            id: 'customfield_12345',
+            name: 'Customer Segment',
+            value: { tier: 'enterprise' },
+        });
+        expect(rows[0].selectedFields.find((field) => field.id === 'customfield_12346')).toEqual({
+            id: 'customfield_12346',
+            name: 'customfield_12346',
+            value: null,
+        });
+    });
+
+    it('normalizes nested collections when they are explicitly selected', async () => {
+        setCloudEnv();
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+            key: 'PROJ-1',
+            fields: {
+                comment: {
+                    total: 1,
+                    comments: [{ id: 'c1', author: { displayName: 'Alice' }, created: '2026-05-01', body: 'one' }],
+                },
+                attachment: [{ id: 'a1', filename: 'proof.txt', content: 'https://team.atlassian.net/a1' }],
+                issuelinks: [{ type: { name: 'Blocks' }, outwardIssue: { key: 'PROJ-2' } }],
+            },
+            names: {},
+        })));
+        const cmd = getRegistry().get('jira/issue');
+        const [row] = await cmd.func({ key: 'PROJ-1', fields: 'comment,attachment,issuelinks' });
+        expect(row.comments.map((comment) => comment.id)).toEqual(['c1']);
+        expect(row.attachments.map((attachment) => attachment.id)).toEqual(['a1']);
+        expect(row.linkedIssues.map((issue) => issue.key)).toEqual(['PROJ-2']);
+        expect(row.selectedFields.map((field) => field.id)).toEqual(['comment', 'attachment', 'issuelinks']);
+    });
+
+    it('unions internal transport fields without exposing them as selected fields', async () => {
+        setCloudEnv();
+        const selection = jiraSharedTest.parseIssueFieldSelection('summary');
+        const fetchMock = vi.fn(async (url) => {
+            const parsed = new URL(String(url));
+            expect(parsed.searchParams.get('fields')).toBe('summary,attachment');
+            return jsonResponse({ key: 'PROJ-1', fields: { summary: 'Task', attachment: [] }, names: {} });
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const config = {
+            baseUrl: 'https://team.atlassian.net',
+            deployment: 'cloud',
+            product: 'jira',
+            authHeaders: {},
+        };
+        const issue = await jiraSharedTest.fetchIssue(config, 'PROJ-1', ['attachment'], selection);
+        const row = jiraSharedTest.normalizeJiraIssue(issue, config, {
+            selection,
+            requireNestedCollections: false,
+        });
+        expect(row.selectedFields).toEqual([{ id: 'summary', name: 'summary', value: 'Task' }]);
+        expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it('fails typed when an explicitly requested field is absent from the response', async () => {
+        setCloudEnv();
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+            key: 'PROJ-1',
+            fields: { summary: 'Task' },
+            names: { customfield_12345: 'Estimate' },
+        })));
+        const cmd = getRegistry().get('jira/issue');
+        await expect(cmd.func({ key: 'PROJ-1', fields: 'summary,customfield_12345' }))
+            .rejects.toBeInstanceOf(CommandExecutionError);
+    });
+
+    it('validates --comments-limit before Jira configuration or fetch', async () => {
+        clearEnv();
+        const fetchMock = vi.fn(async () => jsonResponse({}));
+        vi.stubGlobal('fetch', fetchMock);
+        const cmd = getRegistry().get('jira/issue');
+        await expect(cmd.func({ key: 'PROJ-1', 'comments-limit': 0 }))
+            .rejects.toMatchObject({ code: 'ARGUMENT' });
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('fails typed when Jira issue payload is missing stable issue identity', async () => {
@@ -203,6 +397,30 @@ describe('jira commands', () => {
         const rows = await cmd.func({ key: 'PROJ-1', 'comments-limit': 10 });
         expect(rows[0].comments.map((comment) => comment.id)).toEqual(['c1', 'c2']);
         expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('uses the Data Center v2 issue endpoint with selected field names', async () => {
+        clearEnv();
+        process.env.ATLASSIAN_JIRA_BASE_URL = 'https://jira.example.com';
+        process.env.ATLASSIAN_DEPLOYMENT = 'datacenter';
+        process.env.ATLASSIAN_PAT = 'secret';
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            const parsed = new URL(String(url));
+            expect(parsed.pathname).toBe('/rest/api/2/issue/PROJ-1');
+            expect(parsed.searchParams.get('fields')).toBe('summary,customfield_12345');
+            expect(parsed.searchParams.get('expand')).toBe('renderedFields,names');
+            return jsonResponse({
+                key: 'PROJ-1',
+                fields: { summary: 'Data Center task', customfield_12345: 5 },
+                names: { summary: 'Summary', customfield_12345: 'Estimate' },
+            });
+        }));
+        const cmd = getRegistry().get('jira/issue');
+        const [row] = await cmd.func({ key: 'PROJ-1', fields: 'summary,customfield_12345' });
+        expect(row.selectedFields).toEqual([
+            { id: 'summary', name: 'Summary', value: 'Data Center task' },
+            { id: 'customfield_12345', name: 'Estimate', value: 5 },
+        ]);
     });
 
     it('uses Data Center search endpoint and payload', async () => {

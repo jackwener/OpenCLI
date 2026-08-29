@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
 
@@ -75,11 +76,6 @@ function requireLinkedInProfileUrl(value, label) {
     const url = canonicalizeLinkedInProfileUrl(value);
     if (!url) throw new ArgumentError(`${label} must be an exact https://www.linkedin.com/in/<profile>/ URL`);
     return url;
-}
-
-function unwrapEvaluateResult(payload) {
-    if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-    return payload;
 }
 
 function clampNote(note) {
@@ -516,7 +512,6 @@ export const __test__ = {
     matchInvitationName,
     canonicalizeLinkedInProfileUrl,
     canonicalizeLinkedInInviteUrl,
-    unwrapEvaluateResult,
     clampNote,
     assessProfileSafety,
     buildProfileProbeScript,

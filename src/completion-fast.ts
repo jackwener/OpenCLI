@@ -40,10 +40,10 @@ export function hasAllManifests(manifestPaths: string[]): boolean {
  * Lightweight completion that reads directly from manifest JSON files,
  * bypassing full CLI discovery and adapter loading.
  */
-export function getCompletionsFromManifest(words: string[], cursor: number, manifestPaths: string[]): string[] {
+export function getCompletionsFromManifest(words: string[], cursor: number, manifestPaths: string[]): string[] | null {
   const entries = loadManifestEntries(manifestPaths);
   if (entries === null) {
-    return [];
+    return null;
   }
 
   if (cursor <= 1) {
@@ -93,14 +93,16 @@ export function printCompletionScriptFast(shell: string): boolean {
 
 function loadManifestEntries(manifestPaths: string[]): ManifestCompletionEntry[] | null {
   const entries: ManifestCompletionEntry[] = [];
-  let found = false;
+  if (manifestPaths.length === 0) return null;
   for (const manifestPath of manifestPaths) {
     try {
       const raw = fs.readFileSync(manifestPath, 'utf-8');
       const manifest = JSON.parse(raw) as ManifestCompletionEntry[];
+      if (!Array.isArray(manifest)) return null;
       entries.push(...manifest);
-      found = true;
-    } catch { /* skip missing/unreadable */ }
+    } catch {
+      return null;
+    }
   }
-  return found ? entries : null;
+  return entries;
 }

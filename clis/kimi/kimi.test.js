@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
-import { isKimiUrl, parseChatId } from './_utils.js';
+import { JSDOM } from 'jsdom';
+import { clickBySvgNameScript, isKimiUrl, parseChatId } from './_utils.js';
 import './chat.js';
 import './ui.js';
 import './storage.js';
@@ -130,6 +131,61 @@ describe('kimi target boundary', () => {
     });
 });
 
+describe('kimi svg click helper', () => {
+    function runClickScript(html) {
+        const dom = new JSDOM(`<!doctype html><body>${html}</body>`, { runScripts: 'outside-only' });
+        const { window } = dom;
+        if (!window.PointerEvent) window.PointerEvent = window.MouseEvent;
+        Object.defineProperty(window.Element.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ x: 0, y: 0, width: 20, height: 20, top: 0, left: 0, right: 20, bottom: 20 }),
+        });
+        const clicked = [];
+        window.document.querySelectorAll('[data-click-id]').forEach((el) => {
+            el.addEventListener('click', (event) => {
+                clicked.push({
+                    id: el.getAttribute('data-click-id'),
+                    targetId: event.target?.getAttribute?.('data-click-id') || '',
+                });
+            });
+        });
+
+        const result = window.eval(clickBySvgNameScript('Send'));
+        return { clicked, result };
+    }
+
+    it('falls back to the direct React parent when ancestors are generic wrappers', () => {
+        const { clicked, result } = runClickScript(`
+          <div data-click-id="wrapper">
+            <div data-click-id="owner">
+              <svg name="Send"></svg>
+            </div>
+          </div>
+        `);
+
+        expect(result).toMatchObject({ ok: true, targetTag: 'DIV' });
+        expect(clicked).toEqual([
+            { id: 'owner', targetId: 'owner' },
+            { id: 'wrapper', targetId: 'owner' },
+        ]);
+    });
+
+    it('uses a recognizable clickable grandparent instead of the generic direct parent', () => {
+        const { clicked, result } = runClickScript(`
+          <div class="send-button-container" data-click-id="button">
+            <div data-click-id="inner">
+              <svg name="Send"></svg>
+            </div>
+          </div>
+        `);
+
+        expect(result).toMatchObject({ ok: true, targetClass: 'send-button-container' });
+        expect(clicked).toEqual([
+            { id: 'button', targetId: 'button' },
+        ]);
+    });
+});
+
 describe('kimi write postconditions', () => {
     let sendCommand;
     let askCommand;
@@ -184,6 +240,38 @@ describe('kimi write postconditions', () => {
         try {
             await expect(askCommand.func(page, { text: 'ping', timeout: 1 }))
                 .rejects.toBeInstanceOf(TimeoutError);
+        } finally {
+            nowSpy.mockRestore();
+        }
+    });
+
+    it('ask waits for generation to stop before returning stable assistant text', async () => {
+        const page = makePage([
+            'https://www.kimi.com/',
+            [],
+            'https://www.kimi.com/',
+            0,
+            { ok: true },
+            { ok: true },
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            true,
+            [{ role: 'Assistant', text: '思考中' }],
+            false,
+        ]);
+        let now = 1_000;
+        const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+            now += 200;
+            return now;
+        });
+        try {
+            const rows = await askCommand.func(page, { text: 'ping', timeout: 10 });
+            expect(rows[0].Status).toBe('reply-received');
+            expect(rows[0].ReplyPreview).toBe('思考中');
         } finally {
             nowSpy.mockRestore();
         }

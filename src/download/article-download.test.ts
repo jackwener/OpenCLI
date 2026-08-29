@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -57,6 +58,83 @@ describe('downloadArticle', () => {
     expect(path.extname(result[0].saved)).toBe('.md');
     expect(fs.existsSync(result[0].saved)).toBe(true);
     expect(fs.readFileSync(result[0].saved, 'utf8')).toContain('Hello world');
+  });
+
+  it('opts into supported image MIME extensions without changing existing callers', async () => {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'opencli-article-'));
+    tempDirs.push(tempDir);
+    const server = http.createServer((req, res) => {
+      if (req.url === '/redirect') {
+        res.writeHead(302, { Location: '/equation' });
+        res.end();
+        return;
+      }
+      if (req.url === '/photo.jpeg') {
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.end('png bytes');
+        return;
+      }
+      if (req.url === '/error') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html>not an image</html>');
+        return;
+      }
+      if (req.url === '/unknown') {
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+        res.end('unknown bytes');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8' });
+      res.end('<svg xmlns="http://www.w3.org/2000/svg"><circle r="2"/></svg>');
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('test server did not expose a TCP port');
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const imageUrl = `${baseUrl}/redirect`;
+      const extensionUrl = `${baseUrl}/photo.jpeg`;
+      const errorUrl = `${baseUrl}/error`;
+      const unknownUrl = `${baseUrl}/unknown`;
+      const result = await downloadArticle({
+        title: 'SVG Article',
+        contentHtml: [
+          `<p><img alt="formula" src="${imageUrl}"></p>`,
+          `<p><img alt="extension" src="${extensionUrl}"></p>`,
+          `<p><img alt="error" src="${errorUrl}"></p>`,
+          `<p><img alt="unknown" src="${unknownUrl}"></p>`,
+        ].join(''),
+        imageUrls: [imageUrl, extensionUrl, errorUrl, unknownUrl],
+      }, {
+        output: tempDir,
+        downloadImages: true,
+        requireImageContentType: true,
+      });
+
+      const markdown = fs.readFileSync(result[0].saved, 'utf8');
+      expect(markdown).toContain('![formula](images/img_001.svg)');
+      expect(markdown).toContain('![extension](images/img_002.jpeg)');
+      expect(markdown).toContain(`![error](${errorUrl})`);
+      expect(markdown).toContain(`![unknown](${unknownUrl})`);
+      expect(fs.readFileSync(path.join(path.dirname(result[0].saved), 'images', 'img_001.svg'), 'utf8'))
+        .toContain('<svg');
+      expect(fs.existsSync(path.join(path.dirname(result[0].saved), 'images', 'img_003.jpg'))).toBe(false);
+      expect(fs.existsSync(path.join(path.dirname(result[0].saved), 'images', 'img_004.jpg'))).toBe(false);
+
+      const legacyResult = await downloadArticle({
+        title: 'Legacy Article',
+        contentHtml: `<p><img alt="legacy" src="${baseUrl}/declared.png"></p>`,
+        imageUrls: [`${baseUrl}/declared.png`],
+      }, {
+        output: tempDir,
+        downloadImages: true,
+      });
+      const legacyMarkdown = fs.readFileSync(legacyResult[0].saved, 'utf8');
+      expect(legacyMarkdown).toContain('![legacy](images/img_001.png)');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
   });
 
   describe('markdown pipeline', () => {

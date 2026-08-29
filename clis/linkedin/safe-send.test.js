@@ -4,9 +4,7 @@ import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors'
 import './safe-send.js';
 
 const {
-  normalizeWhitespace,
   normalizeName,
-  canonicalizeLinkedInThreadUrl,
   hashText,
   assessThreadSafety,
 } = await import('./safe-send.js').then((m) => m.__test__);
@@ -34,16 +32,7 @@ function makeFakePage(probe) {
 
 describe('linkedin safe-send helpers', () => {
   it('normalizes whitespace and LinkedIn names for exact-ish comparisons', () => {
-    expect(normalizeWhitespace('  Lokesh\n\tRamesh  ')).toBe('Lokesh Ramesh');
     expect(normalizeName('Lokesh Ramesh • 1st')).toBe('lokesh ramesh');
-  });
-
-  it('canonicalizes thread URLs while dropping query and hash noise', () => {
-    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/abc/?foo=1#bar'))
-      .toBe('https://www.linkedin.com/messaging/thread/abc/');
-    expect(canonicalizeLinkedInThreadUrl('https://www.linkedin.com/messaging/thread/abc/extra')).toBe('');
-    expect(canonicalizeLinkedInThreadUrl('https://evil-linkedin.com/messaging/thread/abc/')).toBe('');
-    expect(canonicalizeLinkedInThreadUrl('http://www.linkedin.com/messaging/thread/abc/')).toBe('');
   });
 
   it('fails closed when LinkedIn search produced no results even if a composer is visible', () => {

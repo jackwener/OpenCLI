@@ -1,12 +1,12 @@
 {
   "name": "@jackwener/opencli",
-  "version": "1.8.6",
+  "version": "1.8.7",
   "publishConfig": {
     "access": "public"
   },
   "description": "Make any website or Electron App your CLI. AI-powered.",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.18.1"
   },
   "type": "module",
   "main": "dist/src/main.js",
@@ -37,7 +37,9 @@
     "cli-manifest.json",
     "scripts/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "!**/*.test.*",
+    "!**/__fixtures__/"
   ],
   "scripts": {
     "dev": "tsx src/main.ts",
@@ -52,7 +54,7 @@
     "preuninstall": "node -e \"fetch('http://127.0.0.1:19825/shutdown',{method:'POST',headers:{'X-OpenCLI':'1'},signal:AbortSignal.timeout(3000)}).catch(()=>{})\" || true",
     "postinstall": "node scripts/postinstall.js || true; node scripts/fetch-adapters.js || true",
     "typecheck": "tsc --noEmit",
-    "prepare": "[ -d src ] && npm run build || true",
+    "prepare": "node scripts/prepare.cjs",
     "prepublishOnly": "npm run build",
     "test": "vitest run --project unit --project extension --project adapter",
     "test:bun": "bun vitest run --project unit --project extension --project adapter",
@@ -82,10 +84,10 @@
     "@mozilla/readability": "^0.6.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.3",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.1",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
-    "undici": "^6.27.0",
+    "undici": "7.29.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { cli, getRegistry, Strategy } from './registry.js';
 import { BrowserCommandError } from './browser/daemon-client.js';
@@ -1040,6 +1041,62 @@ describe('browser verify', () => {
   });
 });
 
+describe('adapter eject', () => {
+  it('copies repo-level shared imports so an ejected adapter can load', async () => {
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-adapter-eject-home-'));
+    const fakePackage = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-adapter-eject-package-'));
+    const builtinClis = path.join(fakePackage, 'clis');
+    const userClis = path.join(fakeHome, '.opencli', 'clis');
+    vi.mocked(console.log).mockClear();
+    process.env.HOME = fakeHome;
+    process.env.USERPROFILE = fakeHome;
+
+    try {
+      fs.mkdirSync(path.join(builtinClis, '_shared'), { recursive: true });
+      fs.mkdirSync(path.join(builtinClis, 'demo'), { recursive: true });
+      fs.writeFileSync(
+        path.join(builtinClis, '_shared', 'helper.js'),
+        "import { nestedValue } from './nested.js';\nexport const sharedValue = nestedValue;\n",
+        'utf-8',
+      );
+      fs.writeFileSync(
+        path.join(builtinClis, '_shared', 'nested.js'),
+        'export const nestedValue = 42;\n',
+        'utf-8',
+      );
+      fs.writeFileSync(
+        path.join(builtinClis, '_shared', 'unused.js'),
+        'export const unused = true;\n',
+        'utf-8',
+      );
+      fs.writeFileSync(
+        path.join(builtinClis, 'demo', 'command.js'),
+        "export * as shared from '../_shared/helper.js';\n",
+        'utf-8',
+      );
+
+      const program = createProgram(builtinClis, userClis);
+      await program.parseAsync(['node', 'opencli', 'adapter', 'eject', 'demo']);
+
+      const ejectedCommand = path.join(userClis, 'demo', 'command.js');
+      const module = await import(`${pathToFileURL(ejectedCommand).href}?t=${Date.now()}`);
+      expect(module.shared.sharedValue).toBe(42);
+      expect(fs.existsSync(path.join(userClis, '_shared', 'helper.js'))).toBe(true);
+      expect(fs.existsSync(path.join(userClis, '_shared', 'nested.js'))).toBe(true);
+      expect(fs.existsSync(path.join(userClis, '_shared', 'unused.js'))).toBe(false);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+      fs.rmSync(fakePackage, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('profile list', () => {
   const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -1937,6 +1994,112 @@ describe('browser network command', () => {
     expect(out.entries[0].key).toBe('POST hw.mail.163.com/js6/s');
     expect(out.entries[0].ct).toBe('text/javascript');
     expect(out.entries[0].shape['$.messages']).toBe('array(1)');
+  });
+
+  it('treats React Server Component responses as API-like traffic', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://www.linkedin.com/flagship-web/rsc-action/actions/pagination',
+        method: 'POST',
+        responseStatus: 200,
+        responseContentType: 'text/x-component',
+        responsePreview: '1:{"posts":[{"id":"p1"}]}',
+      },
+      {
+        url: 'https://www.linkedin.com/flagship-web/rsc-action/actions/detail',
+        method: 'POST',
+        responseStatus: 200,
+        responseContentType: 'text/html',
+        responsePreview: '<rsc-stream>',
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(2);
+    expect(out.filtered_out).toBe(0);
+    expect(out.entries.map((entry: any) => entry.key)).toEqual([
+      'POST www.linkedin.com/flagship-web/rsc-action/actions/pagination',
+      'POST www.linkedin.com/flagship-web/rsc-action/actions/detail',
+    ]);
+  });
+
+  it('caches the raw drained batch before display filtering so a later --all can recover it', async () => {
+    browserState.page!.readNetworkCapture = vi.fn()
+      .mockResolvedValueOnce([
+        {
+          url: 'https://example.com/page-fragment',
+          method: 'GET',
+          responseStatus: 200,
+          responseContentType: 'text/html',
+          responsePreview: '<main>hidden from default output</main>',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+    expect(lastJsonLog()).toMatchObject({ count: 0, filtered_out: 1 });
+
+    consoleLogSpy.mockClear();
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network', '--all']);
+
+    const out = lastJsonLog();
+    expect(out.count).toBe(1);
+    expect(out.cache_reused).toBe(true);
+    expect(out.entries[0].key).toBe('GET example.com/page-fragment');
+  });
+
+  it('--detail exposes sanitized request context without credential values', async () => {
+    browserState.page!.readNetworkCapture = vi.fn().mockResolvedValue([
+      {
+        url: 'https://www.linkedin.com/flagship-web/rsc-action/actions/pagination?csrf_token=url-secret',
+        method: 'POST',
+        requestHeaders: {
+          'Content-Type': 'application/json',
+          Cookie: 'li_at=cookie-secret',
+          'X-CSRF-Token': 'header-secret',
+          'X-Trace-Id': 'trace-1',
+        },
+        requestBodyKind: 'string',
+        requestBodyPreview: JSON.stringify({ variables: { cursor: 'next', accessToken: 'body-secret' } }),
+        requestBodyFullSize: 123,
+        requestBodyTruncated: false,
+        responseStatus: 200,
+        responseContentType: 'text/x-component',
+        responsePreview: '1:{"posts":[]}',
+      },
+    ]);
+    const program = createProgram('', '');
+
+    await program.parseAsync(['node', 'opencli', 'browser', '--session', 'test', 'network']);
+    consoleLogSpy.mockClear();
+    await program.parseAsync([
+      'node', 'opencli', 'browser', '--session', 'test', 'network',
+      '--detail', 'POST www.linkedin.com/flagship-web/rsc-action/actions/pagination',
+    ]);
+
+    const out = lastJsonLog();
+    expect(out.url).toContain('csrf_token=%3Credacted%3E');
+    expect(out.request).toMatchObject({
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: '<redacted>',
+        'X-CSRF-Token': '<redacted>',
+        'X-Trace-Id': 'trace-1',
+      },
+      body_kind: 'json',
+      body: { variables: { cursor: 'next', accessToken: '<redacted>' } },
+      body_full_size: 123,
+      redacted: true,
+    });
+    expect(out.request.body_shape['$.variables.accessToken']).toBe('string');
+    expect(JSON.stringify(out)).not.toContain('url-secret');
+    expect(JSON.stringify(out)).not.toContain('cookie-secret');
+    expect(JSON.stringify(out)).not.toContain('header-secret');
+    expect(JSON.stringify(out)).not.toContain('body-secret');
   });
 
   it('--raw emits full bodies inline for every entry', async () => {

@@ -18,7 +18,9 @@ async function verifyKeIdentity(page) {
       if (loginBtn && /登录|登陆/.test(loginBtn.innerText || '')) {
         return { kind: 'auth', detail: 'Ke shows 登录 button — anonymous session' };
       }
-      const el = document.querySelector('.userNick, .user-name, .myInfo a, [class*=userNick]');
+      // 2026-08 贝壳新版 SSR：用户名在 .typeShowUser（脱敏手机号如 15****93），
+      // 旧锚点 .userNick/.user-name/.myInfo 已下线，故把 .typeShowUser 提到最前。
+      const el = document.querySelector('.typeShowUser a span, .typeShowUser a, .userNick, .user-name, .myInfo a, [class*=userNick]');
       const username = (el?.innerText || '').trim();
       if (!username) {
         return { kind: 'auth', detail: 'Ke no user-name DOM anchor — anonymous or SSR failed' };

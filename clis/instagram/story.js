@@ -3,8 +3,8 @@ import * as path from 'node:path';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { publishStoryViaPrivateApi, resolveInstagramPrivatePublishConfig, } from './_shared/private-publish.js';
-import { resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
-const INSTAGRAM_HOME_URL = 'https://www.instagram.com/';
+import { resolveCurrentUserId, resolveInstagramRuntimeInfo } from './_shared/runtime-info.js';
+import { INSTAGRAM_HOME_URL } from './_shared/navigation.js';
 const SUPPORTED_STORY_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const SUPPORTED_STORY_VIDEO_EXTENSIONS = new Set(['.mp4']);
 function requirePage(page) {
@@ -38,10 +38,6 @@ function normalizeStoryMediaItem(kwargs) {
         return { type: 'video', filePath: resolved };
     }
     throw new ArgumentError(`Unsupported story media format: ${ext}`, 'Supported formats: images (.jpg, .jpeg, .png, .webp) and videos (.mp4)');
-}
-async function resolveCurrentUserId(page) {
-    const cookies = await page.getCookies({ domain: 'instagram.com' });
-    return cookies.find((cookie) => cookie.name === 'ds_user_id')?.value || '';
 }
 async function resolveCurrentUsername(page, currentUserId = '') {
     if (!currentUserId)

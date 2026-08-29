@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { parsePageArg, resolveBvid, resolveUid, selectVideoPart } from './utils.js';
+import { parseBvidOrVideoUrl, parsePageArg, resolveBvid, resolveUid, selectVideoPart } from './utils.js';
+
+describe('parseBvidOrVideoUrl', () => {
+    it('preserves exact case-sensitive BVID identity from ids and trusted URLs', () => {
+        expect(parseBvidOrVideoUrl(' BV1xx411c7mD ')).toBe('BV1xx411c7mD');
+        expect(parseBvidOrVideoUrl('https://www.bilibili.com/video/BV1Je9EBnEha/?p=2')).toBe('BV1Je9EBnEha');
+    });
+
+    it('rejects lowercase prefixes, wrong lengths, and untrusted URL lookalikes', () => {
+        for (const value of [
+            'bv1xx411c7mD',
+            'BV123abc',
+            'https://evil.example/video/BV1xx411c7mD',
+            'https://bilibili.com.evil.example/video/BV1xx411c7mD',
+            'https://account.bilibili.com/video/BV1xx411c7mD',
+            'http://www.bilibili.com/video/BV1xx411c7mD',
+            'https://user@www.bilibili.com/video/BV1xx411c7mD',
+            'https://www.bilibili.com/video/BV1xx411c7mD/extra',
+        ]) {
+            expect(() => parseBvidOrVideoUrl(value)).toThrow(ArgumentError);
+        }
+    });
+});
+
 describe('resolveBvid', () => {
     it('passes through a valid BV ID', async () => {
         expect(await resolveBvid('BV1MV9NBtENN')).toBe('BV1MV9NBtENN');

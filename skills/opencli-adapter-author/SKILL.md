@@ -1,12 +1,12 @@
 ---
 name: opencli-adapter-author
 description: Use when writing an OpenCLI adapter for a new site or adding a new command to an existing site. Guides end-to-end from first recon through field decoding, adapter coding, and verify. Replaces opencli-oneshot / opencli-explorer. For ad-hoc browser driving (no adapter), see opencli-browser instead; for a top-level orientation to opencli, see opencli-usage.
-allowed-tools: Bash(opencli:*), Read, Edit, Write, Grep
+allowed-tools: Bash(opencli:*), Bash(jsluice:*), Read, Edit, Write, Grep
 ---
 
 # opencli-adapter-author
 
-你是要给一个站点写 adapter 的 agent。这份 skill 目标：**从零到通过 `opencli browser verify` 的 30 分钟内闭环**。
+你是要给一个站点写 adapter 的 agent。这份 skill 目标：简单站点争取 **30 分钟内从零到通过 `opencli browser verify`**；复杂、私有协议或写操作站点以证据完整和安全为先，不为了时限猜接口。
 
 全程用现有工具：`opencli browser *` / `opencli doctor` / `opencli browser init` / `opencli browser verify`。没有新命令。
 
@@ -92,9 +92,15 @@ START
   │ 拿到候选 endpoint
   ▼
 ┌────────────────────────────────────────────┐
-│ 直接 fetch 验证 endpoint（memory 命中也要跑）│── 401/403 ──→ 回到 §4 排 token
-│ 数据非空 + 200                              │── 空/HTML ──→ 回到 site-recon 换 Pattern
-│ memory 里的值还活着吗？                     │── 站点换版 ──→ 标记旧 endpoint，回 api-discovery
+│ 需要 Deep Recon？                          │  无文档私有 API / DOM 丢数据 / 写操作 / 证据冲突
+│ → references/deep-recon.md                 │  intent matrix → 因果 diff → 候选账本 → contract gate
+└────────────────────────────────────────────┘
+  │ 候选通过合同证明；不通过则记录拒绝与 lift condition
+  ▼
+┌────────────────────────────────────────────┐
+│ 验证候选合同（memory 命中也要跑）           │── 401/403 ──→ 回到 §4 排 token
+│ safe replay；不可 replay 的 read 用自然截获 │── 空/HTML ──→ 回到 site-recon 换 Pattern
+│ 数据非空、identity 对、分页/错误语义完整     │── 站点换版 ──→ 标记旧 endpoint，回 api-discovery
 └────────────────────────────────────────────┘
   │ OK
   ▼
@@ -155,9 +161,18 @@ DONE
        [ ] Pattern C → §3 bundle / script src 搜索
        [ ] Pattern D → §4 token 来源 + 降级 §5
        [ ] Pattern E → 找 HTTP 轮询接口；找不到才 §5
-[ ] 5. 直接 fetch 候选 endpoint 验证：
-       [ ] 返回 200
-       [ ] 响应含目标数据（不是 HTML / 广告）
+       [ ] 无文档 API / DOM 丢数据 / 写操作 / bundle 与 network 冲突 → `deep-recon.md`
+           [ ] 写 intent matrix 和明确的 mutation boundary
+           [ ] baseline → 单一动作 → 新请求 diff；至少一组 changed-input 对照
+           [ ] jsluice 只扩大候选面；候选必须进入 evidence ledger
+           [ ] read 候选过 occurrence/replay/completeness/auth/pagination/failure gate
+           [ ] write 候选有明确授权、目标绑定、幂等/不确定性与不可自动重试语义
+[ ] 5. 候选合同验证（memory 命中也要重跑）：
+       [ ] `PUBLIC_API / COOKIE_API / PAGE_FETCH`：safe replay 跨两个输入返回成功
+       [ ] `INTERCEPT`：两次自然页面动作都截到属于目标 identity 的完整响应
+       [ ] 响应含目标数据（不是 HTML / 广告 / 推荐侧栏），字段与网页对得上
+       [ ] 分页达到 exact limit 或证明 upstream exhaustion；失败不返回 partial
+       [ ] write 不自动 replay，必须过 `deep-recon.md` 的额外合同门禁
 [ ] 6. 写 strategy note（写代码前的强制产物）：
        [ ] 从 `PUBLIC_API / COOKIE_API / PAGE_FETCH / INTERCEPT / DOM_STATE / UI_SELECTOR` 选一个
        [ ] 填 Contract：`stable / visible-ui / internal-unstable`
@@ -186,8 +201,16 @@ DONE
         [ ] `field-map.json`：只追加新代号。key = 字段代号，value = `{meaning, verified_at: YYYY-MM-DD, source}`；**已存在的 key 不要覆盖**，有冲突先和网页肉眼值对齐再写
         [ ] `notes.md`：顶部追加一段 `## YYYY-MM-DD by <agent/user>`，写本次写 adapter 时遇到的新坑 / 新结论
         [ ] `verify/<cmd>.json`：**必填。** `opencli browser verify` 的期望值（args / rowCount / columns / types / patterns / notEmpty），Step 10 已经让你生成了，这里只是 checklist
-        [ ] `fixtures/<cmd>-<YYYYMMDDHHMM>.json`：存一份该 endpoint 的完整响应样本（去掉 cookie / token / 用户私有字段再存），给后续字段对比 / 离线 replay 用
-        [ ] 调试过程中如果在 repo / adapter 目录 dump 过临时文件（`.dbg-*.html` / `raw-*.json` / 等），**在 commit 前清干净**——这些本来就该落在 `~/.opencli/sites/<site>/fixtures/` 或 `/tmp/`
+        [ ] `fixtures/<cmd>-<YYYYMMDDHHMM>.json`：仅保存公开数据或可证明完成脱敏的样本；私人邮箱/消息/账号等高敏响应改用合成 fixture，不落盘
+        [ ] 原始 dump/capture 只短暂落 `/tmp/` 或受控 cache；安全分级后的长期样本才进 `fixtures/`，任务结束清理原始文件
+[ ] 13. repo 贡献收口（私人 adapter 可跳过）：
+        [ ] production-path tests，不只测 parser/helper
+        [ ] `npm run typecheck` + focused/site tests + `npm run build`
+        [ ] `node dist/src/main.js validate <site>`
+        [ ] `npm run check:typed-error-lint` + `npm run check:silent-column-drop`
+        [ ] adapter 文档；若 sitemap/site memory 有稳定新知识则同步
+        [ ] `git diff --check` + 敏感数据扫描 + 删除 raw capture/cache + 释放 browser session
+        [ ] 写操作或私有协议请独立 review exact head 后再合入
 ```
 
 ---
@@ -220,6 +243,7 @@ DONE
 | `references/coverage-matrix.md` | 动手前做"是否在范围内"自测 |
 | `references/site-recon.md` | Step 3 定站点类型 |
 | `references/api-discovery.md` | Step 4 找 endpoint |
+| `references/deep-recon.md` | 复杂无文档站：动作归因、jsluice 候选扩展、合同证明、读写安全与交付净账 |
 | `references/strategy-selection.md` | Step 6 填 strategy note 之前：契约模型 + 实测 fix 频率 + `api_candidates` 证据用法 + 反例 |
 | `references/field-conventions.md` | Step 7 查已知字段代号 |
 | `references/field-decode-playbook.md` | Step 7 字段不在词典时 |
@@ -242,7 +266,8 @@ DONE
 - 已知失败按 [`references/typed-errors.md`](./references/typed-errors.md) 5-classification 抛对应 typed error；**不要** silent `return []`，**不要** silent `return [{sentinel}]`，**不要** `Math.max/min` silent clamp 外部参数
 - 写私人 adapter 用 `~/.opencli/clis/<site>/<name>.js`（免 build）；要提 PR 才 copy 到 `clis/<site>/<name>.js`
 - 站点记忆每轮回写：没记忆 → 用 skill → 产生记忆 → 下次变 5 分钟
-- **调试过程中的原始 dump / 抓包 / HTML 样本只能落在 `~/.opencli/sites/<site>/fixtures/` 或 `/tmp/`。严禁在 repo 根目录、`clis/<site>/` 或当前工作目录留 `.dbg-*.html / raw-*.json / sample.*` 这类临时文件**（PR diff 会带上去，别人 review 时很烦）。
+- **“真实发生过”不等于“可作为 production contract 重放”**。私有写请求、一次性风控 token、页面 runtime controller 都必须过 `deep-recon.md` 的 contract gate；过不了就记录 blocker/lift condition，不生成伪 API 命令。
+- **调试过程中的原始 dump / 抓包 / HTML 样本只能短暂落在系统 `/tmp/` 或受控 cache，任务结束删除。只有通过 `site-memory.md` 数据分级、准备长期保留的公开/合成/已脱敏样本才进入 `~/.opencli/sites/<site>/fixtures/`。严禁在 repo 根目录、`clis/<site>/` 或当前工作目录留 `.dbg-*.html / raw-*.json / sample.*`。**
 - **JSDOM unit-test fixture（`clis/<site>/__fixtures__/<command>.html`）是上面那条的例外**——它是有意 commit 进 repo 的 review artifact，不是临时 dump。但因此 quality bar 要更高：必须按 `references/jsdom-fixture-pattern.md` 的 5 步做完（含 mandatory `awk 'NF>0'` 空白行收紧），并 reverse-validate 一道证明 regression guard 真能挂。
 
 ---

@@ -1,7 +1,7 @@
 /**
  * Bilibili comments — fetches comments via the official API.
- * Top-level comments come from /x/v2/reply/main (WBI-signed); with --parent,
- * the replies nested under a given comment come from /x/v2/reply/reply.
+ * Top-level and pinned comments come from /x/v2/reply/main (WBI-signed); with
+ * --parent, replies nested under a given comment come from /x/v2/reply/reply.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
@@ -63,6 +63,19 @@ function requireReplies(data, label) {
     return data.replies;
 }
 
+function requireTopReplies(data, label) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new CommandExecutionError(`Bilibili ${label} API returned malformed data`);
+    }
+    if (!Object.hasOwn(data, 'top_replies')) {
+        throw new CommandExecutionError(`Bilibili ${label} API did not return top_replies`);
+    }
+    if (!Array.isArray(data.top_replies)) {
+        throw new CommandExecutionError(`Bilibili ${label} API returned malformed top_replies`);
+    }
+    return data.top_replies;
+}
+
 function formatReplyRow(reply, index) {
     if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
         throw new CommandExecutionError(`Bilibili comments reply ${index + 1} was malformed`);
@@ -90,18 +103,25 @@ cli({
     site: 'bilibili',
     name: 'comments',
     access: 'read',
-    description: '获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复）',
+    description: '获取 B站视频评论（官方 API；用 --parent <rpid> 读取某条评论下的「楼中楼」回复；用 --top 只看置顶评论）',
     domain: 'www.bilibili.com',
     strategy: Strategy.COOKIE,
     args: [
         { name: 'bvid', required: true, positional: true, help: 'Video BV ID (e.g. BV1WtAGzYEBm)' },
         { name: 'parent', type: 'int', help: 'rpid of a comment — fetch the replies under it instead of top-level comments' },
+        { name: 'top', type: 'boolean', default: false, help: '只返回置顶评论（与 --parent 互斥）' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of comments (max 50)' },
     ],
     columns: ['rank', 'rpid', 'author', 'text', 'likes', 'replies', 'time'],
     func: async (page, kwargs) => {
         if (!page) {
             throw new CommandExecutionError('Browser session required for bilibili comments');
+        }
+        const limit = parseLimit(kwargs.limit);
+        const parent = parseParent(kwargs.parent);
+        const top = kwargs.top === true;
+        if (top && parent != null) {
+            throw new ArgumentError('bilibili comments --top cannot be combined with --parent (pinned comments only exist at the top level)');
         }
         let bvid;
         try {
@@ -110,8 +130,6 @@ cli({
         catch (error) {
             throw new ArgumentError(`Cannot resolve Bilibili BV ID from input: ${String(kwargs.bvid ?? '')}`, error instanceof Error ? error.message : String(error));
         }
-        const limit = parseLimit(kwargs.limit);
-        const parent = parseParent(kwargs.parent);
         // Resolve bvid → aid (required by reply API)
         const view = await apiGet(page, '/x/web-interface/view', { params: { bvid } });
         const viewData = requireOkPayload(view, 'view');
@@ -123,12 +141,18 @@ cli({
                 params: { oid: aid, type: 1, root: parent, pn: 1, ps: limit },
             })
             : await apiGet(page, '/x/v2/reply/main', {
-                params: { oid: aid, type: 1, mode: 3, ps: limit },
+                params: { oid: aid, type: 1, mode: 3, ps: top ? 1 : limit },
                 signed: true,
             });
         const label = parent != null ? 'reply thread' : 'reply main';
-        const replies = requireReplies(requireOkPayload(payload, label), label);
+        const data = requireOkPayload(payload, label);
+        const replies = top
+            ? requireTopReplies(data, label)
+            : requireReplies(data, label);
         if (replies.length === 0) {
+            if (top) {
+                throw new EmptyResultError(`bilibili pinned comments: ${bvid}`);
+            }
             throw new EmptyResultError(parent != null ? `bilibili comment replies: ${parent}` : `bilibili comments: ${bvid}`);
         }
         return replies.slice(0, limit).map(formatReplyRow);

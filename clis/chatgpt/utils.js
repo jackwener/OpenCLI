@@ -2560,15 +2560,31 @@ export async function getChatGPTVisibleImageUrls(page) {
                 return /avatar|profile|logo|icon/.test(text);
             };
             const isUserUploadPreview = (img) => {
-                const alt = (img.getAttribute('alt') || '').toLowerCase();
                 const turn = img.closest('section[data-testid^="conversation-turn"]');
-                const heading = (turn?.querySelector('h4')?.innerText || '').toLowerCase();
+                // Authoritative signal first: ChatGPT stamps data-turn directly on the
+                // turn section as soon as the turn mounts, well before an attached
+                // image's alt text/aria-label finish populating. Racing multiple
+                // uploads against that async metadata (the old behaviour here) let
+                // still-generic upload-preview thumbnails pass as "new" images for a
+                // poll or two, which is long enough to satisfy the stability check in
+                // waitForChatGPTImages and return the wrong (uploaded, not generated)
+                // images when 2+ files were attached.
+                const turnRole = turn?.getAttribute('data-turn') || '';
+                if (turnRole === 'user') return true;
+                if (turnRole === 'assistant') return false;
+                // Fallback for markup without data-turn. innerText reads as empty
+                // on a visually-hidden heading in real Chrome (jsdom has no layout and
+                // never exposed this gap) - use textContent instead.
+                const heading = (turn?.querySelector('h4')?.textContent || '').toLowerCase();
                 if (/you said|你说/.test(heading)) return true;
                 if (/chatgpt|assistant|助手/.test(heading)) return false;
-                const openButtonLabel = (img.closest('button[aria-label^="Open image:"]')?.getAttribute('aria-label') || '').toLowerCase();
+                const alt = (img.getAttribute('alt') || '').toLowerCase();
+                // ChatGPT's multi-image "Open image" button label now reads
+                // "Open image N of M: name", not the older "Open image: name".
+                const openButtonLabel = (img.closest('button[aria-label*="Open image"], button[aria-label*="打开图片"]')?.getAttribute('aria-label') || '').toLowerCase();
                 const previewText = [alt, openButtonLabel].join(' ');
                 return /\.(png|jpe?g|webp|gif|heic|heif)(?:\b|$)/i.test(previewText)
-                    || /ref-|reference|参考|upload|uploaded|attachment/.test(previewText);
+                    || /ref-|reference|参考|上传|upload|uploaded|attachment/.test(previewText);
             };
 
             const imgs = Array.from(document.querySelectorAll('img')).filter(img =>
@@ -2603,11 +2619,10 @@ export async function getChatGPTVisibleImageUrls(page) {
             }
 
             // Some ChatGPT image surfaces mount large transparent canvases as
-            // placeholders/overlays before the real backend image is ready. If
-            // those data URLs are accepted as generated assets, the adapter can
-            // save a blank transparent PNG while reporting success. Prefer real
-            // <img>/background URLs; only keep a canvas if it contains at least
-            // one non-transparent/non-white sampled pixel.
+            // placeholders/overlays before the real backend image is ready. The
+            // image wait no longer saves these (#1898), but it does treat a
+            // content-bearing one as "still rendering", so keep the sampling:
+            // it decides whether a deadline reports TIMEOUT or EMPTY_RESULT.
             for (const canvas of Array.from(document.querySelectorAll('canvas'))) {
                 if (!(canvas instanceof HTMLCanvasElement) || !isVisible(canvas) || isDecorative(canvas)) continue;
                 const width = canvas.width || canvas.getBoundingClientRect().width || 0;
@@ -2653,6 +2668,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
     const maxPolls = Math.max(1, Math.ceil(timeoutSeconds / pollIntervalSeconds));
     let lastUrls = [];
     let stableCount = 0;
+    let stillRendering = false;
 
     for (let i = 0; i < maxPolls; i++) {
         await page.sleep(i === 0 ? 3 : pollIntervalSeconds);
@@ -2667,6 +2683,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
         }
 
         const generating = await isGenerating(page);
+        stillRendering = generating;
         if (generating) continue;
 
         if (convUrl && convUrl.includes('/c/') && i > 0 && i % 5 === 0) {
@@ -2677,7 +2694,15 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
             }
         }
 
-        const urls = (await getChatGPTVisibleImageUrls(page)).filter(url => !beforeSet.has(url));
+        const candidates = (await getChatGPTVisibleImageUrls(page)).filter(url => !beforeSet.has(url));
+        // Canvas snapshots surface as data: URLs and hold half-drawn frames
+        // while generation renders. A hidden page stops repainting the canvas,
+        // so a frozen partial frame stays byte-identical across polls and
+        // would pass the stability gate below as a finished image (#1898).
+        // Kept out of completion, they still mark the wait as rendering so a
+        // deadline reports TIMEOUT instead of EMPTY_RESULT.
+        const urls = candidates.filter(url => !/^data:/i.test(url));
+        stillRendering = urls.length === 0 && candidates.length > 0;
         if (urls.length === 0) continue;
 
         const key = urls.join('\n');
@@ -2692,6 +2717,15 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
         if (stableCount >= 2 || i === maxPolls - 1) {
             return lastUrls;
         }
+    }
+    // A deadline that lands while ChatGPT is visibly mid-generation is a
+    // temporary failure, not an empty conversation. Mirror the ask wait.
+    if (!lastUrls.length && stillRendering) {
+        throw new TimeoutError(
+            'chatgpt image',
+            timeoutSeconds,
+            'No finished image appeared before timeout. Re-run with a higher --timeout if it is still generating.',
+        );
     }
     return lastUrls;
 }

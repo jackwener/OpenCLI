@@ -1,4 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './_actions.js';
 export const extractDiffCommand = cli({
     site: 'codex',
     name: 'extract-diff',
@@ -9,7 +11,7 @@ export const extractDiffCommand = cli({
     browser: true,
     columns: ['File', 'Diff'],
     func: async (page) => {
-        const diffs = await page.evaluate(`
+        const diffs = unwrapEvaluateResult(await page.evaluate(`
       (function() {
         const results = [];
         // Assuming diffs are rendered with standard diff classes or monaco difference editors
@@ -36,9 +38,12 @@ export const extractDiffCommand = cli({
         
         return results;
       })()
-    `);
+    `));
+        if (!Array.isArray(diffs)) {
+            throw new CommandExecutionError('Codex extract-diff returned an invalid payload.');
+        }
         if (diffs.length === 0) {
-            return [{ File: 'No diffs found', Diff: 'Try running opencli codex send "/review" first' }];
+            throw new EmptyResultError('codex extract-diff', 'No Codex diffs were visible. Run opencli codex send "/review" --pick "Review Agent" and retry.');
         }
         return diffs;
     },

@@ -1,5 +1,5 @@
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError } from '@jackwener/opencli/errors';
-import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, } from './shared.js';
+import { isNotebooklmHost, NOTEBOOKLM_DOMAIN, NOTEBOOKLM_HOME_URL, parseTrustedNotebooklmUrl, } from './shared.js';
 import { callNotebooklmRpc, getNotebooklmPageAuth, unwrapNotebooklmEvaluateResult, } from './rpc.js';
 export { buildNotebooklmRpcBody, extractNotebooklmRpcResult, fetchNotebooklmInPage, getNotebooklmPageAuth, parseNotebooklmChunkedResponse, stripNotebooklmAntiXssi, } from './rpc.js';
 const NOTEBOOKLM_LIST_RPC_ID = 'wXbhsf';
@@ -16,6 +16,16 @@ function unwrapNotebooklmSingletonResult(result) {
 export function isPlainObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
+async function evaluateNotebooklm(page, script, label) {
+    try {
+        return unwrapNotebooklmEvaluateResult(await page.evaluate(script));
+    }
+    catch (error) {
+        if (error instanceof CliError)
+            throw error;
+        throw new CommandExecutionError(`NotebookLM ${label} failed: ${error?.message || error}`);
+    }
+}
 export function parseNotebooklmIdFromUrl(url) {
     const match = url.match(/\/notebook\/([^/?#]+)/);
     return match?.[1] ?? '';
@@ -23,7 +33,7 @@ export function parseNotebooklmIdFromUrl(url) {
 const NOTEBOOK_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function ensureNotebookUuid(candidate) {
     if (!NOTEBOOK_UUID_RE.test(candidate)) {
-        throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', `NotebookLM notebook id "${candidate}" is not a valid UUID`, 'Pass a notebook id from `opencli notebooklm list` or a full notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+        throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', `NotebookLM notebook id "${candidate}" is not a valid UUID`, `Pass a notebook id from \`opencli notebooklm list\` or a full notebook URL like ${NOTEBOOKLM_HOME_URL}notebook/<uuid>.`);
     }
     return candidate;
 }
@@ -38,16 +48,23 @@ export function parseNotebooklmNotebookTarget(value) {
             parsed = new URL(normalized);
         }
         catch {
-            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', `Pass a full NotebookLM notebook URL like ${NOTEBOOKLM_HOME_URL}notebook/<uuid>.`);
         }
-        if (parsed.protocol !== 'https:' || parsed.hostname !== NOTEBOOKLM_DOMAIN || parsed.username || parsed.password || parsed.port) {
-            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL must be a canonical https://notebooklm.google.com URL', 'Pass a notebook id from `opencli notebooklm list` or a full NotebookLM notebook URL.');
+        if (!parseTrustedNotebooklmUrl(parsed.href)) {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL must be a NotebookLM URL', 'Pass a notebook id from `opencli notebooklm list` or a full NotebookLM notebook URL.');
         }
-        const notebookId = parseNotebooklmIdFromUrl(normalized);
-        if (!notebookId) {
-            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', 'Pass a full NotebookLM notebook URL like https://notebooklm.google.com/notebook/<uuid>.');
+        const pathMatch = parsed.pathname.match(/^\/notebook\/([^/]+)\/?$/);
+        if (!pathMatch?.[1]) {
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL is invalid', `Pass a full NotebookLM notebook URL like ${NOTEBOOKLM_HOME_URL}notebook/<uuid>.`);
         }
-        return ensureNotebookUuid(notebookId);
+        try {
+            return ensureNotebookUuid(decodeURIComponent(pathMatch[1]));
+        }
+        catch (error) {
+            if (error instanceof CliError)
+                throw error;
+            throw new CliError('NOTEBOOKLM_INVALID_NOTEBOOK', 'NotebookLM notebook URL contains an invalid encoded id', 'Pass a notebook id from `opencli notebooklm list` or a full NotebookLM notebook URL.');
+        }
     }
     const pathMatch = normalized.match(/(?:^|\/)notebook\/([^/?#]+)/);
     if (pathMatch?.[1])
@@ -63,24 +80,35 @@ export function requireNotebooklmExecute(value, action) {
         throw new ArgumentError(`Refusing to ${action}: pass --execute to perform this NotebookLM write`);
     }
 }
-export function buildNotebooklmNotebookUrl(notebookId) {
-    const u = new URL(`/notebook/${encodeURIComponent(notebookId)}`, NOTEBOOKLM_HOME_URL);
+export function buildNotebooklmNotebookUrl(notebookId, observedUrl = '') {
+    const observed = parseTrustedNotebooklmUrl(observedUrl);
+    const base = observed ? `${observed.origin}/` : NOTEBOOKLM_HOME_URL;
+    const u = new URL(`/notebook/${encodeURIComponent(notebookId)}`, base);
     const authuser = getNotebooklmAuthuser();
     if (authuser) u.searchParams.set('authuser', authuser);
     return u.toString();
 }
 export function classifyNotebooklmPage(url) {
+    const parsed = parseTrustedNotebooklmUrl(url);
+    if (!parsed)
+        return 'unknown';
+    if (/^\/notebook\/[^/]+\/?$/.test(parsed.pathname))
+        return 'notebook';
+    return 'home';
+}
+
+function normalizeNotebooklmNotebookUrl(value, notebookId) {
+    const parsed = parseTrustedNotebooklmUrl(value);
+    if (!parsed || classifyNotebooklmPage(parsed.href) !== 'notebook')
+        return '';
     try {
-        const parsed = new URL(url);
-        if (parsed.hostname !== NOTEBOOKLM_DOMAIN)
-            return 'unknown';
-        if (/\/notebook\/[^/?#]+/.test(parsed.pathname))
-            return 'notebook';
-        return 'home';
+        if (decodeURIComponent(parseNotebooklmIdFromUrl(parsed.href)) !== notebookId)
+            return '';
     }
     catch {
-        return 'unknown';
+        return '';
     }
+    return buildNotebooklmNotebookUrl(notebookId, parsed.href);
 }
 export function normalizeNotebooklmTitle(value, fallback = '') {
     if (typeof value !== 'string')
@@ -269,14 +297,18 @@ function parseNotebooklmVisibleNoteRawRow(row, notebookId, url) {
     };
 }
 export function parseNotebooklmListResult(result) {
-    if (!Array.isArray(result) || result.length === 0)
+    if (!Array.isArray(result)) {
+        throw new CliError('NOTEBOOKLM_RPC_SCHEMA', 'NotebookLM list RPC returned a non-array payload', 'Retry from the NotebookLM home page; the internal list response shape may have changed.');
+    }
+    if (result.length === 0)
         return [];
-    const rawNotebooks = Array.isArray(result[0]) ? result[0] : result;
-    if (!Array.isArray(rawNotebooks))
-        return [];
-    return rawNotebooks
-        .filter((item) => Array.isArray(item))
-        .map((item) => {
+    const rawNotebooks = result.length === 1 && Array.isArray(result[0]) && (result[0].length === 0 || Array.isArray(result[0][0]))
+        ? result[0]
+        : result;
+    return rawNotebooks.map((item) => {
+        if (!Array.isArray(item) || typeof item[2] !== 'string' || !item[2]) {
+            throw new CliError('NOTEBOOKLM_RPC_SCHEMA', 'NotebookLM list RPC returned a malformed notebook row', 'Retry from the NotebookLM home page; the internal list response shape may have changed.');
+        }
         const meta = Array.isArray(item[5]) ? item[5] : [];
         const timestamps = Array.isArray(meta[5]) ? meta[5] : [];
         const id = typeof item[2] === 'string' ? item[2] : '';
@@ -286,13 +318,12 @@ export function parseNotebooklmListResult(result) {
         return {
             id,
             title: normalizeNotebooklmTitle(title, 'Untitled Notebook'),
-            url: `https://${NOTEBOOKLM_DOMAIN}/notebook/${id}`,
+            url: buildNotebooklmNotebookUrl(id),
             source: 'rpc',
             is_owner: meta.length > 1 ? meta[1] === false : true,
             created_at: timestamps.length > 0 ? toNotebooklmIsoTimestamp(timestamps[0]) : null,
         };
-    })
-        .filter((row) => row.id);
+    });
 }
 export function parseNotebooklmNotebookDetailResult(result) {
     const detail = unwrapNotebooklmSingletonResult(result);
@@ -308,7 +339,7 @@ export function parseNotebooklmNotebookDetailResult(result) {
     return {
         id,
         title,
-        url: `https://${NOTEBOOKLM_DOMAIN}/notebook/${id}`,
+        url: buildNotebooklmNotebookUrl(id),
         source: 'rpc',
         is_owner: meta.length > 1 ? meta[1] === false : true,
         created_at: toNotebooklmIsoTimestamp(meta[8]),
@@ -596,7 +627,9 @@ export async function ensureNotebooklmHome(page) {
     if (currentKind === 'home')
         return;
     const authuser = getNotebooklmAuthuser();
-    const target = authuser ? `${NOTEBOOKLM_HOME_URL}?authuser=${encodeURIComponent(authuser)}` : NOTEBOOKLM_HOME_URL;
+    const current = parseTrustedNotebooklmUrl(currentUrl);
+    const home = current ? `${current.origin}/` : NOTEBOOKLM_HOME_URL;
+    const target = authuser ? `${home}?authuser=${encodeURIComponent(authuser)}` : home;
     try {
         await page.goto(target);
         await page.wait(2);
@@ -606,7 +639,7 @@ export async function ensureNotebooklmHome(page) {
     }
 }
 export async function getNotebooklmPageState(page) {
-    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
+    const raw = await evaluateNotebooklm(page, `(() => {
     const url = window.location.href;
     const title = document.title || '';
     const hostname = window.location.hostname || '';
@@ -615,12 +648,12 @@ export async function getNotebooklmPageState(page) {
     const path = window.location.pathname || '/';
     const kind = notebookId
       ? 'notebook'
-      : (hostname === 'notebooklm.google.com' ? 'home' : 'unknown');
+      : (hostname === 'notebooklm.google.com' || hostname === 'notebook.google.com' ? 'home' : 'unknown');
 
     const textNodes = Array.from(document.querySelectorAll('a, button, [role="button"], h1, h2'))
       .map(node => (node.textContent || '').trim().toLowerCase())
       .filter(Boolean);
-    const loginRequired = textNodes.some(text =>
+    const loginRequired = path === '/login' || path.startsWith('/login/') || textNodes.some(text =>
       text.includes('sign in') ||
       text.includes('log in') ||
       text.includes('登录') ||
@@ -633,20 +666,37 @@ export async function getNotebooklmPageState(page) {
       .reduce((count, href, index, list) => list.indexOf(href) === index ? count + 1 : count, 0);
 
     return { url, title, hostname, kind, notebookId, loginRequired, notebookCount, path };
-  })()`));
+  })()`, 'page-state probe');
+    if (!isPlainObject(raw) || typeof raw.url !== 'string' || typeof raw.title !== 'string' || typeof raw.hostname !== 'string' || typeof raw.kind !== 'string' || typeof raw.notebookId !== 'string' || typeof raw.loginRequired !== 'boolean' || typeof raw.notebookCount !== 'number' || !Number.isFinite(raw.notebookCount)) {
+        throw new CommandExecutionError('NotebookLM page-state probe returned malformed Browser Bridge data');
+    }
+    let parsed;
+    try {
+        parsed = new URL(raw.url);
+    }
+    catch {
+        throw new CommandExecutionError('NotebookLM page-state probe returned an invalid URL');
+    }
+    if (parsed.hostname !== raw.hostname) {
+        throw new CommandExecutionError('NotebookLM page-state probe returned inconsistent URL and hostname fields');
+    }
+    const trusted = parseTrustedNotebooklmUrl(parsed.href);
+    const kind = trusted ? classifyNotebooklmPage(trusted.href) : 'unknown';
+    const notebookId = kind === 'notebook' ? parseNotebooklmIdFromUrl(trusted.href) : '';
+    const loginPath = Boolean(trusted && (trusted.pathname === '/login' || trusted.pathname.startsWith('/login/')));
     const state = {
-        url: String(raw?.url ?? ''),
+        url: raw.url,
         title: normalizeNotebooklmTitle(raw?.title, 'NotebookLM'),
-        hostname: String(raw?.hostname ?? ''),
-        kind: raw?.kind === 'notebook' || raw?.kind === 'home' ? raw.kind : 'unknown',
-        notebookId: String(raw?.notebookId ?? ''),
-        loginRequired: Boolean(raw?.loginRequired),
-        notebookCount: Number(raw?.notebookCount ?? 0),
+        hostname: raw.hostname,
+        kind,
+        notebookId,
+        loginRequired: loginPath || raw.loginRequired,
+        notebookCount: Math.max(0, raw.notebookCount),
     };
     // Notebook pages can still contain "sign in" or login-related text fragments
     // even when the active Google session is valid. Prefer the real page tokens
     // as the stronger auth signal before declaring the session unauthenticated.
-    if (state.hostname === NOTEBOOKLM_DOMAIN && state.loginRequired) {
+    if (isNotebooklmHost(state.hostname) && state.loginRequired && !loginPath) {
         try {
             await getNotebooklmPageAuth(page);
             state.loginRequired = false;
@@ -658,7 +708,7 @@ export async function getNotebooklmPageState(page) {
     return state;
 }
 export async function readCurrentNotebooklm(page) {
-    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
+    const raw = await evaluateNotebooklm(page, `(() => {
     const url = window.location.href;
     const match = url.match(/\\/notebook\\/([^/?#]+)/);
     if (!match) return null;
@@ -671,20 +721,27 @@ export async function readCurrentNotebooklm(page) {
       url,
       source: 'current-page',
     };
-  })()`));
+  })()`, 'current-page probe');
     if (!raw)
         return null;
+    if (!isPlainObject(raw) || typeof raw.id !== 'string' || typeof raw.title !== 'string' || typeof raw.url !== 'string') {
+        throw new CommandExecutionError('NotebookLM current-page probe returned malformed Browser Bridge data');
+    }
+    const url = normalizeNotebooklmNotebookUrl(raw.url, raw.id);
+    if (!url) {
+        throw new CommandExecutionError('NotebookLM current-page probe returned an untrusted or mismatched notebook URL');
+    }
     return {
-        id: String(raw.id ?? ''),
+        id: raw.id,
         title: normalizeNotebooklmTitle(raw.title, 'Untitled Notebook'),
-        url: String(raw.url ?? ''),
+        url,
         source: 'current-page',
         is_owner: true,
         created_at: null,
     };
 }
 export async function listNotebooklmLinks(page) {
-    const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
+    const raw = await evaluateNotebooklm(page, `(() => {
     const rows = [];
     const seen = new Set();
 
@@ -732,19 +789,26 @@ export async function listNotebooklmLinks(page) {
     }
 
     return rows;
-  })()`));
+  })()`, 'home-link probe');
     if (!Array.isArray(raw))
-        return [];
-    return raw
-        .map((row) => ({
-        id: String(row.id ?? ''),
+        throw new CommandExecutionError('NotebookLM home-link probe returned malformed Browser Bridge data');
+    return raw.map((row) => {
+        if (!isPlainObject(row) || typeof row.id !== 'string' || typeof row.title !== 'string' || typeof row.url !== 'string' || (row.created_at !== null && row.created_at !== undefined && typeof row.created_at !== 'string') || (row.is_owner !== undefined && typeof row.is_owner !== 'boolean')) {
+            throw new CommandExecutionError('NotebookLM home-link probe returned a malformed row');
+        }
+        const url = normalizeNotebooklmNotebookUrl(row.url, row.id);
+        if (!url) {
+            throw new CommandExecutionError('NotebookLM home-link probe returned an untrusted or mismatched notebook URL');
+        }
+        return {
+        id: row.id,
         title: normalizeNotebooklmTitle(row.title, 'Untitled Notebook'),
-        url: String(row.url ?? ''),
+        url,
         source: 'home-links',
         is_owner: row.is_owner === false ? false : true,
         created_at: normalizeNotebooklmCreatedAt(row.created_at),
-    }))
-        .filter((row) => row.id && row.url);
+        };
+    });
 }
 export async function listNotebooklmSourcesFromPage(page) {
     const raw = unwrapNotebooklmEvaluateResult(await page.evaluate(`(() => {
@@ -804,7 +868,7 @@ export async function listNotebooklmSourcesFromPage(page) {
 }
 export async function requireNotebooklmSession(page) {
     const state = await getNotebooklmPageState(page);
-    if (state.hostname !== NOTEBOOKLM_DOMAIN) {
+    if (!parseTrustedNotebooklmUrl(state.url)) {
         throw new CliError('NOTEBOOKLM_UNAVAILABLE', 'NotebookLM page is not available in the current browser session', `Open Chrome and navigate to ${NOTEBOOKLM_HOME_URL}`);
     }
     if (state.loginRequired) {

@@ -34,7 +34,7 @@ describe('twitter unbookmark command', () => {
         ]);
     });
 
-    it('returns a failed row without re-waiting when the unbookmark script reports a UI mismatch', async () => {
+    it('typed-fails without re-waiting when the unbookmark script reports a UI mismatch', async () => {
         const cmd = getRegistry().get('twitter/unbookmark');
         const page = createPageMock([
             {
@@ -42,15 +42,14 @@ describe('twitter unbookmark command', () => {
                 message: 'Could not find Remove Bookmark button on the requested tweet. Are you logged in?',
             },
         ]);
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Could not find Remove Bookmark button on the requested tweet. Are you logged in?',
         });
-        expect(result).toEqual([
-            {
-                status: 'failed',
-                message: 'Could not find Remove Bookmark button on the requested tweet. Are you logged in?',
-            },
-        ]);
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
 

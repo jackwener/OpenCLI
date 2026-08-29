@@ -1,30 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { expectRejectsWithMessage, makePage } from './test-helpers.js';
 import './search.js';
 
-const { parseLimit, parseAuthors, durationSeconds, averageRating, parseRow, buildFetchScript } = await import('./search.js').then((m) => m.__test__);
-
-function makePage({ evaluateResult, cookies = [{ name: 'JSESSIONID', value: '"ajax:abc"' }] } = {}) {
-    return {
-        goto: vi.fn().mockResolvedValue(undefined),
-        wait: vi.fn().mockResolvedValue(undefined),
-        getCookies: vi.fn().mockResolvedValue(cookies),
-        evaluate: vi.fn().mockResolvedValue(evaluateResult),
-    };
-}
+const { parseAuthors, durationSeconds, averageRating, parseRow } = await import('./search.js').then((m) => m.__test__);
 
 describe('linkedin-learning search', () => {
-    it('validates --limit without silent clamping', () => {
-        expect(parseLimit(undefined)).toBe(10);
-        expect(parseLimit(1)).toBe(1);
-        expect(parseLimit(50)).toBe(50);
-        expect(() => parseLimit(0)).toThrow(ArgumentError);
-        expect(() => parseLimit(51)).toThrow(ArgumentError);
-        expect(() => parseLimit('abc')).toThrow(ArgumentError);
-        expect(() => parseLimit(1.5)).toThrow(ArgumentError);
-    });
-
     it('joins author first/last names', () => {
         expect(parseAuthors([{ firstName: 'Jane', lastName: 'Doe' }])).toBe('Jane Doe');
         expect(parseAuthors([{ firstName: 'A', lastName: 'B' }, { firstName: 'C', lastName: 'D' }])).toBe('A B, C D');
@@ -75,14 +57,6 @@ describe('linkedin-learning search', () => {
         expect(row).toBeNull();
     });
 
-    it('escapes the URL and csrf into the fetch script as literal strings', () => {
-        const s = buildFetchScript('https://www.linkedin.com/learning-api/searchV2?keywords=AI', 'csrf-token-value');
-        expect(s).toContain('"https://www.linkedin.com/learning-api/searchV2?keywords=AI"');
-        expect(s).toContain('"csrf-token-value"');
-        expect(s).toContain("'x-restli-protocol-version': '2.0.0'");
-        expect(s).toContain('authRequired: true');
-    });
-
     it('throws AuthRequiredError when JSESSIONID cookie is missing', async () => {
         const cmd = getRegistry().get('linkedin-learning/search');
         const page = makePage({ cookies: [], evaluateResult: { json: { elements: [] } } });
@@ -95,10 +69,23 @@ describe('linkedin-learning search', () => {
         await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(AuthRequiredError);
     });
 
+    it('keeps the exact page-required message local to search', async () => {
+        const cmd = getRegistry().get('linkedin-learning/search');
+        await expectRejectsWithMessage(
+            cmd.func(undefined, { keywords: 'x', limit: 5 }),
+            CommandExecutionError,
+            'Browser session required for linkedin-learning search'
+        );
+    });
+
     it('throws CommandExecutionError when the upstream payload is empty', async () => {
         const cmd = getRegistry().get('linkedin-learning/search');
         const page = makePage({ evaluateResult: { error: 'fetch failed: socket' } });
-        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expectRejectsWithMessage(
+            cmd.func(page, { keywords: 'x', limit: 5 }),
+            CommandExecutionError,
+            'LinkedIn Learning searchV2 failed: fetch failed: socket'
+        );
     });
 
     it('throws EmptyResultError when zero elements come back', async () => {
@@ -110,7 +97,11 @@ describe('linkedin-learning search', () => {
     it('throws CommandExecutionError when the elements array is missing', async () => {
         const cmd = getRegistry().get('linkedin-learning/search');
         const page = makePage({ evaluateResult: { json: { data: {} } } });
-        await expect(cmd.func(page, { keywords: 'x', limit: 5 })).rejects.toBeInstanceOf(CommandExecutionError);
+        await expectRejectsWithMessage(
+            cmd.func(page, { keywords: 'x', limit: 5 }),
+            CommandExecutionError,
+            'LinkedIn Learning searchV2 returned malformed payload: missing elements array'
+        );
     });
 
     it('throws CommandExecutionError when elements lack slug identity', async () => {
@@ -123,6 +114,13 @@ describe('linkedin-learning search', () => {
         const cmd = getRegistry().get('linkedin-learning/search');
         const page = makePage({ evaluateResult: { json: { elements: [] } } });
         await expect(cmd.func(page, { keywords: '   ', limit: 5 })).rejects.toBeInstanceOf(ArgumentError);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid --limit before navigation', async () => {
+        const cmd = getRegistry().get('linkedin-learning/search');
+        const page = makePage({ evaluateResult: { json: { elements: [] } } });
+        await expect(cmd.func(page, { keywords: 'x', limit: 0 })).rejects.toBeInstanceOf(ArgumentError);
         expect(page.goto).not.toHaveBeenCalled();
     });
 

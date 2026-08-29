@@ -2,8 +2,8 @@
  * BOSS直聘 job search — browser cookie API.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError } from '@jackwener/opencli/errors';
-import { requirePage, navigateTo, bossFetch, verbose } from './utils.js';
+import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { assertOk, readPositiveInteger, requirePage, navigateTo, verbose } from './utils.js';
 /** City name → BOSS Zhipin city code mapping */
 const CITY_CODES = {
     '全国': '100010000', '北京': '101010100', '上海': '101020100',
@@ -25,8 +25,8 @@ const CITY_CODES = {
 const EXP_MAP = {
     '不限': '0',
     '在校/应届': '108',
-    '在校生': '108', '在校': '108',
-    '应届生': '102', '应届': '102',
+    '在校生(实习)': '108', '在校生': '108', '在校': '108',
+    '应届生(校招)': '102', '应届生': '102', '应届': '102',
     '经验不限': '101',
     '1年以内': '103',
     '1-3年': '104',
@@ -62,7 +62,7 @@ function resolveCity(input) {
         if (name.includes(input))
             return code;
     }
-    return '101010100';
+    throw new ArgumentError(`Invalid BOSS city: ${input}`, 'Use a supported city name or a numeric BOSS city code');
 }
 function resolveMap(input, map) {
     if (!input)
@@ -91,15 +91,49 @@ function formatBossOnline(value) {
         return 'N';
     return '';
 }
+async function captureJobList(page, url) {
+    if (typeof page.startNetworkCapture !== 'function' ||
+        typeof page.readNetworkCapture !== 'function' ||
+        !await page.startNetworkCapture('joblist.json')) {
+        throw new CommandExecutionError('BOSS search requires CDP network capture');
+    }
+    await page.readNetworkCapture();
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const separator = url.includes('?') ? '&' : '?';
+        await navigateTo(page, `${url}${separator}_opencli=${Date.now()}`, 5);
+        await page.wait(1);
+        const captures = await page.readNetworkCapture();
+        for (const entry of Array.isArray(captures) ? captures : []) {
+            if (!String(entry?.url || '').includes('joblist.json') ||
+                Number(entry?.responseStatus || 0) !== 200 ||
+                typeof entry?.responsePreview !== 'string') {
+                continue;
+            }
+            let payload;
+            try {
+                payload = JSON.parse(entry.responsePreview);
+            } catch {
+                continue;
+            }
+            if (payload && typeof payload === 'object' && 'code' in payload && payload.code !== 0) {
+                assertOk(payload, 'BOSS search failed');
+            }
+            if (Array.isArray(payload?.zpData?.jobList)) return payload;
+        }
+    }
+    throw new CommandExecutionError('BOSS search page did not expose its job-list response');
+}
 cli({
     site: 'boss',
     name: 'search',
     access: 'read',
     description: 'BOSS直聘搜索职位（不带关键词时返回为你推荐职位）',
     domain: 'www.zhipin.com',
-    strategy: Strategy.COOKIE,
+    strategy: Strategy.INTERCEPT,
     navigateBefore: false,
     browser: true,
+    defaultWindowMode: 'background',
+    siteSession: 'persistent',
     args: [
         { name: 'query', positional: true, help: 'Search keyword (optional, empty = recommended jobs)' },
         { name: 'city', default: '北京', help: 'City name or code (e.g. 杭州, 上海, 101010100)' },
@@ -117,15 +151,13 @@ cli({
         const query = String(kwargs.query ?? '').trim();
         const cityCode = resolveCity(kwargs.city);
         verbose('Navigating to set referrer context...');
-        await navigateTo(page, `https://www.zhipin.com/web/geek/job?query=${encodeURIComponent(query)}&city=${cityCode}`);
-        await new Promise(r => setTimeout(r, 1000));
         const expVal = resolveMap(kwargs.experience, EXP_MAP);
         const degreeVal = resolveMap(kwargs.degree, DEGREE_MAP);
         const salaryVal = resolveMap(kwargs.salary, SALARY_MAP);
         const industryVal = resolveMap(kwargs.industry, INDUSTRY_MAP);
         const jobTypeVal = resolveJobType(kwargs.jobType);
-        const limit = kwargs.limit || 15;
-        let currentPage = kwargs.page || 1;
+        const limit = readPositiveInteger(kwargs.limit, 'limit', 15, 100);
+        let currentPage = readPositiveInteger(kwargs.page, 'page', 1);
         let allJobs = [];
         const seenIds = new Set();
         while (allJobs.length < limit) {
@@ -133,11 +165,9 @@ cli({
                 await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
             }
             const qs = new URLSearchParams({
-                scene: '1',
                 query,
                 city: cityCode,
                 page: String(currentPage),
-                pageSize: '15',
             });
             if (expVal)
                 qs.set('experience', expVal);
@@ -149,9 +179,9 @@ cli({
                 qs.set('industry', industryVal);
             if (jobTypeVal)
                 qs.set('jobType', jobTypeVal);
-            const targetUrl = `https://www.zhipin.com/wapi/zpgeek/search/joblist.json?${qs.toString()}`;
-            verbose(`Fetching page ${currentPage}... (current jobs: ${allJobs.length})`);
-            const data = await bossFetch(page, targetUrl);
+            const targetUrl = `https://www.zhipin.com/web/geek/jobs?${qs.toString()}`;
+            verbose(`Capturing page ${currentPage}... (current jobs: ${allJobs.length})`);
+            const data = await captureJobList(page, targetUrl);
             const zpData = data.zpData || {};
             const batch = zpData.jobList || [];
             if (batch.length === 0)
@@ -171,7 +201,7 @@ cli({
                     skills: (j.skills || []).join(','),
                     boss: j.bossName + ' · ' + j.bossTitle,
                     bossOnline: formatBossOnline(j.bossOnline),
-                    security_id: j.securityId || '',
+                    security_id: j.encryptJobId || '',
                     url: 'https://www.zhipin.com/job_detail/' + j.encryptJobId + '.html',
                 });
                 addedInBatch++;
@@ -186,11 +216,15 @@ cli({
                 break;
             currentPage++;
         }
+        if (allJobs.length === 0) {
+            throw new EmptyResultError('boss search', query ? `No BOSS jobs found for "${query}"` : 'BOSS returned no recommended jobs');
+        }
         return allJobs;
     },
 });
 export const __test__ = {
     EXP_MAP,
+    resolveCity,
     resolveMap,
     resolveJobType,
     formatBossOnline,

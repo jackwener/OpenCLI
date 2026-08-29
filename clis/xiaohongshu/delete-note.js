@@ -14,18 +14,13 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 const NOTE_MANAGER_URL = 'https://creator.xiaohongshu.com/new/note-manager';
 const ROW_SETTLE_MS = 3000;
 const MODAL_SETTLE_MS = 2000;
 const VERIFY_TIMEOUT_MS = 10_000;
 const VERIFY_POLL_MS = 1000;
 const NOTE_ID_RE = /^[0-9a-f]{24}$/i;
-function unwrapEvaluateResult(payload) {
-    if (payload && typeof payload === 'object' && 'session' in payload && 'data' in payload) {
-        return payload.data;
-    }
-    return payload;
-}
 function requireEvaluateString(payload, context) {
     if (typeof payload !== 'string') {
         throw new CommandExecutionError(`xiaohongshu/delete-note: malformed ${context} payload`);

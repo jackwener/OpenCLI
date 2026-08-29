@@ -138,14 +138,24 @@ async function connectAttempt(): Promise<void> {
   if (isDaemonSocketActive()) return;
 
   try {
-    const res = await fetch(DAEMON_PING_URL, { signal: AbortSignal.timeout(1000) });
+    // omit credentials so the browser doesn't attach the localhost cookie jar —
+    // a large jar can push the request past Node's default header limit and make
+    // the daemon answer 431, silently wedging the connect loop forever.
+    const res = await fetch(DAEMON_PING_URL, {
+      signal: AbortSignal.timeout(1000),
+      credentials: 'omit',
+    });
     if (!res.ok) {
+      console.warn(`[opencli] daemon ping failed: HTTP ${res.status}`);
       scheduleReconnect();
       return; // unexpected response — not our daemon, but keep polling.
     }
     // Daemon is reachable — proceed straight to the WebSocket below.
     reconnectAttempts = 0;
   } catch {
+    // Daemon not running is the expected idle state — keep the probe silent to
+    // avoid per-poll service-worker noise (see connect() docstring). The 431
+    // wedge this fixes is surfaced in the !res.ok branch above.
     scheduleReconnect();
     return; // daemon not running — keep polling until the next daemon spawn.
   }
@@ -1697,6 +1707,19 @@ async function handleFrames(cmd: Command, leaseKey: string): Promise<Result> {
   }
 }
 
+function preferOwnedTab(leaseKey: string, tabId: number): void {
+  const session = automationSessions.get(leaseKey);
+  if (!session?.owned) return;
+  setLeaseSession(leaseKey, {
+    session: session.session,
+    surface: session.surface,
+    kind: session.kind,
+    windowId: session.windowId,
+    owned: true,
+    preferredTabId: tabId,
+  });
+}
+
 async function handleNavigate(cmd: Command, leaseKey: string): Promise<Result> {
   if (!cmd.url) return { id: cmd.id, ok: false, error: 'Missing url' };
   if (!isSafeNavigationUrl(cmd.url)) {
@@ -1859,6 +1882,34 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
         }
         return { id: cmd.id, ok: true, data: { closed: closedPage } };
       }
+      if (cmd.page !== undefined && session?.owned) {
+        let tabId: number | undefined;
+        try {
+          tabId = await resolveCommandTabId(cmd);
+        } catch {
+          return { id: cmd.id, ok: false, error: `Page no longer exists` };
+        }
+        if (tabId === undefined) {
+          return { id: cmd.id, ok: false, error: `Page no longer exists` };
+        }
+        let tab: chrome.tabs.Tab;
+        try {
+          tab = await chrome.tabs.get(tabId);
+        } catch {
+          return { id: cmd.id, ok: false, error: `Page no longer exists` };
+        }
+        if (tab.windowId !== session.windowId) {
+          return { id: cmd.id, ok: false, error: `Page is not in the automation container` };
+        }
+        const closedPage = await identity.resolveTargetId(tabId).catch(() => undefined);
+        if (session.preferredTabId === tabId) {
+          await releaseLease(leaseKey, 'tab close');
+        } else {
+          await safeDetach(tabId);
+          await chrome.tabs.remove(tabId);
+        }
+        return { id: cmd.id, ok: true, data: { closed: closedPage } };
+      }
       const cmdTabId = await resolveCommandTabId(cmd);
       const tabId = await resolveTabId(cmdTabId, leaseKey);
       const closedPage = await identity.resolveTargetId(tabId).catch(() => undefined);
@@ -1887,12 +1938,14 @@ async function handleTabs(cmd: Command, leaseKey: string): Promise<Result> {
           return { id: cmd.id, ok: false, error: `Page is not in the automation container` };
         }
         await chrome.tabs.update(cmdTabId, { active: true });
+        preferOwnedTab(leaseKey, cmdTabId);
         return pageScopedResult(cmd.id, cmdTabId, { selected: true });
       }
       const tabs = await listAutomationWebTabs(leaseKey);
       const target = tabs[cmd.index!];
       if (!target?.id) return { id: cmd.id, ok: false, error: `Tab index ${cmd.index} not found` };
       await chrome.tabs.update(target.id, { active: true });
+      preferOwnedTab(leaseKey, target.id);
       return pageScopedResult(cmd.id, target.id, { selected: true });
     }
     default:

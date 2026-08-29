@@ -160,8 +160,8 @@ describe('trip flight command (registry-level)', () => {
     it('throws CommandExecutionError on render timeout and on malformed extraction', async () => {
         await expect(cmd.func(createPageMock(['timeout']), { from: 'LON', to: 'NYC', date: '2026-08-15', limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render flight cards') });
-        await expect(cmd.func(createPageMock(['content', { rows: [] }]), { from: 'LON', to: 'NYC', date: '2026-08-15', limit: 5 }))
-            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('malformed rows') });
+        await expect(cmd.func(createPageMock(['content', { error: 'malformed flight card 0: endpoint time/airport' }]), { from: 'LON', to: 'NYC', date: '2026-08-15', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('endpoint time/airport') });
     });
 
     it('throws EmptyResultError when extraction returns no flights', async () => {
@@ -196,16 +196,96 @@ describe('trip buildFlightExtractJs (JSDOM)', () => {
         return Function('document', `return (${js})`)(dom.window.document);
     }
 
+    // Mirrors Trip.com's live card markup (captured 2026-08). Airport codes sit in
+    // plain leaf nodes — the `font-black` class this fixture used to assert on is
+    // gone from the site, which is exactly what let the old selector rot unnoticed.
     const CARD = `
       <div class="result-item">
         <div data-testid="flights-name">Norse Atlantic Airways</div>
-        <div class="font-black_x">LGW</div>
-        <div class="font-black_x">JFK</div>
-        <span>1:05</span><span>PM</span>
-        <span>3:55</span><span>PM</span>
-        <span>7h 50m</span>
-        <div data-testid="stopInfoText">Nonstop</div>
+        <div data-testid="flt-info-stop__wrapper">
+          <div role="textbox" aria-label="London Gatwick Airport N">
+            <div><span data-testid="flight-time-2026-09-07 13:05:00"><span>1:05</span><span>PM</span></span></div>
+            <span><span>LGW</span><span>N</span></span>
+          </div>
+          <div>
+            <div data-testid="flightInfoDuration"><span>7h 50m</span></div>
+            <div data-testid="stopInfoText">Nonstop</div>
+          </div>
+          <div role="textbox" aria-label="John F. Kennedy International Airport T4">
+            <div><span data-testid="flight-time-2026-09-07 15:55:00"><span>3:55</span><span>PM</span></span></div>
+            <span><span>JFK</span><span>T4</span></span>
+          </div>
+        </div>
         <div data-testid="flight_price_1-0">$662</div>
+      </div>`;
+
+    // Overnight leg: Trip.com renders a literal `+1` next to the arrival airport and
+    // the `flight-time-` anchors land on the following calendar day.
+    const OVERNIGHT_CARD = `
+      <div class="result-item">
+        <div data-testid="flights-name">China Southern Airlines</div>
+        <div data-testid="flt-info-stop__wrapper">
+          <div role="textbox" aria-label="Shanghai Hongqiao International Airport T2">
+            <div><span data-testid="flight-time-2026-09-07 19:50:00"><span>7:50</span><span>PM</span></span></div>
+            <span><span>SHA</span><span>T2</span></span>
+          </div>
+          <div>
+            <div data-testid="flightInfoDuration"><span>17h 40m</span></div>
+            <div data-testid="stopInfoText">2h 40m in Guangzhou</div>
+          </div>
+          <div role="textbox" aria-label="London Gatwick Airport S">
+            <div><span data-testid="flight-time-2026-09-08 06:30:00"><span>6:30</span><span>AM</span></span></div>
+            <span><span>LGW</span><span>S</span></span><span>+1</span>
+          </div>
+        </div>
+        <div data-testid="flight_price_1-0">$557</div>
+      </div>`;
+
+    // A real three-letter airline name and a currency badge are both valid card
+    // leaves but neither belongs to the route. The old card-wide leaf scan would
+    // incorrectly emit ANA -> LHR; the neighboring card also guards row ordering.
+    const DISTRACTOR_CARD = `
+      <div class="result-item">
+        <div data-testid="flights-name">ANA</div>
+        <div data-testid="flt-info-stop__wrapper">
+          <div role="textbox" aria-label="Heathrow Airport T2">
+            <div><span data-testid="flight-time-2026-09-07 09:00:00"><span>9:00</span><span>AM</span></span></div>
+            <span><span>LHR</span><span>T2</span></span>
+          </div>
+          <div>
+            <div data-testid="flightInfoDuration"><span>13h 45m</span></div>
+            <div data-testid="stopInfoText">Nonstop</div>
+          </div>
+          <div role="textbox" aria-label="Haneda Airport T3">
+            <div><span data-testid="flight-time-2026-09-08 06:45:00"><span>6:45</span><span>AM</span></span></div>
+            <span><span>HND</span><span>T3</span></span>
+          </div>
+        </div>
+        <span>USD</span>
+        <div data-testid="flight_price_1-0">$910</div>
+      </div>`;
+
+    // Current Trip.com evidence for CXI -> HNL across the International Date
+    // Line: the visible card renders `-1` and the local-ISO arrival is Sep 1
+    // even though the local departure is Sep 2.
+    const DATE_LINE_CARD = `
+      <div class="result-item">
+        <div data-testid="flights-name">Fiji Airways</div>
+        <div data-testid="flt-info-stop__wrapper">
+          <div role="textbox" aria-label="Cassidy International Airport">
+            <div><span data-testid="flight-time-2026-09-02 16:25:00"><span>4:25</span><span>PM</span></span></div>
+            <span><span>CXI</span></span>
+          </div>
+          <div>
+            <div data-testid="flightInfoDuration"><span>3h 25m</span></div>
+            <div data-testid="stopInfoText">Nonstop</div>
+          </div>
+          <div role="textbox" aria-label="Honolulu International Airport T1">
+            <div><span data-testid="flight-time-2026-09-01 08:50:00"><span>8:50</span><span>AM</span></span></div>
+            <span><span>HNL</span><span>T1</span></span><span>-1</span>
+          </div>
+        </div>
+        <div data-testid="flight_price_1-0">$745</div>
       </div>`;
 
     it('extracts a flight card via data-testid + time/code anchors', () => {
@@ -222,15 +302,101 @@ describe('trip buildFlightExtractJs (JSDOM)', () => {
         }]);
     });
 
+    it('flags a later-day arrival with a +N suffix', () => {
+        expect(runExtract(OVERNIGHT_CARD)).toEqual([{
+            airline: 'China Southern Airlines',
+            departureTime: '7:50 PM',
+            departureAirport: 'SHA',
+            arrivalTime: '6:30 AM+1',
+            arrivalAirport: 'LGW',
+            duration: '17h 40m',
+            stops: '2h 40m in Guangzhou',
+            price: 557,
+            currency: 'USD',
+        }]);
+    });
+
+    it('leaves same-day arrivals unsuffixed', () => {
+        expect(runExtract(CARD)[0].arrivalTime).toBe('3:55 PM');
+    });
+
+    it('keeps airport provenance and order card-local despite realistic 3-letter distractors', () => {
+        const rows = runExtract(CARD + DISTRACTOR_CARD);
+        expect(rows).toHaveLength(2);
+        expect(rows.map((row) => [row.airline, row.departureAirport, row.arrivalAirport, row.arrivalTime])).toEqual([
+            ['Norse Atlantic Airways', 'LGW', 'JFK', '3:55 PM'],
+            ['ANA', 'LHR', 'HND', '6:45 AM+1'],
+        ]);
+    });
+
+    it('ignores hidden route, endpoint, time, and airport duplicates', () => {
+        const hiddenRoute = `<div hidden data-testid="flt-info-stop__wrapper">
+          <div role="textbox"><span data-testid="flight-time-2026-09-07 00:00:00">12:00 AM</span><span>AAA</span></div>
+          <div role="textbox"><span data-testid="flight-time-2026-09-07 01:00:00">1:00 AM</span><span>BBB</span></div>
+        </div>`;
+        const hiddenEndpoint = `<div role="textbox" style="visibility: hidden">
+          <span data-testid="flight-time-2026-09-07 02:00:00">2:00 AM</span><span>CCC</span>
+        </div>`;
+        const hiddenDuplicates = CARD
+            .replace('<div data-testid="flt-info-stop__wrapper">', `${hiddenRoute}<div data-testid="flt-info-stop__wrapper">${hiddenEndpoint}`)
+            .replace(
+                '<div><span data-testid="flight-time-2026-09-07 13:05:00">',
+                `<span hidden data-testid="flight-time-2026-09-07 09:00:00"><span>9:00</span><span>AM</span></span>
+                 <span aria-hidden="true"><span>LHR</span></span>
+                 <span style="display: none"><span>SFO</span></span>
+                 <span style="visibility: hidden"><span>CDG</span></span>
+                 <div><span data-testid="flight-time-2026-09-07 13:05:00">`,
+            );
+        expect(runExtract(hiddenDuplicates)).toEqual(runExtract(CARD));
+    });
+
+    it('fails closed when duplicate time or airport evidence is visible', () => {
+        const duplicateTime = CARD.replace(
+            '<div><span data-testid="flight-time-2026-09-07 13:05:00">',
+            `<span data-testid="flight-time-2026-09-07 09:00:00"><span>9:00</span><span>AM</span></span>
+             <div><span data-testid="flight-time-2026-09-07 13:05:00">`,
+        );
+        expect(runExtract(duplicateTime)).toMatchObject({ error: expect.stringContaining('endpoint time/airport') });
+
+        const duplicateAirport = CARD.replace('<span><span>LGW</span><span>N</span></span>', '<span><span>LGW</span><span>LHR</span></span>');
+        expect(runExtract(duplicateAirport)).toMatchObject({ error: expect.stringContaining('endpoint time/airport') });
+    });
+
+    it('uses strict calendar dates for year rollover without local-time parsing', () => {
+        const yearRollover = OVERNIGHT_CARD
+            .replace('2026-09-07 19:50:00', '2026-12-31 19:50:00')
+            .replace('2026-09-08 06:30:00', '2027-01-01 06:30:00');
+        expect(runExtract(yearRollover)[0].arrivalTime).toBe('6:30 AM+1');
+    });
+
+    it('preserves Trip.com\'s negative day suffix for a date-line crossing', () => {
+        expect(runExtract(DATE_LINE_CARD)).toEqual([{
+            airline: 'Fiji Airways',
+            departureTime: '4:25 PM',
+            departureAirport: 'CXI',
+            arrivalTime: '8:50 AM-1',
+            arrivalAirport: 'HNL',
+            duration: '3h 25m',
+            stops: 'Nonstop',
+            price: 745,
+            currency: 'USD',
+        }]);
+    });
+
+    it('fails closed on malformed local-ISO anchors', () => {
+        const malformedDate = CARD.replace('2026-09-07 15:55:00', '2026-02-30 15:55:00');
+        expect(runExtract(malformedDate)).toMatchObject({ error: expect.stringContaining('endpoint time/airport') });
+    });
+
     it('keeps price null when the price node is missing/non-numeric', () => {
         const noPrice = CARD.replace('<div data-testid="flight_price_1-0">$662</div>', '<div data-testid="flight_price_1-0">--</div>');
         expect(runExtract(noPrice)[0].price).toBeNull();
     });
 
-    it('drops cards missing airline or an airport (no sentinel rows)', () => {
+    it('fails closed on cards missing airline or route endpoints', () => {
         const noAirline = CARD.replace('<div data-testid="flights-name">Norse Atlantic Airways</div>', '');
-        expect(runExtract(noAirline)).toEqual([]);
-        expect(runExtract('<div class="result-item"></div>')).toEqual([]);
+        expect(runExtract(noAirline)).toMatchObject({ error: expect.stringContaining('airline') });
+        expect(runExtract('<div class="result-item"></div>')).toMatchObject({ error: expect.stringContaining('airline') });
     });
 });
 
@@ -564,6 +730,8 @@ describe('trip flight-round command (registry-level)', () => {
             .rejects.toThrow('Trip.com is asking for a verification');
         await expect(cmd.func(createPageMock(['timeout']), { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
             .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('did not render flight cards') });
+        await expect(cmd.func(createPageMock(['content', { error: 'malformed flight card 1: route endpoints' }]), { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
+            .rejects.toMatchObject({ code: 'COMMAND_EXEC', message: expect.stringContaining('route endpoints') });
         await expect(cmd.func(createPageMock(['content', []]), { from: 'LON', to: 'NYC', depart: '2026-08-15', return: '2026-08-22', limit: 5 }))
             .rejects.toMatchObject({ code: 'EMPTY_RESULT' });
     });

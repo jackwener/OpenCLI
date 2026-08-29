@@ -1,39 +1,13 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import {
+  canonicalizeLinkedInThreadUrl,
+  normalizeWhitespace,
+  requireLinkedInCookie,
+  unwrapEvaluateResult,
+} from './shared.js';
 
 const LINKEDIN_DOMAIN = 'www.linkedin.com';
-
-function normalizeWhitespace(value) {
-  return String(value ?? '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function unwrapEvaluateResult(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-  return payload;
-}
-
-function isLinkedInHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
-  return host === 'linkedin.com' || host.endsWith('.linkedin.com');
-}
-
-function canonicalizeLinkedInThreadUrl(value) {
-  const raw = normalizeWhitespace(value);
-  if (!raw) return '';
-  try {
-    const url = new URL(raw);
-    if (url.protocol !== 'https:' || url.username || url.password || url.port || !isLinkedInHost(url.hostname)) return '';
-    const match = url.pathname.match(/^\/messaging\/thread\/([^/]+)\/?$/i);
-    if (!match || !match[1]) return '';
-    url.hostname = 'www.linkedin.com';
-    url.hash = '';
-    url.search = '';
-    if (!url.pathname.endsWith('/')) url.pathname += '/';
-    return url.toString();
-  } catch {
-    return '';
-  }
-}
 
 function requireStringArg(args, key, label = key) {
   const value = normalizeWhitespace(args[key]);
@@ -56,17 +30,13 @@ function parseMaxScrolls(value) {
   return scrolls;
 }
 
-function buildThreadSnapshotScript(maxScrolls) {
-  const scrolls = maxScrolls;
+function buildThreadApiDiscoveryScript(maxScrolls) {
   return String.raw`(async () => {
-    const marker = '__OPENCLI_LINKEDIN_THREAD_SNAPSHOT__';
-    void marker;
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const clean = (s) => String(s || '').replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
-    const text = document.body ? (document.body.innerText || '') : '';
-    const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(text)
-      || /linkedin\.com\/(login|checkpoint|authwall)/i.test(location.href)
-      || /captcha|verification required/i.test(text);
+    const pageText = document.body ? (document.body.innerText || '') : '';
+    const authRequired = /\b(sign in|log in|join linkedin)\b/i.test(pageText)
+      || /linkedin\.com\/(login|checkpoint|authwall|uas)/i.test(location.href)
+      || /captcha|verification required/i.test(pageText);
 
     const selectors = [
       '.msg-s-message-list',
@@ -77,88 +47,265 @@ function buildThreadSnapshotScript(maxScrolls) {
     ];
     let scroller = null;
     for (const selector of selectors) {
-      const el = document.querySelector(selector);
-      if (el && (el.scrollHeight > el.clientHeight || selector === 'main')) { scroller = el; break; }
+      const element = document.querySelector(selector);
+      if (element && (element.scrollHeight > element.clientHeight || selector === 'main')) {
+        scroller = element;
+        break;
+      }
     }
     scroller = scroller || document.scrollingElement || document.documentElement;
+
     let previousHeight = -1;
     let stable = 0;
-    for (let i = 0; i < ${scrolls}; i += 1) {
+    let attempts = 0;
+    for (let index = 0; index < ${maxScrolls}; index += 1) {
+      attempts += 1;
       scroller.scrollTop = 0;
       window.scrollTo(0, 0);
       await sleep(750);
       const height = scroller.scrollHeight || document.body.scrollHeight || 0;
-      if (height === previousHeight) stable += 1; else stable = 0;
+      if (height === previousHeight) stable += 1;
+      else stable = 0;
       previousHeight = height;
       if (stable >= 3) break;
     }
     await sleep(1000);
 
-    const headerCandidates = [];
-    const headerSelectors = [
-      '.msg-thread__link-to-profile',
-      '.msg-thread__link-to-profile span[aria-hidden="true"]',
-      '.msg-entity-lockup__entity-title',
-      '.msg-conversation-card__participant-names',
-      'main h1',
-      'main h2',
-      '[data-anonymize="person-name"]',
-      'a[href*="/in/"] span[aria-hidden="true"]',
-      'a[href*="/in/"]'
-    ];
-    for (const selector of headerSelectors) {
-      for (const el of Array.from(document.querySelectorAll(selector)).slice(0, 8)) {
-        const value = clean(el.innerText || el.textContent || el.getAttribute('aria-label'));
-        if (value && value.length <= 120 && !/^(message|messaging|send|profile|view profile)$/i.test(value)) {
-          headerCandidates.push(value);
-        }
-      }
-    }
-
+    const threadId = (location.pathname.match(/^\/messaging\/thread\/([^/]+)\/?$/i) || [])[1] || '';
+    const apiUrls = [];
     const seen = new Set();
-    const messages = [];
-    const nodes = Array.from(document.querySelectorAll('.msg-s-message-list__event, .msg-s-event-listitem, [data-event-urn], .msg-s-message-list-content'));
-    for (const [nodeIndex, el] of nodes.entries()) {
-      const raw = clean(el.innerText || el.textContent);
-      if (!raw || seen.has(raw)) continue;
-      seen.add(raw);
-      const lines = raw.split(/\n+/).map(clean).filter(Boolean);
-      const speaker = lines.length > 1 && lines[0].length <= 120 ? lines[0] : '';
-      messages.push({ index: messages.length, nodeIndex, speaker, text: raw });
+    for (const entry of performance.getEntriesByType('resource')) {
+      const url = String(entry && entry.name || '');
+      if (!/\/voyager\/api\/voyagerMessagingGraphQL\/graphql/i.test(url)) continue;
+      if (!/[?&]queryId=messengerMessages\.[a-f0-9]+/i.test(url)) continue;
+      let decoded = url;
+      try { decoded = decodeURIComponent(url); } catch {}
+      if (!threadId || !decoded.includes(threadId) || seen.has(url)) continue;
+      seen.add(url);
+      apiUrls.push(url);
     }
-
-    const refreshedText = document.body ? (document.body.innerText || '') : '';
-    const fallbackLines = refreshedText.split(/\n+/).map(clean).filter(Boolean);
-    const latestMessageText = messages.length
-      ? messages[messages.length - 1].text
-      : ([...fallbackLines].reverse().find((line) => !/^(send|reply|write a message|press enter to send)$/i.test(line)) || '');
 
     return {
       url: location.href,
       title: document.title || '',
-      headerNames: Array.from(new Set(headerCandidates)).slice(0, 10),
-      bodyText: refreshedText,
-      latestMessageText,
-      messages,
-      messageCount: messages.length,
       authRequired,
-      extractedAt: new Date().toISOString(),
-      maxScrolls: ${scrolls}
+      apiUrls,
+      scrollAttempts: attempts,
+      scrollStable: ${maxScrolls} === 0 ? null : stable >= 3,
     };
   })()`;
+}
+
+function buildFetchThreadPagesScript(apiUrls, csrf) {
+  return String.raw`(async () => {
+    const urls = ${JSON.stringify(apiUrls)};
+    const pages = [];
+    for (const url of urls) {
+      let response;
+      try {
+        response = await fetch(url, {
+          credentials: 'include',
+          headers: {
+            'csrf-token': ${JSON.stringify(csrf)},
+            accept: 'application/vnd.linkedin.normalized+json+2.1',
+            'x-restli-protocol-version': '2.0.0',
+          },
+        });
+      } catch (error) {
+        return { error: 'fetch failed: ' + ((error && error.message) || String(error)) };
+      }
+      if (response.status === 401 || response.status === 403) {
+        return { authRequired: true, error: 'HTTP ' + response.status };
+      }
+      if (!response.ok) return { error: 'HTTP ' + response.status };
+      const contentType = response.headers.get('content-type') || '';
+      if (!/json|linkedin\.normalized/i.test(contentType)) {
+        return { error: 'unexpected content-type: ' + contentType };
+      }
+      let json;
+      try {
+        json = await response.json();
+      } catch (error) {
+        return { error: 'invalid JSON: ' + ((error && error.message) || String(error)) };
+      }
+      pages.push({ url, json });
+    }
+    return { pages };
+  })()`;
+}
+
+function participantName(participant) {
+  const type = participant?.participantType || {};
+  const member = type.member;
+  if (member) {
+    return normalizeWhitespace([
+      member.firstName?.text,
+      member.lastName?.text,
+    ].filter(Boolean).join(' '));
+  }
+  if (type.organization) return normalizeWhitespace(type.organization.name?.text || type.organization.name);
+  if (type.agent) return normalizeWhitespace(type.agent.name?.text || type.agent.name);
+  if (type.custom) return normalizeWhitespace(type.custom.name?.text || type.custom.name);
+  return '';
+}
+
+function messageText(message) {
+  return normalizeWhitespace(
+    message?.body?.text
+    || message?.renderContentFallbackText?.text
+    || message?.renderContentFallbackText
+    || message?.subject?.text
+    || message?.subject
+    || '',
+  );
+}
+
+function ownerUrnFromApiUrls(apiUrls) {
+  for (const url of apiUrls) {
+    let decoded = url;
+    try { decoded = decodeURIComponent(url); } catch {}
+    const match = decoded.match(/conversationUrn:urn:li:msg_conversation:\((urn:li:fsd_profile:[^,)]+)/i);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+function validateThreadApiUrls(apiUrls, threadUrl) {
+  const threadId = new URL(threadUrl).pathname.match(/^\/messaging\/thread\/([^/]+)\/?$/i)?.[1] || '';
+  if (!Array.isArray(apiUrls) || apiUrls.length === 0) {
+    throw new CommandExecutionError('LinkedIn did not issue a messengerMessages API request for this thread.');
+  }
+  for (const value of apiUrls) {
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new CommandExecutionError('LinkedIn messengerMessages discovery returned an invalid URL.');
+    }
+    let decoded = value;
+    try { decoded = decodeURIComponent(value); } catch {}
+    if (url.protocol !== 'https:'
+      || url.hostname !== LINKEDIN_DOMAIN
+      || url.pathname !== '/voyager/api/voyagerMessagingGraphQL/graphql'
+      || !/^messengerMessages\.[a-f0-9]+$/i.test(url.searchParams.get('queryId') || '')
+      || !threadId
+      || !decoded.includes(threadId)) {
+      throw new CommandExecutionError('LinkedIn messengerMessages discovery returned an unsafe or mismatched URL.');
+    }
+  }
+  return apiUrls;
+}
+
+function parseThreadPages(pages) {
+  if (!Array.isArray(pages) || pages.length === 0) {
+    throw new CommandExecutionError('LinkedIn messengerMessages API returned no pages.');
+  }
+
+  const entities = new Map();
+  const apiUrls = [];
+  for (const page of pages) {
+    if (!page || typeof page !== 'object' || Array.isArray(page) || typeof page.url !== 'string') {
+      throw new CommandExecutionError('LinkedIn messengerMessages API returned a malformed page wrapper.');
+    }
+    const normalized = page.json;
+    if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized)) {
+      throw new CommandExecutionError('LinkedIn messengerMessages API returned a malformed normalized payload.');
+    }
+    if (Array.isArray(normalized.errors) && normalized.errors.length > 0) {
+      throw new CommandExecutionError('LinkedIn messengerMessages GraphQL returned errors.');
+    }
+    if (!Array.isArray(normalized.included)) {
+      throw new CommandExecutionError('LinkedIn messengerMessages payload is missing the included entity array.');
+    }
+    const data = normalized.data?.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new CommandExecutionError('LinkedIn messengerMessages payload is missing normalized data.');
+    }
+    const container = Object.entries(data).find(([key, value]) => (
+      /^messengerMessages/i.test(key)
+      && value
+      && typeof value === 'object'
+      && !Array.isArray(value)
+      && (Array.isArray(value['*elements']) || Array.isArray(value.elements))
+    ));
+    if (!container) {
+      throw new CommandExecutionError('LinkedIn messengerMessages payload is missing a message collection.');
+    }
+    for (const entity of normalized.included) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        throw new CommandExecutionError('LinkedIn messengerMessages payload contains a malformed included entity.');
+      }
+      if (entity.entityUrn) {
+        const existing = entities.get(entity.entityUrn);
+        if (!existing || Object.keys(entity).length > Object.keys(existing).length) {
+          entities.set(entity.entityUrn, entity);
+        }
+      }
+    }
+    apiUrls.push(page.url);
+  }
+
+  const ownerUrn = ownerUrnFromApiUrls(apiUrls);
+  if (!ownerUrn) {
+    throw new CommandExecutionError('LinkedIn messengerMessages URL is missing the conversation owner identity.');
+  }
+
+  const participants = Array.from(entities.values()).filter(
+    (entity) => entity.$type === 'com.linkedin.messenger.MessagingParticipant',
+  );
+  const recipientNames = Array.from(new Set(participants
+    .filter((participant) => participant.hostIdentityUrn !== ownerUrn)
+    .map(participantName)
+    .filter(Boolean)));
+  if (recipientNames.length === 0) {
+    throw new CommandExecutionError('LinkedIn messengerMessages payload is missing the counterparty participant.');
+  }
+
+  const byMessageId = new Map();
+  for (const entity of entities.values()) {
+    if (entity.$type !== 'com.linkedin.messenger.Message') continue;
+    const messageId = normalizeWhitespace(entity.entityUrn || entity.backendUrn || entity.originToken);
+    if (!messageId) {
+      throw new CommandExecutionError('LinkedIn messengerMessages payload contains a message without an id.');
+    }
+    const deliveredAt = Number(entity.deliveredAt);
+    if (!Number.isFinite(deliveredAt) || deliveredAt <= 0) {
+      throw new CommandExecutionError('LinkedIn messengerMessages payload contains a message without a valid timestamp.');
+    }
+    const senderUrn = normalizeWhitespace(entity['*sender'] || entity['*actor']);
+    const sender = senderUrn ? entities.get(senderUrn) : null;
+    const speaker = participantName(sender);
+    if (!speaker) {
+      throw new CommandExecutionError('LinkedIn messengerMessages payload contains a message with an unresolved sender.');
+    }
+    byMessageId.set(messageId, {
+      messageUrn: messageId,
+      speaker,
+      text: messageText(entity),
+      deliveredAt,
+    });
+  }
+
+  const messages = Array.from(byMessageId.values())
+    .sort((left, right) => left.deliveredAt - right.deliveredAt || left.messageUrn.localeCompare(right.messageUrn))
+    .map((message, index) => ({ index, ...message }));
+  if (messages.length === 0) {
+    throw new EmptyResultError('linkedin thread-snapshot', 'No messages were found in the LinkedIn thread.');
+  }
+  return { recipientNames, messages };
 }
 
 cli({
   site: 'linkedin',
   name: 'thread-snapshot',
   access: 'read',
-  description: 'Load a LinkedIn messaging thread, scroll for available history, and return a full context snapshot',
+  description: 'Load a LinkedIn messaging thread and return a structured conversation snapshot',
   domain: LINKEDIN_DOMAIN,
-  strategy: Strategy.UI,
+  strategy: Strategy.COOKIE,
   browser: true,
   args: [
     { name: 'thread-url', required: true, help: 'Exact LinkedIn messaging thread URL to open and snapshot' },
-    { name: 'max-scrolls', type: 'number', default: 30, help: 'Maximum upward scroll attempts to load older messages' },
+    { name: 'max-scrolls', type: 'number', default: 30, help: 'Maximum upward scroll attempts used to request older message pages' },
     { name: 'json', type: 'bool', default: false, help: 'Return only JSON snapshot string in the snapshot_json field' },
   ],
   columns: ['thread_url', 'recipient', 'message_count', 'latest_text', 'snapshot_json'],
@@ -167,48 +314,81 @@ cli({
     const threadUrl = requireLinkedInThreadUrl(requireStringArg(args, 'thread-url', '--thread-url'), '--thread-url');
     const maxScrolls = parseMaxScrolls(args['max-scrolls']);
 
-    await page.goto('https://www.linkedin.com/messaging/');
-    await page.wait(4);
     await page.goto(threadUrl);
     await page.wait(10);
 
-    const snapshot = unwrapEvaluateResult(await page.evaluate(buildThreadSnapshotScript(maxScrolls)));
-    if (snapshot?.authRequired) {
+    let discovery = unwrapEvaluateResult(await page.evaluate(buildThreadApiDiscoveryScript(maxScrolls)));
+    if (discovery && Array.isArray(discovery.apiUrls) && discovery.apiUrls.length === 0) {
+      const firstDiscovery = discovery;
+      await page.wait(4);
+      const retried = unwrapEvaluateResult(await page.evaluate(buildThreadApiDiscoveryScript(0)));
+      if (retried && typeof retried === 'object' && !Array.isArray(retried)) {
+        discovery = {
+          ...retried,
+          scrollAttempts: firstDiscovery.scrollAttempts,
+          scrollStable: firstDiscovery.scrollStable,
+        };
+      } else {
+        discovery = retried;
+      }
+    }
+    if (discovery?.authRequired) {
       throw new AuthRequiredError(LINKEDIN_DOMAIN, 'LinkedIn thread-snapshot requires an active signed-in LinkedIn browser session.');
     }
-    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot) || !Array.isArray(snapshot.headerNames) || !Array.isArray(snapshot.messages)) {
-      throw new CommandExecutionError('LinkedIn thread-snapshot returned malformed snapshot payload');
+    if (!discovery || typeof discovery !== 'object' || Array.isArray(discovery) || !Array.isArray(discovery.apiUrls)) {
+      throw new CommandExecutionError('LinkedIn thread-snapshot returned a malformed API discovery payload.');
     }
 
-    const actualUrl = canonicalizeLinkedInThreadUrl(snapshot?.url || '');
+    const actualUrl = canonicalizeLinkedInThreadUrl(discovery.url || '');
     if (threadUrl && actualUrl && threadUrl !== actualUrl) {
       throw new CommandExecutionError('LinkedIn thread-snapshot blocked: thread_url_mismatch', `Expected ${threadUrl}; actual ${actualUrl}`);
     }
+    if (maxScrolls >= 4 && discovery.scrollAttempts >= maxScrolls && discovery.scrollStable === false) {
+      throw new CommandExecutionError('LinkedIn thread history did not stabilize before --max-scrolls; refusing to return a partial snapshot.');
+    }
 
-    const recipient = normalizeWhitespace(snapshot.headerNames[0] || '');
-    const messageCount = snapshot.messages.length;
+    const apiUrls = validateThreadApiUrls(discovery.apiUrls, threadUrl);
+    const csrf = await requireLinkedInCookie(page, 'LinkedIn thread-snapshot');
+    const fetched = unwrapEvaluateResult(
+      await page.evaluate(buildFetchThreadPagesScript(apiUrls, csrf)),
+    );
+    if (fetched?.authRequired) {
+      throw new AuthRequiredError(LINKEDIN_DOMAIN, `LinkedIn messengerMessages API authentication failed: ${fetched.error}`);
+    }
+    if (!fetched || fetched.error || !Array.isArray(fetched.pages)) {
+      throw new CommandExecutionError(`LinkedIn messengerMessages API returned an unexpected response: ${fetched?.error || 'no data'}`);
+    }
+
+    const parsed = parseThreadPages(fetched.pages);
+    const recipient = parsed.recipientNames.join(', ');
+    const latestMessageText = parsed.messages[parsed.messages.length - 1]?.text || '';
     const normalized = {
-      ...snapshot,
       url: actualUrl || threadUrl,
-      headerNames: snapshot.headerNames,
-      latestMessageText: normalizeWhitespace(snapshot?.latestMessageText || ''),
-      messages: snapshot.messages,
+      title: normalizeWhitespace(discovery.title),
+      headerNames: parsed.recipientNames,
+      latestMessageText,
+      messages: parsed.messages,
+      messageCount: parsed.messages.length,
+      authRequired: false,
+      extractedAt: new Date().toISOString(),
+      maxScrolls,
+      source: 'linkedin-messengerMessages',
     };
 
     return [{
       thread_url: normalized.url,
       recipient,
-      message_count: messageCount,
-      latest_text: normalized.latestMessageText,
+      message_count: normalized.messageCount,
+      latest_text: latestMessageText,
       snapshot_json: JSON.stringify(normalized),
     }];
   },
 });
 
 export const __test__ = {
-  normalizeWhitespace,
-  canonicalizeLinkedInThreadUrl,
   parseMaxScrolls,
-  unwrapEvaluateResult,
-  buildThreadSnapshotScript,
+  buildThreadApiDiscoveryScript,
+  buildFetchThreadPagesScript,
+  validateThreadApiUrls,
+  parseThreadPages,
 };

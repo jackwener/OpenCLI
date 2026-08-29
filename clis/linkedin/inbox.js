@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { unwrapEvaluateResult } from './shared.js';
 
 const LINKEDIN_DOMAIN = 'linkedin.com';
 const MESSAGING_URL = 'https://www.linkedin.com/messaging/';
@@ -16,11 +17,6 @@ const DEFAULT_LIMIT = 40;
 // call. We then re-issue that same request (URL lifted from the Performance API,
 // so the rotating queryId is always current) and parse LinkedIn's normalized
 // JSON. Same session, same origin, same request the page already makes.
-
-function unwrapEvaluateResult(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload && 'session' in payload) return payload.data;
-  return payload;
-}
 
 function threadUrl(threadId) {
   return threadId ? `https://www.linkedin.com/messaging/thread/${threadId}/` : '';

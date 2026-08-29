@@ -119,6 +119,48 @@ describe('toEnvelope', () => {
     expect(envelope.error.message).toBe('string error');
   });
 
+
+  it('passes through cross-package CliError copies (duck-typed shape)', () => {
+    // Simulates a CliError thrown by a plugin that resolves its own copy of
+    // @jackwener/opencli — different class identity, same shape.
+    class ForeignCliError extends Error {
+      code = 'INVALID_ARGS';
+      hint: string | undefined;
+      // A real CliError always assigns exitCode in its constructor, so a
+      // faithful cross-package copy carries it too.
+      exitCode = 2;
+      constructor(message: string, hint?: string) {
+        super(message);
+        this.name = 'CliError';
+        this.hint = hint;
+      }
+    }
+    const envelope = toEnvelope(new ForeignCliError('bad file', 'pass a real path'));
+    expect(envelope.error.code).toBe('INVALID_ARGS');
+    expect(envelope.error.help).toBe('pass a real path');
+    expect(envelope.error.message).toBe('bad file');
+  });
+
+  it('does not treat a bare {code,message} object as a CliError', () => {
+    // No exitCode => not CliError-shaped. Accepting these would let any
+    // foreign string `code` into the envelope contract.
+    const envelope = toEnvelope({ code: 'FORBIDDEN', message: 'scope violation' });
+    expect(envelope.error.code).toBe('UNKNOWN');
+  });
+
+  it('keeps Node system errors as UNKNOWN instead of surfacing their errno', () => {
+    // fs/net errors have a string `code` and `message` but no exitCode.
+    // Reporting `ENOENT` as the envelope code would widen the machine-readable
+    // contract that callers switch on.
+    const enoent = Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
+    expect(toEnvelope(enoent).error.code).toBe('UNKNOWN');
+  });
+
+  it('keeps UNKNOWN for Errors without a code', () => {
+    const envelope = toEnvelope(new Error('random failure'));
+    expect(envelope.error.code).toBe('UNKNOWN');
+  });
+
   it('serializes deep cause chains without stack overflow', () => {
     // Build a 20-level deep cause chain — should truncate at depth 10
     let deepErr: Error = new Error('root');

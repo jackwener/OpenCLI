@@ -669,6 +669,85 @@ describe('background tab isolation', () => {
     expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
   });
 
+  it('closes an exact non-preferred owned page without releasing the preferred lease', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs.push({ id: 10, windowId: 1, url: 'https://fresh.example', title: 'fresh', active: true, status: 'complete', groupId: -1 });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 10 });
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'close-old', action: 'tabs', op: 'close', session: adapterKey('twitter'), page: 'target-1' },
+      adapterKey('twitter'),
+    );
+
+    expect(result).toEqual({
+      id: 'close-old',
+      ok: true,
+      data: { closed: 'target-1' },
+    });
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(10, { url: 'about:blank', active: true });
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(10);
+  });
+
+  it.each([
+    ['cross-window', 'target-2'],
+    ['stale', 'target-999'],
+  ])('rejects an exact %s page without closing the preferred page', async (_label, page) => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 1 });
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'reject-close', action: 'tabs', op: 'close', session: adapterKey('twitter'), page },
+      adapterKey('twitter'),
+    );
+
+    expect(result).toEqual(expect.objectContaining({ id: 'reject-close', ok: false }));
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(1);
+  });
+
+  it('keeps legacy implicit close bound to the preferred page', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 1 });
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'implicit-close', action: 'tabs', op: 'close', session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+
+    expect(result).toEqual({ id: 'implicit-close', ok: true, data: { closed: 'target-1' } });
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
+  });
+
+  it('selecting an exact owned page restores it as the preferred lease target', async () => {
+    const { chrome, tabs } = createChromeMock();
+    tabs.push({ id: 10, windowId: 1, url: 'https://fresh.example', title: 'fresh', active: true, status: 'complete', groupId: -1 });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('twitter'), { windowId: 1, owned: true, preferredTabId: 10 });
+
+    const result = await mod.__test__.handleTabs(
+      { id: 'restore-old', action: 'tabs', op: 'select', session: adapterKey('twitter'), page: 'target-1' },
+      adapterKey('twitter'),
+    );
+
+    expect(result).toEqual(expect.objectContaining({ id: 'restore-old', ok: true, page: 'target-1' }));
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { active: true });
+    expect(mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId).toBe(1);
+  });
+
   it('treats normalized same-url navigate as already complete', async () => {
     const { chrome, tabs, update } = createChromeMock();
     tabs[0].url = 'https://www.bilibili.com/';
@@ -875,6 +954,30 @@ describe('background tab isolation', () => {
 
     expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(1);
     expect(mod.__test__.getReconnectAttempts()).toBe(0);
+  });
+
+  it('pings without credentials and logs a non-OK status instead of swallowing it', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 431 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('./background');
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    // The ping must not attach the localhost cookie jar — that is what pushes
+    // the request past Node's header limit and makes the daemon answer 431.
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: 'omit' });
+    // A non-OK ping must be logged, not silently swallowed.
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('HTTP 431'));
+    // The WebSocket must not be attempted after a failed ping.
+    expect(MockWebSocket.instances).toHaveLength(0);
+
+    warnSpy.mockRestore();
   });
 
   it('ignores daemon commands delivered to a superseded WebSocket', async () => {

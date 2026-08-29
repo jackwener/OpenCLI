@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { buildConfigureBody, buildConfigureSidecarPayload, buildConfigureToStoryPhotoPayload, buildConfigureToStoryVideoPayload, deriveInstagramJazoest, derivePrivateApiContextFromCapture, extractInstagramRuntimeInfo, getInstagramFeedNormalizedDimensions, getInstagramStoryNormalizedDimensions, isInstagramFeedAspectRatioAllowed, isInstagramStoryAspectRatioAllowed, publishStoryViaPrivateApi, publishMediaViaPrivateApi, publishImagesViaPrivateApi, readImageAsset, resolveInstagramPrivatePublishConfig, } from './private-publish.js';
 const tempDirs = [];
 function createTempFile(name, bytes) {
@@ -77,28 +77,44 @@ describe('instagram private publish helpers', () => {
             },
         ];
         const page = {
-            goto: async () => undefined,
-            wait: async () => undefined,
-            getCookies: async () => [{ name: 'csrftoken', value: 'csrf-cookie', domain: 'instagram.com' }],
-            startNetworkCapture: async () => undefined,
-            readNetworkCapture: async () => entries,
-            evaluate: async () => ({
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn().mockResolvedValue([{ name: 'csrftoken', value: 'csrf-cookie', domain: 'instagram.com' }]),
+            startNetworkCapture: vi.fn().mockResolvedValue(undefined),
+            readNetworkCapture: vi.fn().mockResolvedValue(entries),
+            evaluate: vi.fn().mockResolvedValue({
                 appId: '936619743392459',
                 csrfToken: 'csrf-from-html',
                 instagramAjax: '1036523242',
             }),
         };
-        await expect(resolveInstagramPrivatePublishConfig(page)).resolves.toEqual({
-            apiContext: {
-                asbdId: '359341',
-                csrfToken: 'csrf-from-html',
-                igAppId: '936619743392459',
-                igWwwClaim: 'hmac.claim',
-                instagramAjax: '1036523242',
-                webSessionId: 'abc:def:ghi',
-            },
-            jazoest: deriveInstagramJazoest('csrf-from-html'),
-        });
+        const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+        try {
+            await expect(resolveInstagramPrivatePublishConfig(page)).resolves.toEqual({
+                apiContext: {
+                    asbdId: '359341',
+                    csrfToken: 'csrf-from-html',
+                    igAppId: '936619743392459',
+                    igWwwClaim: 'hmac.claim',
+                    instagramAjax: '1036523242',
+                    webSessionId: 'abc:def:ghi',
+                },
+                jazoest: deriveInstagramJazoest('csrf-from-html'),
+            });
+            expect(page.startNetworkCapture).toHaveBeenCalledTimes(1);
+            expect(page.startNetworkCapture).toHaveBeenNthCalledWith(1, '/api/v1/|/graphql/');
+            expect(page.goto).toHaveBeenCalledTimes(1);
+            expect(page.goto).toHaveBeenNthCalledWith(1, 'https://www.instagram.com/?__opencli_private_probe=1700000000000');
+            expect(page.wait).toHaveBeenCalledTimes(1);
+            expect(page.wait).toHaveBeenNthCalledWith(1, { time: 2 });
+            expect(page.readNetworkCapture).toHaveBeenCalledTimes(1);
+            expect(page.startNetworkCapture.mock.invocationCallOrder[0]).toBeLessThan(page.goto.mock.invocationCallOrder[0]);
+            expect(page.goto.mock.invocationCallOrder[0]).toBeLessThan(page.wait.mock.invocationCallOrder[0]);
+            expect(page.wait.mock.invocationCallOrder[0]).toBeLessThan(page.readNetworkCapture.mock.invocationCallOrder[0]);
+        }
+        finally {
+            nowSpy.mockRestore();
+        }
     });
     it('retries transient private publish config resolution failures and then succeeds', async () => {
         const entries = [

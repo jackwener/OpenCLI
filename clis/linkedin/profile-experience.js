@@ -3,6 +3,7 @@ import { CommandExecutionError, EmptyResultError } from '@jackwener/opencli/erro
 import {
   assertLinkedInAuthenticated,
   assertSafeLinkedinUrl,
+  decodeLinkedInSafetyUrl,
   normalizeHttpUrl,
   normalizeWhitespace,
   unwrapEvaluateResult,
@@ -27,18 +28,6 @@ function profileExperienceUrl(profileUrl) {
     throw new CommandExecutionError('LinkedIn profile-experience requires a resolved /in/<handle>/ profile URL');
   }
   return new URL(`${parsed.pathname.replace(/\/?$/, '/') }details/experience/`, 'https://www.linkedin.com').toString();
-}
-
-function decodeLinkedInSafetyUrl(value) {
-  const url = normalizeWhitespace(value);
-  if (!url) return '';
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname.endsWith('linkedin.com') && parsed.pathname === '/safety/go/') {
-      return normalizeHttpUrl(parsed.searchParams.get('url') || '');
-    }
-  } catch {}
-  return normalizeHttpUrl(url);
 }
 
 function isChromeLine(line) {
@@ -659,7 +648,6 @@ cli({
 export const __test__ = {
   normalizeProfileUrl,
   profileExperienceUrl,
-  decodeLinkedInSafetyUrl,
   parseDateRangeParts,
   parseCompanyLine,
   parseLocationLine,

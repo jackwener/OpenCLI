@@ -10,6 +10,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
+import * as fs from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import * as path from 'node:path';
 import type { ElectronAppEntry } from './electron-apps.js';
@@ -22,6 +23,13 @@ const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 15_000;
 const PROBE_TIMEOUT_MS = 2_000;
 const KILL_GRACE_MS = 3_000;
+
+function parsePgrepOutput(output: string): number[] {
+  return output
+    .split(/\s+/)
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isInteger(value) && value > 0);
+}
 
 /**
  * Probe whether a CDP endpoint is listening on the given port.
@@ -48,11 +56,38 @@ export function probeCDP(port: number, timeoutMs: number = PROBE_TIMEOUT_MS): Pr
  */
 export function detectProcess(processName: string): boolean {
   if (process.platform === 'win32') return false; // pgrep not available on Windows
+  return findProcessPids(processName).length > 0;
+}
+
+function findProcessPids(processName: string): number[] {
   try {
-    execFileSync('pgrep', ['-x', processName], { encoding: 'utf-8', stdio: 'pipe' });
-    return true;
+    const output = execFileSync('pgrep', ['-x', processName], { encoding: 'utf-8', stdio: 'pipe' });
+    return parsePgrepOutput(output);
   } catch {
-    return false;
+    return [];
+  }
+}
+
+function readProcessCommand(pid: number): string | null {
+  try {
+    return execFileSync('ps', ['-p', String(pid), '-o', 'command='], { encoding: 'utf-8', stdio: 'pipe' }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function commandStartsWithExecutable(command: string, executable: string): boolean {
+  if (!command.startsWith(executable)) return false;
+  const next = command.charAt(executable.length);
+  return next === '' || /\s/.test(next);
+}
+
+function processIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code !== 'ESRCH';
   }
 }
 
@@ -82,26 +117,80 @@ export async function killProcess(processName: string): Promise<void> {
 
 /**
  * Discover the app installation path on macOS.
- * Uses osascript to resolve the app name to a POSIX path.
+ * Uses Launch Services/Spotlight metadata to resolve the app to a POSIX path.
  * Returns null if the app is not installed.
  */
-export function discoverAppPath(displayName: string): string | null {
-  if (process.platform !== 'darwin') {
-    return null;
-  }
+export function discoverAppPath(displayName: string, bundleId?: string): string | null {
+  return discoverAppPathForEntry({ displayName, bundleId });
+}
 
+function normalizeAppPath(appPath: string): string {
+  return appPath.trim().replace(/\/$/, '');
+}
+
+function appleScriptString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function discoverAppPathByOsascript(nameOrBundleId: string, kind: 'name' | 'id'): string | null {
   try {
+    const appSpecifier = kind === 'id'
+      ? `id "${appleScriptString(nameOrBundleId)}"`
+      : `"${appleScriptString(nameOrBundleId)}"`;
     const result = execFileSync('osascript', [
-      '-e', `POSIX path of (path to application "${displayName}")`,
+      '-e', `POSIX path of (path to application ${appSpecifier})`,
     ], { encoding: 'utf-8', stdio: 'pipe', timeout: 5_000 });
-    return result.trim().replace(/\/$/, '');
+    const appPath = normalizeAppPath(result);
+    return appPath ? appPath : null;
   } catch {
     return null;
   }
 }
 
+function discoverAppPathByBundleId(bundleId: string): string | null {
+  if (!/^[A-Za-z0-9.-]+$/.test(bundleId)) return null;
+  try {
+    const result = execFileSync('mdfind', [
+      `kMDItemCFBundleIdentifier == "${bundleId}"`,
+    ], { encoding: 'utf-8', stdio: 'pipe', timeout: 5_000 });
+    const appPath = result
+      .split(/\r?\n/)
+      .map((line) => normalizeAppPath(line))
+      .find((line) => line.endsWith('.app'));
+    return appPath ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function discoverAppPathForEntry(app: Pick<ElectronAppEntry, 'displayName' | 'bundleId'> & { processName?: string }): string | null {
+  if (process.platform !== 'darwin') {
+    return null;
+  }
+
+  if (app.bundleId) {
+    const byBundleId = discoverAppPathByOsascript(app.bundleId, 'id') ?? discoverAppPathByBundleId(app.bundleId);
+    if (byBundleId) return byBundleId;
+  }
+
+  const label = app.displayName ?? app.processName;
+  return label ? discoverAppPathByOsascript(label, 'name') : null;
+}
+
 function resolveExecutable(appPath: string, processName: string): string {
   return `${appPath}/Contents/MacOS/${processName}`;
+}
+
+function resolveAppPathAliases(appPath: string): string[] {
+  const normalizedPath = normalizeAppPath(appPath);
+  const aliases = [normalizedPath];
+  try {
+    const realPath = normalizeAppPath(fs.realpathSync(normalizedPath));
+    if (realPath && !aliases.includes(realPath)) aliases.push(realPath);
+  } catch {
+    // If realpath is unavailable, the original app path is still the best evidence.
+  }
+  return aliases;
 }
 
 function isMissingExecutableError(err: unknown, label: string): boolean {
@@ -111,7 +200,68 @@ function isMissingExecutableError(err: unknown, label: string): boolean {
 
 export function resolveExecutableCandidates(appPath: string, app: ElectronAppEntry): string[] {
   const executableNames = app.executableNames?.length ? app.executableNames : [app.processName];
-  return [...new Set(executableNames)].map((name) => resolveExecutable(appPath, name));
+  const appPaths = resolveAppPathAliases(appPath);
+  const candidates = [];
+  for (const name of new Set(executableNames)) {
+    for (const candidateAppPath of appPaths) {
+      candidates.push(resolveExecutable(candidateAppPath, name));
+    }
+  }
+  return candidates;
+}
+
+export function findAppProcessPids(appPath: string, app: ElectronAppEntry): number[] {
+  if (process.platform === 'win32') return [];
+
+  const executables = resolveExecutableCandidates(appPath, app);
+  const candidatesByName = new Map<string, string[]>();
+  for (const executable of executables) {
+    const name = path.basename(executable);
+    candidatesByName.set(name, [...(candidatesByName.get(name) ?? []), executable]);
+  }
+
+  const matched = new Set<number>();
+  for (const [processName, candidates] of candidatesByName) {
+    for (const pid of findProcessPids(processName)) {
+      const command = readProcessCommand(pid);
+      if (command && candidates.some((candidate) => commandStartsWithExecutable(command, candidate))) {
+        matched.add(pid);
+      }
+    }
+  }
+
+  return [...matched];
+}
+
+export function detectAppProcess(appPath: string, app: ElectronAppEntry): boolean {
+  return findAppProcessPids(appPath, app).length > 0;
+}
+
+export async function killAppProcess(appPath: string, app: ElectronAppEntry): Promise<void> {
+  if (process.platform === 'win32') return;
+
+  for (const pid of findAppProcessPids(appPath, app)) {
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {
+      // Process may have already exited.
+    }
+  }
+
+  const deadline = Date.now() + KILL_GRACE_MS;
+  while (Date.now() < deadline) {
+    const livePids = findAppProcessPids(appPath, app).filter(processIsAlive);
+    if (livePids.length === 0) return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  for (const pid of findAppProcessPids(appPath, app)) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // Ignore.
+    }
+  }
 }
 
 export async function launchDetachedApp(executable: string, args: string[], label: string): Promise<void> {
@@ -236,7 +386,16 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
     );
   }
 
-  const isRunning = detectProcess(processName);
+  // Step 3: Discover path
+  const appPath = discoverAppPathForEntry(app);
+  if (!appPath) {
+    throw new CommandExecutionError(
+      `Could not find ${label} on this machine.`,
+      `Install ${label} or register a custom path in ~/.opencli/apps.yaml`,
+    );
+  }
+
+  const isRunning = detectAppProcess(appPath, app);
   if (isRunning) {
     log.debug(`[launcher] ${label} is running but CDP not available`);
     const confirmed = await confirmPrompt(
@@ -250,16 +409,7 @@ export async function resolveElectronEndpoint(site: string): Promise<string> {
       );
     }
     process.stderr.write(`  Restarting ${label}...\n`);
-    await killProcess(processName);
-  }
-
-  // Step 3: Discover path
-  const appPath = discoverAppPath(label);
-  if (!appPath) {
-    throw new CommandExecutionError(
-      `Could not find ${label} on this machine.`,
-      `Install ${label} or register a custom path in ~/.opencli/apps.yaml`,
-    );
+    await killAppProcess(appPath, app);
   }
 
   // Step 4: Launch

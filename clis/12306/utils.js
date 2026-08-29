@@ -101,6 +101,18 @@ export function validateDate(value) {
     return value;
 }
 
+export function normalizeLimit(value, defaultValue, max) {
+    if (value === undefined || value === null || value === '') return defaultValue;
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1) {
+        throw new ArgumentError(`limit must be a positive integer (1-${max})`);
+    }
+    if (n > max) {
+        throw new ArgumentError(`limit must be <= ${max}`);
+    }
+    return n;
+}
+
 /** Extract Set-Cookie header values into a single `Cookie:` header string. */
 export function buildCookieHeader(setCookieHeaders) {
     if (!Array.isArray(setCookieHeaders) || setCookieHeaders.length === 0) return '';

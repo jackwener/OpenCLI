@@ -13,6 +13,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { SafeNetworkRequest } from './network-request.js';
 
 export const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -32,6 +33,8 @@ export interface CachedNetworkEntry {
     body_truncated?: boolean;
     body_full_size?: number;
     timestamp?: number;
+    /** Sanitized request context; credential values and opaque bodies are omitted. */
+    request?: SafeNetworkRequest;
 }
 
 export interface NetworkCacheFile {

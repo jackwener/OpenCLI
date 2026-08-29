@@ -163,15 +163,23 @@ it('submission correlation tolerates UI-only local reference weights omitted fro
   )).toEqual([jobId]);
 });
 
-it('submission correlation fails closed on ambiguous duplicate jobs', async () => {
+it('submission correlation polls once and preserves ambiguity when its deadline is already reached', async () => {
   const submittedAt = Date.parse('2026-07-30T00:00:00Z');
-  const page = fakePage({ history: [
+  let now = 1_000;
+  vi.spyOn(Date, 'now').mockImplementation(() => now++);
+  const basePage = fakePage({ history: [
     { id: '33333333-3333-3333-3333-333333333333', full_command: 'duplicate prompt --v 8.2', enqueue_time: '2026-07-30T00:00:01Z' },
     { id: '44444444-4444-4444-4444-444444444444', full_command: 'duplicate prompt --v 8.2', enqueue_time: '2026-07-30T00:00:02Z' },
   ] });
+  const page = {
+    fetchJson: vi.fn(basePage.fetchJson),
+    wait: vi.fn(),
+  };
   await expect(waitForSubmittedJobsAfter(
     page, 'user', 'duplicate prompt --v 8.2', new Set(), 0.001, submittedAt, 1,
   )).rejects.toThrow(/ambiguous/);
+  expect(page.fetchJson).toHaveBeenCalledTimes(1);
+  expect(page.wait).not.toHaveBeenCalled();
 });
 
 it('submit response correlation uses exact returned job ids and rejects ambiguity', () => {
@@ -208,6 +216,45 @@ it('derived-job and completion correlation use parent and lifecycle fields', asy
   });
   expect(await waitForDerivedJob(page, 'user', parent, new Set(), 1, submittedAt)).toBe(child);
   expect((await waitForCompletedJob(page, child, 1)).current_status).toBe('completed');
+});
+
+it('all job pollers cap the final wait and do not poll again at the deadline', async () => {
+  let now = 1_000;
+  vi.spyOn(Date, 'now').mockImplementation(() => now);
+  const timeoutPage = () => {
+    const basePage = fakePage();
+    return {
+      fetchJson: vi.fn(basePage.fetchJson),
+      wait: vi.fn(async (seconds) => { now += seconds * 1000; }),
+    };
+  };
+  const cases = [
+    (page) => waitForSubmittedJobsAfter(page, 'user', 'missing prompt', new Set(), 0.25, now, 1),
+    (page) => waitForDerivedJob(page, 'user', JOB, new Set(), 0.25, now),
+    (page) => waitForCompletedJob(page, JOB, 0.25),
+  ];
+  for (const poll of cases) {
+    const page = timeoutPage();
+    await expect(poll(page)).rejects.toThrow(/timed out/);
+    expect(page.fetchJson).toHaveBeenCalledTimes(1);
+    expect(page.wait).toHaveBeenCalledTimes(1);
+    expect(page.wait).toHaveBeenCalledWith(0.25);
+  }
+});
+
+it('polling propagates an aborted wait without making a second request', async () => {
+  const abort = Object.assign(new Error('polling aborted'), { name: 'AbortError' });
+  const basePage = fakePage();
+  const page = {
+    fetchJson: vi.fn(basePage.fetchJson),
+    wait: vi.fn().mockRejectedValue(abort),
+  };
+
+  await expect(waitForSubmittedJobsAfter(
+    page, 'user', 'missing prompt', new Set(), 5, Date.now(), 1,
+  )).rejects.toBe(abort);
+  expect(page.fetchJson).toHaveBeenCalledTimes(1);
+  expect(page.wait).toHaveBeenCalledTimes(1);
 });
 
 it('submission polling propagates authentication failures immediately', async () => {

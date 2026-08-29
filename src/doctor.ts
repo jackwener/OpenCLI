@@ -5,14 +5,13 @@
  */
 
 import { DEFAULT_DAEMON_PORT } from './constants.js';
-import { BrowserBridge } from './browser/index.js';
-import { setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
+import { sendCommand, setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
 import { getDaemonHealth } from './browser/daemon-transport.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
 import { getCachedLatestExtensionVersion } from './update-check.js';
 import type { BrowserProfileStatus } from './browser/daemon-transport.js';
-import { aliasForContextId, loadProfileConfig } from './browser/profile.js';
+import { aliasForContextId, loadProfileConfig, profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
 
@@ -76,7 +75,8 @@ export type DoctorReport = {
 };
 
 /**
- * Test connectivity by attempting a real browser command.
+ * Test connectivity with a daemon-to-extension command that does not resolve a
+ * page or create a Browser Bridge container window.
  */
 export async function checkConnectivity(opts?: { timeout?: number }): Promise<ConnectivityResult> {
   const start = Date.now();
@@ -85,19 +85,11 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
   // hung daemon/extension fails the check in seconds, not the default 120s.
   setDaemonCommandTimeoutSeconds(timeoutSeconds);
   try {
-    const bridge = new BrowserBridge();
-    const page = await bridge.connect({
-      timeout: timeoutSeconds,
+    await sendCommand('cookies', {
+      domain: 'opencli-probe.invalid',
       session: DOCTOR_SESSION,
       surface: 'browser',
     });
-    try {
-      // Try a simple eval to verify end-to-end connectivity.
-      await page.evaluate('1 + 1');
-      await page.closeWindow?.();
-    } finally {
-      await bridge.close();
-    }
     return { ok: true, durationMs: Date.now() - start };
   } catch (err) {
     return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
@@ -107,12 +99,14 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Live connectivity check is the core of doctor — it doubles as auto-start
-  // (bridge.connect spawns daemon) and validates end-to-end browser bridge health.
+  // Live connectivity is the core of doctor. The command transport doubles as
+  // daemon auto-start and validates end-to-end Browser Bridge health.
   const connectivity = await checkConnectivity();
 
-  // Single status read *after* connectivity side-effects settle.
-  const health = await getDaemonHealth();
+  // Single status read *after* connectivity side-effects settle. Threads the
+  // profile selection like command dispatch does, so a configured default is
+  // arbitrated instead of read as multi-profile ambiguity (#2259).
+  const health = await getDaemonHealth(profileRouteParams(resolveProfileSelection()));
   const daemonRunning = health.state !== 'stopped';
   const extensionConnected = health.state === 'ready';
   const daemonFlaky = connectivity.ok && !daemonRunning;

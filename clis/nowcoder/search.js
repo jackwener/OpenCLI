@@ -1,50 +1,40 @@
-import { cli } from '@jackwener/opencli/registry';
+import { cli, Strategy } from '@jackwener/opencli/registry';
+import { ArgumentError } from '@jackwener/opencli/errors';
+import {
+    fetchNowcoderData,
+    projectNowcoderFeed,
+    requirePositiveInt,
+} from './posts.js';
 
 cli({
     site: 'nowcoder',
     name: 'search',
     access: 'read',
-    description: 'Full-text search',
+    description: 'Search content and moment posts',
     domain: 'www.nowcoder.com',
+    strategy: Strategy.COOKIE,
+    browser: true,
+    navigateBefore: false,
     args: [
         { name: 'query', positional: true, required: true, help: 'Search keyword' },
-        { name: 'type', type: 'str', default: 'all', help: 'Search type (all/post/question/user/job)' },
-        { name: 'limit', type: 'int', default: 10, help: 'Number of results' },
+        { name: 'type', type: 'str', default: 'post', help: 'Post search scope (post/all)' },
+        { name: 'limit', type: 'int', default: 10, help: 'Number of posts (1-50)' },
     ],
-    columns: ['rank', 'title', 'author', 'school', 'content', 'id'],
-    pipeline: [
-        { navigate: 'https://www.nowcoder.com' },
-        { evaluate: `(async () => {
-  const query = \${{ args.query | json }};
-  const type = \${{ args.type | json }};
-  const limit = \${{ args.limit }};
-  const strip = (html) => (html || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').trim();
-  const r = await fetch('https://gw-c.nowcoder.com/api/sparta/pc/search', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({query, type, page: 1, pageSize: limit})
-  });
-  const d = await r.json();
-  if (!d.success) throw new Error(d.msg || 'search failed');
-  return (d.data?.records || []).map((item, i) => {
-    const data = item.data || {};
-    const moment = data.momentData || {};
-    const contentData = data.contentData || {};
-    const user = data.userBrief || {};
-    const uuid = moment.uuid || contentData.uuid || '';
-    const id = data.contentId || '';
-    return {
-      rank: i + 1,
-      title: moment.title || contentData.title || user.nickname || '',
-      author: user.nickname || '',
-      school: user.educationInfo || '',
-      content: strip(moment.content || contentData.content || ''),
-      id: uuid || id,
-    };
-  }).filter(r => r.title);
-})()
-` },
-        { limit: '${{ args.limit }}' },
-    ],
+    columns: ['rank', 'post_type', 'id', 'uuid', 'entity_id', 'url', 'title', 'author', 'author_id', 'author_url', 'school', 'content', 'likes', 'comments', 'views', 'time'],
+    func: async (page, args) => {
+        const query = typeof args.query === 'string' ? args.query.trim() : '';
+        if (!query) throw new ArgumentError('nowcoder search requires a non-empty query');
+        const type = args.type ?? 'post';
+        if (type !== 'all' && type !== 'post') {
+            throw new ArgumentError('nowcoder search --type must be all or post');
+        }
+        const limit = requirePositiveInt(args.limit ?? 10, 'limit', 50);
+        const data = await fetchNowcoderData(
+            page,
+            'https://gw-c.nowcoder.com/api/sparta/pc/search',
+            { method: 'POST', body: { query, type, page: 1, pageSize: limit }, timeoutMs: 15_000 },
+            'Nowcoder search request',
+        );
+        return projectNowcoderFeed(data.records, limit, 'search', type === 'all');
+    },
 });

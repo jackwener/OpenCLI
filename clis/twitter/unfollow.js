@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
+import { CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 cli({
     site: 'twitter',
     name: 'unfollow',
@@ -19,6 +19,7 @@ cli({
         await page.goto(`https://x.com/${username}`);
         await page.wait({ selector: '[data-testid="primaryColumn"]' });
         const result = await page.evaluate(`(async () => {
+        let writeStarted = false;
         try {
             let attempts = 0;
             let unfollowBtn = null;
@@ -47,26 +48,33 @@ cli({
 
             // Confirm the unfollow in the dialog
             const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
-            if (confirmBtn) {
-                confirmBtn.click();
-                await new Promise(r => setTimeout(r, 1000));
+            if (!confirmBtn) {
+                return { ok: false, message: 'Unfollow confirmation dialog did not appear.' };
             }
+            writeStarted = true;
+            confirmBtn.click();
+            await new Promise(r => setTimeout(r, 1000));
 
             // Verify
             const verify = document.querySelector('[data-testid$="-follow"]');
             if (verify) {
                 return { ok: true, message: 'Successfully unfollowed @${username}.' };
             } else {
-                return { ok: false, message: 'Unfollow action initiated but UI did not update.' };
+                return { ok: false, unconfirmed: true, message: 'Unfollow action initiated but UI did not update.' };
             }
         } catch (e) {
-            return { ok: false, message: e.toString() };
+            return { ok: false, unconfirmed: writeStarted, message: e.toString() };
         }
     })()`);
-        if (result.ok)
-            await page.wait(2);
+        if (result.unconfirmed) {
+            throw new TimeoutError('twitter unfollow confirmation', 1, `${result.message} Check the profile before retrying; the unfollow may already have succeeded.`);
+        }
+        if (!result.ok) {
+            throw new CommandExecutionError(result.message, 'Nothing changed. Open the profile in the browser and retry.');
+        }
+        await page.wait(2);
         return [{
-                status: result.ok ? 'success' : 'failed',
+                status: 'success',
                 message: result.message
             }];
     }

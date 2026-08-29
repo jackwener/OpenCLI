@@ -5,11 +5,12 @@
 // (done / closed) task.
 
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
+import { ArgumentError } from '@jackwener/opencli/errors';
 import { authHeadersFragment } from './in-page.js';
 import { dispatchEvaluateResult } from './errors.js';
 import { SLOCK_SITE, SLOCK_DOMAIN, SLOCK_HOME_URL, SLOCK_API_BASE } from './shared.js';
 import { assertMessageIdShape } from './resolve.js';
+import { assertTaskIdentity } from './task-identity.js';
 
 cli({
   site: SLOCK_SITE,
@@ -53,14 +54,3 @@ cli({
     }));
   },
 });
-
-function assertTaskIdentity(t, expectedId, commandName) {
-  const taskId = t?.id;
-  if (!taskId) {
-    throw new CommandExecutionError(`Slock ${commandName} succeeded without returning task id ${expectedId}; refusing to report a task row.`);
-  }
-  if (taskId !== expectedId) {
-    throw new CommandExecutionError(`Slock ${commandName} returned task id ${taskId}, expected ${expectedId}.`);
-  }
-  return taskId;
-}

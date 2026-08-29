@@ -1,5 +1,5 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
 import { NOTEBOOKLM_DOMAIN, NOTEBOOKLM_SITE } from './shared.js';
 import { ensureNotebooklmHome, listNotebooklmLinks, listNotebooklmViaRpc, readCurrentNotebooklm, requireNotebooklmSession, } from './utils.js';
 cli({
@@ -17,6 +17,7 @@ cli({
         const currentFallback = await readCurrentNotebooklm(page).catch(() => null);
         await ensureNotebooklmHome(page);
         await requireNotebooklmSession(page);
+        let rpcError = null;
         try {
             const rpcRows = await listNotebooklmViaRpc(page);
             if (rpcRows.length > 0)
@@ -25,12 +26,25 @@ cli({
         catch (error) {
             if (error instanceof AuthRequiredError)
                 throw error;
+            rpcError = error;
         }
-        const domRows = await listNotebooklmLinks(page);
+        let domRows;
+        try {
+            domRows = await listNotebooklmLinks(page);
+        }
+        catch (error) {
+            if (currentFallback)
+                return [currentFallback];
+            if (rpcError)
+                throw rpcError;
+            throw error;
+        }
         if (domRows.length > 0)
             return domRows;
         if (currentFallback)
             return [currentFallback];
-        return [];
+        if (rpcError)
+            throw rpcError;
+        throw new EmptyResultError('opencli notebooklm list', 'No NotebookLM notebooks were found after the authenticated RPC and home-page fallback both returned empty.');
     },
 });

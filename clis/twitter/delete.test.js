@@ -49,7 +49,7 @@ describe('twitter delete command', () => {
             },
         ]);
     });
-    it('passes through matched-tweet lookup failures', async () => {
+    it('typed-fails on matched-tweet lookup failures', async () => {
         const cmd = getRegistry().get('twitter/delete');
         expect(cmd?.func).toBeTypeOf('function');
         const page = {
@@ -60,15 +60,14 @@ describe('twitter delete command', () => {
                 message: 'Could not find the tweet card matching the requested URL.',
             }),
         };
-        const result = await cmd.func(page, {
+        await expect(cmd.func(page, {
             url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'CommandExecutionError',
+            code: 'COMMAND_EXEC',
+            exitCode: 1,
+            message: 'Could not find the tweet card matching the requested URL.',
         });
-        expect(result).toEqual([
-            {
-                status: 'failed',
-                message: 'Could not find the tweet card matching the requested URL.',
-            },
-        ]);
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
     it('unwraps Browser Bridge evaluate envelopes before checking delete success', async () => {
