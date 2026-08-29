@@ -23,6 +23,8 @@ export interface ElectronAppEntry {
   displayName?: string;
   /** Additional launch args beyond --remote-debugging-port */
   extraArgs?: string[];
+  /** Preferred CDP target title/URL substring when the app exposes multiple surfaces */
+  targetFilter?: string;
 }
 
 export const builtinApps: Record<string, ElectronAppEntry> = {
@@ -36,7 +38,13 @@ export const builtinApps: Record<string, ElectronAppEntry> = {
   },
   chatwise:      { port: 9228, processName: 'ChatWise',     bundleId: 'com.chatwise.app',               displayName: 'ChatWise' },
   'discord-app': { port: 9232, processName: 'Discord',      bundleId: 'com.discord.app',                 displayName: 'Discord' },
-  'doubao-app':  { port: 9225, processName: 'Doubao',       bundleId: 'com.volcengine.doubao',          displayName: 'Doubao' },
+  'doubao-app':  {
+    port: 9225,
+    processName: 'Doubao',
+    bundleId: 'com.volcengine.doubao',
+    displayName: 'Doubao',
+    targetFilter: 'doubao-chat/chat',
+  },
   antigravity:   {
     port: 9234,
     processName: 'Antigravity',
