@@ -36,7 +36,7 @@ opencli taobao add-cart 827563850178 --spec "红色 XL" --dry-run
 opencli taobao sessions --limit 20 -f table
 
 # 5. Extract seller chat history
-opencli taobao chat "鑫鼎数码专营店" --limit 50 -f table
+opencli taobao chat "某数码专营店" --limit 50 -f table
 
 # 6. Fetch historical orders
 opencli taobao orders --pages 3 -f table
@@ -48,10 +48,10 @@ opencli taobao bought-shops --category "数码" -f table
 opencli taobao favorites --limit 20 -f table
 
 # 9. Semantic reasoning on seller commitments
-opencli taobao reason "美日韩电玩" -f yaml
+opencli taobao reason "某官方旗舰店" -f yaml
 
 # 10. Export chat to HTML
-opencli taobao export "郭氏永盛旗舰店" --format html --output ./chat.html
+opencli taobao export "某品牌专卖店" --format html --output ./chat.html
 ```
 
 ## Prerequisites

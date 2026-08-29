@@ -166,11 +166,16 @@ export const command = cli({
               minCreateAt = createAt;
             }
             
-            // Determine sender role
-            const isSelf = msg.sender?.uid?.includes('hongxin52013') || 
-                           msg.extension?.sender_nick?.includes('hongxin52013') ||
-                           msg.senderUid?.includes('hongxin52013') ||
-                           msg.isSelf === true;
+            // Determine sender role dynamically
+            const currentUserId = (sdk?.context?.base?.currentUserId || sdk?.context?.base?.userId || window.g_config?.nick || '').toLowerCase();
+            const senderUid = (msg.sender?.uid || msg.senderUid || '').toLowerCase();
+            const senderNick = (msg.extension?.sender_nick || '').toLowerCase();
+            const isSelf = msg.isSelf === true || 
+                           msg.from?.isSelf === true ||
+                           msg.sender?.role === 'buyer' ||
+                           msg.direction === 'send' ||
+                           (currentUserId && (senderUid.includes(currentUserId) || senderNick.includes(currentUserId))) ||
+                           (msg.sender?.isSeller === false);
             
             let text = '';
             let type = 'text';
