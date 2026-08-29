@@ -197,7 +197,10 @@ describe('xiaohongshu ask', () => {
 
         const result = await cmd.func(page, { query: '上海露营需要注意什么？', timeout: 30, 'source-limit': 10 });
 
-        expect(page.goto).toHaveBeenCalledWith(expect.stringContaining('https://www.xiaohongshu.com/search_result?keyword='));
+        // 点点's own page, never search_result?keyword=... — that URL costs a real
+        // note search on load and is the pattern #1224 tied to security verification.
+        expect(page.goto).toHaveBeenCalledWith('https://www.xiaohongshu.com/ai_chat');
+        expect(page.goto).not.toHaveBeenCalledWith(expect.stringContaining('search_result'));
         expect(page.evaluate.mock.calls[0][0]).toContain('window.webpackChunkxhs_pc_web');
         expect(result).toMatchObject({
             answer: '答案正文',
@@ -263,5 +266,72 @@ describe('xiaohongshu ask', () => {
         expect(script).toContain('await Promise.resolve(store.clearConversation(scenes.AiChat))');
         expect(script).not.toContain('userMessage?.text === prompt');
         expect(script).not.toContain('rounds[rounds.length - 1]');
+    });
+});
+
+// Executes the generated page script against a fake webpack runtime, so the module
+// lookup is exercised for real rather than asserted as a substring. The point is the
+// module id: Xiaohongshu renumbers chunks on redeploys (6404 -> 32914 broke every ask),
+// so the lookup has to survive an id nobody has seen before.
+async function runAskScriptAgainstFakeRuntime({ moduleId, answer = '答案正文' }) {
+    const msgId = 'msg-1';
+    const store = {
+        switchScene: () => {},
+        clearConversation: () => {},
+        createConversation: () => {},
+        sendMessage: async () => msgId,
+        getSceneRounds: () => [{ aiMessage: { msgId, isFinished: true, text: answer } }],
+        agent: {
+            getResponseReferences: async () => ({
+                baseInfo: { totalCnt: 'ai总结7篇笔记生成' },
+                items: [{ id: '69d6fc08000000001f007646', title: '来源标题', nickName: '作者A' }],
+            }),
+        },
+    };
+    // toString() of this factory carries the fingerprint the scan looks for.
+    const conversationFactory = () => ({ marker: 'createConversation sendMessage' });
+    const decoyFactory = () => ({ marker: 'unrelated module' });
+    // moduleId === null models a build where the store is simply not present at all.
+    const exportsById = moduleId === null
+        ? {}
+        : { [moduleId]: { t: () => store, G: { AiChat: 'aiChat', Onebox: 'onebox' } } };
+    const webpackRequire = (id) => {
+        if (!(id in exportsById)) throw new TypeError("Cannot read properties of undefined (reading 'call')");
+        return exportsById[id];
+    };
+    webpackRequire.m = moduleId === null
+        ? { 4242: decoyFactory }
+        : { 4242: decoyFactory, [moduleId]: conversationFactory };
+
+    const priorWindow = globalThis.window;
+    const priorLocation = globalThis.location;
+    globalThis.window = {
+        webpackChunkxhs_pc_web: { push: ([, , cb]) => cb(webpackRequire) },
+    };
+    globalThis.location = { href: 'https://www.xiaohongshu.com/ai_chat' };
+    try {
+        return await (0, eval)(buildAskEvaluateJs('测试问题', 5, 5));
+    } finally {
+        globalThis.window = priorWindow;
+        globalThis.location = priorLocation;
+    }
+}
+
+describe('xiaohongshu ask conversation-store lookup', () => {
+    it('uses the known module id when the build still has it', async () => {
+        const result = await runAskScriptAgainstFakeRuntime({ moduleId: 32914 });
+        expect(result).toMatchObject({ ok: true, answer: '答案正文' });
+        expect(result.sources).toHaveLength(1);
+    });
+
+    it('still finds the store after Xiaohongshu renumbers the chunk', async () => {
+        // An id in neither the known list nor any previous build.
+        const result = await runAskScriptAgainstFakeRuntime({ moduleId: 778899 });
+        expect(result).toMatchObject({ ok: true, answer: '答案正文' });
+    });
+
+    it('reports conversation_store_missing when no module matches, instead of throwing', async () => {
+        const result = await runAskScriptAgainstFakeRuntime({ moduleId: null });
+        expect(result).toMatchObject({ ok: false, error: 'conversation_store_missing' });
     });
 });

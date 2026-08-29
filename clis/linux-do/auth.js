@@ -14,30 +14,39 @@ async function verifyLinuxDoIdentity(page) {
   await page.wait(2);
   const probe = await page.evaluate(`(async () => {
     try {
-      const u = document.querySelector('meta[name="current-user-username"]')?.getAttribute('content') || '';
-      if (!u) return { kind: 'auth', detail: 'Linux.do meta[current-user-username] missing — anonymous' };
-      const r = await fetch('/u/' + encodeURIComponent(u) + '.json', {
+      const r = await fetch('/session/current.json', {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
       if (r.status === 401 || r.status === 403) {
-        return { kind: 'auth', detail: 'Linux.do /u/<self>.json HTTP ' + r.status };
+        return { kind: 'auth', detail: 'Linux.do /session/current.json HTTP ' + r.status };
       }
       if (!r.ok) return { kind: 'http', httpStatus: r.status };
       const d = await r.json();
-      const user = d?.user;
-      if (!user || !user.id) return { kind: 'auth', detail: 'Linux.do /u/<self>.json missing user.id' };
-      return { ok: true, user_id: String(user.id), username: String(user.username || u), name: String(user.name || '') };
+      const user = d?.current_user;
+      if (!user || !user.id || !user.username) {
+        return { kind: 'auth', detail: 'Linux.do /session/current.json missing current_user' };
+      }
+      return {
+        ok: true,
+        user_id: String(user.id),
+        username: String(user.username),
+        name: String(user.name || ''),
+      };
     } catch (e) {
       return { kind: 'exception', detail: String(e && e.message || e) };
     }
   })()`);
   if (probe?.kind === 'auth') throw new AuthRequiredError('linux.do', probe.detail);
-  if (probe?.kind === 'http') throw new CommandExecutionError(`HTTP ${probe.httpStatus} from Linux.do /u/<self>.json`);
+  if (probe?.kind === 'http') throw new CommandExecutionError(`HTTP ${probe.httpStatus} from Linux.do /session/current.json`);
   if (probe?.kind === 'exception') throw new CommandExecutionError(`Linux.do whoami failed: ${probe.detail}`);
-  if (!probe?.ok) throw new CommandExecutionError(`Unexpected Linux.do probe: ${JSON.stringify(probe)}`);
+  if (!probe?.ok || !probe.user_id || !probe.username) {
+    throw new CommandExecutionError(`Unexpected Linux.do probe: ${JSON.stringify(probe)}`);
+  }
   return { user_id: probe.user_id, username: probe.username, name: probe.name };
 }
+
+export const __test__ = { verifyLinuxDoIdentity };
 
 registerSiteAuthCommands({
   site: 'linux-do',
