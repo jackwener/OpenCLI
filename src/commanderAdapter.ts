@@ -11,6 +11,7 @@
  */
 
 import { Command } from 'commander';
+import { RESERVED_ARG_SHORTS, resolveArgShort } from './arg-short.js';
 import { log } from './logger.js';
 import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
@@ -41,6 +42,10 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
   const subCmd = siteCmd.command(cmd.name).description(formatSiteCommandDescription(cmd));
   if (cmd.aliases?.length) subCmd.aliases(cmd.aliases);
 
+  // Reserve the global short flags this subcommand adds below (-f/--format,
+  // -v/--verbose) plus Commander's built-in -h/--help, so an adapter's `short`
+  // can never clobber them — Commander throws on a duplicate flag.
+  const usedShorts = new Set(RESERVED_ARG_SHORTS);
   // Register positional args first, then named options
   const positionalArgs: typeof cmd.args = [];
   for (const arg of cmd.args) {
@@ -50,7 +55,11 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       positionalArgs.push(arg);
     } else {
       const expectsValue = arg.required || arg.valueRequired;
-      const flag = expectsValue ? `--${arg.name} <value>` : `--${arg.name} [value]`;
+      const short = resolveArgShort(arg.short, usedShorts);
+      const longSpec = expectsValue ? `--${arg.name} <value>` : `--${arg.name} [value]`;
+      // Commander maps both -x and --name to the same long-name key, so short
+      // aliases populate the canonical kwargs.<name> with no extra wiring.
+      const flag = short ? `-${short}, ${longSpec}` : longSpec;
       if (arg.required) subCmd.requiredOption(flag, arg.help ?? '');
       else if (arg.default != null) subCmd.option(flag, arg.help ?? '', String(arg.default));
       else subCmd.option(flag, arg.help ?? '');

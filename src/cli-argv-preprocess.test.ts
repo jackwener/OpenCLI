@@ -247,7 +247,7 @@ import { escapeLeadingDashPositional } from './cli-argv-preprocess.js';
 
 describe('escapeLeadingDashPositional', () => {
   const manifest = [
-    { site: 'boss', name: 'detail', browser: true, args: [{ name: 'security-id', positional: true, required: true }, { name: 'retry', positional: false, valueRequired: true }] },
+    { site: 'boss', name: 'detail', browser: true, args: [{ name: 'security-id', positional: true, required: true }, { name: 'retry', positional: false, valueRequired: true }, { name: 'limit', short: 'l', positional: false, valueRequired: true }, { name: 'sort', short: 's', positional: false }] },
     { site: 'boss', name: 'search', args: [{ name: 'query', positional: true, required: false }, { name: 'limit', positional: false }] },
     { site: 'twitter', name: 'follow', args: [{ name: 'username', positional: true, required: true }] },
     { site: 'twitter', name: 'lists', args: [{ name: 'limit', positional: false }] },
@@ -275,9 +275,58 @@ describe('escapeLeadingDashPositional', () => {
       .toEqual(['boss', 'detail', '--format', 'json', '--trace=on', '--', '-xyz']);
   });
 
+  it('recognizes an adapter short alias (-l) as a known option, not part of the dash-leading positional', () => {
+    // -l is the short for --limit; without short-awareness the preprocessor would
+    // mis-escape it. Both orders must hoist `-l 10` ahead of the escaped positional.
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-xyz', '-l', '10'], manifest))
+      .toEqual(['boss', 'detail', '-l', '10', '--', '-xyz']);
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-l', '10', '-xyz'], manifest))
+      .toEqual(['boss', 'detail', '-l', '10', '--', '-xyz']);
+  });
+
+  it('recognizes attached short values (-l10 / -sdesc) for both required and optional shorts', () => {
+    // -l is value-required, -s is value-optional; Commander accepts `-l10` / `-sdesc`
+    // for both, so the preprocessor must consume the whole attached token, not split it.
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-xyz', '-l10'], manifest))
+      .toEqual(['boss', 'detail', '-l10', '--', '-xyz']);
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-sdesc', '-xyz'], manifest))
+      .toEqual(['boss', 'detail', '-sdesc', '--', '-xyz']);
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-xyz', '-sdesc'], manifest))
+      .toEqual(['boss', 'detail', '-sdesc', '--', '-xyz']);
+  });
+
   it('keeps adapter and browser options parseable when they follow the positional', () => {
     expect(escapeLeadingDashPositional(['boss', 'detail', '-xyz', '--retry', '2', '--window', 'foreground'], manifest))
       .toEqual(['boss', 'detail', '--retry', '2', '--window', 'foreground', '--', '-xyz']);
+  });
+
+  it('consumes an attached value on an optional-value short, not just a required one', () => {
+    // Commander accepts `-sfoo` for `-s, --sort [value]` exactly as it accepts
+    // `-l10` for `-l, --limit <value>`. consumeKnownOption once honoured the
+    // attached form only for 'required', so an optional short with an attached
+    // value became the dash-leading positional (short-first) or was pushed past
+    // `--` and read as a positional (short-last).
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-sdate', '-abc123'], manifest))
+      .toEqual(['boss', 'detail', '-sdate', '--', '-abc123']);
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-abc123', '-sdate'], manifest))
+      .toEqual(['boss', 'detail', '-sdate', '--', '-abc123']);
+    // The separated form of the same optional short keeps working.
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-abc123', '-s', 'date'], manifest))
+      .toEqual(['boss', 'detail', '-s', 'date', '--', '-abc123']);
+  });
+
+  it('does not let an adapter short shadow a reserved global short', () => {
+    // `shadow` declares short 'f', which resolveArgShort refuses because -f is
+    // reserved for --format. -f must keep consuming its own value, not be
+    // re-typed by the adapter arg.
+    const withShadow = [
+      { site: 'boss', name: 'detail', browser: true, args: [
+        { name: 'security-id', positional: true, required: true },
+        { name: 'shadow', short: 'f', positional: false },
+      ] },
+    ];
+    expect(escapeLeadingDashPositional(['boss', 'detail', '-abc123', '-f', 'json'], withShadow))
+      .toEqual(['boss', 'detail', '-f', 'json', '--', '-abc123']);
   });
 
   it('protects negative numeric positionals too', () => {

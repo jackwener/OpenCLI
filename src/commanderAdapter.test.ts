@@ -21,6 +21,7 @@ vi.mock('./output.js', () => ({
 }));
 
 import { registerCommandToProgram } from './commanderAdapter.js';
+import { resolveArgShort } from './arg-short.js';
 
 describe('commanderAdapter arg passing', () => {
   const cmd: CliCommand = {
@@ -108,6 +109,99 @@ describe('commanderAdapter arg passing', () => {
 
     // prepareCommandArgs validates bools before dispatch; executeCommand should not be reached
     expect(mockExecuteCommand).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveArgShort', () => {
+  it('accepts a single ASCII letter and claims it', () => {
+    const used = new Set<string>();
+    expect(resolveArgShort('l', used)).toBe('l');
+    expect(used.has('l')).toBe(true);
+  });
+
+  it('rejects reserved global shorts, duplicates, and non-single-letter values', () => {
+    const used = new Set(['f', 'v', 'h']); // as seeded per command
+    expect(resolveArgShort('f', used)).toBeUndefined(); // reserved -f/--format
+    expect(resolveArgShort('v', used)).toBeUndefined(); // reserved -v/--verbose
+    expect(resolveArgShort('lo', used)).toBeUndefined(); // multi-char
+    expect(resolveArgShort('1', used)).toBeUndefined(); // not a letter
+    expect(resolveArgShort('', used)).toBeUndefined();
+    expect(resolveArgShort(undefined, used)).toBeUndefined();
+    // first declaration wins; a later duplicate degrades to long-only
+    expect(resolveArgShort('x', used)).toBe('x');
+    expect(resolveArgShort('x', used)).toBeUndefined();
+    // case-sensitive: -F is distinct from the reserved -f
+    expect(resolveArgShort('F', used)).toBe('F');
+  });
+});
+
+describe('commanderAdapter short option aliases', () => {
+  const cmd: CliCommand = {
+    site: 'demo',
+    name: 'list', access: 'read',
+    description: 'List things',
+    browser: false,
+    args: [
+      { name: 'limit', short: 'l', type: 'int', default: 20, help: 'Max items' },
+      { name: 'output', short: 'o', type: 'str', help: 'Output file' },
+    ],
+    func: vi.fn(),
+  };
+
+  beforeEach(() => {
+    mockExecuteCommand.mockReset();
+    mockExecuteCommand.mockResolvedValue([]);
+    mockRenderOutput.mockReset();
+    process.exitCode = undefined;
+  });
+
+  it('populates the canonical kwargs key from the short form', async () => {
+    const program = new Command();
+    registerCommandToProgram(program.command('demo'), cmd);
+    await program.parseAsync(['node', 'opencli', 'demo', 'list', '-l', '10', '-o', 'out.json']);
+    const kwargs = mockExecuteCommand.mock.calls[0][1];
+    expect(Number(kwargs.limit)).toBe(10); // int arg is coerced; short and long agree on the value
+    expect(kwargs.output).toBe('out.json');
+  });
+
+  it('populates the same key from the long form', async () => {
+    const program = new Command();
+    registerCommandToProgram(program.command('demo'), cmd);
+    await program.parseAsync(['node', 'opencli', 'demo', 'list', '--limit', '10', '--output', 'out.json']);
+    const kwargs = mockExecuteCommand.mock.calls[0][1];
+    expect(Number(kwargs.limit)).toBe(10); // int arg is coerced; short and long agree on the value
+    expect(kwargs.output).toBe('out.json');
+  });
+
+  it('skips a short that collides with a reserved flag without breaking registration or -f', async () => {
+    const clashCmd: CliCommand = {
+      site: 'demo', name: 'run', access: 'read', description: 'Run', browser: false,
+      args: [{ name: 'foo', short: 'f', type: 'str', help: 'Foo' }], // 'f' is reserved by --format
+      func: vi.fn(),
+    };
+    const program = new Command();
+    // Registration must not throw on the reserved-short collision.
+    expect(() => registerCommandToProgram(program.command('demo'), clashCmd)).not.toThrow();
+    await program.parseAsync(['node', 'opencli', 'demo', 'run', '--foo', 'bar', '-f', 'json']);
+    const kwargs = mockExecuteCommand.mock.calls[0][1];
+    expect(kwargs.foo).toBe('bar'); // long form still works; -f stayed with --format
+  });
+
+  it('gives the short to the first arg and degrades a duplicate to long-only', async () => {
+    const dupCmd: CliCommand = {
+      site: 'demo', name: 'dup', access: 'read', description: 'Dup', browser: false,
+      args: [
+        { name: 'aa', short: 'x', type: 'str', help: 'A' },
+        { name: 'bb', short: 'x', type: 'str', help: 'B' },
+      ],
+      func: vi.fn(),
+    };
+    const program = new Command();
+    expect(() => registerCommandToProgram(program.command('demo'), dupCmd)).not.toThrow();
+    await program.parseAsync(['node', 'opencli', 'demo', 'dup', '-x', '1', '--bb', '2']);
+    const kwargs = mockExecuteCommand.mock.calls[0][1];
+    expect(kwargs.aa).toBe('1'); // -x bound to the first declaration
+    expect(kwargs.bb).toBe('2'); // second still reachable via its long flag
   });
 });
 

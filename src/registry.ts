@@ -14,6 +14,14 @@ export enum Strategy {
 
 export interface Arg {
   name: string;
+  /**
+   * Optional single-letter short alias for a named (non-positional) option, e.g.
+   * `short: 'l'` exposes `-l` alongside `--<name>`. Both forms populate the same
+   * canonical `kwargs.<name>` key. Ignored for positional args, and skipped when
+   * it is not a single ASCII letter, collides with a reserved global flag
+   * (`-f`/`-v`/`-h`), or duplicates another arg's short in the same command.
+   */
+  short?: string;
   type?: string;
   default?: unknown;
   required?: boolean;
