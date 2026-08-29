@@ -429,7 +429,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { session, cdpEndpoint, dedicatedTarget, ...profileRouting, windowMode, surface: 'adapter', siteSession });
+      }, { session, cdpEndpoint, dedicatedTarget, keepTab, ...profileRouting, windowMode, surface: 'adapter', siteSession });
       } catch (err) {
         browserRunError = err;
         throw err;

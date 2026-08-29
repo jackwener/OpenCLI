@@ -56,8 +56,9 @@ export class CDPBridge implements IBrowserFactory {
   private _eventListeners = new Map<string, Set<(params: unknown) => void>>();
   private _httpBase: string | null = null;
   private _createdTargetId: string | null = null;
+  private _keepDedicatedTarget = false;
 
-  async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean }): Promise<IPage> {
+  async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean; keepTab?: boolean }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
 
     const endpoint = opts?.cdpEndpoint ?? process.env.OPENCLI_CDP_ENDPOINT;
@@ -75,6 +76,9 @@ export class CDPBridge implements IBrowserFactory {
         }
         this._httpBase = httpBase;
         this._createdTargetId = created.id ?? null;
+        // --keep-tab (and `--site-session persistent`, which implies it) means the
+        // caller wants the tab left behind for inspection or a follow-up command.
+        this._keepDedicatedTarget = opts?.keepTab === true;
         wsUrl = created.webSocketDebuggerUrl;
       } else {
         const targets = await fetchJsonDirect(`${httpBase}/json`) as CDPTarget[];
@@ -86,7 +90,7 @@ export class CDPBridge implements IBrowserFactory {
       }
     }
 
-    return new Promise((resolve, reject) => {
+    const session = new Promise<IPage>((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
       const timeoutMs = (opts?.timeout ?? 10) * 1000;
       const timeout = setTimeout(() => {
@@ -141,6 +145,29 @@ export class CDPBridge implements IBrowserFactory {
         }
       });
     });
+
+    try {
+      return await session;
+    } catch (err) {
+      // The tab exists before the WebSocket handshake starts, so a refused
+      // connection, a connect timeout, or a failed Page.enable would otherwise
+      // strand it on someone's shared browser. Discard it even when keep-tab was
+      // requested: nothing ever attached to it, so there is nothing to keep.
+      await this._discardDedicatedTarget();
+      throw err;
+    }
+  }
+
+  /** Close the tab this bridge opened (if any) and forget it. Never throws. */
+  private async _discardDedicatedTarget(): Promise<void> {
+    const httpBase = this._httpBase;
+    const targetId = this._createdTargetId;
+    this._httpBase = null;
+    this._createdTargetId = null;
+    this._keepDedicatedTarget = false;
+    if (!httpBase || !targetId) return;
+    // Best-effort: the browser may already be gone.
+    await closeDedicatedCDPTarget(httpBase, targetId).catch(() => {});
   }
 
   async close(): Promise<void> {
@@ -154,13 +181,17 @@ export class CDPBridge implements IBrowserFactory {
     }
     this._pending.clear();
     this._eventListeners.clear();
-    if (this._httpBase && this._createdTargetId) {
-      // Best-effort: remove the tab we opened so repeated runs don't litter the
-      // shared browser. Ignore failures — the browser may already be gone.
-      await closeDedicatedCDPTarget(this._httpBase, this._createdTargetId).catch(() => {});
+    if (this._keepDedicatedTarget) {
+      // keep-tab semantics: leave the tab open and just forget it. The next
+      // command opens its own tab -- login state lives in the shared Chrome
+      // profile, not in the tab, so nothing is lost by not reusing this one.
       this._httpBase = null;
       this._createdTargetId = null;
+      this._keepDedicatedTarget = false;
+      return;
     }
+    // Remove the tab we opened so repeated runs don't litter the shared browser.
+    await this._discardDedicatedTarget();
   }
 
   async send(method: string, params: Record<string, unknown> = {}, timeoutMs: number = CDP_SEND_TIMEOUT): Promise<unknown> {

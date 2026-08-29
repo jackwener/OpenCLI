@@ -58,14 +58,14 @@ export function withTimeoutMs<T>(
 
 /** Interface for browser factory (BrowserBridge or test mocks) */
 export interface IBrowserFactory {
-  connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean }): Promise<IPage>;
+  connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean; keepTab?: boolean }): Promise<IPage>;
   close(): Promise<void>;
 }
 
 export async function browserSession<T>(
   BrowserFactory: new () => IBrowserFactory,
   fn: (page: IPage) => Promise<T>,
-  opts: { session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean } = {},
+  opts: { session?: string; cdpEndpoint?: string; contextId?: string; preferredContextId?: string; idleTimeout?: number; windowMode?: BrowserWindowMode; surface?: BrowserSurface; siteSession?: 'ephemeral' | 'persistent'; dedicatedTarget?: boolean; keepTab?: boolean } = {},
 ): Promise<T> {
   const browser = new BrowserFactory();
   try {
@@ -74,6 +74,7 @@ export async function browserSession<T>(
       session: opts.session,
       cdpEndpoint: opts.cdpEndpoint,
       dedicatedTarget: opts.dedicatedTarget,
+      keepTab: opts.keepTab,
       contextId: opts.contextId,
       preferredContextId: opts.preferredContextId,
       idleTimeout: opts.idleTimeout,

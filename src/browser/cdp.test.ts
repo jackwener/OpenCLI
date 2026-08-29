@@ -4,12 +4,18 @@ const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
     static OPEN = 1;
     static lastInstance: MockWebSocket | undefined;
+    /** Set to 'error' to simulate a WebSocket handshake that never connects. */
+    static nextConnect: 'open' | 'error' = 'open';
     readyState = 1;
     private handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
     constructor(_url: string) {
       MockWebSocket.lastInstance = this;
-      queueMicrotask(() => this.emit('open'));
+      const outcome = MockWebSocket.nextConnect;
+      queueMicrotask(() => {
+        if (outcome === 'error') this.emit('error', new Error('connect ECONNREFUSED'));
+        else this.emit('open');
+      });
     }
 
     on(event: string, handler: (...args: unknown[]) => void): void {
@@ -140,6 +146,7 @@ describe('CDPBridge cookies', () => {
 describe('CDPBridge dedicated targets (remote Chrome)', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
+    MockWebSocket.nextConnect = 'open';
   });
 
   async function withDevtoolsServer(
@@ -212,6 +219,125 @@ describe('CDPBridge dedicated targets (remote Chrome)', () => {
           'PUT /json/new',
           'GET /json/new',
           'GET /json/close/T2',
+        ]);
+      },
+    );
+  });
+
+  it('asks for the tab with the exact /json/new URL form Chrome expects', async () => {
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (method === 'PUT' && url.startsWith('/json/new')) {
+          return { status: 200, body: JSON.stringify({ id: 'T3', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T3' }) };
+        }
+        if (url === '/json/close/T3') return { status: 200, body: 'Target is closing' };
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+        vi.spyOn(bridge, 'send').mockResolvedValue({});
+
+        await bridge.connect({ cdpEndpoint: base, dedicatedTarget: true });
+        await bridge.close();
+
+        // The query string is not cosmetic: Chrome opens the browser's default
+        // new-tab page when `url` is missing, which then navigates on its own and
+        // races the adapter's first goto.
+        expect(seen[0]).toEqual({ method: 'PUT', url: '/json/new?url=about:blank' });
+      },
+    );
+  });
+
+  it('closes the tab it created when the WebSocket handshake fails', async () => {
+    MockWebSocket.nextConnect = 'error';
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (method === 'PUT' && url.startsWith('/json/new')) {
+          return { status: 200, body: JSON.stringify({ id: 'T4', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T4' }) };
+        }
+        if (url === '/json/close/T4') return { status: 200, body: 'Target is closing' };
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+
+        // connect() rejects, and nobody calls close() on a bridge that never
+        // connected -- so connect() itself has to take the tab back down.
+        await expect(bridge.connect({ cdpEndpoint: base, dedicatedTarget: true })).rejects.toThrow('connect ECONNREFUSED');
+
+        expect(seen.map((r) => `${r.method} ${r.url.split('?')[0]}`)).toEqual([
+          'PUT /json/new',
+          'GET /json/close/T4',
+        ]);
+      },
+    );
+  });
+
+  it('closes the tab it created when the CDP session setup fails after connecting', async () => {
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (method === 'PUT' && url.startsWith('/json/new')) {
+          return { status: 200, body: JSON.stringify({ id: 'T5', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T5' }) };
+        }
+        if (url === '/json/close/T5') return { status: 200, body: 'Target is closing' };
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+        // Page.enable failing is the realistic version of "the target went away
+        // between /json/new and the first command".
+        vi.spyOn(bridge, 'send').mockRejectedValue(new Error('Target closed'));
+
+        await expect(bridge.connect({ cdpEndpoint: base, dedicatedTarget: true })).rejects.toThrow('Target closed');
+
+        expect(seen.map((r) => `${r.method} ${r.url.split('?')[0]}`)).toEqual([
+          'PUT /json/new',
+          'GET /json/close/T5',
+        ]);
+      },
+    );
+  });
+
+  it('leaves the tab open on close() when keepTab is requested', async () => {
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (method === 'PUT' && url.startsWith('/json/new')) {
+          return { status: 200, body: JSON.stringify({ id: 'T6', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T6' }) };
+        }
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+        vi.spyOn(bridge, 'send').mockResolvedValue({});
+
+        // --keep-tab true, and `--site-session persistent` which implies it.
+        await bridge.connect({ cdpEndpoint: base, dedicatedTarget: true, keepTab: true });
+        await bridge.close();
+
+        expect(seen.map((r) => `${r.method} ${r.url.split('?')[0]}`)).toEqual(['PUT /json/new']);
+      },
+    );
+  });
+
+  it('still discards the tab when the handshake fails even if keepTab was requested', async () => {
+    MockWebSocket.nextConnect = 'error';
+    await withDevtoolsServer(
+      ({ method, url }) => {
+        if (method === 'PUT' && url.startsWith('/json/new')) {
+          return { status: 200, body: JSON.stringify({ id: 'T7', webSocketDebuggerUrl: 'ws://127.0.0.1:9/devtools/page/T7' }) };
+        }
+        if (url === '/json/close/T7') return { status: 200, body: 'Target is closing' };
+        return { status: 500, body: '{}' };
+      },
+      async (base, seen) => {
+        const bridge = new CDPBridge();
+
+        await expect(bridge.connect({ cdpEndpoint: base, dedicatedTarget: true, keepTab: true })).rejects.toThrow('connect ECONNREFUSED');
+
+        // Nothing ever attached to that tab, so there is nothing worth keeping.
+        expect(seen.map((r) => `${r.method} ${r.url.split('?')[0]}`)).toEqual([
+          'PUT /json/new',
+          'GET /json/close/T7',
         ]);
       },
     );

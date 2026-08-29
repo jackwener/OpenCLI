@@ -49,6 +49,21 @@ OpenCLI attaches to that exact target instead of opening a dedicated tab
 dedicated tab, e.g. for Electron apps).
 :::
 
+#### Dedicated tab lifecycle
+
+| Situation | What happens to the tab |
+| --- | --- |
+| Command finishes (default, `--site-session ephemeral`) | Closed |
+| `--keep-tab true`, or `--site-session persistent` (which implies keep-tab) | Left open |
+| WebSocket handshake or CDP setup fails | Closed, even with `--keep-tab true` — nothing ever attached to it |
+| Command fails mid-run (navigation error, adapter throw) | Closed, unless keep-tab applies |
+
+A kept tab is **not** reused by the next command: each command opens its own tab.
+Nothing is lost by that — cookies and login state live in the shared Chrome profile,
+not in the tab — so a persistent site session still sees the same logged-in state.
+Keep-tab is there for inspecting what a command did, not for session continuity.
+
+
 ### 4. Verify
 
 ```bash
