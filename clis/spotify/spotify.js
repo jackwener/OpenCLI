@@ -50,6 +50,7 @@ async function refreshAccessToken(refreshToken) {
             Authorization: 'Basic ' + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64'),
         },
         body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken }),
+        signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -82,6 +83,7 @@ async function api(method, path, body) {
         method,
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(10000),
     });
     if (res.status === 204 || res.status === 202)
         return null;
@@ -134,6 +136,7 @@ cli({
                             Authorization: 'Basic ' + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64'),
                         },
                         body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
+                        signal: AbortSignal.timeout(10000),
                     });
                     if (!tokenRes.ok) {
                         const err = await tokenRes.json().catch(() => ({}));
