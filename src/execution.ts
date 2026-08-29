@@ -33,7 +33,7 @@ import { profileRouteParams, resolveProfileSelection } from './browser/profile.j
 import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
-import { isElectronApp } from './electron-apps.js';
+import { getElectronApp, isElectronApp } from './electron-apps.js';
 import { probeCDP, resolveElectronEndpoint } from './launcher.js';
 import { ObservationSession, exportObservationSession, type ObservationExportResult, type ObservationExportStatus } from './observation/index.js';
 import { resolveAdapterSourcePath } from './adapter-source.js';
@@ -246,8 +246,10 @@ export async function executeCommand(
     if (siteSession !== null) {
       const electron = isElectronApp(cmd.site);
       let cdpEndpoint: string | undefined;
+      let cdpTargetFilter: string | undefined;
 
       if (electron) {
+        cdpTargetFilter = getElectronApp(cmd.site)?.targetFilter;
         // Electron apps: respect manual endpoint override, then try auto-detect
         const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
         if (manualEndpoint) {
@@ -420,7 +422,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession });
+      }, { session, cdpEndpoint, cdpTargetFilter, ...profileRouting, windowMode, surface: 'adapter', siteSession });
       } catch (err) {
         browserRunError = err;
         throw err;

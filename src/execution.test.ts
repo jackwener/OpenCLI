@@ -190,6 +190,32 @@ describe('executeCommand — non-browser timeout', () => {
     vi.restoreAllMocks();
   });
 
+  it('passes a registered Electron app target filter to the browser session', async () => {
+    const closeWindow = vi.fn().mockResolvedValue(undefined);
+    const mockPage = { closeWindow } as any;
+    const launcher = await import('./launcher.js');
+    vi.spyOn(launcher, 'resolveElectronEndpoint').mockResolvedValue('http://127.0.0.1:9225');
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    const sessionSpy = vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn(mockPage));
+
+    const cmd = cli({
+      site: 'doubao-app',
+      name: 'target-filter-test', access: 'read',
+      description: 'test Electron target filter routing',
+      browser: true,
+      strategy: Strategy.UI,
+      func: async () => [{ ok: true }],
+    });
+
+    await executeCommand(cmd, {});
+
+    expect(launcher.resolveElectronEndpoint).toHaveBeenCalledWith('doubao-app');
+    expect(sessionSpy.mock.calls[0]?.[2]).toMatchObject({
+      cdpEndpoint: 'http://127.0.0.1:9225',
+      cdpTargetFilter: 'doubao-chat/chat',
+    });
+  });
+
   it('reuses a persistent site browser session and keeps the tab lease open', async () => {
     const closeWindow = vi.fn().mockResolvedValue(undefined);
     const mockPage = { closeWindow } as any;

@@ -78,6 +78,73 @@ describe('browser helpers', () => {
     expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9226/codex');
   });
 
+  it('uses an app target filter when Electron exposes background and chat pages', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'doubao://doubao-background',
+        url: 'doubao://doubao-background/',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9225/background',
+      },
+      {
+        type: 'other',
+        title: 'doubao://doubao-chat/cross-site-support/',
+        url: 'doubao://doubao-chat/cross-site-support/',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9225/cross-site-support',
+      },
+      {
+        type: 'page',
+        title: '对话主题 - 豆包工作',
+        url: 'doubao://doubao-chat/chat/38439138239851266',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9225/chat',
+      },
+    ], 'doubao-chat/chat');
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9225/chat');
+  });
+
+  it('lets OPENCLI_CDP_TARGET override an app target filter', () => {
+    vi.stubEnv('OPENCLI_CDP_TARGET', 'doubao-background');
+
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'doubao://doubao-background',
+        url: 'doubao://doubao-background/',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9225/background',
+      },
+      {
+        type: 'page',
+        title: '对话主题 - 豆包工作',
+        url: 'doubao://doubao-chat/chat/38439138239851266',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9225/chat',
+      },
+    ], 'doubao-chat/chat');
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9225/background');
+  });
+
+  it('ignores a blank OPENCLI_CDP_TARGET and keeps the app target filter', () => {
+    vi.stubEnv('OPENCLI_CDP_TARGET', '   ');
+
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'doubao://doubao-background',
+        url: 'doubao://doubao-background/',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9225/background',
+      },
+      {
+        type: 'page',
+        title: '对话主题 - 豆包工作',
+        url: 'doubao://doubao-chat/chat',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9225/chat',
+      },
+    ], 'doubao-chat/chat');
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9225/chat');
+  });
+
   it('prefers the main Electron window over a routed auxiliary window on the same document', () => {
     const target = cdpTest.selectCDPTarget([
       {

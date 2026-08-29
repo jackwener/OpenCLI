@@ -16,6 +16,10 @@ describe('electron-apps registry', () => {
     expect(app!.executableNames).toEqual(['ChatGPT', 'Codex']);
   });
 
+  it('prefers the Doubao chat renderer CDP target', () => {
+    expect(getElectronApp('doubao-app')?.targetFilter).toBe('doubao-chat/chat');
+  });
+
   it('keeps builtin Electron app CDP ports unique and off the browser-bridge port', () => {
     const ports = Object.values(builtinApps).map((app) => app.port);
 
