@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockExistsSync, mockReadFileSync, mockMkdirSync, mockWriteFileSync, mockHomedir } = vi.hoisted(() => ({
@@ -68,8 +69,9 @@ describe('xiaoyuzhou auth helpers', () => {
         expect(refreshed.access_token).toBe('new-access');
         expect(refreshed.refresh_token).toBe('new-refresh');
         expect(refreshed.expires_at).toBe(Date.now() + XIAOYUZHOU_TOKEN_TTL_MS);
-        expect(mockMkdirSync).toHaveBeenCalledWith('/Users/tester/.opencli', { recursive: true });
-        expect(mockWriteFileSync).toHaveBeenCalledWith('/Users/tester/.opencli/xiaoyuzhou.json', expect.stringContaining('"access_token": "new-access"'), 'utf-8');
+        const credentialFile = getXiaoyuzhouCredentialFile();
+        expect(mockMkdirSync).toHaveBeenCalledWith(path.dirname(credentialFile), { recursive: true });
+        expect(mockWriteFileSync).toHaveBeenCalledWith(credentialFile, expect.stringContaining('"access_token": "new-access"'), 'utf-8');
     });
 
     it('retries once on 401 using refreshed credentials', async () => {

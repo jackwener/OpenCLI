@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { __test__ } from './bookmarks.js';
@@ -258,8 +260,8 @@ function bookmarksPayload(withBottomCursor = false) {
 describe('twitter bookmarks command', () => {
     it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const resumeFile = `/tmp/opencli-bookmarks-resume-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-bookmarks-out-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = path.join(os.tmpdir(), `opencli-bookmarks-resume-${process.pid}-${Date.now()}.json`);
+        const outputFile = path.join(os.tmpdir(), `opencli-bookmarks-out-${process.pid}-${Date.now()}.jsonl`);
         const page = {
             getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
             evaluate: vi.fn(async (script) => {
@@ -306,8 +308,8 @@ describe('twitter bookmarks command', () => {
 
     it('removes resume file only after the bookmarks timeline is exhausted', async () => {
         const command = getRegistry().get('twitter/bookmarks');
-        const resumeFile = `/tmp/opencli-bookmarks-resume-done-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-bookmarks-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = path.join(os.tmpdir(), `opencli-bookmarks-resume-done-${process.pid}-${Date.now()}.json`);
+        const outputFile = path.join(os.tmpdir(), `opencli-bookmarks-out-done-${process.pid}-${Date.now()}.jsonl`);
         const page = {
             getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
             evaluate: vi.fn(async (script) => {

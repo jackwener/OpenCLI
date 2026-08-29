@@ -9,7 +9,7 @@ const tempDirs = [];
 function createTempVideo(name = 'demo.mp4', bytes = Buffer.from('video')) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-instagram-reel-'));
     tempDirs.push(dir);
-    const filePath = path.join(dir, name);
+    const filePath = path.join(dir, process.platform === 'win32' ? name.replaceAll('?', '_') : name);
     fs.writeFileSync(filePath, bytes);
     return filePath;
 }

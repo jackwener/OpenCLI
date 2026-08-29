@@ -16,6 +16,7 @@
  *   - device-id: <uuid> (persistent per browser, found in `suno_device_id` cookie)
  */
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 
@@ -49,9 +50,10 @@ export function parseFormats(value) {
 
 export function resolveSunoOutputDir(value) {
     const raw = String(value || '').trim();
-    if (!raw) return path.join(process.env.HOME || '~', 'Music', 'suno');
-    if (raw === '~') return process.env.HOME || '~';
-    if (raw.startsWith('~/')) return path.join(process.env.HOME || '~', raw.slice(2));
+    const home = os.homedir();
+    if (!raw) return path.join(home, 'Music', 'suno');
+    if (raw === '~') return home;
+    if (raw.startsWith('~/')) return path.join(home, raw.slice(2));
     return path.resolve(raw);
 }
 
