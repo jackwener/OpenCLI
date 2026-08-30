@@ -2255,6 +2255,11 @@ const CDP_ALLOWLIST = /* @__PURE__ */ new Set([
   "Page.captureScreenshot",
   "Page.getFrameTree",
   "Page.handleJavaScriptDialog",
+  // Window visibility (used by browser adapters to restore a minimized window
+  // before native key input; these only affect the user's own browser window)
+  "Browser.getWindowForTarget",
+  "Browser.setWindowBounds",
+  "Page.bringToFront",
   // Runtime.enable needed for CDP attach setup (Runtime.evaluate goes through 'exec' action)
   "Runtime.enable",
   // Emulation (used by screenshot full-page)
