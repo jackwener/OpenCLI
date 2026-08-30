@@ -79,6 +79,20 @@ function mapCandidate(item, index) {
     };
 }
 
+async function selectSearchPage(page, pageNumber) {
+    if (pageNumber <= 1) return;
+    const selected = await page.evaluate((target) => {
+        const button = [...document.querySelectorAll('button, [role="button"]')]
+            .find((node) => node.textContent?.trim() === String(target));
+        if (!(button instanceof HTMLElement)) return false;
+        button.click();
+        return true;
+    }, pageNumber);
+    if (!selected) throw new EmptyResultError('liepin search', `搜索结果没有第 ${pageNumber} 页`);
+    if (typeof page.wait === 'function') await page.wait({ time: 2 });
+    else await new Promise((resolve) => setTimeout(resolve, 2000));
+}
+
 cli({
     site: 'liepin',
     name: 'search',
@@ -99,6 +113,7 @@ cli({
         'rank', 'resume_id', 'opposite_im_id', 'name', 'active_status', 'age',
         'work_years', 'degree', 'location', 'desired_title', 'latest_company',
         'latest_title', 'url', 'summary',
+        'source',
     ],
     func: async (page, args) => {
         const query = requiredText(args.query, 'query');
@@ -107,21 +122,23 @@ cli({
         const limit = positiveInteger(args.limit, 'limit', 20, 20);
         await page.goto(SEARCH_URL, { settleMs: 3000 });
         await page.evaluate((keywords) => {
-            const input = document.querySelector('input.searchInput--XzkyN');
+            const input = document.querySelector('input[placeholder*="搜索"], input[aria-label*="搜索"]');
             if (!(input instanceof HTMLInputElement)) throw new Error('未找到人才搜索框');
             const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
             setter?.call(input, keywords);
             input.dispatchEvent(new Event('input', { bubbles: true }));
-            const searchButton = [...document.querySelectorAll('button, span, div')]
+            const searchButton = [...document.querySelectorAll('button')]
                 .find((node) => node.children.length === 0 && node.textContent?.trim() === '搜索');
             searchButton?.click();
         }, query);
-        await new Promise((resolve) => setTimeout(resolve, 4000));
+        if (typeof page.wait === 'function') await page.wait({ time: 4 });
+        else await new Promise((resolve) => setTimeout(resolve, 4000));
+        await selectSearchPage(page, pageNumber);
         const allRows = await page.evaluate(() => [...document.querySelectorAll('li[data-resumeidencode]')]
             .filter((card) => card.getClientRects().length > 0)
             .map((card, index) => {
-                const name = card.querySelector('.nest-resume-personal-name')?.textContent?.trim() || null;
-                const detail = card.querySelector('.resumeCardContent--XzBkN')?.textContent?.trim() || card.textContent?.trim() || '';
+                const name = card.querySelector('[data-name], [aria-label]')?.textContent?.trim() || null;
+                const detail = card.textContent?.trim() || '';
                 return {
                     rank: index + 1,
                     resume_id: card.getAttribute('data-resumeidencode'),
@@ -137,11 +154,11 @@ cli({
                     latest_title: null,
                     url: card.getAttribute('data-resumeurl'),
                     summary: detail,
+                    source: 'dom',
                 };
             })
             .filter((row) => row.resume_id || row.name));
-        const start = (pageNumber - 1) * limit;
-        const rows = allRows.slice(start, start + limit);
+        const rows = allRows.slice(0, limit);
         if (rows.length === 0) throw new EmptyResultError('liepin search', `没有找到与“${query}”匹配的人才`);
         return rows;
     },

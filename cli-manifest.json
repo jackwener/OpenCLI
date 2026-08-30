@@ -22449,13 +22449,21 @@
         "default": false,
         "required": false,
         "help": "必须显式传 true 才会发送"
+      },
+      {
+        "name": "dry-run",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "只定位并输出计划，不点击立即沟通"
       }
     ],
     "columns": [
       "resume_id",
       "name",
       "ready",
-      "status"
+      "status",
+      "reason"
     ],
     "type": "js",
     "modulePath": "liepin/greet-search-results.js",
@@ -22737,7 +22745,8 @@
       "latest_company",
       "latest_title",
       "url",
-      "summary"
+      "summary",
+      "source"
     ],
     "type": "js",
     "modulePath": "liepin/search.js",
