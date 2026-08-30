@@ -166,7 +166,7 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 
 Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不再支持通过 `OPENCLI_DAEMON_PORT` 配置自定义端口。
 
-`opencli browser *` 必须紧跟一个 `<session>` 位置参数，默认使用前台窗口，并保留该 session 的 tab lease，直到你手动执行 `opencli browser <session> close` 或等空闲超时。浏览器型 adapter 默认使用后台 adapter 窗口并在命令结束后释放一次性 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
+`opencli browser *` 必须紧跟一个 `<session>` 位置参数，默认使用前台窗口，并保留该 session 的 tab lease，直到你手动执行 `opencli browser <session> close` 或等空闲超时。默认会保留自有窗口供后续复用；工作流结束时可执行 `opencli browser <session> close --container --surface all`，同时清理 browser 与 adapter 容器。浏览器型 adapter 默认使用后台 adapter 窗口并在命令结束后释放一次性 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
 
 ## 内置命令
 
