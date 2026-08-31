@@ -49,8 +49,7 @@ export async function ensureWeiboPage(page) {
     await page.goto('https://weibo.com');
     await page.wait(2);
 }
-/** Get the currently logged-in user's uid from Vue store or config API. */
-export async function getSelfUid(page) {
+async function probeSelfUid(page) {
     const uid = unwrapEvaluateResult(await page.evaluate(`
     (() => {
       const app = document.querySelector('#app')?.__vue_app__;
@@ -60,7 +59,7 @@ export async function getSelfUid(page) {
       return null;
     })()
   `));
-    if (uid)
+    if (typeof uid === 'string' && uid)
         return uid;
     // Fallback: config API
     const config = unwrapEvaluateResult(await page.evaluate(`
@@ -71,7 +70,20 @@ export async function getSelfUid(page) {
       return data.ok && data.data?.uid ? String(data.data.uid) : null;
     })()
   `));
-    if (config)
-        return config;
+    return typeof config === 'string' && config ? config : null;
+}
+/** Get the currently logged-in user's uid from Vue store or config API. */
+export async function getSelfUid(page) {
+    const uid = await probeSelfUid(page);
+    if (uid)
+        return uid;
+    // A warm persistent tab may predate a login-state change: its page (and
+    // Vue store) still reflect the old session. Reload once so the probe runs
+    // against the current login state before concluding the user is logged out.
+    await page.goto('https://weibo.com');
+    await page.wait(2);
+    const retried = await probeSelfUid(page);
+    if (retried)
+        return retried;
     throw new AuthRequiredError('weibo.com');
 }

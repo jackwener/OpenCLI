@@ -41,24 +41,27 @@ const ALL_COMMANDS = [
 // Commands whose func needs nothing but a weibo.com origin (relative
 // /ajax fetch or getSelfUid). favorites is included: its homepage goto
 // only exists to feed getSelfUid before the fav-page goto.
+// feed/me/favorites resolve the logged-in uid first; feed them one valid
+// uid so getSelfUid succeeds without triggering its stale-tab reload.
 const GUARDED_COMMANDS = [
   { name: 'post', kwargs: { id: '1' } },
   { name: 'comments', kwargs: { id: '1' } },
   { name: 'hot', kwargs: {} },
-  { name: 'feed', kwargs: {} },
-  { name: 'me', kwargs: {} },
+  { name: 'feed', kwargs: {}, evalResults: ['1931632001'] },
+  { name: 'me', kwargs: {}, evalResults: ['1931632001'] },
   { name: 'user', kwargs: { id: '1' } },
   { name: 'user-posts', kwargs: { id: '1' } },
-  { name: 'favorites', kwargs: {} },
+  { name: 'favorites', kwargs: {}, evalResults: ['1931632001'] },
   { name: 'delete', kwargs: { id: '5188964593845467' } },
 ];
 
-function makePage(currentUrl) {
+function makePage(currentUrl, evalResults = []) {
+  const queue = [...evalResults];
   return {
     getCurrentUrl: vi.fn().mockResolvedValue(currentUrl),
     goto: vi.fn().mockResolvedValue(undefined),
     wait: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(null),
+    evaluate: vi.fn(async () => (queue.length ? queue.shift() : null)),
     click: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -117,9 +120,9 @@ describe('ensureWeiboPage', () => {
 describe('warm-tab navigation guard in command funcs', () => {
   it.each(GUARDED_COMMANDS)(
     'weibo/$name skips the homepage goto when the tab is already on weibo.com',
-    async ({ name, kwargs }) => {
+    async ({ name, kwargs, evalResults }) => {
       const command = getRegistry().get(`weibo/${name}`);
-      const page = makePage('https://weibo.com/');
+      const page = makePage('https://weibo.com/', evalResults);
       await command.func(page, kwargs).catch(() => {});
       expect(page.goto).not.toHaveBeenCalledWith('https://weibo.com');
     },
