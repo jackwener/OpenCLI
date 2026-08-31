@@ -210,6 +210,7 @@ On startup, if both `my-command.ts` and `my-command.js` exist, the `.js` version
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | TS | 稀土掘金 (Juejin) hot articles, categories, and article feed |
 | [opencli-plugin-rubysec](https://github.com/nullptrKey/opencli-plugin-rubysec) | TS | RubySec advisory archive and advisory article reader |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | Publish Markdown with local images as X long-form Articles via OpenCLI and xPoster |
+| [opencli-plugin-multcloud](https://github.com/vecyang1/opencli-plugin-multcloud) | JS | MultCloud cloud-to-cloud transfer, sync, backup, offline remote upload (HTTP/magnet) and Cloud Explorer |
 
 ## Troubleshooting
 
