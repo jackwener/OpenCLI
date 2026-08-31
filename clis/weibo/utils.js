@@ -31,6 +31,24 @@ export function requireObjectEvaluateResult(payload, label) {
     }
     return payload;
 }
+// Origin check must be exact: cookies are shared across *.weibo.com, but the
+// relative /ajax fetches only work from weibo.com (not s.weibo.com).
+const WEIBO_ORIGIN_RE = /^https?:\/\/(?:www\.)?weibo\.com\//;
+/**
+ * Navigate to weibo.com only when the tab is not already there.
+ * Under a persistent site session the tab stays warm between commands,
+ * so consecutive invocations skip both the navigation and the settle wait.
+ */
+export async function ensureWeiboPage(page) {
+    const currentUrl = typeof page.getCurrentUrl === 'function'
+        ? await page.getCurrentUrl().catch(() => null)
+        : null;
+    if (typeof currentUrl === 'string' && WEIBO_ORIGIN_RE.test(currentUrl)) {
+        return;
+    }
+    await page.goto('https://weibo.com');
+    await page.wait(2);
+}
 /** Get the currently logged-in user's uid from Vue store or config API. */
 export async function getSelfUid(page) {
     const uid = unwrapEvaluateResult(await page.evaluate(`
