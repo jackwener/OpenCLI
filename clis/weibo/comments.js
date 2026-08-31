@@ -2,7 +2,7 @@
  * Weibo comments — get comments on a post.
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
+import { ensureWeiboPage, requireArrayEvaluateResult, unwrapEvaluateResult } from './utils.js';
 cli({
     site: 'weibo',
     name: 'comments',
@@ -10,6 +10,8 @@ cli({
     description: 'Get comments on a Weibo post',
     domain: 'weibo.com',
     strategy: Strategy.COOKIE,
+    siteSession: 'persistent',
+    navigateBefore: false,
     args: [
         { name: 'id', required: true, positional: true, help: 'Post ID (numeric idstr)' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of comments (max 50)' },
@@ -17,8 +19,7 @@ cli({
     columns: ['rank', 'author', 'text', 'likes', 'replies', 'time'],
     func: async (page, kwargs) => {
         const count = Math.min(kwargs.limit || 20, 50);
-        await page.goto('https://weibo.com');
-        await page.wait(2);
+        await ensureWeiboPage(page);
         const id = String(kwargs.id);
         const data = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
       (async () => {
