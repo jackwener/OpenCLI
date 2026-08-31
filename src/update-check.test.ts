@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   _extractLatestExtensionVersionFromReleases as extractLatestExtensionVersionFromReleases,
   _buildUpdateNotices as buildUpdateNotices,
+  _computeDueChecks as computeDueChecks,
   _EXTENSION_STALE_MS as EXTENSION_STALE_MS,
+  _CHECK_INTERVAL_MS as CHECK_INTERVAL_MS,
+  _EXTENSION_RETRY_INTERVAL_MS as EXTENSION_RETRY_INTERVAL_MS,
 } from './update-check.js';
 
 describe('extractLatestExtensionVersionFromReleases', () => {
@@ -133,5 +136,51 @@ describe('buildUpdateNotices', () => {
     });
     expect(lines.cli).toContain('v1.0.0 → v1.1.0');
     expect(lines.extension).toContain('v2.0.0 → v2.1.0');
+  });
+});
+
+describe('computeDueChecks', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('runs both lookups when the cache is empty', () => {
+    expect(computeDueChecks(null, NOW)).toEqual({ cli: true, extension: true });
+  });
+
+  it('skips both while each cooldown is still fresh', () => {
+    const cache = { lastCheck: NOW - 1000, extLastCheck: NOW - 1000, extLastFetchOk: true };
+    expect(computeDueChecks(cache, NOW)).toEqual({ cli: false, extension: false });
+  });
+
+  // The regression this file exists to guard: a failed extension lookup used to
+  // stamp the shared `lastCheck`, so the next run returned early and the lookup
+  // never retried. A failure must now come back within the retry window.
+  it('retries the extension lookup within the hour after a failure', () => {
+    const failed = { lastCheck: NOW, extLastCheck: NOW, extLastFetchOk: false };
+    expect(computeDueChecks(failed, NOW + EXTENSION_RETRY_INTERVAL_MS - 1).extension).toBe(false);
+    expect(computeDueChecks(failed, NOW + EXTENSION_RETRY_INTERVAL_MS).extension).toBe(true);
+  });
+
+  it('waits the full interval after a successful extension lookup', () => {
+    const ok = { lastCheck: NOW, extLastCheck: NOW, extLastFetchOk: true };
+    expect(computeDueChecks(ok, NOW + EXTENSION_RETRY_INTERVAL_MS).extension).toBe(false);
+    expect(computeDueChecks(ok, NOW + CHECK_INTERVAL_MS).extension).toBe(true);
+  });
+
+  // A fresh npm check must not suppress the extension lookup, and vice versa —
+  // that coupling was the root cause.
+  it('gates the two lookups independently', () => {
+    const cliFresh = { lastCheck: NOW, extLastCheck: NOW - CHECK_INTERVAL_MS, extLastFetchOk: true };
+    expect(computeDueChecks(cliFresh, NOW)).toEqual({ cli: false, extension: true });
+
+    const extFresh = { lastCheck: NOW - CHECK_INTERVAL_MS, extLastCheck: NOW, extLastFetchOk: true };
+    expect(computeDueChecks(extFresh, NOW)).toEqual({ cli: true, extension: false });
+  });
+
+  // Caches written before this field existed (or by the daemon, which only
+  // writes currentExtensionVersion/extensionLastSeenAt) must still trigger a
+  // lookup rather than being treated as fresh.
+  it('treats a legacy cache without extLastCheck as due', () => {
+    const legacy = { lastCheck: NOW, latestVersion: '1.8.7', currentExtensionVersion: '1.0.23' };
+    expect(computeDueChecks(legacy, NOW)).toEqual({ cli: false, extension: true });
   });
 });
