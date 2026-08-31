@@ -52,6 +52,7 @@ describe('doctor report rendering', () => {
 
   it('renders OK-style report when daemon and extension connected', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: true,
       cliVersion: '1.7.9',
       daemonRunning: true,
       daemonVersion: '1.7.9',
@@ -69,6 +70,7 @@ describe('doctor report rendering', () => {
 
   it('renders a warning when daemon version is stale', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: false,
       cliVersion: '1.7.9',
       daemonRunning: true,
       daemonVersion: '1.7.6',
@@ -85,6 +87,7 @@ describe('doctor report rendering', () => {
 
   it('renders MISSING when daemon not running', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: false,
       daemonRunning: false,
       extensionConnected: false,
       issues: ['Daemon is not running.'],
@@ -97,6 +100,7 @@ describe('doctor report rendering', () => {
 
   it('renders extension not connected when daemon is running', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: false,
       daemonRunning: true,
       extensionConnected: false,
       issues: ['Daemon is running but the Chrome extension is not connected.'],
@@ -108,6 +112,7 @@ describe('doctor report rendering', () => {
 
   it('renders a warning when the extension version is unknown', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: false,
       daemonRunning: true,
       extensionConnected: true,
       issues: ['Extension is connected but did not report a version.'],
@@ -120,6 +125,7 @@ describe('doctor report rendering', () => {
 
   it('renders connectivity OK when live test succeeds', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: true,
       daemonRunning: true,
       extensionConnected: true,
       connectivity: { ok: true, durationMs: 1234 },
@@ -131,6 +137,7 @@ describe('doctor report rendering', () => {
 
   it('renders connected profiles when multiple are present', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: true,
       daemonRunning: true,
       extensionConnected: false,
       profiles: [
@@ -147,6 +154,7 @@ describe('doctor report rendering', () => {
 
   it('renders unstable extension state when live connectivity and status disagree', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: false,
       daemonRunning: true,
       extensionConnected: true,
       extensionFlaky: true,
@@ -160,6 +168,7 @@ describe('doctor report rendering', () => {
 
   it('renders unstable daemon state when live connectivity and status disagree', () => {
     const text = strip(renderBrowserDoctorReport({
+      ok: false,
       daemonRunning: false,
       daemonFlaky: true,
       extensionConnected: false,
@@ -183,6 +192,30 @@ describe('doctor report rendering', () => {
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Daemon is not running'),
     ]));
+  });
+
+  // `ok` is what `doctor --strict` turns into an exit code, so it must track the
+  // same condition the text renderer uses for "Everything looks good!".
+  it('reports ok: false when the report carries issues', async () => {
+    mockSendCommand.mockRejectedValueOnce(new Error('Could not start daemon'));
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
+
+    const report = await runBrowserDoctor();
+
+    expect(report.issues.length).toBeGreaterThan(0);
+    expect(report.ok).toBe(false);
+  });
+
+  it('reports ok: true when the bridge is healthy', async () => {
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'ready',
+      status: { extensionConnected: true, extensionVersion: '1.0.23', daemonVersion: '1.8.7' },
+    });
+
+    const report = await runBrowserDoctor({ cliVersion: '1.8.7' });
+
+    expect(report.issues).toEqual([]);
+    expect(report.ok).toBe(true);
   });
 
   it('reports a stale default profile when it is not among the connected profiles', async () => {

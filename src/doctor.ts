@@ -59,6 +59,12 @@ export type ConnectivityResult = {
 
 
 export type DoctorReport = {
+  /**
+   * Overall health, derived from `issues`. Mirrors what the text renderer
+   * treats as healthy when it prints "Everything looks good!", so the exit
+   * code and the human output can never disagree.
+   */
+  ok: boolean;
   cliVersion?: string;
   daemonRunning: boolean;
   daemonFlaky?: boolean;
@@ -217,6 +223,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   }
 
   return {
+    ok: issues.length === 0,
     cliVersion: opts.cliVersion,
     daemonRunning,
     daemonFlaky,
