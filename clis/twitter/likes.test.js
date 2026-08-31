@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, EmptyResultError } from '@jackwener/opencli/errors';
@@ -355,8 +357,8 @@ describe('twitter likes command', () => {
 
     it('keeps resume state and reports complete=false when --max-pages stops early', async () => {
         const command = getRegistry().get('twitter/likes');
-        const resumeFile = `/tmp/opencli-likes-resume-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-likes-out-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = path.join(os.tmpdir(), `opencli-likes-resume-${process.pid}-${Date.now()}.json`);
+        const outputFile = path.join(os.tmpdir(), `opencli-likes-out-${process.pid}-${Date.now()}.jsonl`);
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),
@@ -425,8 +427,8 @@ describe('twitter likes command', () => {
 
     it('removes resume file only after the likes timeline is exhausted', async () => {
         const command = getRegistry().get('twitter/likes');
-        const resumeFile = `/tmp/opencli-likes-resume-done-${process.pid}-${Date.now()}.json`;
-        const outputFile = `/tmp/opencli-likes-out-done-${process.pid}-${Date.now()}.jsonl`;
+        const resumeFile = path.join(os.tmpdir(), `opencli-likes-resume-done-${process.pid}-${Date.now()}.json`);
+        const outputFile = path.join(os.tmpdir(), `opencli-likes-out-done-${process.pid}-${Date.now()}.jsonl`);
         const page = {
             goto: vi.fn().mockResolvedValue(undefined),
             wait: vi.fn().mockResolvedValue(undefined),

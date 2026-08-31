@@ -127,7 +127,7 @@ describe('twitter quote command', () => {
         expect(fetchMock).toHaveBeenCalledWith('https://example.com/banner');
         expect(setFileInput).toHaveBeenCalledTimes(1);
         const uploadedPath = setFileInput.mock.calls[0][0][0];
-        expect(uploadedPath).toMatch(/opencli-twitter-.*\/image\.png$/);
+        expect(uploadedPath.replaceAll(path.sep, '/')).toMatch(/opencli-twitter-.*\/image\.png$/);
         // Per-call tmp dir is removed in the adapter's finally block.
         expect(fs.existsSync(uploadedPath)).toBe(false);
         expect(result).toEqual([

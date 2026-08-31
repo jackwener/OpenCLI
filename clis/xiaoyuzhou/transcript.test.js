@@ -82,16 +82,16 @@ describe('xiaoyuzhou transcript', () => {
             body: { eid: 'ep123', mediaId: 'media-123' },
             credentials: { access_token: 'access-1', refresh_token: 'refresh-1' },
         });
-        expect(mockMkdirSync).toHaveBeenCalledWith('/tmp/xiaoyuzhou-transcripts/ep123', { recursive: true });
-        expect(mockWriteFileSync).toHaveBeenNthCalledWith(1, '/tmp/xiaoyuzhou-transcripts/ep123/transcript.json', expect.any(String), 'utf-8');
-        expect(mockWriteFileSync).toHaveBeenNthCalledWith(2, '/tmp/xiaoyuzhou-transcripts/ep123/transcript.txt', 'hello\nworld', 'utf-8');
+        expect(mockMkdirSync).toHaveBeenCalledWith(path.join('/tmp/xiaoyuzhou-transcripts', 'ep123'), { recursive: true });
+        expect(mockWriteFileSync).toHaveBeenNthCalledWith(1, path.join('/tmp/xiaoyuzhou-transcripts', 'ep123', 'transcript.json'), expect.any(String), 'utf-8');
+        expect(mockWriteFileSync).toHaveBeenNthCalledWith(2, path.join('/tmp/xiaoyuzhou-transcripts', 'ep123', 'transcript.txt'), 'hello\nworld', 'utf-8');
         expect(result).toEqual([{
                 title: 'Transcript Episode',
                 podcast: 'OpenCLI FM',
                 status: 'success',
                 segments: '2',
-                json_file: '/tmp/xiaoyuzhou-transcripts/ep123/transcript.json',
-                text_file: '/tmp/xiaoyuzhou-transcripts/ep123/transcript.txt',
+                json_file: path.join('/tmp/xiaoyuzhou-transcripts', 'ep123', 'transcript.json'),
+                text_file: path.join('/tmp/xiaoyuzhou-transcripts', 'ep123', 'transcript.txt'),
             }]);
     });
 
@@ -120,7 +120,7 @@ describe('xiaoyuzhou transcript', () => {
         });
         expect(mockRequestJson.mock.calls[1][1].body.mediaId).toBe('media-456');
         expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
-        expect(mockWriteFileSync).toHaveBeenCalledWith('/tmp/xiaoyuzhou-transcripts/ep456/transcript.txt', 'hello', 'utf-8');
+        expect(mockWriteFileSync).toHaveBeenCalledWith(path.join('/tmp/xiaoyuzhou-transcripts', 'ep456', 'transcript.txt'), 'hello', 'utf-8');
     });
 
     it('throws when transcript url is missing', async () => {

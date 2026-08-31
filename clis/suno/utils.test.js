@@ -63,7 +63,7 @@ describe('suno utils — resolveSunoOutputDir', () => {
     });
 
     it('absolute paths are returned as-is (resolved)', () => {
-        expect(resolveSunoOutputDir('/tmp/suno')).toBe('/tmp/suno');
+        expect(resolveSunoOutputDir('/tmp/suno')).toBe(path.resolve('/tmp/suno'));
     });
 });
 

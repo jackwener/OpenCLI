@@ -79,7 +79,7 @@ describe('xiaoyuzhou download', () => {
         });
         expect(toPosixPath(mockMkdirSync.mock.calls[0][0])).toBe('/tmp/xiaoyuzhou-test/ep123');
         expect(mockMkdirSync.mock.calls[0][1]).toEqual({ recursive: true });
-        expect(mockHttpDownload).toHaveBeenCalledWith('https://media.xyzcdn.net/audio/hello-world.mp3?sign=abc', expect.stringContaining('/tmp/xiaoyuzhou-test/ep123/ep123_Hello_World.mp3'), {
+        expect(mockHttpDownload).toHaveBeenCalledWith('https://media.xyzcdn.net/audio/hello-world.mp3?sign=abc', expect.stringContaining(path.join('/tmp/xiaoyuzhou-test', 'ep123', 'ep123_Hello_World.mp3')), {
             timeout: 60000,
         });
         expect(result).toEqual([{
@@ -87,7 +87,7 @@ describe('xiaoyuzhou download', () => {
                 podcast: 'OpenCLI FM',
                 status: 'success',
                 size: '1234 B',
-                file: '/tmp/xiaoyuzhou-test/ep123/ep123_Hello_World.mp3',
+                file: path.join('/tmp/xiaoyuzhou-test', 'ep123', 'ep123_Hello_World.mp3'),
             }]);
     });
 
@@ -112,7 +112,7 @@ describe('xiaoyuzhou download', () => {
         });
 
         expect(mockHttpDownload.mock.calls[0][1]).toContain('ep456_Lossless_Episode.m4a');
-        expect(result[0].file).toBe('/tmp/xiaoyuzhou-test/ep456/ep456_Lossless_Episode.m4a');
+        expect(result[0].file).toBe(path.join('/tmp/xiaoyuzhou-test', 'ep456', 'ep456_Lossless_Episode.m4a'));
     });
 
     it('throws when media.source.url is missing', async () => {

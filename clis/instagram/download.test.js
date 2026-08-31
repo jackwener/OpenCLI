@@ -253,8 +253,8 @@ describe('instagram download command', () => {
         });
         expect(result).toBeNull();
         expect(page.goto.mock.calls[0]?.[0]).toBe('https://www.instagram.com/p/DWUR_azCWbN/');
-        expect(mockHttpDownload).toHaveBeenNthCalledWith(1, 'https://cdn.example.com/photo.webp?foo=1', expect.stringContaining('instagram-test/DWUR_azCWbN/DWUR_azCWbN_01.webp'), expect.objectContaining({ timeout: 60000 }));
-        expect(mockHttpDownload).toHaveBeenNthCalledWith(2, 'https://cdn.example.com/video.mp4?bar=2', expect.stringContaining('instagram-test/DWUR_azCWbN/DWUR_azCWbN_02.mp4'), expect.objectContaining({ timeout: 120000 }));
+        expect(mockHttpDownload).toHaveBeenNthCalledWith(1, 'https://cdn.example.com/photo.webp?foo=1', expect.stringContaining(path.join('instagram-test', 'DWUR_azCWbN', 'DWUR_azCWbN_01.webp')), expect.objectContaining({ timeout: 60000 }));
+        expect(mockHttpDownload).toHaveBeenNthCalledWith(2, 'https://cdn.example.com/video.mp4?bar=2', expect.stringContaining(path.join('instagram-test', 'DWUR_azCWbN', 'DWUR_azCWbN_02.mp4')), expect.objectContaining({ timeout: 120000 }));
         const savedDir = path.join(path.resolve('instagram-test'), 'DWUR_azCWbN');
         const displayed = savedDir.startsWith(os.homedir()) ? `~${savedDir.slice(os.homedir().length)}` : savedDir;
         expect(logSpy).toHaveBeenCalledWith(`📁 saved: ${displayed}`);
@@ -269,6 +269,6 @@ describe('instagram download command', () => {
             ],
         });
         await cmd.func(page, { url: 'https://www.instagram.com/p/DWUR_azCWbN/', path: '~/Downloads/Instagram' });
-        expect(mockHttpDownload).toHaveBeenCalledWith('https://cdn.example.com/photo.webp?foo=1', expect.stringContaining(`${os.homedir()}/Downloads/Instagram/DWUR_azCWbN/DWUR_azCWbN_01.webp`), expect.objectContaining({ timeout: 60000 }));
+        expect(mockHttpDownload).toHaveBeenCalledWith('https://cdn.example.com/photo.webp?foo=1', expect.stringContaining(path.join(os.homedir(), 'Downloads', 'Instagram', 'DWUR_azCWbN', 'DWUR_azCWbN_01.webp')), expect.objectContaining({ timeout: 60000 }));
     });
 });
