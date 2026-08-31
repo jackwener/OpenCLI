@@ -270,20 +270,20 @@ function refreshRowForError(site: string, entry: AuthRefreshSiteState | undefine
 }
 
 async function runQuick(cmd: CliCommand, opts: { timeoutSeconds: number; profile?: string }): Promise<AuthStatusRow> {
-  const loaded = await loadLazyCommand(cmd);
-  const quickCmd = quickCheckCommand(loaded, opts.timeoutSeconds);
-  if (!quickCmd) {
-    return {
-      site: cmd.site,
-      status: 'unknown',
-      logged_in: '',
-      identity: '',
-      checked: 'skipped',
-      error: 'quickCheck not implemented; use --full to run whoami',
-    };
-  }
-
   try {
+    const loaded = await loadLazyCommand(cmd);
+    const quickCmd = quickCheckCommand(loaded, opts.timeoutSeconds);
+    if (!quickCmd) {
+      return {
+        site: cmd.site,
+        status: 'unknown',
+        logged_in: '',
+        identity: '',
+        checked: 'skipped',
+        error: 'quickCheck not implemented; use --full to run whoami',
+      };
+    }
+
     const result = await executeCommand(quickCmd, { timeout: opts.timeoutSeconds } as CommandArgs, false, {
       siteSession: 'ephemeral',
       keepTab: 'false',
@@ -311,9 +311,9 @@ async function runQuick(cmd: CliCommand, opts: { timeoutSeconds: number; profile
 }
 
 async function runFull(cmd: CliCommand, opts: { timeoutSeconds: number; profile?: string }): Promise<AuthStatusRow> {
-  const loaded = await loadLazyCommand(cmd);
-  const fullCmd = withTimeoutArg(loaded, opts.timeoutSeconds);
   try {
+    const loaded = await loadLazyCommand(cmd);
+    const fullCmd = withTimeoutArg(loaded, opts.timeoutSeconds);
     const result = await executeCommand(fullCmd, { timeout: opts.timeoutSeconds } as CommandArgs, false, {
       siteSession: 'ephemeral',
       keepTab: 'false',
@@ -352,20 +352,20 @@ async function runRefresh(cmd: CliCommand, opts: {
   }
 
   const attemptAt = opts.now.toISOString();
-  const loaded = await loadLazyCommand(cmd);
-  const refreshCmd = refreshCommand(loaded, opts.timeoutSeconds);
-  if (!refreshCmd) {
-    opts.state.sites[cmd.site] = { ...existing, last_attempt_at: attemptAt, last_status: 'unsupported' };
-    return {
-      site: cmd.site,
-      status: 'unsupported',
-      last_touched_at: existing?.last_touched_at ?? '',
-      next_refresh_at: nextRefreshAt(existing),
-      error: 'refresh probe is not available for this site',
-    };
-  }
-
   try {
+    const loaded = await loadLazyCommand(cmd);
+    const refreshCmd = refreshCommand(loaded, opts.timeoutSeconds);
+    if (!refreshCmd) {
+      opts.state.sites[cmd.site] = { ...existing, last_attempt_at: attemptAt, last_status: 'unsupported' };
+      return {
+        site: cmd.site,
+        status: 'unsupported',
+        last_touched_at: existing?.last_touched_at ?? '',
+        next_refresh_at: nextRefreshAt(existing),
+        error: 'refresh probe is not available for this site',
+      };
+    }
+
     const result = await executeCommand(refreshCmd, { timeout: opts.timeoutSeconds } as CommandArgs, false, {
       siteSession: 'persistent',
       keepTab: 'true',
