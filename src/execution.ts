@@ -37,6 +37,7 @@ import { isElectronApp } from './electron-apps.js';
 import { probeCDP, resolveElectronEndpoint } from './launcher.js';
 import { ObservationSession, exportObservationSession, type ObservationExportResult, type ObservationExportStatus } from './observation/index.js';
 import { resolveAdapterSourcePath } from './adapter-source.js';
+import { enforceAdapterReadOnlyPolicy } from './access-policy.js';
 
 const _loadedModules = new Map<string, Promise<void>>();
 /** Track mtime of loaded user adapter files for hot-reload in daemon mode. */
@@ -208,9 +209,12 @@ export async function executeCommand(
     keepTab?: string;
     windowMode?: string;
     siteSession?: string;
+    readOnly?: boolean;
     onTraceExport?: (trace: ObservationExportResult) => void;
   } = {},
 ): Promise<unknown> {
+  enforceAdapterReadOnlyPolicy(cmd, opts.readOnly);
+
   // Resolve browser-only configuration before argument hooks or any browser
   // lifecycle setup. Non-browser commands must not be affected by browser
   // environment defaults, even when those defaults are invalid.

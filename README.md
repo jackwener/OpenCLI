@@ -172,6 +172,7 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | `OPENCLI_PROFILE` | — | Browser Bridge profile alias/contextId to use when multiple Chrome profiles are connected |
 | `OPENCLI_WINDOW` | command default | Set to `foreground` or `background` to override Browser Bridge window placement. Browser-backed commands also accept `--window <foreground\|background>`. |
 | `OPENCLI_SITE_SESSION` | adapter default | Set to `ephemeral` or `persistent` to override `siteSession` metadata for browser-backed adapter commands. `ephemeral` closes the one-shot automation window when the command finishes; `persistent` reuses the site's session. Per-command `--site-session` takes precedence. |
+| `OPENCLI_READ_ONLY` | `false` | Set to `1` or `true` to allow only registered adapter commands declared `access: read`. Adapter commands also accept `--read-only`. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | Seconds to wait for browser connection |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Seconds to wait for a single browser command |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol endpoint for remote browser or Electron apps |
@@ -180,6 +181,8 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | `DEBUG_SNAPSHOT` | — | Set to `1` for DOM snapshot debug output |
 
 `opencli browser *` requires an explicit `<session>` positional, uses a foreground browser window by default, and keeps that session's tab lease until `opencli browser <session> close` or idle cleanup. Browser-backed adapters use a background adapter window and release one-shot tab leases by default. Interactive adapters can declare `siteSession: 'persistent'` to keep a stable site tab for continuity; pass `--site-session ephemeral` for a one-shot tab.
+
+For safer agent delegation, pass `--read-only` to an adapter command or set `OPENCLI_READ_ONLY=1`. Commands declared `access: write` are rejected before adapter-defined validation, command execution hooks, browser setup, pre-navigation, or adapter code runs. This first policy gate covers registered adapters; direct `opencli browser ...` primitives and external CLI passthroughs do not carry adapter access metadata and are not classified by it.
 
 ## Built-in Commands
 

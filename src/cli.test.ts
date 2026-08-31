@@ -500,7 +500,7 @@ describe('createProgram root help descriptions', () => {
       expect(data.domain).toBe('www.bilibili.com');
       expect(data.positionals).toMatchObject([{ name: 'bvid', positional: true, required: true }]);
       expect(data.command_options).toMatchObject([{ name: 'with-comments', default: false }]);
-      expect(data.common_options.map((option: any) => option.name)).toEqual(['format', 'trace', 'verbose', 'help']);
+      expect(data.common_options.map((option: any) => option.name)).toEqual(['format', 'trace', 'read-only', 'verbose', 'help']);
       expect(data.columns).toEqual(['title', 'url']);
       expect(data).not.toHaveProperty('args');
     } finally {
