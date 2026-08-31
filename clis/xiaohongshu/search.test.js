@@ -15,7 +15,7 @@ import {
 } from './search.js';
 
 function markVisible(el) {
-    el.getBoundingClientRect = () => ({ width: 100, height: 100, top: 0 });
+    el.getBoundingClientRect = () => ({ width: 100, height: 100, top: 0, left: 0 });
 }
 function createPageMock(evaluateResults) {
     const queuedResults = [...evaluateResults];
@@ -145,7 +145,8 @@ function createFilterBehaviorPage(options = {}) {
             container.className = 'tag-container';
             for (const choice of choices) {
                 if (options.missing === `${groupLabel}/${choice}`) continue;
-                const copies = options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
+                const copies = options.ambiguous === `${groupLabel}/${choice}` ||
+                    options.stacked === `${groupLabel}/${choice}` ? 2 : 1;
                 for (let copy = 0; copy < copies; copy++) {
                     const option = document.createElement('div');
                     option.className = `tags${state[groupLabel] === choice ? ' active' : ''}`;
@@ -173,7 +174,12 @@ function createFilterBehaviorPage(options = {}) {
                         }, 300);
                     });
                     container.append(option);
-                    markVisible(option);
+                    if (options.ambiguous === `${groupLabel}/${choice}` && copy > 0) {
+                        option.getBoundingClientRect = () => ({ width: 100, height: 100, top: 120, left: 0 });
+                    }
+                    else {
+                        markVisible(option);
+                    }
                     markVisible(optionLabel);
                 }
             }
@@ -678,6 +684,19 @@ describe('xiaohongshu search filter behavior', () => {
             const page = createFilterBehaviorPage({ initial: { '排序依据': '最新' } });
             const result = await runFilterCommand(page, { sort: 'latest' });
             expect(result[0].title).toBe('最新');
+            expect(page.filterClicks).toEqual([]);
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('accepts overlapping duplicate nodes for the same active filter option', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ stacked: '排序依据/综合' });
+            const result = await runFilterCommand(page, {});
+            expect(result[0].title).toBe('综合');
             expect(page.filterClicks).toEqual([]);
         }
         finally {
