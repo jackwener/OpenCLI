@@ -105,6 +105,16 @@ npx skills add jackwener/opencli --skill opencli-sitemap-author
 npx skills add jackwener/opencli --skill opencli-usage
 ```
 
+### 作为 ADG / Claude Code / Codex 插件安装
+
+本仓库同时以 [ADG](https://github.com/RbBtSn0w/adg) 插件的形式提供，插件名为 `opencli`。
+
+```bash
+adg plugins add RbBtSn0w/OpenCLI --global
+adg plugins link --target claude --global   # Link to Claude Code
+adg plugins link --target codex  --global   # Link to Codex
+```
+
 ### 选择哪个 skill
 
 | Skill | 适用场景 | 你对 AI Agent 说的话 |
