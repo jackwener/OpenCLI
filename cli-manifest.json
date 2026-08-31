@@ -23259,6 +23259,488 @@
     "sourceFile": "lichess/user.js"
   },
   {
+    "site": "liepin",
+    "name": "chat-resumes",
+    "description": "读取猎聘沟通中候选人主动发送的简历",
+    "access": "read",
+    "domain": "lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "最多读取的简历数（1-20）"
+      }
+    ],
+    "columns": [
+      "name",
+      "resume_text"
+    ],
+    "type": "js",
+    "modulePath": "liepin/chat-resumes.js",
+    "sourceFile": "liepin/chat-resumes.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "chats",
+    "description": "列出猎聘企业版最近沟通的人才",
+    "access": "read",
+    "domain": "lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（从 1 开始）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量（1-50）"
+      },
+      {
+        "name": "hasResume",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "只列出已发送简历的会话"
+      }
+    ],
+    "columns": [
+      "opposite_im_id",
+      "resume_id",
+      "name",
+      "job_title",
+      "latest_message",
+      "latest_at",
+      "unread_count"
+    ],
+    "type": "js",
+    "modulePath": "liepin/chats.js",
+    "sourceFile": "liepin/chats.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "download-resume",
+    "description": "导出并下载猎聘简历（PDF 或 Word）",
+    "access": "write",
+    "domain": "api-lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "resumeId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "加密简历 ID"
+      },
+      {
+        "name": "resume-format",
+        "type": "string",
+        "default": "pdf",
+        "required": false,
+        "help": "导出格式：pdf 或 word"
+      },
+      {
+        "name": "output",
+        "type": "string",
+        "default": ".",
+        "required": false,
+        "help": "输出文件或目录"
+      },
+      {
+        "name": "jobId",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "关联招聘职位 ID（可选）"
+      },
+      {
+        "name": "applyId",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "应聘记录 ID（可选）"
+      },
+      {
+        "name": "overwrite",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "允许覆盖已存在文件"
+      }
+    ],
+    "columns": [
+      "resume_id",
+      "format",
+      "path",
+      "bytes"
+    ],
+    "type": "js",
+    "modulePath": "liepin/download-resume.js",
+    "sourceFile": "liepin/download-resume.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "greet-search-results",
+    "description": "向猎聘搜索结果中的候选人发送已配置的职位打招呼语",
+    "access": "write",
+    "domain": "lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "resumeIds",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "加密简历 ID，逗号分隔"
+      },
+      {
+        "name": "query",
+        "type": "string",
+        "default": "生鲜 定价 毛利",
+        "required": false,
+        "help": "用于定位候选人的搜索关键词"
+      },
+      {
+        "name": "jobTitle",
+        "type": "string",
+        "default": "生鲜价格策略专家",
+        "required": false,
+        "help": "开聊时关联的职位名称"
+      },
+      {
+        "name": "confirm",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "必须显式传 true 才会发送"
+      },
+      {
+        "name": "dry-run",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "只定位并输出计划，不点击立即沟通"
+      }
+    ],
+    "columns": [
+      "resume_id",
+      "name",
+      "ready",
+      "status",
+      "reason"
+    ],
+    "type": "js",
+    "modulePath": "liepin/greet-search-results.js",
+    "sourceFile": "liepin/greet-search-results.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "intention-orders",
+    "description": "列出猎聘意向沟通中的候选人",
+    "access": "read",
+    "domain": "api-bgod.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（从 1 开始）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回数量（1-20）"
+      },
+      {
+        "name": "jobId",
+        "type": "string",
+        "default": "0",
+        "required": false,
+        "help": "职位 ID；0 表示全部"
+      }
+    ],
+    "columns": [
+      "order_id",
+      "resume_id",
+      "name",
+      "location",
+      "work_years",
+      "degree",
+      "age",
+      "latest_company",
+      "latest_title",
+      "target_job",
+      "intention",
+      "reminder"
+    ],
+    "type": "js",
+    "modulePath": "liepin/intention-orders.js",
+    "sourceFile": "liepin/intention-orders.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "jobs",
+    "description": "列出猎聘企业版招聘职位",
+    "access": "read",
+    "domain": "api-lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "按职位名称筛选"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（从 1 开始）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "每页数量（1-50）"
+      }
+    ],
+    "columns": [
+      "job_id",
+      "title",
+      "location",
+      "status",
+      "applicants",
+      "updated_at"
+    ],
+    "type": "js",
+    "modulePath": "liepin/jobs.js",
+    "sourceFile": "liepin/jobs.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "recommend",
+    "description": "猎聘企业版当前职位的推荐人才（只读）",
+    "access": "read",
+    "domain": "api-lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "jobId",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "招聘职位 ID；默认使用页面当前职位"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量（1-20）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "resume_id",
+      "name",
+      "active_status",
+      "age",
+      "work_years",
+      "degree",
+      "location",
+      "desired_location",
+      "desired_title",
+      "desired_salary",
+      "skills",
+      "latest_company",
+      "latest_title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "liepin/recommend.js",
+    "sourceFile": "liepin/recommend.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "request-resume",
+    "description": "向猎聘沟通对象发送平台内置的简历请求",
+    "access": "write",
+    "domain": "api-lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "oppositeImId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "对方 IM ID（来自 search 或 chats）"
+      },
+      {
+        "name": "confirm",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "必须显式传 true 才会发送"
+      }
+    ],
+    "columns": [
+      "status",
+      "opposite_im_id",
+      "biz_type",
+      "message"
+    ],
+    "type": "js",
+    "modulePath": "liepin/request-resume.js",
+    "sourceFile": "liepin/request-resume.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "resume",
+    "description": "读取猎聘人才简历摘要",
+    "access": "read",
+    "domain": "api-lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "resumeId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "加密简历 ID"
+      },
+      {
+        "name": "jobId",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "关联招聘职位 ID（可选）"
+      }
+    ],
+    "columns": [
+      "resume_id",
+      "opposite_im_id",
+      "name",
+      "age",
+      "work_years",
+      "degree",
+      "location",
+      "desired_title",
+      "desired_salary",
+      "latest_company",
+      "latest_title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "liepin/resume.js",
+    "sourceFile": "liepin/resume.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
+    "site": "liepin",
+    "name": "search",
+    "description": "搜索猎聘企业版人才库",
+    "access": "read",
+    "domain": "lpt.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "人才搜索关键词"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "页码（从 1 开始）"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量（1-20）"
+      }
+    ],
+    "columns": [
+      "rank",
+      "resume_id",
+      "opposite_im_id",
+      "name",
+      "active_status",
+      "age",
+      "work_years",
+      "degree",
+      "location",
+      "desired_title",
+      "latest_company",
+      "latest_title",
+      "url",
+      "summary",
+      "source"
+    ],
+    "type": "js",
+    "modulePath": "liepin/search.js",
+    "sourceFile": "liepin/search.js",
+    "navigateBefore": false,
+    "siteSession": "persistent",
+    "defaultWindowMode": "background"
+  },
+  {
     "site": "linkedin",
     "name": "company",
     "description": "Read a LinkedIn company page: industry, size, HQ, founded, website, followers, about",
