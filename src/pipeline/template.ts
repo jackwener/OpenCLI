@@ -101,8 +101,16 @@ function applyFilter(filterExpr: string, value: unknown): unknown {
     }
     case 'replace': {
       if (typeof value !== 'string') return value;
-      const parts = rawArgs?.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')) ?? [];
-      return parts.length >= 2 ? value.replaceAll(parts[0], parts[1]) : value;
+      if (rawArgs == null) return value;
+      // Split on the FIRST comma only so the replacement value may contain commas,
+      // e.g. replace('a', 'x,y') -> 'x,y'. (A literal comma needle is unsupported by
+      // design: the comma is the argument separator.)
+      const ci = rawArgs.indexOf(',');
+      if (ci === -1) return value;
+      const strip = (s: string) => s.trim().replace(/^['"]|['"]$/g, '');
+      const oldVal = strip(rawArgs.slice(0, ci));
+      const newVal = strip(rawArgs.slice(ci + 1));
+      return value.replaceAll(oldVal, newVal);
     }
     case 'keys':
       return value && typeof value === 'object' ? Object.keys(value) : value;
