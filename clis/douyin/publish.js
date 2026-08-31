@@ -54,9 +54,16 @@ const DEFAULT_COVER_TOOLS_INFO = JSON.stringify({
     initial_cover_uri: '',
     cut_coordinate: '',
 });
-function isFastDetectRetryable(error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.includes('post_assistant/fast_detect') && (message.includes('Empty response') || message.includes('404') || message.includes('Not Found') || message.includes('Timeout') || message.includes('timed out') || message.includes('Failed to fetch'));
+function isFastDetectRetryable(error, phase) {
+    if (!error || error.phase !== phase) {
+        return false;
+    }
+    // Preserve retry behavior for transport-level 404s; an API-level 404 is a
+    // service result and should be surfaced unchanged.
+    return error.errorCode === 'DOUYIN_EMPTY_RESPONSE'
+        || error.errorCode === 'DOUYIN_NETWORK_ERROR'
+        || error.errorCode === 'DOUYIN_TIMEOUT'
+        || (error.errorCode === 'DOUYIN_HTTP_ERROR' && error.httpStatus === 404);
 }
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -67,13 +74,13 @@ function throwIfImagexError(action, payload) {
         throw new CommandExecutionError(`${action}失败: ${JSON.stringify(error)}`);
     }
 }
-async function tryFastDetectFetch(page, method, url, options) {
+async function tryFastDetectFetch(page, phase, method, url, options) {
     let lastError;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
         try {
-            return { ok: true, value: await browserFetch(page, method, url, options) };
+            return { ok: true, value: await browserFetch(page, method, url, { ...options, phase }) };
         } catch (error) {
-            if (!isFastDetectRetryable(error)) {
+            if (!isFastDetectRetryable(error, phase)) {
                 throw error;
             }
             lastError = error;
@@ -207,7 +214,7 @@ cli({
                 title,
                 desc: caption,
             };
-            const preCheck = await tryFastDetectFetch(page, 'POST', safetyUrl, { body: safetyBody });
+            const preCheck = await tryFastDetectFetch(page, 'fast_detect/pre_check', 'POST', safetyUrl, { body: safetyBody });
             if (!preCheck.ok) {
                 process.stderr.write('  内容安全预检接口无响应，继续轮询检测结果。\n');
             }
@@ -216,7 +223,7 @@ cli({
             let safetyPassed = false;
             let pollUnavailableCount = 0;
             while (Date.now() < deadline) {
-                const poll = await tryFastDetectFetch(page, 'POST', pollUrl, { body: safetyBody });
+                const poll = await tryFastDetectFetch(page, 'fast_detect/poll', 'POST', pollUrl, { body: safetyBody });
                 if (!poll.ok) {
                     pollUnavailableCount += 1;
                     if (!preCheck.ok && pollUnavailableCount >= 3) {
