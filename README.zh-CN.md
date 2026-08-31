@@ -157,6 +157,7 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 |------|--------|------|
 | `OPENCLI_WINDOW` | 命令默认值 | 设为 `foreground` 或 `background` 来覆盖 Browser Bridge 窗口位置。浏览器型命令也支持 `--window <foreground\|background>` |
 | `OPENCLI_SITE_SESSION` | adapter 默认值 | 设为 `ephemeral` 或 `persistent`，覆盖浏览器型 adapter 命令的 `siteSession` 元数据。`ephemeral` 会在命令结束时关闭一次性自动化窗口；`persistent` 会复用该站点的 session。命令级 `--site-session` 优先。 |
+| `OPENCLI_READ_ONLY` | `false` | 设为 `1` 或 `true` 后，只允许执行声明为 `access: read` 的已注册 adapter 命令。adapter 命令也支持 `--read-only`。 |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | 浏览器连接超时（秒） |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | 单个浏览器命令超时（秒） |
 | `OPENCLI_CDP_ENDPOINT` | — | Chrome DevTools Protocol 端点，用于远程浏览器或 Electron 应用 |
@@ -167,6 +168,8 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不再支持通过 `OPENCLI_DAEMON_PORT` 配置自定义端口。
 
 `opencli browser *` 必须紧跟一个 `<session>` 位置参数，默认使用前台窗口，并保留该 session 的 tab lease，直到你手动执行 `opencli browser <session> close` 或等空闲超时。浏览器型 adapter 默认使用后台 adapter 窗口并在命令结束后释放一次性 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
+
+为了更安全地把 adapter 命令交给 AI Agent，可以传入 `--read-only`，或设置 `OPENCLI_READ_ONLY=1`。声明为 `access: write` 的命令会在 adapter 自定义校验、命令执行 hook、浏览器连接、预导航或 adapter 代码运行之前被拒绝。首版策略只覆盖已注册 adapter；直接使用的 `opencli browser ...` 原语和外部 CLI 透传没有 adapter access 元数据，不在该策略的分类范围内。
 
 ## 内置命令
 

@@ -101,6 +101,17 @@ export class ConfigError extends CliError {
   }
 }
 
+export class ReadOnlyPolicyError extends CliError {
+  constructor(command: string) {
+    super(
+      'READ_ONLY_POLICY',
+      `${command} is marked access: write and cannot run in read-only mode.`,
+      'Run without --read-only or unset OPENCLI_READ_ONLY only after explicitly approving this write command.',
+      EXIT_CODES.NOPERM,
+    );
+  }
+}
+
 export class AuthRequiredError extends CliError {
   readonly domain: string;
   constructor(domain: string, message?: string) {
