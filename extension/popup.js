@@ -9,6 +9,22 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
   const copyBtn = document.getElementById('copyBtn');
   const hint = document.getElementById('hint');
   const extVersion = document.getElementById('extVersion');
+  const browserTabGrouping = document.getElementById('browserTabGrouping');
+
+  browserTabGrouping.checked = resp?.browserTabGroupingEnabled !== false;
+  browserTabGrouping.disabled = false;
+  browserTabGrouping.addEventListener('change', () => {
+    const enabled = browserTabGrouping.checked;
+    browserTabGrouping.disabled = true;
+    chrome.runtime.sendMessage({ type: 'setBrowserTabGrouping', enabled }, (result) => {
+      if (chrome.runtime.lastError || !result?.ok) {
+        browserTabGrouping.checked = !enabled;
+      } else {
+        browserTabGrouping.checked = result.browserTabGroupingEnabled;
+      }
+      browserTabGrouping.disabled = false;
+    });
+  });
 
   if (resp && typeof resp.extensionVersion === 'string') {
     extVersion.textContent = `v${resp.extensionVersion}`;
