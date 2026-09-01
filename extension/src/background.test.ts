@@ -1355,7 +1355,7 @@ describe('background tab isolation', () => {
     const { chrome, tabs, groups } = createChromeMock();
     let nextWindowId = 20;
     let nextTabId = 200;
-    chrome.windows.create = vi.fn(async ({ url, focused, width, height, type }: any) => {
+    chrome.windows.create = vi.fn(async ({ url, focused, width, height, type, state }: any) => {
       const windowId = nextWindowId++;
       const tab: MockTab = {
         id: nextTabId++,
@@ -1367,7 +1367,7 @@ describe('background tab isolation', () => {
         groupId: -1,
       };
       tabs.push(tab);
-      return { id: windowId, url, focused, width, height, type };
+      return { id: windowId, url, focused, width, height, type, state };
     });
     vi.stubGlobal('chrome', chrome);
 
@@ -1377,8 +1377,18 @@ describe('background tab isolation', () => {
 
     expect(tabs.find((tab) => tab.id === browserTabId)?.windowId).toBe(20);
     expect(tabs.find((tab) => tab.id === adapterTabId)?.windowId).toBe(21);
-    expect(chrome.windows.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ focused: true }));
-    expect(chrome.windows.create).toHaveBeenNthCalledWith(2, expect.objectContaining({ focused: false }));
+    expect(chrome.windows.create).toHaveBeenNthCalledWith(1, {
+      url: 'about:blank',
+      focused: true,
+      width: 1280,
+      height: 900,
+      type: 'normal',
+    });
+    expect(chrome.windows.create).toHaveBeenNthCalledWith(2, {
+      url: 'about:blank',
+      state: 'minimized',
+      type: 'normal',
+    });
     expect(groups).toEqual([
       expect.objectContaining({ windowId: 20, title: 'OpenCLI Browser' }),
     ]);
