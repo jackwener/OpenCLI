@@ -428,7 +428,7 @@ function fillComposerScript(text) {
     })(${JSON.stringify(text)})
   `;
 }
-function detectDoubaoVerificationScript() {
+export function detectDoubaoVerificationScript() {
     return `
     (() => {
       const isVisible = (el) => {
@@ -565,6 +565,60 @@ function clickSendButtonScript() {
     })()
   `;
 }
+// 2026-09-01: the send control is button#flow-end-msg-send, but no single
+// click flavor is reliable — an in-page synthetic .click() is intermittently
+// swallowed (the URL still flips to /chat/local_<id> and the user bubble
+// renders optimistically, yet the server never receives the message), and a
+// trusted CDP coordinate click lands in the void when the bridge window is
+// hidden (innerWidth/innerHeight collapse to 0). Surface the tab first,
+// prefer the JS click (immune to window visibility), keep the CDP click as
+// the other flavor. Callers must verify the composer actually cleared and
+// retry with the other flavor — see sendDoubaoMessage.
+// Returns 'js' | 'cdp' | false.
+export async function clickDoubaoSendButton(page, { preferNative = false } = {}) {
+    const viewport = await page.evaluate('({ w: window.innerWidth, h: window.innerHeight })').catch(() => null);
+    if (viewport && (viewport.w === 0 || viewport.h === 0) && typeof page.cdp === 'function') {
+        await page.cdp.call(page, 'Page.bringToFront', {}).catch(() => { });
+        await page.wait(1);
+    }
+    const probe = await page.evaluate(`
+    (() => {
+      const btn = document.querySelector('button#flow-end-msg-send');
+      if (!(btn instanceof HTMLElement) || btn.offsetParent === null) return null;
+      if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') return null;
+      const r = btn.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return null;
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    })()
+  `).catch(() => null);
+    if (!probe)
+        return false;
+    if (preferNative && typeof page.nativeClick === 'function') {
+        try {
+            await page.nativeClick(probe.x, probe.y);
+            return 'cdp';
+        }
+        catch { }
+    }
+    const jsClicked = await page.evaluate(`
+    (() => {
+      const btn = document.querySelector('button#flow-end-msg-send');
+      if (!(btn instanceof HTMLElement)) return false;
+      btn.click();
+      return true;
+    })()
+  `).catch(() => false);
+    if (jsClicked)
+        return 'js';
+    if (!preferNative && typeof page.nativeClick === 'function') {
+        try {
+            await page.nativeClick(probe.x, probe.y);
+            return 'cdp';
+        }
+        catch { }
+    }
+    return false;
+}
 function clickNewChatScript() {
     return `
     (() => {
@@ -697,21 +751,67 @@ export async function sendDoubaoMessage(page, text) {
     if (!hasText) {
         throw new CommandExecutionError('Failed to insert text into Doubao composer');
     }
-    let submittedBy = 'enter';
-    const clicked = await page.evaluate(clickSendButtonScript());
-    if (clicked) {
-        submittedBy = 'button';
-    }
-    else if (page.nativeKeyPress) {
-        try {
-            await page.nativeKeyPress('Enter');
-        }
-        catch {
-            await page.pressKey('Enter');
-        }
+    // 2026-09-01: the composer only clears on a real send. When a submit is
+    // swallowed the URL still flips to /chat/local_<id> and the user bubble
+    // renders optimistically, so neither the URL nor the bubble is a success
+    // signal. Verify the clear and escalate across submit flavors instead of
+    // trusting one attempt.
+    const composerCleared = async () => {
+        const state = await page.evaluate(composerStateScript()).catch(() => null);
+        return !state?.hasText;
+    };
+    let submittedBy = await clickDoubaoSendButton(page);
+    if (submittedBy) {
+        submittedBy = `button-${submittedBy}`;
     }
     else {
-        await page.pressKey('Enter');
+        const clicked = await page.evaluate(clickSendButtonScript());
+        if (clicked) {
+            submittedBy = 'button-heuristic';
+        }
+    }
+    if (!submittedBy) {
+        if (page.nativeKeyPress) {
+            try {
+                await page.nativeKeyPress('Enter');
+            }
+            catch {
+                await page.pressKey('Enter');
+            }
+        }
+        else {
+            await page.pressKey('Enter');
+        }
+        submittedBy = 'enter-key';
+        await page.wait(1);
+    }
+    let cleared = await composerCleared();
+    if (!cleared) {
+        if (page.nativeKeyPress) {
+            try {
+                await page.nativeKeyPress('Enter');
+            }
+            catch {
+                await page.pressKey('Enter');
+            }
+        }
+        else {
+            await page.pressKey('Enter');
+        }
+        submittedBy = `${submittedBy}+enter-key`;
+        await page.wait(1);
+        cleared = await composerCleared();
+    }
+    if (!cleared) {
+        const retried = await clickDoubaoSendButton(page, { preferNative: true });
+        if (retried) {
+            submittedBy = `${submittedBy}+button-${retried}`;
+            await page.wait(1);
+            cleared = await composerCleared();
+        }
+    }
+    if (!cleared) {
+        throw new CommandExecutionError(`Doubao did not accept the message (submittedBy=${submittedBy || 'none'}, composer never cleared)`);
     }
     await page.wait(0.8);
     const verification = await page.evaluate(detectDoubaoVerificationScript());
