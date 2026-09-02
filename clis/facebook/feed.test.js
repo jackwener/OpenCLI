@@ -270,4 +270,143 @@ describe('facebook feed', () => {
     expect(payload.rows[0].author).toBe('Real Human');
     expect(payload.rows[0].content).not.toContain('1234567890123');
   });
+
+  it('extracts authors from the group-scoped user links used by current Facebook', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/groups/123/user/456/">Group Author</a></h3>
+            <div dir="auto">A genuine freelance group post with enough useful text to extract.</div>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.rows[0].author).toBe('Group Author');
+  });
+
+  it('removes combining-grapheme anti-scrape characters from decoy blocks', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div>
+            <h3><a role="link" href="https://www.facebook.com/real-author">Real Author</a></h3>
+            <div dir="auto">Genuine post content that remains after current Facebook decoys are removed.</div>
+            <div dir="auto">a͏ b͏ c͏ d͏ e͏ f͏</div>
+            <div aria-label="Actions for this post" role="button"></div>
+          </div>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.rows[0].content).toBe('Genuine post content that remains after current Facebook decoys are removed.');
+  });
+
+  it('does not let a misleading post menu in people suggestions consume surrounding page chrome', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div dir="auto">Facebook navigation label with enough characters to look like content.</div>
+          <section>
+            <h2 dir="auto">People you may know</h2>
+            <div>
+              <div dir="auto">Suggested Person</div>
+              <div dir="auto">12 mutual friends</div>
+              <button aria-label="Actions for this post"></button>
+            </div>
+          </section>
+          <div dir="auto">Unrelated page text that must never become a feed row.</div>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('no_rows');
+    expect(payload.rows).toEqual([]);
+  });
+
+  it('extracts current post action labels that include the author name', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div dir="auto">Current Facebook post body with enough meaningful text to extract.</div>
+          <button aria-label="Actions for this post by Current Author"></button>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.rows[0].author).toBe('Current Author');
+    expect(payload.rows[0].content).toContain('Current Facebook post body');
+  });
+
+  it('does not treat current role=article comment nodes as feed posts', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div role="article">
+          <a role="link" href="https://www.facebook.com/commenter?comment_id=abc">Comment Author</a>
+          <div dir="auto">A long reply that is a comment, not a top-level Facebook feed post.</div>
+          <a href="https://www.facebook.com/author/posts/123?comment_id=abc">12h</a>
+          <button aria-label="Like"></button>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('no_rows');
+    expect(payload.rows).toEqual([]);
+  });
+
+  it('keeps walking past a permalink header to include its sibling post body', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <header>
+            <h3><a role="link" href="https://www.facebook.com/alice">Alice Poster</a></h3>
+            <a href="https://www.facebook.com/alice/posts/123">2h</a>
+            <button aria-label="Actions for this post by Alice Poster"></button>
+          </header>
+          <div dir="auto">The actual post body is a sibling of the header containing the action menu.</div>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.rows[0].author).toBe('Alice Poster');
+    expect(payload.rows[0].content).toBe('The actual post body is a sibling of the header containing the action menu.');
+  });
+
+  it('does not emit an authorless suggestion card with long descriptive text', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <div dir="auto">Suggested profile description long enough to resemble genuine post content.</div>
+          <button aria-label="Actions for this post"></button>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('no_rows');
+    expect(payload.rows).toEqual([]);
+  });
+
+  it('removes injected random-domain and opaque-token decoy blocks', () => {
+    const payload = runExtract(`
+      <main role="main">
+        <div>
+          <h3><a role="link" href="https://www.facebook.com/real-author">Real Author</a></h3>
+          <div dir="auto">Genuine post body that should remain readable after decoy filtering.</div>
+          <div dir="auto">wA4xvbU.com</div>
+          <div dir="auto">8Mt4DKRlTLDjXTjnl4iAP5YS4DzIxQF52c7togr51dUFTo</div>
+          <div dir="auto">onspeodSrtt5A12f71: 501aut12gi250s 8liui54P1u0cf 352Mf2617t · Shared with Public</div>
+          <button aria-label="Actions for this post by Real Author"></button>
+        </div>
+      </main>
+    `);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.rows[0].content).toBe('Genuine post body that should remain readable after decoy filtering.');
+  });
 });
