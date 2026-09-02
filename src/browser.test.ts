@@ -97,6 +97,25 @@ describe('browser helpers', () => {
     expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/main');
   });
 
+  it('prefers the main Electron window over a routed hash window on the same local document', () => {
+    const target = cdpTest.selectCDPTarget([
+      {
+        type: 'page',
+        title: 'OpenCLIApp',
+        url: 'app://-/index.html#/avatar-overlay',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/overlay',
+      },
+      {
+        type: 'page',
+        title: 'OpenCLIApp',
+        url: 'app://-/index.html',
+        webSocketDebuggerUrl: 'ws://127.0.0.1:9238/main',
+      },
+    ]);
+
+    expect(target?.webSocketDebuggerUrl).toBe('ws://127.0.0.1:9238/main');
+  });
+
   it('still connects to a routed window when the app opens no other surface', () => {
     const target = cdpTest.selectCDPTarget([
       {
