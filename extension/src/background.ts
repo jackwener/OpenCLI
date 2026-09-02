@@ -2057,7 +2057,20 @@ function stripOpenCliFrameRoutingParams(params: Record<string, unknown>, stripFr
 
 async function handleCloseWindow(cmd: Command, leaseKey: string): Promise<Result> {
   const sessionName = automationSessions.get(leaseKey)?.session ?? getSessionFromKey(leaseKey);
-  await releaseLease(leaseKey, 'explicit close');
+  const session = automationSessions.get(leaseKey);
+  if (session?.owned && session.preferredTabId !== null) {
+    try {
+      await releaseOwnedLeaseForExplicitClose(leaseKey);
+    } catch (err) {
+      return { id: cmd.id, ok: false, error: err instanceof Error ? err.message : 'Failed to clean up the owned tab lease' };
+    }
+    return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
+  }
+  try {
+    await releaseLease(leaseKey, 'explicit close');
+  } catch {
+    return { id: cmd.id, ok: false, error: 'Failed to clean up the owned tab lease' };
+  }
   return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
 }
 
@@ -2118,6 +2131,34 @@ async function handleWaitDownload(cmd: Command): Promise<Result> {
   } catch (err) {
     return errorResult(cmd.id, err);
   }
+}
+
+async function releaseOwnedLeaseForExplicitClose(leaseKey: string): Promise<void> {
+  const session = automationSessions.get(leaseKey);
+  if (!session) {
+    return;
+  }
+
+  const tabId = session.preferredTabId;
+  if (tabId === null) return;
+
+  try {
+    await chrome.debugger.detach({ tabId });
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : `Failed to detach tab ${tabId}`);
+  }
+  identity.evictTab(tabId);
+
+  try {
+    await chrome.tabs.remove(tabId);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : `Failed to remove tab ${tabId}`);
+  }
+  console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, explicit close)`);
+
+  automationSessions.delete(leaseKey);
+  sessionOverrides.delete(leaseKey);
+  await persistRuntimeState();
 }
 
 async function releaseLease(leaseKey: string, reason: string = 'released'): Promise<void> {
