@@ -146,6 +146,7 @@ Run `opencli list` for the live registry.
 | **[osv](./browser/osv.md)**                       | `vulnerability` `query`                                                                                                                        | 🌐 Public    |
 | **[github-trending](./browser/github-trending.md)** | `repos`                                                                                                                                       | 🌐 Public    |
 | **[goproxy](./browser/goproxy.md)**               | `module` `versions`                                                                                                                            | 🌐 Public    |
+| **[gutenberg](./browser/gutenberg.md)**           | `ebooks` `search` `author` `hot-books` `hot-author` `main-categories` `collections` `categories` `category-search`                         | 🌐 Public    |
 | **[tvmaze](./browser/tvmaze.md)**                 | `search` `show`                                                                                                                                | 🌐 Public    |
 | **[rfc](./browser/rfc.md)**                       | `rfc`                                                                                                                                          | 🌐 Public    |
 | **[wikidata](./browser/wikidata.md)**             | `search` `entity`                                                                                                                              | 🌐 Public    |
