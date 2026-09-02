@@ -22,6 +22,8 @@ export interface SnapshotOptions {
   raw?: boolean;
   viewportExpand?: number;
   maxTextLength?: number;
+  /** Write data-opencli-ref attributes into the page DOM. Defaults to false. */
+  annotateRefs?: boolean;
   /** Observation backend. `dom` is the stable default; `ax` is an opt-in prototype. */
   source?: 'dom' | 'ax';
 }
