@@ -339,6 +339,49 @@ describe('background tab isolation', () => {
     ]);
   });
 
+  it('includes out-of-process iframe targets that are missing from the frame tree', async () => {
+    const { chrome } = createChromeMock();
+    chrome.debugger.getTargets = vi.fn(async () => ([
+      { id: 'page-1', tabId: 1, type: 'page', url: 'https://automation.example', title: 'automation' },
+      { id: 'oopif-frame', tabId: 1, type: 'other', url: 'https://x.example/widget', title: 'oopif-x' },
+    ]));
+    chrome.debugger.sendCommand = vi.fn(async (_target: unknown, method: string) => {
+      if (method === 'Runtime.enable') return {};
+      if (method === 'Runtime.evaluate') return { result: { value: 1 } };
+      if (method === 'Page.getFrameTree') {
+        return {
+          frameTree: {
+            frame: { id: 'root', url: 'https://main.example/' },
+            childFrames: [
+              { frame: { id: 'same-origin-parent', url: 'https://main.example/embed' } },
+            ],
+          },
+        };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    const result = await mod.__test__.handleCommand({ id: 'frames', action: 'frames', session: 'twitter', surface: 'adapter' });
+    const execResult = await mod.__test__.handleCommand({
+      id: 'exec',
+      action: 'exec',
+      code: 'document.title',
+      frameIndex: 0,
+      session: 'twitter',
+      surface: 'adapter',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual([
+      { index: 0, frameId: 'oopif-frame', url: 'https://x.example/widget', name: 'oopif-x' },
+    ]);
+    expect(execResult.ok).toBe(true);
+  });
+
   it('does not parse lease-key separators from command session fields', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
@@ -441,6 +484,7 @@ describe('background tab isolation', () => {
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
+      registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
       ensureAttached: vi.fn(async () => {}),
@@ -486,6 +530,7 @@ describe('background tab isolation', () => {
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
+      registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
       waitForDownload,
@@ -522,6 +567,7 @@ describe('background tab isolation', () => {
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
+      registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
       evaluateAsync: vi.fn(async () => 'main-result'),
@@ -548,6 +594,7 @@ describe('background tab isolation', () => {
       startNetworkCapture: vi.fn(),
       readNetworkCapture: vi.fn(async () => []),
       ensureAttached: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
     }));
 
     const mod = await import('./background');
@@ -581,6 +628,7 @@ describe('background tab isolation', () => {
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
       registerFrameTracking: vi.fn(),
+      registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),
       evaluateAsync,
@@ -592,6 +640,7 @@ describe('background tab isolation', () => {
       startNetworkCapture: vi.fn(),
       readNetworkCapture: vi.fn(async () => []),
       ensureAttached: vi.fn(),
+      getIframeTargets: vi.fn(async () => []),
     }));
 
     const mod = await import('./background');
@@ -800,6 +849,7 @@ describe('background tab isolation', () => {
     const detachMock = vi.fn(async () => {});
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => true),
       detach: detachMock,
     }));
@@ -1029,6 +1079,7 @@ describe('background tab isolation', () => {
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -1067,6 +1118,7 @@ describe('background tab isolation', () => {
     let maxInFlight = 0;
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
       evaluateAsync: vi.fn(async (tabId: number, code: string) => {
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -1984,6 +2036,7 @@ describe('background tab isolation', () => {
     vi.stubGlobal('chrome', chrome);
     vi.doMock('./cdp', () => ({
       registerListeners: vi.fn(),
+      registerFrameTracking: vi.fn(),
       registerFrameTracking: vi.fn(),
       hasActiveNetworkCapture: vi.fn(() => false),
       detach: vi.fn(async () => {}),

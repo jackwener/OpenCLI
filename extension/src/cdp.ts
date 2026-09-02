@@ -534,6 +534,18 @@ function clearFrameTarget(targetId: string): void {
   frameTargetKeys.delete(targetId);
 }
 
+export async function getIframeTargets(tabId: number): Promise<Array<{ targetId: string; url: string; name: string }>> {
+  const targets = await chrome.debugger.getTargets();
+  return targets
+    .filter((candidate) => candidate.tabId === tabId && (candidate.type === 'iframe' || candidate.type === 'other'))
+    .map((candidate) => ({
+      targetId: String(candidate.id || ''),
+      url: String(candidate.url || ''),
+      name: String(candidate.title || ''),
+    }))
+    .filter((candidate) => candidate.targetId);
+}
+
 async function ensureFrameTarget(
   tabId: number,
   frameId: string,
@@ -545,14 +557,6 @@ async function ensureFrameTarget(
   const key = frameTargetKey(tabId, frameId);
   const existing = frameTargets.get(key);
   if (existing) return existing;
-
-  await sendDebuggerCommand({ tabId }, 'Target.setDiscoverTargets', { discover: true }).catch(() => {});
-  await sendDebuggerCommand({ tabId }, 'Target.setAutoAttach', {
-    autoAttach: true,
-    waitForDebuggerOnStart: false,
-    flatten: true,
-    filter: [{ type: 'iframe', exclude: false }],
-  }).catch(() => {});
   const targetId = await resolveFrameTargetId(tabId, frameId, targetUrl);
   try {
     await chrome.debugger.attach({ targetId } as chrome.debugger.Debuggee, '1.3');
@@ -566,22 +570,13 @@ async function ensureFrameTarget(
 }
 
 async function resolveFrameTargetId(tabId: number, frameId: string, targetUrl?: string): Promise<string> {
-  const result = await sendDebuggerCommand({ tabId }, 'Target.getTargets').catch(() => null) as
-    | { targetInfos?: Array<{ targetId?: string; id?: string; type?: string; url?: string }> }
-    | null;
-  const targets = result?.targetInfos ?? [];
-  const frameTarget = targets.find((candidate) => {
-    const candidateId = candidate.targetId || candidate.id;
-    return candidate.type === 'iframe'
-      && (
-        candidateId === frameId
-        || (!!targetUrl && candidate.url === targetUrl)
-      );
-  });
-  const targetId = frameTarget?.targetId || frameTarget?.id;
-  if (targetId) return targetId;
-  const candidates = targets
-    .filter((target) => target.type === 'iframe')
+  const debuggerTargets = await getIframeTargets(tabId);
+  const targetFromDebugger = debuggerTargets.find((candidate) => (
+    candidate.targetId === frameId
+    || (!!targetUrl && candidate.url === targetUrl)
+  ));
+  if (targetFromDebugger) return targetFromDebugger.targetId;
+  const candidates = debuggerTargets
     .map((target) => `${target.targetId || target.id || '?'} ${target.url || ''}`)
     .join('; ');
   throw new Error(`No iframe target found for frame ${frameId}${targetUrl ? ` (${targetUrl})` : ''}. Candidates: ${candidates || 'none'}`);
@@ -659,7 +654,7 @@ export async function evaluateInFrame(
 ): Promise<unknown> {
   await ensureAttached(tabId, aggressiveRetry);
 
-  await sendDebuggerCommand({ tabId }, 'Runtime.enable').catch(() => {});
+  await sendDebuggerCommand({ tabId }, 'Runtime.enable');
 
   const contexts = tabFrameContexts.get(tabId);
   const contextId = contexts?.get(frameId);
@@ -698,7 +693,7 @@ export async function evaluateInFrame(
   }
 
   // No cached context, or the cached one went stale: resolve via the frame target.
-  await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry, timeoutMs).catch(() => undefined);
+  await sendCommandInFrameTarget(tabId, frameId, 'Runtime.enable', {}, aggressiveRetry, timeoutMs);
   const result = await sendCommandInFrameTarget(tabId, frameId, 'Runtime.evaluate', {
     expression,
     returnByValue: true,
