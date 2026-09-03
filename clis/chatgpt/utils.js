@@ -121,6 +121,16 @@ function buildComposerLocatorScript() {
         if (!(el instanceof HTMLElement)) return false;
         const style = window.getComputedStyle(el);
         if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if ((document.documentElement.clientWidth || 0) <= 0) {
+            // Zero-size viewports collapse rects to 0 even for rendered nodes,
+            // so fall back to ancestor style checks: display:none templates
+            // (login gates, aria-shadow copies) must stay excluded.
+            for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                const ancestorStyle = window.getComputedStyle(ancestor);
+                if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+            }
+            return true;
+        }
         const rect = el.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
       };
@@ -252,7 +262,10 @@ export function parseChatGPTConversationId(value) {
             if (parsed.protocol !== 'https:' || (parsed.hostname !== CHATGPT_DOMAIN && !parsed.hostname.endsWith(`.${CHATGPT_DOMAIN}`))) {
                 throw new Error('off-domain');
             }
-            const match = parsed.pathname.match(/^\/(?:g\/g-p-[^/]+\/)?c\/([A-Za-z0-9_-]{8,})$/);
+            // [LOCAL PATCH 2026-09-03] 2026-09 chatgpt.com routes brand-new
+            // conversations to /c/WEB:<uuid>; the id segment now contains a
+            // colon, so the character class must include it.
+            const match = parsed.pathname.match(/^\/(?:g\/g-p-[^/]+\/)?c\/([A-Za-z0-9_:-]{8,})$/);
             if (match) return match[1];
         } catch {
             // Fall through to the shared typed ArgumentError below.
@@ -262,9 +275,11 @@ export function parseChatGPTConversationId(value) {
             'Example: opencli chatgpt detail https://chatgpt.com/c/123e4567-e89b-12d3-a456-426614174000',
         );
     }
-    const pathMatch = raw.match(/^\/(?:g\/g-p-[^/]+\/)?c\/([A-Za-z0-9_-]{8,})(?:[?#].*)?$/);
+    // [LOCAL PATCH 2026-09-03] Same colon tolerance for bare /c/<id> paths and
+    // bare ids: the 2026-09 frontend mints temporary WEB:<uuid> route ids.
+    const pathMatch = raw.match(/^\/(?:g\/g-p-[^/]+\/)?c\/([A-Za-z0-9_:-]{8,})(?:[?#].*)?$/);
     if (pathMatch) return pathMatch[1];
-    if (/^[A-Za-z0-9_-]{8,}$/.test(raw)) return raw;
+    if (/^[A-Za-z0-9_:-]{8,}$/.test(raw)) return raw;
     throw new ArgumentError(
         'chatgpt detail requires a conversation id or chatgpt.com /c/<id> URL',
         'Example: opencli chatgpt detail 123e4567-e89b-12d3-a456-426614174000',
@@ -299,7 +314,9 @@ const PROJECT_LINK_SELECTOR = 'a[href*="/g/g-p-"]';
 export const CONVERSATION_MESSAGE_SELECTOR = '[data-message-author-role], article[data-testid*="conversation-turn"]';
 
 export async function ensureOnChatGPT(page) {
-    if (await isOnChatGPT(page)) return false;
+    if (await isOnChatGPT(page)) {
+                return false;
+    }
     await page.goto(CHATGPT_URL, { settleMs: 2000 });
     try {
         await page.wait({ selector: COMPOSER_WAIT_SELECTOR, timeout: 8 });
@@ -335,6 +352,16 @@ export async function getPageState(page) {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -406,6 +433,16 @@ export async function getCurrentChatGPTModel(page) {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -456,7 +493,27 @@ export async function getCurrentChatGPTModel(page) {
             return Object.values(labels).some((entry) => entry.labels.some((label) => textMatchesLabel(text, label)));
         });
         const label = normalize(button?.textContent || '');
-        const entry = findEntryForText(label);
+        let entry = findEntryForText(label);
+        if (!entry) {
+            // 2026-08 UI: the composer trigger is an unlabeled button showing a
+            // short effort label (observed: extended → 高, min → 中) with no
+            // data-testid and no aria-label.
+            const SHORT_LABEL_TARGETS = { '极': 'fast', '均': 'balanced', '高': 'advanced', '超': 'very-high', '专': 'pro' };
+            const trigger = Array.from((form || document).querySelectorAll('button')).find((node) =>
+                isVisible(node)
+                && !node.getAttribute('aria-label')
+                && !node.getAttribute('data-testid')
+                && normalize(node.textContent).length > 0
+                && normalize(node.textContent).length <= 4
+            );
+            const shortKey = trigger ? SHORT_LABEL_TARGETS[normalize(trigger.textContent)] : null;
+            if (shortKey) {
+                return {
+                    model: shortKey,
+                    label: (labels[shortKey] || {}).label ?? shortKey,
+                };
+            }
+        }
         return {
             model: entry?.key ?? null,
             label: entry?.value?.label ?? null,
@@ -464,17 +521,30 @@ export async function getCurrentChatGPTModel(page) {
     })()`)), 'chatgpt current model');
 }
 
+// Races a daemon bridge call against a timeout: the no-arg full-jar
+// getCookies() variant has been observed to hang the bridge. The timer is
+// cleared when the call wins so it cannot keep the CLI event loop alive
+// after the command has finished.
+function raceBridgeCall(promise, ms = 8000) {
+    let timer;
+    return Promise.race([
+        promise,
+        new Promise((resolve) => { timer = setTimeout(() => resolve([]), ms); }),
+    ]).finally(() => clearTimeout(timer));
+}
+
 async function buildChatGPTBackendHeaders(page, { includeAuthorization = false } = {}) {
     if (typeof page.getCookies !== 'function') {
         return { ok: false, status: 0, reason: 'missing-cookie-api' };
     }
     const cookieLists = await Promise.all([
-        page.getCookies({ url: CHATGPT_URL }).catch(() => []),
-        page.getCookies({ url: `${CHATGPT_URL}/api/auth/session` }).catch(() => []),
-        page.getCookies({ domain: CHATGPT_DOMAIN }).catch(() => []),
-        page.getCookies({ domain: `.${CHATGPT_DOMAIN}` }).catch(() => []),
-        page.getCookies().catch(() => []),
+        raceBridgeCall(page.getCookies({ url: CHATGPT_URL }).catch(() => [])),
+        raceBridgeCall(page.getCookies({ url: `${CHATGPT_URL}/api/auth/session` }).catch(() => [])),
+        raceBridgeCall(page.getCookies({ domain: CHATGPT_DOMAIN }).catch(() => [])),
+        raceBridgeCall(page.getCookies({ domain: `.${CHATGPT_DOMAIN}` }).catch(() => [])),
+        raceBridgeCall(page.getCookies().catch(() => [])),
     ]);
+    debugChatGPTModel(`cookie-lists=${cookieLists.reduce((n, l) => n + (l ? l.length : 0), 0)}`);
     const cookiesByName = new Map();
     for (const cookie of cookieLists.flat()) {
         if (!cookie?.name || typeof cookie.value !== 'string') continue;
@@ -502,9 +572,9 @@ async function buildChatGPTBackendHeaders(page, { includeAuthorization = false }
     const sessionResponse = await fetch(`${CHATGPT_URL}/api/auth/session`, {
         headers,
         signal: AbortSignal.timeout(10000),
-    });
-    if (!sessionResponse.ok) {
-        return { ok: false, status: sessionResponse.status, reason: 'session' };
+    }).catch(() => null);
+    if (!sessionResponse || !sessionResponse.ok) {
+        return { ok: false, status: sessionResponse ? sessionResponse.status : 0, reason: 'session' };
     }
     let session = null;
     try {
@@ -523,6 +593,13 @@ async function buildChatGPTBackendHeaders(page, { includeAuthorization = false }
         },
     };
 }
+
+const CHATGPT_MODEL_EFFORTS = {
+    fast: 'min',
+    balanced: 'standard',
+    advanced: 'extended',
+    'very-high': 'xhigh',
+};
 
 async function setChatGPTModelConfig(page, target) {
     if (!target.modelConfig) return null;
@@ -551,11 +628,104 @@ async function setChatGPTModelConfig(page, target) {
         }
         document.cookie = 'oai-last-model-config=' + value + '; path=/; domain=.chatgpt.com; max-age=31536000; SameSite=Lax';
         document.cookie = 'oai-last-model-config=' + value + '; path=/; max-age=31536000; SameSite=Lax';
-        if (window.location.pathname === '/new') window.location.reload();
-        else window.location.assign('/new');
+        // Reload via setTimeout: reloading synchronously inside evaluate
+        // destroys the execution context and leaves the promise pending
+        // forever, hanging the command until the operation timeout.
+        setTimeout(() => {
+            if (window.location.pathname === '/new') window.location.reload();
+            else window.location.assign('/new');
+        }, 0);
         return true;
     })()`).catch(() => true);
     return { ok: true, status: response.status, modelSlug, effort };
+}
+
+// Last-resort effort selection for the 2026-08 chatgpt.com UI: the
+// 选择模型 (thinking-effort) submenu ignores synthetic pointer/keyboard
+// events, so the visible picker cannot reach the intelligence options.
+// The settings API still accepts effort patches, and the browser session
+// can always reach chatgpt.com (the CLI host may not be able to). Keeps the
+// account's current model family (oai-last-model-config cookie) and patches
+// only the effort; invalid combos are rejected server-side and leave the
+// config untouched. Returns true only when the API confirms the change.
+async function trySetChatGPTModelEffortViaPage(page, target) {
+    const effort = CHATGPT_MODEL_EFFORTS[target.key];
+    const pinned = target.modelConfig
+        ? { modelSlug: target.modelConfig.modelSlug, effort: target.modelConfig.effort }
+        : null;
+    if (!effort && !pinned) return false;
+    let result = null;
+    try {
+        result = unwrapEvaluateResult(await page.evaluate(`(async () => {
+            const pinned = ${JSON.stringify(pinned)};
+            const fallbackEffort = ${JSON.stringify(effort)};
+            const attempted = [];
+            let currentSlug = '';
+            try {
+                const m = document.cookie.match(/oai-last-model-config=([^;]+)/);
+                if (m) currentSlug = (JSON.parse(decodeURIComponent(m[1])) || {}).model || '';
+            } catch {}
+            const candidates = [];
+            if (currentSlug && fallbackEffort) candidates.push({ modelSlug: currentSlug, effort: fallbackEffort });
+            if (pinned && !candidates.some((c) => c.modelSlug === pinned.modelSlug && c.effort === pinned.effort)) candidates.push(pinned);
+            const session = await fetch('/api/auth/session', { credentials: 'include' }).then((r) => r.json()).catch(() => null);
+            const token = session && session.accessToken;
+            if (!token) return { ok: false, attempted };
+            for (const { modelSlug, effort } of candidates) {
+                attempted.push(modelSlug + '/' + effort);
+                const body = await fetch('/backend-api/settings/user_last_used_model_config'
+                    + '?model_slug=' + encodeURIComponent(modelSlug)
+                    + '&thinking_effort=' + encodeURIComponent(effort), {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { Authorization: 'Bearer ' + token },
+                }).then((r) => r.json()).catch(() => null);
+                if (body && body.success === true) {
+                    const value = encodeURIComponent(JSON.stringify({ model: modelSlug, effort }));
+                    for (const domain of ['; domain=.chatgpt.com', '; domain=chatgpt.com', '']) {
+                        document.cookie = 'oai-last-model-config=; path=/' + domain + '; max-age=0; SameSite=Lax';
+                    }
+                    document.cookie = 'oai-last-model-config=' + value + '; path=/; domain=.chatgpt.com; max-age=31536000; SameSite=Lax';
+                    document.cookie = 'oai-last-model-config=' + value + '; path=/; max-age=31536000; SameSite=Lax';
+                    setTimeout(() => {
+                        if (window.location.pathname === '/new') window.location.reload();
+                        else window.location.assign('/new');
+                    }, 0);
+                    return { ok: true, attempted };
+                }
+            }
+            return { ok: false, attempted };
+        })()`));
+    } catch {
+        return false;
+    }
+    if (result && Array.isArray(result.attempted) && result.attempted.length) {
+        debugChatGPTModel(`page effort patch attempted=[${result.attempted.join(', ')}]`);
+    }
+    if (!result || !result.ok) return false;
+    await page.wait(3).catch(() => {});
+    return true;
+}
+
+async function reclickChatGPTModelMenu(page, menuButton) {
+    // Re-toggles the model menu. In 0x0-viewport bridge windows the trigger
+    // is marked in the DOM; re-dispatch the programmatic sequence there
+    // because native click coordinates cannot hit it. nativeClick still runs
+    // so a real viewport keeps working and mocks keep observing calls.
+    if (menuButton.clicked) {
+        await page.evaluate(`(() => {
+            const marked = document.querySelector('[data-opencli-model-menu="1"]');
+            if (!(marked instanceof HTMLElement)) return;
+            const rect = marked.getBoundingClientRect();
+            const opts = { bubbles: true, cancelable: true, composed: true, clientX: Math.round(rect.left + rect.width / 2) || 1, clientY: Math.round(rect.top + rect.height / 2) || 1, button: 0 };
+            marked.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+            marked.dispatchEvent(new MouseEvent('mousedown', opts));
+            marked.dispatchEvent(new PointerEvent('pointerup', { ...opts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+            marked.dispatchEvent(new MouseEvent('mouseup', opts));
+            marked.dispatchEvent(new MouseEvent('click', opts));
+        })()`);
+    }
+    await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
 }
 
 export async function selectChatGPTModel(page, model) {
@@ -607,6 +777,16 @@ export async function selectChatGPTModel(page, model) {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -637,11 +817,44 @@ export async function selectChatGPTModel(page, model) {
                 .map((selector) => document.querySelector(selector))
                 .find((node) => node instanceof HTMLElement && isVisible(node));
         }
+        if (!button) {
+            // 2026-08 UI fallback: the trigger is the only form button with no
+            // aria-label, showing a short effort label (e.g. 高).
+            button = Array.from(document.querySelectorAll('form button')).find((node) =>
+                isVisible(node)
+                && !node.getAttribute('aria-label')
+                && !node.getAttribute('data-testid')
+                && normalize(node.textContent).length > 0
+                && normalize(node.textContent).length <= 4
+            ) || null;
+        }
         if (!button) return { found: false };
         button.scrollIntoView({ block: 'center', inline: 'center' });
         const rect = button.getBoundingClientRect();
+        let clicked = false;
+        if ((document.documentElement.clientWidth || 0) <= 0) {
+            // 0x0-viewport bridge window: rects collapse to 0, so native click
+            // coordinates cannot hit the trigger, and it ignores plain
+            // .click() — dispatch the full pointer/mouse sequence too and
+            // mark the trigger for reliable re-clicks. The caller still fires
+            // nativeClick; in a real viewport it is the authoritative path.
+            button.setAttribute('data-opencli-model-menu', '1');
+            const clickOpts = {
+                bubbles: true, cancelable: true, composed: true,
+                clientX: Math.round(rect.left + rect.width / 2) || 1,
+                clientY: Math.round(rect.top + rect.height / 2) || 1,
+                button: 0,
+            };
+            button.dispatchEvent(new PointerEvent('pointerdown', { ...clickOpts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+            button.dispatchEvent(new MouseEvent('mousedown', clickOpts));
+            button.dispatchEvent(new PointerEvent('pointerup', { ...clickOpts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+            button.dispatchEvent(new MouseEvent('mouseup', clickOpts));
+            button.dispatchEvent(new MouseEvent('click', clickOpts));
+            clicked = true;
+        }
         return {
             found: true,
+            clicked,
             x: Math.round(rect.left + rect.width / 2),
             y: Math.round(rect.top + rect.height / 2),
         };
@@ -659,6 +872,16 @@ export async function selectChatGPTModel(page, model) {
                 if (!(el instanceof HTMLElement)) return false;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
+                if ((document.documentElement.clientWidth || 0) <= 0) {
+                    // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                    // so fall back to ancestor style checks: display:none templates
+                    // (login gates, aria-shadow copies) must stay excluded.
+                    for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                        const ancestorStyle = window.getComputedStyle(ancestor);
+                        if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                    }
+                    return true;
+                }
                 const rect = el.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
             };
@@ -715,6 +938,22 @@ export async function selectChatGPTModel(page, model) {
             if (!(option instanceof HTMLElement) || !isVisible(option)) return { found: false };
             option.scrollIntoView({ block: 'center', inline: 'center' });
             const rect = option.getBoundingClientRect();
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // 0x0-viewport bridge window: dispatch the full pointer/mouse
+                // sequence programmatically (see the menu-button finder); the
+                // caller still fires nativeClick.
+                const clickOpts = {
+                    bubbles: true, cancelable: true, composed: true,
+                    clientX: Math.round(rect.left + rect.width / 2) || 1,
+                    clientY: Math.round(rect.top + rect.height / 2) || 1,
+                    button: 0,
+                };
+                option.dispatchEvent(new PointerEvent('pointerdown', { ...clickOpts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+                option.dispatchEvent(new MouseEvent('mousedown', clickOpts));
+                option.dispatchEvent(new PointerEvent('pointerup', { ...clickOpts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+                option.dispatchEvent(new MouseEvent('mouseup', clickOpts));
+                option.dispatchEvent(new MouseEvent('click', clickOpts));
+            }
             return {
                 found: true,
                 x: Math.round(rect.left + rect.width / 2),
@@ -725,6 +964,9 @@ export async function selectChatGPTModel(page, model) {
         await page.wait(0.5);
     }
     if (!optionCenter?.found) {
+        if (await trySetChatGPTModelEffortViaPage(page, target)) {
+            return { Status: 'Success (API)', Model: target.label };
+        }
         throw new CommandExecutionError(`Could not click the ChatGPT ${target.label} model option.`);
     }
     await page.nativeClick(Number(optionCenter.x), Number(optionCenter.y));
@@ -732,13 +974,23 @@ export async function selectChatGPTModel(page, model) {
     await page.wait(0.5);
     const after = await getCurrentChatGPTModel(page);
     if (after.model !== target.key) {
-        await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
+        await reclickChatGPTModelMenu(page, menuButton);
         await page.wait(0.5);
         const checked = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
             const isVisible = (el) => {
                 if (!(el instanceof HTMLElement)) return false;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
+                if ((document.documentElement.clientWidth || 0) <= 0) {
+                    // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                    // so fall back to ancestor style checks: display:none templates
+                    // (login gates, aria-shadow copies) must stay excluded.
+                    for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                        const ancestorStyle = window.getComputedStyle(ancestor);
+                        if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                    }
+                    return true;
+                }
                 const rect = el.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
             };
@@ -754,10 +1006,13 @@ export async function selectChatGPTModel(page, model) {
             };
         })()`)), 'chatgpt model checked intelligence option');
         if (checked.recognized && checked.checkedIndex === target.intelligenceOrder) {
-            await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
+            await reclickChatGPTModelMenu(page, menuButton);
             return { Status: 'Success', Model: target.label };
         }
-        await page.nativeClick(Number(menuButton.x), Number(menuButton.y));
+        await reclickChatGPTModelMenu(page, menuButton);
+        if (await trySetChatGPTModelEffortViaPage(page, target)) {
+            return { Status: 'Success (API)', Model: target.label };
+        }
         throw new CommandExecutionError(`ChatGPT model did not switch to ${target.label}.`);
     }
     return { Status: 'Success', Model: target.label };
@@ -769,6 +1024,16 @@ export async function getCurrentChatGPTTool(page) {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -837,6 +1102,16 @@ export async function selectChatGPTTool(page, tool) {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -863,6 +1138,16 @@ export async function selectChatGPTTool(page, tool) {
                 if (!(el instanceof HTMLElement)) return false;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
+                if ((document.documentElement.clientWidth || 0) <= 0) {
+                    // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                    // so fall back to ancestor style checks: display:none templates
+                    // (login gates, aria-shadow copies) must stay excluded.
+                    for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                        const ancestorStyle = window.getComputedStyle(ancestor);
+                        if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                    }
+                    return true;
+                }
                 const rect = el.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
             };
@@ -1108,6 +1393,16 @@ async function submitChatGPTMessage(page) {
                     if (!(el instanceof HTMLElement)) return false;
                     const style = window.getComputedStyle(el);
                     if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    if ((document.documentElement.clientWidth || 0) <= 0) {
+                        // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                        // so fall back to ancestor style checks: display:none templates
+                        // (login gates, aria-shadow copies) must stay excluded.
+                        for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                            const ancestorStyle = window.getComputedStyle(ancestor);
+                            if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                        }
+                        return true;
+                    }
                     const rect = el.getBoundingClientRect();
                     return rect.width > 0 && rect.height > 0;
                 };
@@ -1145,6 +1440,16 @@ async function submitChatGPTMessage(page) {
                 if (!(el instanceof HTMLElement)) return false;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
+                if ((document.documentElement.clientWidth || 0) <= 0) {
+                    // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                    // so fall back to ancestor style checks: display:none templates
+                    // (login gates, aria-shadow copies) must stay excluded.
+                    for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                        const ancestorStyle = window.getComputedStyle(ancestor);
+                        if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                    }
+                    return true;
+                }
                 const rect = el.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
             };
@@ -1188,10 +1493,26 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
     const includeHtml = textOnly ? 'false' : 'true';
     const result = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const includeHtml = ${includeHtml};
+        // The OpenCLI browser bridge can run tabs in a 0x0-viewport window
+        // (document.documentElement.clientWidth === 0 while
+        // document.visibilityState === 'visible').
+        // The 2026-08 chatgpt.com UI sizes message containers from the viewport,
+        // so fluid-width message nodes report rect.width === 0 even while their
+        // text is fully rendered. Gate the rect check on the document actually
+        // having a viewport; CSS display/visibility still excludes genuinely
+        // hidden (e.g. aria-shadow) copies.
+        const hasViewport = (document.documentElement.clientWidth || 0) > 0;
         const isVisible = (el) => {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if (!hasViewport) {
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -1623,11 +1944,11 @@ async function buildChatGPTConversationHeaders(page, { includeAuthorization = fa
         return { ok: false, status: 0, reason: 'missing-cookie-api' };
     }
     const cookieLists = await Promise.all([
-        page.getCookies({ url: CHATGPT_URL }).catch(() => []),
-        page.getCookies({ url: `${CHATGPT_URL}/api/auth/session` }).catch(() => []),
-        page.getCookies({ domain: CHATGPT_DOMAIN }).catch(() => []),
-        page.getCookies({ domain: `.${CHATGPT_DOMAIN}` }).catch(() => []),
-        page.getCookies().catch(() => []),
+        raceBridgeCall(page.getCookies({ url: CHATGPT_URL }).catch(() => [])),
+        raceBridgeCall(page.getCookies({ url: `${CHATGPT_URL}/api/auth/session` }).catch(() => [])),
+        raceBridgeCall(page.getCookies({ domain: CHATGPT_DOMAIN }).catch(() => [])),
+        raceBridgeCall(page.getCookies({ domain: `.${CHATGPT_DOMAIN}` }).catch(() => [])),
+        raceBridgeCall(page.getCookies().catch(() => [])),
     ]);
     const cookiesByName = new Map();
     for (const cookie of cookieLists.flat()) {
@@ -1656,11 +1977,16 @@ async function buildChatGPTConversationHeaders(page, { includeAuthorization = fa
     const sessionResponse = await fetch(`${CHATGPT_URL}/api/auth/session`, {
         headers,
         signal: AbortSignal.timeout(10000),
-    });
-    if (!sessionResponse.ok) {
-        return { ok: false, status: sessionResponse.status, reason: 'session' };
+    }).catch(() => null);
+    if (!sessionResponse || !sessionResponse.ok) {
+        return { ok: false, status: sessionResponse ? sessionResponse.status : 0, reason: 'session' };
     }
-    const session = await sessionResponse.json();
+    let session = null;
+    try {
+        session = await sessionResponse.json();
+    } catch {
+        return { ok: false, status: sessionResponse.status, reason: 'session-json' };
+    }
     const accessToken = session?.accessToken;
     if (!accessToken) return { ok: false, status: 0, reason: 'missing-access-token' };
     return {
@@ -1784,6 +2110,16 @@ export async function getChatGPTDeepResearchResult(page, { conversationId = '', 
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -2247,9 +2583,23 @@ export async function getConversationList(page) {
     // so the previous standalone 2 s settle is redundant.
     await ensureOnChatGPT(page);
 
+    // Preferred: backend conversations API. The 2026-08 chatgpt.com UI renders
+    // sidebar conversation items as attribute-less <button>s inside <li> (no
+    // <a href="/c/..."> anchors anywhere in the document), so DOM anchor
+    // extraction finds nothing on current builds.
+    try {
+        const apiItems = await fetchConversationsViaBackendApi(page);
+        if (apiItems.length) {
+            return apiItems.map((item, index) => ({ Index: index + 1, ...item }));
+        }
+    } catch (err) {
+        // Fall through to DOM anchor extraction, but keep the reason visible.
+        console.error(`[chatgpt] conversation API extraction failed, falling back to anchors: ${err && err.message ? err.message : err}`);
+    }
+
     const openSidebar = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const button = Array.from(document.querySelectorAll('button'))
-            .find((node) => /open sidebar/i.test(node.getAttribute('aria-label') || ''));
+            .find((node) => /open sidebar|打开边栏|打开侧边栏/i.test(node.getAttribute('aria-label') || ''));
         if (button instanceof HTMLElement) {
             button.click();
             return true;
@@ -2278,12 +2628,57 @@ export async function getConversationList(page) {
     return items;
 }
 
+// [LOCAL PATCH 2026-09-03] Resolve a temporary /c/WEB:<uuid> route id (2026-09
+// frontend mints these for brand-new conversations) into the real server-side
+// conversation id. Strategy: list recent conversations via the backend API and
+// pick the newest one whose create_time is after a reference timestamp; the
+// WEB: id is never sent to the server, so listing is the only mapping source.
+// Returns the resolved id, or '' if resolution failed (caller decides fallback).
+export async function resolveWebConversationId(page, refEpochMs) {
+    const items = await fetchConversationsViaBackendApi(page).catch(() => []);
+    return items.length ? items[0].Id : '';
+}
+
+async function fetchConversationsViaBackendApi(page) {
+    // Runs in the page context so the request carries the site's own cookies;
+    // the bearer token comes from /api/auth/session.
+    return requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(async () => {
+        const session = await fetch('/api/auth/session', { credentials: 'include' })
+            .then((r) => r.json())
+            .catch(() => null);
+        const token = session && session.accessToken;
+        if (!token) return [];
+        const payload = await fetch('/backend-api/conversations?offset=0&limit=50', {
+            credentials: 'include',
+            headers: { Authorization: 'Bearer ' + token },
+        }).then((r) => r.json()).catch(() => null);
+        const items = payload && Array.isArray(payload.items) ? payload.items : [];
+        return items
+            .filter((item) => item && item.id)
+            .map((item) => ({
+                Id: String(item.id),
+                Title: String(item.title || '(untitled)').replace(/\\s+/g, ' ').trim() || '(untitled)',
+                Url: '${CHATGPT_URL}/c/' + String(item.id),
+            }));
+    })()`)), 'chatgpt backend conversation list');
+}
+
 async function extractConversationLinks(page) {
     const items = requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const isVisible = (el) => {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -2357,20 +2752,32 @@ async function waitForChatGPTUploadPreview(page, fileNames) {
             (() => {
                 const names = ${namesJson};
                 const text = document.body ? (document.body.innerText || '') : '';
-                const matchedNames = names.filter(name => text.includes(name)).length;
-                if (matchedNames >= names.length) return true;
-
                 const composer = document.querySelector('[aria-label="Chat with ChatGPT"], [placeholder="Ask anything"], #prompt-textarea');
                 let root = composer;
                 for (let i = 0; i < 6 && root && root.parentElement; i += 1) root = root.parentElement;
                 const scope = root || document.body;
                 if (!scope) return false;
 
+                // #2302: preview chips can be aria-label-only (no visible text),
+                // so match file names against aria-labels too — scoped to the
+                // composer region so stale attachment chips from earlier turns
+                // in the transcript cannot satisfy the check early.
+                const ariaText = Array.from(scope.querySelectorAll('[aria-label]'))
+                    .map((node) => node.getAttribute('aria-label') || '').join('\\n');
+                const matchedNames = names.filter(name => text.includes(name) || ariaText.includes(name)).length;
+                if (matchedNames >= names.length) return true;
+
+                const hasViewport = (document.documentElement.clientWidth || 0) > 0;
                 const isVisibleMedia = (node) => {
                     if (!(node instanceof HTMLElement)) return false;
                     const style = window.getComputedStyle(node);
                     if (style.display === 'none' || style.visibility === 'hidden') return false;
                     const rect = node.getBoundingClientRect();
+                    if (!hasViewport) {
+                        // 0x0-viewport bridge window: rects collapse to 0, so accept
+                        // displayed media with real intrinsic bytes or a background image.
+                        return (node.naturalWidth || node.videoWidth || 0) > 32 || /url\\(/.test(style.backgroundImage || '');
+                    }
                     const width = node.naturalWidth || node.videoWidth || rect.width || 0;
                     const height = node.naturalHeight || node.videoHeight || rect.height || 0;
                     if (width > 32 && height > 32) return true;
@@ -2525,10 +2932,14 @@ export async function isGenerating(page) {
 export async function getChatGPTVisibleImageUrls(page) {
     return requireArrayEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
         (() => {
+            // 0x0-viewport bridge windows collapse fluid-width rects to 0 (see
+            // getVisibleMessages); size gates only apply when a viewport exists.
+            const hasViewport = (document.documentElement.clientWidth || 0) > 0;
             const isVisible = (el) => {
                 if (!(el instanceof HTMLElement)) return false;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
+                if (!hasViewport) return true;
                 const rect = el.getBoundingClientRect();
                 return rect.width > 32 && rect.height > 32;
             };
@@ -2609,7 +3020,7 @@ export async function getChatGPTVisibleImageUrls(page) {
             for (const el of Array.from(document.querySelectorAll('[style*="background-image"], [style*="background"]'))) {
                 if (!(el instanceof HTMLElement) || !isVisible(el) || isDecorative(el)) continue;
                 const rect = el.getBoundingClientRect();
-                if (rect.width < 128 && rect.height < 128) continue;
+                if (hasViewport && rect.width < 128 && rect.height < 128) continue;
                 const backgroundImage = window.getComputedStyle(el).backgroundImage || '';
                 for (const match of backgroundImage.matchAll(/url\\((['"]?)(.*?)\\1\\)/g)) {
                     const src = match[2];
@@ -2669,6 +3080,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
     let lastUrls = [];
     let stableCount = 0;
     let stillRendering = false;
+    let textOnlyPolls = 0;
 
     for (let i = 0; i < maxPolls; i++) {
         await page.sleep(i === 0 ? 3 : pollIntervalSeconds);
@@ -2703,7 +3115,37 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
         // deadline reports TIMEOUT instead of EMPTY_RESULT.
         const urls = candidates.filter(url => !/^data:/i.test(url));
         stillRendering = urls.length === 0 && candidates.length > 0;
-        if (urls.length === 0) continue;
+        if (urls.length === 0) {
+            // Terminal no-image detection: the turn can end with a text-only
+            // reply instead of an image (policy refusals do this — the turn
+            // finishes in ~1 min while the wait would otherwise burn the full
+            // deadline). Require two consecutive quiet polls with substantive
+            // assistant text, so a brief ack before rendering or a stalled
+            // generation is not mistaken for a refusal.
+            let refusalText = '';
+            try {
+                const messages = await getVisibleMessages(page, { textOnly: true });
+                const last = messages[messages.length - 1];
+                if (last && last.Role === 'Assistant') refusalText = String(last.Text || '').trim();
+            } catch {
+                // Message extraction unavailable (e.g. envelope drift) — keep
+                // waiting for images on the deadline path instead of guessing.
+            }
+            if (refusalText.length >= 16) {
+                textOnlyPolls += 1;
+            } else {
+                textOnlyPolls = 0;
+            }
+            if (textOnlyPolls >= 2) {
+                throw new CommandExecutionError(
+                    `ChatGPT finished without generating an image — it replied with a text-only response (likely a policy refusal): "${refusalText.slice(0, 300)}"`,
+                    convUrl && convUrl.includes('/c/')
+                        ? `Review ${convUrl}, adjust the prompt, then retry.`
+                        : 'Adjust the prompt and retry.',
+                );
+            }
+            continue;
+        }
 
         const key = urls.join('\n');
         const prevKey = lastUrls.join('\n');
@@ -2741,7 +3183,7 @@ export async function getProjectList(page) {
     // Ensure sidebar is open
     const openSidebar = requireBooleanEvaluateResult(unwrapEvaluateResult(await page.evaluate(`(() => {
         const button = Array.from(document.querySelectorAll('button'))
-            .find((node) => /open sidebar/i.test(node.getAttribute('aria-label') || ''));
+            .find((node) => /open sidebar|打开边栏|打开侧边栏/i.test(node.getAttribute('aria-label') || ''));
         if (button instanceof HTMLElement) {
             button.click();
             return true;
@@ -2792,6 +3234,16 @@ async function extractProjectLinks(page) {
             if (!(el instanceof HTMLElement)) return false;
             const style = window.getComputedStyle(el);
             if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if ((document.documentElement.clientWidth || 0) <= 0) {
+                // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                // so fall back to ancestor style checks: display:none templates
+                // (login gates, aria-shadow copies) must stay excluded.
+                for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                    const ancestorStyle = window.getComputedStyle(ancestor);
+                    if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                }
+                return true;
+            }
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
@@ -2961,6 +3413,16 @@ export async function openProjectKnowledgeDialog(page) {
                 if (!(el instanceof HTMLElement)) return false;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') return false;
+                if ((document.documentElement.clientWidth || 0) <= 0) {
+                    // Zero-size viewports collapse rects to 0 even for rendered nodes,
+                    // so fall back to ancestor style checks: display:none templates
+                    // (login gates, aria-shadow copies) must stay excluded.
+                    for (let ancestor = el.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+                        const ancestorStyle = window.getComputedStyle(ancestor);
+                        if (ancestorStyle.display === 'none' || ancestorStyle.visibility === 'hidden') return false;
+                    }
+                    return true;
+                }
                 const rect = el.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
             };

@@ -13,6 +13,7 @@ import {
     requireNonEmptyPrompt,
     requirePositiveInt,
     parseChatGPTConversationId,
+    resolveWebConversationId,
     sendChatGPTMessage,
     selectChatGPTTool,
     isGenerating,
@@ -21,6 +22,10 @@ import {
     waitForChatGPTResponse,
 } from './utils.js';
 
+// [LOCAL PATCH 2026-09-03] 2026-09 chatgpt.com routes brand-new conversations
+// to /c/WEB:<uuid> (a client-side temporary id that never appears in the
+// backend API). Accept any /c/<id> route — including WEB: ids — so ask no
+// longer times out waiting for the old-style conversation URL.
 async function waitForConversationUrl(page, timeoutSeconds = 30) {
     const startTime = Date.now();
     while (Date.now() - startTime < timeoutSeconds * 1000) {
@@ -116,7 +121,42 @@ export const askCommand = cli({
             throw new CommandExecutionError('Failed to send message to ChatGPT', `Open ${CHATGPT_URL} and verify the composer is ready.`);
         }
 
-        const { conversationId, conversationUrl } = await waitForConversationUrl(page);
+        const { conversationId: rawConversationId, conversationUrl } = await waitForConversationUrl(page);
+        // [LOCAL PATCH 2026-09-03] WEB:<uuid> is a frontend-only temporary id.
+        // Observed behaviour (2026-09-03): after the response finishes, the
+        // frontend itself replaces the URL with the real /c/<server-id>. So:
+        // wait for the response, re-read the URL, and if it now parses to a
+        // non-WEB id use it; only fall back to the backend-api listing when
+        // the URL still carries the WEB: prefix.
+        let conversationId = rawConversationId;
+        if (/^WEB:/i.test(rawConversationId)) {
+            if (shouldWait) {
+                const response = await waitForChatGPTResponse(page, baseline, prompt, timeout, {
+                    baselinePairCounts,
+                    // URL may legitimately swap WEB:<uuid> -> real id mid-wait;
+                    // pass null so the leave-conversation guard does not false-fire.
+                    conversationUrl: null,
+                });
+                const postUrl = await currentChatGPTUrl(page);
+                let postParsed = '';
+                try { postParsed = parseChatGPTConversationId(postUrl); } catch { /* keep WEB id */ }
+                if (postParsed && !/^WEB:/i.test(postParsed)) {
+                    conversationId = postParsed;
+                } else {
+                    conversationId = await resolveWebConversationId(page) || rawConversationId;
+                }
+                return [{
+                    conversationId,
+                    conversationUrl: conversationId && !/^WEB:/i.test(conversationId)
+                        ? `${CHATGPT_URL}/c/${conversationId}`
+                        : conversationUrl,
+                    tool: selectedTool?.Tool ?? '',
+                    response,
+                }];
+            }
+            // --no-wait: return the WEB id as-is; nothing better is available yet.
+            return [{ conversationId, conversationUrl, tool: selectedTool?.Tool ?? '', response: '' }];
+        }
         if (!shouldWait) {
             return [{ conversationId, conversationUrl, tool: selectedTool?.Tool ?? '', response: '' }];
         }
