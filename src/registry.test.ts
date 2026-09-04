@@ -90,6 +90,29 @@ describe('cli() registration', () => {
     expect(registry.get('test-registry/legacy-name')).toBe(cmd);
   });
 
+  it('does not let an alias overwrite an existing command', () => {
+    const original = cli({
+      site: 'test-alias-collision',
+      name: 'status', access: 'read',
+      description: 'original command',
+      strategy: Strategy.PUBLIC,
+      browser: false,
+    });
+    const incoming = cli({
+      site: 'test-alias-collision',
+      name: 'inspect', access: 'read',
+      description: 'command with one conflicting alias',
+      strategy: Strategy.PUBLIC,
+      browser: false,
+      aliases: ['status', 'legacy-inspect'],
+    });
+
+    const registry = getRegistry();
+    expect(registry.get('test-alias-collision/status')).toBe(original);
+    expect(incoming.aliases).toEqual(['legacy-inspect']);
+    expect(registry.get('test-alias-collision/legacy-inspect')).toBe(incoming);
+  });
+
   it('preserves defaultFormat on the registered command', () => {
     const cmd = cli({
       site: 'test-registry',
