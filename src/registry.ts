@@ -229,7 +229,12 @@ export function registerCommand(cmd: RawCliCommand): void {
     }
   }
 
-  const aliases = normalizeAliases(normalized.aliases, normalized.name);
+  // An alias must not silently replace an existing command (or a previously
+  // registered alias) for the same site. This is especially important for
+  // plugins, whose load order must not change an established command route.
+  const aliases = normalizeAliases(normalized.aliases, normalized.name).filter(
+    (alias) => !_registry.has(`${normalized.site}/${alias}`),
+  );
   normalized.aliases = aliases.length > 0 ? aliases : undefined;
   _registry.set(canonicalKey, normalized);
   for (const alias of aliases) {
