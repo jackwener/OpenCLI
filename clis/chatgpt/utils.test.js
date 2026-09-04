@@ -1762,6 +1762,33 @@ describe('chatgpt image upload helper', () => {
         expect(fallbackScript).toContain('stopPropagation()');
     });
 
+    it('falls back to DOM upload when setFileInput times out waiting for a file chooser', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'cat.png');
+        fs.writeFileSync(filePath, 'fake-png');
+
+        const page = {
+            setFileInput: vi.fn().mockRejectedValue(new Error('Page.fileChooserOpened not received within 5s')),
+            wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => {
+                if (String(script).includes('new DataTransfer()')) {
+                    return Promise.resolve({ ok: true });
+                }
+                return Promise.resolve(true);
+            }),
+        };
+
+        const result = await uploadChatGPTImages(page, [filePath]);
+
+        expect(result).toEqual({ ok: true, files: [filePath] });
+        const fallbackScript = page.evaluate.mock.calls
+            .map(([script]) => String(script))
+            .find(script => script.includes('new DataTransfer()'));
+        expect(fallbackScript).toContain('new DataTransfer()');
+    });
+
     it('does not treat generic upload controls as uploaded image previews', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
         tempDirs.push(dir);

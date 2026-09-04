@@ -2402,7 +2402,7 @@ export async function uploadChatGPTImages(page, imagePaths) {
             uploaded = true;
         } catch (err) {
             const msg = String(err?.message || err);
-            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('No element found')) {
+            if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('No element found') && !msg.includes('fileChooserOpened')) {
                 throw err;
             }
         }
@@ -3095,7 +3095,7 @@ export async function uploadChatGPTProjectFiles(page, projectId, filePaths) {
                 break;
             } catch (err) {
                 const msg = String(err?.message || err);
-                if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('No element found')) {
+                if (!msg.includes('Unknown action') && !msg.includes('not supported') && !msg.includes('Not allowed') && !msg.includes('No element found') && !msg.includes('fileChooserOpened')) {
                     throw err;
                 }
             }
