@@ -62,6 +62,32 @@ describe('xiaohongshu risk-control readXhsDetailPage', () => {
         expect(page.wait).toHaveBeenCalledWith({ time: 13 });
     });
 
+    it('retry reloads in place when the soft block rendered at the target URL', async () => {
+        // The in-page block variant ("安全限制" at an unchanged URL): a plain
+        // goto to the tab's current URL fast-paths in the extension without
+        // reloading, so the retry would re-read the same blocked document.
+        const page = makePage([
+            { securityBlock: true },
+            undefined, // location.reload()
+            { title: 'recovered', securityBlock: false },
+        ]);
+        page.getCurrentUrl = vi.fn().mockResolvedValue(url);
+        const data = await readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 });
+        expect(data).toEqual({ title: 'recovered', securityBlock: false });
+        expect(page.goto).toHaveBeenCalledTimes(1);
+        expect(page.evaluate.mock.calls[1][0]).toContain('location.reload()');
+    });
+
+    it('retry re-navigates when the soft block redirected to the error URL', async () => {
+        const page = makePage([{ securityBlock: true }, { title: 'recovered', securityBlock: false }]);
+        page.getCurrentUrl = vi.fn().mockResolvedValue(
+            'https://www.xiaohongshu.com/website-login/error?error_code=300017',
+        );
+        const data = await readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 });
+        expect(data).toEqual({ title: 'recovered', securityBlock: false });
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
     it('throws SECURITY_BLOCK (with the hint) when still blocked after the one retry — never hammers', async () => {
         const page = makePage([{ securityBlock: true }, { securityBlock: true }, { securityBlock: true }]);
         await expect(readXhsDetailPage(page, {

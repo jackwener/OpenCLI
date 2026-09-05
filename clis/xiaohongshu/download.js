@@ -211,6 +211,7 @@ export const command = cli({
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         { name: 'note-id', positional: true, required: true, help: 'Full Xiaohongshu note URL with xsec_token, or xhslink short link' },
         { name: 'output', default: './xiaohongshu-downloads', help: 'Output directory' },

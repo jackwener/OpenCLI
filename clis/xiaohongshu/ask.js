@@ -430,6 +430,7 @@ export const command = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         { name: 'query', positional: true, required: true, help: 'Question for 点点' },
         { name: 'timeout', type: 'int', default: 90, help: 'Seconds to wait for the 点点 answer' },

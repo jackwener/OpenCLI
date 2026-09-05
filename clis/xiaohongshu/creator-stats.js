@@ -18,6 +18,7 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         {
             name: 'period',

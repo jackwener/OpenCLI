@@ -59,10 +59,13 @@ export async function readXhsDetailPage(page, {
     cooldownMaxS = 18,
     rand = Math.random,
 } = {}) {
-    const readOnce = async () => {
-        await page.goto(url);
+    const settleAndExtract = async () => {
         await page.wait({ time: jitterSeconds(settleMinS, settleMaxS, rand) });
         return page.evaluate(extractJs);
+    };
+    const readOnce = async () => {
+        await page.goto(url);
+        return settleAndExtract();
     };
 
     let data = await readOnce();
@@ -72,7 +75,21 @@ export async function readXhsDetailPage(page, {
     // choice of retry count.
     if (retryOnBlock && isSecurityBlock(data)) {
         await page.wait({ time: jitterSeconds(cooldownMinS, cooldownMaxS, rand) });
-        data = await readOnce();
+        // The in-page block variant renders "安全限制" at an unchanged URL, and
+        // the extension fast-paths a goto to the tab's current URL without
+        // reloading — the retry must force a real reload or it re-reads the
+        // same blocked document. The redirect variant changes the URL, so a
+        // plain goto navigates for real.
+        const currentUrl = typeof page.getCurrentUrl === 'function'
+            ? await page.getCurrentUrl().catch(() => null)
+            : null;
+        if (currentUrl === url) {
+            await page.evaluate('location.reload()');
+            data = await settleAndExtract();
+        }
+        else {
+            data = await readOnce();
+        }
     }
 
     if (isSecurityBlock(data)) {
