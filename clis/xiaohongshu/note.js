@@ -70,6 +70,7 @@ export const command = cli({
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         { name: 'note-id', required: true, positional: true, help: 'Full Xiaohongshu note URL with xsec_token' },
     ],

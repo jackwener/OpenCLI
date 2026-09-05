@@ -186,6 +186,7 @@ cli({
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     navigateBefore: false,
+    siteSession: 'persistent',
     browser: true,
     args: [
         {

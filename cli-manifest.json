@@ -45535,7 +45535,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/ask.js",
     "sourceFile": "xiaohongshu/ask.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
@@ -45583,7 +45584,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/comments.js",
     "sourceFile": "xiaohongshu/comments.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
@@ -45706,7 +45708,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/creator-profile.js",
     "sourceFile": "xiaohongshu/creator-profile.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
@@ -45737,7 +45740,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/creator-stats.js",
     "sourceFile": "xiaohongshu/creator-stats.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
@@ -45806,7 +45810,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/download.js",
     "sourceFile": "xiaohongshu/download.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
@@ -46008,7 +46013,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/follow.js",
     "sourceFile": "xiaohongshu/follow.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
@@ -46102,7 +46108,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/note.js",
     "sourceFile": "xiaohongshu/note.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
@@ -46367,7 +46374,8 @@
     "type": "js",
     "modulePath": "xiaohongshu/unfollow.js",
     "sourceFile": "xiaohongshu/unfollow.js",
-    "navigateBefore": false
+    "navigateBefore": false,
+    "siteSession": "persistent"
   },
   {
     "site": "xiaohongshu",
