@@ -191,6 +191,8 @@ cli({
           name: metadata.title || '',
           channelId: metadata.externalId || browseId,
           handle: metadata.vanityChannelUrl?.split('/').pop() || '',
+          // Channel avatar (thumbnails are smallest-first; take the largest).
+          avatar: metadata.avatar?.thumbnails?.slice(-1)?.[0]?.url || '',
           description: (metadata.description || '').substring(0, 500),
           subscribers: subscriberCount,
           url: metadata.channelUrl || 'https://www.youtube.com/channel/' + browseId,

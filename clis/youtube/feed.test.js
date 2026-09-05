@@ -56,6 +56,16 @@ const initialData = {
                                                 viewCountText: { simpleText: '1K views' },
                                                 lengthText: { simpleText: '10:00' },
                                                 publishedTimeText: { simpleText: '1 day ago' },
+                                                channelThumbnailSupportedRenderers: {
+                                                    channelThumbnailWithLinkRenderer: {
+                                                        thumbnail: {
+                                                            thumbnails: [
+                                                                { url: 'https://yt3.ggpht.com/small=s48', width: 48 },
+                                                                { url: 'https://yt3.ggpht.com/large=s68', width: 68 },
+                                                            ],
+                                                        },
+                                                    },
+                                                },
                                             },
                                         },
                                     },
@@ -118,6 +128,9 @@ describe('youtube feed', () => {
                 rank: 1,
                 title: 'First video',
                 video_id: 'first-video',
+                // Legacy videoRenderer: avatar comes from channelThumbnailSupportedRenderers,
+                // thumbnails smallest-first so the largest wins.
+                channel_avatar: 'https://yt3.ggpht.com/large=s68',
                 url: 'https://www.youtube.com/watch?v=first-video',
             }),
             expect.objectContaining({
@@ -127,5 +140,69 @@ describe('youtube feed', () => {
                 url: 'https://www.youtube.com/watch?v=second-video',
             }),
         ]);
+    });
+
+    it('reads the channel avatar from the lockup view model format', async () => {
+        const lockupData = {
+            contents: {
+                twoColumnBrowseResultsRenderer: {
+                    tabs: [{
+                        tabRenderer: {
+                            content: {
+                                richGridRenderer: {
+                                    contents: [{
+                                        richItemRenderer: {
+                                            content: {
+                                                lockupViewModel: {
+                                                    contentId: 'lockup-video',
+                                                    contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+                                                    metadata: {
+                                                        lockupMetadataViewModel: {
+                                                            title: { content: 'Lockup video' },
+                                                            image: {
+                                                                decoratedAvatarViewModel: {
+                                                                    avatar: {
+                                                                        avatarViewModel: {
+                                                                            image: {
+                                                                                sources: [
+                                                                                    { url: 'https://yt3.ggpht.com/lockup=s68', width: 68 },
+                                                                                ],
+                                                                            },
+                                                                        },
+                                                                    },
+                                                                },
+                                                            },
+                                                            metadata: {
+                                                                contentMetadataViewModel: {
+                                                                    metadataRows: [{
+                                                                        metadataParts: [
+                                                                            { text: { content: 'Lockup channel' } },
+                                                                            { text: { content: '3K views' } },
+                                                                            { text: { content: '5 days ago' } },
+                                                                        ],
+                                                                    }],
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    }],
+                                },
+                            },
+                        },
+                    }],
+                },
+            },
+        };
+        const page = makePage({ initialData: lockupData });
+        const rows = await getRegistry().get('youtube/feed').func(page, { limit: 1 });
+        expect(rows[0]).toMatchObject({
+            title: 'Lockup video',
+            channel: 'Lockup channel',
+            channel_avatar: 'https://yt3.ggpht.com/lockup=s68',
+            video_id: 'lockup-video',
+        });
     });
 });

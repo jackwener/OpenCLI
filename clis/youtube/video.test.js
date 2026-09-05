@@ -26,6 +26,14 @@ describe('youtube video source contract', () => {
     expect(videoSource).toContain('player.playabilityStatus');
     expect(videoSource).toContain('BADGE_STYLE_TYPE_MEMBERS_ONLY');
   });
+
+  it('falls back to the channel browse response when the watch page has no videoOwnerRenderer', () => {
+    // 实测多数 watch 页变体没有 videoSecondaryInfoRenderer.owner.videoOwnerRenderer，
+    // 头像 / 订阅数会整条空掉；videoDetails.channelId 一定有，用它兜一次 browse。
+    expect(videoSource).toContain('if (!channelAvatar && details.channelId)');
+    expect(videoSource).toContain('fetchBrowse(apiKey, { context, browseId: details.channelId })');
+    expect(videoSource).toContain('channelMetadataRenderer');
+  });
 });
 
 describe('youtube video row mapping', () => {

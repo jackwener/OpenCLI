@@ -46,3 +46,8 @@ opencli youtube unsubscribe "UCxxxxxxxxxxxxxx"
 
 - Chrome running and **logged into** youtube.com
 - [Browser Bridge extension](/guide/browser-bridge) installed
+
+## Notes
+
+- `feed` and `search` emit `channel_avatar` (largest thumbnail the list page carries) and `video_id`; both are empty for result types that have no channel avatar or video, such as playlist lockups
+- `video` falls back to the channel's own browse response for `channel_avatar` / `subscribers` when the watch page ships no `videoOwnerRenderer` — one extra InnerTube call, only on the pages that need it

@@ -69,7 +69,7 @@ cli({
         { name: 'upload', default: '', help: 'Upload date: hour, today, week, month, year' },
         { name: 'sort', default: '', help: 'Sort by: relevance, date, views, rating' },
     ],
-    columns: ['rank', 'title', 'channel', 'views', 'duration', 'published', 'url'],
+    columns: ['rank', 'title', 'channel', 'channel_avatar', 'video_id', 'views', 'duration', 'published', 'url'],
     func: async (page, kwargs) => {
         const query = String(kwargs.query || '').trim();
         if (!query) throw new ArgumentError('youtube search query cannot be empty');
@@ -117,12 +117,23 @@ cli({
           return path.startsWith('http') ? path : 'https://www.youtube.com' + path;
         }
 
+        // Channel avatar: thumbnails/sources are smallest-first, so take the last one.
+        function readAvatar(node) {
+          const thumbnails = node?.channelThumbnailSupportedRenderers
+            ?.channelThumbnailWithLinkRenderer?.thumbnail?.thumbnails
+            || node?.thumbnail?.thumbnails
+            || [];
+          return thumbnails[thumbnails.length - 1]?.url || '';
+        }
+
         function fromVideo(video) {
           const path = video?.navigationEndpoint?.commandMetadata?.webCommandMetadata?.url
             || (video?.videoId ? '/watch?v=' + video.videoId : '');
           return [video?.videoId || '', {
             title: readText(video?.title),
             channel: readText(video?.ownerText) || readText(video?.shortBylineText),
+            channel_avatar: readAvatar(video),
+            video_id: video?.videoId || '',
             views: readText(video?.viewCountText) || readText(video?.shortViewCountText),
             duration: readText(video?.lengthText) || 'LIVE',
             published: readText(video?.publishedTimeText),
@@ -135,6 +146,8 @@ cli({
             title: readText(reel?.headline),
             channel: readText(reel?.navigationEndpoint?.reelWatchEndpoint?.overlay?.reelPlayerOverlayRenderer
               ?.reelPlayerHeaderSupportedRenderers?.reelPlayerHeaderRenderer?.channelTitleText),
+            channel_avatar: readAvatar(reel),
+            video_id: reel?.videoId || '',
             views: readText(reel?.viewCountText),
             duration: 'SHORT',
             published: readText(reel?.publishedTimeText),
@@ -152,6 +165,8 @@ cli({
           return [videoId, {
             title: readText(short?.overlayMetadata?.primaryText),
             channel: '',
+            channel_avatar: '',
+            video_id: videoId,
             views: readText(short?.overlayMetadata?.secondaryText),
             duration: 'SHORT',
             published: '',
@@ -167,6 +182,8 @@ cli({
           return [channel?.channelId || channel?.navigationEndpoint?.browseEndpoint?.browseId || '', {
             title: readText(channel?.title),
             channel: handleCandidate.startsWith('@') ? handleCandidate : '',
+            channel_avatar: readAvatar(channel),
+            video_id: '',
             views: readText(channel?.videoCountText) || (!handleCandidate.startsWith('@') ? handleCandidate : ''),
             duration: 'CHANNEL',
             published: '',
@@ -179,6 +196,8 @@ cli({
           return [playlistId, {
             title: readText(playlist?.title),
             channel: readText(playlist?.shortBylineText) || readText(playlist?.longBylineText),
+            channel_avatar: '',
+            video_id: '',
             views: readText(playlist?.videoCountText),
             duration: 'PLAYLIST',
             published: '',
@@ -194,6 +213,9 @@ cli({
           return [playlistId, {
             title: readText(metadata?.title),
             channel: parts[0] || '',
+            channel_avatar: metadata?.image?.decoratedAvatarViewModel?.avatar
+              ?.avatarViewModel?.image?.sources?.slice(-1)?.[0]?.url || '',
+            video_id: '',
             views: '',
             duration: 'PLAYLIST',
             published: '',
