@@ -40,7 +40,7 @@ describe('bilibili video', () => {
         pic: 'https://i1.hdslb.com/some.jpg',
         desc: 'Obsidian 教程',
         rights: {},
-        owner: { mid: 507578555, name: 'IOI科技' },
+        owner: { mid: 507578555, name: 'IOI科技', face: 'http://i2.hdslb.com/bfs/face/abc.jpg' },
         stat: { view: 6128, danmaku: 0, reply: 21, like: 162, coin: 48, favorite: 564, share: 26 },
       },
     });
@@ -58,7 +58,12 @@ describe('bilibili video', () => {
     expect(byField.bvid).toBe('BV1xx411c7mD');
     expect(byField.title).toBe('三层结构笔记法');
     expect(byField.author).toBe('IOI科技 (mid: 507578555)');
+    // Machine-readable siblings of the display-formatted fields.
+    expect(byField.mid).toBe('507578555');
+    expect(byField.face).toBe('https://i2.hdslb.com/bfs/face/abc.jpg');
+    expect(byField.pubdate_ts).toBe('1775053078');
     expect(byField.duration).toBe('7m14s (434s)');
+    expect(byField.duration_sec).toBe('434');
     expect(byField.view).toBe('6128');
     expect(byField.like).toBe('162');
     // 普通视频：无任何付费标记
@@ -238,6 +243,7 @@ describe('bilibili video', () => {
     expect(byField.series_title).toBe('《道德经的奥秘》');
     expect(byField.parts).toBe('21');
     expect(byField.duration).toBe('23m11s (1391s)');
+    expect(byField.duration_sec).toBe('1391');
   });
 
   it('falls back to "<series> P<n>" when the part has no title', async () => {
