@@ -404,10 +404,17 @@ function buildApplySearchFiltersJs(requestedFilters) {
           }
           const options = visibleMatches(groups[0], '.tag-container > .tags')
             .filter((option) => text(option) === request.option);
-          if (options.length !== 1) {
+          // The live layout renders each chip twice, stacked at the exact
+          // same position. Pixel-identical matches are one visual control,
+          // not an ambiguity; matches at distinct positions still fail closed.
+          const rectKey = (element) => {
+            const rect = element.getBoundingClientRect();
+            return [rect.left, rect.top, rect.width, rect.height].map((v) => Math.round(v || 0)).join(',');
+          };
+          if (!options.length || new Set(options.map(rectKey)).size !== 1) {
             return { status: 'layout', detail: options.length ? 'ambiguous_option' : 'option_not_found' };
           }
-          return { status: 'ok', option: options[0] };
+          return { status: 'ok', option: options.find((o) => o.classList.contains('active')) || options[0] };
         };
         const isActive = (option) => option.classList.contains('active');
         const ready = () => visibleMatches(document, 'section.note-item, section:has(a[href*="/search_result/"]), section:has(a[href*="/explore/"]), .search-empty-wrapper').length > 0;
