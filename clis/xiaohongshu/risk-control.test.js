@@ -133,3 +133,53 @@ describe('xiaohongshu risk-control readXhsDetailPage', () => {
             .rejects.toBeInstanceOf(CliError);
     });
 });
+
+describe('xiaohongshu risk-control shared-tab contention', () => {
+    // Persistent site sessions share one tab; a concurrent command can
+    // navigate it away between our goto and extract, and the extract then
+    // reads the WRONG note (observed live: parallel `note` A returned note
+    // B's content with a success exit).
+    const url = 'https://www.xiaohongshu.com/explore/aaaaaaaaaaaaaaaaaaaaaaaa?xsec_token=tok';
+    const extractJs = '(() => ({}))()';
+    const rightPage = { title: 'right', securityBlock: false, pageUrl: url };
+    const wrongPage = {
+        title: 'stolen',
+        securityBlock: false,
+        pageUrl: 'https://www.xiaohongshu.com/explore/bbbbbbbbbbbbbbbbbbbbbbbb?xsec_token=other',
+    };
+
+    it('re-navigates once and returns the payload when the retry lands on the right note', async () => {
+        const page = makePage([wrongPage, rightPage]);
+        const data = await readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 });
+        expect(data).toEqual(rightPage);
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws TAB_CONTENTION instead of returning another note silently', async () => {
+        const page = makePage([wrongPage, wrongPage, wrongPage]);
+        await expect(readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 }))
+            .rejects.toMatchObject({ code: 'TAB_CONTENTION' });
+        // structural single retry — never a loop
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('honors the never-return-a-block contract when the contention retry lands on a block', async () => {
+        const page = makePage([wrongPage, { securityBlock: true }]);
+        await expect(readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 }))
+            .rejects.toMatchObject({ code: 'SECURITY_BLOCK' });
+    });
+
+    it('skips the check when the payload has no extractable note id (login walls, error pages)', async () => {
+        const noId = { loginWall: true, securityBlock: false, pageUrl: 'https://www.xiaohongshu.com/login' };
+        const page = makePage([noId]);
+        const data = await readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 });
+        expect(data).toEqual(noId);
+        expect(page.goto).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the check for payloads without pageUrl (older extract shapes)', async () => {
+        const page = makePage([{ title: 'legacy', securityBlock: false }]);
+        const data = await readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 });
+        expect(data).toEqual({ title: 'legacy', securityBlock: false });
+    });
+});

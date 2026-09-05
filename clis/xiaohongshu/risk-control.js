@@ -29,6 +29,27 @@ export function isSecurityBlock(data) {
     return Boolean(data && typeof data === 'object' && !Array.isArray(data) && data.securityBlock);
 }
 
+const NOTE_PATH_ID_RE = /\/(?:search_result|explore|note)\/([0-9a-f]{24})(?=[/?#]|$)/i;
+
+function noteIdFromUrl(value) {
+    const match = NOTE_PATH_ID_RE.exec(String(value ?? ''));
+    return match ? match[1].toLowerCase() : null;
+}
+
+/**
+ * Persistent site sessions share one tab, so a concurrent command can
+ * navigate it away between our goto and extract — the extract then reads a
+ * DIFFERENT note. Only flag payloads that carry a pageUrl with an
+ * extractable note id that differs from the requested one; login walls and
+ * error pages have no note id and are handled by their own paths.
+ */
+export function isWrongNotePage(data, url) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    const requested = noteIdFromUrl(url);
+    const landed = noteIdFromUrl(data.pageUrl);
+    return Boolean(requested && landed && requested !== landed);
+}
+
 /**
  * Navigate to a XHS detail page and run `extractJs`, retrying once through a long
  * randomized cooldown when risk control soft-blocks the page. Returns the extract
@@ -97,6 +118,28 @@ export async function readXhsDetailPage(page, {
             'SECURITY_BLOCK',
             'Xiaohongshu security block: the note detail page was blocked by risk control.',
             securityHelp,
+        );
+    }
+
+    // Shared-tab contention: a concurrent command navigated the persistent
+    // tab away mid-read and the extract returned ANOTHER note. Returning it
+    // silently is data corruption (observed live with two parallel `note`
+    // runs) — re-navigate once to win the slot back, then fail typed.
+    if (isWrongNotePage(data, url)) {
+        data = await readOnce();
+    }
+    if (isSecurityBlock(data)) {
+        throw new CliError(
+            'SECURITY_BLOCK',
+            'Xiaohongshu security block: the note detail page was blocked by risk control.',
+            securityHelp,
+        );
+    }
+    if (isWrongNotePage(data, url)) {
+        throw new CliError(
+            'TAB_CONTENTION',
+            'Xiaohongshu detail page was navigated away mid-read by a concurrent command on the same site session.',
+            'Run xiaohongshu commands for the same profile sequentially — parallel reads share one browser tab under the persistent site session.',
         );
     }
     return data;
