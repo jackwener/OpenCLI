@@ -17,6 +17,9 @@ import {
 function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100, top: 0 });
 }
+function markVisibleAt(el, top) {
+    el.getBoundingClientRect = () => ({ width: 100, height: 100, top });
+}
 function createPageMock(evaluateResults) {
     const queuedResults = [...evaluateResults];
     const evaluate = vi.fn(async (script) => {
@@ -144,8 +147,12 @@ function createFilterBehaviorPage(options = {}) {
             const container = document.createElement('div');
             container.className = 'tag-container';
             for (const choice of choices) {
-                if (options.missing === `${groupLabel}/${choice}`) continue;
-                const copies = options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
+                const key = `${groupLabel}/${choice}`;
+                if (options.missing === key) continue;
+                // `duplicated` doubles every chip at the same rect (the live
+                // 2026-09 layout); `ambiguous` places the second copy at a
+                // different position — genuinely two distinct controls.
+                const copies = options.ambiguous === key || options.duplicated ? 2 : 1;
                 for (let copy = 0; copy < copies; copy++) {
                     const option = document.createElement('div');
                     option.className = `tags${state[groupLabel] === choice ? ' active' : ''}`;
@@ -173,7 +180,8 @@ function createFilterBehaviorPage(options = {}) {
                         }, 300);
                     });
                     container.append(option);
-                    markVisible(option);
+                    if (copy > 0 && options.ambiguous === key) markVisibleAt(option, 60);
+                    else markVisible(option);
                     markVisible(optionLabel);
                 }
             }
@@ -696,6 +704,19 @@ describe('xiaohongshu search filter behavior', () => {
                 '发布时间': '一天内',
                 '搜索范围': '已关注',
             });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('treats stacked duplicate chips (identical rects) as one option — live layout 2026-09', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ duplicated: true });
+            const result = await runFilterCommand(page, { sort: 'latest' });
+            expect(result[0].title).toBe('最新');
+            expect(page.filterState).toMatchObject({ '排序依据': '最新' });
         }
         finally {
             vi.useRealTimers();
