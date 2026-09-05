@@ -340,6 +340,17 @@ async function sendCommandRaw(
   const contextId = routing.contextId;
   const preferredContextId = routing.preferredContextId;
   const windowMode = params.windowMode ?? envWindowMode;
+  // OPENCLI_BROWSER_IDLE_TIMEOUT: seconds the owned automation window stays
+  // alive after its last command. Polling pipelines that fire a command every
+  // minute or two want this above the extension default so each run reuses
+  // the same window instead of paying a fresh windows.create() (and, on
+  // macOS, a focus flash). Explicit params.idleTimeout takes precedence; the
+  // extension ignores 0, so only positive integers are forwarded.
+  const rawIdleTimeout = process.env.OPENCLI_BROWSER_IDLE_TIMEOUT;
+  const envIdleTimeout = rawIdleTimeout && /^\d+$/.test(rawIdleTimeout) && Number(rawIdleTimeout) > 0
+    ? Number(rawIdleTimeout)
+    : undefined;
+  const idleTimeout = params.idleTimeout ?? envIdleTimeout;
 
   let id = generateId();
   let ensureUsed = false;
@@ -381,6 +392,7 @@ async function sendCommandRaw(
       ...(contextId && { contextId }),
       ...(preferredContextId && { preferredContextId }),
       ...(windowMode && { windowMode }),
+      ...(idleTimeout !== undefined && { idleTimeout }),
       // Carry the run identity so the daemon can acquire/refresh the write
       // lease on the persistent site session. The same runId across every exec
       // of one command is the heartbeat that keeps a long-running holder alive.

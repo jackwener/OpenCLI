@@ -365,6 +365,45 @@ describe('daemon-client', () => {
     expect(body.windowMode).toBe('background');
   });
 
+  it('sendCommand forwards OPENCLI_BROWSER_IDLE_TIMEOUT (seconds) as idleTimeout', async () => {
+    vi.stubEnv('OPENCLI_BROWSER_IDLE_TIMEOUT', '300');
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1' });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { idleTimeout?: number };
+    expect(body.idleTimeout).toBe(300);
+  });
+
+  it('sendCommand uses explicit idleTimeout before OPENCLI_BROWSER_IDLE_TIMEOUT env fallback', async () => {
+    vi.stubEnv('OPENCLI_BROWSER_IDLE_TIMEOUT', '300');
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1', idleTimeout: 45 });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { idleTimeout?: number };
+    expect(body.idleTimeout).toBe(45);
+  });
+
+  it.each(['0', '-5', '1.5', 'abc', ''])('sendCommand ignores invalid OPENCLI_BROWSER_IDLE_TIMEOUT=%j', async (raw) => {
+    vi.stubEnv('OPENCLI_BROWSER_IDLE_TIMEOUT', raw);
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200,
+      json: () => Promise.resolve({ id: 'server', ok: true, data: 'ok' }),
+    } as Response);
+
+    await sendCommand('exec', { code: '1 + 1' });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as { idleTimeout?: number };
+    expect(body.idleTimeout).toBeUndefined();
+  });
+
   it('sendCommand retries executor-transient errors ONCE with a NEW id (re-execution is a new logical attempt)', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock
