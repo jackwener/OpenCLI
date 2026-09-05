@@ -1329,8 +1329,10 @@ describe('chatgpt current model detection', () => {
 
 describe('chatgpt current tool detection', () => {
     it.each([
+        ['深入研究', { tool: 'deep-research', label: 'Deep Research' }],
         ['深度研究', { tool: 'deep-research', label: 'Deep Research' }],
         ['Deep Research', { tool: 'deep-research', label: 'Deep Research' }],
+        ['網頁搜尋', { tool: 'web-search', label: 'Web Search' }],
         ['网页搜索', { tool: 'web-search', label: 'Web Search' }],
         ['搜索', { tool: 'web-search', label: 'Web Search' }],
         ['Web Search', { tool: 'web-search', label: 'Web Search' }],
