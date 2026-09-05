@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
 import { coerceAndValidateArgs, executeCommand, prepareCommandArgs } from './execution.js';
-import { ArgumentError, TimeoutError, toEnvelope } from './errors.js';
+import { ArgumentError, CliError, TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 import * as runtime from './runtime.js';
@@ -963,6 +963,80 @@ describe('executeCommand — persistent write lease release', () => {
     expect(mockPage.goto).toHaveBeenCalledWith('https://example.com/inbox');
     expect(releaseSpy).not.toHaveBeenCalled();
     expect(runCtxSpy).toHaveBeenLastCalledWith(null);
+    vi.restoreAllMocks();
+  });
+});
+
+describe('executeCommand — pacing outcome report', () => {
+  function pacedReadCmd(name: string, func: () => Promise<unknown>): CliCommand {
+    return cli({
+      site: 'test-pacing-report',
+      name,
+      access: 'read',
+      description: 'test pacing outcome report',
+      browser: true,
+      strategy: Strategy.PUBLIC,
+      func,
+    });
+  }
+
+  it('reports ok after a successful adapter browser command', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const reportSpy = vi.spyOn(daemonClient, 'reportPacingOutcome').mockResolvedValue(undefined);
+
+    await executeCommand(pacedReadCmd('pace-ok', async () => [{ ok: true }]), {});
+
+    expect(reportSpy).toHaveBeenCalledTimes(1);
+    expect(reportSpy).toHaveBeenCalledWith(expect.objectContaining({
+      session: expect.stringMatching(/^site:test-pacing-report/),
+      outcome: 'ok',
+    }));
+    vi.restoreAllMocks();
+  });
+
+  it('reports security_block when the command fails with a SECURITY_BLOCK error', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const reportSpy = vi.spyOn(daemonClient, 'reportPacingOutcome').mockResolvedValue(undefined);
+
+    const cmd = pacedReadCmd('pace-block', async () => {
+      throw new CliError('SECURITY_BLOCK', 'risk control blocked the page');
+    });
+    await expect(executeCommand(cmd, {})).rejects.toThrow('risk control');
+
+    expect(reportSpy).toHaveBeenCalledTimes(1);
+    expect(reportSpy).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'security_block' }));
+    vi.restoreAllMocks();
+  });
+
+  it('reports nothing for other failures — unrelated errors must not reset the breaker', async () => {
+    vi.spyOn(capRouting, 'shouldUseBrowserSession').mockReturnValue(true);
+    vi.spyOn(runtime, 'browserSession').mockImplementation(async (_Factory, fn) => fn({} as any));
+    const reportSpy = vi.spyOn(daemonClient, 'reportPacingOutcome').mockResolvedValue(undefined);
+
+    const cmd = pacedReadCmd('pace-other-failure', async () => {
+      throw new BrowserCommandError('boom', 'attach_failed');
+    });
+    await expect(executeCommand(cmd, {})).rejects.toThrow('boom');
+
+    expect(reportSpy).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it('reports nothing for non-browser commands', async () => {
+    const reportSpy = vi.spyOn(daemonClient, 'reportPacingOutcome').mockResolvedValue(undefined);
+    const cmd = cli({
+      site: 'test-pacing-report',
+      name: 'pace-non-browser',
+      access: 'read',
+      description: 'non-browser command',
+      browser: false,
+      strategy: Strategy.PUBLIC,
+      func: async () => [{ ok: true }],
+    });
+    await executeCommand(cmd, {});
+    expect(reportSpy).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
 });
