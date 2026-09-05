@@ -81,6 +81,7 @@ describe('twitter search command', () => {
             {
                 id: '1',
                 author: 'alice',
+                author_avatar: '',
                 bio: 'Search author bio',
                 text: 'hello world',
                 created_at: 'Thu Mar 26 10:30:00 +0000 2026',
@@ -90,6 +91,7 @@ describe('twitter search command', () => {
                 has_media: false,
                 media_urls: [],
                 media_posters: [],
+                media_durations: [],
                 card: null,
                 quoted_tweet: null,
             },

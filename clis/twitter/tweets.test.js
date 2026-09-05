@@ -65,14 +65,14 @@ describe('twitter tweets helpers', () => {
         expect(cmd?.columns).toEqual([
             'id', 'author', 'created_at', 'is_retweet', 'text', 'likes',
             'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls',
-            'media_posters', 'quoted_tweet',
+            'media_posters', 'media_durations', 'quoted_tweet',
         ]);
         expect(buildUserTweetsUrl('query', '42', 20, 'cursor')).toContain('/UserTweets');
     });
 
     it('registers id and is_retweet in the default columns', () => {
         const cmd = getRegistry().get('twitter/tweets');
-        expect(cmd?.columns).toEqual(['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet']);
+        expect(cmd?.columns).toEqual(['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'media_durations', 'quoted_tweet']);
     });
 
     it('makes the username argument optional so it can default to the logged-in user', () => {

@@ -24,16 +24,19 @@ describe('twitter list-tweets parser', () => {
             id: '99',
             author: 'bob',
             name: 'Bob',
+            author_avatar: '',
             bio: 'List author bio',
             text: 'hello list',
             likes: 3,
             retweets: 1,
             replies: 2,
+            views: '0',
             created_at: 'Wed Apr 16 10:00:00 +0000 2026',
             url: 'https://x.com/bob/status/99',
             has_media: false,
             media_urls: [],
             media_posters: [],
+            media_durations: [],
             card: null,
             quoted_tweet: null,
         });
@@ -74,7 +77,28 @@ describe('twitter list-tweets parser', () => {
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/x.jpg'],
             media_posters: ['https://pbs.twimg.com/media/x.jpg'],
+            media_durations: [0],
         });
+    });
+
+    it('exposes views and the author avatar when X returns them', () => {
+        const tweet = extractTimelineTweet({
+            rest_id: '77',
+            legacy: { full_text: 'metrics' },
+            views: { count: '12345' },
+            core: {
+                user_results: {
+                    result: {
+                        legacy: {
+                            screen_name: 'carol',
+                            profile_image_url_https: 'https://pbs.twimg.com/profile_images/1/c_normal.jpg',
+                        },
+                    },
+                },
+            },
+        }, new Set());
+        expect(tweet?.views).toBe('12345');
+        expect(tweet?.author_avatar).toBe('https://pbs.twimg.com/profile_images/1/c_400x400.jpg');
     });
 
     it('includes photo media URLs from extended_entities', () => {

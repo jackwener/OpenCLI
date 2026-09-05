@@ -100,6 +100,7 @@ describe('twitter bookmark-folder timeline parser', () => {
                 has_media: false,
                 media_urls: [],
                 media_posters: [],
+                media_durations: [],
             },
         ]);
         expect(nextCursor).toBe('NEXT_CURSOR');

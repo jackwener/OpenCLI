@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { AuthRequiredError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { BROWSER_JSON_SNIFF_FN, throwIfLoginWall } from '@jackwener/opencli/utils';
-import { extractMedia, extractCard, extractQuotedTweet, describeTwitterApiError } from './shared.js';
+import { extractAuthorAvatar, extractMedia, extractCard, extractQuotedTweet, describeTwitterApiError } from './shared.js';
 import { TWITTER_BEARER_TOKEN, applyTopByEngagement } from './utils.js';
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 const TWEET_DETAIL_QUERY_ID = 'nBS-WpgA6ZG0CyNHD517JQ';
@@ -11,6 +11,8 @@ const FEATURES = {
     creator_subscriptions_tweet_preview_api_enabled: true,
     responsive_web_graphql_timeline_navigation_enabled: true,
     responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+    // Without this flag TweetDetail omits views.count entirely and every row reports '0'.
+    view_counts_everywhere_api_enabled: true,
     longform_notetweets_consumption_enabled: true,
     longform_notetweets_rich_text_read_enabled: true,
     longform_notetweets_inline_media_enabled: true,
@@ -51,10 +53,14 @@ function extractTweet(r, seen) {
     return {
         id: tw.rest_id,
         author: screenName,
+        author_avatar: extractAuthorAvatar(u),
         bio,
         text: noteText || l.full_text || '',
         likes: l.favorite_count || 0,
         retweets: l.retweet_count || 0,
+        // Same shape `twitter search` emits: a numeric string, '0' when X omits it.
+        // Also feeds the log10(views) term of --top-by-engagement, which scored 0 before.
+        views: tw.views?.count || '0',
         in_reply_to: l.in_reply_to_status_id_str || undefined,
         created_at: l.created_at,
         url: `https://x.com/${screenName}/status/${tw.rest_id}`,
@@ -114,7 +120,7 @@ cli({
         { name: 'limit', type: 'int', default: 50 },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the thread by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the conversation\'s structural ordering.' },
     ],
-    columns: ['id', 'author', 'bio', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet'],
+    columns: ['id', 'author', 'author_avatar', 'bio', 'text', 'likes', 'retweets', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'media_durations', 'card', 'quoted_tweet'],
     func: async (page, kwargs) => {
         let tweetId = kwargs['tweet-id'];
         const urlMatch = tweetId.match(/\/status\/(\d+)/);

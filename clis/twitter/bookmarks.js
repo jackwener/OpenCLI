@@ -180,7 +180,7 @@ cli({
         { name: 'max-pages', type: 'int', help: `Optional pagination safety cap (default ${DEFAULT_MAX_PAGINATION_PAGES}; raised automatically with --all).` },
         { name: 'top-by-engagement', type: 'int', default: 0, help: 'When set to N>0, re-rank the bookmarks by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the API\'s native (saved-time) ordering. Incompatible with --output-file.' },
     ],
-    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters'],
+    columns: ['id', 'author', 'text', 'likes', 'retweets', 'bookmarks', 'created_at', 'url', 'has_media', 'media_urls', 'media_posters', 'media_durations'],
     func: async (page, kwargs) => {
         const fetchAll = Boolean(kwargs.all);
         const limit = fetchAll ? Number.POSITIVE_INFINITY : (kwargs.limit || 20);

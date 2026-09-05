@@ -31,6 +31,7 @@ describe('twitter bookmarks parser', () => {
             has_media: false,
             media_urls: [],
             media_posters: [],
+            media_durations: [],
         });
     });
 

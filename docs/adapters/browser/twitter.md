@@ -93,3 +93,9 @@ opencli twitter trending -v
 
 - Chrome running and **logged into** twitter.com
 - [Browser Bridge extension](/guide/browser-bridge) installed
+
+## Notes
+
+- Timeline-shaped commands emit `media_durations`, index-aligned 1:1 with `media_urls`: video length in milliseconds, `0` for photos
+- Video `media_urls` point at the highest-bitrate mp4 variant X offers (previously the lowest, 480x270)
+- `list-tweets`, `thread` and `search` emit `author_avatar` (the `_400x400` profile image) and `views` (numeric string, `'0'` when X omits it)

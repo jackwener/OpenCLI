@@ -5,6 +5,7 @@ import { ArgumentError } from '@jackwener/opencli/errors';
 
 const {
     extractMedia,
+    extractAuthorAvatar,
     extractCard,
     extractQuotedTweet,
     parseTweetUrl,
@@ -403,12 +404,13 @@ describe('twitter buildTwitterArticleScopeSource', () => {
 
 describe('twitter extractMedia', () => {
     it('returns false + empty list when legacy has no media', () => {
-        expect(extractMedia({})).toEqual({ has_media: false, media_urls: [], media_posters: [] });
-        expect(extractMedia(undefined)).toEqual({ has_media: false, media_urls: [], media_posters: [] });
+        expect(extractMedia({})).toEqual({ has_media: false, media_urls: [], media_posters: [], media_durations: [] });
+        expect(extractMedia(undefined)).toEqual({ has_media: false, media_urls: [], media_posters: [], media_durations: [] });
         expect(extractMedia({ extended_entities: { media: [] } })).toEqual({
             has_media: false,
             media_urls: [],
             media_posters: [],
+            media_durations: [],
         });
     });
 
@@ -490,6 +492,7 @@ describe('twitter extractMedia', () => {
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/thumb.jpg'],
             media_posters: ['https://pbs.twimg.com/media/thumb.jpg'],
+            media_durations: [0],
         });
     });
 
@@ -505,7 +508,80 @@ describe('twitter extractMedia', () => {
             has_media: true,
             media_urls: ['https://pbs.twimg.com/media/c.jpg'],
             media_posters: ['https://pbs.twimg.com/media/c.jpg'],
+            media_durations: [0],
         });
+    });
+
+    it('picks the highest-bitrate mp4 variant, not the first one', () => {
+        const result = extractMedia({
+            extended_entities: {
+                media: [
+                    {
+                        type: 'video',
+                        media_url_https: 'https://pbs.twimg.com/media/thumb.jpg',
+                        video_info: {
+                            duration_millis: 30500,
+                            // X returns variants ascending by bitrate; 480x270 comes first.
+                            variants: [
+                                { content_type: 'video/mp4', bitrate: 288000, url: 'https://video.twimg.com/480x270.mp4' },
+                                { content_type: 'video/mp4', bitrate: 832000, url: 'https://video.twimg.com/640x360.mp4' },
+                                { content_type: 'application/x-mpegURL', url: 'https://video.twimg.com/x.m3u8' },
+                                { content_type: 'video/mp4', bitrate: 2176000, url: 'https://video.twimg.com/1280x720.mp4' },
+                            ],
+                        },
+                    },
+                ],
+            },
+        });
+        expect(result.media_urls).toEqual(['https://video.twimg.com/1280x720.mp4']);
+        expect(result.media_durations).toEqual([30500]);
+    });
+
+    it('reports media_durations index-aligned with media_urls (0 for photos)', () => {
+        const result = extractMedia({
+            extended_entities: {
+                media: [
+                    { type: 'photo', media_url_https: 'https://pbs.twimg.com/media/a.jpg' },
+                    {
+                        type: 'video',
+                        media_url_https: 'https://pbs.twimg.com/media/thumb.jpg',
+                        video_info: {
+                            duration_millis: 12345,
+                            variants: [{ content_type: 'video/mp4', bitrate: 832000, url: 'https://video.twimg.com/v.mp4' }],
+                        },
+                    },
+                    {
+                        // Video with no duration_millis: still aligned, reported as 0.
+                        type: 'animated_gif',
+                        media_url_https: 'https://pbs.twimg.com/tweet_video_thumb/g.jpg',
+                        video_info: {
+                            variants: [{ content_type: 'video/mp4', url: 'https://video.twimg.com/g.mp4' }],
+                        },
+                    },
+                ],
+            },
+        });
+        expect(result.media_urls).toHaveLength(3);
+        expect(result.media_durations).toEqual([0, 12345, 0]);
+    });
+});
+
+describe('twitter extractAuthorAvatar', () => {
+    it('upgrades the _normal suffix to _400x400', () => {
+        expect(extractAuthorAvatar({
+            legacy: { profile_image_url_https: 'https://pbs.twimg.com/profile_images/1/abc_normal.jpg' },
+        })).toBe('https://pbs.twimg.com/profile_images/1/abc_400x400.jpg');
+    });
+
+    it('reads the newer avatar.image_url shape', () => {
+        expect(extractAuthorAvatar({
+            avatar: { image_url: 'https://pbs.twimg.com/profile_images/1/abc_normal.png' },
+        })).toBe('https://pbs.twimg.com/profile_images/1/abc_400x400.png');
+    });
+
+    it('returns an empty string when the user object carries no avatar', () => {
+        expect(extractAuthorAvatar({})).toBe('');
+        expect(extractAuthorAvatar(undefined)).toBe('');
     });
 });
 
@@ -787,6 +863,7 @@ describe('twitter extractQuotedTweet', () => {
             has_media: false,
             media_urls: [],
             media_posters: [],
+            media_durations: [],
         });
     });
 
