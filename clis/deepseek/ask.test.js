@@ -3,6 +3,7 @@ import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jack
 
 const {
   mockEnsureOnDeepSeek,
+  mockEnsureFreshConversation,
   mockSelectModel,
   mockSetFeature,
   mockSendMessage,
@@ -14,6 +15,7 @@ const {
   mockPickResumeUrl,
 } = vi.hoisted(() => ({
   mockEnsureOnDeepSeek: vi.fn(),
+  mockEnsureFreshConversation: vi.fn(),
   mockSelectModel: vi.fn(),
   mockSetFeature: vi.fn(),
   mockSendMessage: vi.fn(),
@@ -29,6 +31,7 @@ vi.mock('./utils.js', () => ({
   DEEPSEEK_DOMAIN: 'chat.deepseek.com',
   DEEPSEEK_URL: 'https://chat.deepseek.com/',
   ensureOnDeepSeek: mockEnsureOnDeepSeek,
+  ensureFreshConversation: mockEnsureFreshConversation,
   selectModel: mockSelectModel,
   setFeature: mockSetFeature,
   sendMessage: mockSendMessage,
@@ -362,6 +365,45 @@ describe('deepseek ask conversation resume', () => {
     expect(mockSetFeature).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockSendWithFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('deepseek ask --new session guarantee', () => {
+  const page = {
+    wait: vi.fn().mockResolvedValue(undefined),
+    goto: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue('https://chat.deepseek.com/'),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnsureFreshConversation.mockResolvedValue({ ok: true, escaped: true });
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(0);
+    mockWaitForResponse.mockResolvedValue('fresh reply');
+  });
+
+  it('does not send when DeepSeek restores the previous conversation', async () => {
+    mockEnsureFreshConversation.mockResolvedValue({ ok: false, reason: 'conversation-restored' });
+
+    await expect(askCommand.func(page, {
+      prompt: 'hello', timeout: 120, new: true, model: 'instant', think: false, search: false,
+    })).rejects.toThrow('could not start a fresh thread (conversation-restored)');
+
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('checks the message baseline before sending a fresh-chat prompt', async () => {
+    mockGetBubbleCount.mockResolvedValue(2);
+
+    await expect(askCommand.func(page, {
+      prompt: 'hello', timeout: 120, new: true, model: 'instant', think: false, search: false,
+    })).rejects.toThrow('could not start a fresh thread (conversation-restored)');
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
   });
 });
 
