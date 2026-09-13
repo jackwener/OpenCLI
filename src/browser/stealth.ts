@@ -185,11 +185,10 @@ export function generateStealthJs(): string {
       //    Sites inject debugger statements to detect DevTools/CDP.
       //    When a CDP debugger is attached, the statement pauses execution
       //    and the site measures the time gap to confirm automation.
-      //    We neutralize this by overriding the Function constructor and
-      //    eval to strip debugger statements from dynamically created code.
-      //    Note: this does NOT affect static debugger statements in parsed
-      //    scripts — those require CDP Debugger.setBreakpointsActive(false)
-      //    which we handle at the extension level.
+      //    Strip debugger statements from Function-constructor code only.
+      //    Native eval must remain untouched to preserve direct-eval semantics.
+      //    Debugger statements in eval and static scripts are not rewritten;
+      //    handling those requires debugger-level controls.
       //    Caveat: the regex targets standalone debugger statements (preceded
       //    by a statement boundary) to minimise false positives inside string
       //    literals, but cannot perfectly distinguish all cases without a
@@ -219,13 +218,8 @@ export function generateStealthJs(): string {
         _disguise(_PatchedFunction, 'Function');
         try { window.Function = _PatchedFunction; } catch {}
 
-        // Patch eval to strip debugger
-        const _origEval = window.eval;
-        const _patchedEval = function(code) {
-          return _origEval.call(this, _cleanDebugger(code));
-        };
-        _disguise(_patchedEval, 'eval');
-        try { window.eval = _patchedEval; } catch {}
+        // Preserve native eval: replacing it makes direct eval lose access
+        // to caller lexical bindings (e.g. webpack eval-devtool modules).
       } catch {}
 
       // 9. Console method fingerprinting defense
