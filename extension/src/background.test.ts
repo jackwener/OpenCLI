@@ -1117,9 +1117,59 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(adapterKey('first'))).not.toBeNull();
     expect(mod.__test__.getSession(adapterKey('second'))).toBeNull();
 
+    chrome.tabs.update.mockClear();
+    chrome.tabs.remove.mockClear();
     await mod.__test__.handleCommand({ id: 'close-first', action: 'close-window', session: 'first', surface: 'adapter' });
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank' });
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
     expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('first'))).toBeNull();
+  });
+
+  it('explicit close removes the sole owned tab without steering it (no close-confirmation stall)', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('solo'));
+
+    // Simulate a Chrome close confirmation that never resolves: if teardown
+    // steered the dirty site tab, this navigation would hang the CLI until a
+    // user confirms the dialog.
+    chrome.tabs.update = vi.fn(() => new Promise(() => {})) as unknown as typeof chrome.tabs.update;
+
+    const result = await Promise.race([
+      mod.__test__.handleCommand({ id: 'close-solo', action: 'close-window', session: 'solo', surface: 'adapter' }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('explicit close stalled')), 1000)),
+    ]);
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, data: { closed: true, session: 'solo' } }));
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('solo'))).toBeNull();
+  });
+
+  it('explicit close still succeeds when detach and tab removal fail', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+    chrome.tabs.remove = vi.fn(async () => { throw new Error('tab already gone'); });
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      detach: vi.fn(async () => { throw new Error('not attached'); }),
+    }));
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('flaky'));
+
+    const result = await mod.__test__.handleCommand({ id: 'close-flaky', action: 'close-window', session: 'flaky', surface: 'adapter' });
+
+    // Cleanup is best-effort: the site action already finished, so a
+    // half-torn-down lease must not read as a failed command (which would
+    // invite a blind retry of an already-succeeded post).
+    expect(result).toEqual(expect.objectContaining({ ok: true, data: { closed: true, session: 'flaky' } }));
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('flaky'))).toBeNull();
   });
 
   it('releases the current owned tab lease when tabs close targets it', async () => {
@@ -2364,5 +2414,21 @@ describe('background tab isolation', () => {
     expect(chrome.storage.local.remove).toHaveBeenCalledWith(REGISTRY_KEY);
     const leftover = (await chrome.storage.local.get(REGISTRY_KEY) as any)[REGISTRY_KEY];
     expect(leftover).toBeUndefined();
+  });
+
+  it('explicit close drops a legacy owned lease without a tab', async () => {
+    const { chrome } = createChromeMock();
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    mod.__test__.setSession(adapterKey('legacy'), { windowId: 1, owned: true, preferredTabId: null });
+
+    const result = await mod.__test__.handleCommand({ id: 'close-legacy', action: 'close-window', session: 'legacy', surface: 'adapter' });
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, data: { closed: true, session: 'legacy' } }));
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('legacy'))).toBeNull();
   });
 });
