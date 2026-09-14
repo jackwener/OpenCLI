@@ -2627,6 +2627,741 @@
     "sourceFile": "apple-podcasts/top.js"
   },
   {
+    "site": "appmagic",
+    "name": "app",
+    "description": "App store listing: publisher, price, rating, release date, store URL",
+    "access": "read",
+    "example": "opencli appmagic app 447188370 --country US",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Store app id, e.g. 447188370 (Apple) or com.whatsapp (Google Play)"
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "iphone / ipad / google-play. Default: inferred from appId"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "default": "US",
+        "required": false,
+        "help": "ISO country code for the store listing, e.g. US / VN"
+      }
+    ],
+    "columns": [
+      "name",
+      "publisher",
+      "store",
+      "country",
+      "price",
+      "currency",
+      "rating",
+      "reviewCount",
+      "released",
+      "containsAds",
+      "hasInAppPurchases",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/app.js",
+    "sourceFile": "appmagic/app.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "app-competitors",
+    "description": "Competitors of an app, with trailing-30-day bucketed metrics. Free tier returns only ~3 of competitorTotal — check that column",
+    "access": "read",
+    "example": "opencli appmagic app-competitors com.ig.wool.rescue",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Store app id, e.g. com.ig.wool.rescue or 447188370"
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "iphone / ipad / google-play. Default: inferred from appId"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "publisher",
+      "downloadsMin",
+      "downloadsMax",
+      "revenueMin",
+      "revenueMax",
+      "unitedId",
+      "competitorTotal"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/app-competitors.js",
+    "sourceFile": "appmagic/app-competitors.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "app-featuring",
+    "description": "Store featuring placements for an app on the latest available date (history is premium-only)",
+    "access": "read",
+    "example": "opencli appmagic app-featuring com.snapchat.android --country WW",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Store app id, e.g. com.snapchat.android or 447188370"
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "iphone / ipad / google-play. Default: inferred from appId"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "default": "WW",
+        "required": false,
+        "help": "ISO code or WW for worldwide"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "YYYY-MM-DD. Default and ONLY free value: the latest available date"
+      },
+      {
+        "name": "order",
+        "type": "string",
+        "default": "desc",
+        "required": false,
+        "help": "desc / asc by featuring count"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of placements (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "country",
+      "category",
+      "placement",
+      "place",
+      "row",
+      "depth",
+      "featuring",
+      "date"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/app-featuring.js",
+    "sourceFile": "appmagic/app-featuring.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "app-releases",
+    "description": "App version history (newest first): version, release date, release notes",
+    "access": "read",
+    "example": "opencli appmagic app-releases 447188370 --limit 10",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Store app id, e.g. 447188370 (Apple) or com.whatsapp (Google Play)"
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "iphone / ipad / google-play. Default: inferred from appId"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "default": "US",
+        "required": false,
+        "help": "ISO country code for the store listing, e.g. US / VN"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of versions, newest first (max 200)"
+      }
+    ],
+    "columns": [
+      "version",
+      "releaseDate",
+      "releaseNotes"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/app-releases.js",
+    "sourceFile": "appmagic/app-releases.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "app-sdks",
+    "description": "SDKs detected in an app. Free tier returns only 1 of sdkTotal — compare those two columns",
+    "access": "read",
+    "example": "opencli appmagic app-sdks com.ig.wool.rescue",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Store app id, e.g. com.ig.wool.rescue or 447188370"
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "iphone / ipad / google-play. Default: inferred from appId"
+      }
+    ],
+    "columns": [
+      "name",
+      "category",
+      "firstDetected",
+      "returned",
+      "sdkTotal"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/app-sdks.js",
+    "sourceFile": "appmagic/app-sdks.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "app-similar",
+    "description": "Apps similar to a given app, ranked by similarity score. Downloads are bucketed over the trailing 30 days",
+    "access": "read",
+    "example": "opencli appmagic app-similar com.ig.wool.rescue",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Store app id, e.g. com.ig.wool.rescue or 447188370"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of similar apps (max 50)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "publisher",
+      "score",
+      "depth",
+      "downloadsMin",
+      "downloadsMax",
+      "unitedId"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/app-similar.js",
+    "sourceFile": "appmagic/app-similar.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "game-competitors",
+    "description": "The competitive field around a game: the top games in its genre, with install buckets and rank movement",
+    "access": "read",
+    "example": "opencli appmagic game-competitors com.ig.wool.rescue --chart grossing",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "appId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Your game's store id, e.g. com.ig.wool.rescue or 447188370"
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "iphone / ipad / google-play. Default: inferred from appId"
+      },
+      {
+        "name": "genre",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Override the auto-detected genre: a tag id or name (e.g. \"Block Puzzle\"). Discover with: opencli appmagic tags --type games"
+      },
+      {
+        "name": "chart",
+        "type": "string",
+        "default": "free",
+        "required": false,
+        "help": "Rank by: free (downloads) or grossing (revenue)"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "default": "WW",
+        "required": false,
+        "help": "ISO code or WW"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Period start YYYY-MM-DD. Default: current month"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of games (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "name",
+      "publisher",
+      "hq",
+      "downloadsMin",
+      "downloadsMax",
+      "rankChange",
+      "releaseDate",
+      "isSeed",
+      "genre",
+      "unitedId"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/game-competitors.js",
+    "sourceFile": "appmagic/game-competitors.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "game-genres",
+    "description": "Genre saturation map: how many games each sub-genre holds (supply/crowdedness, by app count — not revenue)",
+    "access": "read",
+    "example": "opencli appmagic game-genres --genre Puzzle",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "genre",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Genre tag id or name (e.g. \"Puzzle\", \"Racing\"). Default: all games (top-level genre map)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "Number of sub-genres (max 100)"
+      }
+    ],
+    "columns": [
+      "genre",
+      "subGenre",
+      "tagId",
+      "appCount",
+      "sharePct",
+      "genreTotal"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/game-genres.js",
+    "sourceFile": "appmagic/game-genres.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "game-risers",
+    "description": "Fast-climbing games ranked by chart rank-change (the free-tier \"rising star\" proxy). Add --new-within for breakouts",
+    "access": "read",
+    "example": "opencli appmagic game-risers --genre Puzzle --period week --new-within 12",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "genre",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Genre tag id or name (e.g. \"Puzzle\", \"Racing\"). Default: all games. List with: opencli appmagic tags --type games"
+      },
+      {
+        "name": "period",
+        "type": "string",
+        "default": "week",
+        "required": false,
+        "help": "Rank-change window: day / week / month. Shorter = more short-term"
+      },
+      {
+        "name": "chart",
+        "type": "string",
+        "default": "free",
+        "required": false,
+        "help": "Which chart to climb: free (downloads) or grossing (revenue)"
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "default": "WW",
+        "required": false,
+        "help": "ISO code or WW"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Period date YYYY-MM-DD. Default: latest available"
+      },
+      {
+        "name": "new-within",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Keep only games released within this many months (0 = no age filter)"
+      },
+      {
+        "name": "min-climb",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "Minimum positive rank-change to include"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 25,
+        "required": false,
+        "help": "Number of risers to return (max 100)"
+      }
+    ],
+    "columns": [
+      "chartRank",
+      "rankChange",
+      "name",
+      "publisher",
+      "hq",
+      "genre",
+      "downloadsMin",
+      "downloadsMax",
+      "releaseDate",
+      "ageMonths",
+      "unitedId"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/game-risers.js",
+    "sourceFile": "appmagic/game-risers.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "publisher",
+    "description": "Publisher profile: app count, HQ, LinkedIn headcount. Downloads/revenue are bucketed ranges over the trailing 30 days, not lifetime",
+    "access": "read",
+    "example": "opencli appmagic publisher 2_1684349733",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "publisherId",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Store-prefixed id from the appmagic URL, e.g. 2_1684349733"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "appCount",
+      "storeListingCount",
+      "downloadsMin",
+      "downloadsMax",
+      "revenueMin",
+      "revenueMax",
+      "headquarter",
+      "linkedinHeadcount",
+      "firstReleaseDate",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/publisher.js",
+    "sourceFile": "appmagic/publisher.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "search",
+    "description": "Search apps and publishers by name. Downloads/revenue are bucketed ranges over the trailing 30 days, not exact and not lifetime",
+    "access": "read",
+    "example": "opencli appmagic search chatgpt --kind app",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "App or publisher name to search for"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "Filter results: all / app / publisher"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of results (max 100)"
+      }
+    ],
+    "columns": [
+      "kind",
+      "id",
+      "name",
+      "publisher",
+      "storeListingCount",
+      "downloadsMin",
+      "downloadsMax",
+      "revenueMin",
+      "revenueMax",
+      "headquarter",
+      "unitedId"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/search.js",
+    "sourceFile": "appmagic/search.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "tags",
+    "description": "Tag taxonomy (games / apps / themes / ip / features ...). Use a tag id or name with top-charts --tag",
+    "access": "read",
+    "example": "opencli appmagic tags --query messenger",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by name substring, case-insensitive"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by type: games / apps / themes / ip / features / settings / artstyles / meta / complexity / domain"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Number of tags (max 500)"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "type",
+      "parentIds"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/tags.js",
+    "sourceFile": "appmagic/tags.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "top-chart-tags",
+    "description": "Tags you can filter top-charts (--tag) and game commands (--genre) by, with app counts, grouped and sized",
+    "access": "read",
+    "example": "opencli appmagic top-chart-tags --type games --min-apps 1000",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "type",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by type: domain / meta / games / apps / artstyles / themes / features / ip / settings / complexity. Default: all"
+      },
+      {
+        "name": "query",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Name substring, case-insensitive"
+      },
+      {
+        "name": "min-apps",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "Only tags carried by at least this many apps (hide the long tail)"
+      },
+      {
+        "name": "sort",
+        "type": "string",
+        "default": "size",
+        "required": false,
+        "help": "size (most apps first) or name (A-Z)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Number of tags (max 500)"
+      }
+    ],
+    "columns": [
+      "group",
+      "type",
+      "name",
+      "tagId",
+      "appCount",
+      "parentIds"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/top-chart-tags.js",
+    "sourceFile": "appmagic/top-chart-tags.js"
+  },
+  {
+    "site": "appmagic",
+    "name": "top-charts",
+    "description": "App rankings: top free / top grossing / top featuring. Downloads and revenue are bucketed lower bounds",
+    "access": "read",
+    "example": "opencli appmagic top-charts --tag Messenger --limit 20",
+    "domain": "appmagic.rocks",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "store",
+        "type": "string",
+        "default": "all",
+        "required": false,
+        "help": "all / ios / iphone / ipad / google-play. Metrics only present for \"all\""
+      },
+      {
+        "name": "country",
+        "type": "string",
+        "default": "WW",
+        "required": false,
+        "help": "ISO code, e.g. US / VN / JP. WW = worldwide. Metrics only present for WW"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Period start, YYYY-MM-DD. Default: current month"
+      },
+      {
+        "name": "aggregation",
+        "type": "string",
+        "default": "month",
+        "required": false,
+        "help": "day / week / month / quarter / year. Metrics only present for month / year"
+      },
+      {
+        "name": "tag",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "Filter by one tag id or name, e.g. 104 or \"Messenger\". Discover with: opencli appmagic tags"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "Number of ranks (max 100)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "freeApp",
+      "freePublisher",
+      "downloadsMin",
+      "downloadsMax",
+      "grossingApp",
+      "grossingPublisher",
+      "revenueMin",
+      "revenueMax",
+      "featuringApp",
+      "featuringPublisher",
+      "featuring"
+    ],
+    "type": "js",
+    "modulePath": "appmagic/top-charts.js",
+    "sourceFile": "appmagic/top-charts.js"
+  },
+  {
     "site": "archive",
     "name": "item",
     "description": "Fetch metadata for a single Internet Archive item by identifier.",
