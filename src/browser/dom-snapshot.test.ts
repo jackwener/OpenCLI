@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 
 describe('generateSnapshotJs', () => {
@@ -358,5 +359,97 @@ describe('Search Element Detection', () => {
     expect(js).toContain('compoundInfos');
     // And emit a sidecar section after the tree so agents can find the JSON
     expect(js).toContain("'compounds ('");
+  });
+});
+
+describe('table cell interactive refs (#2056)', () => {
+  it('exposes a shared assignRef helper used by the main walk', () => {
+    const js = generateSnapshotJs();
+    expect(js).toContain('function assignRef(el)');
+    // The normal interactive path routes through the shared helper, so table
+    // cells and the main tree assign refs (and fingerprints) identically.
+    expect(js).toContain('const idx = assignRef(el)');
+  });
+
+  it('assigns clickable refs to form controls inside table cells', () => {
+    const js = generateSnapshotJs();
+    // serializeTable scans each cell for interactive controls that were
+    // previously dropped (button / input / select / textarea) ...
+    expect(js).toContain("cell.querySelectorAll('button, input, select, textarea')");
+    // ... skips disabled / non-interactive ones via the shared predicate ...
+    expect(js).toContain('isInteractive(control)');
+    // ... and gives each a real ref plus a [N] marker in the markdown cell.
+    expect(js).toContain('assignRef(control)');
+    expect(js).toContain('refMarks');
+  });
+
+  it('defers table-cell ref assignment until after the render gate', () => {
+    const js = generateSnapshotJs();
+    // Regression: assignRef mutates shared ref state. If serializeTable claimed
+    // refs while building the grid and then bailed (grid.length < 2 / throw),
+    // the caller falls through to the generic walk and re-assigns — orphaning
+    // the first ref and desyncing refIdentity from the emitted [N] tokens.
+    // The cell loop must only COLLECT controls; assignRef must run after the gate.
+    const gate = js.indexOf('grid.length < 2');
+    const tableAssign = js.indexOf('assignRef(control)');
+    expect(gate).toBeGreaterThan(-1);
+    expect(tableAssign).toBeGreaterThan(gate);
+  });
+});
+
+describe('table cell interactive refs — behavior (#2056)', () => {
+  // Evaluate the generated snapshot against a real (jsdom) DOM. jsdom returns
+  // zero-size rects, which the engine prunes, so give every element a visible
+  // in-viewport box and turn off the paint-order probe (elementFromPoint is
+  // unreliable under jsdom).
+  function runSnapshot(bodyHtml: string, opts: Record<string, unknown> = {}) {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>${bodyHtml}</body></html>`, {
+      url: 'https://example.com/',
+      runScripts: 'outside-only',
+      pretendToBeVisual: true,
+    });
+    const { window } = dom;
+    const box = { x: 0, y: 0, top: 0, left: 0, right: 120, bottom: 24, width: 120, height: 24 };
+    window.Element.prototype.getBoundingClientRect = function (): DOMRect { return box as unknown as DOMRect; };
+    Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+    const output = window.eval(generateSnapshotJs({ paintOrderCheck: false, ...opts }));
+    return { output, document: window.document };
+  }
+
+  it('gives a table-cell <button> a real ref and a [N] marker in the table', () => {
+    const { output, document } = runSnapshot(`
+      <table>
+        <tr><th>Name</th><th>Action</th></tr>
+        <tr><td>Alice</td><td><button>Details</button></td></tr>
+      </table>`);
+    const ref = document.querySelector('button')!.getAttribute('data-opencli-ref');
+    expect(ref).toBeTruthy();
+    expect(output).toContain('|table|');
+    expect(output).toContain('[' + ref + ']');
+  });
+
+  it('keeps table-cell controls in INTERACTIVE_ONLY snapshots (no ancestor pruning)', () => {
+    const { output, document } = runSnapshot(`
+      <div><section>
+        <table>
+          <tr><th>Name</th><th>Action</th></tr>
+          <tr><td>Alice</td><td><button>Follow up</button></td></tr>
+        </table>
+      </section></div>`, { interactiveOnly: true });
+    const ref = document.querySelector('button')!.getAttribute('data-opencli-ref');
+    expect(ref).toBeTruthy();
+    // the table survives even though its only interactivity lives inside cells
+    expect(output).toContain('|table|');
+    expect(output).toContain('[' + ref + ']');
+  });
+
+  it('does not assign a ref to a disabled control in a cell', () => {
+    const { document } = runSnapshot(`
+      <table>
+        <tr><th>Name</th><th>Action</th></tr>
+        <tr><td>Alice</td><td><select disabled><option>x</option></select></td></tr>
+      </table>`);
+    expect(document.querySelector('select')!.hasAttribute('data-opencli-ref')).toBe(false);
   });
 });
