@@ -816,6 +816,70 @@ describe('background tab isolation', () => {
     expect(detachMock).not.toHaveBeenCalled();
   });
 
+  it('detaches only after navigation completes when no network capture is active', async () => {
+    const { chrome, tabs } = createChromeMock();
+    const onUpdatedListeners: Array<(id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => void> = [];
+    chrome.tabs.onUpdated.addListener = vi.fn((fn) => { onUpdatedListeners.push(fn); });
+    chrome.tabs.onUpdated.removeListener = vi.fn((fn) => {
+      const idx = onUpdatedListeners.indexOf(fn);
+      if (idx >= 0) onUpdatedListeners.splice(idx, 1);
+    });
+    const updateMock = vi.fn(async (tabId: number, updates: { active?: boolean; url?: string }) => {
+      const tab = tabs.find((entry) => entry.id === tabId);
+      if (!tab) throw new Error(`Unknown tab ${tabId}`);
+      if (updates.active !== undefined) tab.active = updates.active;
+      if (updates.url !== undefined) tab.url = updates.url;
+      tab.status = 'complete';
+      for (const listener of [...onUpdatedListeners]) {
+        listener(tabId, { status: 'complete', url: tab.url }, tab as chrome.tabs.Tab);
+      }
+      return tab;
+    });
+    chrome.tabs.update = updateMock;
+    vi.stubGlobal('chrome', chrome);
+
+    const detachMock = vi.fn(async () => {});
+    const hasActiveNetworkCapture = vi.fn(() => false);
+    vi.doMock('./cdp', () => ({
+      registerListeners: vi.fn(),
+      hasActiveNetworkCapture,
+      detach: detachMock,
+    }));
+
+    const mod = await import('./background');
+    mod.__test__.setAutomationWindowId(adapterKey('twitter'), 1);
+
+    // First navigation establishes the owned lease (the lease tab is created
+    // at the target URL, so this returns via the already-there fast path).
+    const first = await mod.__test__.handleNavigate(
+      { id: 'first-nav', action: 'navigate', url: 'https://example.com/first', session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+    expect(first.ok).toBe(true);
+    const leaseTabId = mod.__test__.getSession(adapterKey('twitter'))?.preferredTabId;
+    expect(leaseTabId).toEqual(expect.any(Number));
+
+    // Second navigation targets a different URL, so it exercises the real
+    // detach/update ordering on the leased tab.
+    const result = await mod.__test__.handleNavigate(
+      { id: 'plain-nav', action: 'navigate', url: 'https://example.com/second', session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+
+    expect(result.ok).toBe(true);
+    // The debugger must stay attached across chrome.tabs.update (Chromium 152+
+    // rejects a navigation issued right after a debugger detach), and the
+    // stale-attach reset must still happen once navigation has settled.
+    expect(updateMock).toHaveBeenCalledWith(leaseTabId, { url: 'https://example.com/second' });
+    expect(detachMock).toHaveBeenCalledTimes(1);
+    expect(detachMock).toHaveBeenCalledWith(leaseTabId);
+    const updateOrder = updateMock.mock.invocationCallOrder[
+      updateMock.mock.calls.findIndex((call) => call[1]?.url === 'https://example.com/second')
+    ];
+    expect(hasActiveNetworkCapture.mock.invocationCallOrder[0]).toBeLessThan(updateOrder);
+    expect(updateOrder).toBeLessThan(detachMock.mock.invocationCallOrder[0]);
+  });
+
   it('keeps hash routes distinct when comparing target URLs', async () => {
     const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
