@@ -29020,6 +29020,25 @@
     "sourceFile": "openreview/venue.js"
   },
   {
+    "site": "openrouter",
+    "name": "credits",
+    "description": "Read the OpenRouter total available credits balance from the settings/credits page.",
+    "access": "read",
+    "domain": "openrouter.ai",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "totalAvailable",
+      "currency"
+    ],
+    "type": "js",
+    "modulePath": "openrouter/credits.js",
+    "sourceFile": "openrouter/credits.js",
+    "navigateBefore": true,
+    "siteSession": "persistent"
+  },
+  {
     "site": "osv",
     "name": "query",
     "description": "OSV.dev vulnerabilities affecting a package (optionally pinned to a version)",
