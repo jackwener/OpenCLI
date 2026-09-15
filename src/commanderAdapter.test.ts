@@ -109,6 +109,25 @@ describe('commanderAdapter arg passing', () => {
     // prepareCommandArgs validates bools before dispatch; executeCommand should not be reached
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
+
+  it('rejects an unknown output format with an argument error before calling executeCommand', async () => {
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf', '-f', 'bogus']);
+
+      expect(mockExecuteCommand).not.toHaveBeenCalled();
+      expect(mockRenderOutput).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(2);
+      const stderr = stderrSpy.mock.calls.map(call => String(call[0])).join('');
+      expect(stderr).toContain('code: ARGUMENT');
+      expect(stderr).toContain('--format must be one of: table, plain, json, yaml, md, csv. Received: "bogus"');
+    } finally {
+      stderrSpy.mockRestore();
+    }
+  });
 });
 
 describe('commanderAdapter boolean alias support', () => {

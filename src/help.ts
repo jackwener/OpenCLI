@@ -26,13 +26,16 @@ export interface OptionSpec {
   negate?: true;
 }
 
+/** Closed set of user-facing output formats advertised by `-f, --format`. */
+export const OUTPUT_FORMATS = ['table', 'plain', 'json', 'yaml', 'md', 'csv'] as const;
+
 const COMMON_OPTIONS = [
   {
     flags: '-f, --format <fmt>',
     name: 'format',
     help: 'Output format: table, plain, json, yaml, md, csv',
     default: 'table',
-    choices: ['table', 'plain', 'json', 'yaml', 'md', 'csv'],
+    choices: [...OUTPUT_FORMATS],
   },
   {
     flags: '--trace <mode>',
