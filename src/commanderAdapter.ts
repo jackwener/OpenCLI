@@ -15,7 +15,7 @@ import { log } from './logger.js';
 import yaml from 'js-yaml';
 import { type CliCommand, fullName, getRegistry } from './registry.js';
 import { render as renderOutput } from './output.js';
-import { executeCommand, prepareCommandArgs } from './execution.js';
+import { executeCommand, normalizeFormat, prepareCommandArgs } from './execution.js';
 import {
   commandHelpData,
   formatCommandHelpText,
@@ -109,7 +109,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
       const kwargs = prepareCommandArgs(cmd, rawKwargs);
 
       const verbose = optionsRecord.verbose === true;
-      let format = typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table';
+      let format = normalizeFormat(typeof optionsRecord.format === 'string' ? optionsRecord.format : 'table');
       const formatExplicit = subCmd.getOptionValueSource('format') === 'cli';
       if (verbose) process.env.OPENCLI_VERBOSE = '1';
       const globals = typeof subCmd.optsWithGlobals === 'function' ? subCmd.optsWithGlobals() as Record<string, unknown> : {};

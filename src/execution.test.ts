@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
-import { coerceAndValidateArgs, executeCommand, prepareCommandArgs } from './execution.js';
+import { coerceAndValidateArgs, executeCommand, normalizeFormat, prepareCommandArgs } from './execution.js';
 import { ArgumentError, TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
@@ -32,6 +32,24 @@ describe('coerceAndValidateArgs', () => {
 
     expect(() => coerceAndValidateArgs(integerArgs, { limit: 'Infinity' })).toThrow(ArgumentError);
     expect(() => coerceAndValidateArgs(numberArgs, { threshold: '-Infinity' })).toThrow(ArgumentError);
+  });
+});
+
+describe('normalizeFormat', () => {
+  it.each(['table', 'plain', 'json', 'yaml', 'md', 'csv'])('accepts the advertised format %s', (fmt) => {
+    expect(normalizeFormat(fmt)).toBe(fmt);
+  });
+
+  it('rejects an unknown format with an argument error naming the accepted values', () => {
+    expect(() => normalizeFormat('bogus')).toThrow(ArgumentError);
+    expect(() => normalizeFormat('bogus')).toThrow(
+      '--format must be one of: table, plain, json, yaml, md, csv. Received: "bogus"',
+    );
+  });
+
+  it('rejects missing and non-string formats', () => {
+    expect(() => normalizeFormat(undefined)).toThrow(ArgumentError);
+    expect(() => normalizeFormat(42)).toThrow(ArgumentError);
   });
 });
 

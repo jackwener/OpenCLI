@@ -3,8 +3,9 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command, InvalidArgumentError, Option } from 'commander';
-import { AuthRequiredError, CliError, getErrorMessage } from '../errors.js';
-import { executeCommand } from '../execution.js';
+import yaml from 'js-yaml';
+import { AuthRequiredError, CliError, EXIT_CODES, getErrorMessage, toEnvelope } from '../errors.js';
+import { executeCommand, normalizeFormat } from '../execution.js';
 import {
   type BrowserCliCommand,
   type CliCommand,
@@ -453,6 +454,20 @@ export async function collectAuthRefresh(options: AuthRefreshOptions): Promise<A
   return rows;
 }
 
+/**
+ * Validate a user-supplied `-f, --format` value. Returns the format, or null
+ * after emitting the error envelope (exit 2) when the value is unknown.
+ */
+function resolveOutputFormat(raw: unknown): string | null {
+  try {
+    return normalizeFormat(typeof raw === 'string' ? raw : 'table');
+  } catch (err) {
+    process.stderr.write(yaml.dump(toEnvelope(err), { sortKeys: false, lineWidth: 120, noRefs: true }));
+    process.exitCode = EXIT_CODES.USAGE_ERROR;
+    return null;
+  }
+}
+
 export function registerAuthCommands(program: Command): Command {
   const auth = program
     .command('auth')
@@ -468,6 +483,8 @@ export function registerAuthCommands(program: Command): Command {
     .addOption(new Option('--only <status>', 'Filter rows by status').choices(['all', 'logged-in', 'not-logged-in', 'unknown', 'error']).default('all'))
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
     .action(async (opts) => {
+      const fmt = resolveOutputFormat(opts.format);
+      if (fmt === null) return;
       const globals = typeof status.optsWithGlobals === 'function' ? status.optsWithGlobals() as Record<string, unknown> : {};
       const rows = await collectAuthStatus({
         sites: opts.site,
@@ -477,7 +494,6 @@ export function registerAuthCommands(program: Command): Command {
         only: opts.only,
         profile: typeof globals.profile === 'string' && globals.profile.trim() ? globals.profile.trim() : undefined,
       });
-      const fmt = typeof opts.format === 'string' ? opts.format : 'table';
       renderOutput(rows, {
         fmt,
         fmtExplicit: status.getOptionValueSource('format') === 'cli',
@@ -496,6 +512,8 @@ export function registerAuthCommands(program: Command): Command {
     .option('--timeout <seconds>', 'Per-site timeout in seconds')
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
     .action(async (opts) => {
+      const fmt = resolveOutputFormat(opts.format);
+      if (fmt === null) return;
       const globals = typeof refresh.optsWithGlobals === 'function' ? refresh.optsWithGlobals() as Record<string, unknown> : {};
       const rows = await collectAuthRefresh({
         sites: opts.site,
@@ -504,7 +522,6 @@ export function registerAuthCommands(program: Command): Command {
         timeout: opts.timeout,
         profile: typeof globals.profile === 'string' && globals.profile.trim() ? globals.profile.trim() : undefined,
       });
-      const fmt = typeof opts.format === 'string' ? opts.format : 'table';
       renderOutput(rows, {
         fmt,
         fmtExplicit: refresh.getOptionValueSource('format') === 'cli',
