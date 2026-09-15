@@ -5,11 +5,13 @@ const {
   mockSendCommand,
   mockSetDaemonCommandTimeoutSeconds,
   mockFindShadowedUserAdapters,
+  mockIsWslEnvironment,
 } = vi.hoisted(() => ({
   mockGetDaemonHealth: vi.fn(),
   mockSendCommand: vi.fn(),
   mockSetDaemonCommandTimeoutSeconds: vi.fn(),
   mockFindShadowedUserAdapters: vi.fn(),
+  mockIsWslEnvironment: vi.fn(),
 }));
 
 vi.mock('./browser/daemon-transport.js', async (importOriginal) => {
@@ -37,6 +39,14 @@ vi.mock('./adapter-shadow.js', async () => {
   };
 });
 
+vi.mock('./wsl.js', async () => {
+  const actual = await vi.importActual<typeof import('./wsl.js')>('./wsl.js');
+  return {
+    ...actual,
+    isWslEnvironment: mockIsWslEnvironment,
+  };
+});
+
 import { renderBrowserDoctorReport, runBrowserDoctor } from './doctor.js';
 
 describe('doctor report rendering', () => {
@@ -45,6 +55,7 @@ describe('doctor report rendering', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindShadowedUserAdapters.mockReturnValue([]);
+    mockIsWslEnvironment.mockReturnValue(false);
     // Doctor always runs a live daemon-to-extension command. Tests that want
     // connectivity to fail override this result.
     mockSendCommand.mockResolvedValue([]);
@@ -342,6 +353,103 @@ describe('doctor report rendering', () => {
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Local adapter overrides shadow packaged adapters'),
     ]));
+  });
+
+  it('adds an actionable WSL hint when the extension is disconnected under WSL', async () => {
+    // GH #1565: daemon running + extension missing is the exact WSL symptom.
+    mockIsWslEnvironment.mockReturnValue(true);
+    mockSendCommand.mockRejectedValueOnce(new Error('Browser Bridge extension not connected'));
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+
+    const report = await runBrowserDoctor();
+
+    expect(report.wslDetected).toBe(true);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Daemon is running but the Chrome/Chromium extension is not connected'),
+    ]));
+    const wslIssue = report.issues.find((issue) => issue.includes('WSL detected'));
+    expect(wslIssue).toContain('wslinfo --networking-mode');
+    expect(wslIssue).toContain('opencli daemon restart');
+    expect(wslIssue).toContain('X-OpenCLI');
+  });
+
+  it('omits the WSL hint for the same symptom on native platforms', async () => {
+    mockIsWslEnvironment.mockReturnValue(false);
+    mockSendCommand.mockRejectedValueOnce(new Error('Browser Bridge extension not connected'));
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+
+    const report = await runBrowserDoctor();
+
+    expect(report.wslDetected).toBe(false);
+    expect(report.issues.some((issue) => issue.includes('WSL detected'))).toBe(false);
+  });
+
+  it('keeps the native disconnected output exactly unchanged', async () => {
+    mockIsWslEnvironment.mockReturnValue(false);
+    mockSendCommand.mockRejectedValueOnce(new Error('Browser Bridge extension not connected'));
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+
+    const report = await runBrowserDoctor();
+
+    expect(report.issues).toEqual([
+      'Daemon is running but the Chrome/Chromium extension is not connected.\n' +
+        'If the extension is already installed, try: opencli daemon restart\n' +
+        'If the extension is not installed:\n' +
+        '  1. Download from https://github.com/jackwener/opencli/releases\n' +
+        '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
+        '  3. Click "Load unpacked" → select the extension folder',
+      'Browser connectivity test failed: Browser Bridge extension not connected',
+    ]);
+  });
+
+  it('adds the WSL hint to the flapping-extension path under WSL', async () => {
+    // GH #1565: probe-ok/status-disagree is exactly what WSL2 NAT flakiness
+    // looks like, so the flapping path needs the cross-VM context too.
+    mockIsWslEnvironment.mockReturnValue(true);
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'no-extension', status: { extensionConnected: false } });
+
+    const report = await runBrowserDoctor();
+
+    expect(report.extensionFlaky).toBe(true);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Extension connection is unstable'),
+      expect.stringContaining('WSL detected'),
+    ]));
+  });
+
+  it('withholds the WSL hint on sibling branches even under WSL', async () => {
+    // The hint is confined to the two "extension should be connected but is
+    // not stably" states. Profile selection and daemon-down paths already
+    // name the user's next step; a cross-VM paragraph there would mislead.
+    mockIsWslEnvironment.mockReturnValue(true);
+
+    mockSendCommand.mockRejectedValueOnce(new Error('profile required'));
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'profile-required',
+      status: {
+        extensionConnected: false,
+        profileRequired: true,
+        profiles: [
+          { contextId: 'work', extensionConnected: true, pending: 0 },
+          { contextId: 'personal', extensionConnected: true, pending: 0 },
+        ],
+      },
+    });
+    const profileRequired = await runBrowserDoctor();
+    expect(profileRequired.issues.some((issue) => issue.includes('WSL detected'))).toBe(false);
+
+    mockSendCommand.mockRejectedValueOnce(new Error('profile gone'));
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'profile-disconnected',
+      status: { extensionConnected: false, profileDisconnected: true, contextId: 'work' },
+    });
+    const profileDisconnected = await runBrowserDoctor();
+    expect(profileDisconnected.issues.some((issue) => issue.includes('WSL detected'))).toBe(false);
+
+    mockSendCommand.mockRejectedValueOnce(new Error('Could not start daemon'));
+    mockGetDaemonHealth.mockResolvedValueOnce({ state: 'stopped', status: null });
+    const daemonDown = await runBrowserDoctor();
+    expect(daemonDown.issues.some((issue) => issue.includes('WSL detected'))).toBe(false);
   });
 
   it('reports profile-required when multiple profiles are connected without a selection', async () => {
