@@ -9,6 +9,7 @@ import {
   parseThinkingResponse,
   parseDeepSeekConversationId,
   pickResumeUrl,
+  ensureFreshConversation,
 } from './utils.js';
 
 describe('deepseek parseDeepSeekConversationId', () => {
@@ -299,6 +300,27 @@ describe('deepseek sendWithFile Not allowed fallback', () => {
     expect(result).toEqual({ ok: false, reason: 'file preview did not appear' });
     expect(page.evaluate.mock.calls[1][0]).toContain('img[src], canvas, video');
     expect(page.evaluate.mock.calls[1][0]).not.toContain("aria-disabled') === 'false'");
+  });
+});
+
+describe('deepseek ensureFreshConversation', () => {
+  const HOME = 'https://chat.deepseek.com/';
+  const THREAD = 'https://chat.deepseek.com/a/chat/s/749e6bbd-6a45-4440-beaa-ae5238bf06d8';
+
+  it('escapes a restored conversation before allowing --new to send', async () => {
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(THREAD)
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce(HOME)
+        .mockResolvedValueOnce(HOME),
+    };
+
+    await expect(ensureFreshConversation(page)).resolves.toEqual({ ok: true, escaped: true });
+    expect(page.goto).toHaveBeenCalledWith(HOME);
+    expect(page.evaluate).toHaveBeenCalledTimes(4);
   });
 });
 

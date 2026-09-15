@@ -54,6 +54,53 @@ export async function ensureOnDeepSeek(page) {
     return true;
 }
 
+async function isOnConversationThread(page) {
+    const url = await page.evaluate('window.location.href').catch(() => null);
+    return typeof url !== 'string' || url.includes('/a/chat/s/');
+}
+
+async function confirmedOffThread(page) {
+    if (await isOnConversationThread(page)) return false;
+    await page.wait(1);
+    return !(await isOnConversationThread(page));
+}
+
+function clickNewChatControl(page) {
+    return page.evaluate(`(() => {
+        const label = (el) => (el.getAttribute('aria-label') || el.getAttribute('title') || el.innerText || '').trim();
+        const matches = (text) => text.startsWith('开启新对话') || text.startsWith('New chat');
+        const matched = Array.from(document.querySelectorAll('a, button, [role="button"], div'))
+            .filter((el) => !el.closest('a[href*="/a/chat/s/"]'))
+            .filter((el) => matches(label(el)));
+        if (matched.length === 0) return { ok: false, reason: 'new-chat-control-not-found' };
+        const target = matched.find((el) => !matched.some((other) => other !== el && el.contains(other)));
+        const clickable = target.closest('a, button, [role="button"], [tabindex]') || target;
+        clickable.click();
+        return { ok: true };
+    })()`);
+}
+
+export async function ensureFreshConversation(page) {
+    await page.goto(DEEPSEEK_URL);
+    try {
+        await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 8 });
+    } catch {
+        return { ok: false, reason: 'composer-missing' };
+    }
+
+    await page.wait(1);
+    if (await confirmedOffThread(page)) return { ok: true, escaped: false };
+
+    let reason = 'conversation-restored';
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const result = await clickNewChatControl(page).catch(() => null);
+        if (result && !result.ok) reason = result.reason || 'new-chat-control-not-found';
+        await page.wait(1);
+        if (await confirmedOffThread(page)) return { ok: true, escaped: true };
+    }
+    return { ok: false, reason };
+}
+
 export async function getPageState(page) {
     return page.evaluate(`(() => {
         const url = window.location.href;
