@@ -372,6 +372,57 @@ describe('Page active target tracking', () => {
     expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
   });
 
+  // Regression (#2487): on Chromium 152+, the extension detaches the debugger
+  // immediately before chrome.tabs.update when no network capture is armed, and
+  // the update is rejected with "Navigation rejected.". The rejection happens
+  // synchronously before any navigation handle exists, so goto() waits for the
+  // detach to settle and retries the navigate once with the same params.
+  it('retries navigate once after a Navigation rejected error', async () => {
+    sendCommandFullMock
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/first' }, page: 'page-1' })
+      .mockRejectedValueOnce(new Error('Navigation rejected.'))
+      .mockResolvedValueOnce({ data: { url: 'https://example.com/second' }, page: 'page-2' });
+
+    const page = new Page('site:youtube', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await page.goto('https://example.com/first', { waitUntil: 'none' });
+    await page.goto('https://example.com/second', { waitUntil: 'none' });
+    expect(page.getActivePage()).toBe('page-2');
+
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(3);
+    // The rejection is about detach-vs-update timing, not identity — the retry
+    // keeps the cached page binding instead of dropping it.
+    const retryCall = sendCommandFullMock.mock.calls[2];
+    expect(retryCall[0]).toBe('navigate');
+    expect(retryCall[1]).toMatchObject({ url: 'https://example.com/second', page: 'page-1' });
+  });
+
+  it('propagates Navigation rejected when the retry also fails', async () => {
+    sendCommandFullMock
+      .mockRejectedValueOnce(new Error('Navigation rejected.'))
+      .mockRejectedValueOnce(new Error('Navigation rejected.'));
+
+    const page = new Page('site:youtube', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await expect(page.goto('https://example.com', { waitUntil: 'none' }))
+      .rejects.toThrow('Navigation rejected');
+    // Exactly one retry — a persistent rejection must surface, not loop.
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry navigate errors that merely mention navigation', async () => {
+    // The retry predicate must match the Chrome 152 "Navigation rejected."
+    // signature, not any error containing the word "navigation".
+    sendCommandFullMock
+      .mockRejectedValueOnce(new Error('Navigation failed: net::ERR_CONNECTION_TIMED_OUT'));
+
+    const page = new Page('site:youtube', undefined, undefined, undefined, 'adapter', 'persistent');
+
+    await expect(page.goto('https://example.com', { waitUntil: 'none' }))
+      .rejects.toThrow('ERR_CONNECTION_TIMED_OUT');
+    expect(sendCommandFullMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not retry unrelated navigate errors that only mention Page not found in details', async () => {
     sendCommandFullMock
       .mockResolvedValueOnce({ data: { url: 'https://example.com/first' }, page: 'page-1' })

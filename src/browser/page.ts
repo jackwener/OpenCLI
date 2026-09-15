@@ -36,6 +36,15 @@ function isStalePageIdentityError(err: unknown): boolean {
   return message.includes('stale page identity') || /^Page not found:\s*\S+\s*$/.test(message);
 }
 
+// On Chromium 152+, chrome.tabs.update rejects with "Navigation rejected." when the
+// extension detached the debugger immediately before navigating (no network
+// capture armed on the tab). The rejection is synchronous — no navigation handle
+// is ever created — so a single retry after the detach settles is safe.
+function isNavigationRejectedError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /navigation rejected/i.test(message);
+}
+
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
  */
@@ -96,17 +105,29 @@ export class Page extends CDPBasePage {
         ...this._cmdOpts(),
       });
     } catch (err) {
-      // If our cached targetId went stale (tab closed externally, identity evicted),
-      // drop the dead id and retry without it — the extension will resolve through the
-      // session lease or open a fresh automation tab. Without this, every subsequent
-      // adapter call in the same process keeps re-sending the same dead targetId and
-      // cascades into "Page not found:" failures across concurrent calls.
-      if (!isStalePageIdentityError(err) || this._page === undefined) throw err;
-      this._page = undefined;
-      result = await sendCommandFull('navigate', {
-        url,
-        ...this._cmdOpts(),
-      });
+      // Chrome 152+ can reject the navigate when the extension detached the
+      // debugger right before chrome.tabs.update (no network capture armed).
+      // Nothing was applied yet, so retry once after a short settle with the
+      // same params — the cached page identity is still valid.
+      if (isNavigationRejectedError(err)) {
+        await new Promise((r) => setTimeout(r, 250));
+        result = await sendCommandFull('navigate', {
+          url,
+          ...this._cmdOpts(),
+        });
+      } else {
+        // If our cached targetId went stale (tab closed externally, identity evicted),
+        // drop the dead id and retry without it — the extension will resolve through the
+        // session lease or open a fresh automation tab. Without this, every subsequent
+        // adapter call in the same process keeps re-sending the same dead targetId and
+        // cascades into "Page not found:" failures across concurrent calls.
+        if (!isStalePageIdentityError(err) || this._page === undefined) throw err;
+        this._page = undefined;
+        result = await sendCommandFull('navigate', {
+          url,
+          ...this._cmdOpts(),
+        });
+      }
     }
     // Remember the page identity (targetId) for subsequent calls
     if (result.page) {
