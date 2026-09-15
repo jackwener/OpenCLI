@@ -302,6 +302,33 @@ describe('createProgram root help descriptions', () => {
     }
   });
 
+  it('rejects an unknown list output format with an argument error instead of rendering a table', async () => {
+    const priorExitCode = process.exitCode;
+    const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const restoreStdoutSpy = () => stdoutSpy.mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    process.exitCode = undefined;
+    try {
+      const program = createProgram('', '');
+      await program.parseAsync(['node', 'opencli', 'list', '-f', 'bogus']);
+      expect(process.exitCode).toBe(2);
+      const stderr = stderrSpy.mock.calls.map(call => String(call[0])).join('');
+      const envelope = yaml.load(stderr) as { ok: boolean; error: { code: string; message: string; exitCode: number } };
+      expect(envelope.ok).toBe(false);
+      expect(envelope.error.code).toBe('ARGUMENT');
+      expect(envelope.error.exitCode).toBe(2);
+      expect(envelope.error.message).toBe(
+        '--format must be one of: table, plain, json, yaml, md, csv. Received: "bogus"',
+      );
+      expect(stdoutSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreStdoutSpy();
+      stdoutSpy.mockClear();
+      stderrSpy.mockClear();
+      process.exitCode = priorExitCode;
+    }
+  });
+
   it('exposes external_clis / app_adapters / site_adapters in structured help', () => {
     const registry = getRegistry();
     const snapshot = new Map(registry);
