@@ -28,11 +28,22 @@ let connectInFlight: Promise<void> | null = null;
 // initialize() replaces this with the real recovery promise; it always
 // resolves (never rejects) so gated handlers can never wedge permanently.
 let workerReady: Promise<void> = Promise.resolve();
+let startupRecoveryError: Error | null = null;
 // Synchronous mirror of workerReady's settled state. Lets connect() skip the
 // `await workerReady` microtask hop once recovery is done, so the steady-state
 // (post-recovery) connect path is byte-for-byte the original — only the
 // pre-recovery wake is gated.
 let workerRecovered = true;
+
+async function awaitWorkerReady(): Promise<void> {
+  await workerReady;
+  if (startupRecoveryError) throw startupRecoveryError;
+}
+
+function isMissingTabOrWindowError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /No tab with id|No window with id|No window with id/i.test(message);
+}
 
 async function getCurrentContextId(): Promise<string> {
   if (contextIdPromise) return contextIdPromise;
@@ -51,7 +62,8 @@ async function getCurrentContextId(): Promise<string> {
       currentContextId = generated;
       return currentContextId;
     } catch {
-      return currentContextId;
+      console.error('[opencli] Failed to load or persist the browser context id');
+      throw new Error('Failed to load or persist the browser context id');
     }
   })();
   return contextIdPromise;
@@ -503,42 +515,45 @@ function emptyRegistry(): StoredRegistry {
 }
 
 async function readRegistry(): Promise<StoredRegistry> {
-  try {
-    const session = chrome.storage?.session;
-    if (!session) return emptyRegistry(); // no session storage — degrade to memory-only
-    const raw = await session.get(REGISTRY_KEY) as Record<string, unknown>;
-    const stored = raw[REGISTRY_KEY] as Partial<StoredRegistry> | undefined;
-    if (!stored || stored.version !== 2 || typeof stored.leases !== 'object') return emptyRegistry();
-    const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === 'object'
-      ? stored.ownedContainers
-      : emptyRegistry().ownedContainers;
-    return {
-      version: 2,
-      contextId: currentContextId,
-      ownedContainers: {
-        interactive: {
-          windowId: typeof storedContainers.interactive?.windowId === 'number' ? storedContainers.interactive.windowId : null,
-          groupIds: Array.isArray(storedContainers.interactive?.groupIds)
-            ? storedContainers.interactive.groupIds.filter((id): id is number => typeof id === 'number')
-            : [],
-        },
-        automation: {
-          windowId: typeof storedContainers.automation?.windowId === 'number' ? storedContainers.automation.windowId : null,
-        },
-      },
-      leases: stored.leases as Record<string, StoredLease>,
-    };
-  } catch {
+  const session = chrome.storage?.session;
+  if (!session) {
+    console.warn('[opencli] Session storage unavailable while reading registry');
     return emptyRegistry();
   }
+  const raw = await session.get(REGISTRY_KEY) as Record<string, unknown>;
+  const stored = raw[REGISTRY_KEY] as Partial<StoredRegistry> | undefined;
+  if (!stored) {
+    console.warn('[opencli] No registry data found in session storage');
+    return emptyRegistry();
+  }
+  if (stored.version !== 2 || typeof stored.leases !== 'object') {
+    throw new Error('Invalid registry data while reading registry');
+  }
+  const storedContainers = stored.ownedContainers && typeof stored.ownedContainers === 'object'
+    ? stored.ownedContainers
+    : emptyRegistry().ownedContainers;
+  return {
+    version: 2,
+    contextId: currentContextId,
+    ownedContainers: {
+      interactive: {
+        windowId: typeof storedContainers.interactive?.windowId === 'number' ? storedContainers.interactive.windowId : null,
+        groupIds: Array.isArray(storedContainers.interactive?.groupIds)
+          ? storedContainers.interactive.groupIds.filter((id): id is number => typeof id === 'number')
+          : [],
+      },
+      automation: {
+        windowId: typeof storedContainers.automation?.windowId === 'number' ? storedContainers.automation.windowId : null,
+      },
+    },
+    leases: stored.leases as Record<string, StoredLease>,
+  };
 }
 
 async function writeRegistry(registry: StoredRegistry): Promise<void> {
-  try {
-    await chrome.storage?.session?.set({ [REGISTRY_KEY]: registry });
-  } catch {
-    // Registry persistence is a recovery aid; command execution should not fail on storage errors.
-  }
+  const session = chrome.storage?.session;
+  if (!session) throw new Error('Session storage unavailable while persisting registry');
+  await session.set({ [REGISTRY_KEY]: registry });
 }
 
 async function persistRuntimeState(): Promise<void> {
@@ -575,14 +590,12 @@ async function persistRuntimeState(): Promise<void> {
 
 function scheduleIdleAlarm(leaseKey: string, timeout: number): void {
   const alarmName = makeAlarmName(leaseKey);
-  try {
-    if (timeout > 0) {
-      chrome.alarms?.create?.(alarmName, { when: Date.now() + timeout });
-    } else {
-      chrome.alarms?.clear?.(alarmName);
-    }
-  } catch {
-    // setTimeout remains the in-process fast path; alarms are the MV3 restart recovery path.
+  const alarms = chrome.alarms;
+  if (!alarms) throw new Error('Alarms API unavailable while updating idle alarm');
+  if (timeout > 0) {
+    alarms.create(alarmName, { when: Date.now() + timeout });
+  } else {
+    alarms.clear(alarmName);
   }
 }
 
@@ -1154,7 +1167,7 @@ async function getAutomationWindow(leaseKey: string, initialUrl?: string): Promi
 chrome.windows.onRemoved.addListener(async (windowId) => {
   // A window-close event can wake the worker before recovery; persisting the
   // empty pre-recovery snapshot here would wipe the registry.
-  await workerReady;
+  await awaitWorkerReady();
   for (const container of Object.values(ownedContainers)) {
     if (container.windowId === windowId) {
       container.windowId = null;
@@ -1176,7 +1189,7 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
 // Evict identity mappings when tabs are closed
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   // Same wake-before-recovery hazard as windows.onRemoved.
-  await workerReady;
+  await awaitWorkerReady();
   identity.evictTab(tabId);
   for (const [leaseKey, session] of automationSessions.entries()) {
     if (session.preferredTabId === tabId) {
@@ -1199,12 +1212,8 @@ function initialize(): void {
   initialized = true;
   chrome.alarms.create('keepalive', { periodInMinutes: 0.5 }); // Chrome production minimum: 30 seconds
   executor.registerListeners();
-  try {
-    const registerFrameTracking = (executor as { registerFrameTracking?: () => void }).registerFrameTracking;
-    registerFrameTracking?.();
-  } catch {
-    // Some focused tests mock only the cdp functions they exercise.
-  }
+  const registerFrameTracking = Reflect.get(executor as object, 'registerFrameTracking') as (() => void) | undefined;
+  if (typeof registerFrameTracking === 'function') registerFrameTracking();
   // Migration cleanup: older versions persisted the registry in
   // chrome.storage.local, where its browser-session-scoped ids go stale after
   // a browser restart (see StoredRegistry). Remove that one legacy key —
@@ -1224,13 +1233,15 @@ function initialize(): void {
     await getCurrentContextId();
     await reconcileTargetLeaseRegistry();
   })().catch((err) => {
-    // Never leave workerReady rejected/pending: a wedged gate would freeze
-    // every gated handler for the life of the worker.
-    console.warn(`[opencli] Startup recovery failed: ${err instanceof Error ? err.message : String(err)}`);
-  }).finally(() => {
+    startupRecoveryError = err instanceof Error ? err : new Error(String(err));
+    console.warn(`[opencli] Startup recovery failed: ${startupRecoveryError.message}`);
+  });
+  void workerReady.finally(() => {
     workerRecovered = true;
   });
-  void workerReady.then(() => connect());
+  void workerReady.then(() => {
+    if (!startupRecoveryError) connect();
+  });
   console.log('[opencli] OpenCLI extension initialized');
 }
 
@@ -1250,7 +1261,7 @@ initialize();
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   // Idle-lease alarms and keepalive can both fire in a freshly woken worker;
   // gate on recovery so releaseLease never persists an empty snapshot.
-  await workerReady;
+  await awaitWorkerReady();
   if (alarm.name === 'keepalive') void connect();
   const leaseKey = leaseKeyFromAlarmName(alarm.name);
   if (!leaseKey) return;
@@ -1415,7 +1426,10 @@ function getUrlOrigin(url: string | undefined): string | null {
   }
 }
 
-function enumerateCrossOriginFrames(tree: any): Array<{ index: number; frameId: string; url: string; name: string }> {
+function enumerateCrossOriginFrames(
+  tree: any,
+  extraTargets: Array<{ targetId: string; url: string; name: string }> = [],
+): Array<{ index: number; frameId: string; url: string; name: string }> {
   const frames: Array<{ index: number; frameId: string; url: string; name: string }> = [];
 
   function collect(node: any, accessibleOrigin: string | null) {
@@ -1444,6 +1458,18 @@ function enumerateCrossOriginFrames(tree: any): Array<{ index: number; frameId: 
   const rootFrame = tree?.frameTree?.frame;
   const rootUrl = rootFrame?.url || rootFrame?.unreachableUrl || '';
   collect(tree.frameTree, getUrlOrigin(rootUrl));
+
+  for (const target of extraTargets) {
+    if (!target.targetId) continue;
+    if (frames.some((frame) => frame.frameId === target.targetId)) continue;
+    frames.push({
+      index: frames.length,
+      frameId: target.targetId,
+      url: target.url,
+      name: target.name || '',
+    });
+  }
+
   return frames;
 }
 
@@ -1682,7 +1708,7 @@ async function handleExec(cmd: Command, leaseKey: string): Promise<Result> {
     const aggressive = getSurfaceFromKey(leaseKey) === 'browser';
     if (cmd.frameIndex != null) {
       const tree = await executor.getFrameTree(tabId);
-      const frames = enumerateCrossOriginFrames(tree);
+      const frames = enumerateCrossOriginFrames(tree, await executor.getIframeTargets(tabId));
       if (cmd.frameIndex < 0 || cmd.frameIndex >= frames.length) {
         return { id: cmd.id, ok: false, error: `Frame index ${cmd.frameIndex} out of range (${frames.length} cross-origin frames available)` };
       }
@@ -1701,7 +1727,8 @@ async function handleFrames(cmd: Command, leaseKey: string): Promise<Result> {
   const tabId = await resolveTabId(cmdTabId, leaseKey);
   try {
     const tree = await executor.getFrameTree(tabId);
-    return { id: cmd.id, ok: true, data: enumerateCrossOriginFrames(tree) };
+    const targets = await executor.getIframeTargets(tabId);
+    return { id: cmd.id, ok: true, data: enumerateCrossOriginFrames(tree, targets) };
   } catch (err) {
     return errorResult(cmd.id, err);
   }
@@ -2144,7 +2171,7 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
       await safeDetach(tabId);
       identity.evictTab(tabId);
       if (hasOtherOwnedLease) {
-        await chrome.tabs.remove(tabId).catch(() => {});
+        await chrome.tabs.remove(tabId);
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
         try {
@@ -2153,7 +2180,7 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
           if (group) session.windowId = group.windowId;
           console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
         } catch {
-          await chrome.tabs.remove(tabId).catch(() => {});
+          await chrome.tabs.remove(tabId);
           console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
         }
       }
@@ -2186,7 +2213,8 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
     if (windowId !== null) {
       try {
         await chrome.windows.get(windowId);
-      } catch {
+      } catch (err) {
+        if (!isMissingTabOrWindowError(err)) throw err;
         ownedContainers[role].windowId = null;
       }
     }
@@ -2235,7 +2263,8 @@ async function reconcileTargetLeaseRegistry(): Promise<void> {
           resetWindowIdleTimer(leaseKey, remaining);
         }
       }
-    } catch {
+    } catch (err) {
+      if (!isMissingTabOrWindowError(err)) throw err;
       // Registry is semantic state, not truth. If Chrome no longer has the tab,
       // drop the lease record and never close unrelated user resources.
     }

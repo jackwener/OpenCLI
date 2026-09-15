@@ -16,6 +16,7 @@ function createChromeMock() {
   const debuggerApi = {
     attach: vi.fn(async () => {}),
     detach: vi.fn(async () => {}),
+    getTargets: vi.fn(async () => []),
     sendCommand: vi.fn(async (_target: unknown, method: string) => {
       if (method === 'Runtime.evaluate') return { result: { value: 'ok' } };
       return {};
@@ -95,10 +96,10 @@ describe('cdp attach recovery', () => {
 
   it('falls back to a frame target when no same-target execution context exists', async () => {
     const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    debuggerApi.getTargets = vi.fn(async () => ([
+      { id: 'oopif-frame', tabId: 1, type: 'other', url: 'https://frame.test', title: 'oopif' },
+    ]));
     debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
-      if (method === 'Target.setDiscoverTargets') return {};
-      if (method === 'Target.setAutoAttach') return {};
-      if (method === 'Target.getTargets') return { targetInfos: [{ targetId: 'oopif-frame', type: 'iframe', url: 'https://frame.test' }] };
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.enable') return {};
       if (target?.targetId === 'oopif-frame' && method === 'Runtime.evaluate') {
         return { result: { value: 'frame-ok' } };
@@ -120,6 +121,36 @@ describe('cdp attach recovery', () => {
       'Runtime.evaluate',
       expect.any(Object),
     );
+  });
+
+  it('resolves out-of-process frame targets from chrome.debugger.getTargets', async () => {
+    const { chrome, debuggerApi, debuggerEventListeners } = createChromeMock();
+    debuggerApi.getTargets = vi.fn(async () => ([
+      { id: 'oopif-frame', tabId: 1, type: 'other', url: 'https://frame.test', title: 'oopif' },
+    ]));
+    debuggerApi.sendCommand = vi.fn(async (target: any, method: string, _params?: any) => {
+      if (method === 'Target.getTargets') throw new Error('Target.getTargets should not be called');
+      if (target?.targetId === 'oopif-frame' && method === 'Runtime.enable') return {};
+      if (target?.targetId === 'oopif-frame' && method === 'Runtime.evaluate') {
+        return { result: { value: 'frame-ok' } };
+      }
+      return {};
+    });
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./cdp');
+    mod.registerFrameTracking();
+
+    const result = await mod.evaluateInFrame(1, 'document.title', 'oopif-frame');
+
+    expect(result).toBe('frame-ok');
+    expect(debuggerApi.getTargets).toHaveBeenCalled();
+    expect(debuggerApi.sendCommand).toHaveBeenCalledWith(
+      { targetId: 'oopif-frame' },
+      'Runtime.evaluate',
+      expect.any(Object),
+    );
+    expect(debuggerEventListeners.length).toBeGreaterThanOrEqual(1);
   });
 
 });
@@ -567,16 +598,14 @@ describe('cdp evaluateInFrame stale context fallback', () => {
     const debuggerApi = {
       attach: vi.fn(async () => {}),
       detach: vi.fn(async () => {}),
+      getTargets: vi.fn(async () => ([
+        { id: 'stale-frame', tabId: 1, type: 'other', url: 'https://frame.test', title: 'stale' },
+      ])),
       sendCommand: vi.fn(async (target, method, params) => {
         if (method === 'Runtime.enable') return {};
         // The cached context id is stale after the frame navigated: CDP rejects.
         if (method === 'Runtime.evaluate' && params?.contextId === 99) {
           throw new Error('Cannot find context with specified id');
-        }
-        if (method === 'Target.setDiscoverTargets') return {};
-        if (method === 'Target.setAutoAttach') return {};
-        if (method === 'Target.getTargets') {
-          return { targetInfos: [{ targetId: 'stale-frame', type: 'iframe', url: 'https://frame.test' }] };
         }
         if (target?.targetId === 'stale-frame' && method === 'Runtime.evaluate') {
           return { result: { value: 'frame-ok' } };
