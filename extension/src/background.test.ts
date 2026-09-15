@@ -1118,7 +1118,8 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(adapterKey('second'))).toBeNull();
 
     await mod.__test__.handleCommand({ id: 'close-first', action: 'close-window', session: 'first', surface: 'adapter' });
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank' });
+    expect(chrome.debugger.detach.mock.calls.at(-1)).toEqual([{ tabId: 1 }]);
+    expect(chrome.tabs.remove.mock.calls.at(-1)).toEqual([1]);
     expect(chrome.windows.remove).not.toHaveBeenCalled();
   });
 
