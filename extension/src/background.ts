@@ -2056,9 +2056,38 @@ function stripOpenCliFrameRoutingParams(params: Record<string, unknown>, stripFr
 }
 
 async function handleCloseWindow(cmd: Command, leaseKey: string): Promise<Result> {
-  const sessionName = automationSessions.get(leaseKey)?.session ?? getSessionFromKey(leaseKey);
+  const session = automationSessions.get(leaseKey);
+  const sessionName = session?.session ?? getSessionFromKey(leaseKey);
+  if (session?.owned) {
+    await releaseOwnedTabForExplicitClose(leaseKey);
+    return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
+  }
   await releaseLease(leaseKey, 'explicit close');
   return { id: cmd.id, ok: true, data: { closed: true, session: sessionName } };
+}
+
+// Explicit teardown must never steer the automation tab: navigating a dirty
+// site page (e.g. an X/Twitter composer) to about:blank raises Chrome's
+// leave/close confirmation, which blocks the CLI until a user confirms it.
+// Remove the owned tab directly instead. Every step is best-effort so a
+// half-torn-down lease still reports success — the site action already
+// finished, and a failed cleanup must not read as a failed command (which
+// would invite a blind retry of an already-succeeded post).
+async function releaseOwnedTabForExplicitClose(leaseKey: string): Promise<void> {
+  const session = automationSessions.get(leaseKey);
+  if (!session) {
+    return;
+  }
+  const tabId = session.preferredTabId;
+  if (tabId !== null) {
+    await safeDetach(tabId);
+    identity.evictTab(tabId);
+    await chrome.tabs.remove(tabId).catch(() => {});
+    console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, explicit close)`);
+  } else {
+    console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (session=${session.session}, surface=${session.surface}, explicit close)`);
+  }
+  await removeLeaseSession(leaseKey);
 }
 
 async function handleSetFileInput(cmd: Command, leaseKey: string): Promise<Result> {
