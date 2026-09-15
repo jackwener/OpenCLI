@@ -27,6 +27,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
 import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
+import { OUTPUT_FORMATS } from './help.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
@@ -49,6 +50,16 @@ function normalizeTraceMode(raw: unknown): TraceMode {
   if (raw === undefined || raw === null || raw === '' || raw === 'off') return 'off';
   if (raw === 'on' || raw === 'retain-on-failure') return raw;
   throw new ArgumentError(`--trace must be one of: off, on, retain-on-failure. Received: "${String(raw)}"`);
+}
+
+/**
+ * Validate a user-supplied `-f, --format` value against the advertised closed
+ * set. Unknown values throw ArgumentError (exit 2) instead of silently
+ * rendering a table via render()'s default branch.
+ */
+export function normalizeFormat(raw: unknown): string {
+  if (typeof raw === 'string' && (OUTPUT_FORMATS as readonly string[]).includes(raw)) return raw;
+  throw new ArgumentError(`--format must be one of: ${OUTPUT_FORMATS.join(', ')}. Received: "${String(raw)}"`);
 }
 
 export function coerceAndValidateArgs(cmdArgs: Arg[], kwargs: CommandArgs): CommandArgs {

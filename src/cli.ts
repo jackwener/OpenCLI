@@ -10,6 +10,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command, InvalidArgumentError, Option } from 'commander';
+import yaml from 'js-yaml';
 import { findPackageRoot, getBuiltEntryCandidates } from './package-paths.js';
 import { type CliCommand, fullName, getRegistry, strategyLabel } from './registry.js';
 import { serializeCommand, formatArgSummary } from './serialization.js';
@@ -20,7 +21,8 @@ import { loadExternalClis, executeExternalCli, installExternalCli, registerExter
 import { listOpenCliSkills, readOpenCliSkill } from './skills.js';
 import { registerAllCommands } from './commanderAdapter.js';
 import { classifyAdapter, formatRootAdapterHelpText, installCommanderNamespaceStructuredHelp, installStructuredHelp, leadingPositionalFromUsage, rootHelpData, type RootAdapterGroups } from './help.js';
-import { EXIT_CODES, getErrorMessage, BrowserConnectError, CliError } from './errors.js';
+import { EXIT_CODES, getErrorMessage, BrowserConnectError, CliError, toEnvelope } from './errors.js';
+import { normalizeFormat } from './execution.js';
 import { TargetError, type TargetErrorCode } from './browser/target-errors.js';
 import { resolveTargetJs, getTextResolvedJs, getValueResolvedJs, getAttributesResolvedJs, selectResolvedJs, isAutocompleteResolvedJs, type ResolveOptions, type TargetMatchLevel } from './browser/target-resolver.js';
 import { buildFindJs, buildSemanticFindJs, isFindError, type FindResult, type FindError, type SemanticFindOptions } from './browser/find.js';
@@ -47,6 +49,20 @@ import type { BrowserWindowMode } from './runtime.js';
 const CLI_FILE = fileURLToPath(import.meta.url);
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
 const FOLLOW_POLL_MS = 1_000;
+
+/**
+ * Validate a user-supplied `-f, --format` value. Returns the format, or null
+ * after emitting the error envelope (exit 2) when the value is unknown.
+ */
+function resolveOutputFormat(raw: unknown): string | null {
+  try {
+    return normalizeFormat(typeof raw === 'string' ? raw : 'table');
+  } catch (err) {
+    process.stderr.write(yaml.dump(toEnvelope(err), { sortKeys: false, lineWidth: 120, noRefs: true }));
+    process.exitCode = EXIT_CODES.USAGE_ERROR;
+    return null;
+  }
+}
 
 type BrowserNetworkItem = {
   url: string;
@@ -808,7 +824,8 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .action((opts) => {
       const registry = getRegistry();
       const commands = [...new Set(registry.values())].sort((a, b) => fullName(a).localeCompare(fullName(b)));
-      const fmt = opts.format;
+      const fmt = resolveOutputFormat(opts.format);
+      if (fmt === null) return;
       const isStructured = fmt === 'json' || fmt === 'yaml';
 
       if (fmt !== 'table') {
@@ -924,8 +941,10 @@ export function createProgram(BUILTIN_CLIS: string, USER_CLIS: string): Command 
     .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
     .action((opts) => {
       const rows = listOpenCliSkills();
+      const fmt = resolveOutputFormat(opts.format);
+      if (fmt === null) return;
       renderOutput(rows, {
-        fmt: opts.format,
+        fmt,
         fmtExplicit: !!opts.format,
         columns: ['name', 'description', 'version', 'path'],
         title: 'opencli/skills/list',
@@ -3219,6 +3238,8 @@ cli({
     .description('List installed plugins')
     .option('-f, --format <fmt>', 'Output format: table, json', 'table')
     .action(async (opts) => {
+      const fmt = resolveOutputFormat(opts.format);
+      if (fmt === null) return;
       const { listPlugins } = await import('./plugin.js');
       const plugins = listPlugins();
       if (plugins.length === 0) {
@@ -3226,7 +3247,7 @@ cli({
         console.log('  Install one with: opencli plugin install github:user/repo');
         return;
       }
-      if (opts.format === 'json') {
+      if (fmt === 'json') {
         renderOutput(plugins, {
           fmt: 'json',
           columns: ['name', 'commands', 'source'],
@@ -3560,6 +3581,8 @@ cli({
     .description('List registered external CLIs')
     .option('-f, --format <fmt>', 'Output format: table, json, yaml, md, csv', 'table')
     .action((opts) => {
+      const fmt = resolveOutputFormat(opts.format);
+      if (fmt === null) return;
       const rows = loadExternalClis().map((ext) => ({
         name: ext.name,
         package: ext.package ?? '',
@@ -3570,7 +3593,7 @@ cli({
         tags: ext.tags?.join(', ') ?? '',
       }));
       renderOutput(rows, {
-        fmt: opts.format,
+        fmt,
         columns: ['name', 'package', 'binary', 'installed', 'description', 'homepage', 'tags'],
         title: 'opencli/external/list',
         source: 'opencli external list',
