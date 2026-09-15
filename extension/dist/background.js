@@ -2008,9 +2008,7 @@ async function handleNavigate(cmd, leaseKey) {
   if (beforeTab.status === "complete" && isTargetUrl(beforeTab.url, targetUrl)) {
     return pageScopedResult(cmd.id, tabId, { title: beforeTab.title, url: beforeTab.url, timedOut: false });
   }
-  if (!hasActiveNetworkCapture(tabId)) {
-    await detach(tabId);
-  }
+  const detachAfterNavigate = !hasActiveNetworkCapture(tabId);
   await chrome.tabs.update(tabId, { url: targetUrl });
   let timedOut = false;
   await new Promise((resolve) => {
@@ -2060,6 +2058,9 @@ async function handleNavigate(cmd, leaseKey) {
     } catch (moveErr) {
       console.warn(`[opencli] Failed to recover drifted tab: ${moveErr}`);
     }
+  }
+  if (detachAfterNavigate) {
+    await detach(tabId);
   }
   return pageScopedResult(cmd.id, tabId, { title: tab.title, url: tab.url, timedOut });
 }
