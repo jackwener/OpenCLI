@@ -11858,7 +11858,7 @@
   {
     "site": "doubao",
     "name": "ask",
-    "description": "Send a prompt and wait for the Doubao response",
+    "description": "Send a prompt in the selected Doubao mode and wait for a completed response",
     "access": "write",
     "domain": "www.doubao.com",
     "strategy": "cookie",
@@ -11874,9 +11874,21 @@
       {
         "name": "timeout",
         "type": "int",
-        "default": 60,
+        "default": 120,
         "required": false,
-        "help": "Max seconds to wait (default: 60)"
+        "help": "Max seconds to wait for the response (default: 120)"
+      },
+      {
+        "name": "mode",
+        "type": "str",
+        "default": "current",
+        "required": false,
+        "help": "Keep the current mode, or select fast/expert through the page menu",
+        "choices": [
+          "current",
+          "fast",
+          "expert"
+        ]
       }
     ],
     "columns": [
@@ -11887,7 +11899,8 @@
     "modulePath": "doubao/ask.js",
     "sourceFile": "doubao/ask.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "doubao",
