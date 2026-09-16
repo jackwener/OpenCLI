@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { createPageMock } from '../test-utils.js';
 // Mock download dependencies before importing the adapter
 const { mockHttpDownload, mockMkdirSync } = vi.hoisted(() => ({
@@ -26,9 +26,18 @@ describe('pixiv download', () => {
         mockHttpDownload.mockReset();
         mockMkdirSync.mockReset();
     });
-    it('throws CommandExecutionError on invalid illust ID', async () => {
+    it('throws ArgumentError on invalid illustration input', async () => {
         const page = createPageMock([]);
-        await expect(cmd.func(page, { 'illust-id': 'abc', output: '/tmp/test' })).rejects.toThrow(CommandExecutionError);
+        await expect(cmd.func(page, { 'illust-id': 'abc', output: '/tmp/test' })).rejects.toThrow(ArgumentError);
+        await expect(cmd.func(page, { 'illust-id': 'https://evil.example/artworks/12345', output: '/tmp/test' })).rejects.toThrow(ArgumentError);
+    });
+    it('accepts a canonical Pixiv artwork URL', async () => {
+        mockHttpDownload.mockResolvedValue({ success: true, size: 1024 });
+        const page = createPageMock([{ body: [{ urls: { original: 'https://i.pximg.net/img/141704294_p0.jpg' } }] }]);
+        const result = await cmd.func(page, { 'illust-id': 'https://www.pixiv.net/artworks/141704294', output: '/tmp/test' });
+        expect(result).toHaveLength(1);
+        expect(page.evaluate).toHaveBeenCalledWith(expect.stringContaining('/ajax/illust/141704294/pages'));
+        expect(mockMkdirSync).toHaveBeenCalledWith('/tmp/test/141704294', { recursive: true });
     });
     it('throws AuthRequiredError on 403', async () => {
         const page = createPageMock([{ __httpError: 403 }]);
