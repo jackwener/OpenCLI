@@ -532,6 +532,99 @@ export function extractQuotedTweet(tweet) {
 }
 
 /**
+ * Build a `t.co short URL -> expanded_url` map from a tweet node.
+ *
+ * Reads `legacy.entities.urls` (regular posts), the long-form
+ * `note_tweet.note_tweet_results.result.entity_set.urls` (posts whose text
+ * comes from `note_tweet`, whose links are only listed there), and the media
+ * entities (the trailing t.co for attached photos/videos).
+ */
+export function collectTweetUrlMap(tweet) {
+    const map = new Map();
+    const add = (urls) => {
+        if (!Array.isArray(urls)) return;
+        for (const u of urls) {
+            if (typeof u?.url === 'string' && u.url && typeof u?.expanded_url === 'string' && u.expanded_url) {
+                map.set(u.url, u.expanded_url);
+            }
+        }
+    };
+    add(tweet?.legacy?.entities?.urls);
+    add(tweet?.note_tweet?.note_tweet_results?.result?.entity_set?.urls);
+    // Attached media also gets a trailing t.co in the text; its entity lives
+    // under `media`, with `expanded_url` pointing at the x.com photo/video page.
+    add(tweet?.legacy?.entities?.media);
+    add(tweet?.legacy?.extended_entities?.media);
+    return map;
+}
+
+/**
+ * Replace every `https://t.co/...` occurrence in `text` with its expanded URL
+ * from `urlMap` (see `collectTweetUrlMap`). Unknown short links are left as-is.
+ */
+export function expandTweetUrls(text, urlMap) {
+    if (typeof text !== 'string' || !text || !urlMap || urlMap.size === 0) return text;
+    let out = text;
+    for (const [short, full] of urlMap) out = out.split(short).join(full);
+    return out;
+}
+
+/**
+ * Extract the ORIGINAL tweet behind a repost.
+ *
+ * A repost row in a user timeline carries only a truncated `"RT @user: …"`
+ * string, the reposter as author, and no media of its own. The original lives
+ * under `legacy.retweeted_status_result.result` and is returned here in the
+ * same shape as `extractQuotedTweet` so consumers can recover the full text,
+ * the real author and the original's media.
+ *
+ * Returns `null` for non-reposts and for tombstoned / unavailable originals.
+ */
+export function extractRetweetedTweet(tweet, { expandUrls = false } = {}) {
+    const r = tweet?.legacy?.retweeted_status_result?.result;
+    if (!r || typeof r !== 'object') return null;
+    const rTw = r.tweet || r;
+    if (typeof rTw.rest_id !== 'string' || !rTw.rest_id.trim()) return null;
+    const rLegacy = rTw.legacy && typeof rTw.legacy === 'object' ? rTw.legacy : {};
+    const rUser = rTw.core?.user_results?.result;
+    const rawScreenName = rUser?.legacy?.screen_name ?? rUser?.core?.screen_name;
+    const rScreenName = typeof rawScreenName === 'string' ? rawScreenName.trim() : '';
+    if (!SCREEN_NAME_PATTERN.test(rScreenName)) return null;
+    const rawDisplayName = rUser?.legacy?.name ?? rUser?.core?.name;
+    const rDisplayName = typeof rawDisplayName === 'string' ? rawDisplayName : '';
+    const rNoteText = rTw.note_tweet?.note_tweet_results?.result?.text;
+    let rText = (typeof rNoteText === 'string' && rNoteText.length > 0)
+        ? rNoteText
+        : (typeof rLegacy.full_text === 'string' ? rLegacy.full_text : '');
+    if (expandUrls) rText = expandTweetUrls(rText, collectTweetUrlMap(rTw));
+    const rMedia = extractMedia(rLegacy);
+    const out = {
+        id: rTw.rest_id,
+        author: rScreenName,
+        name: rDisplayName,
+        text: rText,
+        likes: rLegacy.favorite_count || 0,
+        retweets: rLegacy.retweet_count || 0,
+        replies: rLegacy.reply_count || 0,
+        views: Number(rTw.views?.count) || 0,
+        created_at: typeof rLegacy.created_at === 'string' ? rLegacy.created_at : '',
+        url: `https://x.com/${rScreenName}/status/${rTw.rest_id}`,
+        has_media: rMedia.has_media,
+        media_urls: rMedia.media_urls,
+        media_posters: rMedia.media_posters,
+    };
+    const rQuoted = extractQuotedTweet(rTw);
+    if (rQuoted) {
+        if (expandUrls) {
+            const qTw = (rTw.quoted_status_result?.result ?? rLegacy.quoted_status_result?.result) || {};
+            rQuoted.text = expandTweetUrls(rQuoted.text, collectTweetUrlMap(qTw.tweet || qTw));
+        }
+        out.quoted_tweet = rQuoted;
+    }
+    return out;
+}
+
+/**
  * Translate a non-200 Twitter API response into a message that distinguishes
  * the actual HTTP failure mode, so callers (scripts / scrapers / pipelines)
  * can choose retry / cooldown / re-auth / drop without misreading "queryId
@@ -579,6 +672,9 @@ export const __test__ = {
     extractMedia,
     extractCard,
     extractQuotedTweet,
+    extractRetweetedTweet,
+    collectTweetUrlMap,
+    expandTweetUrls,
     parseTweetUrl,
     buildTwitterArticleScopeSource,
     looksLikePrivateTwitterTimeline,

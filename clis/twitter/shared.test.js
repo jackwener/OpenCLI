@@ -7,6 +7,9 @@ const {
     extractMedia,
     extractCard,
     extractQuotedTweet,
+    extractRetweetedTweet,
+    collectTweetUrlMap,
+    expandTweetUrls,
     parseTweetUrl,
     buildTwitterArticleScopeSource,
     buildUserByScreenNameQueryUrl,
@@ -1032,5 +1035,81 @@ describe('describeTwitterApiError', () => {
             expect(msg).toMatch(/^HTTP \d+: /);
             expect(msg).toContain(`HTTP ${code}:`);
         }
+    });
+});
+
+describe('collectTweetUrlMap / expandTweetUrls', () => {
+    it('maps t.co links from legacy urls, note_tweet entity set and media entities', () => {
+        const map = collectTweetUrlMap({
+            legacy: {
+                entities: {
+                    urls: [{ url: 'https://t.co/a', expanded_url: 'https://example.com/a' }],
+                    media: [{ url: 'https://t.co/m', expanded_url: 'https://x.com/u/status/1/photo/1' }],
+                },
+            },
+            note_tweet: { note_tweet_results: { result: { entity_set: { urls: [{ url: 'https://t.co/n', expanded_url: 'https://example.com/n' }] } } } },
+        });
+        expect([...map.entries()]).toEqual([
+            ['https://t.co/a', 'https://example.com/a'],
+            ['https://t.co/n', 'https://example.com/n'],
+            ['https://t.co/m', 'https://x.com/u/status/1/photo/1'],
+        ]);
+        expect(expandTweetUrls('x https://t.co/a y https://t.co/n z https://t.co/m https://t.co/unknown', map))
+            .toBe('x https://example.com/a y https://example.com/n z https://x.com/u/status/1/photo/1 https://t.co/unknown');
+    });
+
+    it('ignores malformed entities and leaves text untouched when there is nothing to expand', () => {
+        const map = collectTweetUrlMap({ legacy: { entities: { urls: [{ url: 'https://t.co/a' }, null, { expanded_url: 'https://e.com' }] } } });
+        expect(map.size).toBe(0);
+        expect(expandTweetUrls('keep https://t.co/a', map)).toBe('keep https://t.co/a');
+        expect(expandTweetUrls('', map)).toBe('');
+        expect(expandTweetUrls(undefined, map)).toBeUndefined();
+        expect(collectTweetUrlMap(null).size).toBe(0);
+    });
+});
+
+describe('extractRetweetedTweet', () => {
+    const original = {
+        rest_id: '900',
+        legacy: {
+            full_text: 'original https://t.co/x',
+            favorite_count: 3, retweet_count: 2, reply_count: 1, created_at: 'earlier',
+            entities: { urls: [{ url: 'https://t.co/x', expanded_url: 'https://example.com/x' }] },
+        },
+        views: { count: '77' },
+        core: { user_results: { result: { legacy: { screen_name: 'alice', name: 'Alice' } } } },
+    };
+
+    it('returns null for posts that are not reposts', () => {
+        expect(extractRetweetedTweet({ rest_id: '1', legacy: { full_text: 'mine' } })).toBeNull();
+        expect(extractRetweetedTweet(null)).toBeNull();
+    });
+
+    it('returns null for tombstoned or unavailable originals', () => {
+        expect(extractRetweetedTweet({ legacy: { retweeted_status_result: { result: { __typename: 'TweetTombstone' } } } })).toBeNull();
+        expect(extractRetweetedTweet({ legacy: { retweeted_status_result: { result: { rest_id: '9', legacy: {}, core: {} } } } })).toBeNull();
+    });
+
+    it('unwraps TweetWithVisibilityResults and keeps t.co links unless expandUrls is set', () => {
+        const repost = { rest_id: '1', legacy: { full_text: 'RT @alice: original…', retweeted_status_result: { result: { __typename: 'TweetWithVisibilityResults', tweet: original } } } };
+        const plain = extractRetweetedTweet(repost);
+        expect(plain).toMatchObject({ id: '900', author: 'alice', name: 'Alice', text: 'original https://t.co/x', likes: 3, retweets: 2, replies: 1, views: 77, created_at: 'earlier', url: 'https://x.com/alice/status/900', has_media: false });
+        expect(plain.quoted_tweet).toBeUndefined();
+        expect(extractRetweetedTweet(repost, { expandUrls: true }).text).toBe('original https://example.com/x');
+    });
+
+    it('carries the original post\'s quoted tweet along', () => {
+        const withQuote = {
+            ...original,
+            legacy: { ...original.legacy, is_quote_status: true },
+            quoted_status_result: { result: {
+                rest_id: '800',
+                legacy: { full_text: 'quoted https://t.co/q', created_at: 'then', entities: { urls: [{ url: 'https://t.co/q', expanded_url: 'https://example.com/q' }] } },
+                core: { user_results: { result: { legacy: { screen_name: 'bob', name: 'Bob' } } } },
+            } },
+        };
+        const repost = { rest_id: '1', legacy: { full_text: 'RT @alice: …', retweeted_status_result: { result: withQuote } } };
+        expect(extractRetweetedTweet(repost).quoted_tweet).toMatchObject({ id: '800', author: 'bob', text: 'quoted https://t.co/q' });
+        expect(extractRetweetedTweet(repost, { expandUrls: true }).quoted_tweet.text).toBe('quoted https://example.com/q');
     });
 });

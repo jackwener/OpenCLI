@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError } from '@jackwener/opencli/errors';
@@ -60,19 +63,19 @@ describe('twitter tweets helpers', () => {
     it('keeps tweets command arguments and columns unchanged after transport extraction', () => {
         const cmd = getRegistry().get('twitter/tweets');
         expect(cmd?.args?.map((arg) => arg.name)).toEqual([
-            'username', 'limit', 'page-delay', 'top-by-engagement',
+            'username', 'limit', 'page-delay', 'top-by-engagement', 'expand-urls', 'cursor', 'cursor-file',
         ]);
         expect(cmd?.columns).toEqual([
             'id', 'author', 'created_at', 'is_retweet', 'text', 'likes',
             'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls',
-            'media_posters', 'quoted_tweet',
+            'media_posters', 'quoted_tweet', 'retweeted_tweet',
         ]);
         expect(buildUserTweetsUrl('query', '42', 20, 'cursor')).toContain('/UserTweets');
     });
 
     it('registers id and is_retweet in the default columns', () => {
         const cmd = getRegistry().get('twitter/tweets');
-        expect(cmd?.columns).toEqual(['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet']);
+        expect(cmd?.columns).toEqual(['id', 'author', 'created_at', 'is_retweet', 'text', 'likes', 'retweets', 'replies', 'views', 'url', 'has_media', 'media_urls', 'media_posters', 'quoted_tweet', 'retweeted_tweet']);
     });
 
     it('makes the username argument optional so it can default to the logged-in user', () => {
@@ -332,6 +335,170 @@ describe('twitter tweets helpers', () => {
             core: { user_results: { result: { legacy: { screen_name: 'u', name: 'U' } } } },
         }, new Set());
         expect(b.is_retweet).toBe(true);
+    });
+
+    it('expands t.co links in text, quoted text and note_tweet entity sets when --expand-urls is set', () => {
+        const node = {
+            rest_id: '7',
+            legacy: {
+                full_text: 'see https://t.co/abc and https://t.co/keep',
+                favorite_count: 0, retweet_count: 0, reply_count: 0, created_at: 'now',
+                entities: { urls: [{ url: 'https://t.co/abc', expanded_url: 'https://example.com/a' }] },
+                is_quote_status: true,
+            },
+            note_tweet: { note_tweet_results: { result: {
+                text: 'long https://t.co/abc plus https://t.co/def',
+                entity_set: { urls: [{ url: 'https://t.co/def', expanded_url: 'https://example.com/d' }] },
+            } } },
+            quoted_status_result: { result: {
+                rest_id: '8',
+                legacy: { full_text: 'quoted https://t.co/q', created_at: 'then', entities: { urls: [{ url: 'https://t.co/q', expanded_url: 'https://example.com/q' }] } },
+                core: { user_results: { result: { legacy: { screen_name: 'quoter', name: 'Q' } } } },
+            } },
+            core: { user_results: { result: { legacy: { screen_name: 'bob', name: 'Bob' } } } },
+        };
+        const plain = __test__.extractTweet(node, new Set());
+        expect(plain.text).toBe('long https://t.co/abc plus https://t.co/def');
+        expect(plain.quoted_tweet.text).toBe('quoted https://t.co/q');
+
+        const expanded = __test__.extractTweet(node, new Set(), { expandUrls: true });
+        expect(expanded.text).toBe('long https://example.com/a plus https://example.com/d');
+        expect(expanded.quoted_tweet.text).toBe('quoted https://example.com/q');
+    });
+
+    it('surfaces the original post behind a repost as retweeted_tweet', () => {
+        const tweet = __test__.extractTweet({
+            rest_id: '1',
+            legacy: {
+                full_text: 'RT @alice: truncated https://t.co/x…',
+                favorite_count: 0, retweet_count: 0, reply_count: 0, created_at: 'now',
+                retweeted_status_result: { result: {
+                    __typename: 'TweetWithVisibilityResults',
+                    tweet: {
+                        rest_id: '900',
+                        legacy: {
+                            full_text: 'the whole original text https://t.co/x https://t.co/pic',
+                            favorite_count: 12, retweet_count: 3, reply_count: 1, created_at: 'earlier',
+                            entities: { urls: [{ url: 'https://t.co/x', expanded_url: 'https://example.com/x' }] },
+                            extended_entities: { media: [{ type: 'photo', url: 'https://t.co/pic', expanded_url: 'https://x.com/alice/status/900/photo/1', media_url_https: 'https://pbs.twimg.com/p.jpg' }] },
+                        },
+                        views: { count: '456' },
+                        core: { user_results: { result: { legacy: { screen_name: 'alice', name: 'Alice' } } } },
+                    },
+                } },
+            },
+            core: { user_results: { result: { legacy: { screen_name: 'reposter', name: 'R' } } } },
+        }, new Set(), { expandUrls: true });
+        expect(tweet.is_retweet).toBe(true);
+        expect(tweet.author).toBe('reposter');
+        expect(tweet.has_media).toBe(false);
+        expect(tweet.retweeted_tweet).toMatchObject({
+            id: '900',
+            author: 'alice',
+            name: 'Alice',
+            text: 'the whole original text https://example.com/x https://x.com/alice/status/900/photo/1',
+            likes: 12,
+            views: 456,
+            url: 'https://x.com/alice/status/900',
+            has_media: true,
+            media_urls: ['https://pbs.twimg.com/p.jpg'],
+        });
+    });
+
+    it('returns retweeted_tweet null for own posts and for tombstoned originals', () => {
+        const own = __test__.extractTweet({
+            rest_id: '1',
+            legacy: { full_text: 'mine', favorite_count: 0, retweet_count: 0, reply_count: 0, created_at: '' },
+            core: { user_results: { result: { legacy: { screen_name: 'u', name: 'U' } } } },
+        }, new Set());
+        expect(own.retweeted_tweet).toBeNull();
+
+        const tombstone = __test__.extractTweet({
+            rest_id: '2',
+            legacy: { full_text: 'RT @gone: …', favorite_count: 0, retweet_count: 0, reply_count: 0, created_at: '', retweeted_status_result: { result: { __typename: 'TweetTombstone' } } },
+            core: { user_results: { result: { legacy: { screen_name: 'u', name: 'U' } } } },
+        }, new Set());
+        expect(tombstone.is_retweet).toBe(true);
+        expect(tombstone.retweeted_tweet).toBeNull();
+    });
+
+    it('resumes from --cursor and writes the next cursor to --cursor-file (empty when exhausted)', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-tweets-cursor-'));
+        const cursorFile = path.join(dir, 'nested', 'cursor.txt');
+        const userTweetsRequests = [];
+        const pages = [
+            makeTimelinePayload(101, 100, 'cursor-2'),
+            makeTimelinePayload(201, 100, 'cursor-3'),
+        ];
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = typeof script === 'function' ? script.toString() : String(script);
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) return '42';
+                if (text.includes('/UserTweets')) {
+                    userTweetsRequests.push(decodeURIComponent(text));
+                    return pages[userTweetsRequests.length - 1];
+                }
+                return null;
+            }),
+        };
+
+        // Stops on --limit: whole pages are returned and the boundary cursor is saved.
+        const rows = await cmd.func(page, { username: 'jakevin7', limit: 150, cursor: 'cursor-1', 'cursor-file': cursorFile, 'page-delay': 0 });
+        expect(userTweetsRequests[0]).toContain('"cursor":"cursor-1"');
+        expect(userTweetsRequests).toHaveLength(2);
+        expect(rows).toHaveLength(200);
+        expect(fs.readFileSync(cursorFile, 'utf8').trim()).toBe('cursor-3');
+
+        // Exhausted timeline: the file is emptied so callers can tell "done" from "paused".
+        userTweetsRequests.length = 0;
+        pages.splice(0, pages.length, makeTimelinePayload(301, 5, null));
+        const tail = await cmd.func(page, { username: 'jakevin7', limit: 100, cursor: 'cursor-3', 'cursor-file': cursorFile, 'page-delay': 0 });
+        expect(tail).toHaveLength(5);
+        expect(fs.readFileSync(cursorFile, 'utf8')).toBe('');
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('keeps the resume point in --cursor-file when the first resumed page is rate-limited', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-tweets-cursor-'));
+        const cursorFile = path.join(dir, 'cursor.txt');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = typeof script === 'function' ? script.toString() : String(script);
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) return '42';
+                if (text.includes('/UserTweets')) return { error: 429 };
+                return null;
+            }),
+        };
+        await expect(cmd.func(page, { username: 'jakevin7', limit: 100, cursor: 'cursor-9', 'cursor-file': cursorFile })).rejects.toThrow(/HTTP 429/);
+        expect(fs.readFileSync(cursorFile, 'utf8').trim()).toBe('cursor-9');
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('returns an empty array instead of EmptyResultError when a resumed run finds no tail', async () => {
+        const cmd = getRegistry().get('twitter/tweets');
+        const page = {
+            goto: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+            evaluate: vi.fn(async (script) => {
+                const text = typeof script === 'function' ? script.toString() : String(script);
+                if (text.includes('operationName')) return null;
+                if (text.includes('/UserByScreenName')) return '42';
+                if (text.includes('/UserTweets')) return makeTimelinePayload(1, 0, null);
+                return null;
+            }),
+        };
+        await expect(cmd.func(page, { username: 'jakevin7', limit: 20, cursor: 'cursor-end' })).resolves.toEqual([]);
     });
 
     it('unwraps TweetWithVisibilityResults', () => {

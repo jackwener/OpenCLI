@@ -42067,6 +42067,25 @@
         "default": 0,
         "required": false,
         "help": "When set to N>0, re-rank the tweets by weighted engagement (likes×1 + retweets×3 + replies×2 + bookmarks×5 + log10(views+1)×0.5) and return the top N. Default 0 keeps the chronological ordering."
+      },
+      {
+        "name": "expand-urls",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "Replace t.co short links in text (including quoted/retweeted text) with their expanded URLs."
+      },
+      {
+        "name": "cursor",
+        "type": "string",
+        "required": false,
+        "help": "Resume pagination from a bottom cursor saved by a previous run (see --cursor-file). Useful for gentle, resumable backfills of large timelines."
+      },
+      {
+        "name": "cursor-file",
+        "type": "string",
+        "required": false,
+        "help": "Write the next bottom cursor to this file when the run stops before the timeline is exhausted (empty file = exhausted). Pass its content back via --cursor to continue. Makes --limit a soft target (whole pages are returned) so no tweet falls between runs."
       }
     ],
     "columns": [
@@ -42083,7 +42102,8 @@
       "has_media",
       "media_urls",
       "media_posters",
-      "quoted_tweet"
+      "quoted_tweet",
+      "retweeted_tweet"
     ],
     "type": "js",
     "modulePath": "twitter/tweets.js",

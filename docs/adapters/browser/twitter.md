@@ -61,6 +61,13 @@ opencli twitter search "react 19" --filter live
 opencli twitter following @elonmusk --limit 200
 opencli twitter followers @elonmusk --limit 100
 
+# User timeline: resolve reposts to the original post (`retweeted_tweet`),
+# expand t.co links, and page through a large backlog gently and resumably
+opencli twitter tweets @jack --limit 500 --expand-urls true --page-delay 4 \
+  --cursor-file ./jack.cursor -f json
+# ...later: continue from where the previous run stopped (empty file = done)
+opencli twitter tweets @jack --limit 500 --cursor "$(cat ./jack.cursor)" --cursor-file ./jack.cursor -f json
+
 # Download profile media with cursor pagination
 opencli twitter download @elonmusk --limit 50 --output ./twitter-media
 
