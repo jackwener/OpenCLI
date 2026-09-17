@@ -132,6 +132,25 @@ async function runResolve(
   return { matches_n: resolution.matches_n, match_level: resolution.match_level };
 }
 
+/**
+ * Whether Chrome will actually deliver synthesized `Input.*` events to this
+ * renderer.
+ *
+ * A renderer that is not being composited — background tab, minimized window,
+ * fully occluded window — reports `document.visibilityState === 'hidden'` and
+ * drops CDP input. The `Input.dispatchMouseEvent` call still resolves, and
+ * `getBoundingClientRect()` / `elementFromPoint()` keep returning correct
+ * geometry, so every signal the click path used to look at says "success"
+ * while the page never receives the event.
+ *
+ * `pageVisible` is undefined on probes from older code paths (and in tests
+ * that predate it); treat only an explicit `false` as a blocker so this can
+ * never turn a working click into a refused one.
+ */
+function nativeInputDeliverable(probe: { pageVisible?: boolean } | null | undefined): boolean {
+  return probe?.pageVisible !== false;
+}
+
 function previewText(text: string | undefined): string | undefined {
   const preview = (text ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
   return preview ? `Response preview: ${preview}` : undefined;
@@ -316,7 +335,7 @@ export abstract class BasePage implements IPage {
     // Custom dropdowns often listen to pointer/mouse down/up; DOM el.click()
     // only fires click and can silently report success without opening/selecting.
     const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled, forClick: true })) as
-      | { x: number; y: number; w: number; h: number; visible: boolean; hit?: 'target' | 'ancestor' | 'other' | 'none'; retargeted?: boolean }
+      | { x: number; y: number; w: number; h: number; visible: boolean; hit?: 'target' | 'ancestor' | 'other' | 'none'; retargeted?: boolean; pageVisible?: boolean }
       | null;
     const meta = { hit: rect?.hit, retargeted: rect?.retargeted } as const;
 
@@ -324,7 +343,12 @@ export abstract class BasePage implements IPage {
     // or an ancestor (open shadow-DOM host / own wrapper — CDP still reaches the
     // target there). Only an unrelated overlay ('other') forces the el.click()
     // fallback, which dispatches straight on the node. See issues #2076/#2071.
-    if (rect?.visible === true && (rect.hit === 'target' || rect.hit === 'ancestor')) {
+    //
+    // A hidden renderer disqualifies the native path outright: the coordinates
+    // and the hit-test are still correct, but Chrome never delivers the
+    // synthesized mouse events, so trusting CDP there returns `clicked: true`
+    // for a click the page never saw.
+    if (rect?.visible === true && nativeInputDeliverable(rect) && (rect.hit === 'target' || rect.hit === 'ancestor')) {
       const success = await this.tryNativeClick(rect.x, rect.y);
       if (success) return { ...resolved, click_method: 'cdp', ...meta };
     }
@@ -603,9 +627,9 @@ export abstract class BasePage implements IPage {
     const resolved = await runResolve(this, ref, opts);
     const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
     const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
-      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | { x: number; y: number; w: number; h: number; visible: boolean; pageVisible?: boolean }
       | null;
-    if (rect?.visible === true && await this.tryNativeMouseMove(rect.x, rect.y)) return resolved;
+    if (rect?.visible === true && nativeInputDeliverable(rect) && await this.tryNativeMouseMove(rect.x, rect.y)) return resolved;
 
     await this.evaluate(`
       (() => {
@@ -649,9 +673,9 @@ export abstract class BasePage implements IPage {
     const resolved = await runResolve(this, ref, opts);
     const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
     const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
-      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | { x: number; y: number; w: number; h: number; visible: boolean; pageVisible?: boolean }
       | null;
-    if (rect?.visible === true && await this.tryNativeDoubleClick(rect.x, rect.y)) return resolved;
+    if (rect?.visible === true && nativeInputDeliverable(rect) && await this.tryNativeDoubleClick(rect.x, rect.y)) return resolved;
 
     await this.evaluate(`
       (() => {
@@ -925,15 +949,30 @@ export abstract class BasePage implements IPage {
             const visible = w > 0 && h > 0 && x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
             return { x, y, w, h, visible };
           };
-          return { source: measure(sourceEl), target: measure(targetEl) };
+          return {
+            source: measure(sourceEl),
+            target: measure(targetEl),
+            pageVisible: document.visibilityState !== 'hidden',
+          };
         })()
       `) as
         | {
           source?: { x: number; y: number; w: number; h: number; visible: boolean };
           target?: { x: number; y: number; w: number; h: number; visible: boolean };
+          pageVisible?: boolean;
         }
         | null;
 
+      // Drag is CDP-only — there is no DOM fallback that reproduces a native
+      // pointer drag — so a hidden renderer has to fail loudly rather than
+      // return `dragged: true` for a drag that never happened.
+      if (!nativeInputDeliverable(endpoints)) {
+        throw new Error(
+          'Drag needs a visible page: this tab is hidden (background tab, or a minimized/occluded window), '
+          + 'and Chrome drops synthesized mouse events there. '
+          + 'Bring it to the front (e.g. `opencli browser <session> tab select <targetId>`) and retry.',
+        );
+      }
       if (endpoints?.source?.visible !== true) {
         throw new Error(`Drag source "${source}" is not visible at drag time.`);
       }
@@ -1014,8 +1053,26 @@ export abstract class BasePage implements IPage {
 
   async pressKey(key: string): Promise<void> {
     const parsed = parseKeyChord(key);
-    if (!await this.tryNativeKeyPress(parsed.key, parsed.modifiers)) {
+    // Same hidden-renderer trap as click(): `Input.dispatchKeyEvent` resolves
+    // but the page never sees the key, so probe visibility first and let the
+    // DOM path handle it. `keys` has no rect probe to piggyback on, so this
+    // costs one extra evaluate per press.
+    const deliverable = nativeInputDeliverable(await this.probePageVisibility());
+    if (!deliverable || !await this.tryNativeKeyPress(parsed.key, parsed.modifiers)) {
       await this.evaluate(pressKeyJs(parsed.key, parsed.modifiers));
+    }
+  }
+
+  /**
+   * Read `document.visibilityState` for the native-input guard. A failed probe
+   * reports "visible" so a flaky evaluate can never block input that works.
+   */
+  protected async probePageVisibility(): Promise<{ pageVisible?: boolean }> {
+    try {
+      const pageVisible = await this.evaluate(`document.visibilityState !== 'hidden'`) as unknown;
+      return { pageVisible: typeof pageVisible === 'boolean' ? pageVisible : undefined };
+    } catch {
+      return {};
     }
   }
 
