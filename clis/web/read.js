@@ -247,18 +247,21 @@ function buildRenderAwareExtractorJs(options) {
         }
 
         let contentEl = null;
-        const articles = document.querySelectorAll('article');
-        if (articles.length === 1) {
-          contentEl = articles[0];
-        } else if (articles.length > 1) {
-          let maxLen = 0;
-          articles.forEach(a => {
-            const len = textLen(a);
-            if (len > maxLen) { maxLen = len; contentEl = a; }
-          });
+        const semanticMain = document.querySelector('[role="main"], main');
+        if (semanticMain && textLen(semanticMain) >= 200) {
+          contentEl = semanticMain;
+        } else {
+          const articles = document.querySelectorAll('article');
+          if (articles.length === 1) {
+            contentEl = articles[0];
+          } else if (articles.length > 1) {
+            let maxLen = 0;
+            articles.forEach(a => {
+              const len = textLen(a);
+              if (len > maxLen) { maxLen = len; contentEl = a; }
+            });
+          }
         }
-        if (!contentEl) contentEl = document.querySelector('[role="main"]');
-        if (!contentEl) contentEl = document.querySelector('main');
         if (!contentEl) {
           const candidates = document.querySelectorAll(
             'div[class*="content"], div[class*="article"], div[class*="post"], ' +
@@ -313,7 +316,7 @@ function buildRenderAwareExtractorJs(options) {
 
         const noise = 'nav, header, footer, aside, .sidebar, .nav, .menu, .footer, ' +
           '.header, .comments, .comment, .ad, .ads, .advertisement, .social-share, ' +
-          '.related-posts, .newsletter, .cookie-banner, script, style, noscript, iframe';
+          '.related-posts, .post-recommendations, .newsletter, .cookie-banner, script, style, noscript, iframe';
         clone.querySelectorAll(noise).forEach(el => el.remove());
 
         const stripWS = (s) => (s || '').replace(/\\s+/g, '');
