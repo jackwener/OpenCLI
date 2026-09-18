@@ -1,5 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { cityUrl, gotoKe } from './utils.js';
+import { buildXiaoquFilterPath } from './xiaoqu-filters.js';
 
 cli({
     site: 'ke',
@@ -10,8 +11,13 @@ cli({
     strategy: Strategy.COOKIE,
     browser: true,
     args: [
-        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山)' },
-        { name: 'district', help: '区域拼音，如 chaoyang, haidian' },
+        { name: 'city', default: 'bj', help: '城市代码，如 bj(北京), sh(上海), gz(广州), sz(深圳), zs(中山), hz(杭州)' },
+        { name: 'district', help: '区域拼音，如 chaoyang, haidian, tianhe, xuhui' },
+        { name: 'min-price', type: 'int', help: '最低均价（万/㎡）' },
+        { name: 'max-price', type: 'int', help: '最高均价（万/㎡）' },
+        { name: 'age', choices: ['5', '10', '15', '20', '20+'], help: '楼龄：5/10/15/20 年以内，20+ 为 20 年以上' },
+        { name: 'near-subway', type: 'boolean', help: '仅看近地铁小区' },
+        { name: 'sort', choices: ['avg-price-asc', 'avg-price-desc'], help: '排序：avg-price-asc|desc(小区均价)；不传为默认排序' },
         { name: 'limit', type: 'int', default: 20, help: '返回数量' },
     ],
     columns: ['name', 'district', 'avg_price', 'year', 'on_sale'],
@@ -25,7 +31,8 @@ cli({
             path = `/xiaoqu/${kwargs.district}/`;
         }
 
-        await gotoKe(page, base + path);
+        const filters = buildXiaoquFilterPath(kwargs);
+        await gotoKe(page, base + path + (filters ? filters + '/' : ''));
 
         const items = await page.evaluate(`(async () => {
   const selectors = [
