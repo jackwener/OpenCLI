@@ -389,9 +389,36 @@ export async function setFileInputFiles(
       };
       chrome.debugger.onEvent.addListener(listener);
       // Open the chooser programmatically — interception suppresses the native
-      // dialog and fires Page.fileChooserOpened instead. Works for hidden inputs.
+      // dialog and fires Page.fileChooserOpened instead. The chooser only opens
+      // for a *rendered* input and when the click carries a user gesture, so
+      // temporarily reveal hidden inputs (many sites hide a 0x0 input behind a
+      // styled button, e.g. Xiaohongshu's creator center) before clicking.
       void sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
-        expression: `document.querySelector(${JSON.stringify(query)}).click()`,
+        expression: `(() => {
+          const el = document.querySelector(${JSON.stringify(query)});
+          if (!el) return false;
+          const cs = getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          const notRendered = cs.display === 'none'
+            || cs.visibility === 'hidden'
+            || Number(cs.opacity) === 0
+            || rect.width === 0
+            || rect.height === 0;
+          if (notRendered) {
+            el.setAttribute('data-opencli-file-input-style', el.getAttribute('style') || '');
+            el.style.setProperty('display', 'block', 'important');
+            el.style.setProperty('visibility', 'visible', 'important');
+            el.style.setProperty('opacity', '1', 'important');
+            el.style.setProperty('position', 'fixed', 'important');
+            el.style.setProperty('top', '0', 'important');
+            el.style.setProperty('left', '0', 'important');
+            el.style.setProperty('width', '1px', 'important');
+            el.style.setProperty('height', '1px', 'important');
+          }
+          el.click();
+          return true;
+        })()`,
+        userGesture: true,
       }).catch((err) => {
         cleanup();
         reject(err instanceof Error ? err : new Error(String(err)));
@@ -404,6 +431,18 @@ export async function setFileInputFiles(
       backendNodeId,
     });
   } finally {
+    // Restore any inline style we changed to reveal the hidden input.
+    await sendDebuggerCommand({ tabId }, 'Runtime.evaluate', {
+      expression: `(() => {
+        const el = document.querySelector(${JSON.stringify(query)});
+        if (!el) return;
+        const prev = el.getAttribute('data-opencli-file-input-style');
+        if (prev === null) return;
+        el.removeAttribute('data-opencli-file-input-style');
+        if (prev) el.setAttribute('style', prev);
+        else el.removeAttribute('style');
+      })()`,
+    }).catch(() => {});
     await sendDebuggerCommand({ tabId }, 'Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
   }
 }
