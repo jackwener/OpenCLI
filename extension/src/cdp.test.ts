@@ -677,7 +677,10 @@ describe('cdp setFileInputFiles', () => {
         return {};
       }),
       onDetach: { addListener: vi.fn() },
-      onEvent: { addListener: vi.fn((fn: (source: { tabId?: number }, method: string, params: any) => void) => { debuggerEventListeners.push(fn); }) },
+      onEvent: {
+        addListener: vi.fn((fn: (source: { tabId?: number }, method: string, params: any) => void) => { debuggerEventListeners.push(fn); }),
+        removeListener: vi.fn(),
+      },
     };
     const tabs = {
       get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://creator.xiaohongshu.com/publish/publish' })),
