@@ -53,6 +53,8 @@ export class CDPBridge implements IBrowserFactory {
   private _idCounter = 0;
   private _pending = new Map<number, { resolve: (val: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private _eventListeners = new Map<string, Set<(params: unknown) => void>>();
+  /** Flatten session id. Only set when the peer explicitly requires session routing; see send(). */
+  private _sessionId?: string;
 
   async connect(opts?: { timeout?: number; session?: string; cdpEndpoint?: string; contextId?: string; idleTimeout?: number; windowMode?: 'foreground' | 'background'; surface?: 'browser' | 'adapter'; siteSession?: 'ephemeral' | 'persistent' }): Promise<IPage> {
     if (this._ws) throw new Error('CDPBridge is already connected. Call close() before reconnecting.');
@@ -83,8 +85,7 @@ export class CDPBridge implements IBrowserFactory {
         clearTimeout(timeout);
         this._ws = ws;
         try {
-          await this.send('Page.enable');
-          await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
+          await this._bootstrap((method, params) => this.send(method, params));
         } catch (err) {
           ws.close();
           reject(err instanceof Error ? err : new Error(String(err)));
@@ -138,9 +139,16 @@ export class CDPBridge implements IBrowserFactory {
     }
     this._pending.clear();
     this._eventListeners.clear();
+    this._sessionId = undefined;
   }
 
-  async send(method: string, params: Record<string, unknown> = {}, timeoutMs: number = CDP_SEND_TIMEOUT): Promise<unknown> {
+  /** Bootstrap sequence, run on connect and replayed after a session handshake. */
+  private async _bootstrap(sendOne: (method: string, params: Record<string, unknown>) => Promise<unknown>): Promise<void> {
+    await sendOne('Page.enable', {});
+    await sendOne('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
+  }
+
+  private _raw(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<unknown> {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
       throw new Error('CDP connection is not open');
     }
@@ -151,8 +159,36 @@ export class CDPBridge implements IBrowserFactory {
         reject(new Error(`CDP command '${method}' timed out after ${timeoutMs / 1000}s`));
       }, timeoutMs);
       this._pending.set(id, { resolve, reject, timer });
-      this._ws!.send(JSON.stringify({ id, method, params }));
+      this._ws!.send(JSON.stringify({ id, method, params, ...(this._sessionId ? { sessionId: this._sessionId } : {}) }));
     });
+  }
+
+  /**
+   * A Chrome /devtools/page/<id> connection is implicitly bound to that page, so bare
+   * commands just work. Some non-Chrome CDP implementations only implement flatten
+   * session routing: Page.enable succeeds, but Page.navigate answers -32601
+   * "No page for session". The handshake is therefore triggered lazily, on that error.
+   * Chrome never returns it, so this branch is dead code against Chrome/Electron and
+   * existing behaviour is unchanged.
+   */
+  async send(method: string, params: Record<string, unknown> = {}, timeoutMs: number = CDP_SEND_TIMEOUT): Promise<unknown> {
+    try {
+      return await this._raw(method, params, timeoutMs);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (this._sessionId || !/^No page(?: for session)?$/.test(message)) throw err;
+      const created = await this._raw('Target.createTarget', { url: 'about:blank' }, timeoutMs);
+      const targetId = isRecord(created) ? created.targetId : undefined;
+      if (typeof targetId !== 'string') throw err;
+      const attached = await this._raw('Target.attachToTarget', { targetId, flatten: true }, timeoutMs);
+      const sessionId = isRecord(attached) ? attached.sessionId : undefined;
+      if (typeof sessionId !== 'string') throw err;
+      this._sessionId = sessionId;
+      // The connect() calls were sent without a session, so the peer does not attribute
+      // them to this one. Replay them, otherwise the stealth script is missing here.
+      await this._bootstrap((method, params) => this._raw(method, params, timeoutMs));
+      return await this._raw(method, params, timeoutMs);
+    }
   }
 
   on(event: string, handler: (params: unknown) => void): void {

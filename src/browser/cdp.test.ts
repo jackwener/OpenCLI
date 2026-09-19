@@ -136,3 +136,66 @@ describe('CDPBridge cookies', () => {
     expect(String(entries[0].requestBodyPreview)).toHaveLength(CDP_REQUEST_BODY_CAPTURE_LIMIT);
   });
 });
+
+describe('CDPBridge session routing', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /** Drive send() against a fake peer: record every frame, and reject bare commands or not depending on the peer style. */
+  async function drive(rejectBareNavigate: boolean) {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/page-1');
+    const frames: Array<{ method: string; sessionId?: string }> = [];
+    const original = MockWebSocket.prototype.send;
+    MockWebSocket.prototype.send = function (this: InstanceType<typeof MockWebSocket>, message: string) {
+      const { id, method, sessionId } = JSON.parse(message) as { id: number; method: string; sessionId?: string };
+      frames.push({ method, sessionId });
+      const reply = (body: Record<string, unknown>) =>
+        queueMicrotask(() => this.emit('message', Buffer.from(JSON.stringify({ id, ...body }))));
+      if (rejectBareNavigate && method === 'Page.navigate' && !sessionId) {
+        reply({ error: { code: -32601, message: 'No page for session' } });
+      } else if (method === 'Target.createTarget') {
+        reply({ result: { targetId: 'page-1' } });
+      } else if (method === 'Target.attachToTarget') {
+        reply({ result: { sessionId: 'page-1-session-1' } });
+      } else {
+        reply({ result: {} });
+      }
+    };
+    try {
+      const bridge = new CDPBridge();
+      await bridge.connect();
+      await bridge.send('Page.navigate', { url: 'https://example.com' });
+      await bridge.send('Runtime.evaluate', {});
+      return frames;
+    } finally {
+      MockWebSocket.prototype.send = original;
+    }
+  }
+
+  it('attaches a flatten session when the peer rejects bare commands, then carries it', async () => {
+    const frames = await drive(true);
+
+    expect(frames.filter((f) => f.method === 'Page.navigate')).toEqual([
+      { method: 'Page.navigate', sessionId: undefined },
+      { method: 'Page.navigate', sessionId: 'page-1-session-1' },
+    ]);
+    expect(frames.map((f) => f.method)).toContain('Target.attachToTarget');
+    // After the handshake the two connect() calls must be replayed on this session,
+    // otherwise the stealth script is missing there
+    expect(frames.filter((f) => f.method === 'Page.addScriptToEvaluateOnNewDocument').at(-1))
+      .toEqual({ method: 'Page.addScriptToEvaluateOnNewDocument', sessionId: 'page-1-session-1' });
+    // Every later command carries the session
+    expect(frames.at(-1)).toEqual({ method: 'Runtime.evaluate', sessionId: 'page-1-session-1' });
+  });
+
+  it('never attaches against a Chrome-style peer', async () => {
+    const frames = await drive(false);
+
+    // Proves the exemption is narrow: when the peer does not answer "No page", this branch is dead code
+    expect(frames.map((f) => f.method)).not.toContain('Target.createTarget');
+    expect(frames.map((f) => f.method)).not.toContain('Target.attachToTarget');
+    expect(frames.every((f) => f.sessionId === undefined)).toBe(true);
+    expect(frames.filter((f) => f.method === 'Page.navigate')).toHaveLength(1);
+  });
+});
