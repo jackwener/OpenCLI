@@ -81,6 +81,7 @@ function extractUser(result) {
             ?? legacy.followers_count
             ?? legacy.normal_followers_count
             ?? 0,
+        verified: Boolean(result.is_blue_verified || legacy.verified),
     };
 }
 
@@ -136,7 +137,7 @@ cli({
         },
         { name: 'limit', type: 'int', default: 50, help: 'Maximum number of following rows to return (default 50). Must be a positive integer.' },
     ],
-    columns: ['screen_name', 'name', 'bio', 'followers'],
+    columns: ['screen_name', 'name', 'bio', 'followers', 'verified'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit === undefined || kwargs.limit === null ? 50 : Number(kwargs.limit);
         if (!Number.isInteger(limit) || limit <= 0) {

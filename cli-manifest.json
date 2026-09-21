@@ -40960,7 +40960,8 @@
     "columns": [
       "screen_name",
       "name",
-      "bio"
+      "bio",
+      "verified"
     ],
     "type": "js",
     "modulePath": "twitter/followers.js",
@@ -40995,7 +40996,8 @@
       "screen_name",
       "name",
       "bio",
-      "followers"
+      "followers",
+      "verified"
     ],
     "type": "js",
     "modulePath": "twitter/following.js",
@@ -41880,6 +41882,7 @@
     "columns": [
       "id",
       "author",
+      "author_verified",
       "bio",
       "text",
       "created_at",
@@ -41931,6 +41934,7 @@
     "columns": [
       "id",
       "author",
+      "author_verified",
       "bio",
       "text",
       "likes",
@@ -41985,6 +41989,7 @@
     "columns": [
       "id",
       "author",
+      "author_verified",
       "bio",
       "text",
       "likes",

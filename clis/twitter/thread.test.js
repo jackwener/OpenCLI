@@ -5,7 +5,7 @@ import { __test__ } from './thread.js';
 describe('twitter thread parser', () => {
     it('extracts author bio from tweet user entity', () => {
         const command = getRegistry().get('twitter/thread');
-        expect(command?.columns).toEqual(['id', 'author', 'bio', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet']);
+        expect(command?.columns).toEqual(['id', 'author', 'author_verified', 'bio', 'text', 'likes', 'retweets', 'url', 'has_media', 'media_urls', 'media_posters', 'card', 'quoted_tweet']);
         const result = __test__.parseTweetDetail({
             data: {
                 threaded_conversation_with_injections_v2: {
@@ -48,6 +48,7 @@ describe('twitter thread parser', () => {
         expect(result.tweets[0]).toMatchObject({
             id: '1',
             author: 'alice',
+            author_verified: false,
             bio: 'Thread author bio',
             text: 'thread tweet',
             likes: 3,
