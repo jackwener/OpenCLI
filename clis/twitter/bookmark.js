@@ -52,22 +52,28 @@ cli({
 
             writeStarted = true;
             bookmarkBtn.click();
-            await new Promise(r => setTimeout(r, 1000));
 
-            // Verify
-            const verifyArticle = findTargetArticle() || targetArticle;
-            const verify = verifyArticle?.querySelector('[data-testid="removeBookmark"]');
-            if (verify) {
-                return { ok: true, message: 'Tweet successfully bookmarked.' };
-            } else {
-                return { ok: false, unconfirmed: true, message: 'Bookmark action initiated but UI did not update.' };
+            // The click is a non-transactional write. Re-read the article so a
+            // React rehydration can replace the original node while the state
+            // change propagates through X's UI.
+            for (let confirmationAttempt = 0; confirmationAttempt < 20; confirmationAttempt++) {
+                const verifyArticle = findTargetArticle();
+                const verify = verifyArticle?.querySelector('[data-testid="removeBookmark"]');
+                if (verify) {
+                    return { ok: true, message: 'Tweet successfully bookmarked.' };
+                }
+                if (confirmationAttempt < 19) {
+                    await new Promise(r => setTimeout(r, 250));
+                }
             }
+
+            return { ok: false, unconfirmed: true, message: 'Bookmark action initiated but UI did not update.' };
         } catch (e) {
             return { ok: false, unconfirmed: writeStarted, message: e.toString() };
         }
     })()`);
         if (result.unconfirmed) {
-            throw new TimeoutError('twitter bookmark confirmation', 1, `${result.message} Check the tweet before retrying; the bookmark may already have succeeded.`);
+            throw new TimeoutError('twitter bookmark confirmation', 5, `${result.message} Check the tweet before retrying; the bookmark may already have succeeded.`);
         }
         if (!result.ok) {
             throw new CommandExecutionError(result.message, 'Nothing changed. Open the tweet in the browser and retry.');

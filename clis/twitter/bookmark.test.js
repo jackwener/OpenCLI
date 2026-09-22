@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { ArgumentError, CommandExecutionError } from '@jackwener/opencli/errors';
 import { getRegistry } from '@jackwener/opencli/registry';
 import './bookmark.js';
@@ -53,6 +54,64 @@ describe('twitter bookmark command', () => {
         });
         expect(page.wait).toHaveBeenCalledTimes(1);
     });
+
+    it('polls for a delayed confirmation without clicking more than once', async () => {
+        const cmd = getRegistry().get('twitter/bookmark');
+        const dom = new JSDOM(`
+            <article>
+                <a href="/alice/status/2040254679301718161">tweet</a>
+                <button data-testid="bookmark">Bookmark</button>
+            </article>
+        `, { runScripts: 'dangerously', url: 'https://x.com/alice/status/2040254679301718161' });
+        const button = dom.window.document.querySelector('[data-testid="bookmark"]');
+        let clicks = 0;
+        button.addEventListener('click', () => {
+            clicks++;
+            dom.window.setTimeout(() => {
+                const replacement = dom.window.document.createElement('button');
+                replacement.setAttribute('data-testid', 'removeBookmark');
+                button.replaceWith(replacement);
+            }, 1100);
+        });
+        const page = createPageMock([], {
+            evaluate: vi.fn((script) => dom.window.eval(script)),
+        });
+
+        const result = await cmd.func(page, {
+            url: 'https://x.com/alice/status/2040254679301718161',
+        });
+
+        expect(result).toEqual([
+            { status: 'success', message: 'Tweet successfully bookmarked.' },
+        ]);
+        expect(clicks).toBe(1);
+    }, 10000);
+
+    it('preserves the uncertain-write timeout when confirmation never appears', async () => {
+        const cmd = getRegistry().get('twitter/bookmark');
+        const dom = new JSDOM(`
+            <article>
+                <a href="/alice/status/2040254679301718161">tweet</a>
+                <button data-testid="bookmark">Bookmark</button>
+            </article>
+        `, { runScripts: 'dangerously', url: 'https://x.com/alice/status/2040254679301718161' });
+        let clicks = 0;
+        const button = dom.window.document.querySelector('[data-testid="bookmark"]');
+        button.addEventListener('click', () => clicks++);
+        const page = createPageMock([], {
+            evaluate: vi.fn((script) => dom.window.eval(script)),
+        });
+
+        await expect(cmd.func(page, {
+            url: 'https://x.com/alice/status/2040254679301718161',
+        })).rejects.toMatchObject({
+            name: 'TimeoutError',
+            code: 'TIMEOUT',
+            exitCode: 75,
+            hint: expect.stringContaining('may already have succeeded'),
+        });
+        expect(clicks).toBe(1);
+    }, 10000);
 
     it('throws CommandExecutionError when no page is provided', async () => {
         const cmd = getRegistry().get('twitter/bookmark');
