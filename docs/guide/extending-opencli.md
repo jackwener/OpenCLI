@@ -1,6 +1,6 @@
 # Extending OpenCLI
 
-OpenCLI has five extension paths. Pick the path based on where you want the source code to live and how you want commands to be shared.
+OpenCLI has four extension paths. Pick the path based on where you want the source code to live and how you want commands to be shared.
 
 | Goal | Use | Source location | Command surface |
 |------|-----|-----------------|-----------------|
@@ -8,7 +8,6 @@ OpenCLI has five extension paths. Pick the path based on where you want the sour
 | Quickly draft a private adapter on this machine | User adapter | `~/.opencli/clis/<site>/<command>.js` | `opencli <site> <command>` |
 | Edit an official adapter locally | Adapter override | `~/.opencli/clis/<site>/` | `opencli <site> <command>` |
 | Publish or install third-party commands | Plugin | Git repo, installed into `~/.opencli/plugins/` | `opencli <plugin> <command>` |
-| Wrap an existing local binary | External CLI | `~/.opencli/external-clis.yaml` | `opencli <tool> ...` |
 
 ## Personal commands in your own Git repo
 
@@ -117,18 +116,3 @@ opencli plugin install file:///absolute/path/opencli-plugins/packages/reuters
 ```
 
 Local `file://` installs expect the target directory itself to be a valid plugin with command files. For a monorepo root, push it to GitHub and install it with the GitHub monorepo flow.
-
-## External CLI passthrough
-
-Use external CLI registration when the command already exists as a binary on your machine and you want it available through `opencli`.
-
-```bash
-opencli external register my-tool \
-  --binary my-tool \
-  --install "npm i -g my-tool" \
-  --desc "My internal CLI"
-
-opencli my-tool --help
-```
-
-External CLIs pass stdio and exit codes through to the underlying binary.

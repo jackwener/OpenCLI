@@ -17,7 +17,7 @@ describe('getCompletions', () => {
     const completions = getCompletions([], 1);
 
     expect(completions).toContain('plugin');
-    expect(completions).toContain('external');
+    expect(completions).not.toContain('external');
     expect(completions).not.toContain('install');
     expect(completions).not.toContain('register');
     expect(completions).not.toContain('setup');

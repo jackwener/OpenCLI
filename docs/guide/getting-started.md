@@ -74,7 +74,7 @@ The completion includes:
 
 - [Installation details](/guide/installation)
 - [Browser Bridge setup](/guide/browser-bridge)
-- [Extending OpenCLI — custom commands, plugins, and external CLIs](/guide/extending-opencli)
+- [Extending OpenCLI — custom commands and plugins](/guide/extending-opencli)
 - [Plugins — extend with community adapters](/guide/plugins)
 - [All available adapters](/adapters/)
 - [For developers / AI agents](/developer/contributing)

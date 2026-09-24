@@ -1,6 +1,6 @@
 # 扩展 OpenCLI
 
-OpenCLI 有五类扩展路径。按源码放在哪里、命令要如何共享来选。
+OpenCLI 有四类扩展路径。按源码放在哪里、命令要如何共享来选。
 
 | 目标 | 使用方式 | 源码位置 | 命令入口 |
 |------|----------|----------|----------|
@@ -8,7 +8,6 @@ OpenCLI 有五类扩展路径。按源码放在哪里、命令要如何共享来
 | 快速写一个只在本机用的 adapter | User adapter | `~/.opencli/clis/<site>/<command>.js` | `opencli <site> <command>` |
 | 本地修改官方 adapter | Adapter override | `~/.opencli/clis/<site>/` | `opencli <site> <command>` |
 | 发布或安装第三方命令 | Plugin | Git repo，安装到 `~/.opencli/plugins/` | `opencli <plugin> <command>` |
-| 包装已有本机 binary | External CLI | `~/.opencli/external-clis.yaml` | `opencli <tool> ...` |
 
 ## 把个人命令放在自己的 Git repo
 
@@ -115,18 +114,3 @@ opencli plugin install file:///absolute/path/opencli-plugins/packages/reuters
 ```
 
 本地 `file://` 安装要求目标目录本身就是一个有效 plugin，并且目录内有命令文件。monorepo root 请推到 GitHub 后走 GitHub monorepo 安装流程。
-
-## External CLI passthrough
-
-如果命令已经是本机 binary，只想统一挂到 `opencli` 下，用 external CLI registration。
-
-```bash
-opencli external register my-tool \
-  --binary my-tool \
-  --install "npm i -g my-tool" \
-  --desc "My internal CLI"
-
-opencli my-tool --help
-```
-
-External CLI 会把 stdio 和 exit code 透传给底层 binary。

@@ -3,9 +3,8 @@
  * opencli — Make any website your CLI. AI-powered.
  */
 
-// Ensure standard system paths are available for child processes.
-// Some environments (GUI apps, cron, IDE terminals) launch with a minimal PATH
-// that excludes /usr/local/bin, /usr/sbin, etc., causing external CLIs to fail.
+// GUI apps and cron can start with a minimal PATH. Keep standard system paths
+// available for media helpers such as yt-dlp and ffmpeg.
 if (process.platform !== 'win32') {
   const std = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
   const cur = new Set((process.env.PATH ?? '').split(':').filter(Boolean));

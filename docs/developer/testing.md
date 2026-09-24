@@ -101,7 +101,6 @@ find tests/e2e -name '*.test.ts' | sort
 - `src/runtime.ts`
 - `src/daemon.ts`
 - `src/plugin.ts`
-- `src/external.ts`
 - `src/pipeline/**`
 
 这类改动优先补：

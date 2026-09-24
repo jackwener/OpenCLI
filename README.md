@@ -15,7 +15,7 @@ OpenCLI gives you one surface for three different kinds of automation:
 - **Let AI Agents operate any website** — install the `opencli-browser` skill in your AI agent (Claude Code, Cursor, etc.), and it can navigate, click, type/fill, extract, and inspect any page through your logged-in browser via `opencli browser` primitives.
 - **Write new adapters** end-to-end with `opencli browser` + the `opencli-adapter-author` skill, which guides from first recon through field decoding, code, and `opencli browser verify`.
 
-It also works as a **CLI hub** for local tools such as `gh`, `docker`, `longbridge`, `tg`, `discord`, `wx`, `ntn` (Notion), and other binaries you register yourself, plus **desktop app adapters** for Electron apps like Cursor, Trae CN, Codex, Antigravity, ChatGPT, and Trae SOLO.
+It also provides **desktop app adapters** for Electron apps like Cursor, Trae CN, Codex, Antigravity, ChatGPT, and Trae SOLO.
 
 ## Quick Start
 
@@ -83,7 +83,6 @@ Use OpenCLI directly when you want a reliable command instead of a live browser 
 
 - `opencli list` shows every registered command.
 - `opencli <site> <command>` runs a built-in or generated adapter.
-- `opencli external register mycli` exposes a local CLI through the same discovery surface.
 - `opencli doctor` helps diagnose browser connectivity.
 
 ## Extending OpenCLI
@@ -96,7 +95,6 @@ If you want to add your own commands, start with the [Extending OpenCLI guide](.
 | Quickly draft a private local adapter | `opencli browser init <site>/<command>` in `~/.opencli/clis/` |
 | Modify an official adapter locally | `opencli adapter eject <site>` + `opencli adapter reset <site>` |
 | Publish or install third-party commands | `opencli plugin install github:user/repo` |
-| Wrap an existing local binary | `opencli external register <name>` |
 
 ## For AI Agents
 
@@ -114,8 +112,6 @@ Or install only what you need:
 npx skills add jackwener/opencli --skill opencli-adapter-author
 npx skills add jackwener/opencli --skill opencli-autofix
 npx skills add jackwener/opencli --skill opencli-browser
-npx skills add jackwener/opencli --skill opencli-browser-sitemap
-npx skills add jackwener/opencli --skill opencli-sitemap-author
 npx skills add jackwener/opencli --skill opencli-usage
 ```
 
@@ -126,8 +122,6 @@ npx skills add jackwener/opencli --skill opencli-usage
 | **opencli-adapter-author** | Write a reusable adapter for a new site or add a command to an existing site | "Write an adapter for douyin trending" / "Make a command that grabs the top posts from this page" |
 | **opencli-autofix** | Repair a broken adapter when a built-in command fails | "`opencli zhihu hot` is returning empty — fix it" |
 | **opencli-browser** | Drive a real Chrome page ad-hoc — navigate, fill forms, click, extract | "Help me check my Xiaohongshu notifications" / "Help me fill out this form" / "Use browser commands to scrape this page" |
-| **opencli-browser-sitemap** | Consume site sitemap context while driving a browser task | "Use the sitemap to navigate this website without blind clicking" |
-| **opencli-sitemap-author** | Create or update site sitemap knowledge for browser agents | "Record the stable workflow you just discovered for this site" |
 | **opencli-usage** | Quick reference for all OpenCLI commands and sites | "What commands does OpenCLI have for Twitter?" |
 
 ### How it works
@@ -144,8 +138,6 @@ The agent handles all the `opencli browser` commands internally — you just des
 
 **Skill references:**
 - [`skills/opencli-browser/SKILL.md`](./skills/opencli-browser/SKILL.md) — drive Chrome ad-hoc (navigate, fill forms, click, extract)
-- [`skills/opencli-browser-sitemap/SKILL.md`](./skills/opencli-browser-sitemap/SKILL.md) — use sitemap context while driving a browser task
-- [`skills/opencli-sitemap-author/SKILL.md`](./skills/opencli-sitemap-author/SKILL.md) — create or update site sitemap knowledge
 - [`skills/opencli-adapter-author/SKILL.md`](./skills/opencli-adapter-author/SKILL.md) — write a new adapter end-to-end
 - [`skills/opencli-autofix/SKILL.md`](./skills/opencli-autofix/SKILL.md) — repair broken adapters
 - [`skills/opencli-usage/SKILL.md`](./skills/opencli-usage/SKILL.md) — command and site reference
@@ -204,14 +196,6 @@ When the site you need is not yet covered, use the `opencli-adapter-author` skil
 | **midjourney** | `login` `whoami` `settings` `quota` `generate` `describe` `history` `status` `action` `download` |
 
 Curated highlights — **[→ see all 100+ supported sites & commands](./docs/adapters/index.md)** (douyin / weibo / spotify / 1688 / quark / nowcoder / google-scholar / hupu / xianyu / weread / weread-official / xiaoyuzhou / Chess.com / and more).
-
-## CLI Hub
-
-Unified passthrough for your existing command-line tools. Run `opencli <tool> ...` for any of:
-
-`gh` · `docker` · `vercel` · `wrangler` · `obsidian` · `longbridge` · `lark-cli` · `ntn(notion)` · `dws(DingTalk Workspace)` · `wecom-cli(企业微信)` · `tg(tg-cli)` · `discord(discord-cli)` · `wx(wx-cli)`
-
-Register your own with `opencli external register <name>`; list everything with `opencli external list`.
 
 **Desktop app adapters** (Electron, via CDP): Cursor / Trae CN / Codex / Antigravity / ChatGPT App / ChatWise / Qoder / Discord / Doubao / Trae SOLO — see [`docs/adapters/desktop/`](./docs/adapters/desktop/).
 

@@ -208,7 +208,7 @@ DONE
         [ ] `npm run typecheck` + focused/site tests + `npm run build`
         [ ] `node dist/src/main.js validate <site>`
         [ ] `npm run check:typed-error-lint` + `npm run check:silent-column-drop`
-        [ ] adapter 文档；若 sitemap/site memory 有稳定新知识则同步
+        [ ] adapter 文档；若 site memory 有稳定新知识则同步
         [ ] `git diff --check` + 敏感数据扫描 + 删除 raw capture/cache + 释放 browser session
         [ ] 写操作或私有协议请独立 review exact head 后再合入
 ```

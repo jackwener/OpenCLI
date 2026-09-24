@@ -23,41 +23,31 @@ describe('classifyAdapter', () => {
 });
 
 describe('formatRootAdapterHelpText', () => {
-  it('renders all three sections in External / App / Site order when populated', () => {
+  it('renders App / Site sections in order when populated', () => {
     const text = formatRootAdapterHelpText({
-      external: [
-        { name: 'gh', label: 'gh' },
-        { name: 'wx', label: 'wx(wx-cli)' },
-      ],
       apps: ['chatwise', 'codex'],
       sites: ['bilibili'],
     });
-    expect(text).toContain('External CLIs (2):');
     expect(text).toContain('App adapters (2):');
     expect(text).toContain('Site adapters (1):');
-    expect(text).toContain('wx(wx-cli)');
-    expect(text.indexOf('External CLIs')).toBeLessThan(text.indexOf('App adapters'));
     expect(text.indexOf('App adapters')).toBeLessThan(text.indexOf('Site adapters'));
   });
 
   it('omits empty sections instead of rendering a (0) header', () => {
     const text = formatRootAdapterHelpText({
-      external: [],
       apps: [],
       sites: ['bilibili'],
     });
-    expect(text).not.toContain('External CLIs');
     expect(text).not.toContain('App adapters');
     expect(text).toContain('Site adapters (1):');
   });
 
   it('returns empty string when all groups are empty', () => {
-    expect(formatRootAdapterHelpText({ external: [], apps: [], sites: [] })).toBe('');
+    expect(formatRootAdapterHelpText({ apps: [], sites: [] })).toBe('');
   });
 
   it('always renders the agent discovery hint when any section is populated', () => {
     const text = formatRootAdapterHelpText({
-      external: [],
       apps: [],
       sites: ['bilibili'],
     });

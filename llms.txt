@@ -11,7 +11,6 @@ OpenCLI gives you one surface for three kinds of automation:
 2. **Browser automation for AI agents** — AI agents (Claude Code, Cursor, etc.) can navigate, click, type, fill, extract, and screenshot any page via `opencli browser` primitives and your logged-in Chrome session
 3. **Adapter authoring** — Write new site adapters end-to-end using `opencli-adapter-author` skill + `opencli browser recon/init/verify` workflow
 
-Also works as a CLI hub for local tools: `gh`, `docker`, `vercel`, `wrangler`, `notion`, `discord`, `telegram`, and more.
 
 ## Install
 

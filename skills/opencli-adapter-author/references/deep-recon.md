@@ -142,7 +142,7 @@ Leave durable outputs at the right layer:
 - **adapter**: executable contract, shared helpers, typed errors;
 - **tests**: production-path behavior and structural invariants;
 - **docs**: command surface, limits, auth, uncertainty, examples;
-- **site memory/sitemap**: verified routes, triggers, fallbacks, rejected strategies, pitfalls, and verification date;
+- **site memory**: verified routes, triggers, fallbacks, rejected strategies, pitfalls, and verification date;
 - **recon conclusion**: evidence ledger without secrets or private bodies.
 
 Before PR:

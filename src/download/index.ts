@@ -2,7 +2,7 @@
  * Download utilities: HTTP downloads, yt-dlp wrapper, format conversion.
  */
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -10,7 +10,6 @@ import { Readable, Transform } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
-import { isBinaryInstalled } from '../external.js';
 import type { BrowserCookie } from '../types.js';
 import { getErrorMessage } from '../errors.js';
 import { fetchWithNodeNetwork } from '../node-network.js';
@@ -46,7 +45,12 @@ export interface YtdlpOptions {
 
 /** Check if yt-dlp is available in PATH. */
 export function checkYtdlp(): boolean {
-  return isBinaryInstalled('yt-dlp');
+  try {
+    execFileSync(os.platform() === 'win32' ? 'where' : 'which', ['yt-dlp'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Domains that host video content and can be downloaded via yt-dlp. */
