@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "adg.plugin/v1",
+  "name": "opencli",
+  "version": "1.8.4",
+  "description": "Skills and tools for OpenCLI automation, browsing, and custom adapter creation.",
+  "author": { "name": "jackwener", "url": "https://github.com/jackwener" },
+  "license": "Apache-2.0",
+  "category": "Developer Tools",
+  "interface": { "displayName": "OpenCLI" },
+  "skills": "./skills/",
+  "strict": false
+}

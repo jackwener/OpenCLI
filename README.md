@@ -115,6 +115,16 @@ npx skills add jackwener/opencli --skill opencli-browser
 npx skills add jackwener/opencli --skill opencli-usage
 ```
 
+### As an ADG / Claude Code / Codex Plugin
+
+This repository is also packaged as an [ADG](https://github.com/RbBtSn0w/adg) plugin named `opencli`.
+
+```bash
+adg plugins add RbBtSn0w/OpenCLI --global
+adg plugins link --target claude --global   # Link to Claude Code
+adg plugins link --target codex  --global   # Link to Codex
+```
+
 ### Which skill to use
 
 | Skill | When to use | Example prompt to your AI agent |
