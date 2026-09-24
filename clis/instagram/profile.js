@@ -8,7 +8,7 @@ cli({
     args: [
         { name: 'username', required: true, positional: true, help: 'Instagram username' },
     ],
-    columns: ['username', 'name', 'followers', 'following', 'posts', 'verified', 'bio'],
+    columns: ['username', 'name', 'followers', 'following', 'posts', 'verified', 'bio', 'email', 'phone', 'website'],
     pipeline: [
         { navigate: 'https://www.instagram.com' },
         { evaluate: `(async () => {
@@ -33,6 +33,12 @@ cli({
     }
     throw new Error(label + ' failed: HTTP ' + response.status);
   }
+  function firstText(...values) {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+  }
   function mapProfileUser(u, countFields) {
     if (!u || typeof u !== 'object' || typeof u.username !== 'string' || !u.username.trim()) {
       throw new Error('Instagram profile returned malformed user payload for: ' + username);
@@ -45,6 +51,9 @@ cli({
       following: countFields.following(u),
       posts: countFields.posts(u),
       verified: u.is_verified ? 'Yes' : 'No',
+      email: countFields.email(u),
+      phone: countFields.phone(u),
+      website: firstText(u.external_url),
     };
   }
   const r1 = await fetch(
@@ -60,6 +69,8 @@ cli({
       followers: (user) => user.edge_followed_by?.count ?? 0,
       following: (user) => user.edge_follow?.count ?? 0,
       posts: (user) => user.edge_owner_to_timeline_media?.count ?? 0,
+      email: (user) => firstText(user.business_email),
+      phone: (user) => firstText(user.business_phone_number),
     })];
   }
   // web_profile_info answers HTTP 400 for business/professional accounts.
@@ -78,6 +89,8 @@ cli({
     followers: (user) => user.follower_count ?? 0,
     following: (user) => user.following_count ?? 0,
     posts: (user) => user.media_count ?? 0,
+    email: (user) => firstText(user.public_email),
+    phone: (user) => firstText(user.contact_phone_number),
   })];
 })()
 ` },
