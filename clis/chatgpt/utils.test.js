@@ -1789,6 +1789,31 @@ describe('chatgpt image upload helper', () => {
         expect(result.reason).toContain('image upload preview did not appear');
     });
 
+    it('accepts an upload preview whose filename is only exposed as an accessible name', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
+        tempDirs.push(dir);
+        const filePath = path.join(dir, 'cat.png');
+        fs.writeFileSync(filePath, 'fake-png');
+
+        const dom = new JSDOM(`
+            <!doctype html>
+            <main>
+              <div aria-label="Chat with ChatGPT">
+                <input id="upload-files" type="file">
+                <div role="group" aria-label="cat.png"></div>
+              </div>
+            </main>
+        `, { url: 'https://chatgpt.com/new', runScripts: 'outside-only' });
+        const page = {
+            setFileInput: vi.fn().mockResolvedValue(undefined),
+            wait: vi.fn().mockResolvedValue(undefined),
+            sleep: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn((script) => Promise.resolve(dom.window.eval(String(script)))),
+        };
+
+        await expect(uploadChatGPTImages(page, [filePath])).resolves.toEqual({ ok: true, files: [filePath] });
+    });
+
     it('accepts a real uploaded media preview even when the filename text is absent', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-chatgpt-'));
         tempDirs.push(dir);
