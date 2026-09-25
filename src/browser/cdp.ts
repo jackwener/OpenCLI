@@ -483,13 +483,13 @@ function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
     .map((target, index) => ({ target, index, score: scoreCDPTarget(target, preferredPattern) }))
     .filter(({ score }) => Number.isFinite(score));
 
-  // Electron apps route auxiliary windows onto the main document through a
-  // query: Codex ships its avatar overlay as
-  // `app://-/index.html?initialRoute=%2Favatar-overlay`, which answers `/json`
-  // first and scores exactly like the main window, so document order used to
-  // send every command to a surface with no app UI (#2242). Only break that
-  // tie; a routed window that outscores its plain sibling is still the better
-  // target, and on http(s) a query is ordinary page state.
+  // Electron/Tauri shells route auxiliary windows onto the main document
+  // through a query or hash: Codex ships an avatar overlay as
+  // `app://-/index.html?initialRoute=%2Favatar-overlay`, while some desktop
+  // shells use `#/route`. Both score like the main window, so document order
+  // used to send commands to a surface with no app UI (#2242, #2030). Only
+  // break that tie; a routed window that outscores its plain sibling is still
+  // the better target, and on http(s) a query/hash is ordinary page state.
   const plainDocuments = new Set<string>();
   for (const { target } of candidates) {
     const url = parseLocalDocumentUrl(target.url);
@@ -499,7 +499,7 @@ function selectCDPTarget(targets: CDPTarget[]): CDPTarget | undefined {
   const ranked = candidates
     .map((entry) => {
       const url = parseLocalDocumentUrl(entry.target.url);
-      return { ...entry, routed: !!url && !!url.search && plainDocuments.has(toDocumentKey(url)) };
+      return { ...entry, routed: !!url && (!!url.search || !!url.hash) && plainDocuments.has(toDocumentKey(url)) };
     })
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -558,11 +558,11 @@ const LOCAL_DOCUMENT_SCHEMES = new Set(['app:', 'file:']);
 
 /**
  * Parse a URL that names a local app document eligible for routed-window
- * demotion (#2242).
+ * demotion (#2242, #2030).
  *
  * Only allowlisted schemes qualify: on http(s), and on any scheme we cannot
- * vouch for, a query is ordinary page state, so returning null there keeps
- * plain document-order selection.
+ * vouch for, query/hash state is ordinary page state, so returning null there
+ * keeps plain document-order selection.
  */
 function parseLocalDocumentUrl(raw: string | undefined): URL | null {
   try {
