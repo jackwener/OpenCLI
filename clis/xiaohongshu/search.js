@@ -9,7 +9,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
 import { unwrapEvaluateResult } from './shared.js';
 /**
- * Wait for search results or login wall using MutationObserver (max 5s).
+ * Wait for search results or login wall using MutationObserver (max 20s).
  * Returns 'content' if note items appeared, a typed wall state when login or
  * risk controls appear, or 'timeout' if none appears within the deadline.
  *
@@ -36,12 +36,12 @@ const WAIT_FOR_CONTENT_JS = `
       const result = detect();
       if (result) { observer.disconnect(); resolve(result); }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 5000);
+    observer.observe(document.body || document.documentElement || document, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 20000);
   })
 `;
 const DEFAULT_HARVEST_STEP = 900;
-const CONTENT_WAIT_SECONDS = 5;
+const CONTENT_WAIT_SECONDS = 20;
 const FILTER_SETTLE_SECONDS = 8;
 
 const SEARCH_FILTERS = [
