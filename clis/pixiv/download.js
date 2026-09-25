@@ -9,8 +9,23 @@ import * as path from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { formatCookieHeader, httpDownload } from '@jackwener/opencli/download';
 import { formatBytes } from '@jackwener/opencli/download/progress';
-import { CommandExecutionError, EmptyResultError, getErrorMessage } from '@jackwener/opencli/errors';
+import { ArgumentError, CommandExecutionError, EmptyResultError, getErrorMessage } from '@jackwener/opencli/errors';
 import { pixivFetch } from './utils.js';
+
+function normalizeIllustId(value) {
+    const input = String(value ?? '').trim();
+    if (/^\d+$/.test(input)) return input;
+    try {
+        const url = new URL(input);
+        if (url.protocol === 'https:' && (url.hostname === 'www.pixiv.net' || url.hostname === 'pixiv.net') && !url.username && !url.password && !url.port) {
+            const match = url.pathname.match(/^\/artworks\/(\d+)\/?$/);
+            if (match) return match[1];
+        }
+    }
+    catch {}
+    throw new ArgumentError(`Invalid illustration ID or Pixiv artwork URL: ${input}`, 'Example: opencli pixiv download 123456 or https://www.pixiv.net/artworks/123456');
+}
+
 cli({
     site: 'pixiv',
     name: 'download',
@@ -19,16 +34,13 @@ cli({
     domain: 'www.pixiv.net',
     strategy: Strategy.COOKIE,
     args: [
-        { name: 'illust-id', positional: true, required: true, help: 'Illustration ID' },
+        { name: 'illust-id', positional: true, required: true, help: 'Illustration ID or Pixiv artwork URL' },
         { name: 'output', default: './pixiv-downloads', help: 'Output directory' },
     ],
     columns: ['index', 'type', 'status', 'size'],
     func: async (page, kwargs) => {
-        const illustId = String(kwargs['illust-id'] ?? '');
+        const illustId = normalizeIllustId(kwargs['illust-id']);
         const output = String(kwargs.output ?? './pixiv-downloads');
-        if (!/^\d+$/.test(illustId)) {
-            throw new CommandExecutionError(`Invalid illustration ID: ${illustId}`);
-        }
         // pixivFetch handles navigate + error checking; returns the response body directly
         const pages = await pixivFetch(page, `/ajax/illust/${illustId}/pages`, {
             notFoundMsg: `Illustration not found: ${illustId}`,
