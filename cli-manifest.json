@@ -20254,7 +20254,7 @@
     "description": "Get recent posts from an Instagram user",
     "access": "read",
     "domain": "www.instagram.com",
-    "strategy": "cookie",
+    "strategy": "intercept",
     "browser": true,
     "args": [
       {
@@ -20283,7 +20283,7 @@
     "type": "js",
     "modulePath": "instagram/user.js",
     "sourceFile": "instagram/user.js",
-    "navigateBefore": "https://www.instagram.com"
+    "navigateBefore": true
   },
   {
     "site": "instagram",
