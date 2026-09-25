@@ -220,6 +220,27 @@ describe('web/read stdout behavior', () => {
 });
 
 describe('web/read render-aware helpers', () => {
+    it('prefers a larger main container over unrelated article cards', () => {
+        const dom = new JSDOM(`
+          <main class="post-body">
+            <h1>Main Article</h1>
+            <p>${'Primary article body '.repeat(80)}</p>
+          </main>
+          <section class="related-posts">
+            <article><h2>Related A</h2><p>${'card '.repeat(50)}</p></article>
+            <article><h2>Related B</h2><p>${'card '.repeat(60)}</p></article>
+            <article><h2>Related C</h2><p>${'card '.repeat(55)}</p></article>
+          </section>
+        `, { url: 'https://example.com/post', runScripts: 'outside-only' });
+
+        const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'same-origin' }));
+
+        expect(result.contentHtml).toContain('Primary article body');
+        expect(result.contentHtml).not.toContain('Related A');
+        expect(result.contentHtml).not.toContain('Related B');
+        expect(result.contentHtml).not.toContain('Related C');
+    });
+
     it('merges accessible same-origin iframe bodies into the extracted HTML', () => {
         const dom = new JSDOM(`
           <main>

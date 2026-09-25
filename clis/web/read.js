@@ -251,10 +251,15 @@ function buildRenderAwareExtractorJs(options) {
         if (articles.length === 1) {
           contentEl = articles[0];
         } else if (articles.length > 1) {
+          const candidates = [
+            ...articles,
+            document.querySelector('[role="main"]'),
+            document.querySelector('main'),
+          ].filter(Boolean);
           let maxLen = 0;
-          articles.forEach(a => {
-            const len = textLen(a);
-            if (len > maxLen) { maxLen = len; contentEl = a; }
+          candidates.forEach(candidate => {
+            const len = textLen(candidate);
+            if (len > maxLen) { maxLen = len; contentEl = candidate; }
           });
         }
         if (!contentEl) contentEl = document.querySelector('[role="main"]');
