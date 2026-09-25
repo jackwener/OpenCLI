@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import {
   selectModel,
@@ -9,6 +10,7 @@ import {
   parseThinkingResponse,
   parseDeepSeekConversationId,
   pickResumeUrl,
+  ensureFreshConversation,
 } from './utils.js';
 
 describe('deepseek parseDeepSeekConversationId', () => {
@@ -299,6 +301,242 @@ describe('deepseek sendWithFile Not allowed fallback', () => {
     expect(result).toEqual({ ok: false, reason: 'file preview did not appear' });
     expect(page.evaluate.mock.calls[1][0]).toContain('img[src], canvas, video');
     expect(page.evaluate.mock.calls[1][0]).not.toContain("aria-disabled') === 'false'");
+  });
+});
+
+describe('deepseek ensureFreshConversation', () => {
+  const HOME = 'https://chat.deepseek.com/';
+  const THREAD = 'https://chat.deepseek.com/a/chat/s/749e6bbd-6a45-4440-beaa-ae5238bf06d8';
+  const URL_CHECK = 'window.location.href';
+
+  function createPage() {
+    return {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn(),
+    };
+  }
+
+  it('reports a fresh thread when the home page URL stays stable across the settle', async () => {
+    const page = createPage();
+    page.evaluate.mockResolvedValue(HOME);
+
+    const result = await ensureFreshConversation(page);
+
+    expect(result).toEqual({ ok: true, escaped: false });
+    expect(page.goto).toHaveBeenCalledWith(HOME);
+    // Composer wait + router settle + stability settle, and two URL reads —
+    // ok:true means the URL stayed off-thread, not that it was checked once.
+    expect(page.wait).toHaveBeenCalledTimes(3);
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
+  });
+
+  it('escapes an auto-restored conversation through the new-chat control', async () => {
+    const page = createPage();
+    page.evaluate
+      .mockResolvedValueOnce(THREAD)       // settled on the restored thread
+      .mockResolvedValueOnce({ ok: true }) // new-chat control clicked
+      .mockResolvedValueOnce(HOME)         // off the thread…
+      .mockResolvedValueOnce(HOME);        // …and still off after the settle
+
+    const result = await ensureFreshConversation(page);
+
+    expect(result).toEqual({ ok: true, escaped: true });
+    expect(page.evaluate).toHaveBeenCalledTimes(4);
+  });
+
+  it('escapes when the restore lands during the stability confirmation', async () => {
+    const page = createPage();
+    page.evaluate
+      .mockResolvedValueOnce(HOME)         // first read looks fresh
+      .mockResolvedValueOnce(THREAD)       // restore fired during the settle
+      .mockResolvedValueOnce({ ok: true }) // escape via the new-chat control
+      .mockResolvedValueOnce(HOME)
+      .mockResolvedValueOnce(HOME);
+
+    const result = await ensureFreshConversation(page);
+
+    expect(result).toEqual({ ok: true, escaped: true });
+  });
+
+  it('fails closed when the restored conversation cannot be escaped', async () => {
+    const page = createPage();
+    page.evaluate.mockImplementation(async (script) =>
+      script === URL_CHECK ? THREAD : { ok: true });
+
+    const result = await ensureFreshConversation(page);
+
+    expect(result).toEqual({ ok: false, reason: 'conversation-restored' });
+    // Initial URL check + 3 click/re-check rounds.
+    expect(page.evaluate).toHaveBeenCalledTimes(7);
+  });
+
+  it('reports the missing control when the sidebar never offers a new-chat entry', async () => {
+    const page = createPage();
+    page.evaluate.mockImplementation(async (script) =>
+      script === URL_CHECK ? THREAD : { ok: false, reason: 'new-chat-control-not-found' });
+
+    const result = await ensureFreshConversation(page);
+
+    expect(result).toEqual({ ok: false, reason: 'new-chat-control-not-found' });
+  });
+
+  it('keeps conversation-restored as the reason when the click evaluate is collected', async () => {
+    const page = createPage();
+    page.evaluate.mockImplementation(async (script) => {
+      if (script === URL_CHECK) return THREAD;
+      throw new Error('Promise was collected');
+    });
+
+    const result = await ensureFreshConversation(page);
+
+    // A rejected click evaluate leaves the click outcome unknown; it must not
+    // be misreported as a missing new-chat control.
+    expect(result).toEqual({ ok: false, reason: 'conversation-restored' });
+  });
+
+  it('treats an unreadable URL as not-fresh instead of green-lighting a send', async () => {
+    const page = createPage();
+    page.evaluate.mockImplementation(async (script) => {
+      if (script === URL_CHECK) throw new Error('Promise was collected');
+      return { ok: true };
+    });
+
+    const result = await ensureFreshConversation(page);
+
+    expect(result).toEqual({ ok: false, reason: 'conversation-restored' });
+  });
+
+  it('reports composer-missing without inspecting the URL on login/error pages', async () => {
+    const page = createPage();
+    page.wait.mockRejectedValueOnce(new Error('selector timeout'));
+
+    const result = await ensureFreshConversation(page);
+
+    expect(result).toEqual({ ok: false, reason: 'composer-missing' });
+    expect(page.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('embeds both localized new-chat labels in the click script', async () => {
+    const page = createPage();
+    page.evaluate.mockImplementation(async (script) =>
+      script === URL_CHECK ? THREAD : { ok: false, reason: 'new-chat-control-not-found' });
+
+    await ensureFreshConversation(page);
+
+    const clickSrc = page.evaluate.mock.calls
+      .map(([js]) => js)
+      .find((js) => typeof js === 'string' && js.includes('new-chat-control-not-found'));
+    expect(clickSrc, 'expected a new-chat click evaluate call').toBeDefined();
+    // Label matching must cover both UI languages (class names are unstable).
+    expect(clickSrc).toContain('开启新对话');
+    expect(clickSrc).toContain('New chat');
+  });
+});
+
+describe('deepseek clickNewChatControl DOM behavior (jsdom fixtures)', () => {
+  const THREAD = 'https://chat.deepseek.com/a/chat/s/749e6bbd-6a45-4440-beaa-ae5238bf06d8';
+  let clickScript;
+
+  // The click script is a static string; capture it once through the same
+  // mock-page path the ensureFreshConversation tests use, then execute it
+  // against fixture DOMs so selector-logic regressions fail here instead of
+  // only against the live site.
+  beforeAll(async () => {
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      wait: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockImplementation(async (script) =>
+        script === 'window.location.href' ? THREAD : { ok: false, reason: 'new-chat-control-not-found' }),
+    };
+    await ensureFreshConversation(page);
+    clickScript = page.evaluate.mock.calls
+      .map(([js]) => js)
+      .find((js) => typeof js === 'string' && js.includes('new-chat-control-not-found'));
+    expect(clickScript, 'expected a new-chat click evaluate call').toBeDefined();
+  });
+
+  function runClickScript(html) {
+    const dom = new JSDOM(html, { url: THREAD, runScripts: 'outside-only' });
+    // jsdom has no innerText; both the label fallback and the
+    // outer-container prefix match read it, so alias it to textContent.
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', {
+      configurable: true,
+      get() {
+        return this.textContent || '';
+      },
+    });
+    const clicked = [];
+    dom.window.document.addEventListener('click', (e) => clicked.push(e.target.id));
+    const result = dom.window.eval(clickScript);
+    return { result, clicked };
+  }
+
+  it('clicks the sidebar control whose aria-label carries a shortcut hint', () => {
+    const { result, clicked } = runClickScript(`
+      <div id="sidebar">
+        <button id="new-chat" aria-label="开启新对话 ⌘J"></button>
+        <a id="history" href="/a/chat/s/aaa">旧的讨论</a>
+      </div>
+    `);
+
+    expect(result).toEqual({ ok: true });
+    expect(clicked).toEqual(['new-chat']);
+  });
+
+  it('never clicks a saved conversation titled "New chat" back into the old thread', () => {
+    const { result, clicked } = runClickScript(`
+      <a id="history-trap" href="/a/chat/s/bbb">New chat about pandas</a>
+    `);
+
+    expect(result).toEqual({ ok: false, reason: 'new-chat-control-not-found' });
+    expect(clicked).toEqual([]);
+  });
+
+  it('prefers the real control over a same-label history entry', () => {
+    const { result, clicked } = runClickScript(`
+      <div id="sidebar">
+        <a id="history-trap" href="/a/chat/s/ccc">New chat</a>
+        <button id="new-chat">New chat</button>
+      </div>
+    `);
+
+    expect(result).toEqual({ ok: true });
+    expect(clicked).toEqual(['new-chat']);
+  });
+
+  it('clicks the deepest match, not an outer container sharing the text prefix', () => {
+    const { result, clicked } = runClickScript(`
+      <div id="container">
+        <button id="new-chat">New chat</button>
+        <p>Ask anything to start.</p>
+      </div>
+    `);
+
+    expect(result).toEqual({ ok: true });
+    expect(clicked).toEqual(['new-chat']);
+  });
+
+  it('resolves a plain label div up to its role=button wrapper before clicking', () => {
+    const { result, clicked } = runClickScript(`
+      <div id="wrapper" role="button">
+        <div id="label">开启新对话</div>
+      </div>
+    `);
+
+    expect(result).toEqual({ ok: true });
+    expect(clicked).toEqual(['wrapper']);
+  });
+
+  it('lets an explicit aria-label veto a matching innerText', () => {
+    // aria-label wins over innerText, so a control announced as something
+    // else must not match even when its visible text starts with the label.
+    const { result, clicked } = runClickScript(`
+      <button id="decoy" aria-label="Settings">New chat tips</button>
+    `);
+
+    expect(result).toEqual({ ok: false, reason: 'new-chat-control-not-found' });
+    expect(clicked).toEqual([]);
   });
 });
 

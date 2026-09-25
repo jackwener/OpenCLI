@@ -10179,7 +10179,7 @@
     "site": "deepseek",
     "name": "new",
     "description": "Start a new conversation in DeepSeek",
-    "access": "read",
+    "access": "write",
     "domain": "chat.deepseek.com",
     "strategy": "cookie",
     "browser": true,

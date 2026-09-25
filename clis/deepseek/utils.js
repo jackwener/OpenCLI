@@ -54,6 +54,95 @@ export async function ensureOnDeepSeek(page) {
     return true;
 }
 
+// An unreadable URL is UNCONFIRMED, so it counts as not-fresh: callers must
+// keep escaping and ultimately fail closed rather than green-light a send.
+async function isOnConversationThread(page) {
+    const url = await page.evaluate('window.location.href').catch(() => null);
+    if (typeof url !== 'string') return true;
+    return url.includes('/a/chat/s/');
+}
+
+// A single off-thread snapshot can race the restore redirect, so a fresh
+// verdict requires the URL to stay off any conversation thread across a
+// settle. Short-circuits without the settle when already on a thread.
+// Deliberately verifies off-thread rather than on-home: off-thread is the
+// only invariant --new needs, pinning a home path would break on any
+// DeepSeek routing change, and a click that lands somewhere unexpected
+// still fails closed downstream (composer / model-switch checks).
+async function confirmedOffThread(page) {
+    if (await isOnConversationThread(page)) return false;
+    await page.wait(1);
+    return !(await isOnConversationThread(page));
+}
+
+function clickNewChatControl(page) {
+    return page.evaluate(`(() => {
+        const label = (el) => {
+            const aria = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
+            return aria || (el.innerText || '').trim();
+        };
+        // startsWith: the button text may carry a shortcut hint ("开启新对话 ⌘J").
+        const matches = (text) => text.startsWith('开启新对话') || text.startsWith('New chat');
+        const matched = Array.from(document.querySelectorAll('a, button, [role="button"], div'))
+            // Skip sidebar history entries: a saved conversation titled
+            // "New chat" would otherwise win the deepest-match pick below and
+            // navigate straight back into the old thread.
+            .filter((el) => !el.closest('a[href*="/a/chat/s/"]'))
+            .filter((el) => matches(label(el)));
+        if (matched.length === 0) return { ok: false, reason: 'new-chat-control-not-found' };
+        // Deepest match: an outer page container's innerText also starts with
+        // the sidebar's first label, and clicking that container does nothing.
+        // find() cannot miss: a non-empty finite set always has a
+        // containment-minimal element.
+        const target = matched.find((el) => !matched.some((other) => other !== el && el.contains(other)));
+        const clickable = target.closest('a, button, [role="button"], [tabindex]') || target;
+        clickable.click();
+        return { ok: true };
+    })()`);
+}
+
+/**
+ * Navigate to the DeepSeek home page and confirm the composer is on a fresh
+ * conversation before the caller sends anything.
+ *
+ * A bare goto does NOT guarantee a new thread: DeepSeek's SPA auto-restores
+ * the most recent conversation shortly after the home page loads (the URL
+ * silently becomes /a/chat/s/<id>), so a send would append to the old
+ * thread. Detect the restore and escape through the sidebar's
+ * "开启新对话" / "New chat" control, re-checking the URL after each click.
+ *
+ * Returns { ok: true, escaped } once the URL is confirmed stable off any
+ * conversation thread across a settle, or { ok: false, reason: 'composer-missing' |
+ * 'new-chat-control-not-found' | 'conversation-restored' } so callers can
+ * fail with a typed error instead of silently posting into the wrong thread.
+ */
+export async function ensureFreshConversation(page) {
+    await page.goto(DEEPSEEK_URL);
+    try {
+        await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 8 });
+    } catch {
+        return { ok: false, reason: 'composer-missing' };
+    }
+    // The restore redirect fires after the composer mounts; give the router a
+    // beat before trusting the URL.
+    await page.wait(1);
+    if (await confirmedOffThread(page)) return { ok: true, escaped: false };
+    let lastReason = 'conversation-restored';
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const clicked = await clickNewChatControl(page).catch(() => null);
+        // Keep polling on a miss: the sidebar may still be mounting. Only an
+        // explicit ok:false means the control is missing — a rejected evaluate
+        // (the route transition collects the promise) leaves the click outcome
+        // unknown and must not masquerade as a missing control.
+        lastReason = clicked && !clicked.ok
+            ? (clicked.reason || 'new-chat-control-not-found')
+            : 'conversation-restored';
+        await page.wait(1);
+        if (await confirmedOffThread(page)) return { ok: true, escaped: true };
+    }
+    return { ok: false, reason: lastReason };
+}
+
 export async function getPageState(page) {
     return page.evaluate(`(() => {
         const url = window.location.href;

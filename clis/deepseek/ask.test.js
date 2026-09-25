@@ -3,6 +3,7 @@ import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jack
 
 const {
   mockEnsureOnDeepSeek,
+  mockEnsureFreshConversation,
   mockSelectModel,
   mockSetFeature,
   mockSendMessage,
@@ -14,6 +15,7 @@ const {
   mockPickResumeUrl,
 } = vi.hoisted(() => ({
   mockEnsureOnDeepSeek: vi.fn(),
+  mockEnsureFreshConversation: vi.fn(),
   mockSelectModel: vi.fn(),
   mockSetFeature: vi.fn(),
   mockSendMessage: vi.fn(),
@@ -27,8 +29,9 @@ const {
 
 vi.mock('./utils.js', () => ({
   DEEPSEEK_DOMAIN: 'chat.deepseek.com',
-  DEEPSEEK_URL: 'https://chat.deepseek.com/',
+  TEXTAREA_SELECTOR: 'textarea[placeholder*="DeepSeek"]',
   ensureOnDeepSeek: mockEnsureOnDeepSeek,
+  ensureFreshConversation: mockEnsureFreshConversation,
   selectModel: mockSelectModel,
   setFeature: mockSetFeature,
   sendMessage: mockSendMessage,
@@ -362,6 +365,162 @@ describe('deepseek ask conversation resume', () => {
     expect(mockSetFeature).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockSendWithFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('deepseek ask --new session guarantee', () => {
+  const page = {
+    wait: vi.fn().mockResolvedValue(undefined),
+    goto: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/');
+    mockEnsureFreshConversation.mockResolvedValue({ ok: true, escaped: false });
+    mockSelectModel.mockResolvedValue({ ok: true, toggled: false });
+    mockSetFeature.mockResolvedValue({ ok: true, toggled: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+    mockGetBubbleCount.mockResolvedValue(0);
+    mockWaitForResponse.mockResolvedValue('fresh reply');
+  });
+
+  it('delegates --new navigation to ensureFreshConversation', async () => {
+    const rows = await askCommand.func(page, {
+      prompt: 'sample question',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: false,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'fresh reply' }]);
+    expect(mockEnsureFreshConversation).toHaveBeenCalledWith(page);
+    // Navigation is owned by the helper now; the command must not race it
+    // with its own goto or fall back to the resume path.
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(mockEnsureOnDeepSeek).not.toHaveBeenCalled();
+    expect(mockPickResumeUrl).not.toHaveBeenCalled();
+  });
+
+  it('fails fast instead of appending to the restored conversation', async () => {
+    mockEnsureFreshConversation.mockResolvedValue({ ok: false, reason: 'conversation-restored' });
+
+    await expect(askCommand.func(page, {
+      prompt: 'sample question',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: false,
+      search: false,
+    })).rejects.toThrow(new CommandExecutionError(
+      'DeepSeek restored the previous conversation, so --new could not start a fresh thread (conversation-restored)',
+      'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+    ));
+
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the SPA restores the thread after the helper reported success', async () => {
+    // The helper's settle wait is best-effort, so the restore can land after
+    // it returned ok — the settled URL is the last line of defense.
+    page.evaluate.mockResolvedValue('https://chat.deepseek.com/a/chat/s/some-id');
+
+    await expect(askCommand.func(page, {
+      prompt: 'sample question',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: false,
+      search: false,
+    })).rejects.toThrow(new CommandExecutionError(
+      'DeepSeek restored the previous conversation, so --new could not start a fresh thread (conversation-restored)',
+      'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+    ));
+
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the baseline shows the send would land in a non-empty conversation', async () => {
+    // URL checks are racy snapshots; the empty-baseline check right before
+    // the send is the timing-independent --new guard. A restore that slips
+    // past every URL check still surfaces here as pre-existing bubbles.
+    mockGetBubbleCount.mockResolvedValue(4);
+
+    await expect(askCommand.func(page, {
+      prompt: 'sample question',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: false,
+      search: false,
+    })).rejects.toThrow(new CommandExecutionError(
+      'DeepSeek restored the previous conversation, so --new could not start a fresh thread (conversation-restored)',
+      'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+    ));
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('applies the baseline guard to --file sends too', async () => {
+    // The baseline is collected once, before the file/plain branch split;
+    // this locks the guard in front of sendWithFile so a refactor cannot
+    // move the collection back inside only the plain-text path.
+    mockGetBubbleCount.mockResolvedValue(4);
+
+    await expect(askCommand.func(page, {
+      prompt: 'sample question',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: false,
+      search: false,
+      file: 'C:/tmp/report.pdf',
+    })).rejects.toThrow(new CommandExecutionError(
+      'DeepSeek restored the previous conversation, so --new could not start a fresh thread (conversation-restored)',
+      'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+    ));
+
+    expect(mockSendWithFile).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('fails fast when the sidebar offers no new-chat control, and names that reason', async () => {
+    mockEnsureFreshConversation.mockResolvedValue({ ok: false, reason: 'new-chat-control-not-found' });
+
+    // The reason distinguishes a DeepSeek UI change (missing control) from a
+    // restore race, so it must survive into the user-facing error.
+    await expect(askCommand.func(page, {
+      prompt: 'sample question',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: false,
+      search: false,
+    })).rejects.toThrow(new CommandExecutionError(
+      'DeepSeek restored the previous conversation, so --new could not start a fresh thread (new-chat-control-not-found)',
+      'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+    ));
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps the login-page behavior: composer-missing defers to downstream typed errors', async () => {
+    mockEnsureFreshConversation.mockResolvedValue({ ok: false, reason: 'composer-missing' });
+    mockSelectModel.mockResolvedValue({ ok: false });
+
+    await expect(askCommand.func(page, {
+      prompt: 'sample question',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: false,
+      search: false,
+    })).rejects.toThrow(new CommandExecutionError('Could not switch to instant model'));
   });
 });
 
