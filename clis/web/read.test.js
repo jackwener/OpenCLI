@@ -220,6 +220,38 @@ describe('web/read stdout behavior', () => {
 });
 
 describe('web/read render-aware helpers', () => {
+    it('prefers the main body over related article cards', () => {
+        const dom = new JSDOM(`
+          <main class="post-body">
+            <h1>Real article</h1>
+            <p>PRIMARY_BODY_SENTINEL ${'Main content '.repeat(80)}</p>
+            <section class="post-recommendations">
+              <article class="post-recommendation-card">${'Related card text '.repeat(30)}</article>
+              <article class="post-recommendation-card">${'Related card text '.repeat(30)}</article>
+              <article class="post-recommendation-card">${'Related card text '.repeat(30)}</article>
+              <article class="post-recommendation-card">${'Related card text '.repeat(30)}</article>
+            </section>
+          </main>
+        `, { url: 'https://example.com/article.html', runScripts: 'outside-only' });
+
+        const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'none' }));
+
+        expect(result.contentHtml).toContain('PRIMARY_BODY_SENTINEL');
+        expect(result.contentHtml).not.toContain('Related card text');
+    });
+
+    it('keeps the longest article fallback when no semantic main exists', () => {
+        const dom = new JSDOM(`
+          <article>SHORT_ARTICLE</article>
+          <article>${'LONG_ARTICLE '.repeat(30)}</article>
+        `, { url: 'https://example.com/article.html', runScripts: 'outside-only' });
+
+        const result = dom.window.eval(__test__.buildRenderAwareExtractorJs({ frames: 'none' }));
+
+        expect(result.contentHtml).toContain('LONG_ARTICLE');
+        expect(result.contentHtml).not.toContain('SHORT_ARTICLE');
+    });
+
     it('merges accessible same-origin iframe bodies into the extracted HTML', () => {
         const dom = new JSDOM(`
           <main>
