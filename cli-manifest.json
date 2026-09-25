@@ -41574,7 +41574,7 @@
         "name": "images",
         "type": "string",
         "required": false,
-        "help": "Image paths, comma-separated, max 4 (jpg/png/gif/webp)"
+        "help": "Media paths, comma-separated: up to 4 images (jpg/png/gif/webp) or 1 video (mp4/mov)"
       }
     ],
     "columns": [

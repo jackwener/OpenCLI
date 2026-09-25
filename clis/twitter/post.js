@@ -7,25 +7,39 @@ import { isRecoverableFileInputError } from './utils.js';
 
 const MAX_IMAGES = 4;
 const UPLOAD_POLL_MS = 500;
-const UPLOAD_TIMEOUT_MS = 30_000;
+const IMAGE_UPLOAD_TIMEOUT_MS = 30_000;
+// X transcodes video server-side before the Post button re-enables, which takes
+// far longer than an image upload even for a small clip.
+const VIDEO_UPLOAD_TIMEOUT_MS = 180_000;
 const COMPOSER_POLL_MS = 250;
 const COMPOSER_TIMEOUT_MS = 10_000;
 const SUBMIT_POLL_MS = 500;
 const SUBMIT_TIMEOUT_MS = 15_000;
 const COMPOSE_URL = 'https://x.com/compose/post';
 const FILE_INPUT_SELECTOR = 'input[type="file"][data-testid="fileInput"]';
-const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.mov']);
+const MIME_BY_EXTENSION = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.mp4': 'video/mp4',
+    '.m4v': 'video/mp4',
+    '.mov': 'video/quicktime',
+};
 
-function validateImagePaths(raw) {
+function validateMediaPaths(raw) {
     const paths = raw.split(',').map(s => s.trim()).filter(Boolean);
     if (paths.length > MAX_IMAGES) {
         throw new CommandExecutionError(`Too many images: ${paths.length} (max ${MAX_IMAGES})`);
     }
-    return paths.map(p => {
+    const absPaths = paths.map(p => {
         const absPath = path.resolve(p);
         const ext = path.extname(absPath).toLowerCase();
-        if (!SUPPORTED_EXTENSIONS.has(ext)) {
-            throw new CommandExecutionError(`Unsupported image format "${ext}". Supported: jpg, png, gif, webp`);
+        if (!IMAGE_EXTENSIONS.has(ext) && !VIDEO_EXTENSIONS.has(ext)) {
+            throw new CommandExecutionError(`Unsupported media format "${ext}". Supported: jpg, png, gif, webp, mp4, mov`);
         }
         const stat = fs.statSync(absPath, { throwIfNoEntry: false });
         if (!stat || !stat.isFile()) {
@@ -33,6 +47,20 @@ function validateImagePaths(raw) {
         }
         return absPath;
     });
+    // X accepts up to 4 images or a single video, never both in one post; the
+    // composer silently drops the extra attachments instead of reporting an error.
+    const videoCount = absPaths.filter(isVideoPath).length;
+    if (videoCount > 0 && videoCount !== absPaths.length) {
+        throw new CommandExecutionError('Cannot mix a video with images: X allows either up to 4 images or a single video.');
+    }
+    if (videoCount > 1) {
+        throw new CommandExecutionError(`Too many videos: ${videoCount} (max 1)`);
+    }
+    return absPaths;
+}
+
+function isVideoPath(absPath) {
+    return VIDEO_EXTENSIONS.has(path.extname(absPath).toLowerCase());
 }
 
 function isUnsupportedInsertTextError(err) {
@@ -158,8 +186,8 @@ async function insertComposerText(page, text) {
     })()`), 'Twitter composer DOM insertion');
 }
 
-async function waitForImageUpload(page, expectedCount) {
-    const iterations = Math.ceil(UPLOAD_TIMEOUT_MS / UPLOAD_POLL_MS);
+async function waitForMediaUpload(page, expectedCount, timeoutMs) {
+    const iterations = Math.ceil(timeoutMs / UPLOAD_POLL_MS);
     return requirePostActionResult(await page.evaluate(`(async () => {
         const expected = ${JSON.stringify(expectedCount)};
         const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
@@ -178,20 +206,14 @@ async function waitForImageUpload(page, expectedCount) {
             const buttonReady = !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
             if (previewCount >= expected && buttonReady) return { ok: true, previewCount };
         }
-        return { ok: false, message: 'Image upload timed out (${UPLOAD_TIMEOUT_MS / 1000}s).' };
-    })()`), 'Twitter image upload verification');
+        return { ok: false, message: 'Media upload timed out (${timeoutMs / 1000}s).' };
+    })()`), 'Twitter media upload verification');
 }
 
-async function attachImagesViaDataTransfer(page, absPaths) {
+async function attachMediaViaDataTransfer(page, absPaths) {
     const files = absPaths.map((absPath) => {
         const ext = path.extname(absPath).toLowerCase();
-        const mime = ext === '.png'
-            ? 'image/png'
-            : ext === '.gif'
-                ? 'image/gif'
-                : ext === '.webp'
-                    ? 'image/webp'
-                    : 'image/jpeg';
+        const mime = MIME_BY_EXTENSION[ext] ?? 'application/octet-stream';
         return {
             name: path.basename(absPath),
             mime,
@@ -225,9 +247,9 @@ async function attachImagesViaDataTransfer(page, absPaths) {
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
         return { ok: true };
-    })()`), 'Twitter image upload fallback');
+    })()`), 'Twitter media upload fallback');
     if (!upload?.ok) {
-        throw new CommandExecutionError(`Image upload failed (base64 fallback): ${upload?.error ?? 'unknown error'}`);
+        throw new CommandExecutionError(`Media upload failed (base64 fallback): ${upload?.error ?? 'unknown error'}`);
     }
 }
 
@@ -298,15 +320,16 @@ cli({
     browser: true,
     args: [
         { name: 'text', type: 'string', required: true, positional: true, help: 'The text content of the tweet' },
-        { name: 'images', type: 'string', required: false, help: 'Image paths, comma-separated, max 4 (jpg/png/gif/webp)' },
+        { name: 'images', type: 'string', required: false, help: 'Media paths, comma-separated: up to 4 images (jpg/png/gif/webp) or 1 video (mp4/mov)' },
     ],
     columns: ['status', 'message', 'text', 'id', 'url'],
     func: async (page, kwargs) => {
         if (!page)
             throw new CommandExecutionError('Browser session required for twitter post');
 
-        // Validate images upfront before any browser interaction.
-        const absPaths = kwargs.images ? validateImagePaths(String(kwargs.images)) : [];
+        // Validate media upfront before any browser interaction.
+        const absPaths = kwargs.images ? validateMediaPaths(String(kwargs.images)) : [];
+        const uploadTimeoutMs = absPaths.some(isVideoPath) ? VIDEO_UPLOAD_TIMEOUT_MS : IMAGE_UPLOAD_TIMEOUT_MS;
         const text = String(kwargs.text ?? '');
 
         // The current X standalone composer is /compose/post. It keeps a single,
@@ -325,14 +348,14 @@ cli({
                     if (!isRecoverableFileInputError(err)) {
                         throw err;
                     }
-                    await attachImagesViaDataTransfer(page, absPaths);
+                    await attachMediaViaDataTransfer(page, absPaths);
                 }
             } else {
-                await attachImagesViaDataTransfer(page, absPaths);
+                await attachMediaViaDataTransfer(page, absPaths);
             }
-            const uploadState = await waitForImageUpload(page, absPaths.length);
+            const uploadState = await waitForMediaUpload(page, absPaths.length, uploadTimeoutMs);
             if (!uploadState?.ok) {
-                throw new TimeoutError('twitter image upload', UPLOAD_TIMEOUT_MS / 1000, 'Nothing was posted. Retry, or attach a smaller image.');
+                throw new TimeoutError('twitter media upload', uploadTimeoutMs / 1000, 'Nothing was posted. Retry, or attach a smaller file.');
             }
         }
 

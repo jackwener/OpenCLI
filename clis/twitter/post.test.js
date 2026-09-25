@@ -118,10 +118,60 @@ describe('twitter post command', () => {
         await expect(command.func(page, { text: 'hi', images: 'missing.png' })).rejects.toThrow('Not a valid file');
     });
 
-    it('throws on unsupported image format', async () => {
+    it('throws on unsupported media format', async () => {
         const command = getCommand();
         const page = makePage();
-        await expect(command.func(page, { text: 'hi', images: 'photo.bmp' })).rejects.toThrow('Unsupported image format');
+        await expect(command.func(page, { text: 'hi', images: 'photo.bmp' })).rejects.toThrow('Unsupported media format');
+    });
+
+    it('throws when a video is mixed with images', async () => {
+        const command = getCommand();
+        const page = makePage();
+        await expect(command.func(page, { text: 'hi', images: 'clip.mp4,a.png' })).rejects.toThrow('Cannot mix a video with images');
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('throws when more than one video is attached', async () => {
+        const command = getCommand();
+        const page = makePage();
+        await expect(command.func(page, { text: 'hi', images: 'a.mp4,b.mov' })).rejects.toThrow('Too many videos: 2 (max 1)');
+    });
+
+    it('uploads a video with a video mime type and waits out X transcoding', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true }, // DataTransfer fallback
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ], { setFileInput: undefined });
+
+        const result = await command.func(page, { text: 'with video', images: 'clip.mp4' });
+
+        expect(result).toEqual([{ status: 'success', message: 'Tweet posted successfully.', text: 'with video' }]);
+        const uploadScript = page.evaluate.mock.calls[0][0];
+        expect(uploadScript).toContain('video/mp4');
+        expect(uploadScript).not.toContain('image/jpeg');
+        // Video uploads must poll on the 180s budget, not the 30s image budget.
+        const pollScript = page.evaluate.mock.calls[1][0];
+        expect(pollScript).toContain('Media upload timed out (180s).');
+    });
+
+    it('keeps the 30s upload budget for image-only posts', async () => {
+        const command = getCommand();
+        const page = makePage([
+            { ok: true, previewCount: 1 }, // upload polling
+            { ok: true }, // focus composer
+            { ok: true }, // verify native insertText
+            { ok: true }, // click post
+            { ok: true, message: 'Tweet posted successfully.' },
+        ]);
+
+        await command.func(page, { text: 'with image', images: 'a.png' });
+
+        expect(page.evaluate.mock.calls[0][0]).toContain('Media upload timed out (30s).');
     });
 
     it('falls back to DataTransfer upload when page.setFileInput is not available', async () => {
@@ -410,10 +460,10 @@ describe('twitter post command', () => {
         expect(submitScript).toContain('data-opencli-before-submit-toast');
     });
 
-    it('typed-fails when image upload times out', async () => {
+    it('typed-fails when media upload times out', async () => {
         const command = getCommand();
         const page = makePage([
-            { ok: false, message: 'Image upload timed out (30s).' },
+            { ok: false, message: 'Media upload timed out (30s).' },
         ]);
 
         await expect(command.func(page, { text: 'timeout', images: 'a.png' })).rejects.toMatchObject({
