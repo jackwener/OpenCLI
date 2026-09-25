@@ -535,6 +535,28 @@ describe('xiaohongshu search', () => {
         expect(page.evaluate).toHaveBeenCalledTimes(1);
         expect(page.newTab).not.toHaveBeenCalled();
     });
+    it('waits for content when the search document has no body yet', async () => {
+        const cmd = getRegistry().get('xiaohongshu/search');
+        const page = createPageMock(['timeout']);
+        await expect(cmd.func(page, { query: '加载中', limit: 5 })).rejects.toMatchObject({ code: 'TIMEOUT' });
+        const script = page.evaluate.mock.calls[0][0];
+        const dom = new JSDOM('<html></html>', { url: 'https://www.xiaohongshu.com/search_result?keyword=test' });
+        const { document, MutationObserver } = dom.window;
+        document.body.remove();
+        const deadlines = [];
+        const wait = Function('document', 'MutationObserver', 'setTimeout', `return (${script});`)(
+            document,
+            MutationObserver,
+            (_callback, delay) => deadlines.push(delay),
+        );
+
+        const body = document.createElement('body');
+        body.innerHTML = '<section class="note-item"></section>';
+        document.documentElement.append(body);
+
+        await expect(wait).resolves.toBe('content');
+        expect(deadlines).toEqual([20_000]);
+    });
     it('replaces one proven-collapsed target and closes the old target after rebinding', async () => {
         const cmd = getRegistry().get('xiaohongshu/search');
         const recoveredRow = {
