@@ -47,6 +47,13 @@ describe('Error type hierarchy', () => {
     expect(err.hint).toContain('https://x.com');
   });
 
+  it('AuthRequiredError preserves a custom recovery hint in the envelope', () => {
+    const err = new AuthRequiredError('example.com', 'Session expired', 'Refresh with: example-cli login-api');
+    expect(err.hint).toBe('Refresh with: example-cli login-api');
+    expect(toEnvelope(err).error.help).toBe('Refresh with: example-cli login-api');
+    expect(err.exitCode).toBe(77);
+  });
+
   it('TimeoutError has correct code and hint', () => {
     const err = new TimeoutError('bilibili/hot', 60);
     expect(err.code).toBe('TIMEOUT');
