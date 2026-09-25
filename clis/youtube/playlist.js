@@ -61,22 +61,24 @@ cli({
         const channelName = secondaryInfo?.videoOwner?.videoOwnerRenderer?.title?.runs?.[0]?.text || '';
 
         const tabs = data.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
-        let listContents = tabs[0]?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents?.[0]?.playlistVideoListRenderer?.contents || [];
+        const sectionContents = tabs[0]?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+        let listContents = sectionContents[0]?.playlistVideoListRenderer?.contents || sectionContents;
 
         const extractVideos = ${extractPlaylistVideos.toString()};
+        const continuationToken = (item) =>
+          item?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token
+          || item?.continuationItemViewModel?.continuationCommand?.innertubeCommand?.continuationCommand?.token;
 
         let videos = extractVideos(listContents);
 
-        let contItem = listContents[listContents.length - 1];
-        while (videos.length < limit && contItem?.continuationItemRenderer) {
-          const token = contItem.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token;
-          if (!token) break;
+        let token = continuationToken(listContents[listContents.length - 1]);
+        while (videos.length < limit && token) {
           const contData = await fetchBrowse(apiKey, { context, continuation: token });
           if (contData.error) break;
           const newItems = contData.onResponseReceivedActions?.[0]?.appendContinuationItemsAction?.continuationItems || [];
           if (!newItems.length) break;
           videos = videos.concat(extractVideos(newItems));
-          contItem = newItems[newItems.length - 1];
+          token = continuationToken(newItems[newItems.length - 1]);
         }
 
         return { title, channelName, stats, videos: videos.slice(0, limit) };

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { extractJsonAssignmentFromHtml, extractSubscriptionChannel, prepareYoutubeApiPage, readYoutubeSapisid } from './utils.js';
+import { extractJsonAssignmentFromHtml, extractPlaylistVideos, extractSubscriptionChannel, prepareYoutubeApiPage, readYoutubeSapisid } from './utils.js';
 describe('youtube utils', () => {
     it('extractJsonAssignmentFromHtml parses bootstrap objects with nested braces in strings', () => {
         const html = `
@@ -49,6 +49,32 @@ describe('youtube utils', () => {
             getCookies: vi.fn().mockResolvedValue([{ name: 'SAPISID', value: 'legacy' }]),
         };
         await expect(readYoutubeSapisid(page)).resolves.toBe('legacy');
+    });
+    it('extractPlaylistVideos supports the newer lockupViewModel shape', () => {
+        expect(extractPlaylistVideos([{
+            lockupViewModel: {
+                contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+                contentId: 'abc123',
+                metadata: { lockupMetadataViewModel: {
+                    title: { content: 'Video title' },
+                    metadata: { contentMetadataViewModel: { metadataRows: [
+                        { metadataParts: [{ text: { content: 'Channel name' } }] },
+                        { metadataParts: [{ text: { content: '1.2K views' } }, { text: { content: '2 days ago' } }] },
+                    ] } },
+                } },
+                contentImage: { thumbnailViewModel: { overlays: [{
+                    thumbnailBottomOverlayViewModel: { badges: [{ thumbnailBadgeViewModel: { text: '12:34' } }] },
+                }] } },
+            },
+        }])).toEqual([{
+            rank: 1,
+            title: 'Video title',
+            channel: 'Channel name',
+            duration: '12:34',
+            views: '1.2K views',
+            published: '2 days ago',
+            url: 'https://www.youtube.com/watch?v=abc123',
+        }]);
     });
     it('extractSubscriptionChannel prefers explicit handle and subscriber count fields', () => {
         expect(extractSubscriptionChannel({

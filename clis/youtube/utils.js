@@ -107,24 +107,43 @@ async function fetchBrowse(apiKey, body) {
 }
 `;
 /**
- * Extract video objects from playlistVideoRenderer items (playlists, watch-later).
+ * Extract video objects from playlist items (playlists, watch-later).
+ * Supports both the legacy playlistVideoRenderer and the newer lockupViewModel shape.
  * Pure function — inject into page.evaluate() via: extractPlaylistVideos.toString()
  */
 export function extractPlaylistVideos(items) {
-    return items
-        .filter(i => i.playlistVideoRenderer)
-        .map(i => {
-        const v = i.playlistVideoRenderer;
-        const infoRuns = v.videoInfo?.runs || [];
-        return {
-            rank: parseInt(v.index?.simpleText || '0', 10),
-            title: v.title?.runs?.[0]?.text || '',
-            channel: v.shortBylineText?.runs?.[0]?.text || '',
-            duration: v.lengthText?.simpleText || '',
-            views: infoRuns[0]?.text || '',
-            published: infoRuns[2]?.text || '',
-            url: 'https://www.youtube.com/watch?v=' + v.videoId,
-        };
+    return items.flatMap((item, position) => {
+        if (item.playlistVideoRenderer) {
+            const v = item.playlistVideoRenderer;
+            const infoRuns = v.videoInfo?.runs || [];
+            return [{
+                rank: parseInt(v.index?.simpleText || String(position + 1), 10),
+                title: v.title?.runs?.[0]?.text || '',
+                channel: v.shortBylineText?.runs?.[0]?.text || '',
+                duration: v.lengthText?.simpleText || '',
+                views: infoRuns[0]?.text || '',
+                published: infoRuns[2]?.text || '',
+                url: 'https://www.youtube.com/watch?v=' + v.videoId,
+            }];
+        }
+        const v = item.lockupViewModel;
+        if (!v || v.contentType !== 'LOCKUP_CONTENT_TYPE_VIDEO' || !v.contentId)
+            return [];
+        const metadata = v.metadata?.lockupMetadataViewModel;
+        const rows = metadata?.metadata?.contentMetadataViewModel?.metadataRows || [];
+        const duration = (v.contentImage?.thumbnailViewModel?.overlays || [])
+            .flatMap(overlay => overlay.thumbnailBottomOverlayViewModel?.badges || [])
+            .map(badge => badge.thumbnailBadgeViewModel?.text || '')
+            .find(Boolean) || '';
+        return [{
+            rank: position + 1,
+            title: metadata?.title?.content || '',
+            channel: rows[0]?.metadataParts?.[0]?.text?.content || '',
+            duration,
+            views: rows[1]?.metadataParts?.[0]?.text?.content || '',
+            published: rows[1]?.metadataParts?.[1]?.text?.content || '',
+            url: 'https://www.youtube.com/watch?v=' + v.contentId,
+        }];
     });
 }
 /**
