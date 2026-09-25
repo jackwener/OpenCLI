@@ -119,7 +119,7 @@ export class TimeoutError extends CliError {
     super(
       'TIMEOUT',
       `${label} timed out after ${seconds}s`,
-      hint ?? 'Try again, or increase timeout with --timeout <seconds> (or OPENCLI_BROWSER_COMMAND_TIMEOUT for the global default)',
+      hint ?? 'Try again, or raise the global default with OPENCLI_BROWSER_COMMAND_TIMEOUT=<seconds>',
       EXIT_CODES.TEMPFAIL,
     );
   }
