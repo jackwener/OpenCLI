@@ -654,3 +654,72 @@ describe('cdp command deadline', () => {
     await assertion;
   });
 });
+
+describe('cdp setFileInputFiles', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function createUploadChromeMock() {
+    const debuggerEventListeners: Array<(source: { tabId?: number }, method: string, params: any) => void> = [];
+    const calls: Array<{ method: string; params: any }> = [];
+    const debuggerApi = {
+      attach: vi.fn(async () => {}),
+      detach: vi.fn(async () => {}),
+      sendCommand: vi.fn(async (_target: unknown, method: string, params: any) => {
+        calls.push({ method, params });
+        if (method === 'Runtime.evaluate') return { result: { value: true } };
+        return {};
+      }),
+      onDetach: { addListener: vi.fn() },
+      onEvent: {
+        addListener: vi.fn((fn: (source: { tabId?: number }, method: string, params: any) => void) => { debuggerEventListeners.push(fn); }),
+        removeListener: vi.fn(),
+      },
+    };
+    const tabs = {
+      get: vi.fn(async () => ({ id: 1, windowId: 1, url: 'https://creator.xiaohongshu.com/publish/publish' })),
+      onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn() },
+    };
+    const chromeMock = { tabs, debugger: debuggerApi, scripting: {}, runtime: { id: 'opencli-test' } };
+    return { chromeMock, debuggerApi, debuggerEventListeners, calls };
+  }
+
+  it('reveals a hidden input, clicks it with a user gesture, and restores its style', async () => {
+    const { chromeMock, debuggerEventListeners, calls } = createUploadChromeMock();
+    vi.stubGlobal('chrome', chromeMock);
+
+    const mod = await import('./cdp');
+    const pending = mod.setFileInputFiles(1, ['/tmp/a.jpg'], 'input[type="file"]');
+
+    // Let the async setup run until it blocks waiting for the chooser event.
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    // Simulate Chrome's intercepted file-chooser event.
+    for (const listener of debuggerEventListeners) {
+      listener({ tabId: 1 }, 'Page.fileChooserOpened', { backendNodeId: 42 });
+    }
+
+    await pending;
+
+    const clickCall = calls.find((call) => call.method === 'Runtime.evaluate' && call.params?.userGesture === true);
+    expect(clickCall).toBeDefined();
+    expect(clickCall?.params.expression).toContain('data-opencli-file-input-style');
+
+    const setFiles = calls.find((call) => call.method === 'DOM.setFileInputFiles');
+    expect(setFiles?.params).toMatchObject({ files: ['/tmp/a.jpg'], backendNodeId: 42 });
+
+    const interceptionDisabled = calls.filter(
+      (call) => call.method === 'Page.setInterceptFileChooserDialog' && call.params?.enabled === false,
+    );
+    expect(interceptionDisabled.length).toBeGreaterThanOrEqual(1);
+  });
+});
