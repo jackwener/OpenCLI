@@ -361,6 +361,9 @@ function buildApplySearchFiltersJs(requestedFilters) {
         const requestedFilters = ${JSON.stringify(requestedFilters)};
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const text = (element) => (element?.textContent || '').replace(/\\s+/g, '').trim();
+        const sameBoundingBox = (left, right) =>
+          left.left === right.left && left.top === right.top &&
+          left.width === right.width && left.height === right.height;
         const visible = (element) => {
           if (!element) return false;
           const rect = element.getBoundingClientRect();
@@ -405,7 +408,16 @@ function buildApplySearchFiltersJs(requestedFilters) {
           const options = visibleMatches(groups[0], '.tag-container > .tags')
             .filter((option) => text(option) === request.option);
           if (options.length !== 1) {
-            return { status: 'layout', detail: options.length ? 'ambiguous_option' : 'option_not_found' };
+            const firstOption = options[0];
+            const firstRect = firstOption?.getBoundingClientRect();
+            const firstActive = firstOption?.classList.contains('active');
+            const sameRenderedOption = firstRect && options.every((option) =>
+              sameBoundingBox(option.getBoundingClientRect(), firstRect) &&
+              option.classList.contains('active') === firstActive
+            );
+            if (!sameRenderedOption) {
+              return { status: 'layout', detail: options.length ? 'ambiguous_option' : 'option_not_found' };
+            }
           }
           return { status: 'ok', option: options[0] };
         };
