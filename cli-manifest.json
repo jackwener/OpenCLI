@@ -11918,6 +11918,54 @@
   },
   {
     "site": "doubao",
+    "name": "edit-image",
+    "description": "Generate images from a prompt, or edit an uploaded image with a prompt, in a new Doubao conversation",
+    "access": "write",
+    "domain": "www.doubao.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "prompt",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Editing instruction (with --image) or generation prompt (without)"
+      },
+      {
+        "name": "image",
+        "type": "str",
+        "required": false,
+        "help": "Absolute path of an image file to edit; omit for text-to-image"
+      },
+      {
+        "name": "out",
+        "type": "str",
+        "required": false,
+        "help": "Output directory (default: ~/Downloads/doubao-edit)"
+      },
+      {
+        "name": "timeout",
+        "type": "int",
+        "default": 180,
+        "required": false,
+        "help": "Max seconds to wait for generation (min: 30)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "ConversationId",
+      "SavedTo",
+      "Url"
+    ],
+    "type": "js",
+    "modulePath": "doubao/edit-image.js",
+    "sourceFile": "doubao/edit-image.js",
+    "navigateBefore": false,
+    "siteSession": "persistent"
+  },
+  {
+    "site": "doubao",
     "name": "history",
     "description": "List conversation history from Doubao sidebar",
     "access": "read",
