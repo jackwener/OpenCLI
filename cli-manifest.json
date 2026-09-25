@@ -7319,6 +7319,103 @@
     "sourceFile": "chess/stats.js"
   },
   {
+    "site": "clarity",
+    "name": "audit",
+    "description": "Check Google Analytics / Google Tag Manager (and Ads) integration status across every Clarity project, and flag the ones that still need setting up. Read-only.",
+    "access": "read",
+    "example": "opencli clarity audit -f table",
+    "domain": "clarity.microsoft.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project-ids",
+        "type": "string",
+        "required": false,
+        "help": "Comma-separated project ids to check. Omit to auto-discover every project on the account."
+      },
+      {
+        "name": "required",
+        "type": "string",
+        "default": "Google Analytics,Google Tag Manager",
+        "required": false,
+        "help": "Comma-separated integrations that must be Connected. Default: Google Analytics,Google Tag Manager"
+      },
+      {
+        "name": "only-issues",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Return only projects whose verdict is not ok."
+      }
+    ],
+    "columns": [
+      "ProjectId",
+      "Name",
+      "GoogleAnalytics",
+      "GoogleTagManager",
+      "GoogleAds",
+      "MicrosoftAds",
+      "Verdict"
+    ],
+    "type": "js",
+    "modulePath": "clarity/audit.js",
+    "sourceFile": "clarity/audit.js",
+    "navigateBefore": false,
+    "siteSession": "ephemeral"
+  },
+  {
+    "site": "clarity",
+    "name": "integrations",
+    "description": "Read Microsoft Clarity Setup-tab integration status (GTM, Google Analytics, Google Ads, Microsoft Ads) for one project. Read-only; never connects or disconnects anything.",
+    "access": "read",
+    "example": "opencli clarity integrations a1b2c3d4e5 -f json",
+    "domain": "clarity.microsoft.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "project-id",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "Clarity project id, e.g. a1b2c3d4e5 (from the /projects/view/<id>/ URL)."
+      }
+    ],
+    "columns": [
+      "Project",
+      "Integration",
+      "Status",
+      "Detail"
+    ],
+    "type": "js",
+    "modulePath": "clarity/integrations.js",
+    "sourceFile": "clarity/integrations.js",
+    "navigateBefore": false,
+    "siteSession": "ephemeral"
+  },
+  {
+    "site": "clarity",
+    "name": "projects",
+    "description": "List every Microsoft Clarity project this account can see, with its project id — the id `clarity integrations` and `clarity audit` take.",
+    "access": "read",
+    "example": "opencli clarity projects -f json",
+    "domain": "clarity.microsoft.com",
+    "strategy": "ui",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "ProjectId",
+      "Name",
+      "Site"
+    ],
+    "type": "js",
+    "modulePath": "clarity/projects.js",
+    "sourceFile": "clarity/projects.js",
+    "navigateBefore": false,
+    "siteSession": "ephemeral"
+  },
+  {
     "site": "claude",
     "name": "ask",
     "description": "Send a prompt to Claude and get the response",
