@@ -1739,17 +1739,19 @@ async function handleNavigate(cmd: Command, leaseKey: string): Promise<Result> {
     return pageScopedResult(cmd.id, tabId, { title: beforeTab.title, url: beforeTab.url, timedOut: false });
   }
 
-  // Detach any existing debugger before top-level navigation unless network
-  // capture is already armed on this tab. Otherwise we would clear the capture
-  // state right before the page load we are trying to observe.
-  // Some sites (observed on creator.xiaohongshu.com flows) can invalidate the
-  // current inspected target during navigation, which leaves a stale CDP attach
-  // state and causes the next Runtime.evaluate to fail with
-  // "Inspected target navigated or closed". Resetting here forces a clean
-  // re-attach after navigation when capture is not active.
-  if (!executor.hasActiveNetworkCapture(tabId)) {
-    await executor.detach(tabId);
-  }
+  // Decide before navigating: detaching the debugger immediately before a
+  // top-level chrome.tabs.update is rejected by Chromium 152+ with
+  // "Navigation rejected.", while navigating with the debugger still attached
+  // succeeds (trace mode, which keeps its network capture armed, already takes
+  // that path). Detaching still matters, because some sites (observed on
+  // creator.xiaohongshu.com flows) can invalidate the current inspected target
+  // during navigation, which leaves a stale CDP attach state and causes the
+  // next Runtime.evaluate to fail with "Inspected target navigated or closed".
+  // So keep the debugger attached across the navigation and reset afterwards,
+  // unless network capture is already armed on this tab — detaching then would
+  // clear the capture state right before the page load we are trying to
+  // observe.
+  const detachAfterNavigate = !executor.hasActiveNetworkCapture(tabId);
 
   await chrome.tabs.update(tabId, { url: targetUrl });
 
@@ -1815,6 +1817,13 @@ async function handleNavigate(cmd: Command, leaseKey: string): Promise<Result> {
     } catch (moveErr) {
       console.warn(`[opencli] Failed to recover drifted tab: ${moveErr}`);
     }
+  }
+
+  // Reset the debugger after navigation settled (see above): the navigation
+  // itself ran with the debugger attached, so Chromium 152+ no longer rejects
+  // it, and the next command still starts from a clean re-attach.
+  if (detachAfterNavigate) {
+    await executor.detach(tabId);
   }
 
   return pageScopedResult(cmd.id, tabId, { title: tab.title, url: tab.url, timedOut });
