@@ -263,6 +263,7 @@ opencli plugin uninstall my-tool
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金 (Juejin) hot articles |
 | [opencli-plugin-vk](https://github.com/flobo3/opencli-plugin-vk) | JS | VK (VKontakte) wall, feed, and search |
 | [opencli-plugin-x-article-publisher](https://github.com/genoooool/opencli-plugin-x-article-publisher) | JS | Publish Markdown with local images as X long-form Articles via OpenCLI and xPoster |
+| [opencli-plugin-claspo](https://github.com/vecyang1/opencli-plugin-claspo) | JS | Claspo widget automation: multi-step appearance extraction, surgical text patching, and live publishing |
 
 See [Plugins Guide](./docs/guide/plugins.md) for creating your own plugin.
 
