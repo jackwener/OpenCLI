@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `opencli reddit hot` | Hot posts from a subreddit (or frontpage if none) |
+| `opencli reddit hot` | Hot posts from a subreddit (or r/popular if none) |
 | `opencli reddit frontpage` | Frontpage / r/all listing |
 | `opencli reddit home` | **Personalized Best feed (requires login)** |
 | `opencli reddit popular` | Trending posts on /r/popular |

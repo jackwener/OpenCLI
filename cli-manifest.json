@@ -32800,7 +32800,7 @@
         "type": "str",
         "default": "",
         "required": false,
-        "help": "Subreddit name (e.g. programming). Empty for frontpage"
+        "help": "Subreddit name (e.g. programming). Empty for r/popular"
       },
       {
         "name": "limit",
