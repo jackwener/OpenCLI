@@ -625,6 +625,38 @@ describe('BasePage native input routing', () => {
     expect(page.scripts[2]).toContain('el.click()');
   });
 
+  it('does not trust a CDP click on a hidden renderer, and says the click was JS', async () => {
+    // Regression: a background tab / minimized or occluded window still
+    // measures a perfectly valid rect and hit-test, but Chrome drops the
+    // synthesized mouse events. The old code reported `clicked: true` for a
+    // click the page never received.
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { x: 50, y: 100, w: 200, h: 32, visible: true, hit: 'target', pageVisible: false },
+      { status: 'clicked', x: 50, y: 100 },
+    ];
+
+    await expect(page.click('#category')).resolves.toMatchObject({ click_method: 'js' });
+
+    expect(page.nativeClick).not.toHaveBeenCalled();
+    expect(page.scripts.at(-1)).toContain('el.click()');
+  });
+
+  it('keeps using CDP when the renderer is visible', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { x: 50, y: 100, w: 200, h: 32, visible: true, hit: 'target', pageVisible: true },
+    ];
+
+    await expect(page.click('#category')).resolves.toMatchObject({ click_method: 'cdp' });
+
+    expect(page.nativeClick).toHaveBeenCalledWith(50, 100);
+  });
+
   it('falls back to JS el.click() when rect is zero-area', async () => {
     const page = new ActionPage();
     page.nativeClick = vi.fn().mockResolvedValue(undefined);
@@ -671,6 +703,17 @@ describe('BasePage native input routing', () => {
     expect(page.scripts.at(-1)).toContain('getBoundingClientRect');
   });
 
+  it('skips native hover on a hidden renderer and dispatches synthetic pointer events', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [resolveOk, { x: 70, y: 80, w: 100, h: 20, visible: true, pageVisible: false }];
+
+    await expect(page.hover('#menu')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).not.toHaveBeenCalledWith('Input.dispatchMouseEvent', expect.anything());
+    expect(page.scripts.at(-1)).toContain('pointerover');
+  });
+
   it('focuses through CDP DOM.focus when available', async () => {
     const page = new ActionPage();
     page.cdp = vi.fn(async (method: string) => {
@@ -713,6 +756,17 @@ describe('BasePage native input routing', () => {
     expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 20, y: 30 });
     expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mousePressed', x: 20, y: 30, button: 'left', clickCount: 2 });
     expect(page.cdp).toHaveBeenCalledWith('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 20, y: 30, button: 'left', clickCount: 2 });
+  });
+
+  it('skips native double-click on a hidden renderer and dispatches a synthetic dblclick', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [resolveOk, { x: 20, y: 30, w: 100, h: 20, visible: true, pageVisible: false }];
+
+    await expect(page.dblClick('#row')).resolves.toEqual({ matches_n: 1, match_level: 'exact' });
+
+    expect(page.cdp).not.toHaveBeenCalledWith('Input.dispatchMouseEvent', expect.anything());
+    expect(page.scripts.at(-1)).toContain("new MouseEvent('dblclick'");
   });
 
   it('checks a checkbox only when its current state differs', async () => {
@@ -836,6 +890,27 @@ describe('BasePage native input routing', () => {
     expect(page.setFileInput).not.toHaveBeenCalled();
   });
 
+  it('refuses to drag on a hidden renderer instead of reporting dragged: true', async () => {
+    // Drag has no DOM fallback that reproduces a native pointer drag, so the
+    // only honest answer on a hidden renderer is an error.
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [
+      resolveOk,
+      { x: 10, y: 20, w: 30, h: 20, visible: true },
+      { ok: true, matches_n: 2, match_level: 'stable' },
+      {
+        source: { x: 10, y: 20, w: 30, h: 20, visible: true },
+        target: { x: 110, y: 120, w: 40, h: 30, visible: true },
+        pageVisible: false,
+      },
+    ];
+
+    await expect(page.drag('#card', '.lane', { to: { nth: 1 } })).rejects.toThrow(/hidden/i);
+
+    expect(page.cdp).not.toHaveBeenCalledWith('Input.dispatchMouseEvent', expect.anything());
+  });
+
   it('drags between two resolved element centers via native CDP mouse events', async () => {
     const page = new ActionPage();
     page.cdp = vi.fn().mockResolvedValue({});
@@ -869,21 +944,48 @@ describe('BasePage native input routing', () => {
   it('presses key chords through native CDP key events when available', async () => {
     const page = new ActionPage();
     page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);
+    page.results = [true];
 
     await page.pressKey('Control+a');
 
     expect(page.nativeKeyPress).toHaveBeenCalledWith('a', ['Ctrl']);
-    expect(page.scripts).toHaveLength(0);
+    // Only the visibility probe runs; no synthetic keyboard script.
+    expect(page.scripts).toHaveLength(1);
+    expect(page.scripts[0]).toContain('visibilityState');
   });
 
   it('falls back to synthetic keyboard events with parsed modifiers', async () => {
     const page = new ActionPage();
+    page.results = [true];
 
     await page.pressKey('Meta+N');
 
-    expect(page.scripts).toHaveLength(1);
-    expect(page.scripts[0]).toContain('key: "N"');
-    expect(page.scripts[0]).toContain('metaKey: true');
+    expect(page.scripts).toHaveLength(2);
+    expect(page.scripts[1]).toContain('key: "N"');
+    expect(page.scripts[1]).toContain('metaKey: true');
+  });
+
+  it('skips native key dispatch on a hidden renderer and uses synthetic events', async () => {
+    const page = new ActionPage();
+    page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);
+    page.results = [false];
+
+    await page.pressKey('Enter');
+
+    expect(page.nativeKeyPress).not.toHaveBeenCalled();
+    expect(page.scripts).toHaveLength(2);
+    expect(page.scripts[0]).toContain('visibilityState');
+    expect(page.scripts[1]).toContain('key: "Enter"');
+  });
+
+  it('still dispatches natively when the visibility probe itself fails', async () => {
+    const page = new ActionPage();
+    page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);
+    page.evaluate = vi.fn().mockRejectedValue(new Error('probe blew up')) as never;
+
+    await page.pressKey('Enter');
+
+    expect(page.nativeKeyPress).toHaveBeenCalledWith('Enter', []);
   });
 });
 

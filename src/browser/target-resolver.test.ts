@@ -150,6 +150,36 @@ describe('boundingRectResolvedJs runtime behavior', () => {
  * and verifying the structure of the output.
  */
 
+describe('boundingRectResolvedJs page visibility', () => {
+  /** Same runner as runRect, but with a controllable document.visibilityState. */
+  function runRectWithVisibility(visibilityState: string, opts: { forClick: boolean }) {
+    const btn = makeEl({ tag: 'button', rect: { left: 0, top: 0, width: 100, height: 40 } });
+    const js = boundingRectResolvedJs({ skipScroll: true, ...(opts.forClick ? { forClick: true } : {}) });
+    return new Function('window', 'document', 'return (' + js + ')')(
+      { __resolved: btn, getComputedStyle: () => ({ cursor: 'auto' }) },
+      { visibilityState, elementFromPoint: () => btn },
+    );
+  }
+
+  it('reports pageVisible=false for a hidden renderer so the caller can skip CDP input', () => {
+    // Geometry and hit-testing still look perfect on a hidden renderer; this
+    // flag is the only signal that synthesized input will be dropped.
+    const out = runRectWithVisibility('hidden', { forClick: true });
+    expect(out.visible).toBe(true);
+    expect(out.hit).toBe('target');
+    expect(out.pageVisible).toBe(false);
+  });
+
+  it('reports pageVisible=true for a visible renderer', () => {
+    expect(runRectWithVisibility('visible', { forClick: true }).pageVisible).toBe(true);
+  });
+
+  it('reports pageVisible in hover/dblClick mode too', () => {
+    expect(runRectWithVisibility('hidden', { forClick: false }).pageVisible).toBe(false);
+    expect(runRectWithVisibility('visible', { forClick: false }).pageVisible).toBe(true);
+  });
+});
+
 describe('resolveTargetJs', () => {
   it('generates JS that returns structured resolution for numeric ref', () => {
     const js = resolveTargetJs('12');

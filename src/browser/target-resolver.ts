@@ -300,6 +300,14 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
  * Generic click prefers CDP `Input.dispatchMouseEvent`, which fires the full
  * pointer/mouse chain that Radix/MUI/shadcn dropdowns rely on. Keep measurement
  * separate so the CDP-primary path does not call DOM `el.click()` first.
+ *
+ * `pageVisible` reports `document.visibilityState !== 'hidden'`. Chrome drops
+ * synthesized `Input.*` events for a renderer that is not being composited
+ * (background tab, minimized or fully occluded window) while the CDP call
+ * still resolves, so the caller must not treat the native path as trustworthy
+ * there. Measuring it here keeps the check free: geometry and hit-testing
+ * already need this round trip, and both keep working while hidden — which is
+ * exactly why the silent failure was invisible.
  */
 export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: boolean } = {}): string {
   const shouldScroll = opts.skipScroll ? 'false' : 'true';
@@ -321,6 +329,7 @@ export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: 
           w: Math.round(r0.width),
           h: Math.round(r0.height),
           visible: Math.round(r0.width) > 0 && Math.round(r0.height) > 0,
+          pageVisible: document.visibilityState !== 'hidden',
         };
       }
 
@@ -409,7 +418,7 @@ export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: 
           if (hc === 'target' || hc === 'ancestor') { x = px; y = py; hit = hc; break; }
         }
       }
-      return { x, y, w, h, visible, hit, retargeted };
+      return { x, y, w, h, visible, hit, retargeted, pageVisible: document.visibilityState !== 'hidden' };
     })()
   `;
 }
