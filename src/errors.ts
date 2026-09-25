@@ -103,11 +103,11 @@ export class ConfigError extends CliError {
 
 export class AuthRequiredError extends CliError {
   readonly domain: string;
-  constructor(domain: string, message?: string) {
+  constructor(domain: string, message?: string, hint?: string) {
     super(
       'AUTH_REQUIRED',
       message ?? `Not logged in to ${domain}`,
-      `Please open Chrome or Chromium and log in to https://${domain}`,
+      hint ?? `Please open Chrome or Chromium and log in to https://${domain}`,
       EXIT_CODES.NOPERM,
     );
     this.domain = domain;
