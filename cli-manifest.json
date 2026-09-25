@@ -17224,6 +17224,297 @@
     "sourceFile": "guazi/car.js"
   },
   {
+    "site": "gutenberg",
+    "name": "author",
+    "description": "List all books by a Project Gutenberg author",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Author number, for example 69"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "downloads",
+        "required": false,
+        "help": "Sort by title, downloads, or release_date",
+        "choices": [
+          "title",
+          "downloads",
+          "release_date"
+        ]
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "author",
+      "url",
+      "downloads"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/author.js",
+    "sourceFile": "gutenberg/author.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "categories",
+    "description": "List Project Gutenberg Reading List categories, optionally filtered by initial",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "initial",
+        "type": "str",
+        "required": false,
+        "help": "Initial letter A-Z; returns all categories by default"
+      }
+    ],
+    "columns": [
+      "id",
+      "initial",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/categories.js",
+    "sourceFile": "gutenberg/categories.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "category-search",
+    "description": "Search Project Gutenberg bookshelf categories",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "query",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Category search query"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "downloads",
+        "required": false,
+        "help": "Sort by title, downloads, quantity, or release_date",
+        "choices": [
+          "title",
+          "downloads",
+          "quantity",
+          "release_date"
+        ]
+      }
+    ],
+    "columns": [
+      "name",
+      "downloads",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/category-search.js",
+    "sourceFile": "gutenberg/category-search.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "collections",
+    "description": "List the top Collections from Project Gutenberg Reading Lists",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/collections.js",
+    "sourceFile": "gutenberg/collections.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "ebooks",
+    "description": "Get Project Gutenberg ebook metadata and download URLs for all formats",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Gutenberg ebook number, for example 30849"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "author",
+      "summary",
+      "language",
+      "subjects",
+      "releaseDate",
+      "lastUpdate",
+      "copyright",
+      "downloads",
+      "readOnlineUrl",
+      "url",
+      "formats"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/ebooks.js",
+    "sourceFile": "gutenberg/ebooks.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "hot-author",
+    "description": "List the Project Gutenberg top author rankings",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results (1-100)"
+      },
+      {
+        "name": "period",
+        "type": "str",
+        "default": "yesterday",
+        "required": false,
+        "help": "Period: yesterday, 7days, or 30days"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/hot-author.js",
+    "sourceFile": "gutenberg/hot-author.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "hot-books",
+    "description": "List the Project Gutenberg top book rankings",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results (1-100)"
+      },
+      {
+        "name": "period",
+        "type": "str",
+        "default": "yesterday",
+        "required": false,
+        "help": "Period: yesterday, 7days, or 30days"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/hot-books.js",
+    "sourceFile": "gutenberg/hot-books.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "main-categories",
+    "description": "List Project Gutenberg main book categories and parent categories",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [],
+    "columns": [
+      "id",
+      "name",
+      "parentName",
+      "url"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/main-categories.js",
+    "sourceFile": "gutenberg/main-categories.js"
+  },
+  {
+    "site": "gutenberg",
+    "name": "search",
+    "description": "Search Project Gutenberg books, returning 10 results by default",
+    "access": "read",
+    "domain": "www.gutenberg.org",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "title",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "positional": true,
+        "help": "Optional book title or keyword"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "downloads",
+        "required": false,
+        "help": "Sort by title, downloads, or release_date",
+        "choices": [
+          "title",
+          "downloads",
+          "release_date"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "Number of results (1-100)"
+      }
+    ],
+    "columns": [
+      "id",
+      "title",
+      "author",
+      "url",
+      "downloads"
+    ],
+    "type": "js",
+    "modulePath": "gutenberg/search.js",
+    "sourceFile": "gutenberg/search.js"
+  },
+  {
     "site": "hackernews",
     "name": "ask",
     "description": "Hacker News Ask HN posts",

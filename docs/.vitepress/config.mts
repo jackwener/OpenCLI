@@ -137,6 +137,7 @@ export default defineConfig({
                 { text: 'Xiaoyuzhou', link: '/adapters/browser/xiaoyuzhou' },
                 { text: 'Yahoo Finance', link: '/adapters/browser/yahoo-finance' },
                 { text: 'Internet Archive', link: '/adapters/browser/archive' },
+                { text: 'Gutenberg', link: '/adapters/browser/gutenberg' },
                 { text: 'arXiv', link: '/adapters/browser/arxiv' },
                 { text: 'dblp', link: '/adapters/browser/dblp' },
                 { text: 'PubMed', link: '/adapters/browser/pubmed' },
