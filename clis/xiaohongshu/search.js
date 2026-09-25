@@ -7,7 +7,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, AuthRequiredError, CliError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './shared.js';
+import { navigateFresh, unwrapEvaluateResult } from './shared.js';
 /**
  * Wait for search results or login wall using MutationObserver (max 5s).
  * Returns 'content' if note items appeared, a typed wall state when login or
@@ -404,10 +404,17 @@ function buildApplySearchFiltersJs(requestedFilters) {
           }
           const options = visibleMatches(groups[0], '.tag-container > .tags')
             .filter((option) => text(option) === request.option);
-          if (options.length !== 1) {
+          // The live layout renders each chip twice, stacked at the exact
+          // same position. Pixel-identical matches are one visual control,
+          // not an ambiguity; matches at distinct positions still fail closed.
+          const rectKey = (element) => {
+            const rect = element.getBoundingClientRect();
+            return [rect.left, rect.top, rect.width, rect.height].map((v) => Math.round(v || 0)).join(',');
+          };
+          if (!options.length || new Set(options.map(rectKey)).size !== 1) {
             return { status: 'layout', detail: options.length ? 'ambiguous_option' : 'option_not_found' };
           }
-          return { status: 'ok', option: options[0] };
+          return { status: 'ok', option: options.find((o) => o.classList.contains('active')) || options[0] };
         };
         const isActive = (option) => option.classList.contains('active');
         const ready = () => visibleMatches(document, 'section.note-item, section:has(a[href*="/search_result/"]), section:has(a[href*="/explore/"]), .search-empty-wrapper').length > 0;
@@ -870,6 +877,7 @@ export const command = cli({
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         { name: 'query', required: true, positional: true, help: 'Search keyword' },
         { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
@@ -886,7 +894,10 @@ export const command = cli({
             const requestedFilters = resolveSearchFilters(kwargs);
             const keyword = encodeURIComponent(kwargs.query);
             const url = `https://www.xiaohongshu.com/search_result?keyword=${keyword}&source=web_search_result_notes`;
-            await page.goto(url);
+            // Repeating the same query on a warm persistent tab must load
+            // fresh results; a fast-pathed goto would reread the previous
+            // run's scroll-accumulated DOM.
+            await navigateFresh(page, url);
             let harvest = await collectSearchHarvest(page, limit, requestedFilters);
             if (isCollapsedRender(harvest.diag)) {
                 await replaceCollapsedTab(page, url);

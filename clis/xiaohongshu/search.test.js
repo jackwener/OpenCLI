@@ -17,6 +17,9 @@ import {
 function markVisible(el) {
     el.getBoundingClientRect = () => ({ width: 100, height: 100, top: 0 });
 }
+function markVisibleAt(el, top) {
+    el.getBoundingClientRect = () => ({ width: 100, height: 100, top });
+}
 function createPageMock(evaluateResults) {
     const queuedResults = [...evaluateResults];
     const evaluate = vi.fn(async (script) => {
@@ -144,8 +147,12 @@ function createFilterBehaviorPage(options = {}) {
             const container = document.createElement('div');
             container.className = 'tag-container';
             for (const choice of choices) {
-                if (options.missing === `${groupLabel}/${choice}`) continue;
-                const copies = options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
+                const key = `${groupLabel}/${choice}`;
+                if (options.missing === key) continue;
+                // `duplicated` doubles every chip at the same rect (the live
+                // 2026-09 layout); `ambiguous` places the second copy at a
+                // different position — genuinely two distinct controls.
+                const copies = options.ambiguous === key || options.duplicated ? 2 : 1;
                 for (let copy = 0; copy < copies; copy++) {
                     const option = document.createElement('div');
                     option.className = `tags${state[groupLabel] === choice ? ' active' : ''}`;
@@ -173,7 +180,8 @@ function createFilterBehaviorPage(options = {}) {
                         }, 300);
                     });
                     container.append(option);
-                    markVisible(option);
+                    if (copy > 0 && options.ambiguous === key) markVisibleAt(option, 60);
+                    else markVisible(option);
                     markVisible(optionLabel);
                 }
             }
@@ -196,6 +204,7 @@ function createFilterBehaviorPage(options = {}) {
     const page = createPageMock([]);
     page.evaluate.mockImplementation(async (script) => {
         const source = String(script);
+        if (source.includes('location.reload')) return undefined;
         if (source.includes('findNoteCard')) return 'content';
         if (source.includes('const requestedFilters =')) {
             return Function(
@@ -702,6 +711,19 @@ describe('xiaohongshu search filter behavior', () => {
         }
     });
 
+    it('treats stacked duplicate chips (identical rects) as one option — live layout 2026-09', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ duplicated: true });
+            const result = await runFilterCommand(page, { sort: 'latest' });
+            expect(result[0].title).toBe('最新');
+            expect(page.filterState).toMatchObject({ '排序依据': '最新' });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('fails closed for ambiguous visible options and unavailable account-scoped options', async () => {
         vi.useFakeTimers();
         try {
@@ -1052,5 +1074,43 @@ describe('noteIdToDate (ObjectID timestamp parsing)', () => {
     it('returns empty string when timestamp is out of range', () => {
         // All zeros → ts = 0
         expect(noteIdToDate('https://www.xiaohongshu.com/search_result/000000000000000000000000')).toBe('');
+    });
+});
+
+describe('xiaohongshu search warm-tab freshness', () => {
+    it('forces a reload when the persistent tab already shows this exact search URL', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage();
+            page.getCurrentUrl = vi.fn().mockResolvedValue(
+                'https://www.xiaohongshu.com/search_result?keyword=test&source=web_search_result_notes',
+            );
+            const reloadCalls = () => page.evaluate.mock.calls.filter(([s]) => String(s).includes('location.reload')).length;
+            // The filter fixture's URL is baked as keyword=test; run the same query.
+            const result = await runFilterCommand(page, { query: 'test' });
+            expect(result.length).toBeGreaterThan(0);
+            expect(page.goto).not.toHaveBeenCalled();
+            expect(reloadCalls()).toBe(1);
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('navigates normally for a different query URL', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage();
+            page.getCurrentUrl = vi.fn().mockResolvedValue(
+                'https://www.xiaohongshu.com/search_result?keyword=other&source=web_search_result_notes',
+            );
+            await runFilterCommand(page, { query: 'test' });
+            expect(page.goto).toHaveBeenCalledWith(
+                'https://www.xiaohongshu.com/search_result?keyword=test&source=web_search_result_notes',
+            );
+        }
+        finally {
+            vi.useRealTimers();
+        }
     });
 });

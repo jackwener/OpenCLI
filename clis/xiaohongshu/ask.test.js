@@ -70,7 +70,7 @@ describe('xiaohongshu ask', () => {
             rank: 1,
             type: 'note',
             title: '新手露营有哪些建议？',
-            url: 'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646?xsec_token=tok+123&xsec_source=',
+            url: 'https://www.xiaohongshu.com/explore/69d6fc08000000001f007646?xsec_token=tok+123&xsec_source=pc_share',
             note_id: '69d6fc08000000001f007646',
             xsec_token: 'tok 123',
             author: '郑小喜',

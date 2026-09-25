@@ -14,7 +14,7 @@
  */
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { unwrapEvaluateResult } from './shared.js';
+import { navigateFresh, unwrapEvaluateResult } from './shared.js';
 
 function parseLimit(raw) {
     const parsed = Number(raw ?? 20);
@@ -74,10 +74,11 @@ function toCleanString(value) {
  * Build a signed note URL for the given web host. Falls back to the bare
  * /explore/{id} URL when the caller intentionally passes no token.
  *
- * The `xsec_source` param mirrors what XHS itself renders into feed-page note
- * links: an empty value. Only `xsec_token` is actually required by the note
- * detail endpoint (verified: the source value is not validated), so we
- * reproduce the real-world shape rather than inventing a source label.
+ * `xsec_source` must carry a real context label — an empty value is an
+ * anomalous shape no official surface produces and interacts badly with
+ * token validation / risk control. `pc_share` is the generic web share
+ * context that validates across consumers (profile-context builders in this
+ * adapter use `pc_user` for the same reason).
  */
 export function buildFeedNoteUrl(webHost, id, xsecToken) {
     const cleanId = toCleanString(id);
@@ -86,7 +87,7 @@ export function buildFeedNoteUrl(webHost, id, xsecToken) {
     if (!cleanToken)
         return url.toString();
     url.searchParams.set('xsec_token', cleanToken);
-    url.searchParams.set('xsec_source', '');
+    url.searchParams.set('xsec_source', 'pc_share');
     return url.toString();
 }
 
@@ -96,7 +97,10 @@ export function buildFeedNoteUrl(webHost, id, xsecToken) {
  */
 export async function runFeed(page, kwargs, webHost) {
     const limit = parseLimit(kwargs.limit);
-    await page.goto(`https://${webHost}/explore`);
+    // A warm persistent tab parked on /explore serves the identical hydrated
+    // feed forever if navigation fast-paths (observed live). Feed exists to
+    // deliver fresh content; force a real page load every time.
+    await navigateFresh(page, `https://${webHost}/explore`);
     // Pinia store hydrates from SSR; give the page a beat to finish
     // bootstrapping before reading the array.
     await page.wait({ time: 2 });
@@ -149,6 +153,7 @@ export const command = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         { name: 'limit', type: 'int', default: 20, help: 'Number of items to return' },
     ],

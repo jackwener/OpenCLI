@@ -1,6 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
-import { AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
+import { AuthRequiredError, CliError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { extractXhsUserNotes, normalizeXhsUserId } from './user-helpers.js';
+import { navigateFresh } from './shared.js';
 /**
  * Host-agnostic IIFE that snapshots the user profile's Pinia store. Exported
  * so the rednote adapter can reuse it without copying the safeClone block.
@@ -26,6 +27,7 @@ export const USER_SNAPSHOT_JS = `
       const pathName = (typeof location !== 'undefined' && location.pathname) ? location.pathname : '';
       const onLoginPage = pathName.indexOf('/login') === 0;
       return {
+        pathname: pathName,
         noteGroups: safeClone(rawNotes || []),
         pageData: safeClone(rawPageData || {}),
         storePresent: hasUserStore,
@@ -78,13 +80,30 @@ function throwLoginWallAuthRequired() {
  * `page.wait` 后重试至多 maxRetries 次。命中登录墙立即停（再等无用，交给 caller 抛 AUTH_REQUIRED）；
  * 真·空号（销号/私密/全删）走满重试后返回空快照，由下游 EmptyResultError 正确收尾。导出供测试。
  */
-export async function readUserSnapshotHydrated(page, maxRetries = 8, waitSeconds = 2) {
+export async function readUserSnapshotHydrated(page, maxRetries = 8, waitSeconds = 2, expectedPath = null) {
     let snapshot = await readUserSnapshot(page);
-    for (let i = 0; i < maxRetries && !isLoginWallSnapshot(snapshot) && countFlatNotes(snapshot) === 0; i += 1) {
+    for (let i = 0; i < maxRetries
+        && !isLoginWallSnapshot(snapshot)
+        && !isWrongProfilePath(snapshot, expectedPath)
+        && countFlatNotes(snapshot) === 0; i += 1) {
         await page.wait({ time: waitSeconds });
         snapshot = await readUserSnapshot(page);
     }
     return snapshot;
+}
+/**
+ * A snapshot taken from a page whose pathname is a DIFFERENT profile (or a
+ * non-profile page): a concurrent command on the shared persistent tab
+ * navigated it away mid-read. Snapshots without a pathname (older extract
+ * shapes, rednote fixtures) are never flagged.
+ */
+function isWrongProfilePath(snapshot, expectedPath) {
+    if (!expectedPath)
+        return false;
+    const landed = snapshot && typeof snapshot === 'object' ? snapshot.pathname : null;
+    if (typeof landed !== 'string' || landed === '')
+        return false;
+    return landed !== expectedPath && !landed.startsWith(`${expectedPath}/`);
 }
 export const command = cli({
     site: 'xiaohongshu',
@@ -95,6 +114,7 @@ export const command = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         { name: 'id', type: 'string', required: true, positional: true, help: 'User id or profile URL' },
         { name: 'limit', type: 'int', default: 15, help: 'Number of notes to return' },
@@ -103,8 +123,22 @@ export const command = cli({
     func: async (page, kwargs) => {
         const userId = normalizeXhsUserId(String(kwargs.id));
         const limit = Math.max(1, Number(kwargs.limit ?? 15));
-        await page.goto(`https://www.xiaohongshu.com/user/profile/${userId}`);
-        let snapshot = await readUserSnapshotHydrated(page);
+        const url = `https://www.xiaohongshu.com/user/profile/${userId}`;
+        const expectedPath = `/user/profile/${userId}`;
+        // Warm persistent tab on this same profile: force a real reload so the
+        // __INITIAL_STATE__ snapshot is current, not the last visit's.
+        await navigateFresh(page, url);
+        let snapshot = await readUserSnapshotHydrated(page, 8, 2, expectedPath);
+        if (isWrongProfilePath(snapshot, expectedPath)) {
+            // Shared-tab contention: another command navigated the tab away
+            // mid-read. One re-navigation wins the tab back; a second mismatch
+            // fails typed instead of returning another profile's notes.
+            await page.goto(url);
+            snapshot = await readUserSnapshotHydrated(page, 8, 2, expectedPath);
+            if (isWrongProfilePath(snapshot, expectedPath)) {
+                throw new CliError('TAB_CONTENTION', 'Xiaohongshu profile page was navigated away mid-read by a concurrent command on the same site session.', 'Run xiaohongshu commands for the same profile sequentially — parallel reads share one browser tab under the persistent site session.');
+            }
+        }
         if (isLoginWallSnapshot(snapshot)) {
             // profile 页登录态失效 → 302 到 /login。绝不能误报成 "Malformed user store" /
             // EMPTY_RESULT —— 那会让下游（ml-scout 等）把登录失效当解析失败 / 空号，白等

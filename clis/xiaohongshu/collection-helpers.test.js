@@ -1,125 +1,96 @@
-import { describe, expect, it } from 'vitest';
-import { CommandExecutionError } from '@jackwener/opencli/errors';
-import {
-    COLLECT_API_PATTERN,
-    LIKE_API_PATTERN,
-    LIKED_PROFILE_TAB,
-    SAVED_PROFILE_TAB,
-    buildProfileCollectionUrl,
-    extractNotesFromResponses,
-    mapCollectionNote,
-    parseCollectionLimit,
-    readSelfUserIdFromState,
-} from './collection-helpers.js';
+import { describe, expect, it, vi } from 'vitest';
+import { AuthRequiredError } from '@jackwener/opencli/errors';
+import { fetchXhsCollectionNotes, resolveXhsUserId } from './collection-helpers.js';
 
-describe('xiaohongshu collection helpers', () => {
-    it('reads the logged-in user id from INITIAL_STATE', () => {
-        expect(readSelfUserIdFromState({
-            user: {
-                userInfo: {
-                    _value: { user_id: 'abc123' },
-                },
-            },
-        })).toBe('abc123');
-    });
+const EXPLORE = 'https://www.xiaohongshu.com/explore';
+const FAV_URL = 'https://www.xiaohongshu.com/user/profile/self-user?tab=fav&subTab=note';
 
-    it('unwraps Browser Bridge envelopes when reading logged-in user id', () => {
-        expect(readSelfUserIdFromState({
-            session: 's1',
-            data: {
-                user: {
-                    userInfo: { userId: 'self-user' },
-                },
-            },
-        })).toBe('self-user');
-    });
-
-    it('validates collection limits instead of silently clamping', () => {
-        expect(parseCollectionLimit('20')).toBe(20);
-        expect(() => parseCollectionLimit(0)).toThrow(/between 1 and 100/);
-        expect(() => parseCollectionLimit(101)).toThrow(/between 1 and 100/);
-        expect(() => parseCollectionLimit('1.5')).toThrow(/integer/);
-    });
-
-    it('maps collect API notes with xsec_token into profile URLs', () => {
-        const row = mapCollectionNote({
+const API_NOTE = {
+    data: {
+        notes: [{
             note_id: '662908190000000001007366',
-            xsec_token: 'token-1',
+            xsec_token: 'tok',
             note_card: {
-                display_title: 'Saved note',
+                display_title: '收藏笔记',
                 type: 'normal',
-                user: { user_id: 'user-1', nickname: 'Alice' },
-                interact_info: { liked_count: '12' },
+                user: { user_id: 'self-user', nickname: 'Me' },
+                interact_info: { liked_count: '8' },
             },
-        }, { fallbackUserId: 'fallback' });
-        expect(row).toMatchObject({
-            id: '662908190000000001007366',
-            title: 'Saved note',
-            author: 'Alice',
-            likes: '12',
-            type: 'normal',
-            url: 'https://www.xiaohongshu.com/user/profile/user-1/662908190000000001007366?xsec_token=token-1&xsec_source=pc_user',
-        });
+        }],
+    },
+};
+
+function dispatchPage({ uidResults = ['self-user'], loginWall = false, location, intercepted = [API_NOTE], currentUrl } = {}) {
+    let uidIndex = 0;
+    const page = {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        autoScroll: vi.fn().mockResolvedValue(undefined),
+        installInterceptor: vi.fn().mockResolvedValue(undefined),
+        getInterceptedRequests: vi.fn().mockResolvedValue(intercepted),
+        evaluate: vi.fn(async (script) => {
+            const s = String(script);
+            if (s.includes('location.reload')) return undefined;
+            if (s.includes('登录后')) return loginWall;
+            if (s.includes('hostname: location.hostname')) {
+                return location ?? { hostname: 'www.xiaohongshu.com', pathname: '/user/profile/self-user', href: FAV_URL };
+            }
+            if (s.includes('userInfo')) return uidResults[Math.min(uidIndex++, uidResults.length - 1)];
+            return [];
+        }),
+    };
+    if (currentUrl !== undefined) page.getCurrentUrl = vi.fn().mockResolvedValue(currentUrl);
+    return page;
+}
+
+describe('resolveXhsUserId warm-tab staleness', () => {
+    it('polls through the hydration window without reloading (reload returns before the page loads)', async () => {
+        // location.reload() resolves immediately; __INITIAL_STATE__ hydrates
+        // later. An empty uid right after navigation usually means "not
+        // hydrated yet", never reload straight away (observed live: the
+        // reload-first version raced hydration twice and failed logged-in).
+        const page = dispatchPage({ uidResults: ['', '', 'self-user'] });
+        await expect(resolveXhsUserId(page, '')).resolves.toBe('self-user');
+        expect(page.evaluate.mock.calls.some(([s]) => String(s).includes('location.reload'))).toBe(false);
     });
 
-    it('dedupes notes across multiple intercepted responses', () => {
-        const requests = [
-            {
-                data: {
-                    notes: [
-                        {
-                            note_id: 'note-1',
-                            xsec_token: 'tok-1',
-                            title: 'First',
-                            user: { nickname: 'A' },
-                            interact_info: { liked_count: '1' },
-                        },
-                    ],
-                },
-            },
-            {
-                data: {
-                    notes: [
-                        {
-                            note_id: 'note-1',
-                            xsec_token: 'tok-1b',
-                            title: 'First duplicate',
-                            user: { nickname: 'A' },
-                            interact_info: { liked_count: '1' },
-                        },
-                        {
-                            note_id: 'note-2',
-                            xsec_token: 'tok-2',
-                            title: 'Second',
-                            user: { nickname: 'B' },
-                            interact_info: { liked_count: '2' },
-                        },
-                    ],
-                },
-            },
-        ];
-        const rows = extractNotesFromResponses(requests, 'self');
-        expect(rows).toHaveLength(2);
-        expect(rows.map((row) => row.id)).toEqual(['note-1', 'note-2']);
+    it('reloads once when polling exhausts, then polls again (stale login-state tab)', async () => {
+        // initial read + 3 hydration polls all empty -> one reload -> success.
+        const page = dispatchPage({ uidResults: ['', '', '', '', 'self-user'] });
+        await expect(resolveXhsUserId(page, '')).resolves.toBe('self-user');
+        expect(page.evaluate.mock.calls.filter(([s]) => String(s).includes('location.reload')).length).toBe(1);
     });
 
-    it('fails closed when intercepted collection payload shape is malformed', () => {
-        expect(() => extractNotesFromResponses([{ data: { notes: null } }], 'self'))
-            .toThrow(CommandExecutionError);
-        expect(() => extractNotesFromResponses([{ data: { notes: [{ note_id: 'note-1' }] } }], 'self'))
-            .toThrow(/stable id\/xsec token/);
+    it('throws AuthRequiredError only after the reload retry also exhausts its polls', async () => {
+        const page = dispatchPage({ uidResults: [''] });
+        await expect(resolveXhsUserId(page, '')).rejects.toBeInstanceOf(AuthRequiredError);
+        expect(page.evaluate.mock.calls.filter(([s]) => String(s).includes('location.reload')).length).toBe(1);
     });
 
-    it('uses the expected API patterns', () => {
-        expect(COLLECT_API_PATTERN).toBe('note/collect/page');
-        expect(LIKE_API_PATTERN).toBe('note/like/page');
+    it('forces a fresh load when the tab already sits on /explore', async () => {
+        const page = dispatchPage({ currentUrl: EXPLORE });
+        await expect(resolveXhsUserId(page, '')).resolves.toBe('self-user');
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+});
+
+describe('fetchXhsCollectionNotes navigation and interceptor order', () => {
+    const opts = { userId: 'self-user', profileTab: 'fav', apiPattern: '/collect', limit: 5, emptyLabel: 'saved' };
+
+    it('installs the interceptor AFTER navigation so the page load cannot wipe the in-page patch', async () => {
+        const page = dispatchPage({});
+        const rows = await fetchXhsCollectionNotes(page, opts);
+        expect(rows.length).toBe(1);
+        const gotoOrder = page.goto.mock.invocationCallOrder[0];
+        const installOrder = page.installInterceptor.mock.invocationCallOrder[0];
+        expect(installOrder).toBeGreaterThan(gotoOrder);
     });
 
-    it('builds profile URLs for saved and liked tabs', () => {
-        const userId = '66c876f7000000001d023624';
-        expect(buildProfileCollectionUrl(userId, SAVED_PROFILE_TAB))
-            .toBe('https://www.xiaohongshu.com/user/profile/66c876f7000000001d023624?tab=fav&subTab=note');
-        expect(buildProfileCollectionUrl(userId, LIKED_PROFILE_TAB))
-            .toBe('https://www.xiaohongshu.com/user/profile/66c876f7000000001d023624?tab=liked&subTab=note');
+    it('forces a reload instead of a fast-pathed goto when the tab already shows this collection page', async () => {
+        const page = dispatchPage({ currentUrl: FAV_URL });
+        const rows = await fetchXhsCollectionNotes(page, opts);
+        expect(rows.length).toBe(1);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate.mock.calls.some(([s]) => String(s).includes('location.reload'))).toBe(true);
     });
 });

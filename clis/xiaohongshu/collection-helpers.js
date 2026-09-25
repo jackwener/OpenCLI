@@ -1,5 +1,6 @@
 import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
 import { buildXhsNoteUrl, normalizeXhsUserId } from './user-helpers.js';
+import { navigateFresh } from './shared.js';
 
 export const COLLECT_API_PATTERN = 'note/collect/page';
 export const LIKE_API_PATTERN = 'note/like/page';
@@ -210,18 +211,44 @@ async function accumulateInterceptedNotes(page, bucket, fallbackUserId) {
     return extractNotesFromResponses(bucket, fallbackUserId);
 }
 
-export async function resolveXhsUserId(page, rawId) {
-    if (rawId)
-        return normalizeXhsUserId(String(rawId));
-    await page.goto('https://www.xiaohongshu.com/explore');
-    await page.wait(2);
-    await throwIfLoginWall(page);
-    const userId = unwrapBrowserResult(await page.evaluate(`() => {
+const SELF_UID_JS = `() => {
       const user = window.__INITIAL_STATE__?.user?.userInfo;
       const info = user?._value ?? user ?? {};
       return info.user_id || info.userId || info.userID || '';
-    }`));
-    const clean = toCleanString(userId);
+    }`;
+
+async function readSelfUserId(page) {
+    return toCleanString(unwrapBrowserResult(await page.evaluate(SELF_UID_JS)));
+}
+
+async function pollSelfUserId(page, attempts = 3, waitSeconds = 1.5) {
+    let clean = await readSelfUserId(page);
+    // An empty uid right after navigation usually means __INITIAL_STATE__ has
+    // not hydrated yet (location.reload() resolves before the page loads), so
+    // poll through the hydration window before concluding anything.
+    for (let i = 0; !clean && i < attempts; i += 1) {
+        await page.wait(waitSeconds);
+        clean = await readSelfUserId(page);
+    }
+    return clean;
+}
+
+export async function resolveXhsUserId(page, rawId) {
+    if (rawId)
+        return normalizeXhsUserId(String(rawId));
+    await navigateFresh(page, 'https://www.xiaohongshu.com/explore');
+    await page.wait(2);
+    await throwIfLoginWall(page);
+    let clean = await pollSelfUserId(page);
+    if (!clean) {
+        // Polling exhausted on a loaded page: a warm persistent tab may
+        // predate a login-state change and still show the old
+        // __INITIAL_STATE__. Reload once and poll again before concluding
+        // the user is logged out.
+        await page.evaluate('location.reload()').catch(() => { });
+        await page.wait(2);
+        clean = await pollSelfUserId(page);
+    }
     if (!clean) {
         throw new AuthRequiredError('www.xiaohongshu.com', 'Not logged into Xiaohongshu (could not resolve current user id)');
     }
@@ -244,8 +271,14 @@ export async function fetchXhsCollectionNotes(page, {
     emptyLabel,
 }) {
     const capturedRequests = [];
+    // Navigate FIRST: the interceptor is an in-page patch on window, and a
+    // navigation wipes it — installed before the goto it never captured
+    // anything, silently leaving the DOM fallback to do all the work.
+    // navigateFresh additionally forces a real reload when a warm persistent
+    // tab already shows this collection page (a fast-pathed goto would reread
+    // stale SSR content).
+    await navigateFresh(page, buildProfileCollectionUrl(userId, profileTab));
     await page.installInterceptor(apiPattern);
-    await page.goto(buildProfileCollectionUrl(userId, profileTab));
     await page.wait(2);
     await assertOnCollectionProfile(page, userId);
     let notes = [];

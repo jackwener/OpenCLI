@@ -30,9 +30,9 @@ function entry(id, overrides = {}) {
 }
 
 describe('xiaohongshu/feed buildFeedNoteUrl', () => {
-    it('appends xsec_token and an empty xsec_source when a token is present', () => {
+    it('appends xsec_token and xsec_source=pc_share when a token is present', () => {
         expect(buildFeedNoteUrl(HOST, 'abc123', 'TOK')).toBe(
-            `https://${HOST}/explore/abc123?xsec_token=TOK&xsec_source=`,
+            `https://${HOST}/explore/abc123?xsec_token=TOK&xsec_source=pc_share`,
         );
     });
 
@@ -42,7 +42,7 @@ describe('xiaohongshu/feed buildFeedNoteUrl', () => {
 
     it('URL-encodes xsec_token instead of interpolating raw query text', () => {
         expect(buildFeedNoteUrl(HOST, 'abc123', 'a&b=c d')).toBe(
-            `https://${HOST}/explore/abc123?xsec_token=a%26b%3Dc+d&xsec_source=`,
+            `https://${HOST}/explore/abc123?xsec_token=a%26b%3Dc+d&xsec_source=pc_share`,
         );
     });
 });
@@ -58,15 +58,15 @@ describe('xiaohongshu/feed func', () => {
         const page = createPageMock({ items: [entry('id1'), entry('id2')] });
         const rows = await feed.func(page, { limit: 20 });
         expect(rows).toEqual([
-            { id: 'id1', title: 'title-id1', type: 'normal', author: 'author-id1', likes: '100', url: `https://${HOST}/explore/id1?xsec_token=tok-id1&xsec_source=` },
-            { id: 'id2', title: 'title-id2', type: 'normal', author: 'author-id2', likes: '100', url: `https://${HOST}/explore/id2?xsec_token=tok-id2&xsec_source=` },
+            { id: 'id1', title: 'title-id1', type: 'normal', author: 'author-id1', likes: '100', url: `https://${HOST}/explore/id1?xsec_token=tok-id1&xsec_source=pc_share` },
+            { id: 'id2', title: 'title-id2', type: 'normal', author: 'author-id2', likes: '100', url: `https://${HOST}/explore/id2?xsec_token=tok-id2&xsec_source=pc_share` },
         ]);
     });
 
     it('unwraps Browser Bridge evaluate envelopes', async () => {
         const page = createPageMock({ session: { id: 's1' }, data: { items: [entry('id1')] } });
         const rows = await feed.func(page, { limit: 20 });
-        expect(rows[0].url).toBe(`https://${HOST}/explore/id1?xsec_token=tok-id1&xsec_source=`);
+        expect(rows[0].url).toBe(`https://${HOST}/explore/id1?xsec_token=tok-id1&xsec_source=pc_share`);
     });
 
     it('typed-fails when a feed entry is missing its note token', async () => {
@@ -122,5 +122,25 @@ describe('xiaohongshu/feed func', () => {
         const page = createPageMock({ items: [item] });
         const rows = await feed.func(page, { limit: 20 });
         expect(rows[0].url).toContain('xsec_token=note-token');
+    });
+});
+
+describe('xiaohongshu/feed warm-tab freshness', () => {
+    it('forces a reload when the persistent tab already sits on /explore — the store must not be reread stale', async () => {
+        const command = getRegistry().get('xiaohongshu/feed');
+        const page = createPageMock({ items: [entry('n1')] });
+        page.getCurrentUrl = vi.fn().mockResolvedValue('https://www.xiaohongshu.com/explore');
+        const rows = await command.func(page, { limit: 1 });
+        expect(rows[0].id).toBe('n1');
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).toHaveBeenCalledWith('location.reload()');
+    });
+
+    it('navigates normally when the tab is elsewhere', async () => {
+        const command = getRegistry().get('xiaohongshu/feed');
+        const page = createPageMock({ items: [entry('n1')] });
+        page.getCurrentUrl = vi.fn().mockResolvedValue('https://www.xiaohongshu.com/user/profile/x');
+        await command.func(page, { limit: 1 });
+        expect(page.goto).toHaveBeenCalledWith('https://www.xiaohongshu.com/explore');
     });
 });

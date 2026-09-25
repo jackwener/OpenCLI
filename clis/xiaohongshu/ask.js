@@ -146,7 +146,7 @@ export function buildNoteUrl(noteId, xsecToken) {
     const url = new URL(`https://${XHS_WEB_HOST}/explore/${noteId}`);
     if (xsecToken) {
         url.searchParams.set('xsec_token', xsecToken);
-        url.searchParams.set('xsec_source', '');
+        url.searchParams.set('xsec_source', 'pc_share');
     }
     return url.toString();
 }
@@ -430,6 +430,7 @@ export const command = cli({
     strategy: Strategy.COOKIE,
     browser: true,
     navigateBefore: false,
+    siteSession: 'persistent',
     args: [
         { name: 'query', positional: true, required: true, help: 'Question for 点点' },
         { name: 'timeout', type: 'int', default: 90, help: 'Seconds to wait for the 点点 answer' },

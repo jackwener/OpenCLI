@@ -9,6 +9,7 @@ cli({
     domain: 'www.xiaohongshu.com',
     strategy: Strategy.COOKIE,
     navigateBefore: false,
+    siteSession: 'persistent',
     browser: true,
     args: [
         { name: 'id', type: 'string', help: 'User id or profile URL (defaults to current logged-in user)' },

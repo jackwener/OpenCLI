@@ -139,3 +139,59 @@ describe('assertReadableUserSnapshot (既有契约保持)', () => {
         expect(() => assertReadableUserSnapshot(NOTES_SNAP)).not.toThrow();
     });
 });
+
+describe('xiaohongshu/user warm-tab freshness and contention', () => {
+    const uid = '5d8f88dc0000000001005d3a';
+    const url = `https://www.xiaohongshu.com/user/profile/${uid}`;
+    const rightSnap = snap({ noteGroups: [[noteEntry('aaa')], []], pathname: `/user/profile/${uid}` });
+    const stolenSnap = snap({ noteGroups: [[noteEntry('zzz')], []], pathname: '/user/profile/ffffffffffffffffffffffff' });
+    const getCommand = () => getRegistry().get('xiaohongshu/user');
+
+    it('forces a reload when the persistent tab already shows this profile', async () => {
+        const page = createPageMock(vi.fn().mockResolvedValue(rightSnap));
+        page.getCurrentUrl = vi.fn().mockResolvedValue(url);
+        const rows = await getCommand().func(page, { id: uid, limit: 1 });
+        expect(rows.length).toBe(1);
+        expect(page.goto).not.toHaveBeenCalled();
+        expect(page.evaluate).toHaveBeenCalledWith('location.reload()');
+    });
+
+    it('re-navigates once when the snapshot shows another profile, then succeeds', async () => {
+        const page = createPageMock(vi.fn()
+            .mockResolvedValueOnce(stolenSnap)
+            .mockResolvedValue(rightSnap));
+        const rows = await getCommand().func(page, { id: uid, limit: 1 });
+        expect(rows[0].id).toBe('aaa');
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws TAB_CONTENTION instead of returning another profile silently', async () => {
+        const page = createPageMock(vi.fn().mockResolvedValue(stolenSnap));
+        await expect(getCommand().func(page, { id: uid, limit: 1 }))
+            .rejects.toMatchObject({ code: 'TAB_CONTENTION' });
+        expect(page.goto).toHaveBeenCalledTimes(2);
+    });
+
+    it('hydration retry stops immediately on a wrong-profile snapshot instead of burning 8 waits', async () => {
+        // Empty notes + wrong path: without the path check this would burn all
+        // 8 hydration retries waiting for notes that belong to another page.
+        const stolenEmpty = snap({ noteGroups: [[], []], pathname: '/user/profile/ffffffffffffffffffffffff' });
+        const evaluate = vi.fn().mockResolvedValue(stolenEmpty);
+        const page = createPageMock(evaluate);
+        const result = await readUserSnapshotHydrated(page, 8, 2, `/user/profile/${uid}`);
+        expect(result).toEqual(stolenEmpty);
+        expect(evaluate).toHaveBeenCalledTimes(1);
+        expect(page.wait).not.toHaveBeenCalled();
+    });
+
+    it('keeps working with snapshots that lack a pathname (older extract shapes)', async () => {
+        const page = createPageMock(vi.fn().mockResolvedValue(NOTES_SNAP));
+        const rows = await getCommand().func(page, { id: uid, limit: 1 });
+        expect(rows.length).toBe(1);
+    });
+
+    it('USER_SNAPSHOT_JS exposes the landed pathname for the contention check', async () => {
+        const { USER_SNAPSHOT_JS } = await import('./user.js');
+        expect(USER_SNAPSHOT_JS).toContain('pathname: pathName');
+    });
+});
