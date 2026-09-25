@@ -18,6 +18,7 @@ function extractFollower(result) {
         screen_name: screenName,
         name: core.name || legacy.name || '',
         bio: result.profile_bio?.description || legacy.description || '',
+        verified: Boolean(result.is_blue_verified || legacy.verified),
     };
 }
 
@@ -86,10 +87,10 @@ cli({
         },
         { name: 'limit', type: 'int', default: 50, help: 'Maximum number of follower rows to return (default 50). Must be a positive integer.' },
     ],
-    // Preserve the historical three-column contract even though the GraphQL
-    // payload also contains per-user relationship counts. Use `twitter profile`
-    // when a dedicated follower count is needed.
-    columns: ['screen_name', 'name', 'bio'],
+    // The GraphQL payload also carries per-user relationship counts; use
+    // `twitter profile` when a dedicated follower count is needed. `verified`
+    // is the blue check (X Premium / legacy verification).
+    columns: ['screen_name', 'name', 'bio', 'verified'],
     func: async (page, kwargs) => {
         const limit = kwargs.limit;
         if (!Number.isInteger(limit) || limit <= 0) {

@@ -91,6 +91,7 @@ describe('twitter timeline helpers', () => {
         expect(result.tweets[0]).toMatchObject({
             id: '1',
             author: 'alice',
+            author_verified: false,
             bio: 'Timeline author bio',
             text: 'hello',
             likes: 3,

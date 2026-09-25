@@ -84,19 +84,24 @@ describe('twitter followers helpers', () => {
         expect(__test__.normalizeScreenName('/viewer/extra')).toBe('');
     });
 
-    it('extracts modern GraphQL user fields and preserves the three-column contract', () => {
+    it('extracts modern GraphQL user fields', () => {
         expect(__test__.extractFollower(followerResult('alice'))).toEqual({
             screen_name: 'alice',
             name: 'ALICE',
             bio: 'alice bio',
+            verified: false,
         });
+    });
+
+    it('reports the blue check from is_blue_verified', () => {
+        expect(__test__.extractFollower({ ...followerResult('alice'), is_blue_verified: true }).verified).toBe(true);
     });
 
     it('falls back to legacy user fields', () => {
         expect(__test__.extractFollower({
             __typename: 'User',
             legacy: { screen_name: 'legacy', name: 'Legacy', description: 'old bio' },
-        })).toEqual({ screen_name: 'legacy', name: 'Legacy', bio: 'old bio' });
+        })).toEqual({ screen_name: 'legacy', name: 'Legacy', bio: 'old bio', verified: false });
     });
 
     it('typed-fails when a GraphQL user loses its identity field', () => {
