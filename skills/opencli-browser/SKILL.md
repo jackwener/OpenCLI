@@ -78,7 +78,7 @@ Bound sessions have no OpenCLI idle-close timer; the binding lasts until `unbind
 <target> ::= <numeric-ref> | <css-selector>
 ```
 
-- **Numeric ref** — the `[N]` index from `state` or `find`. Cheap, resilient to soft DOM drift.
+- **Numeric ref** — the `[N]` index from `state` or `find`. Cheap, resilient to soft DOM drift. Do not substitute array positions from `eval` (such as the index in `document.querySelectorAll('*')`); those are not OpenCLI refs.
 - **CSS selector** — anything `querySelectorAll` accepts. Must be unambiguous on write ops, or pair with `--nth <n>`.
 
 ### Envelope on success
@@ -186,6 +186,20 @@ state, elapsedMs}` on success and a JSON error envelope on timeout/failure.
 - **`web read --url <url>`** — One-shot Markdown reader for arbitrary pages. It expands relevant same-origin iframes by default, so old iframe-shell sites work better than with a top-document-only scrape. Use `--frames all-same-origin` when completeness matters more than Markdown noise. For AJAX shell pages use `opencli web read --url <url> --wait-for "<selector>" --wait-until networkidle --diagnose`; diagnostics show frame URLs, empty containers, and API-like XHRs. If the value you need is table/API data, switch to `browser network` or a dedicated adapter instead of relying on Markdown.
 - **`browser eval <js> [--frame N]`** — Run an expression in the page (or in a cross-origin frame via `--frame`). Wrap in an IIFE and return JSON. Read-only: no `document.forms[0].submit()`, no clicks, no navigations. If the result is a string, stdout is the raw string; otherwise it's JSON.
 - **`browser extract [--selector <css>] [--chunk-size N] [--start N]`** — Markdown extraction of long-form content with a continuation cursor. Returns `{url, title, selector, total_chars, chunk_size, start, end, next_start_char, content}`. Loop on `next_start_char` until it is `null`. Auto-scopes to `<main>`/`<article>`/`<body>` if you don't pass `--selector`.
+
+### When extraction is empty or incomplete
+
+An empty `eval` result or a successful command does not establish that the page has no data. Before changing selectors, verify the target in the same named session:
+
+```bash
+opencli browser research get url
+opencli browser research get title
+```
+
+- If the URL is unexpectedly `about:blank`, a login page, or another document, restore the intended page using the session lifecycle above before extracting again. Reopening an owned session's known URL and rebinding a user tab are different operations; do not navigate an unexpected user tab as a shortcut. Take a fresh `state` after recovery.
+- If the document is correct but code blocks or custom controls are missing from DOM output, try `opencli browser research state --source ax` and wait for the relevant content to load. AX is a fallback, not a guarantee that every widget exposes its data.
+- For virtualized grids or canvas-based sheets, visible rows are only a partial view. Prefer the site's data API or export; otherwise traverse the grid and check coverage against its row count or end-of-data indicator. Finishing `extract`'s text cursor only exhausts the extracted text, not unloaded rows. A screenshot can help identify the widget or export control, but cannot establish whole-sheet completeness.
+- If coverage remains unknown, report what was actually read and what is missing. Do not call a visible subset the complete list, or keep retrying the same failed selector/ref without new page evidence.
 
 ### Network
 
