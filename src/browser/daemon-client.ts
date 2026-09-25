@@ -93,6 +93,36 @@ export async function releaseSiteSessionLease(params: {
 }
 
 /**
+ * Best-effort pacing outcome report on adapter command completion. Feeds the
+ * daemon's per-site security-block circuit breaker (see site-pacing.ts); a
+ * lost report only costs the breaker one sample, so this must never block or
+ * fail the caller.
+ */
+export async function reportPacingOutcome(params: {
+  session: string;
+  outcome: 'ok' | 'security_block';
+  contextId?: string;
+}): Promise<void> {
+  try {
+    await requestDaemon('/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: generateId(),
+        action: 'pacing-report',
+        session: params.session,
+        surface: 'adapter',
+        outcome: params.outcome,
+        ...(params.contextId ? { contextId: params.contextId } : {}),
+      }),
+      timeout: 2000,
+    });
+  } catch {
+    // Best-effort: the breaker just misses one sample.
+  }
+}
+
+/**
  * Transport-level deadlines share one source of truth: `body.timeout` (seconds).
  * The daemon arms its per-command timer from it, the extension derives its CDP
  * deadline from the same value, and the client HTTP abort fires only after the

@@ -26,11 +26,11 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { executePipeline } from './pipeline/index.js';
-import { adapterLoadError, ArgumentError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
+import { adapterLoadError, ArgumentError, CliError, CommandExecutionError, SessionBusyError, attachTraceReceipt, getErrorMessage } from './errors.js';
 import { shouldUseBrowserSession } from './capabilityRouting.js';
 import { getBrowserFactory, browserSession, runWithTimeout, DEFAULT_BROWSER_COMMAND_TIMEOUT, type BrowserWindowMode } from './runtime.js';
 import { profileRouteParams, resolveProfileSelection } from './browser/profile.js';
-import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
+import { clearDaemonRunContext, generateRunId, isUnknownOutcomeError, releaseSiteSessionLease, reportPacingOutcome, setDaemonCommandTimeoutSeconds, setDaemonRunContext } from './browser/daemon-client.js';
 import { emitHook, type HookContext } from './hooks.js';
 import { log } from './logger.js';
 import { isElectronApp } from './electron-apps.js';
@@ -443,6 +443,15 @@ export async function executeCommand(
         //   result-evicted, anywhere in the cause chain) means the browser-side
         //   command may STILL be running against the persistent tab; there is
         //   nothing to await client-side, so the TTL is the quiet period.
+        // Pacing outcome report (best-effort, never awaited): the daemon's
+        // per-site circuit breaker counts SECURITY_BLOCK endings and resets on
+        // success. Other failures say nothing about the site's risk state, and
+        // an unknown-outcome ending reports nothing either.
+        if (browserRunError === undefined) {
+          void reportPacingOutcome({ session, outcome: 'ok', ...(contextId ? { contextId } : {}) });
+        } else if (browserRunError instanceof CliError && browserRunError.code === 'SECURITY_BLOCK') {
+          void reportPacingOutcome({ session, outcome: 'security_block', ...(contextId ? { contextId } : {}) });
+        }
         if (leaseRun) {
           if (adapterStillRunning && adapterRun) {
             const runId = leaseRun.runId;

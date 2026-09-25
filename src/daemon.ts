@@ -42,6 +42,12 @@ import {
   getSessionLeaseKey,
   isSessionLeaseCommand,
 } from './session-lease.js';
+import {
+  SitePacer,
+  buildSecurityCooldownFailure,
+  classifyPacedNavigation,
+  parseSiteFromSession,
+} from './site-pacing.js';
 
 const PORT = DEFAULT_DAEMON_PORT;
 if (!isIgnorableDaemonPortEnv(process.env.OPENCLI_DAEMON_PORT)) {
@@ -91,6 +97,11 @@ const pending = new Map<string, PendingEntry>();
 // Chrome tab as a still-running command. Stale leases self-expire (see
 // session-lease.ts).
 const sessionLeases = new SessionLeaseRegistry();
+
+// Per-site navigation pacing + security-block circuit breaker (site-pacing.ts).
+// Kill switch is read once at daemon startup: OPENCLI_PACING=off disables it.
+const sitePacer = new SitePacer();
+const sitePacingEnabled = process.env.OPENCLI_PACING !== 'off';
 
 /** A TTL-stale lease holder with a command still in flight is alive, not dead. */
 function runHasPendingWork(runId: string): boolean {
@@ -365,6 +376,27 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
+      // ─── Site pacing: outcome report ─────────────────────────────────
+      // Daemon-local, never dispatched to the extension. Feeds the per-site
+      // security-block circuit breaker; unpaced sites are ignored inside
+      // reportOutcome. Best-effort contextId resolution — a report for a
+      // profile that just disconnected is simply dropped.
+      if (body.action === 'pacing-report') {
+        const site = parseSiteFromSession(body.session);
+        const outcome = body.outcome === 'security_block' || body.outcome === 'ok' ? body.outcome : null;
+        if (site && outcome) {
+          const reportRoute = resolveExtensionConnection(
+            typeof body.contextId === 'string' ? body.contextId : undefined,
+            undefined,
+          );
+          const ctx = reportRoute.connection?.contextId
+            ?? (typeof body.contextId === 'string' && body.contextId ? body.contextId : null);
+          if (ctx) sitePacer.reportOutcome(ctx, site, outcome, Date.now());
+        }
+        jsonResponse(res, 200, { id: body.id, ok: true });
+        return;
+      }
+
       const route = resolveExtensionConnection(
         typeof body.contextId === 'string' ? body.contextId : undefined,
         typeof body.preferredContextId === 'string' ? body.preferredContextId : undefined,
@@ -417,6 +449,38 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         }
         leaseKey = key;
         leaseRunId = body.runId;
+      }
+
+      // ─── Site pacing: navigation slots + security cooldown ───────────
+      // Space adapter navigations for velocity-sensitive sites and fail fast
+      // while a security cooldown is open (site-pacing.ts). Applies to
+      // `navigate` only — evaluates against a warm tab load no pages.
+      if (sitePacingEnabled) {
+        const pacedSite = classifyPacedNavigation(body);
+        if (pacedSite) {
+          const pacing = sitePacer.acquireNavigationSlot(route.connection.contextId, pacedSite, Date.now());
+          if (!pacing.granted) {
+            const failure = buildSecurityCooldownFailure(pacedSite, pacing.retryAfterMs);
+            // The daemon's own stdio is discarded (spawned with stdio: 'ignore');
+            // the /logs ring buffer is the only operator-visible channel.
+            pushLog({ level: 'warn', msg: `[pacing] ${pacedSite} navigate refused — security cooldown, retry in ${Math.ceil(pacing.retryAfterMs / 1000)}s`, ts: Date.now() });
+            log.warn(`[daemon] ${pacedSite} navigate refused — security cooldown, retry in ${Math.ceil(pacing.retryAfterMs / 1000)}s`);
+            jsonResponse(res, failure.status, {
+              id: body.id,
+              ok: false,
+              errorCode: failure.errorCode,
+              error: failure.message,
+              errorHint: failure.errorHint,
+              retryAfterMs: failure.retryAfterMs,
+            });
+            return;
+          }
+          if (pacing.delayMs > 0) {
+            pushLog({ level: 'info', msg: `[pacing] spacing ${pacedSite} navigate by ${Math.round(pacing.delayMs)}ms`, ts: Date.now() });
+            log.info(`[daemon] pacing ${pacedSite} navigate by ${Math.round(pacing.delayMs)}ms`);
+            await new Promise((resolve) => setTimeout(resolve, pacing.delayMs));
+          }
+        }
       }
 
       // Absolute deadline wins over the legacy duration field: all hops share
