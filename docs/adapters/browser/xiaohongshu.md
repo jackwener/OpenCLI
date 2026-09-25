@@ -20,6 +20,9 @@
 | `opencli xiaohongshu delete-note` | Verify or delete a published creator-center note by exact note ID |
 | `opencli xiaohongshu follow` | Follow a user from the profile UI and verify the button state flips |
 | `opencli xiaohongshu unfollow` | Unfollow a user from the profile UI, confirm the modal, and verify the button state flips |
+| `opencli xiaohongshu dm-list` | DM (私信) conversations from the web IM (id, name, last message, unread, group flag) |
+| `opencli xiaohongshu dm-read` | Messages of one DM conversation (time, from, mine, text) |
+| `opencli xiaohongshu dm-send` | Send one DM through the web-IM composer and verify it appears in the thread |
 | `opencli xiaohongshu creator-notes` | Creator's note list with per-note metrics |
 | `opencli xiaohongshu creator-note-detail` | Detailed analytics for a single creator note |
 | `opencli xiaohongshu creator-notes-summary` | Combined note list + detail analytics summary |
@@ -67,6 +70,11 @@ opencli xiaohongshu publish "正文内容" --title "标题" --card-text "第一�
 opencli xiaohongshu follow 5d8f88dc0000000001005d3a
 opencli xiaohongshu unfollow https://www.xiaohongshu.com/user/profile/5d8f88dc0000000001005d3a
 
+# DMs (needs the www.xiaohongshu.com login, not the creator-center one)
+opencli xiaohongshu dm-list --limit 20
+opencli xiaohongshu dm-read 62318059000000001000bc1e --limit 30
+opencli xiaohongshu dm-send 62318059000000001000bc1e "已关，谢谢"
+
 # Verify a published creator note without deleting it (default dry-run)
 opencli xiaohongshu delete-note 6a08ba0b000000000702a893
 
@@ -80,6 +88,8 @@ opencli xiaohongshu delete-note 6a08ba0b000000000702a893 --execute
 > With `comments --with-replies`, `reply_to` is the direct reply target displayed by the page. Replies without an explicit `回复 <name>` marker target the enclosing top-level comment.
 > `ask` is separate from ordinary `search`: it submits the question to 点点, returns `answer`, `source_count`, and `sources[]`, and keeps `xsec_token` in JSON when Xiaohongshu returns one. The current 点点 source API may return bare note IDs without `xsec_token`; in that case `url` falls back to `/explore/<note_id>` and `xsec_token` is an empty string. Each source also carries the engagement and identity metadata 点点 returns: `like_count`, `note_type` (`normal`/`video`), `user_id`, and `published_at` (each omitted when 点点 does not provide it), so citation analysis can read likes and note format without a follow-up `search`/`note` round-trip.
 > `delete-note` operates in creator center and accepts a 24-character note ID or exact Xiaohongshu note URL; it defaults to dry-run verification and only deletes with `--execute`.
+> `dm-list`, `dm-read`, and `dm-send` read and write the web IM at `/chat`. Conversation ids are 24-char hex for 1:1 chats and numeric for group chats. They need the main-site login and fail with an auth error when the page shows the login modal. `dm-send` types natively, presses Enter, and only reports `sent` after the text echoes in the message list. DMs are the most tightly policed surface on Xiaohongshu: keep sends few and human-paced.
+
 > `follow` and `unfollow` are write commands on the public profile page. They verify the browser stayed on the requested `/user/profile/<id>` target before clicking, and verify the visible follow-state button after the action.
 > `publish --card-text` uses creator-center 文字配图. It requires generated card images to appear in the current composer before filling title/body or submitting. If you request `--card-style`, that exact live page style must be selected; unavailable styles fail instead of silently falling back.
 

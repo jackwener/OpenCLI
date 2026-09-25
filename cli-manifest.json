@@ -45775,6 +45775,106 @@
   },
   {
     "site": "xiaohongshu",
+    "name": "dm-list",
+    "description": "小红书私信会话列表 (web IM)",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 50,
+        "required": false,
+        "help": "Max conversations to return"
+      }
+    ],
+    "columns": [
+      "id",
+      "name",
+      "time",
+      "summary",
+      "unread",
+      "pinned",
+      "group"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/dm-list.js",
+    "sourceFile": "xiaohongshu/dm-list.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "dm-read",
+    "description": "小红书私信消息记录 (one conversation)",
+    "access": "read",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation id from `xiaohongshu dm-list`"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 40,
+        "required": false,
+        "help": "Last N messages to return"
+      }
+    ],
+    "columns": [
+      "time",
+      "from",
+      "mine",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/dm-read.js",
+    "sourceFile": "xiaohongshu/dm-read.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
+    "name": "dm-send",
+    "description": "发送小红书私信 (web IM composer, verifies the echo)",
+    "access": "write",
+    "domain": "www.xiaohongshu.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "conv",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Conversation id from `xiaohongshu dm-list`"
+      },
+      {
+        "name": "text",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "Message text"
+      }
+    ],
+    "columns": [
+      "status",
+      "conv",
+      "text"
+    ],
+    "type": "js",
+    "modulePath": "xiaohongshu/dm-send.js",
+    "sourceFile": "xiaohongshu/dm-send.js",
+    "navigateBefore": false
+  },
+  {
+    "site": "xiaohongshu",
     "name": "download",
     "description": "下载小红书笔记中的图片和视频",
     "access": "read",
