@@ -10,6 +10,7 @@ vi.mock('./utils.js', () => ({
     SUNO_DOMAIN: 'suno.com',
     SUNO_URL: 'https://suno.com',
     ensureSunoSession: mocks.ensureSunoSession,
+    sunoHeadersJs: () => '{}',
     downloadSunoClip: mocks.downloadSunoClip,
     normalizeBooleanFlag: (value, fallback = false) => {
         if (typeof value === 'boolean') return value;

@@ -173,6 +173,16 @@ describe('Page network capture compatibility', () => {
     }));
   });
 
+  it('forwards the opt-in incomplete-capture retention flag', async () => {
+    sendCommandMock.mockResolvedValueOnce([]);
+    const page = new Page('suno', undefined, undefined, undefined, 'adapter');
+    await page.readNetworkCapture({ retainIncomplete: true });
+    expect(sendCommandMock).toHaveBeenCalledWith('network-capture-read', expect.objectContaining({
+      session: 'suno',
+      retainIncomplete: true,
+    }));
+  });
+
   it('rethrows unrelated network capture failures', async () => {
     sendCommandMock.mockRejectedValueOnce(new Error('Extension disconnected'));
 

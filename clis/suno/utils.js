@@ -2,13 +2,14 @@
  * Suno web (suno.com) browser automation helpers — rewritten for the
  * /api/generate/v2-web/ schema introduced 2026-05.
  *
- * Auth model: Bearer JWT from Clerk (`window.Clerk.session.getToken()`).
+ * Auth model: refresh via Clerk when its runtime is present, otherwise read
+ * the first-party `__session` JWT.
  *
  * The studio backend lives on `studio-api-prod.suno.com`; the page itself is
  * on `suno.com`. The browser's normal cross-origin cookie-bearing fetch
  * succeeds from a real Chrome tab, but the OpenCLI bridge's evaluate
  * context isolates third-party cookies — `credentials: 'include'` drops the
- * Clerk session cookie. Sending the JWT explicitly as `Authorization: Bearer`
+ * session cookie. Sending the JWT explicitly as `Authorization: Bearer`
  * bypasses the isolation and matches the auth path the studio API expects.
  *
  * Required custom headers (in addition to Bearer):
@@ -17,17 +18,16 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { ArgumentError, AuthRequiredError, CommandExecutionError, EmptyResultError, TimeoutError } from '@jackwener/opencli/errors';
+import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError } from '@jackwener/opencli/errors';
 
 export const SUNO_DOMAIN = 'suno.com';
 export const SUNO_URL = 'https://suno.com';
 export const STUDIO_API = 'https://studio-api-prod.suno.com';
 export const SUNO_CDN = 'https://cdn1.suno.ai';
 
-// As of 2026-05, the UI exposes V5.5 (chirp-fenix) and V4.5+ (chirp-bluejay).
-// Older versions are still routable via the API and remain valid `mv` values.
-export const SUNO_MODELS = ['chirp-fenix', 'chirp-bluejay', 'chirp-v4', 'chirp-v3-5'];
-export const DEFAULT_SUNO_MODEL = 'chirp-fenix';
+// Public model names; billing/info supplies their account-specific `external_key`.
+export const SUNO_MODELS = ['v6', 'v6-wild', 'v6-mini'];
+export const DEFAULT_SUNO_MODEL = 'v6';
 
 export const SUPPORTED_FORMATS = ['mp3', 'm4a', 'wav', 'video', 'cover', 'metadata'];
 export const DEFAULT_FORMATS = ['mp3', 'metadata'];
@@ -114,7 +114,13 @@ export function clampSlider(value, label, def) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BROWSER_TOKEN_JS = `JSON.stringify({ token: btoa(JSON.stringify({ timestamp: Date.now() })) })`;
-const CLERK_TOKEN_JS = `await window.Clerk.session.getToken()`;
+const SESSION_TOKEN_JS = `(await (async () => {
+    try {
+        const refreshed = await window.Clerk?.session?.getToken();
+        if (refreshed) return refreshed;
+    } catch {}
+    return document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('__session='))?.slice('__session='.length) || '';
+})())`;
 
 /**
  * Build the standard header set used by every studio-api-prod.suno.com call.
@@ -122,10 +128,10 @@ const CLERK_TOKEN_JS = `await window.Clerk.session.getToken()`;
  * deviceId is read once per command and embedded literally; browser-token
  * and Authorization are computed inline (timestamp/JWT refresh per call).
  */
-function sunoHeadersJs(deviceId, extra = {}) {
+export function sunoHeadersJs(deviceId, extra = {}) {
     const extraEntries = Object.entries(extra).map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(', ');
     return `{
-        'Authorization': 'Bearer ' + ${CLERK_TOKEN_JS},
+        'Authorization': 'Bearer ' + ${SESSION_TOKEN_JS},
         'browser-token': ${BROWSER_TOKEN_JS},
         'device-id': ${JSON.stringify(deviceId)},
         ${extraEntries}${extraEntries ? ',' : ''}
@@ -150,13 +156,22 @@ export function parseSunoBillingInfo(data) {
     const subscriptionKey = typeof data?.subscription_type === 'string' && data.subscription_type
         ? data.subscription_type
         : null;
-    const currentPlan = subscriptionKey
-        ? plans.find((p) => p?.plan_key === subscriptionKey)
-        : plans.find((p) => p?.plan_key === 'free');
+    const currentPlan = data?.plan && typeof data.plan === 'object'
+        ? data.plan
+        : subscriptionKey
+            ? plans.find((p) => p?.plan_key === subscriptionKey)
+            : plans.find((p) => p?.plan_key === 'free');
     return {
         planId: currentPlan?.id || data?.plan?.id || null,
         planKey: currentPlan?.plan_key || data?.plan?.plan_key || (subscriptionKey ?? 'free'),
         totalCreditsAvailable,
+        models: (Array.isArray(data?.models) ? data.models : []).filter(m =>
+            typeof m?.name === 'string' && typeof m?.external_key === 'string').map(m => ({
+            name: m.name,
+            externalKey: m.external_key,
+            canUse: m.can_use === true,
+            isDefault: m.is_default_model === true || m.is_default_free_model === true,
+        })),
         breakdown: {
             pack: data?.credits ?? 0,
             purchasedPacks: packCredits,
@@ -167,6 +182,16 @@ export function parseSunoBillingInfo(data) {
     };
 }
 
+export async function waitForSunoSessionToken(page) {
+    // Recent Suno pages expose a first-party JWT; older pages mount Clerk later.
+    for (let i = 0; i < 20; i += 1) {
+        const ready = unwrapEvaluateResult(await page.evaluate(`!!(document.cookie.split(';').some(s => s.trim().startsWith('__session=')) || window.Clerk?.session)`));
+        if (ready) return true;
+        await page.wait(0.5);
+    }
+    return false;
+}
+
 export async function ensureSunoSession(page) {
     await page.goto(`${SUNO_URL}/me`, { settleMs: 2000 });
     // OneTrust consent banner can block the page; dismiss it if present.
@@ -175,17 +200,12 @@ export async function ensureSunoSession(page) {
         if (btn) btn.click();
     })()`);
 
-    // Wait briefly for Clerk to mount before any API call.
-    for (let i = 0; i < 20; i += 1) {
-        const ready = unwrapEvaluateResult(await page.evaluate(`!!(window.Clerk && window.Clerk.session)`));
-        if (ready) break;
-        await page.wait(0.5);
-    }
+    await waitForSunoSessionToken(page);
 
     const deviceId = await getSunoDeviceId(page);
     const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
         try {
-            if (!window.Clerk?.session) return { ok: false, auth: true, error: 'Clerk session unavailable' };
+            if (!(${SESSION_TOKEN_JS})) return { ok: false, auth: true, error: 'Suno session unavailable' };
             const res = await fetch('${STUDIO_API}/api/billing/info/', { headers: ${sunoHeadersJs(deviceId)} });
             if (!res.ok) return { ok: false, status: res.status, body: (await res.text()).slice(0, 300) };
             let data = null;
@@ -258,7 +278,7 @@ export async function getSunoDeviceId(page) {
  *
  * payload fields:
  *   - mode: 'custom' | 'simple'
- *   - model: chirp-fenix etc.
+ *   - model: `external_key` from billing/info (for example, chirp-hawk)
  *   - title: song title (required by API even for Simple mode)
  *   - lyrics: Custom-mode lyrics (with [Verse] metatags). Used as API `prompt`.
  *   - tags: Custom-mode style string.
@@ -313,7 +333,15 @@ export async function submitSunoGeneration(page, payload) {
 
     const bodyJson = JSON.stringify(body);
     const deviceId = payload.deviceId;
-    const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
+    let result;
+    try {
+        result = unwrapEvaluateResult(await page.evaluate(`(async () => {
+        const key = ${JSON.stringify('opencli:suno:api:' + payload.transactionUuid)};
+        try {
+            if (sessionStorage.getItem(key)) return { uncertain: true };
+            sessionStorage.setItem(key, 'dispatched');
+            if (sessionStorage.getItem(key) !== 'dispatched') return { notDispatched: true };
+        } catch { return { notDispatched: true }; }
         const res = await fetch('${STUDIO_API}/api/generate/v2-web/', {
             method: 'POST',
             headers: ${sunoHeadersJs(deviceId, { 'Content-Type': 'application/json' })},
@@ -324,6 +352,13 @@ export async function submitSunoGeneration(page, payload) {
         try { parsed = JSON.parse(text); } catch {}
         return { status: res.status, ok: res.ok, body: parsed, raw: parsed ? null : text.slice(0, 600) };
     })()`));
+    } catch (cause) {
+        const error = new CommandExecutionError('Suno API submission outcome is uncertain. Do not rerun generate; check opencli suno list for new clips first.');
+        error.cause = cause;
+        throw error;
+    }
+    if (result?.notDispatched) throw new CommandExecutionError('Suno could not store the single-shot API guard; no generation was submitted.');
+    if (result?.uncertain) throw new CommandExecutionError('Suno API submission may already have run. Do not rerun generate; check opencli suno list for new clips first.');
 
     if (!result || !result.ok) {
         const status = result?.status || 'unknown';
@@ -334,27 +369,31 @@ export async function submitSunoGeneration(page, payload) {
         if (status === 402) {
             throw new CommandExecutionError(`Suno API: insufficient credits (HTTP 402). ${detail}`);
         }
+        if (typeof status === 'number' && status >= 500) {
+            throw new CommandExecutionError(`Suno API returned HTTP ${status}; submission outcome is uncertain. Do not rerun generate; check opencli suno list first.`);
+        }
         throw new CommandExecutionError(`Suno generate failed (HTTP ${status}): ${detail}`);
     }
 
     if (!result.body || typeof result.body !== 'object' || Array.isArray(result.body)) {
-        throw new CommandExecutionError('Suno generate returned malformed JSON payload.');
+        throw new CommandExecutionError('Suno generation returned malformed JSON; submission outcome is uncertain. Do not rerun generate; check opencli suno list first.');
     }
     const clips = result.body?.clips || [];
     if (!clips.length) {
-        throw new EmptyResultError('suno generate', `Submission accepted but Suno returned no clip ids. Raw: ${JSON.stringify(result.body).slice(0, 300)}`);
+        throw new CommandExecutionError('Suno accepted generation but returned no clip ids. Do not rerun generate; check opencli suno list first.');
     }
     return result.body;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Poll /api/feed/v3 (cookie auth, no Bearer).
+// Poll /api/feed/v3.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function pollSunoClips(page, clipIds, timeoutSeconds, deviceId, pollSeconds = 5, onProgress = null) {
     const deadline = Date.now() + timeoutSeconds * 1000;
     const targetSet = new Set(clipIds);
     const idsJson = JSON.stringify(clipIds);
+    let rateLimited = false;
 
     while (Date.now() < deadline) {
         const result = unwrapEvaluateResult(await page.evaluate(`(async () => {
@@ -364,7 +403,7 @@ export async function pollSunoClips(page, clipIds, timeoutSeconds, deviceId, pol
                 body: JSON.stringify({ clip_ids: ${idsJson} }),
             });
             const body = await res.json().catch(() => null);
-            return { status: res.status, body };
+            return { status: res.status, body, retryAfter: res.headers.get('Retry-After') };
         })()`));
 
         if (!result) {
@@ -373,6 +412,18 @@ export async function pollSunoClips(page, clipIds, timeoutSeconds, deviceId, pol
         }
         if (result.status === 401 || result.status === 403) {
             throw new AuthRequiredError(SUNO_DOMAIN, `Suno feed API rejected (HTTP ${result.status}). Re-login.`);
+        }
+        if (result.status === 429) {
+            rateLimited = true;
+            const seconds = Number(result.retryAfter);
+            const date = Date.parse(result.retryAfter);
+            const delay = Number.isFinite(seconds) && seconds > 0 ? seconds :
+                Number.isFinite(date) && date > Date.now() ? (date - Date.now()) / 1000 :
+                    Math.min(pollSeconds * 2, 30);
+            const remaining = (deadline - Date.now()) / 1000;
+            if (remaining <= 0) break;
+            await page.wait({ time: Math.min(Math.max(delay, 1), remaining) });
+            continue;
         }
         if (result.status < 200 || result.status >= 300) {
             throw new CommandExecutionError(`Suno feed API failed while polling clips (HTTP ${result.status || '?'})`);
@@ -396,7 +447,9 @@ export async function pollSunoClips(page, clipIds, timeoutSeconds, deviceId, pol
         await page.wait(pollSeconds);
     }
 
-    throw new TimeoutError(`Suno generation did not complete within ${timeoutSeconds}s. Try --timeout <higher>.`);
+    throw new TimeoutError(rateLimited
+        ? `Suno feed stayed rate-limited while checking these clips for ${timeoutSeconds}s; inspect their ids before any new generation.`
+        : `Suno generation did not complete within ${timeoutSeconds}s. Try --timeout <higher>.`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

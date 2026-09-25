@@ -278,10 +278,11 @@ export class Page extends CDPBasePage {
     }
   }
 
-  async readNetworkCapture(): Promise<unknown[]> {
+  async readNetworkCapture(options: { retainIncomplete?: boolean } = {}): Promise<unknown[]> {
     if (this._networkCaptureUnsupported) return [];
     try {
       const result = await sendCommand('network-capture-read', {
+        ...options,
         ...this._cmdOpts(),
       });
       return Array.isArray(result) ? result : [];

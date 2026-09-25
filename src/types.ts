@@ -122,7 +122,7 @@ export interface IPage {
   screenshot(options?: ScreenshotOptions): Promise<string>;
   annotatedScreenshot?(options?: ScreenshotOptions): Promise<string>;
   startNetworkCapture?(pattern?: string): Promise<boolean>;
-  readNetworkCapture?(): Promise<unknown[]>;
+  readNetworkCapture?(options?: { retainIncomplete?: boolean }): Promise<unknown[]>;
   /**
    * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
    * Chrome reads the files directly — no base64 encoding or payload size limits.

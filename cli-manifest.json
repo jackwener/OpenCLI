@@ -37069,7 +37069,7 @@
   {
     "site": "suno",
     "name": "generate",
-    "description": "Generate music with Suno (V5.5 chirp-fenix by default) and download clips locally",
+    "description": "Generate music with Suno v6, v6-wild, or v6-mini and download clips locally",
     "access": "write",
     "domain": "suno.com",
     "strategy": "cookie",
@@ -37117,7 +37117,7 @@
         "name": "model",
         "type": "str",
         "required": false,
-        "help": "Model id: chirp-fenix, chirp-bluejay, chirp-v4, chirp-v3-5. Default: chirp-fenix"
+        "help": "Model: v6, v6-wild, v6-mini. Default: account default (usually v6)"
       },
       {
         "name": "weirdness",
@@ -37156,6 +37156,13 @@
         "default": false,
         "required": false,
         "help": "Skip download; only print clip ids and Suno URLs"
+      },
+      {
+        "name": "via-ui",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "Use Suno Create even when webpage verification is not required"
       },
       {
         "name": "confirm-paid",

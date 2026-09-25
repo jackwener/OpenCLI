@@ -9,9 +9,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./utils.js', () => ({
-    DEFAULT_SUNO_MODEL: 'chirp-fenix',
+    DEFAULT_SUNO_MODEL: 'v6',
     SUNO_DOMAIN: 'suno.com',
-    SUNO_MODELS: ['chirp-fenix', 'chirp-bluejay', 'chirp-v4', 'chirp-v3-5'],
+    SUNO_MODELS: ['v6', 'v6-wild', 'v6-mini'],
     SUNO_URL: 'https://suno.com',
     ensureSunoSession: mocks.ensureSunoSession,
     checkSunoCaptcha: mocks.checkSunoCaptcha,
@@ -44,7 +44,9 @@ function createPage() {
     return {
         goto: vi.fn().mockResolvedValue(undefined),
         wait: vi.fn().mockResolvedValue(undefined),
-        evaluate: vi.fn().mockResolvedValue(undefined),
+        click: vi.fn().mockResolvedValue({ clicked: true }),
+        evaluate: vi.fn(async js => js.includes('simple: document.querySelector')
+            ? { simple: false, advanced: false } : undefined),
     };
 }
 
@@ -55,6 +57,9 @@ const okSession = {
     totalCreditsAvailable: 2000,
     breakdown: { pack: 0, purchasedPacks: 0, monthlyRemaining: 2000, monthlyLimit: 2500, monthlyUsed: 500 },
     deviceId: 'device-uuid',
+    models: [{ name: 'v6', externalKey: 'chirp-hawk', canUse: true, isDefault: true },
+        { name: 'v6-wild', externalKey: 'chirp-hawk-wild', canUse: true, isDefault: false },
+        { name: 'v6-mini', externalKey: 'chirp-goose', canUse: true, isDefault: false }],
 };
 const okCaptcha = { ok: true, required: false };
 const okSubmission = { id: 'batch-id', clips: [{ id: 'clip-a-id', status: 'submitted' }, { id: 'clip-b-id', status: 'submitted' }] };
@@ -112,21 +117,27 @@ describe('suno generate argument validation', () => {
         expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
     });
 
-    it('refuses to submit when captcha is required (out-of-scope for headless flow)', async () => {
+    it('rejects lyrics plus instrumental before native submission', async () => {
         mocks.checkSunoCaptcha.mockResolvedValue({ ok: true, required: true });
-        await expect(generateCommand.func(createPage(), { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({
-            code: 'COMMAND_EXEC',
-            message: expect.stringContaining('CAPTCHA challenge'),
+        await expect(generateCommand.func(createPage(), { lyrics: '[Verse] foo', instrumental: true, sd: true, timeout: 60 })).rejects.toMatchObject({
+            code: 'ARGUMENT',
+            message: expect.stringContaining('cannot combine nonempty lyrics'),
         });
         expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
     });
 
-    it('refuses to submit when captcha pre-flight fails', async () => {
+    it('uses Create instead of the direct API when captcha pre-flight fails', async () => {
         mocks.checkSunoCaptcha.mockResolvedValue({ ok: false, status: 500 });
-        await expect(generateCommand.func(createPage(), { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({
-            code: 'COMMAND_EXEC',
-            message: expect.stringContaining('captcha pre-flight failed'),
-        });
+        const page = createPage();
+        await expect(generateCommand.func(page, { prompt: 'foo', sd: true, timeout: 60 })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+        expect(page.goto).toHaveBeenCalledWith('https://suno.com/create');
+        expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
+    });
+    it('skips the captcha probe when --via-ui is explicit', async () => {
+        const page = createPage();
+        await expect(generateCommand.func(page, { prompt: 'foo', 'via-ui': true, sd: true, timeout: 60 })).rejects.toMatchObject({ code: 'COMMAND_EXEC' });
+        expect(mocks.checkSunoCaptcha).not.toHaveBeenCalled();
+        expect(page.goto).toHaveBeenCalledWith('https://suno.com/create');
         expect(mocks.submitSunoGeneration).not.toHaveBeenCalled();
     });
 });
@@ -142,6 +153,17 @@ describe('suno generate Simple mode payload', () => {
             negativeTags: '',
             userTier: okSession.planId,
             deviceId: okSession.deviceId,
+        }));
+    });
+    it('uses the available free-plan v6-mini model when it is the account default', async () => {
+        mocks.ensureSunoSession.mockResolvedValue({ ...okSession, models: [
+            { name: 'v6', externalKey: 'chirp-hawk', canUse: false, isDefault: false },
+            { name: 'v6-mini', externalKey: 'chirp-goose', canUse: true, isDefault: true },
+        ] });
+        await generateCommand.func(createPage(), { prompt: 'short melody', sd: true, timeout: 60 });
+        expect(mocks.submitSunoGeneration).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            model: 'chirp-goose',
+            modelName: 'v6-mini',
         }));
     });
 });

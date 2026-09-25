@@ -42,11 +42,8 @@ export const statusCommand = cli({
         let captcha;
         try {
             captcha = await checkSunoCaptcha(page, session.deviceId);
-        } catch (err) {
-            // Conservative: assume captcha is required when the pre-flight
-            // probe fails, so the displayed status doesn't claim "Not required"
-            // for an unverified state.
-            captcha = { required: true };
+        } catch {
+            captcha = null;
         }
         const b = session.breakdown;
         // ensureSunoSession surfaces planKey derived from billing/info's
@@ -57,7 +54,8 @@ export const statusCommand = cli({
             Plan: session.planKey,
             Credits: String(session.totalCreditsAvailable),
             Monthly: `${b.monthlyRemaining}/${b.monthlyLimit}`,
-            Captcha: captcha?.required === true ? 'Required (solve in UI)' : 'Not required',
+            Captcha: captcha?.ok !== true ? 'Unknown (check failed)' :
+                captcha.required === true ? 'Required (Create UI; may be automatic)' : 'Not required',
         }];
     },
 });

@@ -135,4 +135,28 @@ describe('CDPBridge cookies', () => {
     });
     expect(String(entries[0].requestBodyPreview)).toHaveLength(CDP_REQUEST_BODY_CAPTURE_LIMIT);
   });
+
+  it('retains an early-read request until the delayed response body completes', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+    const bridge = new CDPBridge();
+    let releaseBody!: (value: unknown) => void;
+    const body = new Promise(resolve => { releaseBody = resolve; });
+    vi.spyOn(bridge, 'send').mockImplementation(async (method: string) =>
+      method === 'Network.getResponseBody' ? body : {});
+    const page = await bridge.connect();
+    await page.startNetworkCapture?.('api.example');
+    const fire = (method: string, params: unknown) => MockWebSocket.lastInstance?.emit('message',
+      Buffer.from(JSON.stringify({ method, params })));
+    fire('Network.requestWillBeSent', { requestId: 'r2', request: { method: 'POST', url: 'https://api.example/gen', postData: '{}', hasPostData: true } });
+    const early = await page.readNetworkCapture?.({ retainIncomplete: true }) as Array<Record<string, unknown>>;
+    expect(early[0].responsePreview).toBeUndefined();
+    fire('Network.responseReceived', { requestId: 'r2', response: { status: 200 } });
+    fire('Network.loadingFinished', { requestId: 'r2' });
+    const reading = page.readNetworkCapture?.({ retainIncomplete: true }) as Promise<Array<Record<string, unknown>>>;
+    releaseBody({ body: '{"clips":[]}', base64Encoded: false });
+    const completed = await reading;
+    expect(completed[0]).toMatchObject({ responseStatus: 200, responsePreview: '{"clips":[]}', captureComplete: true });
+    expect(completed[0].requestId).toBe('r2');
+    expect(await page.readNetworkCapture?.({ retainIncomplete: true })).toEqual([]);
+  });
 });

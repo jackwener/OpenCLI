@@ -27,6 +27,8 @@ export interface Command {
   id: string;
   /** Action type */
   action: Action;
+  /** Keep in-flight network capture entries for a later completed read. */
+  retainIncomplete?: boolean;
   /** Target page identity (targetId). Cross-layer contract with the daemon. */
   page?: string;
   /** JS code to evaluate in page context (exec action) */

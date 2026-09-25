@@ -17,6 +17,7 @@ import {
     normalizeBooleanFlag,
     parseFormats,
     resolveSunoOutputDir,
+    sunoHeadersJs,
     unwrapEvaluateResult,
 } from './utils.js';
 
@@ -75,7 +76,7 @@ export const downloadCommand = cli({
             return true;
         });
         if (!formats.length) {
-            throw new ArgumentError('All requested formats require --confirm-paid true', 'Add --confirm-paid true or include a free format such as mp3 or metadata.');
+            throw new ArgumentError('All requested formats require --confirm-paid true', 'Add --confirm-paid true or include a non-WAV format such as mp3 or metadata.');
         }
         const outputDir = resolveSunoOutputDir(kwargs.op);
 
@@ -84,15 +85,9 @@ export const downloadCommand = cli({
 
         // Pull the clip object from feed/v3 so audio_url/media_urls/has_stem are current.
         const feedRes = unwrapEvaluateResult(await page.evaluate(`(async () => {
-            const browserToken = JSON.stringify({ token: btoa(JSON.stringify({ timestamp: Date.now() })) });
             const res = await fetch('${STUDIO_API}/api/feed/v3', {
                 method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + (await window.Clerk.session.getToken()),
-                    'browser-token': browserToken,
-                    'device-id': ${JSON.stringify(deviceId)},
-                    'Content-Type': 'application/json',
-                },
+                headers: ${sunoHeadersJs(deviceId, { 'Content-Type': 'application/json' })},
                 body: JSON.stringify({ clip_ids: ['${clipId}'] }),
             });
             if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
