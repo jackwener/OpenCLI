@@ -9,7 +9,7 @@ cli({
         {
             name: 'subreddit',
             default: '',
-            help: 'Subreddit name (e.g. programming). Empty for frontpage',
+            help: 'Subreddit name (e.g. programming). Empty for r/popular',
         },
         { name: 'limit', type: 'int', default: 20, help: 'Number of posts' },
     ],
@@ -44,13 +44,20 @@ cli({
     return { post_hint, url_overridden_by_dest, preview_image_url, gallery_urls };
   }
   const sub = \${{ args.subreddit | json }};
-  const path = sub ? '/r/' + sub + '/hot.json' : '/hot.json';
+  const path = sub ? '/r/' + sub + '/hot.json' : '/r/popular/hot.json';
   const limit = \${{ args.limit }};
   const res = await fetch(path + '?limit=' + limit + '&raw_json=1', {
     credentials: 'include'
   });
+  if (!res.ok) throw new Error('Reddit hot request failed: HTTP ' + res.status + ' from ' + path);
   const d = await res.json();
-  return (d?.data?.children || []).map(c => ({
+  if (d?.kind !== 'Listing' || !Array.isArray(d?.data?.children)) {
+    throw new Error('Reddit hot returned an invalid Listing from ' + path);
+  }
+  if (d.data.children.length === 0) {
+    throw new Error('Reddit hot returned an empty Listing (dist=' + d.data.dist + ') from ' + path + '; try --subreddit <name>');
+  }
+  return d.data.children.map(c => ({
     title: c.data.title,
     subreddit: c.data.subreddit_name_prefixed,
     score: c.data.score,
