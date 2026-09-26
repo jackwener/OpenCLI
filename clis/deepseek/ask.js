@@ -74,8 +74,8 @@ export const askCommand = cli({
             }
         }
 
-        // Model selector is only available on the new-chat page, not inside
-        // an existing conversation. Skip it when we resumed a prior thread.
+        // Only select a model when the caller explicitly requested one. The
+        // default model needs no UI action, and DeepSeek may hide the selector.
         const currentUrl = await page.evaluate('window.location.href') || '';
         const inConversation = currentUrl.includes('/a/chat/s/');
         const modelExplicit = kwargs.__opencliOptionSources?.model === 'cli';
@@ -89,7 +89,7 @@ export const askCommand = cli({
             );
         }
 
-        if (!inConversation) {
+        if (!inConversation && modelExplicit) {
             const modelResult = await withRetry(() => selectModel(page, wantModel));
             if (!modelResult?.ok) {
                 throw new CommandExecutionError(`Could not switch to ${wantModel} model`);
