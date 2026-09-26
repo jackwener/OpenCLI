@@ -15,9 +15,10 @@ afterEach(() => {
     }
 });
 
-function createPageMock({ location = '', generating = [], imageUrls = [] } = {}) {
+function createPageMock({ location = '', generating = [], imageUrls = [], messages = [] } = {}) {
     let generatingIndex = 0;
     let imageIndex = 0;
+    let messagesIndex = 0;
     return {
         wait: vi.fn().mockResolvedValue(undefined),
         sleep: vi.fn().mockResolvedValue(undefined),
@@ -33,6 +34,11 @@ function createPageMock({ location = '', generating = [], imageUrls = [] } = {})
                 const value = imageUrls[Math.min(imageIndex, imageUrls.length - 1)] ?? [];
                 imageIndex += 1;
                 return Promise.resolve(value);
+            }
+            if (script.includes('data-message-author-role')) {
+                const value = messages[Math.min(messagesIndex, messages.length - 1)];
+                messagesIndex += 1;
+                return Promise.resolve(value === undefined ? undefined : value);
             }
             return Promise.resolve(undefined);
         }),
@@ -77,6 +83,32 @@ describe('chatgpt image wait contract', () => {
         });
 
         await expect(waitForChatGPTImages(page, [], 9, convUrl)).rejects.toThrow(/chatgpt image timed out/);
+    });
+
+    it('fails fast with the refusal text when the turn ends without an image', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            messages: [[
+                { role: 'User', text: 'Generate an image of: a castle at dusk' },
+                { role: 'Assistant', text: '很抱歉，我无法生成这张图片，因为它可能违反了内容政策。请修改提示词后再试一次，谢谢你的理解。' },
+            ]],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 30, convUrl)).rejects.toThrow(/text-only response/);
+        expect(page.goto).not.toHaveBeenCalled();
+    });
+
+    it('keeps waiting when the assistant reply is too short to be a refusal', async () => {
+        const convUrl = 'https://chatgpt.com/c/demo';
+        const page = createPageMock({
+            location: convUrl,
+            generating: [false],
+            messages: [[{ role: 'Assistant', text: '好的。' }]],
+        });
+
+        await expect(waitForChatGPTImages(page, [], 9, convUrl)).resolves.toEqual([]);
     });
 
     it('rejects data URL completion candidates case-insensitively', async () => {
