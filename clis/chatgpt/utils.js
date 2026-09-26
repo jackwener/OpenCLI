@@ -81,13 +81,18 @@ export const CHATGPT_TOOL_CHOICES = Object.keys(CHATGPT_TOOL_OPTIONS);
 
 // Selectors
 const COMPOSER_SELECTORS = [
+    // [LOCAL PATCH 2026-09-26] 2026-09 chatgpt.com composer revamp: the
+    // ProseMirror editable no longer carries #prompt-textarea / data-testid;
+    // its wrapper has aria-label "询问 ChatGPT" ("Ask ChatGPT").
     '[contenteditable="true"][role="textbox"]',
-    '#prompt-textarea[contenteditable="true"]',
+    '[aria-label="询问 ChatGPT"] [contenteditable="true"]',
+    '[aria-label="Ask ChatGPT"] [contenteditable="true"]',
     '[aria-label="Chat with ChatGPT"]',
     '[aria-label="与 ChatGPT 聊天"]',
     '[placeholder="Ask anything"]',
     '[placeholder="有问题，尽管问"]',
     '#prompt-textarea',
+    '#prompt-textarea[contenteditable="true"]',
     '[data-testid="prompt-textarea"]',
 ];
 const SEND_BUTTON_SELECTOR = 'button[data-testid="send-button"]:not([disabled])';
@@ -106,6 +111,27 @@ const CLOSE_SIDEBAR_LABELS = [
     'Close sidebar',
     '关闭边栏',
 ];
+
+// [LOCAL PATCH 2026-09-26] 2026-09 chatgpt.com mints *client-side temporary*
+// conversation ids for brand-new chats. Observed prefixes: `WEB:` (2026-09-03)
+// and `local-chatgpt:` (2026-09-26, URL-encoded as local-chatgpt%3A...).
+// These ids are never valid server routes — navigating to /c/<tempId> renders
+// "无法加载此对话" (conversation failed to load). Treat any of them as
+// "no real conversation URL yet".
+export function isTemporaryChatGPTConversationId(id) {
+    return /^(WEB:|local-chatgpt%3A|local-chatgpt:)/i.test(String(id || ''));
+}
+
+export function isRealChatGPTConversationUrl(url) {
+    if (!url || !url.includes('/c/')) return false;
+    try {
+        const parsed = new URL(url);
+        const segment = decodeURIComponent(parsed.pathname.split('/c/')[1] || '');
+        return segment.length >= 8 && !isTemporaryChatGPTConversationId(segment);
+    } catch {
+        return false;
+    }
+}
 
 function isSameChatGPTConversation(currentUrl, expectedUrl) {
     if (!currentUrl || !expectedUrl) return false;
@@ -306,7 +332,10 @@ export async function isOnChatGPT(page) {
 // wait succeeds as soon as any composer flavour mounts (querySelectorAll
 // matches all of them). Tracks the most stable subset of COMPOSER_SELECTORS;
 // we only need to know "the composer is ready", not which variant rendered.
-const COMPOSER_WAIT_SELECTOR = '#prompt-textarea, [data-testid="prompt-textarea"]';
+// [LOCAL PATCH 2026-09-26] 2026-09 DOM: composer editable is a ProseMirror
+// [contenteditable][role=textbox] (often under aria-label "询问 ChatGPT");
+// #prompt-textarea / data-testid variants kept for older builds.
+const COMPOSER_WAIT_SELECTOR = '[contenteditable="true"][role="textbox"], #prompt-textarea, [data-testid="prompt-textarea"], [aria-label="询问 ChatGPT"], [aria-label="Chat with ChatGPT"]';
 const CONVERSATION_LINK_SELECTOR = 'a[href*="/c/"]';
 const PROJECT_LINK_SELECTOR = 'a[href*="/g/g-p-"]';
 // Selector used by detail.js to wait for at least one rendered message bubble
@@ -315,7 +344,7 @@ export const CONVERSATION_MESSAGE_SELECTOR = '[data-message-author-role], articl
 
 export async function ensureOnChatGPT(page) {
     if (await isOnChatGPT(page)) {
-                return false;
+        return false;
     }
     await page.goto(CHATGPT_URL, { settleMs: 2000 });
     try {
@@ -1514,7 +1543,17 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
                 return true;
             }
             const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
+            if (rect.width > 0 && rect.height > 0) return true;
+            // [LOCAL PATCH 2026-09-26] 2026-09 chatgpt.com virtualizes turns:
+            // blocks can report 0x0 rects even in a real viewport while still
+            // holding fully rendered text (trace evidence: 1280x742 viewport,
+            // block rects 0x0). Accept a block when it actually carries visible
+            // text and is not CSS-hidden or aria-hidden.
+            if (!hasViewport) return true;
+            const text = (el.textContent || '').trim();
+            if (text && el.closest('[aria-hidden="true"]') === null
+                && window.getComputedStyle(el).display !== 'none') return true;
+            return false;
         };
         const normalize = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
         const roleOf = (node) => {
@@ -1531,6 +1570,19 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
         };
 
         let nodes = Array.from(document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]'));
+        // [LOCAL PATCH 2026-09-26] 2026-09 chatgpt.com DOM revamp: messages render
+        // inside div.block-* containers ("你说：..." user blocks / "ChatGPT 说：" h4
+        // headings), assistant markdown root is
+        // [data-markdown-text-style="assistant-message"]. Old markers are gone
+        // (0 hits). Fall back to the new container shape when old ones are absent.
+        if (!nodes.length) {
+            // Every 2026-09 turn renders as a div.block-* container: user turns
+            // carry a bare h4 ("你说："), assistant turns an
+            // h4[data-conversation-role="assistant"] ("ChatGPT 说："). Keep all of
+            // them and let the role/heading logic below classify each block.
+            nodes = Array.from(document.querySelectorAll('div.block-BQZwFn'))
+                .filter((node) => node.querySelector('h4'));
+        }
         nodes = nodes.filter((node) => node instanceof HTMLElement && isVisible(node));
 
         const rows = [];
@@ -1539,15 +1591,38 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
             let role = roleOf(node);
             const roleNode = node.querySelector('[data-message-author-role], [data-author]');
             if (!role && roleNode) role = roleOf(roleNode);
+            // [LOCAL PATCH 2026-09-26] 2026-09 DOM: role lives in
+            // h4[data-conversation-role] ("ChatGPT 说：" heading); blocks without
+            // it are user turns ("你说：...").
+            if (!role) {
+                const h4 = node.querySelector('h4[data-conversation-role]');
+                if (h4 && /assistant/i.test(h4.getAttribute('data-conversation-role') || '')) role = 'Assistant';
+                else if (node.querySelector('h4')) role = 'User';
+                else if (/你说：/.test((node.textContent || '').slice(0, 40))) role = 'User';
+            }
             if (!role) continue;
 
-            const contentNode = node.querySelector('[data-message-author-role] .markdown')
+            // [LOCAL PATCH 2026-09-26] 2026-09 DOM: markdown root is
+            // [data-markdown-text-style]; strip the "你说：/ChatGPT 说：" heading
+            // so response-dedup logic compares the actual reply text.
+            let contentNode = node.querySelector('[data-message-author-role] .markdown')
                 || node.querySelector('.markdown')
                 || node.querySelector('[data-message-author-role]')
+                || node.querySelector('[data-markdown-text-style]')
                 || node;
-            const html = includeHtml && contentNode instanceof HTMLElement ? (contentNode.innerHTML || '') : '';
+            const heading = node.querySelector('h4[data-conversation-role]');
+            const rawText0 = contentNode instanceof HTMLElement ? (contentNode.textContent || '') : '';
+            if (heading && heading !== contentNode && heading.contains(contentNode)) {
+                contentNode = node;
+            } else if (/^(你说：|ChatGPT 说：)/.test(rawText0.trim().slice(0, 12))) {
+                contentNode = node;
+            }
+            const stripHeading = (text) => String(text || '')
+                .replace(/^\\s*你说：[\\s\\n]*/, '')
+                .replace(/^\\s*ChatGPT 说：[\\s\\n]*/, '');
+            const html = includeHtml && contentNode instanceof HTMLElement ? stripHeading(contentNode.innerHTML || '') : '';
             const rawText = contentNode instanceof HTMLElement
-                ? (includeHtml ? (contentNode.innerText || contentNode.textContent || '') : (contentNode.textContent || ''))
+                ? stripHeading(includeHtml ? (contentNode.innerText || contentNode.textContent || '') : (contentNode.textContent || ''))
                 : '';
             const text = normalize(rawText);
             if (!text) continue;
@@ -2899,10 +2974,15 @@ export async function isGenerating(page) {
             // [data-message-author-role] nodes when articles are absent.
             // Bare 'Thinking' only counts inside the last turn — the composer
             // area shows 'Thinking' as an idle model label.
-            const turns = document.querySelectorAll('article[data-testid*="conversation-turn"]');
-            const messages = turns.length ? turns : document.querySelectorAll('[data-message-author-role]');
+            // [LOCAL PATCH 2026-09-26] 2026-09 DOM: also cover the new
+            // div.block-* turn containers ([data-markdown-text-style] roots).
+            let turns = document.querySelectorAll('article[data-testid*="conversation-turn"]');
+            if (!turns.length) turns = document.querySelectorAll('div.block-BQZwFn');
+            const messages = turns.length ? turns : document.querySelectorAll('[data-message-author-role], [data-markdown-text-style]');
             if (messages.length) scopes.push([messages[messages.length - 1], /正在思考|停止生成|Thinking/]);
-            const composer = document.querySelector('#prompt-textarea, [aria-label="Chat with ChatGPT"]');
+            // [LOCAL PATCH 2026-09-26] 2026-09 DOM: ProseMirror composer w/o id;
+            // cover the new aria-label and the generic editable fallback.
+            const composer = document.querySelector('#prompt-textarea, [aria-label="询问 ChatGPT"], [aria-label="Chat with ChatGPT"], [contenteditable="true"][role="textbox"]');
             if (composer) {
                 let root = composer;
                 for (let i = 0; i < 4 && root.parentElement; i += 1) root = root.parentElement;
@@ -3086,7 +3166,12 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
         await page.sleep(i === 0 ? 3 : pollIntervalSeconds);
 
         let currentUrl = '';
-        if (convUrl && convUrl.includes('/c/')) {
+        // [LOCAL PATCH 2026-09-26] Only re-navigate when convUrl is a REAL
+        // /c/<uuid> route. Temporary client-side ids (local-chatgpt:<uuid> /
+        // WEB:<uuid>) 404 on navigation and would fight the frontend's own
+        // redirect to the real conversation, cascading into
+        // "Page not found — stale page identity".
+        if (convUrl && isRealChatGPTConversationUrl(convUrl)) {
             currentUrl = unwrapEvaluateResult(await page.evaluate('window.location.href').catch(() => ''));
             if (currentUrl && !isSameChatGPTConversation(currentUrl, convUrl)) {
                 await page.goto(convUrl);
@@ -3098,7 +3183,7 @@ export async function waitForChatGPTImages(page, beforeUrls, timeoutSeconds, con
         stillRendering = generating;
         if (generating) continue;
 
-        if (convUrl && convUrl.includes('/c/') && i > 0 && i % 5 === 0) {
+        if (convUrl && isRealChatGPTConversationUrl(convUrl) && i > 0 && i % 5 === 0) {
             const onConversation = !currentUrl || isSameChatGPTConversation(currentUrl, convUrl);
             if (onConversation) {
                 await page.goto(convUrl);
