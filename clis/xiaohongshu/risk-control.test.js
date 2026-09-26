@@ -106,4 +106,19 @@ describe('xiaohongshu risk-control readXhsDetailPage', () => {
         await expect(readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 }))
             .rejects.toBeInstanceOf(CliError);
     });
+
+    it('recovers a bridge "Navigation rejected" race without spending the cooldown retry', async () => {
+        // First goto hits the bridge tab race, the recovery ladder retries it;
+        // the risk-control path must stay untouched (one settle wait, one read).
+        const page = makePage([{ title: 'ok', securityBlock: false }]);
+        page.goto
+            .mockImplementationOnce(() => Promise.reject(new Error('Navigation rejected.')))
+            .mockImplementationOnce(() => Promise.resolve());
+        const data = await readXhsDetailPage(page, { url, extractJs, rand: () => 0.5 });
+        expect(data).toEqual({ title: 'ok', securityBlock: false });
+        expect(page.goto).toHaveBeenCalledTimes(2);
+        expect(page.evaluate).toHaveBeenCalledTimes(1);
+        // only the settle wait — no cooldown wait was consumed
+        expect(page.wait).toHaveBeenCalledTimes(1);
+    });
 });

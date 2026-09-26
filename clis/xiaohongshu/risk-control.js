@@ -1,4 +1,5 @@
 import { CliError } from '@jackwener/opencli/errors';
+import { gotoWithRecovery } from '../_shared/navigation.js';
 
 /**
  * Xiaohongshu risk-control pacing shared by the note / comments / download
@@ -60,7 +61,10 @@ export async function readXhsDetailPage(page, {
     rand = Math.random,
 } = {}) {
     const readOnce = async () => {
-        await page.goto(url);
+        // gotoWithRecovery clears bridge "Navigation rejected" tab races so
+        // they don't consume (or get confused with) the risk-control cooldown
+        // retry below — the two failure modes are independent.
+        await gotoWithRecovery(page, url);
         await page.wait({ time: jitterSeconds(settleMinS, settleMaxS, rand) });
         return page.evaluate(extractJs);
     };

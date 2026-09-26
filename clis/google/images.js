@@ -15,42 +15,11 @@ import {
     toHttpsUrl,
     unwrapBrowserResult,
 } from '../_shared/search-adapter.js';
+import { gotoWithRecovery } from '../_shared/navigation.js';
 
-function isNavigationRejected(error) {
-    return /Navigation rejected/i.test(String(error?.message || error));
-}
-
-async function navigateGoogleImages(page, url) {
-    try {
-        await page.goto(url);
-        return;
-    } catch (error) {
-        if (!isNavigationRejected(error)) {
-            throw error;
-        }
-    }
-
-    if (typeof page.closeWindow === 'function') {
-        await page.closeWindow().catch(() => {});
-    }
-
-    try {
-        await page.goto(url);
-        return;
-    } catch (error) {
-        if (!isNavigationRejected(error)) {
-            throw error;
-        }
-        if (typeof page.newTab === 'function' && typeof page.setActivePage === 'function') {
-            const pageId = await page.newTab(url);
-            if (pageId) {
-                await page.setActivePage(pageId);
-                return;
-            }
-        }
-        throw error;
-    }
-}
+// Recovery ladder shared with the xiaohongshu detail-page reads: plain goto →
+// closeWindow + goto → newTab + setActivePage (see clis/_shared/navigation.js).
+const navigateGoogleImages = gotoWithRecovery;
 
 export async function extractGoogleImageRows(maxRows = 20, resolveOriginal = true, docArg) {
     var doc = docArg || document;
