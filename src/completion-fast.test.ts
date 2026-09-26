@@ -58,4 +58,20 @@ describe('getCompletionsFromManifest', () => {
 
     expect(getCompletionsFromManifest([], 1, [manifestPath])).toEqual([...BUILTIN_COMMANDS].sort());
   });
+
+  it('filters disabled sites and their commands', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-completion-'));
+    tempDirs.push(dir);
+    const manifestPath = path.join(dir, 'cli-manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify([
+      { site: 'hackernews', name: 'top' },
+      { site: 'twitter', name: 'search' },
+    ]), 'utf8');
+    const enabled = (site: string) => site !== 'twitter';
+
+    expect(getCompletionsFromManifest([], 1, [manifestPath], enabled))
+      .toEqual([...BUILTIN_COMMANDS, 'hackernews'].sort());
+    expect(getCompletionsFromManifest(['twitter'], 2, [manifestPath], enabled)).toEqual([]);
+    expect(getCompletionsFromManifest(['hackernews'], 2, [manifestPath], enabled)).toEqual(['top']);
+  });
 });

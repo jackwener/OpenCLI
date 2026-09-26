@@ -4,6 +4,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { runCli, parseJsonOutput } from './helpers.js';
 
 describe('management commands E2E', () => {
@@ -102,5 +105,40 @@ describe('management commands E2E', () => {
   it('unknown command shows error', async () => {
     const { stderr, code } = await runCli(['nonexistent-command-xyz']);
     expect(code).toBe(2);
+  });
+
+  it('can disable and re-enable a site through adapter policy commands', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-policy-e2e-'));
+    const policyPath = path.join(dir, 'policy.yaml');
+    const env = { OPENCLI_POLICY_FILE: policyPath };
+
+    try {
+      const disabled = await runCli(['adapter', 'disable', 'hackernews'], { env });
+      expect(disabled.code).toBe(0);
+
+      const listAfterDisable = await runCli(['list', '-f', 'json'], { env });
+      expect(listAfterDisable.code).toBe(0);
+      const disabledCatalog = parseJsonOutput(listAfterDisable.stdout);
+      expect(disabledCatalog.some((item: any) => item.site === 'hackernews')).toBe(false);
+
+      const blocked = await runCli(['hackernews', 'top'], { env });
+      expect(blocked.code).toBe(78);
+      expect(blocked.stderr).toContain("adapter site 'hackernews' is disabled");
+
+      const enabled = await runCli(['adapter', 'enable', 'hackernews'], { env });
+      expect(enabled.code).toBe(0);
+
+      const listAfterEnable = await runCli(['list', '-f', 'json'], { env });
+      const enabledCatalog = parseJsonOutput(listAfterEnable.stdout);
+      expect(enabledCatalog.some((item: any) => item.site === 'hackernews')).toBe(true);
+
+      const disabledApp = await runCli(['adapter', 'disable', 'antigravity'], { env });
+      expect(disabledApp.code).toBe(0);
+      const blockedApp = await runCli(['antigravity', 'serve'], { env });
+      expect(blockedApp.code).toBe(78);
+      expect(blockedApp.stderr).toContain("adapter site 'antigravity' is disabled");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

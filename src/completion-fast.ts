@@ -40,15 +40,21 @@ export function hasAllManifests(manifestPaths: string[]): boolean {
  * Lightweight completion that reads directly from manifest JSON files,
  * bypassing full CLI discovery and adapter loading.
  */
-export function getCompletionsFromManifest(words: string[], cursor: number, manifestPaths: string[]): string[] | null {
+export function getCompletionsFromManifest(
+  words: string[],
+  cursor: number,
+  manifestPaths: string[],
+  isSiteEnabled: (site: string) => boolean = () => true,
+): string[] | null {
   const entries = loadManifestEntries(manifestPaths);
   if (entries === null) {
     return null;
   }
+  const enabledEntries = entries.filter(entry => isSiteEnabled(entry.site));
 
   if (cursor <= 1) {
     const sites = new Set<string>();
-    for (const entry of entries) {
+    for (const entry of enabledEntries) {
       sites.add(entry.site);
     }
     return [...BUILTIN_COMMANDS, ...sites].sort();
@@ -61,7 +67,7 @@ export function getCompletionsFromManifest(words: string[], cursor: number, mani
 
   if (cursor === 2) {
     const subcommands: string[] = [];
-    for (const entry of entries) {
+    for (const entry of enabledEntries) {
       if (entry.site === site) {
         subcommands.push(entry.name);
         if (entry.aliases?.length) subcommands.push(...entry.aliases);

@@ -147,6 +147,7 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
+| `OPENCLI_POLICY_FILE` | `~/.opencli/policy.yaml` | 覆盖用于启用或禁用网站及桌面 App adapter 的站点策略文件 |
 | `OPENCLI_WINDOW` | 命令默认值 | 设为 `foreground` 或 `background` 来覆盖 Browser Bridge 窗口位置。浏览器型命令也支持 `--window <foreground\|background>` |
 | `OPENCLI_SITE_SESSION` | adapter 默认值 | 设为 `ephemeral` 或 `persistent`，覆盖浏览器型 adapter 命令的 `siteSession` 元数据。`ephemeral` 会在命令结束时关闭一次性自动化窗口；`persistent` 会复用该站点的 session。命令级 `--site-session` 优先。 |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | 浏览器连接超时（秒） |
@@ -159,6 +160,32 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 Browser Bridge daemon 与扩展的通信端口固定为 `localhost:19825`，不再支持通过 `OPENCLI_DAEMON_PORT` 配置自定义端口。
 
 `opencli browser *` 必须紧跟一个 `<session>` 位置参数，默认使用前台窗口，并保留该 session 的 tab lease，直到你手动执行 `opencli browser <session> close` 或等空闲超时。浏览器型 adapter 默认使用后台 adapter 窗口并在命令结束后释放一次性 tab lease；如果需要调试最终页面，可以传 `--window foreground --keep-tab true`。
+
+### 启用或禁用 adapter 站点
+
+网站 adapter 与 Electron App adapter 共用同一套站点策略：
+
+```bash
+opencli adapter disable douyin
+opencli adapter enable douyin
+opencli adapter status
+```
+
+这些命令会更新 `~/.opencli/policy.yaml`。被禁用的站点不会参与发现，也不会出现在 `opencli list`、帮助和命令补全中，直接调用同样会被拒绝。没有策略文件时默认启用全部站点，保持向后兼容。
+
+需要白名单模式时，可以直接编辑策略文件：
+
+```yaml
+sites:
+  default: deny
+  allow:
+    - hackernews
+    - miuta-douyin
+  deny:
+    - douyin
+```
+
+`deny` 优先于 `allow`。该策略只覆盖已注册 adapter，不限制原始 `opencli browser *` 操作和外部 CLI 透传。
 
 ## 内置命令
 

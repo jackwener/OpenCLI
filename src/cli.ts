@@ -42,6 +42,7 @@ import { formatDaemonVersion, isDaemonStale } from './browser/daemon-version.js'
 import { DEFAULT_BROWSER_CONNECT_TIMEOUT } from './browser/config.js';
 import type { BrowserDownloadWaitResult, IPage, ScreenshotOptions } from './types.js';
 import type { BrowserWindowMode } from './runtime.js';
+import { getSitePolicy, isSiteEnabled, setSiteEnabled } from './site-policy.js';
 
 const CLI_FILE = fileURLToPath(import.meta.url);
 const BROWSER_TAB_OPTION_DESCRIPTION = 'Target tab/page identity returned by "browser open", "browser tab new", or "browser tab list"';
@@ -3153,11 +3154,16 @@ cli({
 
   adapterCmd
     .command('status')
-    .description('Show which sites have local overrides vs using official baseline')
+    .description('Show adapter policy and local overrides')
     .action(async () => {
       const os = await import('node:os');
       const userClisDir = path.join(os.homedir(), '.opencli', 'clis');
       const builtinClisDir = BUILTIN_CLIS;
+      const policy = getSitePolicy();
+      console.log(`Site policy: default ${policy.default} (${policy.path})`);
+      console.log(`  allow: ${[...policy.allow].sort().join(', ') || '(none)'}`);
+      console.log(`  deny: ${[...policy.deny].sort().join(', ') || '(none)'}`);
+      console.log();
       try {
         const userEntries = await fs.promises.readdir(userClisDir, { withFileTypes: true });
         const userSites = userEntries.filter(e => e.isDirectory()).map(e => e.name).sort();
@@ -3181,6 +3187,34 @@ cli({
         console.log(`\nOfficial baseline: ${builtinSites.length} sites in package`);
       } catch {
         console.log('No local adapter overrides. All sites use the official baseline.');
+      }
+    });
+
+  adapterCmd
+    .command('enable')
+    .description('Enable a site or app adapter in the site policy')
+    .argument('<site>', 'Site name (e.g. twitter, doubao-app)')
+    .action((site: string) => {
+      try {
+        const policy = setSiteEnabled(site, true);
+        console.log(`✅ Enabled adapter site "${site}" in ${policy.path}`);
+      } catch (error) {
+        console.error(`Error: ${getErrorMessage(error)}`);
+        process.exitCode = error instanceof CliError ? error.exitCode : EXIT_CODES.CONFIG_ERROR;
+      }
+    });
+
+  adapterCmd
+    .command('disable')
+    .description('Disable a site or app adapter in the site policy')
+    .argument('<site>', 'Site name (e.g. twitter, doubao-app)')
+    .action((site: string) => {
+      try {
+        const policy = setSiteEnabled(site, false);
+        console.log(`✅ Disabled adapter site "${site}" in ${policy.path}`);
+      } catch (error) {
+        console.error(`Error: ${getErrorMessage(error)}`);
+        process.exitCode = error instanceof CliError ? error.exitCode : EXIT_CODES.CONFIG_ERROR;
       }
     });
 
@@ -3367,9 +3401,11 @@ cli({
 
   // ── Antigravity serve (long-running, special case) ────────────────────────
 
-  const antigravityCmd = program.command('antigravity').description('antigravity commands');
+  const antigravityCmd = isSiteEnabled('antigravity')
+    ? program.command('antigravity').description('antigravity commands')
+    : null;
   antigravityCmd
-    .command('serve')
+    ?.command('serve')
     .description('Start Anthropic-compatible API proxy for Antigravity')
     .option('--port <port>', 'Server port (default: 8082)', '8082')
     .option('--timeout <seconds>', 'Maximum time to wait for a reply (default: 120s)')
@@ -3385,7 +3421,7 @@ cli({
   // ── Dynamic adapter commands ──────────────────────────────────────────────
 
   const siteGroups = new Map<string, Command>();
-  siteGroups.set('antigravity', antigravityCmd);
+  if (antigravityCmd) siteGroups.set('antigravity', antigravityCmd);
   const siteNames = registerAllCommands(program, siteGroups);
   applyRootSubcommandSummaries(program);
 
@@ -3439,6 +3475,11 @@ cli({
   // ── Unknown command fallback ──────────────────────────────────────────────
   program.on('command:*', (operands: string[]) => {
     const binary = operands[0];
+    if (!isSiteEnabled(binary)) {
+      console.error(`error: adapter site '${binary}' is disabled by ${getSitePolicy().path}`);
+      process.exitCode = EXIT_CODES.CONFIG_ERROR;
+      return;
+    }
     console.error(`error: unknown command '${binary}'`);
     program.outputHelp();
     process.exitCode = EXIT_CODES.USAGE_ERROR;

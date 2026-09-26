@@ -78,12 +78,17 @@ A few commands override the default via `cmd.defaultFormat` (e.g. chat commands 
 
 | variable | default | purpose |
 |----------|---------|---------|
+| `OPENCLI_POLICY_FILE` | `~/.opencli/policy.yaml` | Adapter site-policy file; applies to both website and Electron app adapters. |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | Seconds to wait for the browser bridge. |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | Per-command timeout. |
 | `OPENCLI_CDP_ENDPOINT` | — | Manual CDP endpoint override (dev / remote Chrome / Electron). |
 | `OPENCLI_CACHE_DIR` | `~/.opencli/cache` | Network capture + browser-state cache. |
 | `OPENCLI_WINDOW` | command-specific | `foreground` or `background` browser window mode. |
 | `OPENCLI_VERBOSE` | `false` | Verbose logging (also triggered by `-v`). |
+
+## Adapter site policy
+
+Use `opencli adapter disable <site>` and `opencli adapter enable <site>` to hide or restore a website or Electron app adapter. `opencli adapter status` shows the effective policy. Disabled sites are omitted from discovery, list, help, and completion, and are rejected at the execution boundary. Edit `~/.opencli/policy.yaml` and set `sites.default: deny` for allowlist mode. Raw `opencli browser *` commands and external CLI passthroughs are not covered.
 
 ## Self-repair
 

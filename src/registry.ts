@@ -3,6 +3,7 @@
  */
 
 import type { IPage } from './types.js';
+import { hasSitePolicyRestrictions, isSiteEnabled } from './site-policy.js';
 
 export enum Strategy {
   PUBLIC = 'public',
@@ -157,6 +158,9 @@ export function cli(opts: CliOptions): CliCommand {
 }
 
 export function getRegistry(): Map<string, CliCommand> {
+  if (hasSitePolicyRestrictions()) {
+    return new Map([..._registry].filter(([, cmd]) => isSiteEnabled(cmd.site)));
+  }
   return _registry;
 }
 

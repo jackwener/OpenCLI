@@ -73,6 +73,29 @@ The packaged `cli-manifest.json` only describes bundled adapters. User adapters 
 
 After copying a local fix into the repository for a PR, remove the local copy or run `opencli adapter reset <site>` after merge. Otherwise the local file keeps shadowing future package updates. `opencli doctor` warns when it detects this shadowing.
 
+## Enable or disable adapter sites
+
+Use the adapter policy when an official adapter should remain installed but must not be exposed or executed:
+
+```bash
+opencli adapter disable douyin
+opencli adapter enable douyin
+opencli adapter status
+```
+
+The policy is stored in `~/.opencli/policy.yaml` by default. Set `OPENCLI_POLICY_FILE` to use a managed path. Both website adapters and Electron app adapters use their registry `site` name as the policy key.
+
+```yaml
+sites:
+  default: deny
+  allow:
+    - miuta-douyin
+  deny:
+    - douyin
+```
+
+An explicit `deny` wins over `allow`. Disabled sites are not discovered or exposed through list, help, or completion. Core namespaces, raw browser operations, and external CLI passthroughs are not adapter sites and are not governed by this policy.
+
 ## Plugins for sharing commands
 
 Plugins are third-party command packages. They can be installed from GitHub, any git-cloneable URL, or a local directory.
