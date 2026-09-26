@@ -2,8 +2,13 @@
  * Tests for registry.ts: Strategy enum, cli() registration, helpers.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { cli, getRegistry, fullName, strategyLabel, registerCommand, Strategy, type CliCommand } from './registry.js';
+import { configureSitePolicy, parseSitePolicy } from './site-policy.js';
+
+afterEach(() => {
+  configureSitePolicy(parseSitePolicy({}, { path: '/tmp/opencli-policy.yaml', configured: false }));
+});
 
 describe('cli() registration', () => {
   it('registers a command and returns it', () => {
@@ -163,6 +168,21 @@ describe('registerCommand', () => {
 
     const reg = getRegistry();
     expect(reg.get('test-registry/direct-reg')?.strategy).toBe(Strategy.COOKIE);
+  });
+
+  it('keeps disabled sites out of the public registry', () => {
+    const site = 'test-policy-disabled';
+    registerCommand({
+      site,
+      name: 'hidden', access: 'read', description: '', args: [],
+      strategy: Strategy.PUBLIC,
+    });
+    configureSitePolicy(parseSitePolicy({ sites: { deny: [site] } }));
+
+    expect(getRegistry().has(`${site}/hidden`)).toBe(false);
+
+    configureSitePolicy(parseSitePolicy({}));
+    getRegistry().delete(`${site}/hidden`);
   });
 });
 

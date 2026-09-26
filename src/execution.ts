@@ -37,6 +37,7 @@ import { isElectronApp } from './electron-apps.js';
 import { probeCDP, resolveElectronEndpoint } from './launcher.js';
 import { ObservationSession, exportObservationSession, type ObservationExportResult, type ObservationExportStatus } from './observation/index.js';
 import { resolveAdapterSourcePath } from './adapter-source.js';
+import { assertSiteEnabled } from './site-policy.js';
 
 const _loadedModules = new Map<string, Promise<void>>();
 /** Track mtime of loaded user adapter files for hot-reload in daemon mode. */
@@ -211,6 +212,10 @@ export async function executeCommand(
     onTraceExport?: (trace: ObservationExportResult) => void;
   } = {},
 ): Promise<unknown> {
+  // Enforce the policy at the execution boundary as well as discovery. This
+  // protects programmatic callers that already hold a command object.
+  assertSiteEnabled(cmd.site);
+
   // Resolve browser-only configuration before argument hooks or any browser
   // lifecycle setup. Non-browser commands must not be affected by browser
   // environment defaults, even when those defaults are invalid.

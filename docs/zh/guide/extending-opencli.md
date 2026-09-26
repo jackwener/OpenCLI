@@ -71,6 +71,29 @@ Package 里的 `cli-manifest.json` 只描述 bundled adapter。User adapter 是�
 
 把本地修复复制到仓库发 PR 后，merge 后要删除本地副本，或运行 `opencli adapter reset <site>`。否则本地文件会继续 shadow 后续 package 更新。`opencli doctor` 会在发现这种 shadowing 时给出 warning。
 
+## 启用或禁用 adapter 站点
+
+当你希望保留官方 adapter 文件，但不允许它被发现或执行时，可以使用 adapter 策略：
+
+```bash
+opencli adapter disable douyin
+opencli adapter enable douyin
+opencli adapter status
+```
+
+策略默认保存在 `~/.opencli/policy.yaml`；通过 `OPENCLI_POLICY_FILE` 可以改为受管路径。网站 adapter 和 Electron App adapter 都使用注册表中的 `site` 名称作为策略键。
+
+```yaml
+sites:
+  default: deny
+  allow:
+    - miuta-douyin
+  deny:
+    - douyin
+```
+
+显式 `deny` 优先于 `allow`。被禁用的站点不会参与发现，也不会出现在列表、帮助和命令补全中。核心命令空间、原始 browser 操作以及外部 CLI 透传不受该策略管理。
+
 ## Plugin：共享命令
 
 Plugin 是第三方命令包。可以从 GitHub、任意 git URL 或本地目录安装。

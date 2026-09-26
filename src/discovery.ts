@@ -18,6 +18,7 @@ import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import type { ManifestEntry } from './manifest-types.js';
 import { findPackageRoot, getCliManifestPath } from './package-paths.js';
+import { isSiteEnabled } from './site-policy.js';
 
 /** User runtime directory: ~/.opencli */
 export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
@@ -125,6 +126,7 @@ async function loadFromManifest(manifestPath: string, clisDir: string): Promise<
     const manifestFiles = new Set<string>();
     for (const entry of manifest) {
       if (!entry.modulePath) continue;
+      if (!isSiteEnabled(entry.site)) continue;
       const modulePath = path.resolve(clisDir, entry.modulePath);
       manifestFiles.add(modulePath);
       if (entry.sourceFile) manifestFiles.add(path.resolve(clisDir, entry.sourceFile));
@@ -168,7 +170,7 @@ async function discoverClisFromFs(dir: string): Promise<void> {
   await warnIgnoredYamlAdaptersInCliRoot(dir);
   
   const sitePromises = entries
-    .filter(entry => entry.isDirectory())
+    .filter(entry => entry.isDirectory() && isSiteEnabled(entry.name))
     .map(async (entry) => {
       const site = entry.name;
       const siteDir = path.join(dir, site);
@@ -205,7 +207,7 @@ export async function discoverPlugins(): Promise<void> {
   const discoverable: Array<{ entry: fs.Dirent; pluginDir: string }> = [];
   for (const entry of entries) {
     const pluginDir = path.join(PLUGINS_DIR, entry.name);
-    if (await isDiscoverablePluginDir(entry, pluginDir)) {
+    if (isSiteEnabled(entry.name) && await isDiscoverablePluginDir(entry, pluginDir)) {
       discoverable.push({ entry, pluginDir });
     }
   }
@@ -258,7 +260,9 @@ async function warnIgnoredYamlAdaptersInCliRoot(dir: string, manifestFiles?: Set
     return;
   }
 
-  for (const entry of entries.filter((candidate) => candidate.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of entries
+    .filter((candidate) => candidate.isDirectory() && isSiteEnabled(candidate.name))
+    .sort((a, b) => a.name.localeCompare(b.name))) {
     const siteDir = path.join(dir, entry.name);
     await warnIgnoredYamlAdaptersInFlatDir(siteDir, { owner: `site ${entry.name}`, manifestFiles });
   }

@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
 import { coerceAndValidateArgs, executeCommand, prepareCommandArgs } from './execution.js';
-import { ArgumentError, TimeoutError, toEnvelope } from './errors.js';
+import { ArgumentError, ConfigError, TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 import * as runtime from './runtime.js';
@@ -12,11 +12,38 @@ import * as capRouting from './capabilityRouting.js';
 import * as daemonClient from './browser/daemon-client.js';
 import { BrowserCommandError } from './browser/daemon-client.js';
 import { clearAllHooks, onBeforeExecute } from './hooks.js';
+import { configureSitePolicy, parseSitePolicy } from './site-policy.js';
 
 afterEach(() => {
+  configureSitePolicy(parseSitePolicy({}, { path: '/tmp/opencli-policy.yaml', configured: false }));
   clearAllHooks();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+});
+
+describe('executeCommand — site policy', () => {
+  it('rejects a disabled site before argument validation or hooks', async () => {
+    const beforeExecute = vi.fn();
+    onBeforeExecute(beforeExecute);
+    const cmd = cli({
+      site: 'test-policy-execution',
+      name: 'write',
+      access: 'write',
+      description: 'must not run',
+      browser: false,
+      strategy: Strategy.PUBLIC,
+      args: [{ name: 'text', required: true }],
+      func: async () => ({ ok: true }),
+    });
+    configureSitePolicy(parseSitePolicy({ sites: { deny: ['test-policy-execution'] } }));
+
+    const error = await executeCommand(cmd, {}).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(ConfigError);
+    expect(error).toMatchObject({ code: 'CONFIG', exitCode: 78 });
+    expect((error as ConfigError).message).toContain('disabled');
+    expect(beforeExecute).not.toHaveBeenCalled();
+  });
 });
 
 describe('coerceAndValidateArgs', () => {

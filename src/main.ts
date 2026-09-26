@@ -65,6 +65,17 @@ if (argv[0] === 'completion' && argv.length >= 2) {
   // Unknown shell — fall through to full path for proper error handling
 }
 
+// Load adapter policy before either manifest completion or full discovery so
+// disabled sites never enter a user-visible command surface.
+const { configureSitePolicy, isSiteEnabled, loadSitePolicy } = await import('./site-policy.js');
+try {
+  configureSitePolicy(loadSitePolicy());
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`error: ${message}\n`);
+  process.exit(EXIT_CODES.CONFIG_ERROR);
+}
+
 // Fast path: --get-completions — read from manifest, skip discovery
 const getCompIdx = process.argv.indexOf('--get-completions');
 if (getCompIdx !== -1) {
@@ -86,7 +97,7 @@ if (getCompIdx !== -1) {
       }
     }
     if (cursor === undefined) cursor = words.length;
-    const candidates = getCompletionsFromManifest(words, cursor, manifestPaths);
+    const candidates = getCompletionsFromManifest(words, cursor, manifestPaths, isSiteEnabled);
     if (candidates !== null) {
       process.stdout.write(candidates.join('\n') + '\n');
       process.exit(EXIT_CODES.SUCCESS);
