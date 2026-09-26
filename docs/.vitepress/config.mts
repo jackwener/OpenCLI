@@ -73,6 +73,7 @@ export default defineConfig({
                 { text: 'Trip.com', link: '/adapters/browser/trip' },
                 { text: 'Booking.com', link: '/adapters/browser/booking' },
                 { text: 'GeoGebra', link: '/adapters/browser/geogebra' },
+                { text: 'Tencent Maps (腾讯地图)', link: '/adapters/browser/tencent-map' },
                 { text: 'Reuters', link: '/adapters/browser/reuters' },
                 { text: 'HLTV', link: '/adapters/browser/hltv' },
                 { text: 'SMZDM', link: '/adapters/browser/smzdm' },

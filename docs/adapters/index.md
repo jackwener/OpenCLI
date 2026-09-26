@@ -156,6 +156,7 @@ Run `opencli list` for the live registry.
 | **[flathub](./browser/flathub.md)**               | `search` `app`                                                                                                                                 | 🌐 Public    |
 | **[oeis](./browser/oeis.md)**                     | `search` `sequence`                                                                                                                            | 🌐 Public    |
 | **[wttr](./browser/wttr.md)**                     | `current` `forecast`                                                                                                                           | 🌐 Public    |
+| **[tencent-map](./browser/tencent-map.md)**       | `search` `address` `locate` `convert`                                                                                                          | 🌐 Public    |
 | **[openfda](./browser/openfda.md)**               | `drug-label` `food-recall`                                                                                                                     | 🌐 Public    |
 | **[12306](./browser/12306.md)**                   | `stations` `trains` `train` `price` `me` `passengers` `orders`                                                                                 | 🔐 Browser   |
 | **[suno](./browser/suno.md)**                     | `generate` `status` `list` `download`                                                                                                          | 🔐 Browser   |

@@ -37558,6 +37558,191 @@
     "navigateBefore": true
   },
   {
+    "site": "tencent-map",
+    "name": "address",
+    "description": "腾讯地图正向地理编码：完整地址 → 坐标（可用 --verify 反查该坐标的真实地址）",
+    "access": "read",
+    "domain": "h5gw.map.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "address",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "地址文本，需含城市，如「深圳市南山区海天二路33号」"
+      },
+      {
+        "name": "region",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "城市名；当地址里没写城市时作为前缀补充（网关没有独立的 region 参数）"
+      },
+      {
+        "name": "verify",
+        "type": "bool",
+        "default": false,
+        "required": false,
+        "help": "对解析出的坐标再做一次反查，把该点真实的地址填进 verify_address"
+      }
+    ],
+    "columns": [
+      "query",
+      "title",
+      "address",
+      "lat",
+      "lng",
+      "province",
+      "city",
+      "district",
+      "street",
+      "street_number",
+      "adcode",
+      "similarity",
+      "reliability",
+      "level",
+      "deviation",
+      "verify_address"
+    ],
+    "type": "js",
+    "modulePath": "tencent-map/address.js",
+    "sourceFile": "tencent-map/address.js"
+  },
+  {
+    "site": "tencent-map",
+    "name": "convert",
+    "description": "坐标转换：WGS-84(GPS) / GCJ-02(腾讯·高德) / BD-09(百度) 互转，纯本地计算",
+    "access": "read",
+    "domain": "lbs.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "coords",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "一个或多个 \"lat,lng\"，用 ; 分隔；纬度在前"
+      },
+      {
+        "name": "from",
+        "type": "string",
+        "default": "wgs84",
+        "required": false,
+        "help": "源坐标系：wgs84(GPS) / gcj02(腾讯·高德) / bd09(百度)"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "default": "gcj02",
+        "required": false,
+        "help": "目标坐标系：wgs84 / gcj02 / bd09"
+      }
+    ],
+    "columns": [
+      "input",
+      "from",
+      "to",
+      "lat",
+      "lng",
+      "shift_meters",
+      "inside_china"
+    ],
+    "type": "js",
+    "modulePath": "tencent-map/convert.js",
+    "sourceFile": "tencent-map/convert.js"
+  },
+  {
+    "site": "tencent-map",
+    "name": "locate",
+    "description": "腾讯地图逆地址解析：坐标 → 具体地址 / 行政区划 / 最近 POI",
+    "access": "read",
+    "domain": "h5gw.map.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "location",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "坐标，纬度在前：\"lat,lng\"，如 22.522807,113.935338"
+      }
+    ],
+    "columns": [
+      "lat",
+      "lng",
+      "address",
+      "standard_address",
+      "recommend_address",
+      "nation",
+      "province",
+      "city",
+      "district",
+      "street",
+      "street_number",
+      "adcode",
+      "phone_area_code",
+      "nearest_poi",
+      "poi_count"
+    ],
+    "type": "js",
+    "modulePath": "tencent-map/locate.js",
+    "sourceFile": "tencent-map/locate.js"
+  },
+  {
+    "site": "tencent-map",
+    "name": "search",
+    "description": "腾讯地图关键词搜索：候选地点列表（标题 / 地址 / 坐标 / POI ID），--region 限定城市",
+    "access": "read",
+    "domain": "h5gw.map.qq.com",
+    "strategy": "public",
+    "browser": false,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "string",
+        "required": true,
+        "positional": true,
+        "help": "关键词，如「腾讯滨海大厦」"
+      },
+      {
+        "name": "region",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "help": "城市名限定范围（如 深圳市）；省略则在全国范围用输入提示接口检索"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 10,
+        "required": false,
+        "help": "返回条数 (max 60)"
+      }
+    ],
+    "columns": [
+      "rank",
+      "title",
+      "address",
+      "lat",
+      "lng",
+      "category",
+      "tel",
+      "poi_id",
+      "adcode",
+      "province",
+      "city",
+      "district",
+      "source"
+    ],
+    "type": "js",
+    "modulePath": "tencent-map/search.js",
+    "sourceFile": "tencent-map/search.js"
+  },
+  {
     "site": "ths",
     "name": "hot-rank",
     "description": "同花顺热股榜",
