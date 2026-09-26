@@ -88,6 +88,7 @@ function extractLikedTweet(result, seen) {
 function parseLikes(data, seen) {
     const tweets = [];
     let nextCursor = null;
+    let entryCount = 0;
     const instructions = data?.data?.user?.result?.timeline_v2?.timeline?.instructions
         || data?.data?.user?.result?.timeline?.timeline?.instructions
         || [];
@@ -103,19 +104,25 @@ function parseLikes(data, seen) {
                 nextCursor = content?.value || content?.itemContent?.value || nextCursor;
                 continue;
             }
-            const direct = extractLikedTweet(content?.itemContent?.tweet_results?.result, seen);
+            const directResult = content?.itemContent?.tweet_results?.result;
+            if (directResult)
+                entryCount += 1;
+            const direct = extractLikedTweet(directResult, seen);
             if (direct) {
                 tweets.push(direct);
                 continue;
             }
             for (const item of content?.items || []) {
-                const nested = extractLikedTweet(item.item?.itemContent?.tweet_results?.result, seen);
+                const nestedResult = item.item?.itemContent?.tweet_results?.result;
+                if (nestedResult)
+                    entryCount += 1;
+                const nested = extractLikedTweet(nestedResult, seen);
                 if (nested)
                     tweets.push(nested);
             }
         }
     }
-    return { tweets, nextCursor };
+    return { tweets, nextCursor, entryCount };
 }
 function readResumeFile(filePath, expected = null) {
     if (!filePath || !fs.existsSync(filePath))
@@ -317,7 +324,7 @@ cli({
                 }
                 throw new CommandExecutionError('twitter_likes_protocol_error: missing Likes timeline instructions');
             }
-            const { tweets, nextCursor } = parseLikes(data, seen);
+            const { tweets, nextCursor, entryCount } = parseLikes(data, seen);
             if (useOutputFile) {
                 appendJsonlRows(outputFile, tweets);
                 outputCount += tweets.length;
@@ -341,6 +348,14 @@ cli({
                 break;
             }
             if (nextCursor === cursor) {
+                // X keeps returning the same bottom cursor on the final page rather than
+                // dropping it, so a repeat that carries no timeline items means the
+                // archive is exhausted. A repeat that still carries items is a real
+                // stall and must keep failing loudly so resume state survives.
+                if (entryCount === 0) {
+                    exhausted = true;
+                    break;
+                }
                 throw new CommandExecutionError('twitter_likes_repeated_cursor: archive completion cannot be proven; resume state was retained');
             }
             cursor = nextCursor;
