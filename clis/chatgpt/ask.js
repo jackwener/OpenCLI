@@ -8,6 +8,7 @@ import {
     ensureOnChatGPT,
     getChatGPTResponsePairCounts,
     getVisibleMessages,
+    isTemporaryChatGPTConversationId,
     normalizeBooleanFlag,
     openChatGPTConversation,
     requireNonEmptyPrompt,
@@ -32,6 +33,13 @@ async function waitForConversationUrl(page, timeoutSeconds = 30) {
         const conversationUrl = await currentChatGPTUrl(page);
         try {
             const conversationId = parseChatGPTConversationId(conversationUrl);
+            // [LOCAL PATCH 2026-09-26] Skip client-side temporary ids
+            // (WEB:<uuid>, local-chatgpt:<uuid>) — keep polling until the
+            // frontend redirects to the real /c/<uuid> route.
+            if (isTemporaryChatGPTConversationId(conversationId)) {
+                await page.wait(1);
+                continue;
+            }
             return { conversationId, conversationUrl };
         } catch {
             await page.wait(1);
@@ -51,7 +59,10 @@ async function waitForConversationUrl(page, timeoutSeconds = 30) {
 // with `opencli chatgpt detail <id>` instead of blindly re-sending the prompt
 // or digging through `opencli chatgpt history`. Mutates the caught error in
 // place so code/exitCode (e.g. TIMEOUT/75) stay intact for script callers.
-const isWebTemporaryId = (id) => /^WEB:/i.test(id || '');
+// [LOCAL PATCH 2026-09-26] delegate to the shared predicate so every observed
+// frontend temporary-id prefix is covered (WEB:<uuid> since 2026-09-03,
+// local-chatgpt:<uuid> since 2026-09-26), not just the original WEB: one.
+const isWebTemporaryId = isTemporaryChatGPTConversationId;
 
 function attachConversationContext(err, context) {
     if (!err || !(err instanceof Error)) return err;
