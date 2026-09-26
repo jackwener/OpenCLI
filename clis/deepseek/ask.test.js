@@ -83,11 +83,32 @@ describe('deepseek ask --file', () => {
     await expect(askCommand.func(page, {
       prompt: 'summarize this',
       timeout: 120,
-      new: false,
+      new: true,
       model: 'instant',
       think: false,
       search: false,
+      __opencliOptionSources: { model: 'cli' },
     })).rejects.toThrow(new CommandExecutionError('Could not switch to instant model'));
+  });
+
+  it('sends a prompt with --new when the model selector is unavailable', async () => {
+    mockSelectModel.mockResolvedValue({ ok: false });
+    mockSendMessage.mockResolvedValue({ ok: true });
+
+    const rows = await askCommand.func(page, {
+      prompt: 'hello',
+      timeout: 120,
+      new: true,
+      model: 'instant',
+      think: true,
+      search: false,
+    });
+
+    expect(rows).toEqual([{ response: 'new reply' }]);
+    expect(page.goto).toHaveBeenCalledWith('https://chat.deepseek.com/');
+    expect(mockSelectModel).not.toHaveBeenCalled();
+    expect(mockSetFeature).toHaveBeenCalledWith(page, 'DeepThink', true);
+    expect(mockSendMessage).toHaveBeenCalledWith(page, 'hello');
   });
 });
 
