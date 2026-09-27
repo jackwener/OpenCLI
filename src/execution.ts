@@ -245,11 +245,12 @@ export async function executeCommand(
   try {
     if (siteSession !== null) {
       const electron = isElectronApp(cmd.site);
+      const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
       let cdpEndpoint: string | undefined;
+      let dedicatedTarget = false;
 
       if (electron) {
         // Electron apps: respect manual endpoint override, then try auto-detect
-        const manualEndpoint = process.env.OPENCLI_CDP_ENDPOINT;
         if (manualEndpoint) {
           const port = Number(new URL(manualEndpoint).port);
           if (!await probeCDP(port)) {
@@ -262,6 +263,14 @@ export async function executeCommand(
         } else {
           cdpEndpoint = await resolveElectronEndpoint(cmd.site);
         }
+      } else if (manualEndpoint) {
+        // Remote-Chrome mode for website CLIs (docs/advanced/remote-chrome.md):
+        // route over CDP instead of the Browser Bridge extension. No localhost
+        // port probe here — the endpoint may live on another machine, and
+        // CDPBridge validates it when it fetches /json. A dedicated tab keeps
+        // us from hijacking whatever the user has open in the shared browser.
+        cdpEndpoint = manualEndpoint;
+        dedicatedTarget = true;
       }
 
       const BrowserFactory = getBrowserFactory(cmd.site);
@@ -420,7 +429,7 @@ export async function executeCommand(
           if (!keepTab) await page.closeWindow?.().catch(() => {});
           throw err;
         }
-      }, { session, cdpEndpoint, ...profileRouting, windowMode, surface: 'adapter', siteSession });
+      }, { session, cdpEndpoint, dedicatedTarget, keepTab, ...profileRouting, windowMode, surface: 'adapter', siteSession });
       } catch (err) {
         browserRunError = err;
         throw err;
