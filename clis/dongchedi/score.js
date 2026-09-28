@@ -58,6 +58,7 @@ function sameLevelAverage(reviewData) {
 
 cli({
     site: 'dongchedi',
+    domain: 'dongchedi.com',
     name: 'score',
     access: 'read',
     aliases: ['rating'],

@@ -3,6 +3,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 import { wikiFetch } from './utils.js';
 cli({
     site: 'wikipedia',
+    domain: 'wikipedia.org',
     name: 'search',
     access: 'read',
     description: 'Search Wikipedia articles',

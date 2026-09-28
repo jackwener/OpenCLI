@@ -31,6 +31,7 @@ function readOptionalString(value, label) {
 
 cli({
   site: 'bilibili',
+  domain: 'bilibili.com',
   name: 'video',
     access: 'read',
   description: 'Get Bilibili video metadata (title, author, duration, stats, etc.)',
