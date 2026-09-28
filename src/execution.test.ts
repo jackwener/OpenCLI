@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CliCommand } from './registry.js';
 import { coerceAndValidateArgs, executeCommand, prepareCommandArgs } from './execution.js';
-import { ArgumentError, TimeoutError, toEnvelope } from './errors.js';
+import { ArgumentError, ReadOnlyPolicyError, TimeoutError, toEnvelope } from './errors.js';
 import { cli, Strategy } from './registry.js';
 import { withTimeoutMs } from './runtime.js';
 import * as runtime from './runtime.js';
@@ -32,6 +32,67 @@ describe('coerceAndValidateArgs', () => {
 
     expect(() => coerceAndValidateArgs(integerArgs, { limit: 'Infinity' })).toThrow(ArgumentError);
     expect(() => coerceAndValidateArgs(numberArgs, { threshold: '-Infinity' })).toThrow(ArgumentError);
+  });
+});
+
+describe('executeCommand — read-only policy ordering', () => {
+  it('allows read adapters when the policy is enabled', async () => {
+    const func = vi.fn().mockResolvedValue([{ ok: true }]);
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'read-only-allowed',
+      access: 'read',
+      description: 'read-only allow fixture',
+      browser: false,
+      strategy: Strategy.PUBLIC,
+      func,
+    });
+
+    await expect(executeCommand(cmd, {}, false, { readOnly: true })).resolves.toEqual([{ ok: true }]);
+    expect(func).toHaveBeenCalledOnce();
+  });
+
+  it('blocks write adapters before validation, hooks, browser setup, or adapter code', async () => {
+    const validateArgs = vi.fn();
+    const func = vi.fn().mockResolvedValue([{ ok: true }]);
+    const beforeHook = vi.fn();
+    onBeforeExecute(beforeHook);
+    const browserSessionSpy = vi.spyOn(runtime, 'browserSession');
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'read-only-blocked',
+      access: 'write',
+      description: 'read-only block fixture',
+      browser: true,
+      strategy: Strategy.COOKIE,
+      domain: 'example.com',
+      args: [{ name: 'required-value', required: true }],
+      validateArgs,
+      func,
+    });
+
+    await expect(executeCommand(cmd, {}, false, { readOnly: true })).rejects.toBeInstanceOf(ReadOnlyPolicyError);
+    expect(validateArgs).not.toHaveBeenCalled();
+    expect(beforeHook).not.toHaveBeenCalled();
+    expect(browserSessionSpy).not.toHaveBeenCalled();
+    expect(func).not.toHaveBeenCalled();
+  });
+
+  it('honors OPENCLI_READ_ONLY without a command option', async () => {
+    vi.stubEnv('OPENCLI_READ_ONLY', '1');
+    const func = vi.fn().mockResolvedValue([{ ok: true }]);
+    const cmd = cli({
+      site: 'test-execution',
+      name: 'read-only-env-blocked',
+      access: 'write',
+      description: 'read-only environment fixture',
+      browser: false,
+      strategy: Strategy.PUBLIC,
+      func,
+    });
+
+    await expect(executeCommand(cmd, {})).rejects.toBeInstanceOf(ReadOnlyPolicyError);
+    expect(func).not.toHaveBeenCalled();
   });
 });
 

@@ -99,6 +99,44 @@ describe('commanderAdapter arg passing', () => {
     );
   });
 
+  it('passes explicit read-only mode to executeCommand', async () => {
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, cmd);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'submit', './paper.pdf', '--read-only']);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ site: 'paperreview', name: 'submit' }),
+      expect.objectContaining({ pdf: './paper.pdf' }),
+      false,
+      { prepared: true, readOnly: true },
+    );
+  });
+
+  it('blocks write commands before adapter validation or execution', async () => {
+    const validateArgs = vi.fn();
+    const writeCommand: CliCommand = {
+      site: 'paperreview',
+      name: 'publish',
+      access: 'write',
+      description: 'Publish a paper',
+      browser: false,
+      args: [],
+      validateArgs,
+      func: vi.fn(),
+    };
+    const program = new Command();
+    const siteCmd = program.command('paperreview');
+    registerCommandToProgram(siteCmd, writeCommand);
+
+    await program.parseAsync(['node', 'opencli', 'paperreview', 'publish', '--read-only']);
+
+    expect(validateArgs).not.toHaveBeenCalled();
+    expect(mockExecuteCommand).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(77);
+  });
+
   it('rejects invalid bool values before calling executeCommand', async () => {
     const program = new Command();
     const siteCmd = program.command('paperreview');

@@ -42,6 +42,12 @@ const COMMON_OPTIONS = [
     choices: ['off', 'on', 'retain-on-failure'],
   },
   {
+    flags: '--read-only',
+    name: 'read-only',
+    help: 'Only run adapters declared access: read',
+    default: false,
+  },
+  {
     flags: '-v, --verbose',
     name: 'verbose',
     help: 'Debug output',

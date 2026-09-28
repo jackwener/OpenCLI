@@ -31,6 +31,7 @@ import {
   EXIT_CODES,
   toEnvelope,
 } from './errors.js';
+import { enforceAdapterReadOnlyPolicy } from './access-policy.js';
 
 /**
  * Register a single CliCommand as a Commander subcommand.
@@ -59,6 +60,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
   subCmd
     .option('-f, --format <fmt>', 'Output format: table, plain, json, yaml, md, csv', 'table')
     .option('--trace <mode>', 'Trace capture: off, on, retain-on-failure', 'off')
+    .option('--read-only', 'Only run adapters declared access: read', false)
     .option('-v, --verbose', 'Debug output', false);
   if (cmd.browser) {
     subCmd
@@ -84,6 +86,8 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
 
     // ── Execute + render ────────────────────────────────────────────────
     try {
+      enforceAdapterReadOnlyPolicy(cmd, optionsRecord.readOnly === true);
+
       // ── Collect kwargs ────────────────────────────────────────────────
       const rawKwargs: Record<string, unknown> = {};
       for (let i = 0; i < positionalArgs.length; i++) {
@@ -120,6 +124,7 @@ export function registerCommandToProgram(siteCmd: Command, cmd: CliCommand): voi
         ...(cmd.browser && typeof optionsRecord.window === 'string' ? { windowMode: optionsRecord.window } : {}),
         ...(cmd.browser && typeof optionsRecord.siteSession === 'string' ? { siteSession: optionsRecord.siteSession } : {}),
         ...(cmd.browser && typeof optionsRecord.keepTab === 'string' ? { keepTab: optionsRecord.keepTab } : {}),
+        ...(optionsRecord.readOnly === true ? { readOnly: true } : {}),
       });
       if (result === null || result === undefined) {
         return;
