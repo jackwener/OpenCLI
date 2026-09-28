@@ -110,6 +110,7 @@ function openBrowser(url) {
 // ── Commands ──────────────────────────────────────────────────────────────────
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'auth',
     access: 'write',
     description: 'Authenticate with Spotify (OAuth — run once)',
@@ -177,6 +178,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'status',
     access: 'read',
     description: 'Show current playback status',
@@ -199,6 +201,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'play',
     access: 'write',
     description: 'Resume playback or search and play a track/artist',
@@ -218,6 +221,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'pause',
     access: 'write',
     description: 'Pause playback',
@@ -229,6 +233,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'next',
     access: 'write',
     description: 'Skip to next track',
@@ -240,6 +245,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'prev',
     access: 'write',
     description: 'Skip to previous track',
@@ -251,6 +257,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'volume',
     access: 'write',
     description: 'Set playback volume (0-100)',
@@ -268,6 +275,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'search',
     access: 'read',
     description: 'Search for tracks',
@@ -289,6 +297,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'queue',
     access: 'write',
     description: 'Add a track to the playback queue',
@@ -304,6 +313,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'shuffle',
     access: 'write',
     description: 'Toggle shuffle on/off',
@@ -318,6 +328,7 @@ cli({
 });
 cli({
     site: 'spotify',
+    domain: 'spotify.com',
     name: 'repeat',
     access: 'write',
     description: 'Set repeat mode (off / track / context)',

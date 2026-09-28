@@ -9,6 +9,7 @@ import { arxivFetch, normalizeArxivLimit, parseEntries } from './utils.js';
 
 cli({
     site: 'arxiv',
+    domain: 'arxiv.org',
     name: 'author',
     access: 'read',
     description: 'List arXiv papers by a given author (newest first)',
