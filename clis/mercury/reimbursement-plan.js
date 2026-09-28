@@ -3,6 +3,7 @@ import { normalizeReimbursementInput, receiptBasename } from './utils.js';
 
 cli({
     site: 'mercury',
+    domain: 'mercury.com',
     name: 'reimbursement-plan',
     description: 'Validate Mercury reimbursement inputs and print the draft plan without opening a browser',
     access: 'read',

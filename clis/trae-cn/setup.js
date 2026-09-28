@@ -2,6 +2,7 @@ import { cli, Strategy } from '@jackwener/opencli/registry';
 
 export const setupCommand = cli({
   site: 'trae-cn',
+  domain: 'localhost',
   name: 'setup',
   access: 'read',
   description: 'Show local setup commands for controlling Trae CN with OpenCLI',

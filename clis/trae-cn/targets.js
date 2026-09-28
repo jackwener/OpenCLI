@@ -53,6 +53,7 @@ async function probeTargetActivity(target, maxChars) {
 
 export const targetsCommand = cli({
   site: 'trae-cn',
+  domain: 'localhost',
   name: 'targets',
   access: 'read',
   description: 'List Trae CN CDP targets and show which workspace/window is waiting',

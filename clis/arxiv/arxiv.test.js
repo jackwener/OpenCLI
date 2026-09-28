@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { getRegistry } from '@jackwener/opencli/registry';
-import { normalizeArxivCategory, normalizeArxivLimit, parseEntries } from './utils.js';
+import {
+    normalizeArxivCategory,
+    normalizeArxivId,
+    normalizeArxivLimit,
+    parseBibtexEntry,
+    parseEntries,
+    parseTotalResults,
+    resolveSubmittedRange,
+} from './utils.js';
 import './paper.js';
 import './search.js';
 import './recent.js';
+import './since.js';
+import './bibtex.js';
+import './pdf.js';
 
 const SAMPLE_ENTRY_XML = `<?xml version='1.0' encoding='UTF-8'?>
 <feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
@@ -110,3 +121,93 @@ describe('arxiv adapter', () => {
     expect(() => normalizeArxivLimit(26, 5, 25)).toThrow('<= 25');
   });
 });
+
+const BIBTEX_SAMPLE = [
+  '@misc{vaswani2023attentionneed,',
+  '      title={Attention Is All You Need}, ',
+  '      author={Ashish Vaswani and Noam Shazeer},',
+  '      year={2023},',
+  '      eprint={1706.03762},',
+  '      archivePrefix={arXiv},',
+  '      primaryClass={cs.CL},',
+  '      url={https://arxiv.org/abs/1706.03762}, ',
+  '}',
+].join('\n');
+
+describe('arxiv since / bibtex / pdf', () => {
+  it('registers since, bibtex and pdf with the expected columns', () => {
+    const since = getRegistry().get('arxiv/since');
+    const bibtex = getRegistry().get('arxiv/bibtex');
+    const pdf = getRegistry().get('arxiv/pdf');
+    expect(since).toBeDefined();
+    expect(bibtex).toBeDefined();
+    expect(pdf).toBeDefined();
+    expect(since.columns).toEqual(['id', 'title', 'authors', 'published', 'primary_category', 'url']);
+    expect(bibtex.columns).toEqual(['id', 'cite_key', 'title', 'authors', 'year', 'primary_class', 'bibtex', 'url']);
+    expect(pdf.columns).toEqual(['id', 'status', 'size', 'bytes', 'path', 'url']);
+  });
+
+  it('resolveSubmittedRange defaults to the last 7 calendar days including today', () => {
+    const range = resolveSubmittedRange({ now: Date.parse('2026-09-28T13:00:00Z') });
+    expect(range.from).toBe('202609220000');
+    expect(range.to).toBe('202609282359');
+    expect(range.fromDate).toBe('2026-09-22');
+    expect(range.toDate).toBe('2026-09-28');
+    expect(range.range).toBe('submittedDate:[202609220000 TO 202609282359]');
+  });
+
+  it('resolveSubmittedRange counts --days 1 as today only', () => {
+    const range = resolveSubmittedRange({ days: 1, now: Date.parse('2026-09-28T00:30:00Z') });
+    expect(range.from).toBe('202609280000');
+    expect(range.to).toBe('202609282359');
+  });
+
+  it('resolveSubmittedRange honours an explicit --from/--to window', () => {
+    const range = resolveSubmittedRange({
+      from: '2026-09-20',
+      to: '2026-09-27',
+      now: Date.parse('2026-09-28T00:00:00Z'),
+    });
+    expect(range.from).toBe('202609200000');
+    expect(range.to).toBe('202609272359');
+  });
+
+  it('resolveSubmittedRange treats a lone --to as that single day', () => {
+    const range = resolveSubmittedRange({ to: '2026-09-25', now: Date.parse('2026-09-28T00:00:00Z') });
+    expect(range.from).toBe('202609250000');
+    expect(range.to).toBe('202609252359');
+  });
+
+  it('resolveSubmittedRange rejects conflicting or impossible windows', () => {
+    expect(() => resolveSubmittedRange({ days: 3, from: '2026-09-01' })).toThrow('not both');
+    expect(() => resolveSubmittedRange({ from: '2026-09-27', to: '2026-09-20' })).toThrow('must not be after');
+    expect(() => resolveSubmittedRange({ from: '2026/09/20' })).toThrow('YYYY-MM-DD');
+    expect(() => resolveSubmittedRange({ from: '2026-02-31' })).toThrow('not a real calendar date');
+    expect(() => resolveSubmittedRange({ days: 0 })).toThrow('positive integer');
+  });
+
+  it('normalizeArxivId accepts new, versioned and legacy IDs and rejects junk', () => {
+    expect(normalizeArxivId('1706.03762')).toBe('1706.03762');
+    expect(normalizeArxivId('1706.03762v7')).toBe('1706.03762v7');
+    expect(normalizeArxivId('cs/0701001')).toBe('cs/0701001');
+    expect(normalizeArxivId('hep-th/9901001')).toBe('hep-th/9901001');
+    expect(() => normalizeArxivId('not-an-id')).toThrow('Invalid arXiv ID');
+    expect(() => normalizeArxivId('')).toThrow('Invalid arXiv ID');
+  });
+
+  it('parseTotalResults reads the opensearch match count', () => {
+    expect(parseTotalResults('<feed><opensearch:totalResults>1980</opensearch:totalResults></feed>')).toBe(1980);
+    expect(parseTotalResults('<feed></feed>')).toBe(0);
+  });
+
+  it('parseBibtexEntry returns the cite key and normalised fields', () => {
+    const parsed = parseBibtexEntry(BIBTEX_SAMPLE);
+    expect(parsed.entryType).toBe('misc');
+    expect(parsed.citeKey).toBe('vaswani2023attentionneed');
+    expect(parsed.fields.eprint).toBe('1706.03762');
+    expect(parsed.fields.primaryclass).toBe('cs.CL');
+    expect(parsed.fields.author).toContain('Ashish Vaswani');
+    expect(parseBibtexEntry('not bibtex at all')).toBeNull();
+  });
+});
+
