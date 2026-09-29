@@ -6,7 +6,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createPluginScaffold } from './plugin-scaffold.js';
+import { getRegistry } from './registry.js';
 
 describe('createPluginScaffold', () => {
   const createdDirs: string[] = [];
@@ -71,6 +73,33 @@ describe('createPluginScaffold', () => {
     expect(tsSample).toContain(`help: 'Name to greet'`);
     expect(tsSample).toContain(`func: async (kwargs)`);
     expect(tsSample).not.toContain('async run(');
+  });
+
+  it('registers every generated sample command with access metadata', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-scaffold-access-'));
+    createdDirs.push(dir);
+
+    const pluginName = `test-access-${Date.now()}`;
+    createPluginScaffold(pluginName, { dir });
+    const registryImport = pathToFileURL(path.join(process.cwd(), 'src', 'registry.ts')).href;
+    const registry = getRegistry();
+
+    for (const commandName of ['hello', 'greet']) {
+      const sourcePath = path.join(dir, `${commandName}.ts`);
+      const modulePath = path.join(dir, `${commandName}.js`);
+      const source = fs
+        .readFileSync(sourcePath, 'utf-8')
+        .replace("'@jackwener/opencli/registry'", `'${registryImport}'`);
+      fs.writeFileSync(modulePath, source);
+
+      const key = `${pluginName}/${commandName}`;
+      try {
+        await expect(import(`${pathToFileURL(modulePath).href}?${commandName}-${Date.now()}`)).resolves.toBeDefined();
+        expect(registry.get(key)?.access).toBe('read');
+      } finally {
+        registry.delete(key);
+      }
+    }
   });
 
   it('documents a supported local install flow', () => {

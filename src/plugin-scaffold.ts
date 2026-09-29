@@ -88,6 +88,7 @@ cli({
   site: '${name}',
   name: 'hello',
   description: 'A sample pipeline command',
+  access: 'read',
   strategy: Strategy.PUBLIC,
   browser: false,
   columns: ['greeting'],
@@ -112,6 +113,7 @@ cli({
   site: '${name}',
   name: 'greet',
   description: 'Greet someone by name',
+  access: 'read',
   strategy: Strategy.PUBLIC,
   browser: false,
   args: [
