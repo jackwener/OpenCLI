@@ -23,10 +23,15 @@ async function verifyClaudeIdentity(page) {
       if (!Array.isArray(d) || d.length === 0) {
         return { kind: 'auth', detail: 'Claude /api/organizations empty' };
       }
-      const userIdCookie = (document.cookie.split('; ').find(c => c.startsWith('ajs_user_id=')) || '').split('=')[1] || '';
       const activeOrgCookie = (document.cookie.split('; ').find(c => c.startsWith('lastActiveOrg=')) || '').split('=')[1] || '';
       const activeOrg = d.find(o => o.uuid === activeOrgCookie) || d[0];
-      return { ok: true, user_id: userIdCookie, org_name: activeOrg.name || '', org_uuid: activeOrg.uuid || '' };
+      const accountRes = await fetch('/api/account', { credentials: 'include' });
+      if (accountRes.status === 401 || accountRes.status === 403) {
+        return { kind: 'auth', detail: 'Claude /api/account HTTP ' + accountRes.status };
+      }
+      if (!accountRes.ok) return { kind: 'http', httpStatus: accountRes.status };
+      const account = await accountRes.json();
+      return { ok: true, user_id: account.uuid || '', org_name: activeOrg.name || '', org_uuid: activeOrg.uuid || '' };
     } catch (e) {
       return { kind: 'exception', detail: String(e && e.message || e) };
     }
@@ -35,7 +40,7 @@ async function verifyClaudeIdentity(page) {
   if (result?.kind === 'http') throw new CommandExecutionError(`HTTP ${result.httpStatus} from /api/organizations`);
   if (result?.kind === 'exception') throw new CommandExecutionError(`Claude whoami failed: ${result.detail}`);
   if (!result?.ok) throw new CommandExecutionError(`Unexpected Claude probe: ${JSON.stringify(result)}`);
-  if (!result.user_id) throw new AuthRequiredError('claude.ai', 'Claude session incomplete — ajs_user_id cookie missing');
+  if (!result.user_id) throw new AuthRequiredError('claude.ai', 'Claude session incomplete — /api/account returned no uuid');
   return { user_id: String(result.user_id), org_name: String(result.org_name), org_uuid: String(result.org_uuid) };
 }
 
