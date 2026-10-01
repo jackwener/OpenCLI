@@ -365,8 +365,11 @@ function buildApplySearchFiltersJs(requestedFilters) {
           if (!element) return false;
           const rect = element.getBoundingClientRect();
           const style = getComputedStyle(element);
+          // Xiaohongshu injects transparent same-label decoys (data-hp-kind) into the filter panel.
+          if (element.closest('[data-hp-kind], [aria-hidden="true"]')) return false;
           return rect.width > 0 && rect.height > 0 &&
-            style.display !== 'none' && style.visibility !== 'hidden';
+            style.display !== 'none' && style.visibility !== 'hidden' &&
+            Number(style.opacity) > 0.01 && style.pointerEvents !== 'none';
         };
         const visibleMatches = (root, selector) =>
           Array.from(root.querySelectorAll(selector)).filter(visible);

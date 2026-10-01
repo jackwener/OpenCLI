@@ -145,6 +145,26 @@ function createFilterBehaviorPage(options = {}) {
             container.className = 'tag-container';
             for (const choice of choices) {
                 if (options.missing === `${groupLabel}/${choice}`) continue;
+                if (options.decoys) {
+                    // Live layout: a transparent same-label honeypot chip rendered on top of each real chip.
+                    const decoy = document.createElement('div');
+                    decoy.className = `tags${state[groupLabel] === choice ? ' active' : ''}`;
+                    decoy.style.opacity = '0.00001';
+                    if (options.decoys === 'marked') {
+                        decoy.setAttribute('data-hp-kind', `xhs-filter-tag-${choice}`);
+                        decoy.setAttribute('aria-hidden', 'true');
+                    }
+                    const decoyLabel = document.createElement('span');
+                    decoyLabel.textContent = choice;
+                    decoy.append(decoyLabel);
+                    decoy.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        clicks.push(`decoy:${groupLabel}/${choice}`);
+                    });
+                    container.append(decoy);
+                    markVisible(decoy);
+                    markVisible(decoyLabel);
+                }
                 const copies = options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
                 for (let copy = 0; copy < copies; copy++) {
                     const option = document.createElement('div');
@@ -696,6 +716,19 @@ describe('xiaohongshu search filter behavior', () => {
                 '发布时间': '一天内',
                 '搜索范围': '已关注',
             });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it.each(['marked', 'transparent'])('ignores %s same-label decoy chips', async (decoys) => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ decoys });
+            await runFilterCommand(page, { sort: 'most-liked', 'publish-time': 'half-year' });
+            expect(page.filterState).toMatchObject({ '排序依据': '最多点赞', '发布时间': '半年内' });
+            expect(page.filterClicks).toEqual(['排序依据/最多点赞', '发布时间/半年内']);
         }
         finally {
             vi.useRealTimers();
