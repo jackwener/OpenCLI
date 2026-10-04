@@ -52,11 +52,22 @@ export const deepResearchCommand = cli({
         await sendGeminiMessage(page, prompt);
         let submitted = await waitForGeminiSubmission(page, baseline, submitTimeout);
         if (!submitted) {
-            // Retry once when submit did not stick (e.g. composer swallowed Enter/click in this UI state).
-            await selectGeminiTool(page, toolLabels);
-            baseline = await readGeminiSnapshot(page);
-            await sendGeminiMessage(page, prompt);
-            submitted = await waitForGeminiSubmission(page, baseline, submitTimeout);
+            // Retry once when submit did not stick (e.g. composer swallowed Enter/click in this UI state),
+            // but never resend when the prompt is already visible in the transcript —
+            // a duplicate submission breaks the Deep Research plan card (its confirm button stays disabled).
+            const probe = await readGeminiSnapshot(page);
+            const promptHead = prompt.trim().slice(0, 40);
+            const alreadySubmitted = promptHead && probe.turns.some((turn) => turn?.Role === 'User' && String(turn?.Text || '').includes(promptHead));
+            if (alreadySubmitted) {
+                baseline = probe;
+                submitted = { snapshot: probe, preSendAssistantCount: 0, userAnchorTurn: null, reason: 'already_submitted' };
+            }
+            else {
+                await selectGeminiTool(page, toolLabels);
+                baseline = probe;
+                await sendGeminiMessage(page, prompt);
+                submitted = await waitForGeminiSubmission(page, baseline, submitTimeout);
+            }
         }
         if (!submitted) {
             const url = await getCurrentGeminiUrl(page);

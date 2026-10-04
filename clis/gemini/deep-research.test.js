@@ -98,6 +98,21 @@ describe('gemini/deep-research', () => {
         expect(mockWaitForGeminiSubmission).toHaveBeenCalledTimes(2);
         expect(result).toEqual([{ status: 'started', url: 'https://gemini.google.com/app/chat' }]);
     });
+    it('does not resend the prompt when it is already visible in the transcript', async () => {
+        mockWaitForGeminiSubmission.mockResolvedValue(null);
+        mockReadGeminiSnapshot.mockResolvedValue({
+            turns: [{ Role: 'User', Text: '你说 research this topic\n\nresearch this topic' }],
+            transcriptLines: [],
+            composerHasText: false,
+            isGenerating: false,
+            structuredTurnsTrusted: true,
+        });
+        const result = await runCommand({ prompt: 'research this topic' });
+        expect(mockSelectGeminiTool).toHaveBeenCalledTimes(1);
+        expect(mockSendGeminiMessage).toHaveBeenCalledTimes(1);
+        expect(mockWaitForGeminiConfirmButton).toHaveBeenCalledTimes(1);
+        expect(result).toEqual([{ status: 'started', url: 'https://gemini.google.com/app/chat' }]);
+    });
     it('returns submit-not-found when submission cannot be confirmed after retry', async () => {
         mockWaitForGeminiSubmission.mockResolvedValue(null);
         const result = await runCommand({ prompt: 'research this topic' });

@@ -821,26 +821,50 @@ function selectGeminiToolScript(labels) {
         '[aria-label*="mode" i]',
         '[aria-modal="true"]',
       ];
-      const menuRoots = Array.from(document.querySelectorAll(menuSelectors.join(','))).filter(isVisible);
-      if (menuRoots.length === 0) return '';
-      const seen = new Set();
 
-      for (const root of menuRoots) {
+      const findAndClickInMenus = () => {
+        const menuRoots = Array.from(document.querySelectorAll(menuSelectors.join(','))).filter(isVisible);
+        const seen = new Set();
+        for (const root of menuRoots) {
+          const candidates = Array.from(root.querySelectorAll('button, [role="menuitem"], [role="option"], [role="button"], a, li'));
+          for (const node of candidates) {
+            if (seen.has(node)) continue;
+            seen.add(node);
+            if (!isInteractable(node)) continue;
+            const text = (node.textContent || '').trim().toLowerCase();
+            const aria = (node.getAttribute('aria-label') || '').trim().toLowerCase();
+            if (!text && !aria) continue;
+            const combined = \`\${text} \${aria}\`.trim();
+            for (let index = 0; index < lowered.length; index += 1) {
+              const label = lowered[index];
+              if (label && combined.includes(label)) {
+                if (node instanceof HTMLElement) node.click();
+                return normalized[index];
+              }
+            }
+          }
+        }
+        return '';
+      };
+
+      const direct = findAndClickInMenus();
+      if (direct) return direct;
+
+      // New UI nests tools like Deep Research under a "More tools" submenu;
+      // open the submenu and search once more.
+      const moreToolsLabels = ['更多工具', 'more tools'];
+      const submenuRoots = Array.from(document.querySelectorAll(menuSelectors.join(','))).filter(isVisible);
+      for (const root of submenuRoots) {
         const candidates = Array.from(root.querySelectorAll('button, [role="menuitem"], [role="option"], [role="button"], a, li'));
         for (const node of candidates) {
-          if (seen.has(node)) continue;
-          seen.add(node);
           if (!isInteractable(node)) continue;
           const text = (node.textContent || '').trim().toLowerCase();
           const aria = (node.getAttribute('aria-label') || '').trim().toLowerCase();
           if (!text && !aria) continue;
           const combined = \`\${text} \${aria}\`.trim();
-          for (let index = 0; index < lowered.length; index += 1) {
-            const label = lowered[index];
-            if (label && combined.includes(label)) {
-              if (node instanceof HTMLElement) node.click();
-              return normalized[index];
-            }
+          if (moreToolsLabels.some((m) => combined.includes(m))) {
+            if (node instanceof HTMLElement) node.click();
+            return '__GEMINI_MORE_TOOLS__';
           }
         }
       }
@@ -1101,6 +1125,7 @@ export async function getCurrentGeminiUrl(page) {
 }
 export async function openGeminiToolsMenu(page) {
     await ensureGeminiPage(page);
+    await dismissGeminiOverlays(page);
     const opened = await page.evaluate(openGeminiToolsMenuScript());
     if (opened) {
         await page.wait(0.5);
@@ -1108,21 +1133,99 @@ export async function openGeminiToolsMenu(page) {
     }
     return false;
 }
+const GEMINI_MORE_TOOLS_SENTINEL = '__GEMINI_MORE_TOOLS__';
+
 export async function selectGeminiTool(page, labels) {
     await ensureGeminiPage(page);
     await openGeminiToolsMenu(page);
-    const matched = await page.evaluate(selectGeminiToolScript(labels));
-    return typeof matched === 'string' ? matched : '';
+    let matched = await page.evaluate(selectGeminiToolScript(labels));
+    if (matched === GEMINI_MORE_TOOLS_SENTINEL) {
+        await page.wait(0.8);
+        matched = await page.evaluate(selectGeminiToolScript(labels));
+    }
+    if (!matched) {
+        // Synthetic .click() can be ignored by this UI; retry with a trusted CDP mouse click.
+        const clicked = await clickGeminiToolsButtonViaCDP(page);
+        if (clicked) {
+            await page.wait(0.6);
+            matched = await page.evaluate(selectGeminiToolScript(labels));
+            if (matched === GEMINI_MORE_TOOLS_SENTINEL) {
+                await page.wait(0.8);
+                matched = await page.evaluate(selectGeminiToolScript(labels));
+            }
+        }
+    }
+    return typeof matched === 'string' && matched !== GEMINI_MORE_TOOLS_SENTINEL ? matched : '';
 }
+
+async function dismissGeminiOverlays(page) {
+    await ensureGeminiPage(page);
+    const overlayInfo = await page.evaluate(`(() => {
+      const isVisible = (el) => { if (!(el instanceof HTMLElement)) return false; const s = window.getComputedStyle(el); if (s.display === 'none' || s.visibility === 'hidden') return false; if (Number(s.opacity) === 0) return false; const r = el.getBoundingClientRect(); return r.width > 100 && r.height > 100; };
+      const overlays = Array.from(document.querySelectorAll('gv-export-dialog, [class*="gv-export-dialog"], dialog[open]')).filter(isVisible);
+      if (!overlays.length) return null;
+      const buttons = overlays.map((o) => Array.from(o.querySelectorAll('button')).map((b) => ((b.getAttribute('aria-label') || b.textContent || '') + '').replace(/\\s+/g, ' ').trim().slice(0, 30)).filter(Boolean));
+      return JSON.stringify({ count: overlays.length, tags: overlays.map((o) => o.tagName + '.' + String(o.className).slice(0, 40)), buttons });
+    })()`);
+    if (!overlayInfo || typeof overlayInfo !== 'string') return false;
+    await page.cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    await page.cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    await page.wait(0.6);
+    return true;
+}
+
+async function clickGeminiButtonByLabelsViaCDP(page, labels) {
+    await ensureGeminiPage(page);
+    const labelsJson = JSON.stringify(labels || []);
+    const coordsRaw = await page.evaluate(`(() => {
+      const targetLabels = ${labelsJson};
+      const isVisible = (el) => { if (!(el instanceof HTMLElement)) return false; const s = window.getComputedStyle(el); if (s.display === 'none' || s.visibility === 'hidden') return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      const isDisabled = (el) => { if (!(el instanceof HTMLElement)) return true; if ('disabled' in el && el.disabled) return true; if (el.hasAttribute('disabled')) return true; return (el.getAttribute('aria-disabled') || '').toLowerCase() === 'true'; };
+      const lowered = targetLabels.map((l) => String(l || '').trim().toLowerCase()).filter(Boolean);
+      if (!lowered.length) return null;
+      const candidates = Array.from(document.querySelectorAll('button, [role="button"]')).filter((n) => isVisible(n) && !isDisabled(n));
+      const matches = candidates.filter((n) => { const combined = ((n.textContent || '') + ' ' + (n.getAttribute('aria-label') || '')).toLowerCase(); return lowered.some((m) => combined.includes(m)); });
+      if (!matches.length) return null;
+      const trigger = matches.find((n) => n.hasAttribute('aria-haspopup') || n.hasAttribute('aria-controls')) || matches[0];
+      trigger.scrollIntoView({ block: 'center' });
+      const r = trigger.getBoundingClientRect();
+      return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    })()`);
+    if (!coordsRaw || typeof coordsRaw !== 'string') return false;
+    let coords;
+    try { coords = JSON.parse(coordsRaw); } catch { return false; }
+    if (!coords || typeof coords.x !== 'number' || typeof coords.y !== 'number') return false;
+    await page.cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: coords.x, y: coords.y, button: 'left', clickCount: 1 });
+    await page.cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: coords.x, y: coords.y, button: 'left', clickCount: 1 });
+    await page.wait(0.6);
+    return true;
+}
+
+async function clickGeminiToolsButtonViaCDP(page) {
+    return clickGeminiButtonByLabelsViaCDP(page, ['上传和工具', 'upload and tools', 'tools', 'tool', 'mode', 'deep research', 'deep-research', '工具']);
+}
+function researchingIndicatorScript() {
+    return `
+    (() => /\\bresearching(?:\\s+websites?)?\\b|research in progress|working on your research|正在研究|研究中/i.test((document.body && document.body.textContent) || ''))()
+  `;
+}
+
 export async function waitForGeminiConfirmButton(page, labels, timeoutSeconds) {
     await ensureGeminiPage(page);
     const pollIntervalSeconds = 1;
     const maxPolls = Math.max(1, Math.ceil(timeoutSeconds / pollIntervalSeconds));
     for (let index = 0; index < maxPolls; index += 1) {
         await page.wait(index === 0 ? 0.5 : pollIntervalSeconds);
+        // Only trust positive evidence (the researching indicator) — the plan
+        // card can render its buttons disabled/stale, and synthetic clicks on
+        // this UI are sometimes ignored, so a bare button match is not proof.
+        const researching = await page.evaluate(researchingIndicatorScript());
+        if (researching) return 'researching-indicator';
         const matched = await page.evaluate(clickGeminiConfirmButtonScript(labels));
-        if (typeof matched === 'string' && matched)
-            return matched;
+        if (typeof matched === 'string' && matched) {
+            await page.wait(1);
+            await clickGeminiButtonByLabelsViaCDP(page, labels);
+        }
     }
     return '';
 }
