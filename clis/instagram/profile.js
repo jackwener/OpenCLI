@@ -8,7 +8,7 @@ cli({
     args: [
         { name: 'username', required: true, positional: true, help: 'Instagram username' },
     ],
-    columns: ['username', 'name', 'followers', 'following', 'posts', 'verified', 'bio'],
+    columns: ['username', 'name', 'followers', 'following', 'posts', 'verified', 'bio', 'avatar_url'],
     pipeline: [
         { navigate: 'https://www.instagram.com' },
         { evaluate: `(async () => {
@@ -45,7 +45,13 @@ cli({
       following: countFields.following(u),
       posts: countFields.posts(u),
       verified: u.is_verified ? 'Yes' : 'No',
+      // Signed CDN URL: expires after a while, so download it rather than hotlink it.
+      avatar_url: profilePicUrl(u),
     };
+  }
+  function profilePicUrl(u) {
+    const candidates = [u.profile_pic_url_hd, u.hd_profile_pic_url_info?.url, u.profile_pic_url];
+    return candidates.find((v) => typeof v === 'string' && v.startsWith('https://')) || '';
   }
   const r1 = await fetch(
     'https://www.instagram.com/api/v1/users/web_profile_info/?username=' + encodeURIComponent(username),

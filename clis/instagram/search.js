@@ -9,7 +9,7 @@ cli({
         { name: 'query', required: true, positional: true, help: 'Search query' },
         { name: 'limit', type: 'int', default: 10, help: 'Number of results' },
     ],
-    columns: ['rank', 'username', 'name', 'verified', 'private', 'url'],
+    columns: ['rank', 'username', 'name', 'verified', 'private', 'avatar_url', 'url'],
     pipeline: [
         { navigate: 'https://www.instagram.com' },
         { evaluate: `(async () => {
@@ -31,6 +31,7 @@ cli({
     name: item.user?.full_name || '',
     verified: item.user?.is_verified ? 'Yes' : 'No',
     private: item.user?.is_private ? 'Yes' : 'No',
+    avatar_url: typeof item.user?.profile_pic_url === 'string' && item.user.profile_pic_url.startsWith('https://') ? item.user.profile_pic_url : '',
     url: 'https://www.instagram.com/' + (item.user?.username || ''),
   }));
 })()

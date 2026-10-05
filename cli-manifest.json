@@ -19965,7 +19965,8 @@
       "following",
       "posts",
       "verified",
-      "bio"
+      "bio",
+      "avatar_url"
     ],
     "type": "js",
     "modulePath": "instagram/profile.js",
@@ -20113,6 +20114,7 @@
       "name",
       "verified",
       "private",
+      "avatar_url",
       "url"
     ],
     "type": "js",

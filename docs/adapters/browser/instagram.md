@@ -51,6 +51,10 @@ opencli instagram collection-delete "design refs"
 opencli instagram profile nasa -f json
 ```
 
+### Profile photos
+
+`instagram profile` and `instagram search` include an `avatar_url` column with the account's profile photo (`profile` prefers the HD version). It is empty when Instagram sends none. These are signed `cdninstagram.com` / `fbcdn.net` URLs: they expire, and Instagram's CDN often refuses to load them on other sites. Download the image when you need it; don't store the URL for later hotlinking.
+
 ### Notes on collections
 
 - `instagram saved` without `--collection` returns the unsegmented "All posts" bucket (same as the original behaviour).
