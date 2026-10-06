@@ -6,6 +6,7 @@ import { ArgumentError, AuthRequiredError, CommandExecutionError, TimeoutError }
 import { normalizePromotionArgs, promotionDom, requireLongPromotionUrl } from './promotion-link.js';
 
 const FORM = readFileSync(new URL('./__fixtures__/promotion-form.html', import.meta.url), 'utf8');
+const RESULT = readFileSync(new URL('./__fixtures__/promotion-result.html', import.meta.url), 'utf8');
 const PAGE = 'https://union.jd.com/proManager/custompromotion';
 const ARGS = { sku: '100291143898', website: '示例网站', position: '示例推广位', timeout: 2 };
 const LONG_URL = 'https://union-click.jd.com/jdc?e=example-product';
@@ -47,7 +48,7 @@ function loadForm() {
     return dom;
 }
 
-/** 结果结构按京东公开前端的 promotionResult 渲染器构造，尚非真实转链成功采样。 */
+/** 构造优惠券、短链和隐藏结果等组合场景；真实成功采样由 RESULT 单独覆盖。 */
 function resultDialog(doc, { url = LONG_URL, shortOnly = false, hidden = false } = {}) {
     const holder = doc.createElement('div');
     holder.innerHTML = `<div role="dialog" aria-label="生成推广链接">
@@ -130,6 +131,14 @@ describe('京东联盟推广长链参数与输出边界', () => {
 });
 
 describe('京东联盟 DOM 流程与失败处理', () => {
+    it('从真实成功弹窗 fixture 读取所选长链面板的商品链接', () => {
+        const dom = new JSDOM(RESULT, { url: PAGE });
+        windows.push(dom.window);
+        exposeDom(dom);
+        expect(promotionDom('state')).toMatchObject({ hasResult: true, hasLongTab: true, linkValue: LONG_URL });
+        expect(requireLongPromotionUrl(promotionDom('state').linkValue)).toBe(LONG_URL);
+    });
+
     it('操作真实表单 fixture，并只返回当前弹窗的商品长链', async () => {
         const { page, generate, dom } = pageHarness();
         resultDialog(dom.window.document, { hidden: true, url: 'https://union-click.jd.com/jdc?e=stale' });
@@ -165,6 +174,18 @@ describe('京东联盟 DOM 流程与失败处理', () => {
         unrelated.innerHTML = '<ul class="el-select-dropdown"><li class="el-select-dropdown__item">示例网站</li></ul>';
         dom.window.document.body.append(unrelated);
         await expect(command.func(page, ARGS)).resolves.toHaveLength(1);
+    });
+
+    it('选择网站后等待异步挂载的推广位选择框，不误报页面结构变化', async () => {
+        const { page, dom, generate } = pageHarness();
+        const field = [...dom.window.document.querySelectorAll('.el-form-item')]
+            .find(el => el.querySelector('.el-form-item__label')?.textContent.trim() === '推广位名称');
+        const parent = field.parentElement;
+        field.remove();
+        page.wait.mockImplementationOnce(async () => { parent.append(field); });
+        await expect(command.func(page, ARGS)).resolves.toHaveLength(1);
+        expect(page.wait).toHaveBeenCalledOnce();
+        expect(generate).toHaveBeenCalledOnce();
     });
 
     it('忽略长链面板内隐藏的商品链接行', () => {

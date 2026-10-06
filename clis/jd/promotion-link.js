@@ -91,6 +91,7 @@ export function promotionDom(action, value) {
     const field = [...pane.querySelectorAll('.el-form-item')]
         .find(el => text(el.querySelector('.el-form-item__label')) === value.label);
     const input = field?.querySelector('.el-select input');
+    if (action === 'field-ready') return { ready: !!input && visible(input) };
     if (!input) return { error: `未找到${value.label}选择框，页面结构可能已改变` };
     if (action === 'selected') return { selected: input.value === value.name };
     if (action === 'open-select') {
@@ -156,6 +157,8 @@ cli({
         /** 仅选择一个现有命名项，随后核对选择框确实反映了目标名称。 */
         const selectExisting = async (label, name) => {
             const value = { label, name };
+            // 选定网站后，京东异步加载并挂载该网站的推广位选择框。
+            await until('field-ready', state => state.ready, value);
             await run('open-select', value);
             await until('options', state => state.loaded, value);
             await run('select', value);
