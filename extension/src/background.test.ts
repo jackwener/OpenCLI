@@ -726,7 +726,7 @@ describe('background tab isolation', () => {
     );
 
     expect(result).toEqual({ id: 'implicit-close', ok: true, data: { closed: 'target-1' } });
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
@@ -1139,7 +1139,7 @@ describe('background tab isolation', () => {
       ok: true,
       data: { closed: 'target-1' },
     }));
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
     expect(chrome.windows.remove).not.toHaveBeenCalled();
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
@@ -1294,8 +1294,8 @@ describe('background tab isolation', () => {
     expect(mod.__test__.getSession(adapterKey('alarm'))).toBeNull();
   });
 
-  it('reuses the placeholder tab left by an idle release', async () => {
-    const { chrome, tabs } = createChromeMock();
+  it('closes the released tab on an idle release instead of parking a placeholder', async () => {
+    const { chrome } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
     const mod = await import('./background');
@@ -1304,15 +1304,12 @@ describe('background tab isolation', () => {
     const onAlarmListener = chrome.alarms.onAlarm.addListener.mock.calls[0][0];
     await onAlarmListener({ name: `opencli:lease-idle:${encodeURIComponent(adapterKey('first'))}` });
 
-    expect(tabs[0].url).toBe('about:blank');
-    expect(chrome.windows.remove).not.toHaveBeenCalled();
-    chrome.windows.create.mockClear();
-
-    const reused = await mod.__test__.resolveTabId(undefined, adapterKey('next'), 'https://next.example');
-
-    expect(reused).toBe(1);
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'https://next.example' });
+    // 不再把标签停在 about:blank 当「可复用占位符」: 直接 ungroup + 关闭。占位符会让橙色分组靠它
+    // 存活, 而用扩展 API 关掉组内最后一个标签时 Chrome 会把分组存成书签栏的「已保存的标签页分组」
+    // (每轮 +1 条) —— 那才是残留的根源。
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.tabs.update).not.toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(mod.__test__.getSession(adapterKey('first'))).toBeNull();
   });
 
   it('deduplicates concurrent automation container creation', async () => {
@@ -2088,8 +2085,9 @@ describe('background tab isolation', () => {
     // the canonical group is re-found in memory via the title layer instead.
     expect(finalRegistry.ownedContainers.interactive.groupId).toBeUndefined();
     expect(mod.__test__.getInteractiveContainer().groupId).toBe(200);
-    // The lease was released down the proper owned-placeholder path, not wiped.
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    // The lease was released by closing its tab (the reusable-placeholder path was
+    // retired in favour of ungroup + remove, see releaseLease), not wiped.
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
