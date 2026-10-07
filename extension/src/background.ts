@@ -2120,6 +2120,35 @@ async function handleWaitDownload(cmd: Command): Promise<Result> {
   }
 }
 
+/**
+ * 回收 opencli 自己的容器窗口: 只在窗口里**一个标签都不剩**时才关闭它, 免得误关用户在
+ * 同一个窗口里另外打开的页面。窗口已不存在时静默返回。
+ */
+async function removeEmptyOwnedWindow(windowId: number | null): Promise<void> {
+  if (windowId === null || windowId === chrome.windows.WINDOW_ID_NONE) return;
+  try {
+    const tabs = await chrome.tabs.query({ windowId });
+    if (tabs.length > 0) return;
+    await chrome.windows.remove(windowId);
+    console.log(`[opencli] Removed empty owned container window ${windowId}`);
+  } catch {
+    // 窗口已不存在(或不可访问): 忽略
+  }
+}
+
+/**
+ * 把标签移出它所在的标签分组后再关闭。先 ungroup 是关键: 直接关闭分组内最后一个标签时,
+ * Chrome 会把该分组保存成书签栏里的「已保存的标签页分组」而不是删除它(2026-10-07 实测)。
+ */
+async function ungroupThenRemoveTab(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.ungroup(tabId);
+  } catch {
+    // 标签不在任何分组里(或已消失): ungroup 会抛错, 忽略即可
+  }
+  await chrome.tabs.remove(tabId).catch(() => {});
+}
+
 async function releaseLease(leaseKey: string, reason: string = 'released'): Promise<void> {
   const session = automationSessions.get(leaseKey);
   if (!session) {
@@ -2144,18 +2173,17 @@ async function releaseLease(leaseKey: string, reason: string = 'released'): Prom
       await safeDetach(tabId);
       identity.evictTab(tabId);
       if (hasOtherOwnedLease) {
-        await chrome.tabs.remove(tabId).catch(() => {});
+        await ungroupThenRemoveTab(tabId);
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
-        try {
-          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
-          if (group) session.windowId = group.windowId;
-          console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
-        } catch {
-          await chrome.tabs.remove(tabId).catch(() => {});
-          console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
-        }
+        // 不再保留「可复用占位符」(2026-10-07 修复):
+        // 占位符会让橙色 "OpenCLI Browser" 分组一直存活, 而**用扩展 API 关闭分组内最后一个
+        // 标签**时 Chrome 并不删除分组 —— 它把分组存进书签栏的「已保存的标签页分组」, 每轮会话
+        // 留下一条, 越攒越多(本机实测: 2 轮 2 条 / 3 轮 3 条; 只有 GUI 手动关闭才会弹框删组)。
+        // 改为: 先把标签移出分组(ungroup)让分组空掉, 再关闭标签, 最后回收空容器窗口。
+        await ungroupThenRemoveTab(tabId);
+        console.log(`[opencli] Closed owned tab lease ${tabId} without placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
+        await removeEmptyOwnedWindow(session.windowId);
       }
     } else {
       console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (session=${session.session}, surface=${session.surface}, ${reason})`);

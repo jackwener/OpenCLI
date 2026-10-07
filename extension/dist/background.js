@@ -2349,6 +2349,24 @@ async function handleWaitDownload(cmd) {
     return errorResult(cmd.id, err);
   }
 }
+async function removeEmptyOwnedWindow(windowId) {
+  if (windowId === null || windowId === chrome.windows.WINDOW_ID_NONE) return;
+  try {
+    const tabs = await chrome.tabs.query({ windowId });
+    if (tabs.length > 0) return;
+    await chrome.windows.remove(windowId);
+    console.log(`[opencli] Removed empty owned container window ${windowId}`);
+  } catch {
+  }
+}
+async function ungroupThenRemoveTab(tabId) {
+  try {
+    await chrome.tabs.ungroup(tabId);
+  } catch {
+  }
+  await chrome.tabs.remove(tabId).catch(() => {
+  });
+}
 async function releaseLease(leaseKey, reason = "released") {
   const session = automationSessions.get(leaseKey);
   if (!session) {
@@ -2368,20 +2386,12 @@ async function releaseLease(leaseKey, reason = "released") {
       await safeDetach(tabId);
       evictTab(tabId);
       if (hasOtherOwnedLease) {
-        await chrome.tabs.remove(tabId).catch(() => {
-        });
+        await ungroupThenRemoveTab(tabId);
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
-        try {
-          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
-          if (group) session.windowId = group.windowId;
-          console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
-        } catch {
-          await chrome.tabs.remove(tabId).catch(() => {
-          });
-          console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
-        }
+        await ungroupThenRemoveTab(tabId);
+        console.log(`[opencli] Closed owned tab lease ${tabId} without placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
+        await removeEmptyOwnedWindow(session.windowId);
       }
     } else {
       console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (session=${session.session}, surface=${session.surface}, ${reason})`);
