@@ -273,10 +273,12 @@ async function submitTweet(page, text) {
             await new Promise(r => setTimeout(r, ${JSON.stringify(SUBMIT_POLL_MS)}));
             const toasts = Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"]'))
                 .filter((el) => visible(el) && !el.hasAttribute('data-opencli-before-submit-toast'));
-            const successToast = toasts.find((el) => /sent|posted|your post was sent|your tweet was sent/i.test(el.textContent || ''));
-            if (successToast) return { ok: true, message: 'Tweet posted successfully.', ...statusUrl(successToast) };
-            const alert = toasts.find((el) => /failed|error|try again|not sent|could not/i.test(el.textContent || ''));
+            // A failure such as "Your post was not sent" must never match success.
+            const alert = toasts.find((el) => /failed|error|try again|not sent|not posted|could not|发送失败|发布失败|无法发送|无法发布|请重试|出错/i.test(el.textContent || ''));
             if (alert) return { ok: false, message: (alert.textContent || 'Tweet failed to post.').trim() };
+            // X localizes this transient toast according to the account language.
+            const successToast = toasts.find((el) => /your post was sent|your tweet was sent|post sent|tweet sent|posted successfully|已发送|已发布|已发出|发布成功|发送成功/i.test(el.textContent || ''));
+            if (successToast) return { ok: true, message: 'Tweet posted successfully.', ...statusUrl(successToast) };
 
             // Composer disappearance or text clearing alone is not a reliable
             // postcondition: X may close/rewrite the modal after failed submits.

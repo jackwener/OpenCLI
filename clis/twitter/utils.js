@@ -201,7 +201,7 @@ export async function attachComposerImage(page, absImagePath, fileInputSelector 
 
 export function isRecoverableFileInputError(error) {
     const msg = error instanceof Error ? error.message : String(error);
-    return /unknown action|not supported|not[-\s]?allowed|notallowederror/i.test(msg);
+    return /unknown action|not supported|not[-\s]?allowed|notallowederror|fileChooserOpened not received within \d+s/i.test(msg);
 }
 
 export async function waitForComposerMediaReady(page, expectedCount = 1) {

@@ -1,7 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { __test__ } from './utils.js';
 
-const { computeEngagementScore, applyTopByEngagement, ENGAGEMENT_WEIGHTS } = __test__;
+const { computeEngagementScore, applyTopByEngagement, ENGAGEMENT_WEIGHTS, isRecoverableFileInputError } = __test__;
+
+describe('isRecoverableFileInputError', () => {
+    it('falls back when Chrome never reports Page.fileChooserOpened', () => {
+        expect(isRecoverableFileInputError(new Error(
+            'Page.fileChooserOpened not received within 5s — the input may not have opened a file chooser',
+        ))).toBe(true);
+    });
+
+    it('keeps existing CDP rejection fallbacks', () => {
+        expect(isRecoverableFileInputError(new Error('Unknown action'))).toBe(true);
+        expect(isRecoverableFileInputError(new Error('NotAllowedError: Not allowed'))).toBe(true);
+    });
+
+    it('does not swallow unrelated upload errors', () => {
+        expect(isRecoverableFileInputError(new Error('Network lost'))).toBe(false);
+        expect(isRecoverableFileInputError(new Error('fileChooserOpened returned an unexpected event'))).toBe(false);
+    });
+});
 
 describe('computeEngagementScore', () => {
     it('returns 0 for empty / nullish rows', () => {
