@@ -312,6 +312,7 @@ opencli plugin uninstall my-tool                            # 卸载
 
 | 插件 | 类型 | 描述 |
 |------|------|------|
+| [opencli-plugin-amap](https://github.com/vecyang1/opencli-plugin-amap) | JS | 高德地图全量收藏地点与路线极速导出、坐标转换 (GCJ-02/WGS-84) 与 SSR 搜索 |
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | JS | GitHub Trending 仓库 |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | 多平台热榜聚合 |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金热门文章 |

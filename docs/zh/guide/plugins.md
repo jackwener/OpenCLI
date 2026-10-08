@@ -173,6 +173,7 @@ cli({
 
 ## 示例 plugins
 
+- [`opencli-plugin-amap`](https://github.com/vecyang1/opencli-plugin-amap)：高德地图收藏地点与路线极速导出、坐标转换 (GCJ-02/WGS-84) 与 SSR 搜索
 - `opencli-plugin-github-trending`：GitHub Trending 仓库
 - `opencli-plugin-hot-digest`：多平台热点聚合（zhihu、weibo、bilibili、v2ex、stackoverflow、reddit、linux-do）
 - `opencli-plugin-juejin`：稀土掘金热榜、分类和文章流

@@ -274,6 +274,7 @@ opencli plugin uninstall my-tool
 
 | Plugin | Type | Description |
 |--------|------|-------------|
+| [opencli-plugin-amap](https://github.com/vecyang1/opencli-plugin-amap) | JS | AutoNavi / 高德地图 spot & route extraction, coordinate decoders (GCJ-02 & WGS-84), and SSR search |
 | [opencli-plugin-github-trending](https://github.com/ByteYue/opencli-plugin-github-trending) | JS | GitHub Trending repositories |
 | [opencli-plugin-hot-digest](https://github.com/ByteYue/opencli-plugin-hot-digest) | JS | Multi-platform trending aggregator |
 | [opencli-plugin-juejin](https://github.com/Astro-Han/opencli-plugin-juejin) | JS | 稀土掘金 (Juejin) hot articles |
