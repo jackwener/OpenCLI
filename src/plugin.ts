@@ -16,6 +16,7 @@ import { PLUGINS_DIR } from './discovery.js';
 import { getErrorMessage, PluginError } from './errors.js';
 import { log } from './logger.js';
 import { isRecord } from './utils.js';
+import { linkHostOpencli, resolveHostOpencliRoot } from './plugin-runtime.js';
 import {
   readPluginManifest,
   isMonorepo,
@@ -585,7 +586,12 @@ function installDependencies(dir: string): void {
 function finalizePluginRuntime(pluginDir: string): void {
   // Symlink host opencli so TS plugins resolve '@jackwener/opencli/registry'
   // against the running host, not a stale npm-published version.
-  linkHostOpencli(pluginDir);
+  if (!linkHostOpencli(pluginDir)) {
+    throw new PluginError(
+      `Failed to link the host OpenCLI package into ${pluginDir}.`,
+      'Check that the plugin directory is writable and retry the install or update.'
+    );
+  }
 
   // Transpile .ts → .js via esbuild (production node can't load .ts directly).
   transpilePluginTs(pluginDir);
@@ -1402,30 +1408,6 @@ function parseSource(
  * This ensures TS plugins resolve '@jackwener/opencli/registry' against
  * the running host installation rather than a stale npm-published version.
  */
-function linkHostOpencli(pluginDir: string): void {
-  try {
-    const hostRoot = resolveHostOpencliRoot();
-
-    const targetLink = path.join(pluginDir, 'node_modules', '@jackwener', 'opencli');
-
-    // Remove existing (npm-installed copy or stale symlink)
-    if (fs.existsSync(targetLink)) {
-      fs.rmSync(targetLink, { recursive: true, force: true });
-    }
-
-    // Ensure parent directory exists
-    fs.mkdirSync(path.dirname(targetLink), { recursive: true });
-
-    // Use 'junction' on Windows (doesn't require admin privileges),
-    // 'dir' symlink on other platforms.
-    const linkType = isWindows ? 'junction' : 'dir';
-    fs.symlinkSync(hostRoot, targetLink, linkType);
-    log.debug(`Linked host opencli into plugin: ${targetLink} → ${hostRoot}`);
-  } catch (err) {
-    log.warn(`Failed to link host opencli into plugin: ${getErrorMessage(err)}`);
-  }
-}
-
 /**
  * Resolve the path to the esbuild CLI executable with fallback strategies.
  */
@@ -1482,30 +1464,6 @@ export function resolveEsbuildBin(): string | null {
   }
 
   return null;
-}
-
-function resolveHostOpencliRoot(startFile = fileURLToPath(import.meta.url)): string {
-  let dir = path.dirname(startFile);
-
-  while (true) {
-    const pkgPath = path.join(dir, 'package.json');
-    if (fs.existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        if (pkg?.name === '@jackwener/opencli') {
-          return dir;
-        }
-      } catch {
-        // Keep walking; a malformed package.json should not hide an ancestor package root.
-      }
-    }
-
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  return path.resolve(path.dirname(startFile), '..');
 }
 
 /**

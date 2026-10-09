@@ -18,6 +18,7 @@ import { getErrorMessage } from './errors.js';
 import { log } from './logger.js';
 import type { ManifestEntry } from './manifest-types.js';
 import { findPackageRoot, getCliManifestPath } from './package-paths.js';
+import { linkHostOpencli } from './plugin-runtime.js';
 
 /** User runtime directory: ~/.opencli */
 export const USER_OPENCLI_DIR = path.join(os.homedir(), '.opencli');
@@ -198,13 +199,13 @@ async function discoverClisFromFs(dir: string): Promise<void> {
  * Each subdirectory is treated as a plugin (site = directory name).
  * Files inside are scanned flat (no nested site subdirs).
  */
-export async function discoverPlugins(): Promise<void> {
-  try { await fs.promises.access(PLUGINS_DIR); } catch { return; }
-  const entries = (await fs.promises.readdir(PLUGINS_DIR, { withFileTypes: true }))
+export async function discoverPlugins(pluginRoot: string = PLUGINS_DIR): Promise<void> {
+  try { await fs.promises.access(pluginRoot); } catch { return; }
+  const entries = (await fs.promises.readdir(pluginRoot, { withFileTypes: true }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const discoverable: Array<{ entry: fs.Dirent; pluginDir: string }> = [];
   for (const entry of entries) {
-    const pluginDir = path.join(PLUGINS_DIR, entry.name);
+    const pluginDir = path.join(pluginRoot, entry.name);
     if (await isDiscoverablePluginDir(entry, pluginDir)) {
       discoverable.push({ entry, pluginDir });
     }
@@ -213,6 +214,10 @@ export async function discoverPlugins(): Promise<void> {
     await warnIgnoredYamlAdaptersInFlatDir(pluginDir, { owner: `plugin ${entry.name}`, pluginMode: true });
   }
   await Promise.all(discoverable.map(async ({ entry, pluginDir }) => {
+    if (!linkHostOpencli(pluginDir)) {
+      log.warn(`Skipping plugin ${entry.name} because its host package could not be linked.`);
+      return;
+    }
     await discoverPluginDir(pluginDir, entry.name);
   }));
 }
