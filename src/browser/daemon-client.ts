@@ -130,7 +130,7 @@ function effectiveCommandTimeoutSeconds(params: Omit<DaemonCommand, 'id' | 'acti
  * journal.ts). From this version on, re-sending the SAME command id is safe:
  * the executor replays the recorded result instead of re-executing.
  */
-const MIN_JOURNAL_EXTENSION_VERSION = '1.0.22';
+export const MIN_JOURNAL_EXTENSION_VERSION = '1.0.22';
 
 function versionAtLeast(version: string | null | undefined, min: string): boolean {
   if (!version) return false;
@@ -142,6 +142,11 @@ function versionAtLeast(version: string | null | undefined, min: string): boolea
     if (d !== 0) return d > 0;
   }
   return true;
+}
+
+export function supportsCommandJournal(version: string | null | undefined, compatRange: string | null | undefined): boolean {
+  // compatRange marks the independently versioned extension line.
+  return !!compatRange && versionAtLeast(version, MIN_JOURNAL_EXTENSION_VERSION);
 }
 
 /** Error codes meaning the executor's outcome is genuinely unknown — never auto-retry. */
@@ -360,7 +365,7 @@ async function sendCommandRaw(
       preferredContextId,
       verbose: false,
     });
-    executorJournaled = versionAtLeast(health.status?.extensionVersion, MIN_JOURNAL_EXTENSION_VERSION);
+    executorJournaled = supportsCommandJournal(health.status?.extensionVersion, health.status?.extensionCompatRange);
   };
 
   for (let attempt = 1; attempt <= TRANSPORT_MAX_ATTEMPTS; attempt++) {

@@ -426,7 +426,7 @@ describe('daemon-client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  function mockEnsureReady(extensionVersion?: string) {
+  function mockEnsureReady(extensionVersion?: string, extensionCompatRange: string | null = '>=1.7.0') {
     return vi.spyOn(daemonLifecycle, 'ensureBrowserBridgeReady').mockResolvedValue({
       state: 'ready',
       status: {
@@ -435,6 +435,7 @@ describe('daemon-client', () => {
         uptime: 1,
         extensionConnected: true,
         ...(extensionVersion && { extensionVersion }),
+        ...(extensionCompatRange && { extensionCompatRange }),
         pending: 0,
         memoryMB: 0,
         port: 19825,
@@ -520,6 +521,26 @@ describe('daemon-client', () => {
       name: 'BrowserCommandError',
       code: 'command_result_unknown',
     } satisfies Partial<BrowserCommandError>);
+
+    expect(ensureSpy).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('sendCommand does NOT resend a post-connect drop on the legacy extension version line', async () => {
+    const ensureSpy = mockEnsureReady('1.7.2', null);
+    const reset = new TypeError('fetch failed');
+    (reset as { cause?: unknown }).cause = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+    vi.mocked(fetch)
+      .mockRejectedValueOnce(reset)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'server', ok: true, data: 'executed again' }),
+      } as Response);
+
+    await expect(sendCommand('navigate', { url: 'https://example.com' })).rejects.toMatchObject({
+      code: 'command_result_unknown',
+    });
 
     expect(ensureSpy).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);

@@ -5,11 +5,13 @@ const {
   mockSendCommand,
   mockSetDaemonCommandTimeoutSeconds,
   mockFindShadowedUserAdapters,
+  mockGetCachedLatestExtensionVersion,
 } = vi.hoisted(() => ({
   mockGetDaemonHealth: vi.fn(),
   mockSendCommand: vi.fn(),
   mockSetDaemonCommandTimeoutSeconds: vi.fn(),
   mockFindShadowedUserAdapters: vi.fn(),
+  mockGetCachedLatestExtensionVersion: vi.fn(),
 }));
 
 vi.mock('./browser/daemon-transport.js', async (importOriginal) => {
@@ -37,6 +39,10 @@ vi.mock('./adapter-shadow.js', async () => {
   };
 });
 
+vi.mock('./update-check.js', () => ({
+  getCachedLatestExtensionVersion: mockGetCachedLatestExtensionVersion,
+}));
+
 import { renderBrowserDoctorReport, runBrowserDoctor } from './doctor.js';
 
 describe('doctor report rendering', () => {
@@ -45,6 +51,7 @@ describe('doctor report rendering', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFindShadowedUserAdapters.mockReturnValue([]);
+    mockGetCachedLatestExtensionVersion.mockReturnValue(undefined);
     // Doctor always runs a live daemon-to-extension command. Tests that want
     // connectivity to fail override this result.
     mockSendCommand.mockResolvedValue([]);
@@ -315,6 +322,58 @@ describe('doctor report rendering', () => {
     expect(report.daemonStale).toBe(true);
     expect(report.issues).toEqual(expect.arrayContaining([
       expect.stringContaining('Stale daemon detected: daemon v1.7.6 != CLI v1.7.9'),
+    ]));
+  });
+
+  it('warns when the connected extension predates command journal support', async () => {
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'ready',
+      status: {
+        daemonVersion: '1.8.8',
+        extensionConnected: true,
+        extensionVersion: '1.0.21',
+        extensionCompatRange: '>=1.7.0',
+      },
+    });
+
+    const report = await runBrowserDoctor({ cliVersion: '1.8.8' });
+    const text = strip(renderBrowserDoctorReport(report));
+
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Extension v1.0.21 does not report command journal support'),
+    ]));
+    expect(text).toContain('[WARN] Extension: connected (v1.0.21)');
+    expect(text).not.toContain('Everything looks good!');
+  });
+
+  it('does not warn at the command journal compatibility floor', async () => {
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'ready',
+      status: {
+        daemonVersion: '1.8.8',
+        extensionConnected: true,
+        extensionVersion: '1.0.22',
+        extensionCompatRange: '>=1.7.0',
+      },
+    });
+
+    const report = await runBrowserDoctor({ cliVersion: '1.8.8' });
+
+    expect(report.issues).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('does not report command journal support'),
+    ]));
+  });
+
+  it('warns for legacy extension versions without the independent-version handshake', async () => {
+    mockGetDaemonHealth.mockResolvedValueOnce({
+      state: 'ready',
+      status: { daemonVersion: '1.8.8', extensionConnected: true, extensionVersion: '1.7.2' },
+    });
+
+    const report = await runBrowserDoctor({ cliVersion: '1.8.8' });
+
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.stringContaining('Extension v1.7.2 does not report command journal support'),
     ]));
   });
 

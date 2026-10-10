@@ -5,7 +5,7 @@
  */
 
 import { DEFAULT_DAEMON_PORT } from './constants.js';
-import { sendCommand, setDaemonCommandTimeoutSeconds } from './browser/daemon-client.js';
+import { MIN_JOURNAL_EXTENSION_VERSION, sendCommand, setDaemonCommandTimeoutSeconds, supportsCommandJournal } from './browser/daemon-client.js';
 import { getDaemonHealth } from './browser/daemon-transport.js';
 import { getErrorMessage } from './errors.js';
 import { getRuntimeLabel } from './runtime-detect.js';
@@ -67,6 +67,7 @@ export type DoctorReport = {
   extensionConnected: boolean;
   extensionFlaky?: boolean;
   extensionVersion?: string;
+  extensionOutdated?: boolean;
   latestExtensionVersion?: string;
   connectivity?: ConnectivityResult;
   profiles?: BrowserProfileStatus[];
@@ -114,6 +115,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const daemonStale = isDaemonStale(health.status, opts.cliVersion);
   const profiles = health.status?.profiles;
   const extensionVersion = health.status?.extensionVersion;
+  let extensionOutdated = false;
   const adapterShadows = findShadowedUserAdapters();
 
   const issues: string[] = [];
@@ -192,21 +194,19 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
         '  Or download a compatible extension from: https://github.com/jackwener/opencli/releases',
       );
     }
-  } else if (extensionVersion && opts.cliVersion) {
-    // Fallback for older extensions that don't send compatRange
-    const extMajor = extensionVersion.split('.')[0];
-    const cliMajor = opts.cliVersion.split('.')[0];
-    if (extMajor !== cliMajor) {
-      issues.push(
-        `Extension major version mismatch: extension v${extensionVersion} ≠ CLI v${opts.cliVersion}\n` +
-        '  Download the latest extension from: https://github.com/jackwener/opencli/releases',
-      );
-    }
+  }
+  if (extensionVersion && !supportsCommandJournal(extensionVersion, health.status?.extensionCompatRange)) {
+    extensionOutdated = true;
+    issues.push(
+      `Extension v${extensionVersion} does not report command journal support (introduced in v${MIN_JOURNAL_EXTENSION_VERSION}).\n` +
+      '  Automatic retries are limited; update the extension from: https://github.com/jackwener/opencli/releases',
+    );
   }
 
   // Extension update check (from cached background fetch)
   const latestExtensionVersion = getCachedLatestExtensionVersion();
   if (extensionVersion && latestExtensionVersion && isNewerVersion(latestExtensionVersion, extensionVersion)) {
+    extensionOutdated = true;
     issues.push(
       `Extension update available: v${extensionVersion} → v${latestExtensionVersion}\n` +
       '  Download from: https://github.com/jackwener/opencli/releases',
@@ -225,6 +225,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     extensionConnected,
     extensionFlaky,
     extensionVersion,
+    extensionOutdated,
     latestExtensionVersion,
     connectivity,
     profiles,
@@ -252,7 +253,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
   lines.push(`${daemonIcon} Daemon: ${daemonLabel}`);
 
   // Extension status
-  const extIcon = report.extensionFlaky || (report.extensionConnected && !report.extensionVersion)
+  const extIcon = report.extensionFlaky || report.extensionOutdated || (report.extensionConnected && !report.extensionVersion)
     ? '[WARN]'
     : report.extensionConnected ? '[OK]' : '[MISSING]';
   const extUpdateHint = report.extensionVersion && report.latestExtensionVersion && isNewerVersion(report.latestExtensionVersion, report.extensionVersion)
