@@ -1196,9 +1196,6 @@ function resetWindowIdleTimer(leaseKey, remainingMs) {
     await releaseLease(leaseKey, "idle timeout");
   }, interval);
 }
-function getOwnedContainerGroupTitles(role) {
-  return role === "automation" ? [] : [CONTAINER_TAB_GROUP_TITLE.interactive];
-}
 async function focusOwnedWindowIfRequested(windowId, mode) {
   if (mode !== "foreground") return;
   const updateWindow = chrome.windows.update;
@@ -1206,19 +1203,21 @@ async function focusOwnedWindowIfRequested(windowId, mode) {
   });
 }
 async function toOwnedContainerGroupCandidate(group) {
+  let chromeWindow;
   try {
-    const chromeWindow = await chrome.windows.get(group.windowId);
-    const reusableTabId = await findReusableOwnedContainerTab(group.windowId, group.id);
-    return {
-      id: group.id,
-      windowId: group.windowId,
-      title: group.title,
-      focused: !!chromeWindow.focused,
-      hasReusableTab: reusableTabId !== void 0
-    };
-  } catch {
-    return null;
+    chromeWindow = await chrome.windows.get(group.windowId);
+  } catch (err) {
+    if (err instanceof Error && classifyExtensionError(err.message) === "tab_gone") return null;
+    throw err;
   }
+  const reusableTabId = await findReusableOwnedContainerTab(group.windowId, group.id);
+  return {
+    id: group.id,
+    windowId: group.windowId,
+    title: group.title,
+    focused: !!chromeWindow.focused,
+    hasReusableTab: reusableTabId !== void 0
+  };
 }
 function selectOwnedContainerGroupCandidate(candidates) {
   if (candidates.length === 0) return null;
@@ -1229,6 +1228,9 @@ function selectOwnedContainerGroupCandidate(candidates) {
     return a.id - b.id;
   })[0];
 }
+function isMissingTabGroupError(err) {
+  return err instanceof Error && /No group with id|group no longer exists/i.test(err.message);
+}
 async function collectOwnedGroupCandidates(role) {
   if (role === "automation") return [];
   const container = ownedContainers[role];
@@ -1237,7 +1239,8 @@ async function collectOwnedGroupCandidates(role) {
     try {
       const group = await chrome.tabGroups.get(container.groupId);
       groupsById.set(group.id, group);
-    } catch {
+    } catch (err) {
+      if (!isMissingTabGroupError(err)) throw err;
       container.groupId = null;
     }
   }
@@ -1247,25 +1250,29 @@ async function collectOwnedGroupCandidates(role) {
     try {
       const group = await chrome.tabGroups.get(groupId);
       groupsById.set(group.id, group);
-    } catch {
+    } catch (err) {
+      if (!isMissingTabGroupError(err)) throw err;
       interactiveGroupLedger.delete(groupId);
       ledgerPruned = true;
     }
   }
   if (ledgerPruned) await persistRuntimeState();
-  for (const title of getOwnedContainerGroupTitles(role)) {
-    const groups = await chrome.tabGroups.query({ title });
-    for (const group of groups) groupsById.set(group.id, group);
-  }
   for (const [leaseKey, session] of automationSessions.entries()) {
     if (!session.owned || getOwnedWindowRole(leaseKey) !== role || session.preferredTabId === null) continue;
+    let tab;
     try {
-      const tab = await chrome.tabs.get(session.preferredTabId);
-      const groupId = tab.groupId;
-      if (typeof groupId !== "number" || groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) continue;
+      tab = await chrome.tabs.get(session.preferredTabId);
+    } catch (err) {
+      if (err instanceof Error && classifyExtensionError(err.message) === "tab_gone") continue;
+      throw err;
+    }
+    const groupId = tab.groupId;
+    if (typeof groupId !== "number" || groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) continue;
+    try {
       const group = await chrome.tabGroups.get(groupId);
       groupsById.set(group.id, group);
-    } catch {
+    } catch (err) {
+      if (!isMissingTabGroupError(err)) throw err;
     }
   }
   const ownedPreferredTabIds = /* @__PURE__ */ new Set();
@@ -1274,17 +1281,14 @@ async function collectOwnedGroupCandidates(role) {
     ownedPreferredTabIds.add(session.preferredTabId);
   }
   if (ownedPreferredTabIds.size > 0) {
-    try {
-      const allGroups = await chrome.tabGroups.query({});
-      for (const group of allGroups) {
-        if (group.title) continue;
-        if (groupsById.has(group.id)) continue;
-        const tabsInGroup = await chrome.tabs.query({ groupId: group.id });
-        if (tabsInGroup.some((tab) => tab.id !== void 0 && ownedPreferredTabIds.has(tab.id))) {
-          groupsById.set(group.id, group);
-        }
+    const allGroups = await chrome.tabGroups.query({});
+    for (const group of allGroups) {
+      if (group.title) continue;
+      if (groupsById.has(group.id)) continue;
+      const tabsInGroup = await chrome.tabs.query({ groupId: group.id });
+      if (tabsInGroup.some((tab) => tab.id !== void 0 && ownedPreferredTabIds.has(tab.id))) {
+        groupsById.set(group.id, group);
       }
-    } catch {
     }
   }
   const candidates = await Promise.all([...groupsById.values()].map(toOwnedContainerGroupCandidate));
@@ -1308,7 +1312,8 @@ async function ensureTabsInWindow(tabIds, windowId) {
         await chrome.tabs.move(tabId, { windowId, index: -1 });
         movedIds.push(tabId);
       }
-    } catch {
+    } catch (err) {
+      if (!(err instanceof Error) || classifyExtensionError(err.message) !== "tab_gone") throw err;
     }
   }
   return movedIds;
@@ -1337,7 +1342,14 @@ async function convergeOwnedGroupDuplicates(role, canonical, candidates) {
 async function attachTabsToOwnedGroup(role, group, ids) {
   if (ids.length === 0) return group;
   await ensureTabsInWindow(ids, group.windowId);
-  const tabs = await Promise.all(ids.map((id) => chrome.tabs.get(id).catch(() => null)));
+  const tabs = await Promise.all(ids.map(async (id) => {
+    try {
+      return await chrome.tabs.get(id);
+    } catch (err) {
+      if (err instanceof Error && classifyExtensionError(err.message) === "tab_gone") return null;
+      throw err;
+    }
+  }));
   const missing = tabs.filter((tab) => tab !== null && tab.id !== void 0 && tab.groupId !== group.id).map((tab) => tab.id);
   if (missing.length > 0) await chrome.tabs.group({ groupId: group.id, tabIds: missing });
   updateOwnedSessionWindowForTabs(role, ids, group.windowId);
@@ -1411,33 +1423,36 @@ async function ensureOwnedContainerWindow(role, initialUrl, mode = "background")
 async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "background") {
   const container = ownedContainers[role];
   if (container.windowId !== null) {
+    const windowId = container.windowId;
     try {
-      await chrome.windows.get(container.windowId);
-      const group2 = await ensureOwnedContainerGroup(role, container.windowId, []);
+      await chrome.windows.get(windowId);
+    } catch (err) {
+      if (!(err instanceof Error) || classifyExtensionError(err.message) !== "tab_gone") throw err;
+      console.warn(`[opencli] Owned ${role} window ${windowId} is unavailable: ${err instanceof Error ? err.message : String(err)}`);
+      container.windowId = null;
+      container.groupId = null;
+    }
+    if (container.windowId === windowId) {
+      const group2 = await ensureOwnedContainerGroup(role, windowId, []);
       if (group2) {
         await focusOwnedWindowIfRequested(group2.windowId, mode);
-        const initialTabId3 = await findReusableOwnedContainerTab(group2.windowId, group2.id);
+        const initialTabId2 = await findReusableOwnedContainerTab(group2.windowId, group2.id);
         return {
           windowId: group2.windowId,
-          initialTabId: initialTabId3
-        };
-      }
-      await focusOwnedWindowIfRequested(container.windowId, mode);
-      const initialTabId2 = await findReusableOwnedContainerTab(container.windowId, null);
-      const createdGroup = await ensureOwnedContainerGroup(role, container.windowId, [initialTabId2]);
-      if (createdGroup) {
-        return {
-          windowId: createdGroup.windowId,
           initialTabId: initialTabId2
         };
       }
-      return {
-        windowId: container.windowId,
-        initialTabId: initialTabId2
-      };
-    } catch {
-      container.windowId = null;
-      container.groupId = null;
+      if (role === "interactive") {
+        container.windowId = null;
+        container.groupId = null;
+      } else {
+        await focusOwnedWindowIfRequested(windowId, mode);
+        const initialTabId2 = await findReusableOwnedContainerTab(windowId, null);
+        return {
+          windowId,
+          initialTabId: initialTabId2
+        };
+      }
     }
   }
   const existingGroup = await ensureOwnedContainerGroup(role, null, []);
@@ -1486,15 +1501,11 @@ async function ensureOwnedContainerWindowUnlocked(role, initialUrl, mode = "back
   return { windowId: group?.windowId ?? container.windowId, initialTabId };
 }
 async function findReusableOwnedContainerTab(windowId, ownedGroupId) {
-  try {
-    const tabs = await chrome.tabs.query({ windowId });
-    const reusable = tabs.find(
-      (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && isDebuggableUrl(tab.url) && (ownedGroupId === void 0 || ownedGroupId !== null && tab.groupId === ownedGroupId || !isSafeNavigationUrl(tab.url ?? ""))
-    );
-    return reusable?.id;
-  } catch {
-    return void 0;
-  }
+  const tabs = await chrome.tabs.query({ windowId });
+  const reusable = tabs.find(
+    (tab) => tab.id !== void 0 && initialTabIsAvailable(tab.id) && isDebuggableUrl(tab.url) && (ownedGroupId === void 0 || ownedGroupId !== null && tab.groupId === ownedGroupId || !isSafeNavigationUrl(tab.url ?? ""))
+  );
+  return reusable?.id;
 }
 function initialTabIsAvailable(tabId) {
   if (tabId === void 0) return false;
