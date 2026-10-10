@@ -51,7 +51,21 @@ describe('Error type hierarchy', () => {
     const err = new TimeoutError('bilibili/hot', 60);
     expect(err.code).toBe('TIMEOUT');
     expect(err.message).toBe('bilibili/hot timed out after 60s');
-    expect(err.hint).toContain('timeout');
+    expect(err.hint).toContain('OPENCLI_BROWSER_COMMAND_TIMEOUT');
+  });
+
+  // Adapter commands do not declare a --timeout flag: only `browser wait`
+  // (--timeout <ms>) and `antigravity serve` (--timeout <seconds>) do. The
+  // default hint reaches adapter timeouts via runWithTimeout(), so suggesting
+  // the flag there sends users into `error: unknown option '--timeout'`.
+  it('TimeoutError default hint does not suggest the unsupported --timeout flag', () => {
+    const err = new TimeoutError('xiaohongshu/search', 1);
+    expect(err.hint).not.toContain('--timeout');
+  });
+
+  it('TimeoutError keeps a caller-supplied hint verbatim', () => {
+    const err = new TimeoutError('twitter post', 30, 'Nothing was posted. Retry with a smaller image.');
+    expect(err.hint).toBe('Nothing was posted. Retry with a smaller image.');
   });
 
   it('ArgumentError has correct code', () => {
