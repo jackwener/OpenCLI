@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { saveBase64ToFile } from '@jackwener/opencli/utils';
 import { ArgumentError, CommandExecutionError, EmptyResultError } from '@jackwener/opencli/errors';
-import { clearChatGPTDraft, getChatGPTVisibleImageUrls, navigateToProject, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, unwrapEvaluateResult, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
+import { clearChatGPTDraft, getChatGPTVisibleImageUrls, isRealChatGPTConversationUrl, navigateToProject, normalizeBooleanFlag, prepareChatGPTImagePaths, sendChatGPTMessage, unwrapEvaluateResult, waitForChatGPTImages, getChatGPTImageAssets, uploadChatGPTImages } from './utils.js';
 
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
@@ -124,10 +124,13 @@ export const imageCommand = cli({
 
         // ChatGPT briefly navigates to /c/{id} after sending, then may
         // redirect back to the home page. Poll until we capture the /c/ URL.
+        // [LOCAL PATCH 2026-09-26] The 2026-09 frontend first routes new chats
+        // to a client-side temporary id (local-chatgpt:<uuid>, URL-encoded) —
+        // that URL can never be re-navigated, so only a REAL /c/<uuid> counts.
         let convUrl = '';
         for (let ci = 0; ci < 10; ci++) {
             const url = await currentChatGPTLink(page);
-            if (url.includes('/c/')) { convUrl = url; break; }
+            if (isRealChatGPTConversationUrl(url)) { convUrl = url; break; }
             await page.sleep(2);
         }
         if (!convUrl) {
