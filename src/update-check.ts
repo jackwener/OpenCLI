@@ -22,6 +22,7 @@ import { PKG_VERSION } from './version.js';
 const CACHE_DIR = path.join(os.homedir(), '.opencli');
 const CACHE_FILE = path.join(CACHE_DIR, 'update-check.json');
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+const EXTENSION_RETRY_INTERVAL_MS = 60 * 60 * 1000; // 1h — backoff after a failed extension lookup
 const EXTENSION_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7d
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@jackwener/opencli/latest';
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/jackwener/OpenCLI/releases?per_page=20';
@@ -32,6 +33,11 @@ interface UpdateCache {
   lastCheck?: number;
   latestVersion?: string;
   latestExtensionVersion?: string;
+  // Extension lookup bookkeeping, tracked independently of `lastCheck` because
+  // the GitHub endpoint is rate-limited per IP and fails on its own schedule.
+  extLastCheck?: number;
+  extLastFetchOk?: boolean;
+  extEtag?: string;
   // Daemon hello fields.
   currentExtensionVersion?: string;
   extensionLastSeenAt?: number;
@@ -159,22 +165,74 @@ function extractLatestExtensionVersionFromReleases(releases: GitHubRelease[]): s
   return undefined;
 }
 
+interface ExtensionFetchResult {
+  /** Whether the lookup reached a usable answer (2xx or 304). */
+  ok: boolean;
+  version?: string;
+  etag?: string;
+}
+
+/**
+ * How long to wait before retrying the extension lookup. A successful lookup
+ * waits the normal 24h; a failed one retries within the hour so a transient
+ * rate-limit or outage heals itself instead of silencing the notice until the
+ * next day.
+ */
+function extensionRecheckDelay(cache: UpdateCache | null): number {
+  return cache?.extLastFetchOk === false ? EXTENSION_RETRY_INTERVAL_MS : CHECK_INTERVAL_MS;
+}
+
 /** Fetch the latest extension version from GitHub Releases. */
-async function fetchLatestExtensionVersion(): Promise<string | undefined> {
+async function fetchLatestExtensionVersion(etag?: string): Promise<ExtensionFetchResult> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(GITHUB_RELEASES_URL, {
-      signal: controller.signal,
-      headers: { 'User-Agent': `opencli/${PKG_VERSION}`, Accept: 'application/vnd.github+json' },
-    });
+    const headers: Record<string, string> = {
+      'User-Agent': `opencli/${PKG_VERSION}`,
+      Accept: 'application/vnd.github+json',
+    };
+    // Send the previous ETag so an unchanged release list comes back as a 304
+    // with no body to parse. Note this still consumes unauthenticated
+    // rate-limit budget (GitHub only exempts 304s for authenticated requests),
+    // so the retry backoff above is what actually keeps this lookup alive under
+    // a 403 — the ETag just avoids re-downloading 20 release objects.
+    if (etag) headers['If-None-Match'] = etag;
+    const res = await fetch(GITHUB_RELEASES_URL, { signal: controller.signal, headers });
     clearTimeout(timer);
-    if (!res.ok) return undefined;
+    // 304: nothing changed, so the cached version is still current.
+    if (res.status === 304) return { ok: true, etag };
+    if (!res.ok) return { ok: false };
     const releases = await res.json() as GitHubRelease[];
-    return extractLatestExtensionVersionFromReleases(releases);
+    return {
+      ok: true,
+      version: extractLatestExtensionVersionFromReleases(releases),
+      etag: res.headers.get('etag') ?? undefined,
+    };
   } catch {
-    return undefined;
+    return { ok: false };
   }
+}
+
+interface DueChecks {
+  /** npm registry lookup for the CLI version. */
+  cli: boolean;
+  /** GitHub Releases lookup for the extension version. */
+  extension: boolean;
+}
+
+/**
+ * Pure function: decide which lookups are due. Exported for tests.
+ *
+ * The two lookups are gated independently. They previously shared `lastCheck`,
+ * which meant a failed GitHub call still stamped the 24h cooldown without
+ * recording an extension version — the next run then returned early, so the
+ * lookup never retried and the extension notice stayed silent indefinitely.
+ */
+function computeDueChecks(cache: UpdateCache | null, now: number): DueChecks {
+  return {
+    cli: !cache?.lastCheck || now - cache.lastCheck >= CHECK_INTERVAL_MS,
+    extension: !cache?.extLastCheck || now - cache.extLastCheck >= extensionRecheckDelay(cache),
+  };
 }
 
 /**
@@ -183,27 +241,40 @@ async function fetchLatestExtensionVersion(): Promise<string | undefined> {
  */
 export function checkForUpdateBackground(): void {
   if (isCI()) return;
-  if (_cache?.lastCheck && Date.now() - _cache.lastCheck < CHECK_INTERVAL_MS) return;
+  const { cli: cliDue, extension: extDue } = computeDueChecks(_cache, Date.now());
+  if (!cliDue && !extDue) return;
 
   void (async () => {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(NPM_REGISTRY_URL, {
-        signal: controller.signal,
-        headers: { 'User-Agent': `opencli/${PKG_VERSION}` },
-      });
-      clearTimeout(timer);
-      if (!res.ok) return;
-      const data = await res.json() as { version?: string };
-      if (typeof data.version === 'string') {
-        const extVersion = await fetchLatestExtensionVersion();
-        const updates: Partial<UpdateCache> = { lastCheck: Date.now(), latestVersion: data.version };
-        if (extVersion) updates.latestExtensionVersion = extVersion;
-        writeCacheMerge(updates);
+    if (cliDue) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(NPM_REGISTRY_URL, {
+          signal: controller.signal,
+          headers: { 'User-Agent': `opencli/${PKG_VERSION}` },
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const data = await res.json() as { version?: string };
+          if (typeof data.version === 'string') {
+            writeCacheMerge({ lastCheck: Date.now(), latestVersion: data.version });
+          }
+        }
+      } catch {
+        // Network error: silently skip, try again next run.
       }
-    } catch {
-      // Network error: silently skip, try again next run
+    }
+
+    if (extDue) {
+      const result = await fetchLatestExtensionVersion(_cache?.extEtag);
+      // Stamp extLastCheck on every outcome so a hard-down endpoint cannot spin
+      // on each invocation, but use a short backoff on failure (see
+      // extensionRecheckDelay) so the lookup recovers on its own.
+      const updates: Partial<UpdateCache> = { extLastCheck: Date.now() };
+      if (result.version) updates.latestExtensionVersion = result.version;
+      if (result.etag) updates.extEtag = result.etag;
+      updates.extLastFetchOk = result.ok;
+      writeCacheMerge(updates);
     }
   })();
 }
@@ -232,5 +303,8 @@ export function getCachedLatestExtensionVersion(): string | undefined {
 export {
   extractLatestExtensionVersionFromReleases as _extractLatestExtensionVersionFromReleases,
   buildUpdateNotices as _buildUpdateNotices,
+  computeDueChecks as _computeDueChecks,
   EXTENSION_STALE_MS as _EXTENSION_STALE_MS,
+  CHECK_INTERVAL_MS as _CHECK_INTERVAL_MS,
+  EXTENSION_RETRY_INTERVAL_MS as _EXTENSION_RETRY_INTERVAL_MS,
 };
