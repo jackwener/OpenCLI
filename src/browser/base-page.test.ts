@@ -324,6 +324,58 @@ describe('BasePage native input routing', () => {
     expect(page.scripts.join('\n')).not.toContain('el.click()');
   });
 
+  it('uses DOM click when the page renderer is hidden', async () => {
+    const page = new ActionPage();
+    page.nativeClick = vi.fn().mockResolvedValue(undefined);
+    page.results = [
+      resolveOk,
+      { x: 50, y: 100, w: 200, h: 32, visible: true, hit: 'target', pageVisible: false },
+      { status: 'clicked', x: 50, y: 100 },
+    ];
+
+    await expect(page.click('#submit')).resolves.toMatchObject({ click_method: 'js' });
+
+    expect(page.nativeClick).not.toHaveBeenCalled();
+    expect(page.scripts.at(-1)).toContain('el.click()');
+  });
+
+  it('uses synthetic hover events when the page renderer is hidden', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [
+      resolveOk,
+      { x: 50, y: 100, w: 200, h: 32, visible: true, pageVisible: false },
+    ];
+
+    await page.hover('#menu');
+
+    expect(page.cdp).not.toHaveBeenCalledWith('Input.dispatchMouseEvent', expect.anything());
+    expect(page.scripts.at(-1)).toContain('pointerover');
+  });
+
+  it('uses synthetic double-click events when the page renderer is hidden', async () => {
+    const page = new ActionPage();
+    page.cdp = vi.fn().mockResolvedValue({});
+    page.results = [
+      resolveOk,
+      { x: 50, y: 100, w: 200, h: 32, visible: true, pageVisible: false },
+    ];
+
+    await page.dblClick('#item');
+
+    expect(page.cdp).not.toHaveBeenCalledWith('Input.dispatchMouseEvent', expect.anything());
+    expect(page.scripts.at(-1)).toContain("new MouseEvent('dblclick'");
+  });
+
+  it('fails drag explicitly when the page renderer is hidden', async () => {
+    const page = new ActionPage();
+    page.results = [resolveOk, { x: 50, y: 100, w: 200, h: 32, visible: true, pageVisible: false }];
+
+    await expect(page.drag('#source', '#target')).rejects.toThrow(
+      'Cannot drag while the browser page is hidden. Bring the page to the foreground and retry.',
+    );
+  });
+
   it('clicks AX snapshot refs through backend node coordinates without DOM resolver', async () => {
     const page = new ActionPage();
     page.nativeClick = vi.fn().mockResolvedValue(undefined);
@@ -356,7 +408,8 @@ describe('BasePage native input routing', () => {
     expect(page.cdp).toHaveBeenCalledWith('Page.getFrameTree', {});
     expect(page.cdp).toHaveBeenCalledWith('DOM.getBoxModel', { backendNodeId: 10 });
     expect(page.nativeClick).toHaveBeenCalledWith(30, 30);
-    expect(page.scripts).toHaveLength(0);
+    expect(page.scripts).toHaveLength(1);
+    expect(page.scripts[0]).toContain('document.visibilityState');
   });
 
   it('adds same-origin iframe AX refs and clicks them by frame-scoped backend node', async () => {
@@ -869,21 +922,38 @@ describe('BasePage native input routing', () => {
   it('presses key chords through native CDP key events when available', async () => {
     const page = new ActionPage();
     page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);
+    page.results = [true];
 
     await page.pressKey('Control+a');
 
     expect(page.nativeKeyPress).toHaveBeenCalledWith('a', ['Ctrl']);
-    expect(page.scripts).toHaveLength(0);
+    expect(page.scripts).toHaveLength(1);
+    expect(page.scripts[0]).toContain('document.visibilityState');
+  });
+
+  it('fails key input explicitly when the page renderer is hidden', async () => {
+    const page = new ActionPage();
+    page.nativeKeyPress = vi.fn().mockResolvedValue(undefined);
+    page.results = [false];
+
+    await expect(page.pressKey('Enter')).rejects.toThrow(
+      'Cannot press keys while the browser page is hidden. Bring the page to the foreground and retry.',
+    );
+
+    expect(page.nativeKeyPress).not.toHaveBeenCalled();
+    expect(page.scripts).toHaveLength(1);
   });
 
   it('falls back to synthetic keyboard events with parsed modifiers', async () => {
     const page = new ActionPage();
+    page.results = [true];
 
     await page.pressKey('Meta+N');
 
-    expect(page.scripts).toHaveLength(1);
-    expect(page.scripts[0]).toContain('key: "N"');
-    expect(page.scripts[0]).toContain('metaKey: true');
+    expect(page.scripts).toHaveLength(2);
+    expect(page.scripts[0]).toContain('document.visibilityState');
+    expect(page.scripts[1]).toContain('key: "N"');
+    expect(page.scripts[1]).toContain('metaKey: true');
   });
 });
 

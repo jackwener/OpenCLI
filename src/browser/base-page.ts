@@ -316,7 +316,7 @@ export abstract class BasePage implements IPage {
     // Custom dropdowns often listen to pointer/mouse down/up; DOM el.click()
     // only fires click and can silently report success without opening/selecting.
     const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled, forClick: true })) as
-      | { x: number; y: number; w: number; h: number; visible: boolean; hit?: 'target' | 'ancestor' | 'other' | 'none'; retargeted?: boolean }
+      | { x: number; y: number; w: number; h: number; visible: boolean; hit?: 'target' | 'ancestor' | 'other' | 'none'; retargeted?: boolean; pageVisible?: boolean }
       | null;
     const meta = { hit: rect?.hit, retargeted: rect?.retargeted } as const;
 
@@ -324,7 +324,7 @@ export abstract class BasePage implements IPage {
     // or an ancestor (open shadow-DOM host / own wrapper — CDP still reaches the
     // target there). Only an unrelated overlay ('other') forces the el.click()
     // fallback, which dispatches straight on the node. See issues #2076/#2071.
-    if (rect?.visible === true && (rect.hit === 'target' || rect.hit === 'ancestor')) {
+    if (rect?.visible === true && rect.pageVisible !== false && (rect.hit === 'target' || rect.hit === 'ancestor')) {
       const success = await this.tryNativeClick(rect.x, rect.y);
       if (success) return { ...resolved, click_method: 'cdp', ...meta };
     }
@@ -410,6 +410,7 @@ export abstract class BasePage implements IPage {
     if (!entry) return null;
     const nativeClick = (this as IPage).nativeClick;
     if (typeof nativeClick !== 'function') return null;
+    if (!await this.isPageVisible()) return null;
 
     const resolved = await this.resolveAxRefPoint(entry);
     if (!resolved) return null;
@@ -603,9 +604,9 @@ export abstract class BasePage implements IPage {
     const resolved = await runResolve(this, ref, opts);
     const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
     const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
-      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | { x: number; y: number; w: number; h: number; visible: boolean; pageVisible?: boolean }
       | null;
-    if (rect?.visible === true && await this.tryNativeMouseMove(rect.x, rect.y)) return resolved;
+    if (rect?.visible === true && rect.pageVisible !== false && await this.tryNativeMouseMove(rect.x, rect.y)) return resolved;
 
     await this.evaluate(`
       (() => {
@@ -649,9 +650,9 @@ export abstract class BasePage implements IPage {
     const resolved = await runResolve(this, ref, opts);
     const nativeScrolled = await this.tryCdpOnResolvedElement('DOM.scrollIntoViewIfNeeded');
     const rect = await this.evaluate(boundingRectResolvedJs({ skipScroll: nativeScrolled })) as
-      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | { x: number; y: number; w: number; h: number; visible: boolean; pageVisible?: boolean }
       | null;
-    if (rect?.visible === true && await this.tryNativeDoubleClick(rect.x, rect.y)) return resolved;
+    if (rect?.visible === true && rect.pageVisible !== false && await this.tryNativeDoubleClick(rect.x, rect.y)) return resolved;
 
     await this.evaluate(`
       (() => {
@@ -889,7 +890,8 @@ export abstract class BasePage implements IPage {
       (() => {
         const el = window.__resolved;
         if (!el) throw new Error('No resolved drag source');
-        window.__opencli_drag_source = el;
+        const pageVisible = document.visibilityState !== 'hidden';
+        if (pageVisible) window.__opencli_drag_source = el;
         if (${sourceScrolled ? 'false' : 'true'}) el.scrollIntoView({ behavior: 'instant', block: 'center' });
         const rect = el.getBoundingClientRect();
         const w = Math.round(rect.width);
@@ -897,11 +899,14 @@ export abstract class BasePage implements IPage {
         const x = Math.round(rect.left + rect.width / 2);
         const y = Math.round(rect.top + rect.height / 2);
         const visible = w > 0 && h > 0 && x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
-        return { x, y, w, h, visible };
+        return { x, y, w, h, visible, pageVisible };
       })()
     `) as
-      | { x: number; y: number; w: number; h: number; visible: boolean }
+      | { x: number; y: number; w: number; h: number; visible: boolean; pageVisible?: boolean }
       | null;
+    if (sourceRect?.pageVisible === false) {
+      throw new Error('Cannot drag while the browser page is hidden. Bring the page to the foreground and retry.');
+    }
     if (sourceRect?.visible !== true) {
       throw new Error(`Drag source "${source}" has no visible bounding box.`);
     }
@@ -923,16 +928,21 @@ export abstract class BasePage implements IPage {
             const x = Math.round(rect.left + rect.width / 2);
             const y = Math.round(rect.top + rect.height / 2);
             const visible = w > 0 && h > 0 && x >= 0 && y >= 0 && x <= window.innerWidth && y <= window.innerHeight;
-            return { x, y, w, h, visible };
+            return { x, y, w, h, visible, pageVisible: document.visibilityState !== 'hidden' };
           };
-          return { source: measure(sourceEl), target: measure(targetEl) };
+          return { source: measure(sourceEl), target: measure(targetEl), pageVisible: document.visibilityState !== 'hidden' };
         })()
       `) as
         | {
           source?: { x: number; y: number; w: number; h: number; visible: boolean };
           target?: { x: number; y: number; w: number; h: number; visible: boolean };
+          pageVisible?: boolean;
         }
         | null;
+
+      if (endpoints?.pageVisible === false) {
+        throw new Error('Cannot drag while the browser page is hidden. Bring the page to the foreground and retry.');
+      }
 
       if (endpoints?.source?.visible !== true) {
         throw new Error(`Drag source "${source}" is not visible at drag time.`);
@@ -1014,9 +1024,16 @@ export abstract class BasePage implements IPage {
 
   async pressKey(key: string): Promise<void> {
     const parsed = parseKeyChord(key);
+    if (!await this.isPageVisible()) {
+      throw new Error('Cannot press keys while the browser page is hidden. Bring the page to the foreground and retry.');
+    }
     if (!await this.tryNativeKeyPress(parsed.key, parsed.modifiers)) {
       await this.evaluate(pressKeyJs(parsed.key, parsed.modifiers));
     }
+  }
+
+  private async isPageVisible(): Promise<boolean> {
+    return await this.evaluate<boolean>(`document.visibilityState !== 'hidden'`) !== false;
   }
 
   async scrollTo(ref: string, opts: ResolveOptions = {}): Promise<unknown> {

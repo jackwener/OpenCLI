@@ -321,6 +321,7 @@ export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: 
           w: Math.round(r0.width),
           h: Math.round(r0.height),
           visible: Math.round(r0.width) > 0 && Math.round(r0.height) > 0,
+          pageVisible: document.visibilityState !== 'hidden',
         };
       }
 
@@ -409,7 +410,7 @@ export function boundingRectResolvedJs(opts: { skipScroll?: boolean; forClick?: 
           if (hc === 'target' || hc === 'ancestor') { x = px; y = py; hit = hc; break; }
         }
       }
-      return { x, y, w, h, visible, hit, retargeted };
+      return { x, y, w, h, visible, hit, retargeted, pageVisible: document.visibilityState !== 'hidden' };
     })()
   `;
 }

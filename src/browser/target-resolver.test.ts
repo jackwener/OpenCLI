@@ -45,9 +45,9 @@ function inheritedCursor(node: any): string {
 }
 
 /** Run the generated boundingRectResolvedJs against a fake DOM. */
-function runRect(resolved: any, elementAt: (x: number, y: number) => any) {
+function runRect(resolved: any, elementAt: (x: number, y: number) => any, visibilityState: 'visible' | 'hidden' = 'visible') {
   const fakeWindow: any = { __resolved: resolved, getComputedStyle: (n: any) => ({ cursor: inheritedCursor(n) }) };
-  const fakeDoc: any = { elementFromPoint: (x: number, y: number) => elementAt(x, y) };
+  const fakeDoc: any = { visibilityState, elementFromPoint: (x: number, y: number) => elementAt(x, y) };
   const js = boundingRectResolvedJs({ skipScroll: true, forClick: true });
   // js is an IIFE expression `(() => {...})()`; arrow captures window/document
   // params. Wrap in parens so ASI doesn't turn `return\n(` into `return;`.
@@ -62,6 +62,14 @@ describe('boundingRectResolvedJs runtime behavior', () => {
     expect(out.hit).toBe('target');
     expect(out.retargeted).toBe(false);
     expect(out.x).toBe(50); expect(out.y).toBe(20);
+    expect(out.pageVisible).toBe(true);
+  });
+
+  it('reports when the renderer is hidden', () => {
+    const btn = makeEl({ tag: 'button', rect: { left: 0, top: 0, width: 100, height: 40 } });
+    const out = runRect(btn, () => btn, 'hidden');
+
+    expect(out.pageVisible).toBe(false);
   });
 
   it('retargets an <svg> icon to its clickable <div> ancestor (#2071)', () => {
