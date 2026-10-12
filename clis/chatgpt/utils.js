@@ -296,7 +296,8 @@ const CONVERSATION_LINK_SELECTOR = 'a[href*="/c/"]';
 const PROJECT_LINK_SELECTOR = 'a[href*="/g/g-p-"]';
 // Selector used by detail.js to wait for at least one rendered message bubble
 // after navigating to /c/<id>; mirrors the markup queried by getVisibleMessages.
-export const CONVERSATION_MESSAGE_SELECTOR = '[data-message-author-role], article[data-testid*="conversation-turn"]';
+// 2026-10 redesign: turns are [data-chatgpt-search-unit-key="…:user|:assistant"].
+export const CONVERSATION_MESSAGE_SELECTOR = '[data-message-author-role], article[data-testid*="conversation-turn"], [data-chatgpt-search-unit-key]';
 
 export async function ensureOnChatGPT(page) {
     if (await isOnChatGPT(page)) return false;
@@ -840,7 +841,7 @@ export async function selectChatGPTTool(page, tool) {
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
         };
-        const button = document.querySelector('button[data-testid="composer-plus-btn"]');
+        const button = document.querySelector('button[data-testid="composer-plus-btn"], button[aria-label="Add files and more"]');
         if (!(button instanceof HTMLElement) || !isVisible(button)) return { found: false };
         button.scrollIntoView({ block: 'center', inline: 'center' });
         const rect = button.getBoundingClientRect();
@@ -882,7 +883,7 @@ export async function selectChatGPTTool(page, tool) {
                         || (compactedLabel && compacted.includes(compactedLabel));
                 });
             };
-            const rootSelector = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-radix-menu-content], [data-testid*="menu"], [data-testid*="popover"]';
+            const rootSelector = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-radix-menu-content], [data-testid*="menu"], [data-testid*="popover"], [data-mention-list-scroll-area]';
             const visibleRoots = Array.from(document.querySelectorAll(rootSelector))
                 .filter((node) => node instanceof HTMLElement && isVisible(node) && !node.closest('nav, aside'));
             const searchRoots = visibleRoots.length ? visibleRoots : [document];
@@ -890,7 +891,9 @@ export async function selectChatGPTTool(page, tool) {
                 const matchesRoot = root instanceof HTMLElement && root.matches(optionSelector) ? [root] : [];
                 return matchesRoot.concat(Array.from(root.querySelectorAll(optionSelector)));
             })));
-            const option = options.find((node) => {
+            // Prefer a row whose text starts with the label: 'Search' also matches 'Browse and search your files'.
+            const startsWithLabel = (node) => labels.some((label) => normalize(node.textContent).toLowerCase().startsWith(normalize(label).toLowerCase()));
+            const option = options.filter(startsWithLabel).concat(options).find((node) => {
                 if (!(node instanceof HTMLElement) || !isVisible(node) || node.closest('nav, aside')) return false;
                 const haystacks = [
                     node.textContent,
@@ -1197,7 +1200,7 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
         };
         const normalize = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
         const roleOf = (node) => {
-            const attr = node.getAttribute('data-message-author-role') || node.getAttribute('data-author') || '';
+            const attr = node.getAttribute('data-message-author-role') || node.getAttribute('data-author') || node.getAttribute('data-chatgpt-search-unit-key') || '';
             if (/assistant/i.test(attr)) return 'Assistant';
             if (/user/i.test(attr)) return 'User';
             const testid = node.getAttribute('data-testid') || '';
@@ -1209,7 +1212,7 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
             return '';
         };
 
-        let nodes = Array.from(document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"]'));
+        let nodes = Array.from(document.querySelectorAll('[data-message-author-role], article[data-testid*="conversation-turn"], [data-chatgpt-search-unit-key]'));
         nodes = nodes.filter((node) => node instanceof HTMLElement && isVisible(node));
 
         const rows = [];
@@ -1220,10 +1223,16 @@ export async function getVisibleMessages(page, { textOnly = false } = {}) {
             if (!role && roleNode) role = roleOf(roleNode);
             if (!role) continue;
 
-            const contentNode = node.querySelector('[data-message-author-role] .markdown')
+            let contentNode = node.querySelector('[data-markdown-copy="contents"], [data-user-message-bubble] [data-search-result-target]')
+                || node.querySelector('[data-message-author-role] .markdown')
                 || node.querySelector('.markdown')
                 || node.querySelector('[data-message-author-role]')
                 || node;
+            // Tool chips ("Web search", "Deep research") render inside the user prompt; drop them so it matches the sent text.
+            if (role === 'User' && contentNode.querySelector('[data-prompt-link-href]')) {
+                contentNode = contentNode.cloneNode(true);
+                contentNode.querySelectorAll('[data-prompt-link-href]').forEach((pill) => pill.remove());
+            }
             const html = includeHtml && contentNode instanceof HTMLElement ? (contentNode.innerHTML || '') : '';
             const rawText = contentNode instanceof HTMLElement
                 ? (includeHtml ? (contentNode.innerText || contentNode.textContent || '') : (contentNode.textContent || ''))
@@ -1371,6 +1380,11 @@ function extractDeepResearchSourcesFromReportMessage(reportMessage) {
         if (hasDirectSource) addSource(reference, 'content reference');
         if (reference?.matched_text) addSource({ title: reference.matched_text, url: reference.url }, 'matched content reference');
         if (reference?.metadata) addSource(reference.metadata, 'content reference metadata');
+    }
+    // Deep Research reports now cite through metadata.citations[].metadata.
+    for (const citation of Array.isArray(metadata.citations) ? metadata.citations : []) {
+        const url = String(citation?.metadata?.url || '').split('#')[0];
+        if (url) addSource({ title: citation.metadata.title, url }, 'citation');
     }
     for (const url of safeUrls) addSource(typeof url === 'string' ? { url } : url, 'safe URL');
     for (const group of groups) {
@@ -1583,7 +1597,7 @@ function extractDeepResearchFromConversationPayload(payload, { expectedConversat
 }
 
 function conversationIdFromBackendConversationUrl(url) {
-    const match = String(url || '').match(/\/backend-api\/conversation\/([^/?#]+)/);
+    const match = String(url || '').match(/\/backend-api\/conversation\/([^/?#]+)(?:[?#]|$)/);
     return match?.[1] ? decodeURIComponent(match[1]) : '';
 }
 
@@ -1591,8 +1605,9 @@ function extractDeepResearchFromNetworkEntries(entries, { expectedConversationId
     const candidates = [];
     for (const entry of Array.isArray(entries) ? entries : []) {
         const url = String(entry?.url || '');
-        if (!/\/backend-api\/conversation\//.test(url)) continue;
         const entryConversationId = conversationIdFromBackendConversationUrl(url);
+        // Sub-resources (/conversation/<id>/stream_status, textdocs…) carry no mapping.
+        if (!entryConversationId) continue;
         if (expectedConversationId && entryConversationId !== expectedConversationId) continue;
         const body = parseJsonMaybe(entry?.responsePreview) || parseJsonMaybe(entry?.body) || null;
         if (!body) {
@@ -1698,7 +1713,8 @@ async function fetchChatGPTConversationPayload(page, conversationId) {
                     };
                 }
                 errors.push('node fetch returned non-json');
-            } else if (response.status === 401 || response.status === 403) {
+            // Cookie-only requests now get 404 conversation_inaccessible instead of 401/403.
+            } else if (response.status === 401 || response.status === 403 || response.status === 404) {
                 errors.push(`node cookie fetch status ${response.status}`);
                 const bearerAuth = await buildChatGPTConversationHeaders(page, { includeAuthorization: true });
                 if (bearerAuth.ok) {
@@ -2492,7 +2508,7 @@ export async function isGenerating(page) {
             // [data-message-author-role] nodes when articles are absent.
             // Bare 'Thinking' only counts inside the last turn — the composer
             // area shows 'Thinking' as an idle model label.
-            const turns = document.querySelectorAll('article[data-testid*="conversation-turn"]');
+            const turns = document.querySelectorAll('article[data-testid*="conversation-turn"], [data-chatgpt-search-unit-key]');
             const messages = turns.length ? turns : document.querySelectorAll('[data-message-author-role]');
             if (messages.length) scopes.push([messages[messages.length - 1], /正在思考|停止生成|Thinking/]);
             const composer = document.querySelector('#prompt-textarea, [aria-label="Chat with ChatGPT"]');
