@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const { MockWebSocket } = vi.hoisted(() => {
   class MockWebSocket {
@@ -134,5 +137,40 @@ describe('CDPBridge cookies', () => {
       requestBodyTruncated: true,
     });
     expect(String(entries[0].requestBodyPreview)).toHaveLength(CDP_REQUEST_BODY_CAPTURE_LIMIT);
+  });
+});
+
+describe('CDPBridge init script', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const initScripts = (calls: unknown[][]) => calls
+    .filter(([method]) => method === 'Page.addScriptToEvaluateOnNewDocument')
+    .map(([, params]) => (params as { source: string }).source);
+
+  it('registers OPENCLI_CDP_INIT_SCRIPT after the stealth script', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+    const file = join(mkdtempSync(join(tmpdir(), 'opencli-init-')), 'init.js');
+    writeFileSync(file, 'window.__opencliInit = 1;');
+    vi.stubEnv('OPENCLI_CDP_INIT_SCRIPT', file);
+
+    const bridge = new CDPBridge();
+    const send = vi.spyOn(bridge, 'send').mockResolvedValue({});
+    await bridge.connect();
+
+    const sources = initScripts(send.mock.calls);
+    expect(sources).toHaveLength(2);
+    expect(sources[1]).toBe('window.__opencliInit = 1;');
+  });
+
+  it('registers only the stealth script when unset', async () => {
+    vi.stubEnv('OPENCLI_CDP_ENDPOINT', 'ws://127.0.0.1:9222/devtools/page/1');
+
+    const bridge = new CDPBridge();
+    const send = vi.spyOn(bridge, 'send').mockResolvedValue({});
+    await bridge.connect();
+
+    expect(initScripts(send.mock.calls)).toHaveLength(1);
   });
 });

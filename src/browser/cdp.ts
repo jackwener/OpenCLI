@@ -11,6 +11,7 @@
 import { WebSocket, type RawData } from 'ws';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { readFileSync } from 'node:fs';
 import type { BrowserCookie, BrowserEvaluateFunction, IPage, ScreenshotOptions } from '../types.js';
 import type { IBrowserFactory } from '../runtime.js';
 import { buildEvaluateExpression } from './utils.js';
@@ -84,6 +85,9 @@ export class CDPBridge implements IBrowserFactory {
         try {
           await this.send('Page.enable');
           await this.send('Page.addScriptToEvaluateOnNewDocument', { source: generateStealthJs() });
+          // Optional caller script for every new document, e.g. state a headless peer cannot share across connections.
+          const initPath = process.env.OPENCLI_CDP_INIT_SCRIPT;
+          if (initPath) await this.send('Page.addScriptToEvaluateOnNewDocument', { source: readFileSync(initPath, 'utf8') });
         } catch (err) {
           ws.close();
           reject(err instanceof Error ? err : new Error(String(err)));
