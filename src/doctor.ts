@@ -14,6 +14,7 @@ import type { BrowserProfileStatus } from './browser/daemon-transport.js';
 import { aliasForContextId, loadProfileConfig, profileRouteParams, resolveProfileSelection } from './browser/profile.js';
 import { formatDaemonVersion, isDaemonStale, staleDaemonIssue } from './browser/daemon-version.js';
 import { findShadowedUserAdapters, formatAdapterShadowIssue, type AdapterShadow } from './adapter-shadow.js';
+import { buildWslExtensionIssue, isWslEnvironment } from './wsl.js';
 
 const DOCTOR_LIVE_TIMEOUT_SECONDS = 8;
 const DOCTOR_SESSION = '__doctor__';
@@ -71,6 +72,7 @@ export type DoctorReport = {
   connectivity?: ConnectivityResult;
   profiles?: BrowserProfileStatus[];
   adapterShadows?: AdapterShadow[];
+  wslDetected?: boolean;
   issues: string[];
 };
 
@@ -115,6 +117,9 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
   const profiles = health.status?.profiles;
   const extensionVersion = health.status?.extensionVersion;
   const adapterShadows = findShadowedUserAdapters();
+  // Probe once: the environment cannot change mid-report, and this keeps the
+  // /proc/version read to a single syscall.
+  const wslDetected = isWslEnvironment();
 
   const issues: string[] = [];
   if (daemonFlaky) {
@@ -133,6 +138,12 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
       'Extension connection is unstable. The live browser test succeeded, but the daemon reported the extension disconnected immediately afterward.\n' +
       'This usually means the Browser Bridge service worker is reconnecting slowly or Chrome suspended it.',
     );
+    // GH #1565: probe-ok/status-disagree is exactly what WSL2 NAT flakiness
+    // looks like. The service-worker explanation above still applies, but a
+    // WSL user additionally needs the cross-VM context.
+    if (wslDetected) {
+      issues.push(buildWslExtensionIssue());
+    }
   } else if (daemonRunning && !extensionConnected) {
     if (health.state === 'profile-required') {
       issues.push(
@@ -153,6 +164,13 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
         '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
         '  3. Click "Load unpacked" → select the extension folder',
       );
+      // GH #1565: under WSL the extension (Windows Chrome) and the daemon
+      // (WSL VM) communicate across the WSL2 VM boundary, which drops
+      // intermittently. Name the environment so the failure is actionable
+      // instead of another generic reinstall loop.
+      if (wslDetected) {
+        issues.push(buildWslExtensionIssue());
+      }
     }
   }
   if (extensionConnected && !extensionVersion) {
@@ -229,6 +247,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     connectivity,
     profiles,
     adapterShadows,
+    wslDetected,
     issues,
   };
 }
