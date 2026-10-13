@@ -33,6 +33,8 @@ function loadForm() {
         pane.style.display = '';
     });
     doc.querySelector('textarea').value = '';
+    // HTML 采样中的已选单选项由 Vue 挂载属性，测试补上对应的公开 checked 状态。
+    doc.querySelector('input[value="0"]').checked = true;
     for (const field of doc.querySelectorAll('.el-form-item')) {
         const input = field.querySelector('.el-select input');
         const dropdown = field.querySelector('.el-select-dropdown');
@@ -103,6 +105,22 @@ function exposeDom(dom) {
     vi.stubGlobal('getComputedStyle', dom.window.getComputedStyle.bind(dom.window));
 }
 
+/** 模拟人在最后一次点击前编辑表单，仍由真实注入函数判断是否允许提交。 */
+function editBeforeGenerate(page, edit, doc) {
+    const evaluate = page.evaluate.getMockImplementation();
+    page.evaluate.mockImplementation(code => {
+        if (code.includes(')("generate",')) edit(doc);
+        return evaluate(code);
+    });
+}
+
+/** 精确定位真实表单中的选择框，不借用其他字段的同名输入。 */
+function selectionInput(doc, label) {
+    return [...doc.querySelectorAll('.el-form-item')]
+        .find(field => field.querySelector('.el-form-item__label')?.textContent.trim() === label)
+        .querySelector('.el-select input');
+}
+
 describe('京东联盟推广长链参数与输出边界', () => {
     it('注册写入命令并声明全部输出字段', () => {
         expect(command).toMatchObject({ strategy: 'ui', browser: true, access: 'write', domain: 'union.jd.com', navigateBefore: false });
@@ -137,6 +155,76 @@ describe('京东联盟 DOM 流程与失败处理', () => {
         exposeDom(dom);
         expect(promotionDom('state')).toMatchObject({ hasResult: true, hasLongTab: true, linkValue: LONG_URL });
         expect(requireLongPromotionUrl(promotionDom('state').linkValue)).toBe(LONG_URL);
+    });
+
+    it('真实旧成功弹窗在提交前可见时拒绝执行，不误报本次成功', async () => {
+        const { page, generate, dom } = pageHarness();
+        dom.window.document.body.insertAdjacentHTML('beforeend', RESULT);
+        await expect(command.func(page, ARGS)).rejects.toThrow('已有推广结果');
+        expect(generate).not.toHaveBeenCalled();
+        expect(page.fillText).not.toHaveBeenCalled();
+    });
+
+    it('点击前刚出现旧结果时再次拒绝，不提交生成', async () => {
+        const { page, generate, dom } = pageHarness();
+        editBeforeGenerate(page, doc => resultDialog(doc), dom.window.document);
+        await expect(command.func(page, ARGS)).rejects.toThrow('已有推广结果');
+        expect(generate).not.toHaveBeenCalled();
+    });
+
+    it.each(['商品链接', '所属网站', '推广位名称', '推广类型', '推广位方式'])('提交前%s改变时拒绝点击', async field => {
+        const { page, generate, dom } = pageHarness();
+        editBeforeGenerate(page, doc => {
+            if (field === '商品链接') doc.querySelector('#pane-customlink textarea').value = 'https://item.jd.com/123.html';
+            else if (field === '推广类型') doc.querySelector('input[value="webPromotion"]').checked = false;
+            else if (field === '推广位方式') doc.querySelector('input[value="0"]').checked = false;
+            else selectionInput(doc, field).value = '其他名称';
+        }, dom.window.document);
+        await expect(command.func(page, ARGS)).rejects.toThrow('表单');
+        expect(generate).not.toHaveBeenCalled();
+    });
+
+    it.each(['复用旧节点', '复制旧链接到新节点'])('%s不能满足本次生成的成功条件', async variant => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        const dom = loadForm();
+        const old = resultDialog(dom.window.document, { hidden: true });
+        const { page, generate } = pageHarness({ dom, onGenerate: doc => {
+            if (variant === '复用旧节点') old.style.display = '';
+            else resultDialog(doc);
+        } });
+        page.wait.mockImplementation(async () => { vi.setSystemTime(Date.now() + 250); });
+        await expect(command.func(page, ARGS)).rejects.toBeInstanceOf(TimeoutError);
+        expect(generate).toHaveBeenCalledTimes(1);
+    });
+
+    it('旧节点显示后须等到商品长链实际更新，且不重新点击生成', async () => {
+        const dom = loadForm();
+        const old = resultDialog(dom.window.document, { hidden: true, url: 'https://union-click.jd.com/jdc?e=old' });
+        const { page, generate } = pageHarness({ dom, onGenerate: () => { old.style.display = ''; } });
+        page.wait.mockImplementationOnce(async () => {
+            old.querySelector('[aria-labelledby="tab-1"] .el-row:last-child input').value = LONG_URL;
+        });
+        await expect(command.func(page, ARGS)).resolves.toMatchObject([{ promotionUrl: LONG_URL }]);
+        expect(page.wait).toHaveBeenCalledOnce();
+        expect(generate).toHaveBeenCalledTimes(1);
+    });
+
+    it('生成后表单目标改变时拒绝输出新弹窗中的链接', async () => {
+        const { page, generate } = pageHarness({ onGenerate: doc => {
+            resultDialog(doc);
+            selectionInput(doc, '推广位名称').value = '其他推广位';
+        } });
+        await expect(command.func(page, ARGS)).rejects.toThrow('表单');
+        expect(generate).toHaveBeenCalledTimes(1);
+    });
+
+    it('多个可见结果弹窗时拒绝任取一个链接', async () => {
+        const { page, generate } = pageHarness({ onGenerate: doc => {
+            resultDialog(doc);
+            resultDialog(doc, { url: 'https://union-click.jd.com/jdc?e=other' });
+        } });
+        await expect(command.func(page, ARGS)).rejects.toThrow('多个');
+        expect(generate).toHaveBeenCalledTimes(1);
     });
 
     it('操作真实表单 fixture，并只返回当前弹窗的商品长链', async () => {
@@ -183,6 +271,24 @@ describe('京东联盟 DOM 流程与失败处理', () => {
         const parent = field.parentElement;
         field.remove();
         page.wait.mockImplementationOnce(async () => { parent.append(field); });
+        await expect(command.func(page, ARGS)).resolves.toHaveLength(1);
+        expect(page.wait).toHaveBeenCalledOnce();
+        expect(generate).toHaveBeenCalledOnce();
+    });
+
+    it('网站列表加载时暂显无数据，须等真实选项出现后再判断名称', async () => {
+        const { page, dom, generate } = pageHarness();
+        const field = selectionInput(dom.window.document, '所属网站').closest('.el-form-item');
+        const list = field.querySelector('.el-select-dropdown__list');
+        list.style.display = 'none';
+        const empty = dom.window.document.createElement('p');
+        empty.className = 'el-select-dropdown__empty';
+        empty.textContent = '无数据';
+        field.querySelector('.el-select-dropdown').append(empty);
+        page.wait.mockImplementationOnce(async () => {
+            empty.remove();
+            list.style.display = '';
+        });
         await expect(command.func(page, ARGS)).resolves.toHaveLength(1);
         expect(page.wait).toHaveBeenCalledOnce();
         expect(generate).toHaveBeenCalledOnce();

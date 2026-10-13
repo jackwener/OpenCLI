@@ -51,8 +51,43 @@ export function promotionDom(action, value) {
         || /请先登录|请登录京东|扫码登录|安全验证|滑动验证/.test(bodyText)) return { auth: true };
     if (messages.length) return { error: messages.join('；') };
 
-    // 只读取当前可见的结果弹窗，旧弹窗和优惠券链接不能冒充商品长链。
-    const dialog = [...document.querySelectorAll('[role="dialog"][aria-label="生成推广链接"]')].find(visible);
+    const allDialogs = [...document.querySelectorAll('[role="dialog"][aria-label="生成推广链接"]')];
+    const visibleDialogs = allDialogs.filter(visible);
+    if (visibleDialogs.length > 1) return { error: '发现多个可见推广结果，无法确认本次生成的结果' };
+    const dialog = visibleDialogs[0];
+    // 提交前拒绝可见旧结果；点击瞬间再检查一次，避免检查与提交之间出现旧弹窗。
+    if (action === 'baseline' || action === 'generate') {
+        if (dialog) return { error: '页面已有推广结果，请关闭旧弹窗并刷新页面后再运行命令' };
+        if (action === 'baseline') return { done: true };
+    }
+    /** 在点击与读取结果时核对公开表单，人工编辑或异步重置不能造成目标错配。 */
+    const selectedInput = label => [...(pane?.querySelectorAll('.el-form-item') ?? [])]
+        .find(el => text(el.querySelector('.el-form-item__label')) === label)?.querySelector('.el-select input');
+    if (action === 'generate' && !value?.expectedSource) return { error: '未提供本次转链表单的预期值' };
+    if (value?.expectedSource) {
+        const websiteInput = selectedInput('所属网站');
+        const positionInput = selectedInput('推广位名称');
+        const existingPosition = [...(pane?.querySelectorAll('.el-form-item') ?? [])]
+            .find(el => text(el.querySelector('.el-form-item__label')) === '投放推广位')?.querySelector('input[value="0"]');
+        if (!visible(pane) || !pane.querySelector('input[value="webPromotion"]')?.checked
+            || !existingPosition?.checked
+            || pane.querySelector('textarea')?.value !== value.expectedSource
+            || !visible(websiteInput) || websiteInput.value !== value.expectedWebsite
+            || !visible(positionInput) || positionInput.value !== value.expectedPosition) {
+            return { error: '京东联盟表单与本次商品、网站或推广位不一致，请核对后重新运行' };
+        }
+    }
+
+    /** 基线包含隐藏弹窗内的旧商品长链；不能仅凭旧节点再次显示或复制就认定生成成功。 */
+    const productValues = candidate => {
+        const candidateTab = [...candidate.querySelectorAll('[role="tab"]')].find(el => text(el) === '长链接');
+        const candidatePane = [...candidate.querySelectorAll('[role="tabpanel"]')]
+            .find(el => el.getAttribute('aria-labelledby') === candidateTab?.id);
+        return [...(candidatePane?.querySelectorAll('.el-row') ?? [])]
+            .filter(el => [...el.querySelectorAll('span')].some(label => text(label) === '商品链接'))
+            .map(el => el.querySelector('input, textarea')?.value).filter(Boolean);
+    };
+    // 只读取当前可见的结果弹窗，优惠券链接不能冒充商品长链。
     const longTab = dialog && [...dialog.querySelectorAll('[role="tab"]')].find(el => text(el) === '长链接');
     if (action === 'long-tab') {
         if (!longTab) return { error: '结果弹窗未提供长链接' };
@@ -84,8 +119,9 @@ export function promotionDom(action, value) {
     if (action === 'generate') {
         const button = [...pane.querySelectorAll('button')].find(el => text(el) === '获取推广链接');
         if (!button || button.disabled) return { error: '生成按钮不可用，请核对网站及推广位权限' };
+        const priorResultValues = allDialogs.flatMap(productValues);
         button.click();
-        return { done: true };
+        return { done: true, priorResultValues };
     }
 
     const field = [...pane.querySelectorAll('.el-form-item')]
@@ -101,8 +137,8 @@ export function promotionDom(action, value) {
     // 下拉框属于当前字段；另一个字段的关闭动画不能提前结束本字段的等待。
     const dropdown = field.querySelector('.el-select-dropdown');
     const options = dropdown ? [...dropdown.querySelectorAll('.el-select-dropdown__item')].filter(visible) : [];
-    const empty = dropdown && [...dropdown.querySelectorAll('.el-select-dropdown__empty')].some(visible);
-    if (action === 'options') return { loaded: options.length > 0 || empty };
+    // 京东请求尚未返回时也会显示“无数据”；仅等到真实选项出现，不能把暂时空列表当作完成。
+    if (action === 'options') return { loaded: options.length > 0 };
     const matches = options.filter(el => text(el) === value.name);
     if (matches.length !== 1) return { argument: `${value.label}“${value.name}”${matches.length ? '存在多个同名项，请使用唯一名称' : '不存在或当前账号无权使用'}` };
     if (matches[0].classList.contains('is-disabled')) return { argument: `${value.label}“${value.name}”不可用` };
@@ -166,6 +202,7 @@ cli({
         };
 
         await page.goto(PROMOTION_PAGE);
+        await run('baseline');
         await until('activate', state => state.done);
         await until('state', state => state.ready);
         await run('website-mode');
@@ -173,11 +210,15 @@ cli({
         if (!filled?.verified) throw new CommandExecutionError('京东商品链接未正确写入转链表单');
         await selectExisting('所属网站', website);
         await selectExisting('推广位名称', position);
-        await run('generate');
-        const result = await until('state', state => state.hasResult);
+        const expected = { expectedSource: sourceUrl, expectedWebsite: website, expectedPosition: position };
+        // 在同一次页面执行中核对表单、记录旧结果基线并点击一次，避免检查与点击之间的异步竞态。
+        const submitted = await run('generate', expected);
+        const result = await until('state', state => state.hasResult, expected);
         if (!result.hasLongTab) throw new CommandExecutionError('京东仅返回了短链或其他推广形式，未返回长链接');
-        await run('long-tab');
-        const selected = await until('state', state => !!state.linkValue);
+        await run('long-tab', expected);
+        // 同值旧链接无法证明属于本次请求；继续等待实际更新，超时后停止而不重新提交。
+        const selected = await until('state', state => !!state.linkValue
+            && !submitted.priorResultValues.includes(state.linkValue), expected);
         const promotionUrl = requireLongPromotionUrl(selected.linkValue);
         return [{ sku, website, position, sourceUrl, promotionUrl }];
     },
