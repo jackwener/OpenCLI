@@ -325,7 +325,7 @@ cli({
             else {
                 allTweets.push(...tweets);
             }
-            const pageComplete = !nextCursor;
+            const pageComplete = !nextCursor || (nextCursor === cursor && tweets.length === 0);
             writeResumeFile(resumeFile, {
                 cursor: pageComplete ? null : nextCursor,
                 count: useOutputFile ? outputCount : allTweets.length,
