@@ -291,7 +291,7 @@ export abstract class BasePage implements IPage {
 
   async annotatedScreenshot(options: ScreenshotOptions = {}): Promise<string> {
     // Refresh DOM refs first so visual labels map to immediate `browser click <ref>` targets.
-    await this.snapshot({ source: 'dom', viewportExpand: 0 });
+    await this.snapshot({ source: 'dom', viewportExpand: 0, annotateRefs: true });
     try {
       await this.evaluate(installVisualRefOverlayJs());
       return await this.screenshot({ ...options, annotate: false });
@@ -1120,6 +1120,7 @@ export abstract class BasePage implements IPage {
       maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
       interactiveOnly: opts.interactive ?? false,
       maxTextLength: opts.maxTextLength ?? 120,
+      annotateRefs: opts.annotateRefs ?? false,
       includeScrollInfo: true,
       bboxDedup: true,
       previousHashes: this._prevSnapshotHashes,

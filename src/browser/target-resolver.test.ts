@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { resolveTargetJs, boundingRectResolvedJs } from './target-resolver.js';
 
@@ -154,8 +155,37 @@ describe('resolveTargetJs', () => {
   it('generates JS that returns structured resolution for numeric ref', () => {
     const js = resolveTargetJs('12');
     expect(js).toContain('data-opencli-ref');
+    expect(js).toContain('__opencli_ref_elements');
     expect(js).toContain('__opencli_ref_identity');
     expect(js).toContain('"12"');
+  });
+
+  it('resolves numeric refs from in-memory elements without mutating DOM attributes', async () => {
+    const dom = new JSDOM('<!doctype html><button id="apply">Apply</button>', {
+      url: 'https://example.com/',
+      runScripts: 'outside-only',
+    });
+    const button = dom.window.document.querySelector('button')!;
+    (dom.window as any).__opencli_ref_elements = { '1': button };
+    (dom.window as any).__opencli_ref_identity = {
+      '1': { tag: 'button', role: '', text: 'Apply', ariaLabel: '', id: 'apply', testId: '' },
+    };
+    const mutations: string[] = [];
+    const observer = new dom.window.MutationObserver((records) => {
+      for (const record of records) mutations.push(record.attributeName || '');
+    });
+    observer.observe(dom.window.document.documentElement, {
+      attributes: true,
+      subtree: true,
+    });
+
+    const result = dom.window.eval(resolveTargetJs('1'));
+    await new Promise<void>((resolve) => dom.window.queueMicrotask(() => resolve()));
+
+    expect(result).toMatchObject({ ok: true, matches_n: 1, match_level: 'exact' });
+    expect((dom.window as any).__resolved).toBe(button);
+    expect(button.getAttribute('data-opencli-ref')).toBeNull();
+    expect(mutations).not.toContain('data-opencli-ref');
   });
 
   it('generates JS that handles CSS selector input', () => {
@@ -249,10 +279,13 @@ describe('resolveTargetJs', () => {
     expect(js).toContain('[aria-label="');
     // Unique match required — never silently picks one of many candidates.
     expect(js).toContain('candidates.length === 1');
-    // Recovered element is re-tagged + identity map refreshed so subsequent
-    // resolves land on 'exact' instead of re-walking the cascade.
-    expect(js).toContain("setAttribute('data-opencli-ref', ref)");
-    expect(js).toContain('identity[ref] = fingerprintOf(recovered)');
+    // Recovered element is remembered without mutating the business DOM so
+    // subsequent resolves land on 'exact' instead of re-walking the cascade.
+    expect(js).toContain('function rememberResolved');
+    expect(js).toContain('elements[ref] = node');
+    expect(js).toContain('identity[ref] = fingerprintOf(node)');
+    expect(js).not.toContain("setAttribute('data-opencli-ref', ref)");
+    expect(js).not.toContain("removeAttribute('data-opencli-ref')");
   });
 
   it('reidentify runs both when data-opencli-ref is missing AND when fingerprint is mismatched', () => {

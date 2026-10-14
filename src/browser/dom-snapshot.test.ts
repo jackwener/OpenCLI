@@ -9,6 +9,7 @@
  * 4. All features are present (Shadow DOM, iframe, table, diff, etc.)
  */
 
+import { JSDOM } from 'jsdom';
 import { describe, it, expect } from 'vitest';
 import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 
@@ -24,6 +25,31 @@ describe('generateSnapshotJs', () => {
     expect(() => new Function(js)).not.toThrow();
   });
 
+  it('does not mutate page DOM when assigning snapshot refs', async () => {
+    const dom = new JSDOM('<!doctype html><button id="apply">Apply</button>', {
+      url: 'https://example.com/',
+      runScripts: 'outside-only',
+      pretendToBeVisual: true,
+    });
+    const mutations: string[] = [];
+    const observer = new dom.window.MutationObserver((records) => {
+      for (const record of records) {
+        mutations.push(record.attributeName || '');
+      }
+    });
+    observer.observe(dom.window.document.documentElement, {
+      attributes: true,
+      subtree: true,
+    });
+
+    const snapshot = dom.window.eval(generateSnapshotJs());
+    await new Promise<void>((resolve) => dom.window.queueMicrotask(() => resolve()));
+
+    expect(snapshot).toContain('[1]<button');
+    expect(dom.window.document.querySelector('[data-opencli-ref]')).toBeNull();
+    expect(mutations).not.toContain('data-opencli-ref');
+  });
+
   it('embeds default options correctly', () => {
     const js = generateSnapshotJs();
     expect(js).toContain('VIEWPORT_EXPAND = 800');
@@ -35,7 +61,7 @@ describe('generateSnapshotJs', () => {
     expect(js).toContain('INCLUDE_SHADOW_DOM = true');
     expect(js).toContain('INCLUDE_IFRAMES = true');
     expect(js).toContain('PAINT_ORDER_CHECK = true');
-    expect(js).toContain('ANNOTATE_REFS = true');
+    expect(js).toContain('ANNOTATE_REFS = false');
     expect(js).toContain('REPORT_HIDDEN = true');
     expect(js).toContain('FILTER_ADS = true');
     expect(js).toContain('MARKDOWN_TABLES = true');
@@ -73,6 +99,11 @@ describe('generateSnapshotJs', () => {
     expect(js).toContain('REPORT_HIDDEN = false');
     expect(js).toContain('FILTER_ADS = false');
     expect(js).toContain('MARKDOWN_TABLES = false');
+  });
+
+  it('can opt into DOM ref annotation for visual overlays', () => {
+    const js = generateSnapshotJs({ annotateRefs: true });
+    expect(js).toContain('ANNOTATE_REFS = true');
   });
 
   it('clamps maxDepth between 1 and 200', () => {
@@ -136,7 +167,7 @@ describe('generateSnapshotJs', () => {
     expect(js).toContain('isAdElement');
     expect(js).toContain('AD_PATTERNS');
 
-    // data-ref annotation
+    // Optional data-ref annotation and legacy selector fallback
     expect(js).toContain('data-opencli-ref');
 
     // Hidden elements report

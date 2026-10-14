@@ -8,8 +8,9 @@
  *    browser parser decide what's valid. No frontend regex whitelist — the
  *    goal is that any selector accepted by `browser find --css` is accepted
  *    by the same selector on `get/click/type/select`.
- * 2. Ref path: cascading match levels (see below), using data-opencli-ref
- *    plus the fingerprint map populated by snapshot + find.
+ * 2. Ref path: cascading match levels (see below), using in-memory refs,
+ *    legacy data-opencli-ref attributes, and the fingerprint map populated
+ *    by snapshot + find.
  * 3. CSS path: querySelectorAll + match-count policy (see ResolveOptions)
  * 4. Structured errors:
  *    - numeric: not_found / stale_ref
@@ -80,6 +81,7 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
       const nth = ${nthJs};
       const firstOnMulti = ${firstOnMulti};
       const identity = window.__opencli_ref_identity || {};
+      const elements = window.__opencli_ref_elements || {};
 
       // ── Classify input ──
       // Numeric = snapshot ref. Everything else is handed to querySelectorAll
@@ -168,18 +170,26 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
           return candidates.length === 1 ? candidates[0] : null;
         }
 
+        function rememberResolved(ref, node) {
+          try {
+            elements[ref] = node;
+            identity[ref] = fingerprintOf(node);
+            window.__opencli_ref_elements = elements;
+            window.__opencli_ref_identity = identity;
+          } catch (_) {}
+        }
+
         const fp = identity[ref];
-        let el = document.querySelector('[data-opencli-ref="' + ref + '"]');
+        const mapped = elements[ref];
+        let el = (mapped && mapped.nodeType === 1 && document.contains(mapped) ? mapped : null);
+        if (!el) el = document.querySelector('[data-opencli-ref="' + ref + '"]');
         if (!el) el = document.querySelector('[data-ref="' + ref + '"]');
 
         // If the ref tag is gone from the DOM, last-chance reidentify.
         if (!el) {
           const recovered = reidentify(fp);
           if (recovered) {
-            try {
-              recovered.setAttribute('data-opencli-ref', ref);
-              identity[ref] = fingerprintOf(recovered);
-            } catch (_) {}
+            rememberResolved(ref, recovered);
             window.__resolved = recovered;
             return { ok: true, matches_n: 1, match_level: 'reidentified' };
           }
@@ -207,14 +217,10 @@ export function resolveTargetJs(ref: string, opts: ResolveOptions = {}): string 
 
         // Tag / strong-id mismatch — try to find the real element elsewhere
         // before giving up. Covers e.g. a modal re-mount that discarded the
-        // data-opencli-ref attribute on the surviving node.
+        // previous snapshot's element identity.
         const recovered = reidentify(fp);
         if (recovered && recovered !== el) {
-          try {
-            el.removeAttribute('data-opencli-ref');
-            recovered.setAttribute('data-opencli-ref', ref);
-            identity[ref] = fingerprintOf(recovered);
-          } catch (_) {}
+          rememberResolved(ref, recovered);
           window.__resolved = recovered;
           return { ok: true, matches_n: 1, match_level: 'reidentified' };
         }

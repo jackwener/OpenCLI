@@ -15,12 +15,12 @@
  *   8. Attribute whitelist filtering
  *   9. Table-aware serialization (markdown tables)
  *  10. Token-efficient serialization with interactive indices
- *  11. data-ref annotation for click/type targeting
+ *  11. ref bookkeeping for click/type targeting
  *  12. Hidden interactive element hints (scroll-to-reveal)
  *  13. Incremental diff (mark new elements with *)
  *
  * Additional tools:
- *   - scrollToRefJs(ref) — scroll to a data-opencli-ref element
+ *   - scrollToRefJs(ref) — scroll to a data-opencli-ref or in-memory ref element
  *   - getFormStateJs()  — extract all form fields as structured JSON
  *
  * Compound sidecar:
@@ -56,7 +56,7 @@ export interface DomSnapshotOptions {
   maxIframes?: number;
   /** Enable paint-order occlusion detection (default true) */
   paintOrderCheck?: boolean;
-  /** Annotate interactive elements with data-opencli-ref (default true) */
+  /** Annotate interactive elements with data-opencli-ref (default false) */
   annotateRefs?: boolean;
   /** Report hidden interactive elements outside viewport (default true) */
   reportHidden?: boolean;
@@ -71,7 +71,7 @@ export interface DomSnapshotOptions {
 // ─── Utility JS Generators ───────────────────────────────────────────
 
 /**
- * Generate JS to scroll to an element identified by data-opencli-ref.
+ * Generate JS to scroll to an element identified by an in-memory or data-opencli-ref.
  * Completes the snapshot→action loop: snapshot identifies `[3]<button>`,
  * caller can then `scrollToRef('3')` to bring it into view.
  */
@@ -80,7 +80,10 @@ export function scrollToRefJs(ref: string): string {
   return `
     (() => {
       const ref = ${safeRef};
-      const el = document.querySelector('[data-opencli-ref="' + ref + '"]')
+      const elements = window.__opencli_ref_elements || {};
+      const mapped = elements[ref];
+      const el = (mapped && mapped.nodeType === 1 && document.contains(mapped) ? mapped : null)
+        || document.querySelector('[data-opencli-ref="' + ref + '"]')
         || document.querySelector('[data-ref="' + ref + '"]');
       if (!el) throw new Error('Element not found: ref=' + ref);
       el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
@@ -195,7 +198,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const includeIframes = opts.includeIframes ?? true;
   const maxIframes = opts.maxIframes ?? 5;
   const paintOrderCheck = opts.paintOrderCheck ?? true;
-  const annotateRefs = opts.annotateRefs ?? true;
+  const annotateRefs = opts.annotateRefs ?? false;
   const reportHidden = opts.reportHidden ?? true;
   const filterAds = opts.filterAds ?? true;
   const markdownTables = opts.markdownTables ?? true;
@@ -660,9 +663,28 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const hiddenInteractives = [];
   const currentHashes = [];
   const refIdentity = {};
+  const refElements = {};
   const compoundInfos = {};
   let iframeCount = 0;
   let crossOriginIndex = 0;
+
+  function fingerprintOf(el) {
+    return {
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role') || '',
+      text: (el.textContent || '').trim().slice(0, 30),
+      ariaLabel: el.getAttribute('aria-label') || '',
+      id: el.id || '',
+      testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
+    };
+  }
+
+  function rememberRef(ref, el) {
+    const key = '' + ref;
+    if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', key);
+    refElements[key] = el;
+    refIdentity[key] = fingerprintOf(el);
+  }
 
   function walk(el, depth, parentPropagatingRect) {
     if (depth > MAX_DEPTH) return false;
@@ -679,7 +701,7 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
       let prefix = '';
       if (interactive) {
         interactiveIndex++;
-        if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', '' + interactiveIndex);
+        rememberRef(interactiveIndex, el);
         prefix = '[' + interactiveIndex + ']';
       }
       lines.push('  '.repeat(depth) + prefix + '<svg' + (attrs ? ' ' + attrs : '') + ' />');
@@ -812,17 +834,8 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
     // Interactive index + data-ref + fingerprint
     if (interactive) {
       interactiveIndex++;
-      if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', '' + interactiveIndex);
+      rememberRef(interactiveIndex, el);
       line += isScrollable ? '|scroll[' + interactiveIndex + ']|' : '[' + interactiveIndex + ']';
-      // Store fingerprint for stale-ref detection
-      refIdentity['' + interactiveIndex] = {
-        tag: tag,
-        role: el.getAttribute('role') || '',
-        text: (el.textContent || '').trim().slice(0, 30),
-        ariaLabel: el.getAttribute('aria-label') || '',
-        id: el.id || '',
-        testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
-      };
       // Compound contract for date/select/file — captured per-ref so the
       // sidecar maps one-to-one with the [N] tokens in the tree.
       const compound = compoundInfoOf(el);
@@ -929,6 +942,8 @@ export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   try { window.__opencli_prev_hashes = JSON.stringify(currentHashes); } catch {}
   // Store ref identity map for stale-ref detection by target resolver
   try { window.__opencli_ref_identity = refIdentity; } catch {}
+  // Store live ref elements without mutating the business DOM.
+  try { window.__opencli_ref_elements = refElements; } catch {}
 
   return lines.join('\\n');
 })()
