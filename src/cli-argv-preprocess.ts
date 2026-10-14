@@ -6,6 +6,7 @@
  * The user-facing form is positional; the internal form uses --session. Help text
  * for the `browser` command is overridden to advertise the positional form.
  */
+import { RESERVED_ARG_SHORTS, resolveArgShort } from './arg-short.js';
 
 /**
  * Browser subcommand names. If `<session>` would collide with one of these,
@@ -171,7 +172,7 @@ export class BrowserSessionArgvError extends Error {
 export interface DashPositionalManifestEntry {
   site: string;
   name: string;
-  args?: Array<{ name: string; positional?: boolean; required?: boolean; valueRequired?: boolean; default?: unknown }>;
+  args?: Array<{ name: string; short?: string; positional?: boolean; required?: boolean; valueRequired?: boolean; default?: unknown }>;
   browser?: boolean;
 }
 
@@ -193,11 +194,19 @@ function knownCommandOptions(cmd: DashPositionalManifestEntry): Map<string, Opti
     options.set('--site-session', 'required');
     options.set('--keep-tab', 'required');
   }
+  // Seed with the reserved shorts (-f/-v/-h above) so an arg's `short` resolves
+  // identically to commanderAdapter — otherwise the pre-processor would treat a
+  // short it doesn't recognize as a dash-leading positional and never hand it to
+  // Commander.
+  const usedShorts = new Set(RESERVED_ARG_SHORTS);
   for (const arg of cmd.args ?? []) {
     if (arg.positional) continue;
     // Keep in sync with commanderAdapter.ts:
     // required/valueRequired -> `<value>`; otherwise -> `[value]`.
-    options.set(`--${arg.name}`, arg.required || arg.valueRequired ? 'required' : 'optional');
+    const mode: OptionValueMode = arg.required || arg.valueRequired ? 'required' : 'optional';
+    options.set(`--${arg.name}`, mode);
+    const short = resolveArgShort(arg.short, usedShorts);
+    if (short) options.set(`-${short}`, mode);
   }
   return options;
 }
@@ -211,7 +220,10 @@ function consumeKnownOption(argv: readonly string[], index: number, options: Rea
   if (!mode && eq === -1 && token.startsWith('-') && !token.startsWith('--') && token.length > 2) {
     const shortKey = token.slice(0, 2);
     const shortMode = options.get(shortKey);
-    if (shortMode === 'required') {
+    // Attached short value like `-l10`: Commander accepts it for both value-taking
+    // modes (`-l <value>` and `-l [value]`), so consume the whole token as one
+    // option for either — not just `required`.
+    if (shortMode === 'required' || shortMode === 'optional') {
       return { values: [token], nextIndex: index + 1 };
     }
   }
