@@ -242,8 +242,15 @@ cli({
             const fetchCount = Math.min(100, remaining);
             const apiUrl = buildBookmarksUrl(fetchCount, cursor).replace(BOOKMARKS_QUERY_ID, queryId);
             const data = unwrapBrowserResult(await page.evaluate(`async () => {
-        const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
-        return r.ok ? await r.json() : { error: r.status };
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const r = await fetch(${JSON.stringify(apiUrl)}, { headers: ${headers}, credentials: 'include' });
+            return r.ok ? await r.json() : { error: r.status };
+          } catch (e) {
+            if (attempt === 2) throw e;
+            await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
+          }
+        }
       }`));
             if (data?.error) {
                 if ((useOutputFile ? outputCount : allTweets.length) === 0)
