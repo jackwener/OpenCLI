@@ -95,6 +95,30 @@ describe('rednote note URL identity', () => {
         expect(rows[0]).not.toHaveProperty('authorHrefRaw');
     });
 
+    it('fails typed instead of returning [] when the page reports comments but none loaded', async () => {
+        const page = createPageMock({ loginWall: false, notFound: false, commentTotal: 42, results: [] });
+        await expect(comments.func(page, {
+            'note-id': 'https://www.rednote.com/search_result/69aadbcb000000002202f131?xsec_token=abc',
+            limit: 20,
+        })).rejects.toMatchObject({ code: 'COMMENTS_NOT_LOADED' });
+    });
+
+    it('returns [] when the rednote page itself reports zero comments', async () => {
+        const page = createPageMock({ loginWall: false, notFound: false, commentTotal: 0, results: [] });
+        await expect(comments.func(page, {
+            'note-id': 'https://www.rednote.com/search_result/69aadbcb000000002202f131?xsec_token=abc',
+            limit: 20,
+        })).resolves.toEqual([]);
+    });
+
+    it('fails EMPTY_RESULT when the rednote note page is unavailable', async () => {
+        const page = createPageMock({ loginWall: false, notFound: true, commentTotal: null, results: [] });
+        await expect(comments.func(page, {
+            'note-id': 'https://www.rednote.com/search_result/69aadbcb000000002202f131?xsec_token=abc',
+            limit: 20,
+        })).rejects.toMatchObject({ code: 'EMPTY_RESULT' });
+    });
+
     it('fails typed for malformed comment images instead of leaking success rows', async () => {
         const page = createPageMock({
             loginWall: false,
