@@ -12,6 +12,7 @@ export type Action =
   | 'cookies'
   | 'screenshot'
   | 'close-window'
+  | 'close-container'
   | 'sessions'
   | 'set-file-input'
   | 'insert-text'
