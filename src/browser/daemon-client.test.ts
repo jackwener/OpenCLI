@@ -310,6 +310,16 @@ describe('daemon-client', () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
 
+  it('throws a terminal SessionBusyError when no site slot frees up in time', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      status: 503,
+      json: () => Promise.resolve({ id: 'server', ok: false, errorCode: 'slot_wait_timeout', error: 'No xiaohongshu slot became free within 60s.' }),
+    } as Response);
+
+    await expect(sendCommand('slot-acquire', { site: 'xiaohongshu', runId: 'run_1_1_1', poolSize: 1 })).rejects.toBeInstanceOf(SessionBusyError);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+
   it('sendCommand forwards OPENCLI_PROFILE as a hard contextId requirement', async () => {
     vi.stubEnv('OPENCLI_PROFILE', 'work');
     vi.spyOn(Date, 'now').mockReturnValue(1_763_000_000_000);

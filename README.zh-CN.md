@@ -175,6 +175,7 @@ Agent 在内部自动处理所有 `opencli browser` 命令——你只需用自�
 | `OPENCLI_WINDOW` | 命令默认值 | 设为 `foreground` 或 `background` 来覆盖 Browser Bridge 窗口位置。浏览器型命令也支持 `--window <foreground\|background>` |
 | `OPENCLI_SITE_SESSION` | adapter 默认值 | 设为 `ephemeral` 或 `persistent`，覆盖浏览器型 adapter 命令的 `siteSession` 元数据。`ephemeral` 会在命令结束时释放一次性标签页，自动化窗口会保留为可复用的容器；`persistent` 会复用该站点的 session。命令级 `--site-session` 优先。 |
 | `OPENCLI_CLOSE_OWNED_TAB` | `0` | 设为 `1`，显式关闭会话或一次性 adapter 清理时关闭当前租约拥有的标签，不保留空白占位页。需要支持此功能的 Browser Bridge 扩展。 |
+| `OPENCLI_SITE_SLOTS` | — | 把站点放进常驻标签页池，例如 `xiaohongshu:1:1500-3000,weibo:2`（`站点:池大小[:最小毫秒[-最大毫秒]]`）。每次命令运行独占借用一个槽位标签页（读命令也一样），全忙时排队；可选的间隔会以随机抖动的延迟拉开相邻两次运行。所有标签页共用一个自动化窗口，只有活动标签页会渲染，因此 `池大小` > 1 时，依赖渲染的命令（懒加载列表）在后台槽位上可能卡住——这类命令和有风控的站点请用 `1`。`--site-session ephemeral` 可让单次调用不走池。 |
 | `OPENCLI_BROWSER_CONNECT_TIMEOUT` | `45` | 浏览器连接超时（秒） |
 | `OPENCLI_BROWSER_COMMAND_TIMEOUT` | `60` | 单个浏览器命令超时（秒） |
 | `OPENCLI_BROWSER_IDLE_TIMEOUT` | 扩展默认值 | owned session 的 idle timeout（秒），命令级 `idleTimeout` 优先。不延长显式清理时间：ephemeral adapter 通常在命令结束时释放 tab；bound tab 和 persistent adapter session 忽略 idle timeout。释放 session 后，可复用的 window container 仍保留。 |
