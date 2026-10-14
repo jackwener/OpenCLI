@@ -46,6 +46,66 @@ function likesPayload() {
     };
 }
 
+function likesTerminalPayload(cursorValue = 'NEXT_CURSOR') {
+    return {
+        data: {
+            user: {
+                result: {
+                    timeline_v2: {
+                        timeline: {
+                            instructions: [{
+                                entries: [{
+                                    entryId: `cursor-bottom-${cursorValue}`,
+                                    content: {
+                                        entryType: 'TimelineTimelineCursor',
+                                        cursorType: 'Bottom',
+                                        value: cursorValue,
+                                    },
+                                }],
+                            }],
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+
+function likesPayloadWithCursor(cursorValue = 'NEXT_CURSOR') {
+    const payload = likesPayload();
+    payload.data.user.result.timeline_v2.timeline.instructions[0].entries.push({
+        entryId: `cursor-bottom-${cursorValue}`,
+        content: {
+            entryType: 'TimelineTimelineCursor',
+            cursorType: 'Bottom',
+            value: cursorValue,
+        },
+    });
+    return payload;
+}
+
+function likesArchivePage(respond) {
+    return {
+        goto: vi.fn().mockResolvedValue(undefined),
+        wait: vi.fn().mockResolvedValue(undefined),
+        getCookies: vi.fn(async () => [{ name: 'ct0', value: 'token' }]),
+        evaluate: vi.fn(async (script) => {
+            const text = String(script);
+            if (text.includes('AppTabBar_Profile_Link')) {
+                return { session: 'site:twitter', data: '/viewer' };
+            }
+            if (text.includes('operationName')) return null;
+            if (text.includes('/UserByScreenName')) {
+                return { session: 'site:twitter', data: '42' };
+            }
+            if (text.includes('/Likes')) {
+                return { session: 'site:twitter', data: respond() };
+            }
+            throw new Error(`Unexpected evaluate: ${text.slice(0, 80)}`);
+        }),
+    };
+}
+
 describe('twitter likes helpers', () => {
     it('falls back when queryId contains unsafe characters', () => {
         expect(__test__.sanitizeQueryId('safe_Query-123', 'fallback')).toBe('safe_Query-123');
@@ -466,6 +526,61 @@ describe('twitter likes command', () => {
             expect(result.cursor).toBeUndefined();
             expect(fs.existsSync(resumeFile)).toBe(false);
             expect(fs.existsSync(outputFile)).toBe(true);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
+    });
+
+    it('treats a repeated bottom cursor with no timeline items as an exhausted archive', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const resumeFile = `/tmp/opencli-likes-resume-terminal-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-likes-out-terminal-${process.pid}-${Date.now()}.jsonl`;
+        let likePages = 0;
+        const page = likesArchivePage(() => {
+            likePages += 1;
+            return likePages === 1 ? likesPayloadWithCursor() : likesTerminalPayload();
+        });
+
+        try {
+            const result = await command.func(page, {
+                all: true,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            });
+
+            expect(result).toMatchObject({
+                outputFile,
+                count: 1,
+                source: 'likes',
+                username: 'viewer',
+                complete: true,
+                pages: 2,
+            });
+            expect(result.cursor).toBeUndefined();
+            expect(fs.existsSync(resumeFile)).toBe(false);
+            expect(fs.readFileSync(outputFile, 'utf8').trim().split('\n')).toHaveLength(1);
+        }
+        finally {
+            fs.rmSync(resumeFile, { force: true });
+            fs.rmSync(outputFile, { force: true });
+        }
+    });
+
+    it('keeps failing when a repeated cursor still carries timeline items', async () => {
+        const command = getRegistry().get('twitter/likes');
+        const resumeFile = `/tmp/opencli-likes-resume-stall-${process.pid}-${Date.now()}.json`;
+        const outputFile = `/tmp/opencli-likes-out-stall-${process.pid}-${Date.now()}.jsonl`;
+        const page = likesArchivePage(() => likesPayloadWithCursor());
+
+        try {
+            await expect(command.func(page, {
+                all: true,
+                'resume-file': resumeFile,
+                'output-file': outputFile,
+            })).rejects.toThrow(/twitter_likes_repeated_cursor/);
+            expect(fs.existsSync(resumeFile)).toBe(true);
         }
         finally {
             fs.rmSync(resumeFile, { force: true });
