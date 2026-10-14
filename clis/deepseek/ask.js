@@ -1,10 +1,15 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError, CommandExecutionError, EXIT_CODES, TimeoutError } from '@jackwener/opencli/errors';
 import {
-    DEEPSEEK_DOMAIN, DEEPSEEK_URL, ensureOnDeepSeek, selectModel, setFeature,
+    DEEPSEEK_DOMAIN, ensureOnDeepSeek, ensureFreshConversation, selectModel, setFeature,
     sendMessage, sendWithFile, getBubbleCount, waitForResponse, parseBoolFlag, withRetry,
     pickResumeUrl, TEXTAREA_SELECTOR,
 } from './utils.js';
+
+const restoredConversationError = (reason) => new CommandExecutionError(
+    `DeepSeek restored the previous conversation, so --new could not start a fresh thread (${reason})`,
+    'Retry, or open chat.deepseek.com and start a new chat manually before re-running.',
+);
 
 export const askCommand = cli({
     site: 'deepseek',
@@ -32,6 +37,7 @@ export const askCommand = cli({
         const timeoutMs = (kwargs.timeout || 120) * 1000;
         const wantThink = parseBoolFlag(kwargs.think);
         const wantSearch = parseBoolFlag(kwargs.search);
+        const wantNew = parseBoolFlag(kwargs.new);
         const wantModel = kwargs.model || 'instant';
 
         if ((wantModel === 'vision' || wantModel === 'expert') && wantSearch) {
@@ -43,15 +49,20 @@ export const askCommand = cli({
             );
         }
 
-        if (parseBoolFlag(kwargs.new)) {
-            await page.goto(DEEPSEEK_URL);
-            // Wait for the composer to mount instead of a fixed 3 s sleep.
-            try {
-                await page.wait({ selector: TEXTAREA_SELECTOR, timeout: 8 });
-            } catch {
-                // Selector still missing → downstream selectModel/sendMessage
-                // will surface the failure with a typed error.
+        if (wantNew) {
+            const fresh = await ensureFreshConversation(page);
+            if (!fresh.ok && fresh.reason !== 'composer-missing') {
+                // DeepSeek auto-restored the previous thread and the escape
+                // failed. Sending now would append to the old conversation —
+                // the exact silent-corruption --new exists to prevent. The
+                // reason distinguishes a restore race from a missing sidebar
+                // control (i.e. a DeepSeek UI change).
+                throw restoredConversationError(fresh.reason);
             }
+            // composer-missing → fall through so downstream selectModel/
+            // sendMessage surface the failure with a typed error — the same
+            // logged-out behavior --new had before the freshness guard,
+            // kept unchanged on purpose.
         } else {
             const navigated = await ensureOnDeepSeek(page);
             if (navigated) {
@@ -79,6 +90,18 @@ export const askCommand = cli({
         const currentUrl = await page.evaluate('window.location.href') || '';
         const inConversation = currentUrl.includes('/a/chat/s/');
         const modelExplicit = kwargs.__opencliOptionSources?.model === 'cli';
+
+        // Early exit so a restore detected here fails before the model/feature
+        // toggles run (and before the misleading model-switch usage error
+        // below). Not redundant with the empty-baseline guard before the
+        // send: a restore flips the URL before its old messages render, so
+        // this check catches "on a thread, bubbles still 0" while the
+        // baseline catches "bubbles rendered, URL snapshot stale". Each
+        // covers a window the other misses — neither can be demoted to a
+        // hint.
+        if (wantNew && inConversation) {
+            throw restoredConversationError('conversation-restored');
+        }
 
         if (inConversation && modelExplicit) {
             throw new CliError(
@@ -116,8 +139,23 @@ export const askCommand = cli({
         // No settle wait after toggles: the next CDP eval below already gives
         // React time to flush the aria-checked state.
 
+        // --new must send into an empty conversation. The URL checks above are
+        // racy snapshots (the SPA can restore the old thread at any point up
+        // to here), but a restored thread always carries its old messages, so
+        // a zero bubble baseline right before the send is a timing-independent
+        // test of the same invariant. Rests on one live-verified fact
+        // (2026-08): a fresh chat page renders zero .ds-message elements. If
+        // DeepSeek ever ships welcome bubbles, every --new fails loudly here
+        // — never silently. The remaining exposure is the gap between this
+        // check and the actual send click (upload-sized on the --file path);
+        // it is irreducible without an atomic in-page check-and-send, and
+        // restores are empirically a load-time behavior, long past by now.
+        const baseline = await withRetry(() => getBubbleCount(page));
+        if (wantNew && baseline > 0) {
+            throw restoredConversationError('conversation-restored');
+        }
+
         if (kwargs.file) {
-            const baseline = await withRetry(() => getBubbleCount(page));
             try {
                 const fileResult = await sendWithFile(page, kwargs.file, prompt);
                 if (fileResult && !fileResult.ok) {
@@ -139,7 +177,6 @@ export const askCommand = cli({
             return [{ response: result }];
         }
 
-        const baseline = await withRetry(() => getBubbleCount(page));
         const sendResult = await withRetry(() => sendMessage(page, prompt));
         if (!sendResult?.ok) {
             throw new CommandExecutionError(sendResult?.reason || 'Failed to send message');
