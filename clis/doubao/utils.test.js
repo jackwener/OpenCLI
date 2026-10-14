@@ -5,6 +5,7 @@ import {
     __test__,
     collectDoubaoTranscriptAdditions,
     mergeTranscriptSnapshots,
+    normalizeDoubaoApiMessage,
     parseDoubaoConversationId,
     sendDoubaoMessage,
     waitForDoubaoResponse,
@@ -43,6 +44,106 @@ describe('parseDoubaoConversationId', () => {
     });
     it('keeps a raw id unchanged', () => {
         expect(parseDoubaoConversationId('1234567890123')).toBe('1234567890123');
+    });
+});
+describe('doubao full-detail API normalization', () => {
+    it('keeps mode metadata, thinking detail, references, and AI document cards', () => {
+        const row = normalizeDoubaoApiMessage({
+            conversation_id: '38435747148282626',
+            message_id: '50884875153104386',
+            index_in_conv: '26',
+            user_type: 2,
+            content_type: 9999,
+            create_time: '1784923464',
+            ext: {
+                need_deep_think: '4',
+                cot_switch: '4',
+                model_id: '38',
+                agent_name: 'Agent-GeneralTask',
+                feishu_record_id: '7666165203839044576',
+                feishu_note_id: '7666178835515591969',
+                feishu_record_generated_type: 'audio_subtitle',
+                general_task_param: JSON.stringify({ selected_skills: ['doubao-record'] }),
+            },
+            content_block: [
+                {
+                    block_type: 10040,
+                    block_id: 'thinking-1',
+                    parent_id: '',
+                    content: {
+                        thinking_block: {
+                            finish_title: '明确录音转写相关疑问',
+                        },
+                    },
+                },
+                {
+                    block_type: 10000,
+                    block_id: 'thinking-text',
+                    parent_id: 'thinking-1',
+                    content: {
+                        text_block: {
+                            text: '这是完整思考内容。  \n第二行。 \t',
+                        },
+                    },
+                },
+                {
+                    block_type: 10056,
+                    block_id: 'reference-1',
+                    parent_id: '',
+                    content: {
+                        reference_block: {
+                            text: {
+                                text: '你开始录音，帮我录一下。',
+                                message_id: '50890292596784898',
+                            },
+                        },
+                    },
+                },
+                {
+                    block_type: 10030,
+                    block_id: 'artifact-1',
+                    parent_id: '',
+                    content: {
+                        artifact_block: {
+                            title: '智能纪要：新录音 2026年7月25日',
+                            brief: '未能生成纪要，可查看原始记录',
+                            resource_id: 'BHpodrxcdoWz8XxPqwIcCumknMb',
+                            artifact_meta_id: '50854067750682626',
+                            artifact_version_id: '50854067750682882',
+                            resource_content_type: 'type/ddxml',
+                        },
+                    },
+                },
+            ],
+        });
+        expect(row).toMatchObject({
+            Index: 26,
+            MessageId: '50884875153104386',
+            Role: 'Assistant',
+            Type: 'thinking+reference+artifact',
+            Mode: 'deep_think=4; cot=4; model=38; skills=doubao-record',
+            CreatedAt: '2026-07-24T20:04:24.000Z',
+        });
+        expect(row.Text).toContain('Thinking: 明确录音转写相关疑问');
+        expect(row.Text).toContain('Thinking detail:\n这是完整思考内容。\n第二行。');
+        expect(row.Text).toContain('Referenced message: 50890292596784898');
+        expect(row.Text).toContain('AI document card:');
+        expect(row.Text).toContain('智能纪要：新录音 2026年7月25日');
+        expect(row.Text).toContain('Resource ID: BHpodrxcdoWz8XxPqwIcCumknMb');
+        expect(JSON.parse(row.Metadata)).toMatchObject({
+            feishu_record_id: '7666165203839044576',
+            feishu_note_id: '7666178835515591969',
+            feishu_record_generated_type: 'audio_subtitle',
+        });
+    });
+    it('builds a cursor loop with the required Doubao gateway headers', () => {
+        const script = __test__.getConversationDetailScript('38435747148282626', 500);
+        expect(script).toContain("'Agw-Js-Conv': 'str'");
+        expect(script).toContain("'Content-Type': 'application/json; encoding=utf-8'");
+        expect(script).toContain('anchor_index: anchorIndex');
+        expect(script).toContain('downlink.next_index');
+        expect(script).toContain('while (hasMore && pages < maxPages)');
+        expect(script).toContain("reason: hasMore ? 'single-chain max page limit reached' : ''");
     });
 });
 describe('doubao send strategy', () => {
@@ -274,6 +375,81 @@ describe('doubao receive strategy', () => {
         const transcriptScript = __test__.getTranscriptLinesScript();
         expect(transcriptScript).toContain('请仔细甄别');
         expect(transcriptScript).toContain('下载电脑版');
+    });
+
+    it('carries the server pc_pin_query_type across recent-conversation pages', () => {
+        const recentScript = __test__.getRecentConversationsScript(100);
+        expect(recentScript).toContain('let pcPinQueryType = 0');
+        expect(recentScript).toContain('pc_pin_query_type: pcPinQueryType');
+        expect(recentScript).toContain('pcPinQueryType = downlink.extra?.pc_pin_query_type ?? pcPinQueryType');
+    });
+
+    it('extracts image and video media from Doubao route data', () => {
+        const dom = new JSDOM('<img src="https://example.com/dom.png" width="800" height="600">', {
+            url: 'https://www.doubao.com/chat/1234567890123',
+            runScripts: 'outside-only',
+        });
+        dom.window._ROUTER_DATA = {
+            loaderData: {
+                'chat_1234567890123/page': {
+                    messageList: [
+                        {
+                            entities: [
+                                {
+                                    entity_content: {
+                                        image: {
+                                            key: 'tos-cn-i-a9rns2rl98/example.jpeg',
+                                            image_ori: {
+                                                url: 'https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/example.jpeg?x-signature=abc',
+                                                width: 1440,
+                                                height: 1080,
+                                                format: 'jpeg',
+                                            },
+                                            resource_id: 'resource-1',
+                                        },
+                                    },
+                                    identifier: 'identifier-1',
+                                },
+                            ],
+                        },
+                        {
+                            content: {
+                                creation_block: {
+                                    creations: [
+                                        {
+                                            video: {
+                                                vid: 'video-1',
+                                                download_url: 'https://v.example.com/video/example.mp4',
+                                                video_type: 'mp4',
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+        const assets = dom.window.eval(__test__.getConversationAssetsScript('1234567890123', 'original'));
+        expect(assets).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                type: 'image',
+                url: 'https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/example.jpeg?x-signature=abc',
+                key: 'tos-cn-i-a9rns2rl98/example.jpeg',
+                resourceId: 'resource-1',
+            }),
+            expect.objectContaining({
+                type: 'video',
+                url: 'https://v.example.com/video/example.mp4',
+                key: 'video-1',
+            }),
+            expect.objectContaining({
+                type: 'image',
+                url: 'https://example.com/dom.png',
+                label: 'dom',
+            }),
+        ]));
     });
 });
 describe('collectDoubaoTranscriptAdditions', () => {

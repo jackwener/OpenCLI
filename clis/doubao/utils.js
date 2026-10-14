@@ -819,22 +819,107 @@ export function collectDoubaoTranscriptAdditions(beforeLines, currentLines, prom
         .map(({ sanitized }) => sanitized)
         .join('\n');
 }
+function getRecentConversationsScript(limit) {
+    return `
+    (async () => {
+      const clean = (value) => String(value || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+      const requestedLimit = Number(${JSON.stringify(limit)});
+      const resources = performance.getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((name) => typeof name === 'string');
+      const recentUrl = [...resources].reverse().find((name) => name.includes('/im/chain/recent_conv'));
+      if (!recentUrl) return { ok: false, reason: 'recent_conv resource not found', conversations: [] };
+
+      const conversations = [];
+      const seen = new Set();
+      let convVersion = 0;
+      let hasMore = true;
+      let pcPinQueryType = 0;
+
+      for (let pageIndex = 0; pageIndex < 100 && hasMore && conversations.length < requestedLimit; pageIndex += 1) {
+        const batchLimit = Math.max(1, Math.min(50, requestedLimit - conversations.length));
+        const body = {
+          cmd: 3200,
+          sequence_id: String(Date.now()) + '_' + pageIndex,
+          channel: 2,
+          version: '1',
+          uplink_body: {
+            pull_recent_conv_chain_uplink_body: {
+              api_version: 1,
+              conv_version: Number(convVersion) || 0,
+              direction: Number(convVersion) === 0 ? 3 : 1,
+              limit: batchLimit,
+              message_count_per_conv: 10,
+              option: {
+                not_need_message: true,
+                need_complete_conversation: true,
+                need_coco_conversation: Number(convVersion) === 0,
+                need_coco_bot: Number(convVersion) === 0,
+                need_pc_pin_chain: true,
+                pc_pin_query_type: pcPinQueryType,
+              },
+            },
+          },
+        };
+        const response = await fetch(recentUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; encoding=utf-8' },
+          body: JSON.stringify(body),
+        });
+        const json = await response.json().catch(() => ({}));
+        if (json.status_code !== 0) {
+          return {
+            ok: false,
+            reason: json.status_desc || json.message || 'recent_conv request failed',
+            conversations,
+          };
+        }
+
+        const downlink = json.downlink_body?.pull_recent_conv_chain_downlink_body || {};
+        for (const cell of downlink.cells || []) {
+          const conversation = cell?.conversation || {};
+          const id = clean(conversation.conversation_id || cell?.id || '');
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          conversations.push({
+            id,
+            title: clean(conversation.name || conversation.title || 'Untitled conversation').slice(0, 200),
+            href: '/chat/' + id,
+            updateTime: clean(conversation.update_time || ''),
+            latestIndex: clean(conversation.latest_index || ''),
+            botId: clean(conversation.bot_id || ''),
+            botType: conversation.bot_type ?? '',
+          });
+          if (conversations.length >= requestedLimit) break;
+        }
+
+        hasMore = Boolean(downlink.has_more);
+        convVersion = downlink.next_conv_version || 0;
+        pcPinQueryType = downlink.extra?.pc_pin_query_type ?? pcPinQueryType;
+        if (!convVersion || !(downlink.cells || []).length) break;
+      }
+
+      return { ok: true, conversations };
+    })()
+  `;
+}
 function getConversationListScript() {
     return `
     (() => {
-      const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"]');
+      const sidebar = document.querySelector('[data-testid="flow_chat_sidebar"], #flow_chat_sidebar');
       if (!sidebar) return [];
 
       const items = Array.from(
-        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"]')
+        sidebar.querySelectorAll('a[data-testid="chat_list_thread_item"], a[id^="conversation_"], a[href*="/chat/"]')
       );
 
       return items
         .map(a => {
           const href = a.getAttribute('href') || '';
-          const match = href.match(/\\/chat\\/(\\d{10,})/);
-          if (!match) return null;
-          const id = match[1];
+          const idFromAttr = (a.getAttribute('id') || '').match(/^conversation_(\\d{10,})$/)?.[1] || '';
+          const idFromHref = href.match(/\\/chat\\/(?:bot\\/chat\\/)?(\\d{10,})/)?.[1] || '';
+          const id = idFromAttr || idFromHref;
+          if (!id) return null;
           const textContent = (a.textContent || a.innerText || '').trim();
           const title = textContent
             .replace(/\\s+/g, ' ')
@@ -845,8 +930,21 @@ function getConversationListScript() {
     })()
   `;
 }
-export async function getDoubaoConversationList(page) {
+export async function getDoubaoConversationList(page, options = {}) {
     await ensureDoubaoChatPage(page);
+    const requestedLimit = Number(options.limit ?? 50);
+    const apiResult = await page.evaluate(getRecentConversationsScript(requestedLimit)).catch(() => null);
+    if (apiResult?.ok && Array.isArray(apiResult.conversations) && apiResult.conversations.length > 0) {
+        return apiResult.conversations.map((item) => ({
+            Id: item.id,
+            Title: item.title || 'Untitled conversation',
+            Url: `${DOUBAO_CHAT_URL}/${item.id}`,
+            UpdateTime: item.updateTime,
+            LatestIndex: item.latestIndex,
+            BotId: item.botId,
+            BotType: item.botType,
+        }));
+    }
     const raw = await page.evaluate(getConversationListScript());
     if (!Array.isArray(raw))
         return [];
@@ -860,41 +958,258 @@ export function parseDoubaoConversationId(input) {
     const match = input.match(/(\d{10,})/);
     return match ? match[1] : input;
 }
-function getConversationDetailScript() {
+function getConversationDetailScript(conversationId, maxPages) {
     return `
-    (() => {
-      const clean = (v) => (v || '').replace(/\\u00a0/g, ' ').replace(/\\n{3,}/g, '\\n\\n').trim();
-
-      const messageList = document.querySelector('[data-testid="message-list"]');
-      if (!messageList) return { messages: [], meeting: null };
-
-      const meetingCard = messageList.querySelector('[data-testid="meeting-minutes-card"]');
-      let meeting = null;
-      if (meetingCard) {
-        const raw = clean(meetingCard.textContent || '');
-        const match = raw.match(/^(.+?)(?:会议时间：|\\s*$)(.*)/);
-        meeting = {
-          title: match ? match[1].trim() : raw,
-          time: match && match[2] ? match[2].trim() : '',
-        };
+    (async () => {
+      const conversationId = ${JSON.stringify(conversationId)};
+      const maxPages = ${JSON.stringify(maxPages)};
+      const resources = performance.getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((name) => typeof name === 'string');
+      const singleUrl = [...resources].reverse().find((name) => name.includes('/im/chain/single'));
+      if (!singleUrl) {
+        return { ok: false, reason: 'single-chain resource not found', messages: [], pages: 0, hasMore: true };
       }
 
-      const unions = Array.from(messageList.querySelectorAll('[data-testid="union_message"]'));
-      const messages = unions.map(u => {
-        const isSend = !!u.querySelector('[data-testid="send_message"]');
-        const isReceive = !!u.querySelector('[data-testid="receive_message"]');
-        const textEl = u.querySelector('[data-testid="message_text_content"]');
-        const text = textEl ? clean(textEl.innerText || textEl.textContent || '') : '';
-        return {
-          role: isSend ? 'User' : isReceive ? 'Assistant' : 'System',
-          text,
-          hasMeetingCard: !!u.querySelector('[data-testid="meeting-minutes-card"]'),
-        };
-      }).filter(m => m.text);
+      const messages = [];
+      const seenMessageIds = new Set();
+      const seenAnchors = new Set();
+      let anchorIndex = Number.MAX_SAFE_INTEGER;
+      let hasMore = true;
+      let pages = 0;
 
-      return { messages, meeting };
+      while (hasMore && pages < maxPages) {
+        if (seenAnchors.has(anchorIndex)) {
+          return {
+            ok: false,
+            reason: 'single-chain cursor repeated',
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        seenAnchors.add(anchorIndex);
+        const body = {
+          cmd: 3100,
+          uplink_body: {
+            pull_singe_chain_uplink_body: {
+              conversation_id: conversationId,
+              anchor_index: anchorIndex,
+              conversation_type: 3,
+              direction: 1,
+              limit: 20,
+              ext: {},
+              filter: { index_list: [] },
+              evaluate_ab_params: '',
+              evaluate_common_params: '',
+            },
+          },
+          sequence_id: String(Date.now()) + '_' + pages,
+          channel: 2,
+          version: '1',
+        };
+        const response = await fetch(singleUrl, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json, text/plain, */*',
+            'Agw-Js-Conv': 'str',
+            'Content-Type': 'application/json; encoding=utf-8',
+          },
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+          return {
+            ok: false,
+            reason: 'single-chain HTTP ' + response.status,
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        const json = await response.json().catch(() => ({}));
+        if (json.status_code !== 0) {
+          return {
+            ok: false,
+            reason: json.status_desc || json.message || 'single-chain request failed',
+            statusCode: json.status_code,
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        const downlink = json.downlink_body?.pull_singe_chain_downlink_body || {};
+        const batch = Array.isArray(downlink.messages) ? downlink.messages : [];
+        for (const message of batch) {
+          const id = String(message?.message_id || '');
+          if (!id || seenMessageIds.has(id)) continue;
+          seenMessageIds.add(id);
+          messages.push(message);
+        }
+        pages += 1;
+        hasMore = Boolean(downlink.has_more);
+        if (!hasMore) break;
+        const nextIndex = Number(downlink.next_index);
+        if (!Number.isSafeInteger(nextIndex) || nextIndex < 0 || nextIndex >= anchorIndex || batch.length === 0) {
+          return {
+            ok: false,
+            reason: 'single-chain returned an invalid next_index',
+            messages,
+            pages,
+            hasMore,
+          };
+        }
+        anchorIndex = nextIndex;
+      }
+
+      return {
+        ok: !hasMore,
+        reason: hasMore ? 'single-chain max page limit reached' : '',
+        messages,
+        pages,
+        hasMore,
+      };
     })()
   `;
+}
+function cleanDoubaoText(value) {
+    return String(value || '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/\r\n?/g, '\n')
+        .replace(/[ \t]+$/gm, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+function parseGeneralTaskSkills(ext) {
+    try {
+        const parsed = JSON.parse(ext?.general_task_param || '{}');
+        return Array.isArray(parsed.selected_skills) ? parsed.selected_skills.map(String) : [];
+    }
+    catch {
+        return [];
+    }
+}
+function formatDoubaoMode(ext = {}) {
+    const parts = [];
+    const needDeepThink = cleanDoubaoText(ext.need_deep_think);
+    const cotSwitch = cleanDoubaoText(ext.cot_switch);
+    const modelId = cleanDoubaoText(ext.model_id || ext.model_type || ext.llm_model_type);
+    if (needDeepThink)
+        parts.push(`deep_think=${needDeepThink}`);
+    if (cotSwitch)
+        parts.push(`cot=${cotSwitch}`);
+    if (modelId)
+        parts.push(`model=${modelId}`);
+    if (cleanDoubaoText(ext.cot_ui_style))
+        parts.push(`ui=${cleanDoubaoText(ext.cot_ui_style)}`);
+    const skills = parseGeneralTaskSkills(ext);
+    if (skills.length > 0)
+        parts.push(`skills=${skills.join(',')}`);
+    return parts.join('; ');
+}
+function formatReferenceBlock(reference) {
+    const text = cleanDoubaoText(reference?.text?.text || reference?.text);
+    const messageId = cleanDoubaoText(reference?.text?.message_id);
+    return [
+        'Reference:',
+        text,
+        messageId ? `Referenced message: ${messageId}` : '',
+    ].filter(Boolean).join('\n');
+}
+function formatArtifactBlock(artifact) {
+    const lines = [
+        'AI document card:',
+        cleanDoubaoText(artifact?.title),
+        cleanDoubaoText(artifact?.brief),
+        artifact?.resource_id ? `Resource ID: ${artifact.resource_id}` : '',
+        artifact?.artifact_meta_id ? `Artifact meta ID: ${artifact.artifact_meta_id}` : '',
+        artifact?.artifact_version_id ? `Artifact version ID: ${artifact.artifact_version_id}` : '',
+        artifact?.resource_content_type ? `Content type: ${artifact.resource_content_type}` : '',
+    ];
+    return lines.filter(Boolean).join('\n');
+}
+function jsonForUnknownBlock(block) {
+    try {
+        return `Block ${block?.block_type ?? 'unknown'}:\n${JSON.stringify(block?.content || {}, null, 2)}`;
+    }
+    catch {
+        return `Block ${block?.block_type ?? 'unknown'}: [unserializable content]`;
+    }
+}
+export function normalizeDoubaoApiMessage(message) {
+    const blocks = Array.isArray(message?.content_block) ? message.content_block : [];
+    const thinkingIds = new Set(blocks
+        .filter((block) => block?.content?.thinking_block)
+        .map((block) => String(block.block_id || ''))
+        .filter(Boolean));
+    const parts = [];
+    const types = [];
+    for (const block of blocks) {
+        const content = block?.content || {};
+        if (content.thinking_block) {
+            const thinking = content.thinking_block;
+            const title = cleanDoubaoText(thinking.finish_title
+                || thinking.unfold_streaming_title
+                || thinking.streaming_title);
+            parts.push(`Thinking${title ? `: ${title}` : ''}`);
+            types.push('thinking');
+            continue;
+        }
+        if (content.text_block) {
+            const text = cleanDoubaoText(content.text_block.text);
+            if (text) {
+                const isThinking = thinkingIds.has(String(block.parent_id || ''));
+                parts.push(isThinking ? `Thinking detail:\n${text}` : text);
+                types.push(isThinking ? 'thinking' : 'text');
+            }
+            continue;
+        }
+        if (content.reference_block) {
+            parts.push(formatReferenceBlock(content.reference_block));
+            types.push('reference');
+            continue;
+        }
+        if (content.artifact_block) {
+            parts.push(formatArtifactBlock(content.artifact_block));
+            types.push('artifact');
+            continue;
+        }
+        parts.push(jsonForUnknownBlock(block));
+        types.push(`block-${block?.block_type ?? 'unknown'}`);
+    }
+    const ext = message?.ext || {};
+    const metadata = {
+        conversation_id: cleanDoubaoText(message?.conversation_id),
+        content_type: message?.content_type ?? null,
+        record_status: cleanDoubaoText(ext.record_status),
+        feishu_record_id: cleanDoubaoText(ext.feishu_record_id),
+        feishu_note_id: cleanDoubaoText(ext.feishu_note_id),
+        feishu_record_generated_type: cleanDoubaoText(ext.feishu_record_generated_type),
+        agent_name: cleanDoubaoText(ext.agent_name),
+        general_task_param: cleanDoubaoText(ext.general_task_param),
+    };
+    const compactMetadata = Object.fromEntries(Object.entries(metadata)
+        .filter(([, value]) => value !== '' && value != null));
+    if (parts.length === 0) {
+        const legacyText = cleanDoubaoText(message?.content || message?.thinking_content);
+        parts.push(legacyText || JSON.stringify(compactMetadata));
+        types.push(legacyText ? 'legacy-text' : 'metadata');
+    }
+    const seconds = Number(message?.create_time);
+    const createdAt = Number.isFinite(seconds) && seconds > 0
+        ? new Date(seconds * 1000).toISOString()
+        : null;
+    const numericIndex = Number(message?.index_in_conv);
+    return {
+        Index: Number.isSafeInteger(numericIndex) ? numericIndex : cleanDoubaoText(message?.index_in_conv),
+        MessageId: cleanDoubaoText(message?.message_id),
+        Role: Number(message?.user_type) === 1 ? 'User' : Number(message?.user_type) === 2 ? 'Assistant' : 'System',
+        Type: [...new Set(types)].join('+'),
+        Mode: formatDoubaoMode(ext),
+        CreatedAt: createdAt,
+        Text: parts.filter(Boolean).join('\n\n'),
+        Metadata: JSON.stringify(compactMetadata),
+    };
 }
 export async function navigateToConversation(page, conversationId) {
     const url = `${DOUBAO_CHAT_URL}/${conversationId}`;
@@ -906,15 +1221,222 @@ export async function navigateToConversation(page, conversationId) {
     await page.goto(url, { waitUntil: 'load', settleMs: 3000 });
     await page.wait(2);
 }
-export async function getConversationDetail(page, conversationId) {
+function hasConversationDetailResourceScript() {
+    return `
+    performance.getEntriesByType('resource')
+      .some((entry) => typeof entry.name === 'string' && entry.name.includes('/im/chain/single'))
+  `;
+}
+export async function getConversationDetail(page, conversationId, options = {}) {
+    const hasSingleChainResource = await page.evaluate(hasConversationDetailResourceScript()).catch(() => false);
+    if (!hasSingleChainResource) {
+        await navigateToConversation(page, conversationId);
+    }
+    const maxPages = Number(options.maxPages ?? 500);
+    const raw = await page.evaluate(getConversationDetailScript(conversationId, maxPages));
+    if (!raw?.ok) {
+        throw new CommandExecutionError(`Doubao full detail capture failed: ${raw?.reason || 'unknown error'} (pages=${raw?.pages || 0}, captured=${raw?.messages?.length || 0})`);
+    }
+    const messages = (raw.messages || [])
+        .map(normalizeDoubaoApiMessage)
+        .sort((a, b) => Number(a.Index) - Number(b.Index));
+    return {
+        messages,
+        meeting: null,
+        captureComplete: true,
+        hasMore: false,
+        pages: raw.pages,
+        messagesTotal: messages.length,
+    };
+}
+function getConversationAssetsScript(conversationId, variant) {
+    return `
+    (() => {
+      const conversationId = ${JSON.stringify(conversationId)};
+      const variant = ${JSON.stringify(variant)};
+      const assets = [];
+      const seen = new Set();
+
+      const clean = (value) => String(value || '').trim();
+      const isHttpUrl = (value) => /^https?:\\/\\//i.test(clean(value));
+      const push = (item) => {
+        const url = clean(item.url);
+        if (!isHttpUrl(url)) return;
+        const key = item.type + ':' + url;
+        if (seen.has(key)) return;
+        seen.add(key);
+        assets.push({
+          type: item.type,
+          url,
+          key: clean(item.key),
+          label: clean(item.label),
+          width: Number(item.width) || 0,
+          height: Number(item.height) || 0,
+          resourceId: clean(item.resourceId),
+          identifier: clean(item.identifier),
+          format: clean(item.format),
+        });
+      };
+
+      const pickUrlObject = (image) => {
+        const candidates = [
+          ['raw', image.image_raw || image.raw_image],
+          ['original', image.image_ori || image.image_original],
+          ['preview', image.preview_img || image.image_preview],
+          ['thumb', image.image_thumb],
+          ['url', image],
+        ];
+        const preferred = candidates.find(([name, value]) => name === variant && isHttpUrl(value?.url));
+        if (preferred) return { label: preferred[0], value: preferred[1] };
+        return candidates
+          .map(([name, value]) => ({ label: name, value }))
+          .find((item) => isHttpUrl(item.value?.url));
+      };
+
+      const pushImage = (image, owner = {}) => {
+        if (!image || typeof image !== 'object') return;
+        const picked = pickUrlObject(image);
+        if (!picked) return;
+        push({
+          type: 'image',
+          url: picked.value.url,
+          key: image.key || owner.key,
+          label: picked.label,
+          width: picked.value.width || image.width,
+          height: picked.value.height || image.height,
+          resourceId: image.resource_id || owner.resource_id,
+          identifier: image.identifier || owner.identifier,
+          format: picked.value.format || image.format,
+        });
+      };
+
+      const looksLikeVideoUrl = (value) => /\\.(?:mp4|m3u8|webm)(?:[?#]|$)|\\/video\\//i.test(value);
+      const visit = (value, owner = {}) => {
+        if (!value) return;
+
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try {
+              visit(JSON.parse(trimmed), owner);
+            } catch {}
+          }
+          return;
+        }
+
+        if (Array.isArray(value)) {
+          for (const item of value) visit(item, owner);
+          return;
+        }
+
+        if (typeof value !== 'object') return;
+        const record = value;
+        const nextOwner = {
+          key: record.key || owner.key,
+          resource_id: record.resource_id || owner.resource_id,
+          identifier: record.identifier || owner.identifier,
+        };
+
+        if (record.entity_content?.image) pushImage(record.entity_content.image, nextOwner);
+        if (record.image) pushImage(record.image, nextOwner);
+        if (record.cover) pushImage(record.cover, nextOwner);
+        if (
+          (record.image_ori || record.image_raw || record.raw_image || record.preview_img || record.image_thumb)
+          && (record.key || record.url || record.image_ori?.url || record.image_raw?.url || record.raw_image?.url)
+        ) {
+          pushImage(record, nextOwner);
+        }
+
+        for (const [key, child] of Object.entries(record)) {
+          if (key === 'download_url' && isHttpUrl(child)) {
+            push({
+              type: looksLikeVideoUrl(child) ? 'video' : 'image',
+              url: child,
+              key: record.vid || record.key || nextOwner.key,
+              label: key,
+              width: record.width,
+              height: record.height,
+              resourceId: record.resource_id || nextOwner.resource_id,
+              identifier: record.identifier || nextOwner.identifier,
+              format: record.video_type || record.format,
+            });
+            continue;
+          }
+
+          if ((key === 'main_url' || key.startsWith('backup_url')) && typeof child === 'string') {
+            try {
+              const decoded = atob(child);
+              if (isHttpUrl(decoded)) {
+                push({
+                  type: looksLikeVideoUrl(decoded) ? 'video' : 'image',
+                  url: decoded,
+                  key: record.file_id || record.vid || nextOwner.key,
+                  label: key,
+                  width: record.vwidth || record.width,
+                  height: record.vheight || record.height,
+                  resourceId: record.resource_id || nextOwner.resource_id,
+                  identifier: record.identifier || nextOwner.identifier,
+                  format: record.vtype || record.video_type || record.format,
+                });
+                continue;
+              }
+            } catch {}
+          }
+
+          visit(child, nextOwner);
+        }
+      };
+
+      const loaderData = window._ROUTER_DATA?.loaderData || {};
+      const scoped = [];
+      const collectScoped = (value, key = '', depth = 0) => {
+        if (!value || typeof value !== 'object' || depth > 6) return;
+        if (
+          key.includes(conversationId)
+          || value.conversationId === conversationId
+          || value.conversation_id === conversationId
+          || value.conversationInfo?.conversation_id === conversationId
+        ) {
+          scoped.push(value);
+          return;
+        }
+        for (const [childKey, childValue] of Object.entries(value)) {
+          collectScoped(childValue, childKey, depth + 1);
+        }
+      };
+      collectScoped(loaderData);
+
+      const roots = scoped.flatMap((root) => {
+        if (root?.messageList) return [root.messageList];
+        if (root?.messages) return [root.messages];
+        return [root];
+      });
+      for (const root of roots) visit(root);
+
+      const domSeen = new Set(assets.map((item) => item.url));
+      const messageList = document.querySelector('[data-testid="message-list"], .conversation-page-message-host, [class*="message-list-"]');
+      const isIgnoredDomImage = (url) => !/^https?:\\/\\//i.test(url)
+        || /doubao_avatar|user-avatar|passport|FileBizType\\.BIZ_BOT_ICON|\\/chat\\/static\\/image\\/intro/i.test(url);
+      (messageList || document).querySelectorAll('img').forEach((img) => {
+        const url = img.currentSrc || img.src || '';
+        const width = img.naturalWidth || img.width || 0;
+        const height = img.naturalHeight || img.height || 0;
+        if (isIgnoredDomImage(url) || domSeen.has(url)) return;
+        if (width > 0 && height > 0 && (width <= 256 || height <= 256)) return;
+        push({ type: 'image', url, label: 'dom', width, height });
+      });
+
+      return assets;
+    })()
+  `;
+}
+export async function getConversationAssets(page, conversationId, options = {}) {
+    const variant = ['original', 'raw', 'preview', 'thumb'].includes(options.variant)
+        ? options.variant
+        : 'original';
     await navigateToConversation(page, conversationId);
-    const raw = await page.evaluate(getConversationDetailScript());
-    const messages = (raw.messages || []).map((m) => ({
-        Role: m.role,
-        Text: m.text,
-        HasMeetingCard: m.hasMeetingCard,
-    }));
-    return { messages, meeting: raw.meeting };
+    const assets = await page.evaluate(getConversationAssetsScript(conversationId, variant));
+    return Array.isArray(assets) ? assets : [];
 }
 // ---------------------------------------------------------------------------
 // Meeting minutes panel helpers
@@ -1140,6 +1662,10 @@ export const __test__ = {
     clickSendButtonScript,
     composerStateScript,
     detectDoubaoVerificationScript,
+    getRecentConversationsScript,
+    getConversationDetailScript,
+    hasConversationDetailResourceScript,
+    getConversationAssetsScript,
     getTurnsScript,
     getTranscriptLinesScript,
 };
