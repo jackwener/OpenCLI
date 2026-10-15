@@ -693,7 +693,7 @@ function clickNewChatScript() {
     })()
   `;
 }
-function openGeminiToolsMenuScript(native = false) {
+function openGeminiToolsMenuScript() {
     return `
     (() => {
       const labels = ['tools', 'tool', 'mode', '研究', 'deep research', 'deep-research', '工具'];
@@ -775,25 +775,12 @@ function openGeminiToolsMenuScript(native = false) {
         return menuMatches[0] || matches[0];
       };
 
-      // The mode picker is a separate menu. Prefer the explicit tools trigger
-      // across the document before accepting the legacy ambiguous "mode" label.
-      const toolsLabels = ['upload and tools', 'tools', 'tool', '上传和工具', '工具'];
-      let target = Array.from(document.querySelectorAll('button, [role="button"]'))
-        .filter(isInteractable)
-        .find((node) => !node.closest('[role="menu"], [role="listbox"]')
-          && (toolsLabels.includes(normalize(node.getAttribute('aria-label')))
-            || toolsLabels.includes(normalize(node.textContent))));
-      if (!target) {
-        for (const root of roots) {
-          target = pickTarget(root);
-          if (target) break;
-        }
+      let target = null;
+      for (const root of roots) {
+        target = pickTarget(root);
+        if (target) break;
       }
       if (target instanceof HTMLElement) {
-        if (${native}) {
-          const rect = target.getBoundingClientRect();
-          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-        }
         target.click();
         return true;
       }
@@ -1138,62 +1125,18 @@ export async function getCurrentGeminiUrl(page) {
 }
 export async function openGeminiToolsMenu(page) {
     await ensureGeminiPage(page);
-    const native = typeof page.nativeClick === 'function';
-    const opened = await page.evaluate(openGeminiToolsMenuScript(native));
-    if (isObjectRecord(opened) && Number.isFinite(opened.x) && Number.isFinite(opened.y)) {
-        await page.nativeClick(opened.x, opened.y);
-    }
+    const opened = await page.evaluate(openGeminiToolsMenuScript());
     if (opened) {
         await page.wait(0.5);
         return true;
     }
     return false;
 }
-async function selectGeminiToolAttempt(page, labels) {
+export async function selectGeminiTool(page, labels) {
     await ensureGeminiPage(page);
     await openGeminiToolsMenu(page);
-    let matched = await page.evaluate(selectGeminiToolScript(labels));
-    if (typeof matched === 'string' && matched) return matched;
-    // Current tools drawer nests Deep Research and Canvas under More tools.
-    const openedMore = await page.evaluate(`(() => {
-        const menus = Array.from(document.querySelectorAll('[role="menu"], [role="listbox"]'));
-        for (const menu of menus) {
-            for (const node of menu.querySelectorAll('button, [role="menuitem"], [role="button"]')) {
-                if (!(node instanceof HTMLElement) || node.closest('[hidden], [aria-hidden="true"]')) continue;
-                if (node.hasAttribute('disabled') || node.getAttribute('aria-disabled') === 'true') continue;
-                const style = getComputedStyle(node);
-                const rect = node.getBoundingClientRect();
-                if (style.display === 'none' || style.visibility === 'hidden' || !rect.width || !rect.height) continue;
-                const label = (node.getAttribute('aria-label') || node.textContent || '').trim().toLowerCase();
-                if (label !== 'more tools' && label !== '更多工具') continue;
-                if (${typeof page.cdp === 'function'}) return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-                node.click();
-                return true;
-            }
-        }
-        return false;
-    })()`);
-    if (isObjectRecord(openedMore) && Number.isFinite(openedMore.x) && Number.isFinite(openedMore.y)) {
-        await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: openedMore.x, y: openedMore.y });
-    }
-    if (openedMore) {
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-            await page.wait(0.5);
-            matched = await page.evaluate(selectGeminiToolScript(labels));
-            if (typeof matched === 'string' && matched) return matched;
-        }
-    }
+    const matched = await page.evaluate(selectGeminiToolScript(labels));
     return typeof matched === 'string' ? matched : '';
-}
-export async function selectGeminiTool(page, labels) {
-    // The drawer can be dismissed by the initial page render. Retry only menu
-    // discovery; stop immediately once an item has been selected.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        const matched = await selectGeminiToolAttempt(page, labels);
-        if (matched) return matched;
-        if (attempt < 2) await page.wait(1);
-    }
-    return '';
 }
 export async function waitForGeminiConfirmButton(page, labels, timeoutSeconds) {
     await ensureGeminiPage(page);

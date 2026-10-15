@@ -115,7 +115,6 @@ opencli gemini models -f json
 - You are already logged into `gemini.google.com`
 - [Browser Bridge extension](/guide/browser-bridge) is installed
 
-- Deep Research selection supports the nested **More tools / 更多工具** drawer.
 - Account identity detection supports localized Google account labels.
 
 ## Caveats
