@@ -1,0 +1,91 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { JSDOM } from 'jsdom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { uploadChatGPTFiles, sendChatGPTMessage, getVisibleMessages } from './utils.js';
+const dirs = [];
+const doms = [];
+afterEach(() => { for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive:true,force:true }); for(const dom of doms.splice(0))dom.window.close(); });
+function fixture(extra = '', form = '') {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencli-file-scope-')); dirs.push(dir);
+  const file = path.join(dir, 'notes.txt'); fs.writeFileSync(file, 'Synthetic attachment');
+  const dom = new JSDOM(`${extra}<form data-chatgpt-composer><div id="prompt-textarea" class="ProseMirror" contenteditable="true" role="textbox"><p><br></p></div><input type="file">${form}<button data-testid="send-button">Send</button></form>`,{url:'https://chatgpt.com/c/test-conversation',runScripts:'outside-only'});
+  doms.push(dom);
+  const document = dom.window.document;
+  for(const node of document.querySelectorAll('*')){
+    node.getBoundingClientRect=()=>({left:10,top:10,width:120,height:36});
+    node.scrollIntoView=()=>{};
+    Object.defineProperty(node,'isContentEditable',{get:()=>node.getAttribute('contenteditable')==='true'});
+  }
+  const page={evaluate:vi.fn(async script=>dom.window.eval(script)),sleep:vi.fn(),wait:vi.fn(),setFileInput:vi.fn()};
+  return {page,dom,document,file,scope:document.querySelector('form[data-chatgpt-composer]')};
+}
+function chip(document,scope,name='notes.txt') {const n=document.createElement('div');n.setAttribute('role','group');n.setAttribute('aria-label',name);n.getBoundingClientRect=()=>({width:120,height:36});scope.append(n);return n;}
+describe('ChatGPT file upload scope',()=>{
+  it('pins the upload input to the active composer instead of an earlier unrelated input',async()=>{
+    const f=fixture('<form id="other"><input type="file"></form>');
+    f.page.setFileInput.mockImplementation(async(files,selector)=>{
+      expect(f.document.querySelector(selector)).toBe(f.scope.querySelector('input'));
+      chip(f.document,f.scope);
+    });
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:true});
+  });
+  it('selects the document input when camera and photo inputs precede it',async()=>{
+    const f=fixture();
+    for(const html of ['<input type="file" accept="image/*" capture>','<input type="file" accept="image/*,video/*">'])f.scope.insertAdjacentHTML('afterbegin',html);
+    f.page.setFileInput.mockImplementation(async(files,selector)=>{expect(f.document.querySelector(selector).getAttribute('accept')).toBeNull();chip(f.document,f.scope);});
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:true});
+  });
+  it.each(['<article><div role="group" aria-label="notes.txt">notes.txt</div></article>','<img src="avatar.png">','<form><div role="group" aria-label="notes.txt">notes.txt</div></form>'])('ignores historical text, old media and unrelated forms: %s',async html=>{
+    const f=fixture(html);
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:false});
+  });
+  it('recognizes modern attachment buttons only inside the composer attachment surface',async()=>{
+    const f=fixture();f.page.setFileInput.mockImplementation(async()=>{
+      f.scope.insertAdjacentHTML('beforeend','<div data-composer-attachments><span class="group/composer-attachment"><button aria-label="notes.txt"></button><button aria-label="Remove notes.txt"></button></span></div>');
+      f.scope.querySelector('[data-composer-attachments] button').getBoundingClientRect=()=>({width:120,height:36});
+    });
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:true});
+  });
+  it('accepts a server deduplication suffix on a newly uploaded filename',async()=>{
+    const f=fixture();f.page.setFileInput.mockImplementation(async()=>chip(f.document,f.scope,'notes(1).txt'));
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:true});
+  });
+  it('does not accept a different filename containing the requested name',async()=>{
+    const f=fixture();f.page.setFileInput.mockImplementation(async()=>chip(f.document,f.scope,'notes-extra.txt'));
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:false});
+  });
+  it('ignores an existing attachment with the same filename',async()=>{
+    const f=fixture('', '<div role="group" aria-label="notes.txt">notes.txt</div>');
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:false});
+  });
+  it('waits for a new aria-only attachment to finish uploading',async()=>{
+    const f=fixture();let n;
+    f.page.setFileInput.mockImplementation(async()=>{n=chip(f.document,f.scope);n.setAttribute('aria-busy','true');});
+    let polls=0;f.page.sleep.mockImplementation(async()=>{if(++polls===3)n.removeAttribute('aria-busy');});
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:true});
+    expect(polls).toBe(3);
+  });
+  it.each(['hidden','aria-hidden','error','progress'])('rejects a new %s attachment',async state=>{
+    const f=fixture();f.page.setFileInput.mockImplementation(async()=>{const n=chip(f.document,f.scope);if(state==='hidden')n.hidden=true;else if(state==='aria-hidden')n.setAttribute('aria-hidden','true');else n.innerHTML=state==='error'?'<span role="alert">Failed</span>':'<span role="progressbar"></span>';});
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:false});
+  });
+  it('rejects an ambiguous portal input before uploading',async()=>{
+    const f=fixture('<input type="file"><input type="file">');f.scope.querySelector('input').remove();
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:false});
+    expect(f.page.setFileInput).not.toHaveBeenCalled();
+  });
+  it('does not turn body role-like headings into message metadata',async()=>{
+    const f=fixture('<h4>You said:</h4><p>Unrelated</p><div data-chatgpt-search-unit-key="turn:assistant"><h4 data-conversation-role="assistant">ChatGPT said:</h4><div data-markdown-text-style="assistant-message"><h4>You said:</h4><p>Quoted example</p></div></div>');
+    expect((await getVisibleMessages(f.page)).map(({Role,Text})=>({Role,Text}))).toEqual([{Role:'Assistant',Text:'You said:Quoted example'}]);
+  });
+  it('fallback input and submission use the same visible composer despite hidden and unrelated candidates',async()=>{
+    const f=fixture('<form id="unrelated"><button data-testid="send-button">Wrong</button></form><div contenteditable="true" role="textbox" style="display:none">Hidden</div>');
+    f.document.execCommand=vi.fn(()=>true);
+    const correct=vi.fn();const wrong=vi.fn();f.scope.querySelector('button').onclick=correct;f.document.querySelector('#unrelated button').onclick=wrong;
+    await expect(sendChatGPTMessage(f.page,'Synthetic prompt')).resolves.toBe(true);
+    expect(f.document.activeElement).toBe(f.scope.querySelector('[contenteditable]'));
+    expect(correct).toHaveBeenCalledTimes(1);expect(wrong).not.toHaveBeenCalled();
+  });
+});

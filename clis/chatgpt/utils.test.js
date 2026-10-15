@@ -1412,7 +1412,7 @@ describe('chatgpt send selectors', () => {
             nativeClick: vi.fn().mockResolvedValue(undefined),
             nativeType: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
-                if (script.includes('findComposer')) return Promise.resolve({ ready: true, x: 12, y: 34 });
+                if (script.includes('findComposer') && !script.includes('sendBtn')) return Promise.resolve({ ready: true, x: 12, y: 34 });
                 if (script.includes('sendBtnFound')) {
                     expect(script).toContain('data-testid=\\\"send-button\\\"');
                     return Promise.resolve({ sendBtnFound: true });
@@ -1433,7 +1433,7 @@ describe('chatgpt send selectors', () => {
             wait: vi.fn().mockResolvedValue(undefined),
             nativeType: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn((script) => {
-                if (script.includes('findComposer')) return Promise.resolve({ ready: true, x: 12, y: 34 });
+                if (script.includes('findComposer') && !script.includes('sendBtn')) return Promise.resolve({ ready: true, x: 12, y: 34 });
                 if (script.includes('sendBtnFound')) {
                     expect(script).toContain('#composer-submit-button:not([disabled])');
                     return Promise.resolve({ sendBtnFound: true });
