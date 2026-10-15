@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { __test__, isLoggedIn, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage } from './utils.js';
+import { JSDOM } from 'jsdom';
+import { __test__, isLoggedIn, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage, waitForAnswer } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {
     const id = '7c4197f2-10a1-4ebb-a84a-fea89f4f1d06';
@@ -189,5 +190,83 @@ describe('grok sendMessage', () => {
         expect(script).toContain('[data-testid="user-message"]');
         expect(script).toContain("submittedVia: 'submit-button'");
         expect(script).toContain("submittedVia: 'enter-key'");
+    });
+});
+
+describe('grok sendMessage with a formatted prompt', () => {
+    async function submitPrompt(prompt, renderedUserText) {
+        const dom = new JSDOM(
+            '<!doctype html><body><div id="response-old"><div data-testid="user-message">earlier question</div></div>'
+            + '<div class="ProseMirror" contenteditable="true"></div>'
+            + '<button data-testid="chat-submit">Submit</button></body>',
+            { runScripts: 'outside-only' },
+        );
+        const { window } = dom;
+        Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 }),
+        });
+        const noop = () => true;
+        window.document.querySelector('.ProseMirror').editor = {
+            commands: { focus: noop, clearContent: noop, insertContent: noop },
+        };
+        // Grok shows the markdown-rendered prompt: fences lose their backticks.
+        window.document.querySelector('button').addEventListener('click', () => {
+            const turn = window.document.createElement('div');
+            turn.setAttribute('data-testid', 'user-message');
+            turn.textContent = renderedUserText;
+            window.document.body.append(turn);
+        });
+        const page = { evaluate: async (script) => window.eval(script) };
+        return sendMessage(page, prompt);
+    }
+
+    it('accepts the rendered bubble of a prompt that contains a code fence', async () => {
+        const prompt = 'Revisa esta funcion Python que reparte el alquiler.\n\n```python\ndef repartir(x):\n    return x\n```\nSe conciso.';
+        const rendered = 'Revisa esta funcion Python que reparte el alquiler.\n\npython\ndef repartir(x):\n    return x\nSe conciso.';
+        await expect(submitPrompt(prompt, rendered)).resolves.toEqual({ ok: true, submittedVia: 'submit-button' });
+    });
+
+    it('accepts the rendered bubble of a prompt that starts with a code fence', async () => {
+        const prompt = '```python\ndef repartir(x):\n    return x\n```\nRevisa esta funcion.';
+        const rendered = 'python\ndef repartir(x):\n    return x\nRevisa esta funcion.';
+        await expect(submitPrompt(prompt, rendered)).resolves.toEqual({ ok: true, submittedVia: 'submit-button' });
+    });
+});
+
+describe('grok waitForAnswer', () => {
+    function createPage(steps) {
+        // Each step is one poll: the assistant bubble text and whether the action bar has buttons.
+        let index = 0;
+        return {
+            wait: vi.fn(async () => undefined),
+            evaluate: vi.fn(async (script) => {
+                const step = steps[Math.min(index, steps.length - 1)];
+                if (String(script).includes('.action-buttons')) {
+                    const generating = step.generating;
+                    index += 1;
+                    return generating;
+                }
+                return [{ id: 'abc-assistant', role: 'Assistant', text: step.text, html: '' }];
+            }),
+        };
+    }
+
+    it('keeps waiting while the response is still generating, even if the text is stable', async () => {
+        const page = createPage([
+            { text: 'Analizando la funcion Worked for 18s', generating: true },
+            { text: 'Analizando la funcion Worked for 18s', generating: true },
+            { text: 'Analizando la funcion Worked for 18s', generating: true },
+            { text: 'Fallos reales: 1. recibos=[]', generating: false },
+            { text: 'Fallos reales: 1. recibos=[]', generating: false },
+            { text: 'Fallos reales: 1. recibos=[]', generating: false },
+        ]);
+        const now = vi.spyOn(Date, 'now');
+        let clock = 0;
+        now.mockImplementation(() => (clock += 3_000));
+        const result = await waitForAnswer(page, 'prompt', 60, '');
+        now.mockRestore();
+        expect(result.status).toBe('ok');
+        expect(result.assistant.text).toBe('Fallos reales: 1. recibos=[]');
     });
 });

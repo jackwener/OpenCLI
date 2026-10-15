@@ -503,12 +503,18 @@ export async function sendMessage(page, prompt) {
     const promptText = normalize(${promptJson});
     const beforeTurns = userTurns();
     const beforeKeys = new Set(beforeTurns.map((turn) => turn.id + '\\n' + turn.text));
+    // Grok renders markdown in the user bubble (code fences lose their backticks,
+    // lists become elements), so a formatted prompt never equals its rendered
+    // text. Compare the opening of the prompt with markdown backticks removed.
+    const comparable = (value) => value.replace(/\\x60/g, '').replace(/\\s+/g, ' ').trim();
+    const promptHead = comparable(promptText).slice(0, 40);
+    const matchesPrompt = (text) => text === promptText || comparable(text).startsWith(promptHead);
     const waitForSubmittedUserTurn = async () => {
-      for (let attempt = 0; attempt < 20; attempt += 1) {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
         const turns = userTurns();
         const latest = turns[turns.length - 1];
-        const hasNewMatchingTurn = turns.some((turn) => turn.text === promptText && !beforeKeys.has(turn.id + '\\n' + turn.text));
-        const appendedMatchingTurn = turns.length > beforeTurns.length && latest?.text === promptText;
+        const hasNewMatchingTurn = turns.some((turn) => matchesPrompt(turn.text) && !beforeKeys.has(turn.id + '\\n' + turn.text));
+        const appendedMatchingTurn = turns.length > beforeTurns.length && latest && matchesPrompt(latest.text);
         if (hasNewMatchingTurn || appendedMatchingTurn) return true;
         await waitFor(250);
       }
@@ -610,6 +616,22 @@ function stripNoise(text) {
         .trim();
 }
 
+// A response is still being generated while its action bar (copy, regenerate,
+// …) is rendered but empty; the buttons only appear once the model is done.
+// The reasoning summary ("Working for 14s") can sit unchanged for several
+// seconds before the answer streams, so text stability alone is not enough.
+// Without a recognizable action bar (markup change, positional ids) this
+// returns false and the caller falls back to text stability.
+export async function isAssistantTurnGenerating(page, bubbleId) {
+    const idJson = JSON.stringify(String(bubbleId || '').replace(/-assistant$/, ''));
+    const result = await page.evaluate(`(() => {
+    const turn = document.getElementById('response-' + ${idJson});
+    const bar = turn && turn.querySelector('.action-buttons');
+    return !!bar && bar.querySelectorAll('button').length === 0;
+  })()`);
+    return result === true;
+}
+
 export async function waitForAnswer(page, prompt, timeoutSeconds, baselineLastAssistantId) {
     const startTime = Date.now();
     let previousText = '';
@@ -629,7 +651,8 @@ export async function waitForAnswer(page, prompt, timeoutSeconds, baselineLastAs
         const waitedLongEnough = Date.now() - startTime >= MIN_WAIT_MS;
         if (text === previousText) {
             stableCount += 1;
-            if (waitedLongEnough && stableCount >= STABLE_POLLS_REQUIRED) {
+            if (waitedLongEnough && stableCount >= STABLE_POLLS_REQUIRED
+                && !(await isAssistantTurnGenerating(page, lastAssistant.id))) {
                 return { status: 'ok', assistant: lastAssistant };
             }
         } else {
