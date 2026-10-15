@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ArgumentError } from '@jackwener/opencli/errors';
-import { __test__, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage } from './utils.js';
+import { __test__, isLoggedIn, isOnGrok, normalizeBooleanFlag, parseGrokSessionId, sendMessage } from './utils.js';
 
 describe('grok parseGrokSessionId', () => {
     const id = '7c4197f2-10a1-4ebb-a84a-fea89f4f1d06';
@@ -116,6 +116,58 @@ describe('grok getPinStateFromMenuLabels', () => {
     it('returns empty string when neither state label is visible', () => {
         expect(__test__.getPinStateFromMenuLabels(['Open in new tab', 'Delete'])).toBe('');
         expect(__test__.getPinStateFromMenuLabels([])).toBe('');
+    });
+});
+
+describe('grok isLoggedIn', () => {
+    function createPage(states) {
+        const queue = [...states];
+        return {
+            evaluate: vi.fn(async () => (queue.length > 1 ? queue.shift() : queue[0])),
+            wait: vi.fn(async () => undefined),
+        };
+    }
+
+    it('returns true immediately when the composer is already visible', async () => {
+        const page = createPage(['in']);
+        await expect(isLoggedIn(page)).resolves.toBe(true);
+        expect(page.wait).not.toHaveBeenCalled();
+    });
+
+    it('keeps polling while the composer has not painted yet', async () => {
+        const page = createPage(['pending', 'pending', 'pending', 'in']);
+        await expect(isLoggedIn(page)).resolves.toBe(true);
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.wait).toHaveBeenCalledTimes(3);
+    });
+
+    it('returns false right away when a sign-in button is visible', async () => {
+        const page = createPage(['out']);
+        await expect(isLoggedIn(page)).resolves.toBe(false);
+        expect(page.wait).not.toHaveBeenCalled();
+    });
+
+    it('gives up after the poll window when the composer never appears', async () => {
+        const page = createPage(['pending']);
+        await expect(isLoggedIn(page, 3)).resolves.toBe(false);
+        expect(page.evaluate).toHaveBeenCalledTimes(4);
+        expect(page.wait).toHaveBeenCalledTimes(3);
+    });
+
+    it('detects the composer and the sign-in button in the page probe', async () => {
+        const { JSDOM } = await import('jsdom');
+        const probe = async (html) => {
+            const { window } = new JSDOM(`<!doctype html><body>${html}</body>`, { runScripts: 'outside-only' });
+            Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+                configurable: true,
+                value: () => ({ width: 100, height: 20, top: 0, left: 0, right: 100, bottom: 20 }),
+            });
+            const page = { evaluate: async (script) => window.eval(script), wait: vi.fn(async () => undefined) };
+            return isLoggedIn(page, 0);
+        };
+        expect(await probe('<div class="ProseMirror" contenteditable="true"></div>')).toBe(true);
+        expect(await probe('<div class="ProseMirror" contenteditable="true"></div><button>Sign in</button>')).toBe(false);
+        expect(await probe('<p>loading</p>')).toBe(false);
     });
 });
 

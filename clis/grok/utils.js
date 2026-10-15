@@ -82,21 +82,32 @@ export async function ensureOnGrok(page) {
     await page.wait(2);
 }
 
-export async function isLoggedIn(page) {
+// Seconds to wait for grok.com to paint the composer before treating the
+// session as signed out. A busy or background tab can take well over a second.
+const LOGIN_PROBE_TIMEOUT_SECONDS = 20;
+
+async function probeLoginState(page) {
     // Composer presence is the most reliable signed-in marker — when the user
     // is signed out, grok.com renders a sign-in CTA in place of the chat
     // composer rather than the TipTap editor.
-    const result = await page.evaluate(`(() => {
+    return page.evaluate(`(() => {
     ${IS_VISIBLE_JS}
+    const signInCta = Array.from(document.querySelectorAll('button, a'))
+      .some((node) => isVisible(node) && /^(sign in|log in)$/i.test((node.textContent || '').trim()));
+    if (signInCta) return 'out';
     const composer = document.querySelector('.ProseMirror[contenteditable="true"]');
-    if (composer && isVisible(composer)) {
-      const signInCta = Array.from(document.querySelectorAll('button, a'))
-        .some((node) => isVisible(node) && /^(sign in|log in)$/i.test((node.textContent || '').trim()));
-      return !signInCta;
-    }
-    return false;
+    return composer && isVisible(composer) ? 'in' : 'pending';
   })()`);
-    return Boolean(result);
+}
+
+export async function isLoggedIn(page, timeoutSeconds = LOGIN_PROBE_TIMEOUT_SECONDS) {
+    for (let waited = 0; ; waited += 1) {
+        const state = await probeLoginState(page);
+        if (state === 'in') return true;
+        // A visible sign-in CTA is a definite answer; only a missing composer is worth waiting for.
+        if (state === 'out' || waited >= timeoutSeconds) return false;
+        await page.wait(1);
+    }
 }
 
 export async function getCurrentSessionId(page) {
