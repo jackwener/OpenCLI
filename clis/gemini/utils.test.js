@@ -181,6 +181,40 @@ describe('gemini turn normalization', () => {
         ]);
     });
 });
+describe('gemini submit button selection', () => {
+    function runSubmitScript(labels) {
+        const buttons = labels.map((label) => `<button aria-label="${label}">${label}</button>`).join('');
+        const dom = new JSDOM(`<!doctype html><body><form><div class="ql-editor" contenteditable="true" role="textbox"></div>${buttons}</form></body>`, {
+            pretendToBeVisual: true,
+            runScripts: 'outside-only',
+        });
+        const { window } = dom;
+        // jsdom has no layout: the composer spans the row and every button sits at its right edge.
+        Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value() {
+                return this.classList.contains('ql-editor')
+                    ? { width: 600, height: 40, top: 0, left: 0, right: 600, bottom: 40 }
+                    : { width: 40, height: 40, top: 0, left: 560, right: 600, bottom: 40 };
+            },
+        });
+        const clicked = [];
+        window.document.querySelectorAll('button').forEach((button) => {
+            button.addEventListener('click', () => clicked.push(button.getAttribute('aria-label')));
+        });
+        const method = window.eval(__test__.submitComposerScript());
+        return { method, clicked };
+    }
+    it('clicks the Spanish send button instead of the dictation button', () => {
+        expect(runSubmitScript(['Dictar', 'Enviar mensaje'])).toEqual({ method: 'button', clicked: ['Enviar mensaje'] });
+    });
+    it('clicks the English send button instead of the dictation button', () => {
+        expect(runSubmitScript(['Dictate', 'Send message'])).toEqual({ method: 'button', clicked: ['Send message'] });
+    });
+    it('does not click a Spanish tools or microphone button when no send button is present', () => {
+        expect(runSubmitScript(['Herramientas', 'Micrófono'])).toEqual({ method: 'enter', clicked: [] });
+    });
+});
 describe('gemini evaluate result boundaries', () => {
     function runExpandRecentScript(buttonHtml) {
         const dom = new JSDOM(`<!doctype html><body>${buttonHtml}</body>`, {
