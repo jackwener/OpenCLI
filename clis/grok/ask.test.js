@@ -26,4 +26,31 @@ describe('grok ask helpers', () => {
             ]))).toBe('');
         });
     });
+
+    describe('rereadFinalAnswer', () => {
+        const fakePage = (url, bubbles) => {
+            const visited = [];
+            return {
+                visited,
+                evaluate: (expr) => Promise.resolve(expr === 'window.location.href' ? url : bubbles),
+                goto: (target) => { visited.push(target); return Promise.resolve(); },
+                wait: () => Promise.resolve(),
+            };
+        };
+
+        it('reloads the conversation and returns the last assistant text in full', async () => {
+            const page = fakePage('https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc', [
+                { id: 'u1-user', role: 'User', text: 'question', html: '' },
+                { id: 'a1-assistant', role: 'Assistant', text: 'the whole answer, not cut mid-sentence', html: '' },
+            ]);
+            expect(await __test__.rereadFinalAnswer(page)).toBe('the whole answer, not cut mid-sentence');
+            expect(page.visited).toEqual(['https://grok.com/c/0f3c6a52-1b2c-4d5e-8f90-123456789abc']);
+        });
+
+        it('returns an empty string when the tab is not on a conversation', async () => {
+            const page = fakePage('https://grok.com/', []);
+            expect(await __test__.rereadFinalAnswer(page)).toBe('');
+            expect(page.visited).toEqual([]);
+        });
+    });
 });
