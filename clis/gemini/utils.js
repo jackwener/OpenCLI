@@ -22,6 +22,9 @@ const GEMINI_RESPONSE_NOISE_PATTERNS = [
     /Google Terms/gi,
     /Google Privacy Policy/gi,
     /Opens in a new window/gi,
+    /Gemini es una IA y puede cometer errores,? incluso sobre personas\.?/gi,
+    /Tu privacidad y Gemini/gi,
+    /Se abre en una ventana nueva/gi,
 ];
 const GEMINI_TRANSCRIPT_CHROME_MARKERS = ['gemini', '我的内容', '对话', 'google terms', 'google privacy policy'];
 const GEMINI_COMPOSER_SELECTORS = [
@@ -305,6 +308,8 @@ function isGeneratingExpression() {
         const aria = (node.getAttribute('aria-label') || '').trim().toLowerCase();
         return text === 'stop response'
           || aria === 'stop response'
+          || text === 'detener respuesta'
+          || aria === 'detener respuesta'
           || text === '停止回答'
           || aria === '停止回答';
       })`;
@@ -399,6 +404,7 @@ function getTranscriptLinesScript() {
         /^Google Terms$/,
         /^Google Privacy Policy$/,
         /^Gemini is AI and can make mistakes\.?$/,
+        /^Gemini es una IA y puede cometer errores/,
         /^and the$/,
         /^apply\.$/,
         /^Opens in a new window$/,

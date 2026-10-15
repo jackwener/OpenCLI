@@ -650,3 +650,33 @@ describe('Gemini model/thinking selection Browser Bridge envelopes', () => {
         await expect(selectGeminiModel(page, '2.5-flash')).rejects.toBeInstanceOf(CommandExecutionError);
     });
 });
+describe('gemini Spanish UI reply handling', () => {
+    function readSnapshot(html) {
+        const dom = new JSDOM(`<!doctype html><body><main>${html}</main><div class="ql-editor" contenteditable="true" role="textbox"></div></body>`, {
+            pretendToBeVisual: true,
+            runScripts: 'outside-only',
+        });
+        const { window } = dom;
+        Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ width: 100, height: 24, top: 0, left: 0, right: 100, bottom: 24 }),
+        });
+        return window.eval(__test__.readGeminiSnapshotScript());
+    }
+    it('detects the Spanish stop button as generating', () => {
+        expect(readSnapshot('<button aria-label="Detener respuesta">Detener respuesta</button>').isGenerating).toBe(true);
+        expect(readSnapshot('<button aria-label="Stop response">Stop response</button>').isGenerating).toBe(true);
+        expect(readSnapshot('<button aria-label="Enviar mensaje">Enviar mensaje</button>').isGenerating).toBe(false);
+    });
+    it('drops the Spanish disclaimer footer from replies', () => {
+        const footer = 'Gemini es una IA y puede cometer errores, incluso sobre personas. Tu privacidad y GeminiSe abre en una ventana nueva';
+        expect(sanitizeGeminiResponseText(`recibo["n"] = i\n${footer}`, 'otro prompt')).toBe('recibo["n"] = i');
+    });
+    it('drops the Spanish disclaimer footer from transcript lines', () => {
+        const dom = new JSDOM('<!doctype html><body><main>Hola\nGemini es una IA y puede cometer errores, incluso sobre personas.</main></body>', {
+            runScripts: 'outside-only',
+        });
+        const lines = dom.window.eval(`(${__test__.readGeminiSnapshotScript().trim()})`);
+        expect(lines.transcriptLines).toEqual(['Hola']);
+    });
+});
