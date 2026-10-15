@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { ArgumentError } from '@jackwener/opencli/errors';
 import {
   selectModel,
+  sendMessage,
   sendWithFile,
   parseThinkingResponse,
   parseDeepSeekConversationId,
@@ -243,6 +245,56 @@ describe('deepseek selectModel', () => {
 
     const result = await selectModel(page, 'turbo');
     expect(result).toEqual({ ok: false });
+  });
+});
+
+describe('deepseek sendMessage', () => {
+  async function runSendMessage(composerHtml) {
+    const dom = new JSDOM(
+      `<!doctype html><body><div class="composer"><textarea placeholder="Message DeepSeek"></textarea>${composerHtml}</div></body>`,
+      { runScripts: 'outside-only' },
+    );
+    const { window } = dom;
+    // jsdom has no execCommand; emulate insertText on the focused textarea.
+    window.document.execCommand = (command, _ui, value) => {
+      if (command === 'insertText') window.document.querySelector('textarea').value = value;
+      return true;
+    };
+    const clicked = [];
+    window.document.querySelectorAll('button, [role="button"]').forEach((node) => {
+      node.addEventListener('click', () => clicked.push(node.getAttribute('data-id')));
+    });
+    const keys = [];
+    window.document.querySelector('textarea').addEventListener('keydown', (event) => keys.push(event.key));
+    const page = { evaluate: vi.fn(async (script) => window.eval(script)) };
+    const result = await sendMessage(page, 'hello');
+    return { result, clicked, keys };
+  }
+
+  it('clicks the ds-button--primary send button of the current composer', async () => {
+    const { result, clicked, keys } = await runSendMessage(
+      '<div role="button" class="ds-toggle-button" data-id="think"></div>'
+      + '<button class="ds-button ds-button--primary" data-id="send"><svg></svg></button>',
+    );
+    expect(result).toEqual({ ok: true });
+    expect(clicked).toEqual(['send']);
+    expect(keys).toEqual([]);
+  });
+
+  it('falls back to Enter when the send button is disabled', async () => {
+    const { result, clicked, keys } = await runSendMessage(
+      '<button class="ds-button ds-button--primary" data-id="send" disabled><svg></svg></button>',
+    );
+    expect(result).toEqual({ ok: true, method: 'enter' });
+    expect(clicked).toEqual([]);
+    expect(keys).toEqual(['Enter']);
+  });
+
+  it('still clicks the legacy div[role=button] send button', async () => {
+    const { clicked } = await runSendMessage(
+      '<div role="button" class="ds-icon-button" data-id="send" aria-disabled="false"><svg></svg></div>',
+    );
+    expect(clicked).toEqual(['send']);
   });
 });
 

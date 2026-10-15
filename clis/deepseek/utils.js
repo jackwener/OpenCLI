@@ -108,15 +108,18 @@ export async function sendMessage(page, prompt) {
         document.execCommand('insertText', false, ${promptJson});
         await new Promise(r => setTimeout(r, 800));
 
-        // Find the send button: last non-toggle button in the textarea's container
+        // Find the send button: last non-toggle button in the textarea's container.
+        // The composer buttons are <button class="ds-button ds-button--primary"> on
+        // the current UI and were div[role="button"] before.
+        var SEND = 'button.ds-button--primary, div[role="button"]:not(.ds-toggle-button)';
         var container = box.parentElement;
-        while (container && !container.querySelector('div[role="button"]')) {
+        while (container && !container.querySelector(SEND)) {
             container = container.parentElement;
         }
         if (container) {
-            var btns = container.querySelectorAll('div[role="button"]:not(.ds-toggle-button)');
+            var btns = container.querySelectorAll(SEND);
             var sendBtn = btns[btns.length - 1];
-            if (sendBtn && sendBtn.getAttribute('aria-disabled') === 'false'
+            if (sendBtn && sendBtn.getAttribute('aria-disabled') !== 'true' && !sendBtn.disabled
                 && sendBtn.querySelectorAll('svg').length > 0) {
                 sendBtn.click();
                 return { ok: true };
