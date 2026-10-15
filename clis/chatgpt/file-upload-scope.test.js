@@ -23,6 +23,33 @@ function fixture(extra = '', form = '') {
 }
 function chip(document,scope,name='notes.txt') {const n=document.createElement('div');n.setAttribute('role','group');n.setAttribute('aria-label',name);n.getBoundingClientRect=()=>({width:120,height:36});scope.append(n);return n;}
 describe('ChatGPT file upload scope',()=>{
+  it('transfers files larger than the bridge request limit in bounded chunks and commits exact bytes once',async()=>{
+    const f=fixture();
+    const bytes=Buffer.alloc(1200001);for(let i=0;i<bytes.length;i++)bytes[i]=i%251;fs.writeFileSync(f.file,bytes);
+    const second=path.join(path.dirname(f.file),'empty.txt');fs.writeFileSync(second,'');
+    const input=f.scope.querySelector('input');Object.defineProperty(input,'files',{writable:true,value:[]});
+    f.dom.window.File=File;
+    f.dom.window.DataTransfer=class {constructor(){this.files=[];this.items={add:file=>this.files.push(file)};}};
+    const changed=vi.fn(()=>{chip(f.document,f.scope);chip(f.document,f.scope,'empty.txt');});
+    input.__reactProps$test={onChange:changed};
+    f.page.setFileInput.mockRejectedValue(new Error('fileChooserOpened not received within 5s'));
+    await expect(uploadChatGPTFiles(f.page,[f.file,second])).resolves.toMatchObject({ok:true});
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(input.files.map(file=>file.name)).toEqual(['notes.txt','empty.txt']);
+    expect(Buffer.from(await input.files[0].arrayBuffer())).toEqual(bytes);
+    expect(input.files[1].size).toBe(0);
+    expect(Math.max(...f.page.evaluate.mock.calls.map(([script])=>Buffer.byteLength(JSON.stringify({code:script}))))).toBeLessThan(400000);
+    expect(input.__opencliFileChunks).toBeUndefined();
+  });
+  it('cleans staged chunks and never commits or confirms a partial transfer',async()=>{
+    const f=fixture();const input=f.scope.querySelector('input');
+    f.page.setFileInput.mockRejectedValue(new Error('fileChooserOpened not received within 5s'));
+    const evaluate=f.page.evaluate.getMockImplementation();
+    f.page.evaluate.mockImplementation(async script=>{if(script.includes('.chunks[0] ='))throw new Error('transport interrupted');return evaluate(script);});
+    await expect(uploadChatGPTFiles(f.page,[f.file])).rejects.toThrow('transport interrupted');
+    expect(input.files.length).toBe(0);
+    expect(input.__opencliFileChunks).toBeUndefined();
+  });
   it('pins the upload input to the active composer instead of an earlier unrelated input',async()=>{
     const f=fixture('<form id="other"><input type="file"></form>');
     f.page.setFileInput.mockImplementation(async(files,selector)=>{
@@ -45,6 +72,14 @@ describe('ChatGPT file upload scope',()=>{
     const f=fixture();f.page.setFileInput.mockImplementation(async()=>{
       f.scope.insertAdjacentHTML('beforeend','<div data-composer-attachments><span class="group/composer-attachment"><button aria-label="notes.txt"></button><button aria-label="Remove notes.txt"></button></span></div>');
       f.scope.querySelector('[data-composer-attachments] button').getBoundingClientRect=()=>({width:120,height:36});
+    });
+    await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:true});
+  });
+  it('accepts current image role-button cards only within the active composer attachment surface',async()=>{
+    const f=fixture('<div role="button" aria-label="notes.txt">Unrelated history</div>');
+    f.page.setFileInput.mockImplementation(async()=>{
+      f.scope.insertAdjacentHTML('beforeend','<div data-composer-attachments><div role="button" class="group/composer-attachment" aria-label="notes.txt"><img alt="notes.txt"></div></div>');
+      f.scope.querySelector('[role="button"]').getBoundingClientRect=()=>({width:120,height:36});
     });
     await expect(uploadChatGPTFiles(f.page,[f.file])).resolves.toMatchObject({ok:true});
   });

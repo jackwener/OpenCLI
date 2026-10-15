@@ -2632,7 +2632,7 @@ export async function uploadChatGPTFiles(page, filePaths) {
             .filter(node => acceptsFiles(node) && !node.closest('[role="dialog"], [data-project-home-sources-surface]'));
         if (inputs.length !== 1) return { ok: false, reason: 'file input is missing or ambiguous' };
         inputs[0].setAttribute('data-opencli-file-input', '1');
-        scope.querySelectorAll('[role="group"][aria-label], [data-composer-attachments] button[aria-label]').forEach(node => node.setAttribute('data-opencli-existing-file', '1'));
+        scope.querySelectorAll('[role="group"][aria-label], [data-composer-attachments] button[aria-label], [data-composer-attachments] [role="button"][aria-label]').forEach(node => node.setAttribute('data-opencli-existing-file', '1'));
         return { ok: true };
     })()`)), 'chatgpt file input targeting');
     if (!target.ok) return target;
@@ -2652,25 +2652,54 @@ export async function uploadChatGPTFiles(page, filePaths) {
         if (prepared.paths.some(file => fs.default.statSync(file).size > 25 * 1024 * 1024)) {
             return { ok: false, reason: 'Uploads over 25 MB require a current Browser Bridge extension with native file-input support' };
         }
+        // Base64 can exceed the daemon's 1 MB request limit. Stage bounded,
+        // idempotent chunks on the pinned input, then assign files only once.
+        const chunkSize = 192 * 1024;
         const files = prepared.paths.map(absPath => ({
             name: path.default.basename(absPath),
             mime: mimeFromFilePath(absPath),
-            base64: fs.default.readFileSync(absPath).toString('base64'),
+            bytes: fs.default.readFileSync(absPath),
         }));
-        const fallbackResult = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
-            (() => {
-                const files = ${JSON.stringify(files)};
+        let fallbackResult;
+        try {
+            await page.evaluate(`(() => {
                 const input = document.querySelector('[data-opencli-file-input="1"]');
+                if (!(input instanceof HTMLInputElement)) throw new Error('Pinned file input disappeared');
+                input.__opencliFileChunks = ${JSON.stringify(files.map(file => ({ name: file.name, mime: file.mime, count: Math.max(1, Math.ceil(file.bytes.length / chunkSize)), chunks: [] })))};
+                return true;
+            })()`);
+            for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+                const bytes = files[fileIndex].bytes;
+                const count = Math.max(1, Math.ceil(bytes.length / chunkSize));
+                for (let index = 0; index < count; index += 1) {
+                    const chunk = bytes.subarray(index * chunkSize, (index + 1) * chunkSize).toString('base64');
+                    await page.evaluate(`(() => {
+                        const input = document.querySelector('[data-opencli-file-input="1"]');
+                        if (!input?.__opencliFileChunks) throw new Error('Pinned file input disappeared');
+                        input.__opencliFileChunks[${fileIndex}].chunks[${index}] = ${JSON.stringify(chunk)};
+                        return true;
+                    })()`);
+                }
+            }
+            fallbackResult = requireObjectEvaluateResult(unwrapEvaluateResult(await page.evaluate(`
+            (() => {
+                const input = document.querySelector('[data-opencli-file-input="1"]');
+                const files = input?.__opencliFileChunks;
+                if (!Array.isArray(files)) return { ok: false, reason: 'staged file data is missing' };
                 if (!(input instanceof HTMLInputElement)) {
                     return { ok: false, reason: 'file input not found' };
                 }
 
                 const dt = new DataTransfer();
                 for (const item of files) {
-                    const binary = atob(item.base64);
-                    const bytes = new Uint8Array(binary.length);
-                    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-                    dt.items.add(new File([bytes], item.name, { type: item.mime }));
+                    if (item.chunks.length !== item.count || Array.from({ length: item.count }, (_, index) => item.chunks[index]).some(chunk => typeof chunk !== 'string')) {
+                        return { ok: false, reason: 'staged file data is incomplete' };
+                    }
+                    const parts = item.chunks.map(chunk => {
+                        const binary = atob(chunk);
+                        return Uint8Array.from(binary, char => char.charCodeAt(0));
+                    });
+                    dt.items.add(new File(parts, item.name, { type: item.mime }));
                 }
                 input.files = dt.files;
 
@@ -2694,6 +2723,13 @@ export async function uploadChatGPTFiles(page, filePaths) {
                 return { ok: true };
             })()
         `)), 'chatgpt file upload fallback');
+        } finally {
+            await page.evaluate(`(() => {
+                const input = document.querySelector('[data-opencli-file-input="1"]');
+                if (input) delete input.__opencliFileChunks;
+                return true;
+            })()`);
+        }
         if (fallbackResult && !fallbackResult.ok) return fallbackResult;
     }
 
@@ -2704,7 +2740,7 @@ export async function uploadChatGPTFiles(page, filePaths) {
             const scope = findComposer()?.closest('form');
             if (!scope) return false;
             const names = ${JSON.stringify(names)};
-            const chips = Array.from(scope.querySelectorAll('[role="group"][aria-label], [data-composer-attachments] button[aria-label]')).filter(node => {
+            const chips = Array.from(scope.querySelectorAll('[role="group"][aria-label], [data-composer-attachments] button[aria-label], [data-composer-attachments] [role="button"][aria-label]')).filter(node => {
                 if (node.hasAttribute('data-opencli-existing-file') || node.closest('[hidden], [aria-hidden="true"]')) return false;
                 const card = node.closest('[role="group"], [class~="group/composer-attachment"]') || node;
                 if (!isVisible(node) || card.matches('[aria-busy="true"]') || card.querySelector('[role="progressbar"], [aria-busy="true"], [role="alert"]')) return false;
